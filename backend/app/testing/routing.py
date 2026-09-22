@@ -26,6 +26,7 @@ async def route_as(
     user_id: int,
     guild_id: int,
     satisfied_providers: Optional[Sequence[int] | str] = None,
+    settings: bool = False,
     seat: bool = False,
 ):
     """Route ``session`` into ``guild_id`` as ``user_id``, through the seam.
@@ -35,9 +36,10 @@ async def route_as(
     the community by neither membership nor a live grant — the same refusal the
     request path gives.
 
-    ``seat`` is what the community's four configuration routes ask for, and it
-    is honoured only where the seat is reached — the same two conditions the
-    request path applies.
+    ``settings`` is what the community's configuration and roster routes ask
+    for — the surface a settings grant may serve. ``seat`` is what its four
+    seat routes ask for, and it is honoured only where the seat is reached —
+    the same two conditions the request path applies.
     """
     from app.api.deps import establish_guild_access
     from app.core import auth_context
@@ -59,7 +61,7 @@ async def route_as(
         user,
         guild_id,
         satisfied_providers=satisfied_providers,
-        for_settings=seat,
+        for_settings=settings or seat,
         for_seat=seat,
     )
 

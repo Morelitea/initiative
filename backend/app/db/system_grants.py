@@ -450,12 +450,14 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # caps and plan label (guild_administration_select).
     "guild_administration": frozenset({"SELECT"}),
     # 0145 revoked UPDATE — ``role`` is the system engine's column — and 0266
-    # re-granted it on ``position`` alone, as a column grant. What remains at
-    # the table level is joining (INSERT, member-only policy), leaving (DELETE
+    # re-granted it on ``position`` alone, as a column grant. 0354 took INSERT
+    # back: joining is the system engine's (invite redemption, a community
+    # join, sign-in sync). What remains at the table level is leaving (DELETE
     # of the reader's own row) and reading the routed community's roster.
-    "guild_memberships": frozenset({"SELECT", "INSERT", "DELETE"}),
-    # The schema default, never narrowed. The four guild_* policies admit a
-    # member of the invite's community.
+    "guild_memberships": frozenset({"SELECT", "DELETE"}),
+    # The schema default, never narrowed. The four guild_* policies admit an
+    # administrator of the invite's community — by the membership row, or by a
+    # live settings grant at either rung.
     "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # 0146 moved every write to the system engine for all request-path roles
     # (test_access_grants_are_writable_only_by_the_system_engine). SELECT is
@@ -512,9 +514,9 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "dm_queue": None,
     # Owner-managed under RLS on the platform path; read by the system engine.
     "platform_ai_connections": None,
-    # The schema default, never narrowed. guild_isolation (FOR ALL) narrows
-    # every verb to the routed community's own mappings.
-    "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Read at sign-in and written by the seat's claim-rule routes, both on the
+    # system engine; 0354 took the schema default back from both floors.
+    "oidc_claim_mappings": None,
     # 0131, 0133, 0142: the login provider registry, its secrets and the
     # identity links are the system engine's; each migration took the schema
     # default back from both floors.
@@ -591,7 +593,7 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "users": frozenset({"SELECT"}),
     "guilds": frozenset({"SELECT"}),
     "guild_administration": frozenset({"SELECT"}),
-    "guild_memberships": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "guild_memberships": frozenset({"SELECT", "DELETE"}),
     "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "access_grants": frozenset({"SELECT"}),
     "identity_refs": None,
@@ -620,7 +622,7 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "dm_conversation_members": frozenset({"SELECT", "INSERT", "DELETE"}),
     "dm_queue": frozenset({"SELECT", "INSERT", "DELETE"}),
     "platform_ai_connections": None,
-    "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "oidc_claim_mappings": None,
     "auth_providers": None,
     "auth_provider_secrets": None,
     "federated_identities": frozenset({"SELECT"}),

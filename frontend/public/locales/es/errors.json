@@ -313,6 +313,7 @@
   "ACCESS_GRANT_NOT_ACTIVE": "Esta concesión no está activa.",
   "ACCESS_GRANT_CANNOT_APPROVE_OWN": "No puedes aprobar tu propia solicitud.",
   "ACCESS_GRANT_CANNOT_CANCEL_OTHERS": "Solo puedes cancelar tu propia solicitud.",
+  "ACCESS_GRANT_WRITE_REQUIRED": "Esta concesión permite leer la configuración de la comunidad. Para cambiarla hace falta además una concesión de lectura y escritura.",
   "ACCESS_GRANT_ALREADY_LIVE": "Ya tienes acceso activo a esa comunidad.",
   "ADMIN_CANNOT_ASSIGN_HIGHER_ROLE": "No puedes asignar un rol superior al tuyo.",
   "ADMIN_CANNOT_DEMOTE_LAST_OWNER": "No se puede degradar al último propietario de la plataforma.",

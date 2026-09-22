@@ -313,6 +313,7 @@
   "ACCESS_GRANT_NOT_ACTIVE": "Cet accès n'est pas actif.",
   "ACCESS_GRANT_CANNOT_APPROVE_OWN": "Vous ne pouvez pas approuver votre propre demande.",
   "ACCESS_GRANT_CANNOT_CANCEL_OTHERS": "Vous ne pouvez annuler que votre propre demande.",
+  "ACCESS_GRANT_WRITE_REQUIRED": "Cette autorisation permet de lire les paramètres de la communauté. Pour les modifier, une autorisation en lecture-écriture est également requise.",
   "ACCESS_GRANT_ALREADY_LIVE": "Vous avez déjà un accès actif à cette communauté.",
   "ADMIN_CANNOT_ASSIGN_HIGHER_ROLE": "Vous ne pouvez pas attribuer un rôle supérieur au vôtre.",
   "ADMIN_CANNOT_DEMOTE_LAST_OWNER": "Impossible de rétrograder le dernier propriétaire de la plateforme.",

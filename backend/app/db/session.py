@@ -366,8 +366,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         # - scoped read_write grant (no membership, pam_write): the restricted
         #   guild_<id>_support role — content DML but no writes to the structural
         #   / permission tables (the ``support`` identity).
-        # - settings-only grant: the restricted support role, with no content
-        #   PAM flags.
+        # - settings-only grant: the SELECT-only role. A settings rung reads;
+        #   writing what it reaches takes a read_write content grant beside it,
+        #   which is the case above.
         # - otherwise (real membership): the full guild_<id> role.
         read_only_grant = guild_id is None and pam_read and not pam_write
         support_grant = guild_id is None and pam_write
@@ -380,9 +381,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             # A query runs as the query role whatever else the request is:
             # a member's, a read-only member's, or a grantee's.
             name_fn = guild_query_role_name
-        elif read_only_grant or read_only:
+        elif read_only_grant or read_only or settings_only:
             name_fn = guild_readonly_role_name
-        elif support_grant or settings_only:
+        elif support_grant:
             name_fn = guild_support_role_name
         else:
             name_fn = guild_role_name

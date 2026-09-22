@@ -73,8 +73,9 @@ def test_pam_write_grant_routes_to_support_role():
 
 
 def test_settings_grant_routes_without_content_grant_flags():
+    """A settings rung on its own reads: the SELECT-only role, no content flags."""
     bind = _render_context_bind_params(_params(settings_guild_id=3))
-    assert bind["role"] == guild_support_role_name(3)
+    assert bind["role"] == guild_readonly_role_name(3)
     assert bind["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
     assert bind["gid"] == ""
     assert bind["pgid"] == ""
@@ -168,9 +169,15 @@ class TestTheSeatRoute:
         assert out["role"] == guild_readonly_role_name(4)
         assert out["setgid"] == "4"
 
-    def test_a_settings_only_grant_still_routes_as_support(self):
+    def test_a_settings_only_grant_reads(self):
+        """The rung alone is a view; a read_write grant beside it is what
+        picks the writable role."""
         out = _render_context_bind_params(_params(settings_guild_id=4))
-        assert out["role"] == guild_support_role_name(4)
+        assert out["role"] == guild_readonly_role_name(4)
+        paired = _render_context_bind_params(
+            _params(pam_guild_id=4, pam_write=True, settings_guild_id=4)
+        )
+        assert paired["role"] == guild_support_role_name(4)
 
 
 class TestConnectionReset:

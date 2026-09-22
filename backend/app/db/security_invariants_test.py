@@ -594,10 +594,11 @@ async def test_guild_membership_write_policies_are_tightened(engine):
     """Every request-path membership write is scoped to the caller's own row.
 
     Self-leave DELETE and the reorder UPDATE both match on
-    ``app.current_user_id``, and a request-path insert is pinned to a plain
-    member (migrations 0145, 0266). The UPDATE matching the caller rather than
-    the routed guild is what lets the guild list be reordered from the platform
-    path, which carries no guild at all."""
+    ``app.current_user_id`` (migrations 0145, 0266). Joining is the system
+    engine's (0354): no request-path role holds INSERT and no policy admits
+    one. The UPDATE matching the caller rather than the routed guild is what
+    lets the guild list be reordered from the platform path, which carries no
+    guild at all."""
     async with engine.connect() as conn:
         policies = {
             name: (permissive, cmd, qual, with_check)
@@ -628,12 +629,24 @@ async def test_guild_membership_write_policies_are_tightened(engine):
         "update policy must not require a routed guild — the guild list is "
         f"reordered with none: {update_policy[2]!r}"
     )
-    insert_policy = policies.get("guild_memberships_request_insert_member_only")
-    assert insert_policy is not None, "member-only insert policy is missing"
-    assert insert_policy[0] == "RESTRICTIVE", "insert-member policy must be RESTRICTIVE"
-    assert "member" in (insert_policy[3] or ""), (
-        f"insert-member policy must pin role to member: {insert_policy[3]!r}"
+    inserting = sorted(
+        name for name, (_, cmd, _, _) in policies.items() if cmd == "INSERT"
     )
+    assert inserting == [], f"no policy admits a request-path join: {inserting}"
+    async with engine.connect() as conn:
+        for role in (
+            "app_guild_base",
+            f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+            "app_user",
+        ):
+            held = await conn.scalar(
+                text(
+                    "SELECT has_table_privilege(:role,"
+                    " 'public.guild_memberships', 'INSERT')"
+                ),
+                {"role": role},
+            )
+            assert not held, f"{role} must not hold INSERT on guild_memberships"
 
 
 async def test_access_grants_are_writable_only_by_the_system_engine(engine):
