@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A webhook target that never comes back stops being retried forever** — a subscription whose delivery kept failing was retried on an hourly schedule with no end, holding every later change behind it indefinitely. A batch now gives up once its retry schedule is exhausted, and the changes queued behind it are delivered instead of waiting on one that will never succeed. Every subscription's read now also reports `dead_letter_count`, so a target that has been failing shows up instead of retrying silently with nothing to see.
 - **The Pride pack's hearts are hearts again** — Pride, Non-binary, Trans, Lesbian, Gay, Bisexual, Asexual and Polyamorous each wear a heart trophy whose two lobes were drawn with an arc too tight to reach around itself. Browsers correct that by flattening it, so the top came out as two straight ridges meeting at a shallow notch instead of a rounded heart. The outline is redrawn with real curves, and the striped fill inside it follows the same line.
 - **A couple of corners still said "guild"** — the phrase a community's Danger Zone tab asks you to type to confirm deletion, and the name the calendar app installs under, hadn't caught up with the rest of the app's move to "community." Confirming deletion now asks for `DELETE COMMUNITY <NAME>`, and the app installs as "Community calendar."
 
