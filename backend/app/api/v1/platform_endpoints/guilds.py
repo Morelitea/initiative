@@ -152,7 +152,6 @@ def _serialize_guild(
     pass ``None`` for it and never read the row at all.
     """
     is_admin = membership.role in GUILD_ADMIN_ROLES
-    holds_seat = membership.role is GuildRole.superadmin
     # Role decides, not the caller: passing the row for a member still serves a
     # member's payload, so this stays the one place the split is made.
     admin_row = administration if is_admin else None
@@ -164,7 +163,6 @@ def _serialize_guild(
         updated_at=guild.updated_at,
         role=membership.role,
         is_admin=is_admin,
-        holds_seat=holds_seat,
         position=membership.position,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,

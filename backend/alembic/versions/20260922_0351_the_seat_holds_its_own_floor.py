@@ -15,15 +15,15 @@ guild floor and has never been recorded table by table; the revoke below is
 what makes its reach on this table a decision rather than a default, and
 ``SHARED_TABLE_PLATFORM_BASE_GRANTS`` records the rest of it.
 
-Revision ID: 20260922_0349
-Revises: 20260922_0348
+Revision ID: 20260922_0351
+Revises: 20260922_0350
 Create Date: 2026-09-22
 """
 
 from alembic import op
 
-revision = "20260922_0349"
-down_revision = "20260922_0348"
+revision = "20260922_0351"
+down_revision = "20260922_0350"
 branch_labels = None
 depends_on = None
 

@@ -74,8 +74,8 @@ _SYSTEM_ENGINE = ("DATABASE_URL_ADMIN", "app_admin")
 #: there first, and a ``CREATEROLE`` login holds ADMIN only on the roles it
 #: created itself.
 ADMINISTERED_ROLE_PATTERN = (
-    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'app_profile_reader', "
-    "'app_dm_reader', 'platform_base', 'app_superadmin', "
+    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'app_superadmin', "
+    "'app_profile_reader', 'app_dm_reader', 'platform_base', "
     "'platform_member', 'platform_support', 'platform_moderator', "
     "'platform_operator', 'platform_owner') "
     "OR rolname ~ '^guild_[0-9]+(_ro|_support|_q|_superadmin)?$'"

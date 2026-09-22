@@ -92,16 +92,13 @@ export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
  * Data or the danger zone asks this, and an ordinary admin is not shown a
  * button the server refuses.
  *
- * Read, not derived: the server answers it on the guild's own payload
- * (`GuildRead.holds_seat`) and on the grant a switcher entry is built from
- * (`AccessGrantRead.holds_guild_seat`), by the same rule
- * `public.guild_superadmin` applies in the database — the membership row, or
- * a live settings grant at the superadmin rung, which is the seat lent to
- * somebody for a window.
+ * The seat is the community's top rung, so this reads the rung rather than a
+ * flag of its own: `GuildRead.role` is what the caller holds here — the
+ * membership row's rung, or the one a live settings grant lends for its
+ * window. The same rule `public.guild_superadmin` applies in the database.
  */
-export const holdsGuildSeat = (
-  guild: { holds_seat?: boolean | null } | null | undefined
-): boolean => Boolean(guild?.holds_seat);
+export const holdsGuildSeat = (guild: { role?: string | null } | null | undefined): boolean =>
+  guild?.role === "superadmin";
 
 /**
  * Whether this request administers the community's own configuration.

@@ -23,8 +23,8 @@ export function resetCounter(): void {
 
 export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
   counter++;
-  // Mirrors what the server computes: a role override lands on `is_admin` and
-  // `holds_seat` without every test having to set all three.
+  // Mirrors what the server computes: a role override lands on `is_admin`
+  // without every test having to set both. The seat is the rung itself.
   const role = overrides.role ?? "member";
   return {
     id: counter,
@@ -35,7 +35,6 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     online_count: 0,
     role,
     is_admin: role === "admin" || role === "superadmin",
-    holds_seat: role === "superadmin",
     position: counter - 1,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",

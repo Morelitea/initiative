@@ -163,22 +163,10 @@ class AccessGrantRead(SanitizedBaseModel):
         Both settings rungs do: the lower one is "what a guild admin
         administers". Answered here rather than by whatever reads the row, so
         a switcher entry built from a grant carries the same answer a guild's
-        own payload does (``GuildRead.is_admin``).
+        own payload does (``GuildRead.is_admin``). Which rung it is, is
+        ``access_level`` — the community's own ladder, borrowed.
         """
         return self.is_live and self.purpose == "settings"
-
-    @computed_field(return_type=bool)  # type: ignore[misc]
-    @property
-    def holds_guild_seat(self) -> bool:
-        """Whether this grant is the community's top seat, for its window.
-
-        The ``superadmin`` rung, beside :attr:`administers_guild` and for the
-        same reason (``GuildRead.holds_seat``).
-        """
-        return (
-            self.administers_guild
-            and self.access_level == SettingsLevel.superadmin.value
-        )
 
 
 class BreakGlassRequirements(SanitizedBaseModel):

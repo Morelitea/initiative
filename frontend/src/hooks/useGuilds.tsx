@@ -111,12 +111,11 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   // Nobody is "here" in a guild reached only by a grant until its own payload
   // arrives and says so.
   online_count: 0,
-  role: "member",
-  // What this grant reaches, as the server answered it on the grant itself —
-  // the same two questions a guild's own payload answers, so a screen asks
-  // one question whichever way the community was reached.
+  // The rung this grant lends, as the server recorded it on the grant — the
+  // community's own ladder, borrowed. A guild's own payload carries the same
+  // field, so a screen asks one question whichever way it was reached.
+  role: settingsGrantLevel(settingsGrant) ?? "member",
   is_admin: settingsGrant?.administers_guild ?? false,
-  holds_seat: settingsGrant?.holds_guild_seat ?? false,
   // A settings grant carries no content access; a content grant is what does.
   reachesContent: grant.purpose === "content",
   position: Number.MAX_SAFE_INTEGER,
