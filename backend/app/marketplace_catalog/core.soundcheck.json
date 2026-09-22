@@ -8,8 +8,8 @@
   "long_description": "A meter jumping, a field at night, and a line of music with the place being played lit as it goes past. Put the headphones on, step into the beams, be the side that is playing, or let a record turn around you. Then eight to wear: guitar, keys, sax, violin, mic, drums, turntable, and the cassette a band hands you when they really want you to hear it.",
   "avatar_url": "/decorations/banners/music-soundcheck.svg",
   "images": [],
-  "version": "1.5.0",
-  "release_notes": "Headphones, stage lights and a tape that turns.",
+  "version": "1.6.0",
+  "release_notes": "Trophies renamed to say who you are, not what you're holding.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -27,7 +27,7 @@
       {
         "id": "music.cassette",
         "slot": "trophy",
-        "name": "Cassette"
+        "name": "Mixtape maker"
       },
       {
         "id": "music.festival",
@@ -37,32 +37,32 @@
       {
         "id": "music.guitar",
         "slot": "trophy",
-        "name": "Electric guitar"
+        "name": "Guitarist"
       },
       {
         "id": "music.keys",
         "slot": "trophy",
-        "name": "Keys"
+        "name": "Keyboardist"
       },
       {
         "id": "music.sax",
         "slot": "trophy",
-        "name": "Saxophone"
+        "name": "Sax player"
       },
       {
         "id": "music.violin",
         "slot": "trophy",
-        "name": "Violin"
+        "name": "Violinist"
       },
       {
         "id": "music.mic",
         "slot": "trophy",
-        "name": "Microphone"
+        "name": "Vocalist"
       },
       {
         "id": "music.drums",
         "slot": "trophy",
-        "name": "Drum kit"
+        "name": "Drummer"
       },
       {
         "id": "music.sheet",
@@ -72,7 +72,7 @@
       {
         "id": "music.turntable",
         "slot": "trophy",
-        "name": "Turntable"
+        "name": "Vinyl collector"
       },
       {
         "id": "music.headphones",
