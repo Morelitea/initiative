@@ -50,36 +50,26 @@ async def _create_file_document(
     owner,
     filename: str,
 ) -> Document:
-    """Create a file-type Document with a dummy file on disk and owner permission."""
+    """A file-type document with a dummy file on disk, made the way every
+    test document is made: through the factory, which routes by the
+    initiative and writes the owner grant."""
     # Stage the blob via the real resolver so it lands where the serve path reads
     # it (UPLOADS_DIR/guild_<id>/), and use the canonical guild-scoped URL.
     from app.services.storage import get_guild_storage
 
     get_guild_storage(guild_of(initiative)).write(filename, b"%PDF-1.4 test")
 
-    doc = Document(
+    return await create_document(
+        session,
+        initiative,
+        owner,
         name="Test File Doc",
-        initiative_id=initiative.id,
-        created_by=owner.id,
         document_type=DocumentType.file,
         file_url=f"/uploads/{guild_of(initiative)}/{filename}",
         original_filename=filename,
         file_content_type="application/pdf",
         file_size=13,
     )
-    session.add(doc)
-    await session.flush()
-
-    perm = ResourceGrant(
-        resource_type="document",
-        resource_id=doc.id,
-        user_id=owner.id,
-        level=ResourceAccessLevel.owner,
-        initiative_id=doc.initiative_id,
-    )
-    session.add(perm)
-    await session.commit()
-    return doc
 
 
 @pytest.mark.integration
