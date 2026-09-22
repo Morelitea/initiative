@@ -121,11 +121,13 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
     "guild_app_user_delegations",
 )
 
-# Direct grants for the one guild-scoped lifecycle operation that must ignore
-# tenant visibility rules: removing an account's embedded display name. The
-# system login can already assume every guild role, so this adds no reachable
-# guild; it lets that narrowly bounded maintenance retain app_admin's BYPASSRLS
-# identity instead of expanding the comments UPDATE through every RLS path.
+# Direct grants for the guild-scoped system operations that must not go through
+# tenant visibility rules: removing an account's embedded display name, and the
+# webhook poller's scan for what each subscription is still owed. The system
+# login can already assume every guild role, so this adds no reachable guild;
+# it lets those narrowly bounded operations retain app_admin's BYPASSRLS
+# identity instead of putting a comments UPDATE, or a scan of the whole change
+# log every five seconds, through initiative_access() one row at a time.
 SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     "comments": ("SELECT", "UPDATE"),
     "documents": ("SELECT", "UPDATE"),
@@ -152,6 +154,15 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     "event_outbox": (
         "INSERT (txn_id, occurred_at, actor_user_id, initiative_id, "
         "resource_type, resource_id, action, changed, parents)",
+        # The poller's candidate scan: which transactions exist, in what order.
+        # Nothing of what a row says — that is read per transaction, as the
+        # subscription's owner, where RLS decides it.
+        "SELECT (id, txn_id)",
+    ),
+    # The other half of that scan: what the ledger already records as settled
+    # or leased for a subscription, so only the remainder is named.
+    "webhook_deliveries": (
+        "SELECT (subscription_id, txn_id, delivered_at, next_attempt_at)",
     ),
     "search_entries": (
         "SELECT (entity_type, entity_id)",

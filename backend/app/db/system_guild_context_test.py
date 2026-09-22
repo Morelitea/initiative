@@ -26,6 +26,13 @@ MIGRATION = (
     / "20260916_0278_system_account_erasure_route.py"
 )
 
+OUTBOX_SCAN_MIGRATION = (
+    Path(__file__).resolve().parents[2]
+    / "alembic"
+    / "versions"
+    / "20260921_0345_the_poller_scans_the_log_as_the_system.py"
+)
+
 pytestmark = pytest.mark.integration
 
 _EXPECTED_TABLE_GRANTS = {
@@ -77,8 +84,18 @@ _EXPECTED_COLUMN_GRANTS = {
 _EXPECTED_SEQUENCE_GRANTS = {("event_outbox_id_seq", "USAGE")}
 
 
-def _load_migration() -> ModuleType:
-    spec = importlib.util.spec_from_file_location(MIGRATION.stem, MIGRATION)
+_EXPECTED_OUTBOX_SCAN_COLUMN_GRANTS = {
+    ("event_outbox", "id", "SELECT"),
+    ("event_outbox", "txn_id", "SELECT"),
+    ("webhook_deliveries", "subscription_id", "SELECT"),
+    ("webhook_deliveries", "txn_id", "SELECT"),
+    ("webhook_deliveries", "delivered_at", "SELECT"),
+    ("webhook_deliveries", "next_attempt_at", "SELECT"),
+}
+
+
+def _load_migration(path: Path = MIGRATION) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -189,3 +206,47 @@ async def test_migration_backfills_and_reverses_only_its_direct_grants(
     assert _EXPECTED_COLUMN_GRANTS.isdisjoint(await direct_column_grants())
     assert _EXPECTED_SEQUENCE_GRANTS.isdisjoint(await direct_sequence_grants())
     assert ("uploads", "SELECT") in remaining_tables
+
+
+async def test_outbox_scan_migration_grants_only_its_columns(session, engine) -> None:
+    """The poller's candidate scan keeps BYPASSRLS on exactly the columns it
+    reads. The migration adds those, and reversing it removes those and nothing
+    else — the erasure route's grants from 0278 are left standing."""
+    migration = _load_migration(OUTBOX_SCAN_MIGRATION)
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    schema = f"guild_{guild.id}"
+
+    async def direct_column_grants() -> set[tuple[str, str, str]]:
+        rows = (
+            await session.exec(
+                text(
+                    "SELECT table_name, column_name, privilege_type "
+                    "FROM information_schema.role_column_grants "
+                    "WHERE grantee = 'app_admin' AND table_schema = :schema"
+                ),
+                params={"schema": schema},
+            )
+        ).all()
+        return {(str(row[0]), str(row[1]), str(row[2])) for row in rows}
+
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            lambda sync: migration._revoke_from_schema(sync, schema)
+        )
+    assert _EXPECTED_OUTBOX_SCAN_COLUMN_GRANTS.isdisjoint(await direct_column_grants())
+
+    async with engine.begin() as connection:
+        await connection.run_sync(lambda sync: migration._grant_to_schema(sync, schema))
+    after_upgrade = await direct_column_grants()
+    assert _EXPECTED_OUTBOX_SCAN_COLUMN_GRANTS <= after_upgrade
+    # The erasure route's INSERT grants on the same table are untouched.
+    assert ("event_outbox", "txn_id", "INSERT") in after_upgrade
+
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            lambda sync: migration._revoke_from_schema(sync, schema)
+        )
+    after_downgrade = await direct_column_grants()
+    assert _EXPECTED_OUTBOX_SCAN_COLUMN_GRANTS.isdisjoint(after_downgrade)
+    assert ("event_outbox", "txn_id", "INSERT") in after_downgrade
