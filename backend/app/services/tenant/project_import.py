@@ -53,7 +53,11 @@ from app.schemas.tenant.project_export import (
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
-from app.services.import_engine.people import PeopleMap, initiative_member_id
+from app.services.import_engine.people import (
+    PeopleMap,
+    initiative_member_id,
+    quoted_account,
+)
 from app.services.tenant import task_completion
 from app.services.tenant.task_statuses import defaults_for_category
 from app.services.import_engine.common import (
@@ -487,11 +491,12 @@ def _link_mentions(
     """
     if not text or not handles:
         return text
+    people = context.people if context is not None else PeopleMap()
     targets: dict[str, int] = {}
     for handle in handles:
-        mapped = context.people.user_id(handle) if context is not None else None
-        if mapped is None:
-            mapped = initiative_member_handles.get(handle_key(handle))
+        mapped = quoted_account(
+            handle, people=people, member_handles=initiative_member_handles
+        )
         if mapped is not None:
             targets[handle] = mapped
     if not targets:

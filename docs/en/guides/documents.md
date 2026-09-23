@@ -40,7 +40,7 @@ file picker.
 
 ## Writing a text document
 
-The editor has what you'd expect: **bold, italic, underline**, headings, quotes, code blocks, bulleted and numbered lists, checklists, alignment, images, tables, dividers, embedded video, and undo for when you change your mind.
+The editor has what you'd expect: **bold, italic, underline**, headings, quotes, code blocks, bulleted and numbered lists, checklists, alignment, images, tables, columns, dividers, embedded video, and undo for when you change your mind.
 
 Everything **autosaves**. There is no save button — which means there is no save button to forget to press at 11pm, and no version of this evening where you lose forty minutes of work to a browser tab.
 
@@ -49,9 +49,22 @@ Four keys do more than they look like they do:
 - `@` mentions a person.
 - `#` links to anything in the initiative. See [Mentions & links](mentions-and-links.md).
 - `[[` links to another document — and offers to make one if the name is new.
-- `/` opens the insert menu: images, tables, embeds, and [smart chips](#smart-chips).
+- `/` opens the insert menu: images, tables, callouts, drawings, embeds, and [smart chips](#smart-chips).
 
 ![The document editor](../images/documents/editor.png)
+
+A few pieces are worth knowing by name:
+
+| | |
+|---|---|
+| **Callouts** | A coloured panel for the thing nobody should miss — **Info**, **Note**, **Tip**, **Success**, **Warning** or **Error**. Unlike a quote it holds anything: lists, code, a table. The little menu in its corner changes the kind or takes the panel away and keeps the words. |
+| **Merged cells** | Drag across cells in a table and **Merge cells** from the table menu joins them into one; **Unmerge cells** splits it back. For the header that sits over three columns, and the row label that runs down two. |
+| **Drawings** | A small whiteboard inside the page. Draw it, save it, and it sits there as a picture. **Edit drawing** opens it again. |
+
+The **Markdown** button at the bottom of the editor shows the whole document as markdown and back. Callouts are written the way Obsidian writes them (`> [!warning]`), merged cells the way MultiMarkdown does (`||` and `^^`), columns as Pandoc's fenced divs (`:::: {.columns}`), and a drawing as its scene in an `excalidraw` code block, so all of it survives the round trip — and a file from those tools pastes in and comes out right.
+
+!!! note "Drawings in exports"
+    A Markdown export keeps each drawing the same way. Word and PDF leave drawings out: a drawing is redrawn by the browser every time it's shown, and a printed page has no browser in it.
 
 ## Smart chips
 

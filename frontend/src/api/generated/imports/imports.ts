@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AtlassianConfluenceImportRequest,
   AtlassianConnectRequest,
   AtlassianConnectResponse,
   AtlassianJiraImportRequest,
@@ -622,6 +623,121 @@ export const useStartJiraImportApiV1GGuildIdImportsAtlassianJiraPost = <
 > => {
   return useMutation(
     getStartJiraImportApiV1GGuildIdImportsAtlassianJiraPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Start reading Confluence spaces into an initiative, one wiki each.
+ *
+ * The Jira start's twin: the token rides on the job, encrypted, until the
+ * job is over; the worker reads the spaces while the job is ``fetching`` and
+ * parks it at ``staged`` with the plan — pages, what will not come over, and
+ * the people the pages name — for ``POST /imports/jobs/{id}/confirm``.
+ *
+ * The initiative needs wikis switched on and the caller needs to be able to
+ * create them there, checked now, before the site is read, and at apply.
+ * @summary Start Confluence Import
+ */
+export const startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost = (
+  guildId: number,
+  atlassianConfluenceImportRequest: BodyType<AtlassianConfluenceImportRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportJobRead>(
+    {
+      url: `/api/v1/g/${guildId}/imports/atlassian/confluence`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: atlassianConfluenceImportRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationKey = () =>
+  ["startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost"] as const;
+
+export const getStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost>>,
+    TError,
+    StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost>>,
+  TError,
+  StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost>>,
+    StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationVariables
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost(
+      guildId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost>>
+  >;
+export type StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationBody =
+  BodyType<AtlassianConfluenceImportRequest>;
+export type StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationVariables = {
+  guildId: number;
+  data: BodyType<AtlassianConfluenceImportRequest>;
+};
+
+/**
+ * @summary Start Confluence Import
+ */
+export const useStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost>>,
+      TError,
+      StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof startConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost>>,
+  TError,
+  StartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePostMutationOptions(options),
     queryClient
   );
 };

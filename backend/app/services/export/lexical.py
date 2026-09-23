@@ -21,6 +21,7 @@ the export design); it renders as a plain link instead.
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from typing import Any, Callable
 
@@ -85,6 +86,17 @@ class _Parser:
                 runs = []
                 self.flush_paragraph()
                 self.image_block(node)
+                continue
+            if ntype == "excalidraw":
+                # A drawing splits it the same way. Its scene travels as it
+                # is: markdown keeps it, and a format that cannot draw it
+                # leaves it out.
+                self._pending_runs.extend(runs)
+                runs = []
+                self.flush_paragraph()
+                self.blocks.append(
+                    {"type": "drawing", "data": str(node.get("data") or "")}
+                )
                 continue
             text = node.get("text")
             if isinstance(text, str) and text:
@@ -153,6 +165,29 @@ class _Parser:
             self.blocks.append({"type": "hr"})
         elif ntype == "table":
             self.blocks.append(self.table_block(node))
+        elif ntype == "callout":
+            self.flush_paragraph()
+            self.blocks.append(
+                {
+                    "type": "callout",
+                    "variant": str(node.get("variant") or "note"),
+                    "blocks": self.nested(children),
+                }
+            )
+        elif ntype == "layout-container":
+            self.flush_paragraph()
+            items = [c for c in children if c.get("type") == "layout-item"]
+            self.blocks.append(
+                {
+                    "type": "columns",
+                    "widths": _column_widths(
+                        str(node.get("templateColumns") or ""), len(items)
+                    ),
+                    "columns": [
+                        self.nested(item.get("children") or []) for item in items
+                    ],
+                }
+            )
         elif ntype == "image":
             self.image_block(node)
         elif ntype in ("youtube", "tweet"):
@@ -165,6 +200,15 @@ class _Parser:
             # Unknown container (layout containers/items, future nodes):
             # its children still export.
             self.walk_children(children)
+
+    def nested(self, children: list) -> list[dict]:
+        """Blocks inside a block — a callout's, a column's — sharing this
+        document's one asset list, however deep an image sits."""
+        inner = _Parser(self.guild_id)
+        inner.assets = self.assets
+        inner.walk_children(children)
+        inner.flush_paragraph()
+        return inner.blocks
 
     def list_block(self, node: dict) -> dict:
         list_type = node.get("listType")  # "bullet" | "number" | "check"
@@ -192,11 +236,20 @@ class _Parser:
         }
 
     def table_block(self, node: dict) -> dict:
+        """A table as rows of cells' runs.
+
+        A table with merged cells also carries ``spans`` — each cell's
+        ``[colspan, rowspan]``, row by row — and ``width``, the columns of
+        the grid those spans sit in. A table without merges carries neither,
+        and renders exactly as it always has.
+        """
         rows: list[list[list[dict]]] = []
+        spans: list[list[list[int]]] = []
         for row in node.get("children") or []:
             if row.get("type") != "tablerow":
                 continue
             cells: list[list[dict]] = []
+            row_spans: list[list[int]] = []
             for cell in row.get("children") or []:
                 if cell.get("type") != "tablecell":
                     continue
@@ -206,9 +259,17 @@ class _Parser:
                         cell_runs.append({"text": "\n"})
                     cell_runs.extend(self.collect_runs(para.get("children") or []))
                 cells.append(cell_runs)
+                row_spans.append(
+                    [_span(cell.get("colSpan")), _span(cell.get("rowSpan"))]
+                )
             if cells:
                 rows.append(cells)
-        return {"type": "table", "rows": rows}
+                spans.append(row_spans)
+        block: dict[str, Any] = {"type": "table", "rows": rows}
+        if any(span != [1, 1] for row in spans for span in row):
+            block["spans"] = spans
+            block["width"] = _grid_width(spans)
+        return block
 
     def image_block(self, node: dict) -> None:
         src = str(node.get("src") or "")
@@ -238,6 +299,62 @@ class _Parser:
         elif src:
             # External (or cross-guild) image: never fetched — link only.
             self.blocks.append({"type": "image", "asset": None, "url": src, "alt": alt})
+
+
+def _column_widths(template: str, count: int) -> list[int]:
+    """A column template (``1fr 3fr``) as whole percentages, one per
+    column; a template that does not say is shared out evenly."""
+    parts: list[float] = []
+    for part in template.split():
+        try:
+            value = float(part.removesuffix("fr"))
+        except ValueError:
+            value = 1.0
+        parts.append(value if value > 0 else 1.0)
+    if len(parts) != count:
+        parts = [1.0] * count
+    total = sum(parts) or 1.0
+    return [round(part / total * 100) for part in parts]
+
+
+def _span(value: Any) -> int:
+    return (
+        value
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0
+        else 1
+    )
+
+
+def _grid_width(spans: list[list[list[int]]]) -> int:
+    """How many columns a table's grid has, once merged cells take theirs."""
+    return max((len(row) for row in _grid(spans)), default=0)
+
+
+def _grid(spans: list[list[list[int]]]) -> list[list[tuple[int, int] | None]]:
+    """Each grid position's owner as ``(row, cell)``, or ``None`` for a hole.
+
+    A cell spanning columns owns every position it covers in its row; one
+    spanning rows owns its column in the rows below, which is where a later
+    row's cells skip past it.
+    """
+    grid: list[list[tuple[int, int] | None]] = []
+    for r, row in enumerate(spans):
+        while len(grid) <= r:
+            grid.append([])
+        column = 0
+        for c, (colspan, rowspan) in enumerate(row):
+            while column < len(grid[r]) and grid[r][column] is not None:
+                column += 1
+            for dr in range(rowspan):
+                while len(grid) <= r + dr:
+                    grid.append([])
+                line = grid[r + dr]
+                while len(line) < column + colspan:
+                    line.append(None)
+                for dc in range(colspan):
+                    line[column + dc] = (r, c)
+            column += colspan
+    return grid[: len(spans)]
 
 
 def _image_size(node: dict) -> dict:
@@ -325,8 +442,37 @@ def _md_block(block: dict, indent: str = "") -> list[str]:
         return [f"{'#' * level} {_md_runs(block.get('runs') or [])}"]
     if btype == "quote":
         return [f"> {_md_runs(block.get('runs') or [])}"]
+    if btype == "callout":
+        # Obsidian's callout, which GitHub reads as an alert.
+        lines = [f"> [!{block.get('variant') or 'note'}]"]
+        for index, inner in enumerate(block.get("blocks") or []):
+            if index:
+                lines.append(">")
+            lines.extend(f"> {line}" if line else ">" for line in _md_block(inner))
+        return lines
+    if btype == "columns":
+        # Pandoc's fenced divs: plain markdown has no columns of its own.
+        lines = [":::: {.columns}"]
+        widths = block.get("widths") or []
+        for index, column in enumerate(block.get("columns") or []):
+            width = widths[index] if index < len(widths) else 0
+            lines.append(f'::: {{.column width="{width}%"}}')
+            for inner_index, inner in enumerate(column):
+                if inner_index:
+                    lines.append("")
+                lines.extend(_md_block(inner))
+            lines.append(":::")
+        lines.append("::::")
+        return lines
     if btype == "code":
         return [f"```{block.get('language') or ''}", block.get("text") or "", "```"]
+    if btype == "drawing":
+        # The editor's own form: the scene in a fence tagged ``excalidraw``,
+        # longer than any run of backticks inside it.
+        data = block.get("data") or ""
+        longest = max((len(run) for run in re.findall(r"`+", data)), default=0)
+        fence = "`" * max(3, longest + 1)
+        return [f"{fence}excalidraw", data, fence]
     if btype == "hr":
         return ["---"]
     if btype == "image":
@@ -361,6 +507,8 @@ def _md_table(block: dict) -> list[str]:
     rows = block.get("rows") or []
     if not rows:
         return []
+    if block.get("spans"):
+        return _md_merged_table(block)
     width = max(len(r) for r in rows)
 
     def cells(row: list) -> str:
@@ -372,6 +520,45 @@ def _md_table(block: dict) -> list[str]:
 
     lines = [cells(rows[0]), "|" + "|".join(" --- " for _ in range(width)) + "|"]
     lines.extend(cells(row) for row in rows[1:])
+    return lines
+
+
+def _md_merged_table(block: dict) -> list[str]:
+    """A table with merged cells, in MultiMarkdown's table syntax.
+
+    Plain markdown has no merged cell, so this uses the extension that does:
+    a cell spanning columns is followed by one extra ``|`` per column it
+    takes (``| wide ||``), and a position covered by the cell above holds
+    ``^^``. A reader that does not know the syntax still sees every cell's
+    words, in order.
+    """
+    rows = block.get("rows") or []
+    grid = _grid(block["spans"])
+    width = int(block.get("width") or 0)
+
+    def text(r: int, c: int) -> str:
+        return _md_runs(rows[r][c]).replace("\n", " ").replace("|", "\\|").strip()
+
+    lines: list[str] = []
+    for r, line in enumerate(grid):
+        parts: list[str] = []
+        column = 0
+        while column < width:
+            owner = line[column] if column < len(line) else None
+            if owner is None:
+                parts.append("| ")
+                column += 1
+                continue
+            if owner[0] != r:
+                parts.append("| ^^ ")
+                column += 1
+                continue
+            colspan = block["spans"][owner[0]][owner[1]][0]
+            parts.append(f"| {text(*owner)} " + "|" * (colspan - 1))
+            column += colspan
+        lines.append("".join(parts) + "|")
+        if r == 0:
+            lines.append("|" + "|".join(" --- " for _ in range(width)) + "|")
     return lines
 
 
@@ -452,7 +639,89 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
                 add_list(nested, level + 1)
 
     name_to_key = {a["name"]: a["key"] for a in (data.get("assets") or [])}
-    for block in data.get("blocks") or []:
+
+    def set_columns(section, widths: list[int] | None) -> None:
+        """Lay a section out in columns at these percentage widths, or back
+        in one column with ``None``."""
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        sect_pr = section._sectPr
+        for existing in sect_pr.findall(qn("w:cols")):
+            sect_pr.remove(existing)
+        cols = OxmlElement("w:cols")
+        if not widths:
+            cols.set(qn("w:num"), "1")
+            sect_pr.append(cols)
+            return
+        gap = 360  # twips: a quarter inch between columns
+        # Lengths are EMUs; a twip is 635 of them.
+        page = int(section.page_width or 0) - int(section.left_margin or 0)
+        page -= int(section.right_margin or 0)
+        usable = max(1, page // 635 - gap * (len(widths) - 1))
+        total = sum(widths) or 1
+        cols.set(qn("w:num"), str(len(widths)))
+        cols.set(qn("w:space"), str(gap))
+        cols.set(qn("w:equalWidth"), "0")
+        for width in widths:
+            col = OxmlElement("w:col")
+            col.set(qn("w:w"), str(max(1, int(usable * width / total))))
+            col.set(qn("w:space"), str(gap))
+            cols.append(col)
+        sect_pr.append(cols)
+
+    def add_columns(block: dict) -> None:
+        """Columns as Word's own: a continuous section in as many columns as
+        the page had, each column's blocks ended by a column break, then a
+        section back in one column for what follows."""
+        from docx.enum.section import WD_SECTION
+
+        columns = block.get("columns") or []
+        widths = list(block.get("widths") or [])
+        if len(widths) != len(columns):
+            widths = [1] * len(columns)
+        set_columns(document.add_section(WD_SECTION.CONTINUOUS), widths)
+        for index, column in enumerate(columns):
+            for inner in _flatten_callouts(column):
+                add_block(inner)
+            if index < len(columns) - 1:
+                document.add_paragraph().add_run().add_break(WD_BREAK.COLUMN)
+        set_columns(document.add_section(WD_SECTION.CONTINUOUS), None)
+
+    def add_table(block: dict) -> None:
+        rows = block.get("rows") or []
+        if not rows:
+            return
+        spans = block.get("spans")
+        if not spans:
+            width = max(len(r) for r in rows)
+            table = document.add_table(rows=len(rows), cols=width)
+            table.style = "Table Grid"
+            for r_idx, row in enumerate(rows):
+                for c_idx, cell_runs in enumerate(row):
+                    add_runs(table.cell(r_idx, c_idx).paragraphs[0], cell_runs)
+            return
+        grid = _grid(spans)
+        table = document.add_table(rows=len(grid), cols=int(block.get("width") or 1))
+        table.style = "Table Grid"
+        placed: set[tuple[int, int]] = set()
+        for r_idx, line in enumerate(grid):
+            for c_idx, owner in enumerate(line):
+                if owner is None or owner in placed:
+                    continue
+                placed.add(owner)
+                colspan, rowspan = spans[owner[0]][owner[1]]
+                cell = table.cell(r_idx, c_idx)
+                if colspan > 1 or rowspan > 1:
+                    cell = cell.merge(
+                        table.cell(
+                            min(r_idx + rowspan, len(grid)) - 1,
+                            min(c_idx + colspan, len(table.columns)) - 1,
+                        )
+                    )
+                add_runs(cell.paragraphs[0], rows[owner[0]][owner[1]])
+
+    def add_block(block: dict) -> None:
         btype = block.get("type")
         if btype == "heading":
             document.add_heading(
@@ -474,15 +743,7 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
         elif btype == "list":
             add_list(block)
         elif btype == "table":
-            rows = block.get("rows") or []
-            if rows:
-                width = max(len(r) for r in rows)
-                table = document.add_table(rows=len(rows), cols=width)
-                table.style = "Table Grid"
-                for r_idx, row in enumerate(rows):
-                    for c_idx, cell_runs in enumerate(row):
-                        cell_paragraph = table.cell(r_idx, c_idx).paragraphs[0]
-                        add_runs(cell_paragraph, cell_runs)
+            add_table(block)
         elif btype == "image":
             if block.get("asset"):
                 key = name_to_key.get(block["asset"])
@@ -509,9 +770,37 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
         else:  # paragraph
             add_runs(document.add_paragraph(), block.get("runs") or [])
 
+    for top in data.get("blocks") or []:
+        if top.get("type") == "columns" and top.get("columns"):
+            add_columns(top)
+            continue
+        for block in _flatten_callouts([top]):
+            add_block(block)
+
     out = io.BytesIO()
     document.save(out)
     return out.getvalue()
+
+
+def _flatten_callouts(blocks: list[dict]) -> list[dict]:
+    """Blocks with each callout and each set of columns laid out in line —
+    a callout's kind as a bold label, then what it holds; columns one after
+    another — for a renderer with no panel or grid of its own to draw."""
+    out: list[dict] = []
+    for block in blocks:
+        btype = block.get("type")
+        if btype == "callout":
+            label = str(block.get("variant") or "note").capitalize()
+            out.append({"type": "quote", "runs": [{"text": label, "bold": True}]})
+            out.extend(_flatten_callouts(block.get("blocks") or []))
+        elif btype == "columns":
+            for column in block.get("columns") or []:
+                out.extend(_flatten_callouts(column))
+        elif btype == "drawing":
+            continue
+        else:
+            out.append(block)
+    return out
 
 
 def _plain_text(runs: list[dict]) -> str:

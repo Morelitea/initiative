@@ -16,6 +16,7 @@ import { ImportExportPlugin } from "@/components/ui/editor/plugins/actions/impor
 import { MarkdownTogglePlugin } from "@/components/ui/editor/plugins/actions/markdown-toggle-plugin";
 import { SpeechToTextPlugin } from "@/components/ui/editor/plugins/actions/speech-to-text-plugin";
 import { TreeViewPlugin } from "@/components/ui/editor/plugins/actions/tree-view-plugin";
+import { CalloutActionMenuPlugin } from "@/components/ui/editor/plugins/callout-action-menu-plugin";
 import { CodeActionMenuPlugin } from "@/components/ui/editor/plugins/code-action-menu-plugin";
 import { ComponentPickerMenuPlugin } from "@/components/ui/editor/plugins/component-picker-menu-plugin";
 import { ContextMenuPlugin } from "@/components/ui/editor/plugins/context-menu-plugin";
@@ -34,10 +35,12 @@ import { MentionedPeoplePlugin } from "@/components/ui/editor/plugins/mentioned-
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
 import { BulletedListPickerPlugin } from "@/components/ui/editor/plugins/picker/bulleted-list-picker-plugin";
+import { CalloutPickerPlugins } from "@/components/ui/editor/plugins/picker/callout-picker-plugin";
 import { CheckListPickerPlugin } from "@/components/ui/editor/plugins/picker/check-list-picker-plugin";
 import { CodePickerPlugin } from "@/components/ui/editor/plugins/picker/code-picker-plugin";
 import { ColumnsLayoutPickerPlugin } from "@/components/ui/editor/plugins/picker/columns-layout-picker-plugin";
 import { DividerPickerPlugin } from "@/components/ui/editor/plugins/picker/divider-picker-plugin";
+import { DrawingPickerPlugin } from "@/components/ui/editor/plugins/picker/drawing-picker-plugin";
 import { EmbedsPickerPlugin } from "@/components/ui/editor/plugins/picker/embeds-picker-plugin";
 import { HeadingPickerPlugin } from "@/components/ui/editor/plugins/picker/heading-picker-plugin";
 import { ImagePickerPlugin } from "@/components/ui/editor/plugins/picker/image-picker-plugin";
@@ -351,6 +354,7 @@ export function Plugins({
             scroll past. What is NOT gated is what a reader needs: the nodes
             themselves, the chip scope, wikilinks, link sanitizing. */}
         {!readOnly && <TableActionMenuPlugin anchorElem={floatingAnchorElem} readOnly={readOnly} />}
+        {!readOnly && <CalloutActionMenuPlugin anchorElem={floatingAnchorElem} />}
         {!readOnly && <TabIndentationPlugin />}
 
         <LegacyNodesPlugin />
@@ -400,11 +404,13 @@ export function Plugins({
               NumberedListPickerPlugin(),
               BulletedListPickerPlugin(),
               QuotePickerPlugin(),
+              ...CalloutPickerPlugins(t),
               CodePickerPlugin(),
               DividerPickerPlugin(),
               EmbedsPickerPlugin({ embed: "tweet" }),
               EmbedsPickerPlugin({ embed: "youtube-video" }),
               ImagePickerPlugin(),
+              DrawingPickerPlugin(t),
               // Live chips, offered where `#` is: prose only.
               ...(supportsEntityMentions ? SmartChipPickerPlugins(t, initiativeId) : []),
               ColumnsLayoutPickerPlugin(),

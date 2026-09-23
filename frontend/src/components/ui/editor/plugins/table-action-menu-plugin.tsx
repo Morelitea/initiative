@@ -1,11 +1,15 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
+  $computeTableMapSkipCellCheck,
   $deleteTableColumnAtSelection,
   $deleteTableRowAtSelection,
   $getTableNodeFromLexicalNodeOrThrow,
   $insertTableColumnAtSelection,
   $insertTableRowAtSelection,
   $isTableCellNode,
+  $isTableSelection,
+  $mergeCells,
+  $unmergeCell,
   TableCellHeaderStates,
   type TableCellNode,
   type TableNode,
@@ -18,6 +22,8 @@ import {
   ArrowUpToLine,
   ChevronDown,
   Heading,
+  Merge,
+  Split,
   Trash2,
 } from "lucide-react";
 import { type CSSProperties, type ReactPortal, useCallback, useEffect, useState } from "react";
@@ -35,6 +41,10 @@ import {
 interface MenuPosition {
   top: number;
   left: number;
+  /** More than one cell is selected, so they can become one. */
+  canMerge: boolean;
+  /** The cell the caret is in spans more than itself. */
+  canUnmerge: boolean;
 }
 
 function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
@@ -46,14 +56,23 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
   // when the cursor is actually inside a table to avoid unnecessary layout reads.
   const updatePosition = useCallback(() => {
     let cellKey: string | null = null;
+    let canMerge = false;
+    let canUnmerge = false;
 
     editor.getEditorState().read(() => {
       const selection = $getSelection();
+      if ($isTableSelection(selection)) {
+        const cells = selection.getNodes().filter($isTableCellNode);
+        canMerge = cells.length > 1;
+        cellKey = cells[0]?.getKey() ?? null;
+        return;
+      }
       if (!$isRangeSelection(selection)) return;
       let node: ReturnType<typeof selection.anchor.getNode> | null = selection.anchor.getNode();
       while (node !== null) {
         if ($isTableCellNode(node)) {
           cellKey = node.getKey();
+          canUnmerge = node.getColSpan() > 1 || node.getRowSpan() > 1;
           return;
         }
         node = node.getParent();
@@ -76,6 +95,8 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
     setPosition({
       top: cellRect.top - anchorRect.top + 4,
       left: cellRect.right - anchorRect.left - 24,
+      canMerge,
+      canUnmerge,
     });
   }, [editor, anchorElem]);
 
@@ -124,6 +145,20 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
   const deleteColumn = useCallback(() => {
     editor.update(() => {
       $deleteTableColumnAtSelection();
+    });
+  }, [editor]);
+
+  const mergeCells = useCallback(() => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isTableSelection(selection)) return;
+      $mergeCells(selection.getNodes().filter($isTableCellNode));
+    });
+  }, [editor]);
+
+  const unmergeCell = useCallback(() => {
+    editor.update(() => {
+      $unmergeCell();
     });
   }, [editor]);
 
@@ -188,17 +223,17 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
       }
       if (!activeCell) return;
       const tableNode = $getTableNodeFromLexicalNodeOrThrow(activeCell);
-      const columnIndex = activeCell.getParent()?.getChildren().indexOf(activeCell) ?? -1;
+      // The column is found on the table's grid rather than by counting
+      // cells in the row: a merged cell earlier in a row shifts every cell
+      // after it.
+      const [map, cellMap] = $computeTableMapSkipCellCheck(tableNode, activeCell, null);
+      const columnIndex = cellMap?.startColumn ?? -1;
       if (columnIndex < 0) return;
-      // For each row in the table, toggle the header style on the cell at columnIndex
-      for (const rowNode of tableNode.getChildren()) {
-        const cells = (
-          rowNode as ReturnType<typeof tableNode.getChildren>[number] & {
-            getChildren: () => Array<ReturnType<typeof tableNode.getChildren>[number]>;
-          }
-        ).getChildren();
-        const cell = cells[columnIndex];
-        if (cell && $isTableCellNode(cell)) {
+      const toggled = new Set<string>();
+      for (const row of map) {
+        const cell = row[columnIndex]?.cell;
+        if (cell && !toggled.has(cell.getKey())) {
+          toggled.add(cell.getKey());
           cell.toggleHeaderStyle(TableCellHeaderStates.COLUMN);
         }
       }
@@ -251,6 +286,23 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
             <Trash2 className="mr-2 h-4 w-4" />
             {t("editor.deleteColumn")}
           </DropdownMenuItem>
+          {(position.canMerge || position.canUnmerge) && (
+            <>
+              <DropdownMenuSeparator />
+              {position.canMerge && (
+                <DropdownMenuItem onSelect={mergeCells}>
+                  <Merge className="mr-2 h-4 w-4" />
+                  {t("editor.mergeCells")}
+                </DropdownMenuItem>
+              )}
+              {position.canUnmerge && (
+                <DropdownMenuItem onSelect={unmergeCell}>
+                  <Split className="mr-2 h-4 w-4" />
+                  {t("editor.unmergeCells")}
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={toggleHeaderRow}>
             <Heading className="mr-2 h-4 w-4" />

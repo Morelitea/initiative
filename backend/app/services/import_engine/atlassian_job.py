@@ -42,12 +42,13 @@ from app.core.encryption import (
     encrypt_field,
 )
 from app.schemas.tenant.import_job import (
+    AtlassianDroppedItem,
     AtlassianFetchSummary,
     AtlassianPlanProperty,
     BackupImportPlan,
 )
 from app.services.import_engine import engine as import_engine
-from app.services.import_engine import jira_fetch
+from app.services.import_engine import confluence_fetch, jira_fetch
 from app.services.import_engine.atlassian import AtlassianCredential
 from app.services.import_engine.common import load_guild_member_handles
 from app.services.import_engine.contract import ImportEngineError
@@ -60,9 +61,11 @@ SOURCE = "atlassian"
 #: The provider a credential has to have been stored under to start one.
 PROVIDER = "atlassian"
 
-#: The importer whose permission a Jira project needs. A Confluence space will
-#: add the wiki importer's beside it.
+#: The importer whose permission a Jira project needs.
 _PROJECT_ENVELOPE = "initiative-project"
+
+#: The importer whose permission a Confluence space needs.
+_WIKI_ENVELOPE = "initiative-wiki"
 
 #: The importer a board's sprints go through, as calendar events.
 _CALENDAR_ENVELOPE = "initiative-calendar"
@@ -98,6 +101,25 @@ def summary_of(report: jira_fetch.FetchReport) -> AtlassianFetchSummary:
         images_oversize=report.images_oversize,
         images_unreadable=report.images_unreadable,
         other_attachments=report.other_attachments,
+    )
+
+
+def confluence_summary_of(
+    report: confluence_fetch.ConfluenceFetchReport,
+) -> AtlassianFetchSummary:
+    return AtlassianFetchSummary(
+        spaces=report.spaces,
+        pages=report.pages,
+        page_containers=report.containers,
+        dropped_nodes=report.dropped_nodes,
+        unreadable_spaces=list(report.unreadable_spaces),
+        pages_over_limit=report.pages_over_limit,
+        page_attachments=report.attachments,
+        labels=report.labels,
+        dropped_macros=[
+            AtlassianDroppedItem(name=name, count=count)
+            for name, count in report.dropped.most_common()
+        ],
     )
 
 
@@ -162,6 +184,54 @@ async def start_jira_import(
     return job
 
 
+async def start_confluence_import(
+    session: AsyncSession,
+    *,
+    user: User,
+    guild_id: int,
+    credential: AtlassianCredential,
+    initiative_id: int,
+    space_keys: list[str],
+) -> ImportJob:
+    """Queue a job that reads these Confluence spaces into ``initiative_id``,
+    one wiki each.
+
+    The same shape as :func:`start_jira_import`, with the wiki importer's
+    permission in place of the project importer's.
+    """
+    keys = list(dict.fromkeys(key.strip() for key in space_keys if key.strip()))
+    if not keys:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
+
+    initiative = await import_engine.load_target_initiative(
+        session,
+        guild_id=guild_id,
+        initiative_id=initiative_id,
+        importer=import_engine.get_importer(_WIKI_ENVELOPE),
+        user=user,
+    )
+    await import_engine.count_active_jobs_locked(session, user=user)
+
+    job = ImportJob(
+        created_by=user.id,
+        source=SOURCE,
+        params={
+            "initiative_id": initiative.id,
+            "site_url": credential.site_url,
+            "principal": credential.email,
+            "confluence_spaces": keys,
+        },
+        secret_encrypted=encrypt_field(credential.api_token, SALT_IMPORT_CREDENTIAL),
+        status=ImportJobStatus.queued,
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
+
+
 @dataclass(frozen=True)
 class StagedFetch:
     """A finished fetch: where the bundle is, and the plan to review it by."""
@@ -181,7 +251,7 @@ async def fetch(
     open_user_session: Callable[[], AsyncContextManager[AsyncSession]],
     progress: Callable[[AtlassianFetchSummary], Awaitable[None]] | None = None,
 ) -> StagedFetch:
-    """Read the job's projects from the site and stage the bundle.
+    """Read the job's projects or spaces from the site and stage the bundle.
 
     Raises an :class:`ImportEngineError` for anything the person has to act
     on, and lets ``progress`` raise :class:`FetchCancelled` to stop early.
@@ -193,7 +263,9 @@ async def fetch(
     from app.services.platform import accounts as accounts_service
 
     params = job.params or {}
-    keys = params.get("jira_projects")
+    # One product per job: a Jira job names projects, a Confluence one spaces.
+    confluence = "confluence_spaces" in params
+    keys = params.get("confluence_spaces" if confluence else "jira_projects")
     site_url = params.get("site_url")
     principal = params.get("principal")
     if (
@@ -229,7 +301,9 @@ async def fetch(
             user_session,
             guild_id=guild_id,
             initiative_id=params.get("initiative_id"),
-            importer=import_engine.get_importer(_PROJECT_ENVELOPE),
+            importer=import_engine.get_importer(
+                _WIKI_ENVELOPE if confluence else _PROJECT_ENVELOPE
+            ),
             user=user,
         )
         target_initiative_id = initiative.id
@@ -238,47 +312,71 @@ async def fetch(
         # say sprints are being left behind rather than the apply refusing
         # the whole bundle over a tool the projects never needed.
         sprints_blocked_by: str | None = None
-        try:
-            await import_engine.load_target_initiative(
-                user_session,
-                guild_id=guild_id,
-                initiative_id=target_initiative_id,
-                importer=import_engine.get_importer(_CALENDAR_ENVELOPE),
-                user=user,
-            )
-        except ImportEngineError as exc:
-            sprints_blocked_by = exc.code
+        if not confluence:
+            try:
+                await import_engine.load_target_initiative(
+                    user_session,
+                    guild_id=guild_id,
+                    initiative_id=target_initiative_id,
+                    importer=import_engine.get_importer(_CALENDAR_ENVELOPE),
+                    user=user,
+                )
+            except ImportEngineError as exc:
+                sprints_blocked_by = exc.code
         # The community's roster, so the plan can suggest who each person the
         # site names is — read now, as the person, like a backup upload does.
         roster = await load_guild_member_handles(user_session, guild_id=guild_id)
 
-    async def report_progress(report: jira_fetch.FetchReport) -> None:
-        if progress is not None:
-            await progress(summary_of(report))
-
     credential = AtlassianCredential(
         site_url=site_url, email=principal, api_token=api_token
     )
-    bundle, report = await jira_fetch.fetch_projects_bundle(
-        credential,
-        project_keys=keys,
-        guild_id=guild_id,
-        # The bundle's "source guild" is where it came from, which is the site.
-        guild_name=urlsplit(site_url).hostname or site_url,
-        target_initiative_id=target_initiative_id,
-        app_version=get_version(),
-        progress=report_progress,
-        sprints_blocked_by=sprints_blocked_by,
-        # A job started before the option existed brought comments across.
-        include_comments=params.get("include_comments") is not False,
-        include_attachments=params.get("include_attachments") is not False,
-    )
+    # The bundle's "source guild" is where it came from, which is the site.
+    source_name = urlsplit(site_url).hostname or site_url
+    summary: AtlassianFetchSummary
+    if confluence:
+
+        async def report_spaces(
+            report: confluence_fetch.ConfluenceFetchReport,
+        ) -> None:
+            if progress is not None:
+                await progress(confluence_summary_of(report))
+
+        bundle, space_report = await confluence_fetch.fetch_spaces_bundle(
+            credential,
+            space_keys=keys,
+            guild_id=guild_id,
+            guild_name=source_name,
+            target_initiative_id=target_initiative_id,
+            app_version=get_version(),
+            progress=report_spaces,
+        )
+        summary = confluence_summary_of(space_report)
+    else:
+
+        async def report_progress(report: jira_fetch.FetchReport) -> None:
+            if progress is not None:
+                await progress(summary_of(report))
+
+        bundle, report = await jira_fetch.fetch_projects_bundle(
+            credential,
+            project_keys=keys,
+            guild_id=guild_id,
+            guild_name=source_name,
+            target_initiative_id=target_initiative_id,
+            app_version=get_version(),
+            progress=report_progress,
+            sprints_blocked_by=sprints_blocked_by,
+            # A job started before the option existed brought comments across.
+            include_comments=params.get("include_comments") is not False,
+            include_attachments=params.get("include_attachments") is not False,
+        )
+        summary = summary_of(report)
 
     from app.services.import_engine import backup as backup_service
 
     plan: BackupImportPlan = backup_service.plan_backup(
         bundle, existing_initiative_names=set(), member_ids_by_handle=roster
     )
-    plan.atlassian = summary_of(report)
+    plan.atlassian = summary
     payload_ref = import_engine.stage_payload(guild_id, bundle, suffix="zip")
     return StagedFetch(payload_ref=payload_ref, plan=plan.model_dump(mode="json"))

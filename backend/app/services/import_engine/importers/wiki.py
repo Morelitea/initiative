@@ -9,12 +9,17 @@ first and filed second, once the whole slug map exists.
 Sharing does not cross, here or in any other envelope: who may read a wiki is
 a fact about the community it was written in. The importer owns what it
 creates.
+
+A page can name people — who wrote it, and anybody its body mentions — and
+other pages, by slug. Those are placed once every page exists: a writer the
+people step placed becomes the page's author, a mention of somebody placed
+links to them, and a mention of a page links to the page it became.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from sqlmodel import select
@@ -25,24 +30,62 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.import_envelopes import WikiEnvelope, WikiPageEnvelope
-from app.services.import_engine.common import ensure_tag, parse_datetime, unique_name
+from app.services.import_engine.common import (
+    ensure_tag,
+    handle_key,
+    load_initiative_member_handles,
+    parse_datetime,
+    unique_name,
+)
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
     grant_ownership,
     parse_envelope,
 )
+from app.services.import_engine.people import PeopleMap, quoted_account
 from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
 
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.schemas.tenant.backup_export import ManifestPerson
 
-class WikiImporter(QuotesNobody):
+
+class WikiImporter:
     envelope_type = "initiative-wiki"
     permission = PermissionKey.create_wikis
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
         return parse_envelope(WikiEnvelope, envelope)
+
+    def people(self, validated: BaseModel) -> list["ManifestPerson"]:
+        """Whoever wrote a page, and whoever a page mentions, most-named
+        first — both are placed through the people step's answer."""
+        from app.schemas.tenant.backup_export import ManifestPerson
+
+        envelope: WikiEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
+        seen: dict[str, ManifestPerson] = {}
+        counts: dict[str, int] = {}
+        for page in envelope.pages:
+            named = [
+                (page.author_handle, page.author_name),
+                *((handle, None) for handle in page.mention_handles),
+            ]
+            for handle, name in named:
+                handle = (handle or "").strip()
+                if not handle:
+                    continue
+                key = handle_key(handle)
+                counts[key] = counts.get(key, 0) + 1
+                person = seen.setdefault(
+                    key, ManifestPerson(handle=handle, name=name, comment_count=0)
+                )
+                if person.name is None:
+                    person.name = name
+        return sorted(
+            seen.values(),
+            key=lambda p: (-counts[handle_key(p.handle)], p.handle.lower()),
+        )
 
     def count(self, validated: BaseModel) -> int:
         envelope: WikiEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
@@ -105,10 +148,23 @@ class WikiImporter(QuotesNobody):
 
         await attach_tags("wiki", wiki.id, env.tags)
 
+        people = context.people if context is not None else PeopleMap()
+        member_handles = (
+            await load_initiative_member_handles(
+                session, initiative_id=target_initiative.id
+            )
+            if any(p.author_handle or p.mention_handles for p in env.pages)
+            else {}
+        )
+
         # Pass one: every page exists before any page is filed.
         slugs = _assign_slugs(env.pages)
         page_ids: dict[str, int] = {}
+        rows: list[WikiPage] = []
         for page_env, slug in zip(env.pages, slugs):
+            author = quoted_account(
+                page_env.author_handle, people=people, member_handles=member_handles
+            )
             row = WikiPage(
                 wiki_id=wiki.id,
                 title=page_env.title,
@@ -116,7 +172,7 @@ class WikiImporter(QuotesNobody):
                 position=page_env.position,
                 is_draft=page_env.is_draft,
                 content=page_env.content or {},
-                created_by=importer.id,
+                created_by=author if author is not None else importer.id,
                 # When it was written, where the envelope says so. Absent
                 # leaves the model's own default — the moment of the import,
                 # which is the only time this row can honestly claim.
@@ -125,6 +181,7 @@ class WikiImporter(QuotesNobody):
             session.add(row)
             await session.flush()
             page_ids[slug] = row.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+            rows.append(row)
             await attach_tags("wiki_page", row.id, page_env.tags)
 
         # Pass two: file each page under its parent, by slug.
@@ -142,6 +199,32 @@ class WikiImporter(QuotesNobody):
         if unknown:
             warnings.append(f"missing_parent_pages:{unknown}")
 
+        # Pass three: what a page names, now that every page has an id.
+        by_original = {page.slug.strip(): slug for page, slug in zip(env.pages, slugs)}
+        for page_env, row in zip(env.pages, rows):
+            mentioned = {
+                handle: account
+                for handle in page_env.mention_handles
+                if (
+                    account := quoted_account(
+                        handle, people=people, member_handles=member_handles
+                    )
+                )
+                is not None
+            }
+            linked = _place_references(
+                row.content,
+                page_ids={
+                    original: page_ids[assigned]
+                    for original, assigned in by_original.items()
+                    if assigned in page_ids
+                },
+                mentioned=mentioned,
+            )
+            if linked is not None:
+                row.content = linked
+                session.add(row)
+
         if env.home_page and env.home_page in page_ids:
             wiki.home_page_id = page_ids[env.home_page]
             session.add(wiki)
@@ -156,6 +239,61 @@ class WikiImporter(QuotesNobody):
             matched={"tags": tags_matched},
             warnings=warnings,
         )
+
+
+def _place_references(
+    content: Any, *, page_ids: dict[str, int], mentioned: dict[str, int]
+) -> dict[str, Any] | None:
+    """``content`` with its import references resolved, or ``None`` if it
+    had none.
+
+    A wiki-page mention carrying an ``importSlug`` points at the page that
+    slug became; one whose page did not arrive is its text again. A person's
+    mention with no account yet gets the one the people step placed its name
+    on, and stays a name otherwise.
+    """
+    if not isinstance(content, dict):
+        return None
+    changed = False
+
+    def walk(node: Any) -> Any:
+        nonlocal changed
+        if not isinstance(node, dict):
+            return node
+        if node.get("type") == "entity-mention" and "importSlug" in node:
+            changed = True
+            slug = node.get("importSlug")
+            target = page_ids.get(slug) if isinstance(slug, str) else None
+            text = str(node.get("text") or "")
+            if target is None:
+                return {
+                    "type": "text",
+                    "version": 1,
+                    "text": text,
+                    "format": 0,
+                    "style": "",
+                    "mode": "normal",
+                    "detail": 0,
+                }
+            placed = {k: v for k, v in node.items() if k != "importSlug"}
+            placed["entityId"] = target
+            return placed
+        if (
+            node.get("type") == "mention"
+            and node.get("mentionUserId") is None
+            and node.get("mentionName") in mentioned
+        ):
+            changed = True
+            return {**node, "mentionUserId": mentioned[node["mentionName"]]}
+        children = node.get("children")
+        if isinstance(children, list):
+            return {**node, "children": [walk(child) for child in children]}
+        return node
+
+    placed = walk(content.get("root"))
+    if not changed:
+        return None
+    return {**content, "root": placed}
 
 
 def _page_timestamps(page_env: WikiPageEnvelope) -> dict[str, datetime]:

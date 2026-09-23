@@ -6,9 +6,14 @@ import {
   useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
   useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost,
   useGetImportJobApiV1GGuildIdImportsJobsJobIdGet,
+  useStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost,
   useStartJiraImportApiV1GGuildIdImportsAtlassianJiraPost,
 } from "@/api/generated/imports/imports";
-import type { AtlassianJiraProject, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  AtlassianConfluenceSpace,
+  AtlassianJiraProject,
+  ImportJobRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -46,7 +51,12 @@ export interface JiraCredentials {
 export interface JiraConnection {
   credentials: JiraCredentials;
   projects: AtlassianJiraProject[];
+  spaces: AtlassianConfluenceSpace[];
 }
+
+/** Which of the site's products an import reads: Jira projects become
+ * projects, Confluence spaces become wikis. One per import. */
+export type AtlassianProduct = "jira" | "confluence";
 
 /** The plan's ``atlassian`` block. Declared here for the same reason
  * ``PlanPerson`` is: a job's plan crosses the wire as a free-form object. */
@@ -71,6 +81,14 @@ export interface AtlassianPlanSummary {
   images_oversize?: number;
   images_unreadable?: number;
   other_attachments?: number;
+  spaces?: number;
+  pages?: number;
+  page_containers?: number;
+  unreadable_spaces?: string[];
+  pages_over_limit?: number;
+  page_attachments?: number;
+  labels?: number;
+  dropped_macros?: Array<{ name: string; count: number }>;
 }
 
 export function atlassianSummary(job: ImportJobRead | null | undefined): AtlassianPlanSummary {
@@ -83,13 +101,16 @@ export function atlassianSummary(job: ImportJobRead | null | undefined): Atlassi
 // ---------------------------------------------------------------------------
 
 export interface JiraConnectStepProps {
+  /** The product being imported from. The site has to have it, and the
+   * token has to reach it, for the next step to have anything to offer. */
+  product?: AtlassianProduct;
   onConnected: (connection: JiraConnection) => void;
 }
 
 /** The site, the account, and a token for it — proved by using it. The
  * answer is also the list of what the token can see, so connecting and
  * looking around are one request. */
-export function JiraConnectStep({ onConnected }: JiraConnectStepProps) {
+export function JiraConnectStep({ product = "jira", onConnected }: JiraConnectStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
   const connect = useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost();
@@ -106,16 +127,23 @@ export function JiraConnectStep({ onConnected }: JiraConnectStepProps) {
         guildId,
         data: { site_url: siteUrl.trim(), email: email.trim(), api_token: apiToken },
       });
-      if (!response.jira?.available) {
+      const probe = product === "confluence" ? response.confluence : response.jira;
+      if (!probe?.available) {
         setError(
-          messageForCode(response.jira?.reason ?? null, "imports:wizard.jira.connect.noJira")
+          messageForCode(
+            probe?.reason ?? null,
+            product === "confluence"
+              ? "imports:wizard.confluence.connect.noConfluence"
+              : "imports:wizard.jira.connect.noJira"
+          )
         );
         return;
       }
       onConnected({
         // The site as the server normalised it — what the import will call.
         credentials: { site_url: response.site_url, email: email.trim(), api_token: apiToken },
-        projects: response.jira.projects ?? [],
+        projects: response.jira?.projects ?? [],
+        spaces: response.confluence?.spaces ?? [],
       });
     } catch (err) {
       setError(getErrorMessage(err, "imports:wizard.jira.connect.failed"));
@@ -165,7 +193,11 @@ export function JiraConnectStep({ onConnected }: JiraConnectStepProps) {
           <ExternalLink className="h-3 w-3" />
         </a>
       </div>
-      <p className="text-muted-foreground text-xs">{t("wizard.jira.connect.note")}</p>
+      <p className="text-muted-foreground text-xs">
+        {t(
+          product === "confluence" ? "wizard.confluence.connect.note" : "wizard.jira.connect.note"
+        )}
+      </p>
       {error && <p className="text-destructive text-sm">{error}</p>}
       <Button type="submit" className="w-full" disabled={!ready || connect.isPending}>
         {connect.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -335,12 +367,146 @@ export function JiraChooseStep({ connection, initiatives, onStarted }: JiraChoos
   );
 }
 
+export interface ConfluenceChooseStepProps {
+  connection: JiraConnection;
+  initiatives: Array<{ id: number; name: string }>;
+  onStarted: (job: ImportJobRead) => void;
+}
+
+/** Which spaces, into which initiative. Each space becomes one wiki with its
+ * page tree; starting queues the job that reads them. */
+export function ConfluenceChooseStep({
+  connection,
+  initiatives,
+  onStarted,
+}: ConfluenceChooseStepProps) {
+  const { t } = useTranslation("imports");
+  const guildId = useActiveGuildId();
+  const start = useStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [initiativeId, setInitiativeId] = useState<string>(
+    initiatives.length === 1 ? String(initiatives[0].id) : ""
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const { spaces } = connection;
+  const allSelected = spaces.length > 0 && selected.size === spaces.length;
+
+  const toggle = (key: string, on: boolean) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
+
+  const handleStart = async () => {
+    setError(null);
+    try {
+      const job = await start.mutateAsync({
+        guildId,
+        data: {
+          ...connection.credentials,
+          initiative_id: Number(initiativeId),
+          space_keys: spaces.map((s) => s.key).filter((key) => selected.has(key)),
+        },
+      });
+      onStarted(job);
+    } catch (err) {
+      setError(getErrorMessage(err, "imports:wizard.confluence.choose.failed"));
+    }
+  };
+
+  if (spaces.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">{t("wizard.confluence.choose.noSpaces")}</p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>{t("wizard.confluence.choose.spacesLabel")}</Label>
+          {spaces.length > 1 && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-xs"
+              onClick={() =>
+                setSelected(allSelected ? new Set() : new Set(spaces.map((s) => s.key)))
+              }
+            >
+              {allSelected ? t("wizard.jira.choose.selectNone") : t("wizard.jira.choose.selectAll")}
+            </Button>
+          )}
+        </div>
+        <ul className="max-h-60 space-y-1 overflow-y-auto rounded-lg border p-2">
+          {spaces.map((space) => {
+            const id = `confluence-space-${space.key}`;
+            return (
+              <li key={space.key} className="flex items-center gap-2 rounded px-1 py-1.5">
+                <Checkbox
+                  id={id}
+                  checked={selected.has(space.key)}
+                  onCheckedChange={(checked) => toggle(space.key, checked === true)}
+                />
+                <Label htmlFor={id} className="flex flex-1 items-baseline gap-2 font-normal">
+                  <span className="text-sm">{space.name}</span>
+                  <span className="font-mono text-muted-foreground text-xs">{space.key}</span>
+                  <span className="ml-auto text-muted-foreground text-xs">
+                    {space.page_count == null
+                      ? t("wizard.jira.choose.notCounted")
+                      : t("wizard.confluence.choose.pages", { count: space.page_count })}
+                  </span>
+                </Label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="confluence-initiative">{t("wizard.choose.initiativeLabel")}</Label>
+        <Select value={initiativeId} onValueChange={setInitiativeId}>
+          <SelectTrigger id="confluence-initiative">
+            <SelectValue placeholder={t("wizard.choose.initiativePlaceholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            {initiatives.map((initiative) => (
+              <SelectItem key={initiative.id} value={String(initiative.id)}>
+                {initiative.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <p className="text-muted-foreground text-xs">{t("wizard.confluence.choose.note")}</p>
+      {error && <p className="text-destructive text-sm">{error}</p>}
+      <Button
+        className="w-full"
+        disabled={selected.size === 0 || initiativeId === "" || start.isPending}
+        onClick={() => void handleStart()}
+      >
+        {t("wizard.confluence.choose.submit")}
+      </Button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Fetching
 // ---------------------------------------------------------------------------
 
 export interface JiraFetchingStepProps {
   jobId: number;
+  product?: AtlassianProduct;
   /** The site has been read and the job is waiting for review. */
   onStaged: (job: ImportJobRead) => void;
   /** The fetch is over without a bundle — cancelled, or failed and dismissed. */
@@ -350,7 +516,12 @@ export interface JiraFetchingStepProps {
 /** The worker reading the site. Counts climb as each project is read; the
  * job keeps going if the dialog is closed, and the wizard picks it up again
  * when it is reopened. */
-export function JiraFetchingStep({ jobId, onStaged, onStopped }: JiraFetchingStepProps) {
+export function JiraFetchingStep({
+  jobId,
+  product = "jira",
+  onStaged,
+  onStopped,
+}: JiraFetchingStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
   const cancel = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
@@ -384,7 +555,12 @@ export function JiraFetchingStep({ jobId, onStaged, onStopped }: JiraFetchingSte
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           <p>
             {job.status === "failed"
-              ? messageForCode(job.error, "imports:wizard.jira.fetch.failed")
+              ? messageForCode(
+                  job.error,
+                  product === "confluence"
+                    ? "imports:wizard.confluence.fetch.failed"
+                    : "imports:wizard.jira.fetch.failed"
+                )
               : t("wizard.jira.fetch.stopped")}
           </p>
         </div>
@@ -399,12 +575,19 @@ export function JiraFetchingStep({ jobId, onStaged, onStopped }: JiraFetchingSte
   return (
     <div className="flex flex-col items-center gap-3 py-6 text-center">
       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      <p className="font-medium text-sm">{t("wizard.jira.fetch.title")}</p>
+      <p className="font-medium text-sm">
+        {t(product === "confluence" ? "wizard.confluence.fetch.title" : "wizard.jira.fetch.title")}
+      </p>
       <p className="text-muted-foreground text-xs">
-        {t("wizard.jira.fetch.progress", {
-          projects: summary.projects ?? 0,
-          tasks: summary.tasks ?? 0,
-        })}
+        {product === "confluence"
+          ? t("wizard.confluence.fetch.progress", {
+              spaces: summary.spaces ?? 0,
+              pages: summary.pages ?? 0,
+            })
+          : t("wizard.jira.fetch.progress", {
+              projects: summary.projects ?? 0,
+              tasks: summary.tasks ?? 0,
+            })}
       </p>
       <p className="text-muted-foreground text-xs">{t("wizard.jira.fetch.note")}</p>
       <Button variant="outline" size="sm" onClick={() => void handleCancel()}>
@@ -536,6 +719,69 @@ export function JiraReviewSummary({ job, excluded, onExcludedChange }: JiraRevie
         </div>
       )}
 
+      {leftBehind.length > 0 && (
+        <div className="space-y-1">
+          <p className="font-medium text-sm">{t("wizard.jira.review.leftBehindTitle")}</p>
+          <ul className="space-y-1">
+            {leftBehind.map((line) => (
+              <li key={line} className="flex items-start gap-2 text-muted-foreground text-xs">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What reading the spaces found, before anything is written: the pages
+ * arriving, and what they held that will not. */
+export function ConfluenceReviewSummary({ job }: { job: ImportJobRead }) {
+  const { t } = useTranslation("imports");
+  const summary = atlassianSummary(job);
+
+  const arriving = [
+    t("wizard.confluence.review.pages", {
+      count: summary.pages ?? 0,
+      spaces: summary.spaces ?? 0,
+    }),
+    (summary.page_containers ?? 0) > 0
+      ? t("wizard.confluence.review.containers", { count: summary.page_containers })
+      : null,
+    (summary.labels ?? 0) > 0
+      ? t("wizard.confluence.review.labels", { count: summary.labels })
+      : null,
+  ].filter((line): line is string => line !== null);
+
+  const dropped = summary.dropped_macros ?? [];
+  const leftBehind = [
+    (summary.unreadable_spaces?.length ?? 0) > 0
+      ? t("wizard.confluence.review.unreadableSpaces", {
+          keys: (summary.unreadable_spaces ?? []).join(", "),
+        })
+      : null,
+    (summary.pages_over_limit ?? 0) > 0
+      ? t("wizard.confluence.review.overLimit", { count: summary.pages_over_limit })
+      : null,
+    (summary.page_attachments ?? 0) > 0
+      ? t("wizard.confluence.review.attachments", { count: summary.page_attachments })
+      : null,
+    dropped.length > 0
+      ? t("wizard.confluence.review.dropped", {
+          items: dropped.map((item) => `${item.name} ×${item.count}`).join(", "),
+        })
+      : null,
+  ].filter((line): line is string => line !== null);
+
+  return (
+    <div className="space-y-4">
+      <ul className="space-y-1 rounded-lg border p-3 text-sm">
+        {arriving.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
       {leftBehind.length > 0 && (
         <div className="space-y-1">
           <p className="font-medium text-sm">{t("wizard.jira.review.leftBehindTitle")}</p>

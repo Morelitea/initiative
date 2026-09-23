@@ -8,6 +8,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import {
+  ConfluenceChooseStep,
   JiraChooseStep,
   JiraConnectStep,
   JiraFetchingStep,
@@ -45,6 +46,10 @@ const CONNECTION = {
   projects: [
     { id: "1", key: "ACME", name: "Acme Board", issue_count: 12 },
     { id: "2", key: "OPS", name: "Operations", issue_count: null },
+  ],
+  spaces: [
+    { id: "9", key: "DOCS", name: "Team Docs", page_count: 40 },
+    { id: "10", key: "HR", name: "People", page_count: 1 },
   ],
 };
 
@@ -101,6 +106,68 @@ describe("JiraConnectStep", () => {
 
     expect(await screen.findByText(/no Jira there/i)).toBeInTheDocument();
     expect(onConnected).not.toHaveBeenCalled();
+  });
+});
+
+describe("JiraConnectStep for Confluence", () => {
+  it("asks for Confluence, and says so when the token cannot see one", async () => {
+    server.use(
+      guildHttp.post("/imports/atlassian/connect", () =>
+        HttpResponse.json(
+          {
+            site_url: "https://acme.atlassian.net",
+            jira: { available: true, projects: CONNECTION.projects },
+            confluence: { available: false },
+          },
+          { status: 201 }
+        )
+      )
+    );
+    const onConnected = vi.fn();
+    renderWithProviders(<JiraConnectStep product="confluence" onConnected={onConnected} />);
+    await userEvent.type(screen.getByLabelText(/site address/i), "acme.atlassian.net");
+    await userEvent.type(screen.getByLabelText(/atlassian email/i), "me@example.com");
+    await userEvent.type(screen.getByLabelText(/api token/i), "secret");
+    await userEvent.click(screen.getByRole("button", { name: /^connect$/i }));
+
+    expect(await screen.findByText(/no Confluence there/i)).toBeInTheDocument();
+    expect(onConnected).not.toHaveBeenCalled();
+  });
+});
+
+describe("ConfluenceChooseStep", () => {
+  it("starts a job with the ticked spaces and the initiative", async () => {
+    let sent: Record<string, unknown> | null = null;
+    server.use(
+      guildHttp.post("/imports/atlassian/confluence", async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(job(), { status: 202 });
+      })
+    );
+    const onStarted = vi.fn();
+    renderWithProviders(
+      <ConfluenceChooseStep
+        connection={CONNECTION}
+        initiatives={[{ id: 4, name: "Engineering" }]}
+        onStarted={onStarted}
+      />
+    );
+    expect(screen.getByText("40 pages")).toBeInTheDocument();
+    expect(screen.getByText("1 page")).toBeInTheDocument();
+
+    const start = screen.getByRole("button", { name: /read these spaces/i });
+    expect(start).toBeDisabled();
+    await userEvent.click(screen.getByLabelText(/Team Docs/));
+    await userEvent.click(start);
+
+    await waitFor(() => expect(onStarted).toHaveBeenCalled());
+    expect(sent).toEqual({
+      site_url: "https://acme.atlassian.net",
+      email: "me@example.com",
+      api_token: "secret",
+      initiative_id: 4,
+      space_keys: ["DOCS"],
+    });
   });
 });
 

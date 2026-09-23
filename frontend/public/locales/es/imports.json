@@ -16,6 +16,7 @@
       "names": {
         "backup": "Copia de seguridad de Initiative",
         "jira": "Jira",
+        "confluence": "Confluence",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
@@ -23,6 +24,7 @@
       "descriptions": {
         "backup": "Un .zip exportado de Initiative, restaurado tal como estaba.",
         "jira": "Proyectos leídos directamente de tu sitio de Jira.",
+        "confluence": "Espacios leídos directamente de tu sitio de Confluence, cada uno como una wiki.",
         "todoist": "Un proyecto exportado en CSV.",
         "ticktick": "Un CSV de copia de seguridad con todas las listas.",
         "vikunja": "El data.json de una exportación de Vikunja."
@@ -176,6 +178,42 @@
         "skippedIssues_one": "{{count}} incidencia que no pudimos leer",
         "skippedIssues_other": "{{count}} incidencias que no pudimos leer",
         "note": "Al iniciar la importación, todo esto se escribe en la iniciativa que elegiste. Cancelar lo descarta."
+      }
+    },
+    "confluence": {
+      "connect": {
+        "prompt": "Conéctate a tu sitio de Confluence.",
+        "note": "El token solo se usa para leer los espacios que elijas y se elimina en cuanto se han leído.",
+        "noConfluence": "Llegamos al sitio, pero no hay ningún Confluence que este token pueda ver."
+      },
+      "choose": {
+        "prompt": "Elige los espacios que quieres traer y adónde van.",
+        "spacesLabel": "Espacios",
+        "pages_one": "{{count}} página",
+        "pages_other": "{{count}} páginas",
+        "note": "Cada espacio llega como una wiki nueva en esta iniciativa, con sus páginas en el mismo árbol. No se escribe nada hasta que hayas revisado lo que encontramos.",
+        "submit": "Leer estos espacios",
+        "failed": "No pudimos empezar a leer esos espacios.",
+        "noSpaces": "Este token no ve ningún espacio en el sitio."
+      },
+      "fetch": {
+        "title": "Leyendo tu sitio de Confluence…",
+        "progress": "{{spaces}} espacios y {{pages}} páginas leídos hasta ahora",
+        "failed": "No pudimos leer esos espacios."
+      },
+      "review": {
+        "pages_one": "{{count}} página de {{spaces}} espacios",
+        "pages_other": "{{count}} páginas de {{spaces}} espacios",
+        "containers_one": "{{count}} carpeta o página padre vacía se convierte en una lista de las páginas que contiene",
+        "containers_other": "{{count}} carpetas o páginas padre vacías se convierten en listas de las páginas que contienen",
+        "labels_one": "{{count}} etiqueta de Confluence, como etiqueta",
+        "labels_other": "{{count}} etiquetas de Confluence, como etiquetas",
+        "unreadableSpaces": "No se pudieron leer: {{keys}}",
+        "overLimit_one": "{{count}} página haría la wiki demasiado grande para importarla de una vez",
+        "overLimit_other": "{{count}} páginas harían la wiki demasiado grande para importarla de una vez",
+        "attachments_one": "{{count}} archivo adjunto todavía no se trae",
+        "attachments_other": "{{count}} archivos adjuntos todavía no se traen",
+        "dropped": "Se omite: {{items}}"
       }
     }
   },

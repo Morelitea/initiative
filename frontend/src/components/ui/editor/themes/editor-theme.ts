@@ -15,6 +15,8 @@ export const editorTheme: EditorThemeClasses = {
   },
   paragraph: "leading-7 [&:not(:first-child)]:mt-6",
   quote: "mt-6 border-l-2 pl-6 italic",
+  callout: "EditorTheme__callout",
+  excalidraw: "inline-block max-w-full",
   link: "text-blue-600 hover:underline hover:cursor-pointer",
   list: {
     checklist: "relative",

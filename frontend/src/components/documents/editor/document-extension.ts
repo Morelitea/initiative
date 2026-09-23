@@ -20,7 +20,9 @@ import { RichTextExtension } from "@lexical/rich-text";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { configExtension, defineExtension, type InitialEditorStateType } from "lexical";
 
+import { CalloutExtension } from "@/components/ui/editor/extensions/callout-extension";
 import { EmojisExtension } from "@/components/ui/editor/extensions/emojis-extension";
+import { ExcalidrawExtension } from "@/components/ui/editor/extensions/excalidraw-extension";
 import { HeadingAnchorExtension } from "@/components/ui/editor/extensions/heading-anchor-extension";
 import { ImagesExtension } from "@/components/ui/editor/extensions/images-extension";
 import { KeywordsExtension } from "@/components/ui/editor/extensions/keywords-extension";
@@ -113,6 +115,8 @@ export function documentExtension({
       ImagesExtension,
       KeywordsExtension,
       LayoutExtension,
+      CalloutExtension,
+      ExcalidrawExtension,
       HeadingAnchorExtension,
       ListMaxIndentLevelExtension,
       MarkdownShortcutsExtension,

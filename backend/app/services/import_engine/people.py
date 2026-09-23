@@ -156,6 +156,29 @@ def initiative_member_id(
     return member_handles.get(handle_key(handle))
 
 
+def quoted_account(
+    handle: str | None,
+    *,
+    people: PeopleMap,
+    member_handles: Mapping[str, int],
+) -> int | None:
+    """Who a handle quoted in some writing — its author, somebody it
+    mentions — is here.
+
+    The account the people step mapped it to, else a member of the target
+    initiative whose handle is the same string. Unlike
+    :func:`initiative_member_id` the mapped account need not be in the
+    initiative: who wrote or was named in something is a fact about the past,
+    and can be recorded about anybody the community knows.
+    """
+    if not handle:
+        return None
+    mapped = people.user_id(handle)
+    if mapped is not None:
+        return mapped
+    return member_handles.get(handle_key(handle))
+
+
 def user_reference_handles(payload: Any) -> list[str]:
     """Every handle a user-type property value in ``payload`` names.
 

@@ -123,6 +123,36 @@ class AtlassianJiraImportRequest(SanitizedBaseModel):
     include_attachments: bool = True
 
 
+#: A Confluence space key as the site hands one out: letters and digits, or
+#: a personal space's ``~`` and account id. Checked because a key travels
+#: into a request to somebody else's server.
+CONFLUENCE_SPACE_KEY_PATTERN = r"^~?[A-Za-z0-9_-]+$"
+
+
+class AtlassianConfluenceImportRequest(SanitizedBaseModel):
+    """The choose step's answer for Confluence: which spaces, from which
+    site, into which initiative. Each space becomes one wiki.
+
+    Like the Jira request, it starts a job and reads nothing itself, and it
+    carries the three values the connect step proved.
+    """
+
+    site_url: str = Field(min_length=1, max_length=2000)
+    email: str = Field(min_length=1, max_length=320)
+    #: An Atlassian API token. Stored encrypted on the job and never echoed.
+    api_token: str = Field(min_length=1, max_length=2000)
+    #: The initiative the wikis land in. It has to exist, have wikis switched
+    #: on, and let this person create them — checked now, and again when the
+    #: fetch starts and when the bundle is applied.
+    initiative_id: int
+    space_keys: List[
+        Annotated[
+            str,
+            Field(min_length=1, max_length=255, pattern=CONFLUENCE_SPACE_KEY_PATTERN),
+        ]
+    ] = Field(max_length=200)
+
+
 class AtlassianConnectResponse(SanitizedBaseModel):
     """The connect step's answer: what is on the site.
 

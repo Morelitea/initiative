@@ -16,6 +16,7 @@
       "names": {
         "backup": "Initiative backup",
         "jira": "Jira",
+        "confluence": "Confluence",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
@@ -23,6 +24,7 @@
       "descriptions": {
         "backup": "A .zip exported from Initiative, put back as it was.",
         "jira": "Projects read straight from your Jira site.",
+        "confluence": "Spaces read straight from your Confluence site, each as a wiki.",
         "todoist": "A project exported as CSV.",
         "ticktick": "A backup CSV holding every list.",
         "vikunja": "The data.json from a Vikunja export."
@@ -176,6 +178,42 @@
         "skippedIssues_one": "{{count}} issue we couldn't read",
         "skippedIssues_other": "{{count}} issues we couldn't read",
         "note": "Starting the import writes all of this into the initiative you picked. Cancel throws it away."
+      }
+    },
+    "confluence": {
+      "connect": {
+        "prompt": "Connect to your Confluence site.",
+        "note": "The token is used only to read the spaces you pick, and it's deleted as soon as they've been read.",
+        "noConfluence": "We reached the site, but there's no Confluence there that this token can see."
+      },
+      "choose": {
+        "prompt": "Pick the spaces to bring over, and where they go.",
+        "spacesLabel": "Spaces",
+        "pages_one": "{{count}} page",
+        "pages_other": "{{count}} pages",
+        "note": "Each space arrives as a new wiki in this initiative, with its pages in the same tree. Nothing is written until you've checked what we found.",
+        "submit": "Read these spaces",
+        "failed": "We couldn't start reading those spaces.",
+        "noSpaces": "This token can't see any spaces on the site."
+      },
+      "fetch": {
+        "title": "Reading your Confluence site…",
+        "progress": "{{spaces}} spaces and {{pages}} pages read so far",
+        "failed": "We couldn't read those spaces."
+      },
+      "review": {
+        "pages_one": "{{count}} page from {{spaces}} spaces",
+        "pages_other": "{{count}} pages from {{spaces}} spaces",
+        "containers_one": "{{count}} folder or empty parent page becomes a list of the pages under it",
+        "containers_other": "{{count}} folders or empty parent pages become lists of the pages under them",
+        "labels_one": "{{count}} label, as a tag",
+        "labels_other": "{{count}} labels, as tags",
+        "unreadableSpaces": "Couldn't read: {{keys}}",
+        "overLimit_one": "{{count}} page would make the wiki too large to import in one go",
+        "overLimit_other": "{{count}} pages would make the wiki too large to import in one go",
+        "attachments_one": "{{count}} attached file doesn't come over yet",
+        "attachments_other": "{{count}} attached files don't come over yet",
+        "dropped": "Left out: {{items}}"
       }
     }
   },

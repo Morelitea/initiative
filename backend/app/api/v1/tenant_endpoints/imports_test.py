@@ -3770,3 +3770,172 @@ async def test_importing_into_an_initiative_you_cannot_reach_is_a_404(
         },
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Confluence: a space becomes a wiki
+# ---------------------------------------------------------------------------
+
+
+def _confluence_site(*, pages, users=None, labels=None):
+    """Stub a Confluence site answering a connect and a fetch of one space."""
+    import httpx
+
+    probe = _atlassian_site()
+    names: dict[str, str] = users or {}
+    page_labels: dict[str, list[str]] = labels or {}
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/wiki/api/v2/spaces?keys=" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {"id": "9", "key": "DOCS", "name": "Docs", "homepageId": "1"}
+                    ]
+                },
+            )
+        if "/wiki/api/v2/spaces/9/pages" in url:
+            return httpx.Response(200, json={"results": pages})
+        if "/labels" in url:
+            page_id = url.split("/pages/")[1].split("/")[0]
+            return httpx.Response(
+                200,
+                json={"results": [{"name": n} for n in page_labels.get(page_id, [])]},
+            )
+        if url.endswith("/wiki/api/v2/users-bulk"):
+            wanted = (json or {}).get("accountIds") or []
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {"accountId": a, "displayName": names[a]}
+                        for a in wanted
+                        if a in names
+                    ]
+                },
+            )
+        return await probe(method, url, headers=headers, json=json)
+
+    return fake_request
+
+
+def _confluence_page(page_id, title, body, parent=None, author="acc-1"):
+    return {
+        "id": str(page_id),
+        "title": title,
+        "parentId": str(parent) if parent else None,
+        "parentType": "page" if parent else None,
+        "position": page_id,
+        "authorId": author,
+        "createdAt": "2024-03-04T09:00:00.000Z",
+        "version": {"createdAt": "2024-05-01T10:00:00.000Z"},
+        "body": {"storage": {"value": body}},
+    }
+
+
+async def _start_confluence(client, actor, *, initiative_id, keys=("DOCS",)):
+    return await client.post(
+        actor.g("/imports/atlassian/confluence"),
+        headers=actor.headers,
+        json={
+            "site_url": "https://acme.atlassian.net",
+            "email": "someone@example.com",
+            "api_token": "shhh",
+            "initiative_id": initiative_id,
+            "space_keys": list(keys),
+        },
+    )
+
+
+async def test_a_confluence_space_becomes_a_wiki_with_its_tree_and_its_people(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Fetch, review, confirm, apply: the space arrives as one wiki in the
+    chosen initiative, its pages under their parents, a link between two of
+    them pointing at the imported page, and the people the review placed —
+    the author and somebody mentioned — named on the pages they are on."""
+    from sqlmodel import select
+
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    site = _confluence_site(
+        pages=[
+            _confluence_page(1, "Home", "<p>Welcome</p>"),
+            _confluence_page(
+                2,
+                "Guide",
+                '<p>Read <ac:link><ri:page ri:content-title="Home"/></ac:link> and '
+                'ask <ac:link><ri:user ri:account-id="acc-2"/></ac:link></p>',
+                parent=1,
+            ),
+        ],
+        users={"acc-1": "Robin Ade", "acc-2": "Sam Bee"},
+        labels={"2": ["howto"]},
+    )
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+
+    resp = await _start_confluence(client, a, initiative_id=a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["params"]["confluence_spaces"] == ["DOCS"]
+    assert "shhh" not in resp.text
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["spaces"], summary["pages"], summary["labels"]) == (1, 2, 1)
+    assert {p["handle"] for p in staged["plan"]["people"]} == {"Robin Ade", "Sam Bee"}
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin Ade": a.user.id, "Sam Bee": b.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    done = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Docs"))).one()
+    assert wiki.initiative_id == a.initiative.id
+    pages = {
+        p.title: p
+        for p in (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+        ).all()
+    }
+    home, guide = pages["Home"], pages["Guide"]
+    assert wiki.home_page_id == home.id
+    assert guide.parent_page_id == home.id
+    assert guide.created_by == a.user.id
+
+    (paragraph,) = guide.content["root"]["children"]
+    by_type = {n["type"]: n for n in paragraph["children"]}
+    assert by_type["entity-mention"]["entityId"] == home.id
+    assert "importSlug" not in by_type["entity-mention"]
+    assert by_type["mention"]["mentionUserId"] == b.user.id
+
+
+async def test_starting_a_confluence_import_refuses_what_it_can_up_front(
+    client, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    nothing = await _start_confluence(client, a, initiative_id=a.initiative.id, keys=())
+    assert nothing.status_code == 400
+    assert nothing.json()["detail"] == "IMPORT_SOURCE_NOTHING_SELECTED"
+
+    bad_key = await _start_confluence(
+        client, a, initiative_id=a.initiative.id, keys=("DOCS/../x",)
+    )
+    assert bad_key.status_code == 422

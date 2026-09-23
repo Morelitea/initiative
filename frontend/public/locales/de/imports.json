@@ -16,6 +16,7 @@
       "names": {
         "backup": "Initiative-Sicherung",
         "jira": "Jira",
+        "confluence": "Confluence",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
@@ -23,6 +24,7 @@
       "descriptions": {
         "backup": "Eine aus Initiative exportierte .zip-Datei, unverändert zurückgespielt.",
         "jira": "Projekte direkt aus deiner Jira-Website.",
+        "confluence": "Bereiche direkt aus deiner Confluence-Site, jeweils als Wiki.",
         "todoist": "Ein als CSV exportiertes Projekt.",
         "ticktick": "Eine Sicherungs-CSV mit allen Listen.",
         "vikunja": "Die data.json aus einem Vikunja-Export."
@@ -176,6 +178,42 @@
         "skippedIssues_one": "{{count}} Vorgang, den wir nicht lesen konnten",
         "skippedIssues_other": "{{count}} Vorgänge, die wir nicht lesen konnten",
         "note": "Wenn du den Import startest, wird all das in die gewählte Initiative geschrieben. Abbrechen verwirft es."
+      }
+    },
+    "confluence": {
+      "connect": {
+        "prompt": "Mit deiner Confluence-Site verbinden.",
+        "note": "Das Token wird nur zum Lesen der ausgewählten Bereiche verwendet und gelöscht, sobald sie gelesen sind.",
+        "noConfluence": "Wir haben die Site erreicht, aber dort gibt es kein Confluence, das dieses Token sehen kann."
+      },
+      "choose": {
+        "prompt": "Wähle die Bereiche aus, die übernommen werden, und wohin sie kommen.",
+        "spacesLabel": "Bereiche",
+        "pages_one": "{{count}} Seite",
+        "pages_other": "{{count}} Seiten",
+        "note": "Jeder Bereich wird als neues Wiki in dieser Initiative angelegt, mit seinen Seiten in derselben Baumstruktur. Geschrieben wird erst, nachdem du geprüft hast, was wir gefunden haben.",
+        "submit": "Diese Bereiche lesen",
+        "failed": "Wir konnten nicht mit dem Lesen dieser Bereiche beginnen.",
+        "noSpaces": "Dieses Token sieht auf der Site keine Bereiche."
+      },
+      "fetch": {
+        "title": "Deine Confluence-Site wird gelesen…",
+        "progress": "Bisher {{spaces}} Bereiche und {{pages}} Seiten gelesen",
+        "failed": "Wir konnten diese Bereiche nicht lesen."
+      },
+      "review": {
+        "pages_one": "{{count}} Seite aus {{spaces}} Bereichen",
+        "pages_other": "{{count}} Seiten aus {{spaces}} Bereichen",
+        "containers_one": "{{count}} Ordner oder leere übergeordnete Seite wird zu einer Liste der Seiten darunter",
+        "containers_other": "{{count}} Ordner oder leere übergeordnete Seiten werden zu Listen der Seiten darunter",
+        "labels_one": "{{count}} Label, als Tag",
+        "labels_other": "{{count}} Labels, als Tags",
+        "unreadableSpaces": "Nicht lesbar: {{keys}}",
+        "overLimit_one": "{{count}} Seite würde das Wiki für einen Import zu groß machen",
+        "overLimit_other": "{{count}} Seiten würden das Wiki für einen Import zu groß machen",
+        "attachments_one": "{{count}} angehängte Datei wird noch nicht übernommen",
+        "attachments_other": "{{count}} angehängte Dateien werden noch nicht übernommen",
+        "dropped": "Ausgelassen: {{items}}"
       }
     }
   },

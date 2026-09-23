@@ -51,6 +51,7 @@ import {
   IndentDecreaseIcon,
   IndentIncreaseIcon,
   ItalicIcon,
+  PenTool,
   ScissorsIcon,
   Sparkles,
   StrikethroughIcon,
@@ -63,6 +64,9 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react
 import { useTranslation } from "react-i18next";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
+import { INSERT_CALLOUT_COMMAND } from "@/components/ui/editor/extensions/callout-extension";
+import { INSERT_EXCALIDRAW_COMMAND } from "@/components/ui/editor/extensions/excalidraw-extension";
+import { CalloutIcon } from "@/components/ui/editor/plugins/callout-icon";
 import { EmbedConfigs } from "@/components/ui/editor/plugins/embeds/auto-embed-plugin";
 import { InsertImageDialog } from "@/components/ui/editor/plugins/images-plugin";
 import { InsertLayoutDialog } from "@/components/ui/editor/plugins/layout-plugin";
@@ -363,6 +367,18 @@ export const useBlockInsertActions = ({
   );
 
   if (rich) {
+    actions.push({
+      id: "drawing",
+      label: t("editor.drawing"),
+      icon: <PenTool className="size-4" />,
+      run: () => activeEditor.dispatchCommand(INSERT_EXCALIDRAW_COMMAND, undefined),
+    });
+    actions.push({
+      id: "callout",
+      label: t("editor.callout"),
+      icon: <CalloutIcon variant="info" className="size-4" />,
+      run: () => activeEditor.dispatchCommand(INSERT_CALLOUT_COMMAND, "info"),
+    });
     actions.push({
       id: "columns",
       label: t("editor.columnsLayout"),
