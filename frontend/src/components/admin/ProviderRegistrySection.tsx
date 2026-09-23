@@ -3,8 +3,8 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  AuthProviderAdminRead,
   AuthProviderCreate,
+  AuthProviderOwnerRead,
   AuthProviderProbeResult,
   AuthProviderUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -72,7 +72,7 @@ export interface ProviderRegistrySectionProps {
   title: string;
   description: string;
   dialogDescription: string;
-  providers: AuthProviderAdminRead[] | undefined;
+  providers: AuthProviderOwnerRead[] | undefined;
   isLoading: boolean;
   createProvider: RegistryMutation<AuthProviderCreate>;
   updateProvider: RegistryMutation<{ providerId: number; data: AuthProviderUpdate }>;
@@ -103,12 +103,12 @@ export const ProviderRegistrySection = ({
   const { t } = useTranslation("settings");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<AuthProviderAdminRead | null>(null);
+  const [editing, setEditing] = useState<AuthProviderOwnerRead | null>(null);
   const [form, setForm] = useState<ProviderFormState>(EMPTY_FORM);
   const [probe, setProbe] = useState<AuthProviderProbeResult | null>(null);
   const [clearSecret, setClearSecret] = useState(false);
   const [slugError, setSlugError] = useState(false);
-  const [deleting, setDeleting] = useState<AuthProviderAdminRead | null>(null);
+  const [deleting, setDeleting] = useState<AuthProviderOwnerRead | null>(null);
 
   const closeDialog = () => {
     setDialogOpen(false);
@@ -119,7 +119,7 @@ export const ProviderRegistrySection = ({
     setProbe(null);
   };
 
-  const openEdit = (provider: AuthProviderAdminRead) => {
+  const openEdit = (provider: AuthProviderOwnerRead) => {
     setEditing(provider);
     setForm({
       slug: provider.slug,
@@ -152,7 +152,7 @@ export const ProviderRegistrySection = ({
   };
 
   /** Check a saved provider, against the address on the row. */
-  const test = (provider: AuthProviderAdminRead) => {
+  const test = (provider: AuthProviderOwnerRead) => {
     testProvider.mutate(provider.id, {
       onSuccess: (result) => {
         if (result.ok) {

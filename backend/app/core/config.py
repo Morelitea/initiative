@@ -678,7 +678,7 @@ class Settings(BaseSettings):
     # shorter windows). Each is clamped to PAM_MAX_DURATION_MINUTES.
     PAM_SUPPORT_MAX_MINUTES: int = 240  # 4 hours
     PAM_MODERATOR_MAX_MINUTES: int = 480  # 8 hours
-    PAM_ADMIN_MAX_MINUTES: int = 1440  # 24 hours
+    PAM_OPERATOR_MAX_MINUTES: int = 1440  # 24 hours
     # Break-glass (self-approved, data.bypass holders): deliberately short — a
     # self-issued emergency grant skips the second-person approval, so its window
     # is conservative and re-triggered to extend. Capped below the role maxima.

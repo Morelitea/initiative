@@ -21,9 +21,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AuthProviderAdminRead,
   AuthProviderCreate,
   AuthProviderDiscoverRequest,
+  AuthProviderOwnerRead,
   AuthProviderProbeResult,
   AuthProviderUpdate,
   HTTPValidationError,
@@ -58,7 +58,7 @@ export const listAuthProvidersApiV1SettingsAuthProvidersGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AuthProviderAdminRead[]>(
+  return apiMutator<AuthProviderOwnerRead[]>(
     { url: `/api/v1/settings/auth/providers/`, method: "GET", signal },
     options
   );
@@ -204,7 +204,7 @@ export const createAuthProviderApiV1SettingsAuthProvidersPost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AuthProviderAdminRead>(
+  return apiMutator<AuthProviderOwnerRead>(
     {
       url: `/api/v1/settings/auth/providers/`,
       method: "POST",
@@ -303,7 +303,7 @@ export const updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AuthProviderAdminRead>(
+  return apiMutator<AuthProviderOwnerRead>(
     {
       url: `/api/v1/settings/auth/providers/${providerId}`,
       method: "PATCH",

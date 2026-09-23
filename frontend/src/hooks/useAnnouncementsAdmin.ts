@@ -9,9 +9,9 @@ import {
   uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost,
 } from "@/api/generated/announcements/announcements";
 import type {
-  AnnouncementAdminListResponse,
-  AnnouncementAdminRead,
   AnnouncementImageRead,
+  AnnouncementOperatorListResponse,
+  AnnouncementOperatorRead,
   AnnouncementUpdate,
   AnnouncementWrite,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -20,21 +20,21 @@ import { useApiMutation } from "@/hooks/useApiMutation";
 import type { QueryOpts } from "@/types/query";
 
 /** Every announcement, drafts and compiled-in notices included. */
-export const usePlatformAnnouncements = (options?: QueryOpts<AnnouncementAdminListResponse>) =>
-  useQuery<AnnouncementAdminListResponse>({
+export const usePlatformAnnouncements = (options?: QueryOpts<AnnouncementOperatorListResponse>) =>
+  useQuery<AnnouncementOperatorListResponse>({
     queryKey: getListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryKey(),
     queryFn: () => listAllAnnouncementsApiV1AnnouncementsOperatorGet(),
     ...options,
   });
 
 export const useCreateAnnouncement = () =>
-  useApiMutation<AnnouncementAdminRead, AnnouncementWrite>({
+  useApiMutation<AnnouncementOperatorRead, AnnouncementWrite>({
     mutationFn: (data) => createAnnouncementApiV1AnnouncementsOperatorPost(data),
     invalidate: () => invalidate(q.announcements()),
   });
 
 export const useUpdateAnnouncement = () =>
-  useApiMutation<AnnouncementAdminRead, { id: number; data: AnnouncementUpdate }>({
+  useApiMutation<AnnouncementOperatorRead, { id: number; data: AnnouncementUpdate }>({
     mutationFn: ({ id, data }) =>
       updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch(id, data),
     invalidate: () => invalidate(q.announcements()),

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type {
-  AuthProviderAdminRead,
+  AuthProviderOwnerRead,
   AuthProviderProbeResult,
 } from "@/api/generated/initiativeAPI.schemas";
 
@@ -13,7 +13,7 @@ const deleteMutate = vi.fn();
 const testMutate = vi.fn();
 const discoverMutate = vi.fn();
 
-let providersData: AuthProviderAdminRead[] = [];
+let providersData: AuthProviderOwnerRead[] = [];
 
 vi.mock("@/hooks/useSettings", () => ({
   useAuthProviders: () => ({ data: providersData, isLoading: false }),
@@ -26,7 +26,7 @@ vi.mock("@/hooks/useSettings", () => ({
 
 import { AuthProvidersSection } from "./AuthProvidersSection";
 
-const platformRow: AuthProviderAdminRead = {
+const platformRow: AuthProviderOwnerRead = {
   id: 1,
   slug: "oidc",
   display_name: "Okta",
@@ -44,7 +44,7 @@ const platformRow: AuthProviderAdminRead = {
   callback_url: "https://app.example.com/api/v1/auth/oidc/callback",
 };
 
-const corpRow: AuthProviderAdminRead = {
+const corpRow: AuthProviderOwnerRead = {
   ...platformRow,
   id: 2,
   slug: "corp",

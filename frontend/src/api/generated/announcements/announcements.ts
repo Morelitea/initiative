@@ -21,10 +21,10 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AnnouncementAdminListResponse,
-  AnnouncementAdminRead,
   AnnouncementImageRead,
   AnnouncementListResponse,
+  AnnouncementOperatorListResponse,
+  AnnouncementOperatorRead,
   AnnouncementUpdate,
   AnnouncementWrite,
   BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost,
@@ -393,7 +393,7 @@ export const listAllAnnouncementsApiV1AnnouncementsOperatorGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AnnouncementAdminListResponse>(
+  return apiMutator<AnnouncementOperatorListResponse>(
     { url: `/api/v1/announcements/operator`, method: "GET", signal },
     options
   );
@@ -539,7 +539,7 @@ export const createAnnouncementApiV1AnnouncementsOperatorPost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AnnouncementAdminRead>(
+  return apiMutator<AnnouncementOperatorRead>(
     {
       url: `/api/v1/announcements/operator`,
       method: "POST",
@@ -638,7 +638,7 @@ export const updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AnnouncementAdminRead>(
+  return apiMutator<AnnouncementOperatorRead>(
     {
       url: `/api/v1/announcements/operator/${announcementId}`,
       method: "PATCH",

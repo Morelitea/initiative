@@ -42,7 +42,7 @@ from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from app.schemas.platform.user import AdminUserRead, UserRead, UserSummary
+    from app.schemas.platform.user import OperatorUserRead, UserRead, UserSummary
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
@@ -1103,12 +1103,12 @@ async def to_self_read(user: User) -> "UserRead":
     return payload
 
 
-async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
+async def to_admin_read(users: List[User]) -> List["OperatorUserRead"]:
     """The same, for staff reading other people's accounts.
 
     The shape masks the address itself.
     """
-    from app.schemas.platform.user import AdminUserRead
+    from app.schemas.platform.user import OperatorUserRead
 
     primary, proven = await _reach([u.id for u in users])
     # Only asked when somebody on this page is actually waiting out a window,
@@ -1118,9 +1118,9 @@ async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
         if any(u.status == UserStatus.deleted for u in users)
         else None
     )
-    out: List[AdminUserRead] = []
+    out: List[OperatorUserRead] = []
     for user in users:
-        payload = AdminUserRead.model_validate(user)
+        payload = OperatorUserRead.model_validate(user)
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
         payload.purge_at = _erase_at(user, retention)
@@ -1158,6 +1158,6 @@ def _erase_at(user: User, retention: int | None) -> datetime | None:
     return erase_at(user.status_changed_at, retention)
 
 
-async def to_admin_read_one(user: User) -> "AdminUserRead":
+async def to_admin_read_one(user: User) -> "OperatorUserRead":
     """``to_admin_read`` for the routes that return one account."""
     return (await to_admin_read([user]))[0]

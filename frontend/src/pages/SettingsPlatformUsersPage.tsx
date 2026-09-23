@@ -2,7 +2,7 @@ import { CalendarClock, Download, Mail, Trash2, UserCheck } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AdminUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import type { OperatorUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import {
@@ -41,7 +41,7 @@ import { getUserHandle } from "@/lib/userDisplay";
  */
 const sortableHeader =
   (label: string) =>
-  ({ column }: { column: AppColumn<AdminUserRead> }) => {
+  ({ column }: { column: AppColumn<OperatorUserRead> }) => {
     const isSorted = column.getIsSorted();
     return (
       <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export const SettingsPlatformUsersPage = () => {
     userId: number;
     handle: string;
   } | null>(null);
-  const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUserRead | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<OperatorUserRead | null>(null);
   const [managingId, setManagingId] = useState<number | null>(null);
 
   // Viewing the roster needs ``users.read`` (support+). Everything that writes
@@ -157,7 +157,7 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const exportUserCsv = (platformUser: AdminUserRead) => {
+  const exportUserCsv = (platformUser: OperatorUserRead) => {
     // Named by handle. The address never arrives here in full any more, and a
     // filename outlives the download — in a directory listing, in whatever it
     // gets mailed on to.
@@ -192,7 +192,7 @@ export const SettingsPlatformUsersPage = () => {
     return <p className="text-destructive text-sm">{t("platformUsers.loadError")}</p>;
   }
 
-  const userColumns: AppColumnDef<AdminUserRead>[] = [
+  const userColumns: AppColumnDef<OperatorUserRead>[] = [
     {
       accessorKey: "id",
       header: sortableHeader(t("platformUsers.columnId")),

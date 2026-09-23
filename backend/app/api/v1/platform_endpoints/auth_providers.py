@@ -27,7 +27,7 @@ from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session
 from app.schemas.platform.settings import (
-    AuthProviderAdminRead,
+    AuthProviderOwnerRead,
     AuthProviderCreate,
     AuthProviderDiscoverRequest,
     AuthProviderProbeResult,
@@ -41,34 +41,34 @@ router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 
-@router.get("/", response_model=List[AuthProviderAdminRead])
+@router.get("/", response_model=List[AuthProviderOwnerRead])
 async def list_auth_providers(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
-) -> List[AuthProviderAdminRead]:
+) -> List[AuthProviderOwnerRead]:
     return await provider_registry.list_providers(session)
 
 
 @router.post(
-    "/", response_model=AuthProviderAdminRead, status_code=status.HTTP_201_CREATED
+    "/", response_model=AuthProviderOwnerRead, status_code=status.HTTP_201_CREATED
 )
 async def create_auth_provider(
     provider_in: AuthProviderCreate,
     session: AdminSessionDep,
     admin: ConfigManageDep,
-) -> AuthProviderAdminRead:
+) -> AuthProviderOwnerRead:
     return await provider_registry.create_provider(
         session, provider_in, actor_user_id=admin.id
     )
 
 
-@router.patch("/{provider_id}", response_model=AuthProviderAdminRead)
+@router.patch("/{provider_id}", response_model=AuthProviderOwnerRead)
 async def update_auth_provider(
     provider_id: int,
     provider_in: AuthProviderUpdate,
     session: AdminSessionDep,
     admin: ConfigManageDep,
-) -> AuthProviderAdminRead:
+) -> AuthProviderOwnerRead:
     return await provider_registry.update_provider(
         session, provider_id, provider_in, actor_user_id=admin.id
     )

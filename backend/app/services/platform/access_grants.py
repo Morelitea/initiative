@@ -81,11 +81,11 @@ async def _lock_user_guild_grants(
 _ROLE_MAX_MINUTES: dict[UserRole, int] = {
     UserRole.support: settings.PAM_SUPPORT_MAX_MINUTES,
     UserRole.moderator: settings.PAM_MODERATOR_MAX_MINUTES,
-    UserRole.operator: settings.PAM_ADMIN_MAX_MINUTES,
+    UserRole.operator: settings.PAM_OPERATOR_MAX_MINUTES,
     # Owners/operators reach a guild via the self-approved break-glass path
     # (``data.bypass``) rather than the request→approve flow; their cap applies
     # to that self-issued grant.
-    UserRole.owner: settings.PAM_ADMIN_MAX_MINUTES,
+    UserRole.owner: settings.PAM_OPERATOR_MAX_MINUTES,
 }
 
 

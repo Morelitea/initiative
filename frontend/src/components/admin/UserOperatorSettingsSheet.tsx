@@ -17,7 +17,7 @@ import { ImageOff } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AdminUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import type { OperatorUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 import { Section, SettingRow } from "@/components/admin/SettingRow";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -79,7 +79,7 @@ export type UserSheetAbilities = {
 /** True when at least one control would be drawn, i.e. the sheet is worth opening. */
 export const canManageUser = (
   abilities: UserSheetAbilities,
-  target: AdminUserRead,
+  target: OperatorUserRead,
   actorId: number | undefined
 ): boolean => {
   const isSelf = target.id === actorId;
@@ -106,7 +106,7 @@ export const UserOperatorSettingsSheet = ({
   actorId,
   actorRole,
 }: {
-  user: AdminUserRead | null;
+  user: OperatorUserRead | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   abilities: UserSheetAbilities;

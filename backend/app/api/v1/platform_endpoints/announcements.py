@@ -47,8 +47,8 @@ from app.models.platform.announcement import (
 )
 from app.models.platform.user import User
 from app.schemas.platform.announcement import (
-    AnnouncementAdminListResponse,
-    AnnouncementAdminRead,
+    AnnouncementOperatorListResponse,
+    AnnouncementOperatorRead,
     AnnouncementImageRead,
     AnnouncementListResponse,
     AnnouncementUpdate,
@@ -168,27 +168,27 @@ async def read_announcement_image(
 # --- authoring ---------------------------------------------------------------
 
 
-@router.get("/operator", response_model=AnnouncementAdminListResponse)
+@router.get("/operator", response_model=AnnouncementOperatorListResponse)
 async def list_all_announcements(
     session: UserSessionDep,
     _author: AuthorDep,
-) -> AnnouncementAdminListResponse:
+) -> AnnouncementOperatorListResponse:
     """Every announcement, drafts and compiled-in notices included."""
-    return AnnouncementAdminListResponse(
+    return AnnouncementOperatorListResponse(
         items=await announcements_service.list_all(session)
     )
 
 
 @router.post(
     "/operator",
-    response_model=AnnouncementAdminRead,
+    response_model=AnnouncementOperatorRead,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_announcement(
     payload: AnnouncementWrite,
     session: UserSessionDep,
     author: AuthorDep,
-) -> AnnouncementAdminRead:
+) -> AnnouncementOperatorRead:
     announcement = await announcements_service.create(
         session, payload=payload, author_id=author.id
     )
@@ -198,13 +198,13 @@ async def create_announcement(
     return announcements_service.to_admin_read(announcement)
 
 
-@router.patch("/operator/{announcement_id}", response_model=AnnouncementAdminRead)
+@router.patch("/operator/{announcement_id}", response_model=AnnouncementOperatorRead)
 async def update_announcement(
     announcement_id: int,
     payload: AnnouncementUpdate,
     session: UserSessionDep,
     _author: AuthorDep,
-) -> AnnouncementAdminRead:
+) -> AnnouncementOperatorRead:
     announcement = await _load(session, announcement_id)
     await announcements_service.update(
         session, announcement=announcement, payload=payload

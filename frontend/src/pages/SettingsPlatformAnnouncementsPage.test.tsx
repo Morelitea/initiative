@@ -5,11 +5,11 @@ import { describe, expect, it } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { AnnouncementAdminRead } from "@/api/generated/initiativeAPI.schemas";
+import type { AnnouncementOperatorRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { SettingsPlatformAnnouncementsPage } from "./SettingsPlatformAnnouncementsPage";
 
-const live: AnnouncementAdminRead = {
+const live: AnnouncementOperatorRead = {
   key: "db:1",
   id: 1,
   title: "Board view is new",
@@ -21,7 +21,7 @@ const live: AnnouncementAdminRead = {
   guild_admins_only: false,
 };
 
-const draft: AnnouncementAdminRead = {
+const draft: AnnouncementOperatorRead = {
   ...live,
   key: "db:2",
   id: 2,
@@ -29,7 +29,7 @@ const draft: AnnouncementAdminRead = {
   published_at: null,
 };
 
-const builtin: AnnouncementAdminRead = {
+const builtin: AnnouncementOperatorRead = {
   ...live,
   key: "builtin:breaking",
   id: null,
@@ -38,7 +38,7 @@ const builtin: AnnouncementAdminRead = {
   is_builtin: true,
 };
 
-const listResponds = (items: AnnouncementAdminRead[]) => {
+const listResponds = (items: AnnouncementOperatorRead[]) => {
   server.use(http.get("*/api/v1/announcements/operator", () => HttpResponse.json({ items })));
 };
 

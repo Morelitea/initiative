@@ -14,8 +14,8 @@ import {
   updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch,
 } from "@/api/generated/auth-providers/auth-providers";
 import type {
-  AuthProviderAdminRead,
   AuthProviderCreate,
+  AuthProviderOwnerRead,
   AuthProviderProbeResult,
   AuthProviderUpdate,
   ChangelogResponse,
@@ -101,8 +101,8 @@ export const useOidcSettings = (options?: QueryOpts<OIDCSettingsResponse>) => {
   });
 };
 
-export const useAuthProviders = (options?: QueryOpts<AuthProviderAdminRead[]>) => {
-  return useQuery<AuthProviderAdminRead[]>({
+export const useAuthProviders = (options?: QueryOpts<AuthProviderOwnerRead[]>) => {
+  return useQuery<AuthProviderOwnerRead[]>({
     queryKey: getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey(),
     queryFn: () => listAuthProvidersApiV1SettingsAuthProvidersGet(),
     ...options,
@@ -206,9 +206,9 @@ export const useChangelog = (
 // ── Settings Mutations ──────────────────────────────────────────────────────
 
 export const useCreateAuthProvider = (
-  options?: MutationOpts<AuthProviderAdminRead, AuthProviderCreate>
+  options?: MutationOpts<AuthProviderOwnerRead, AuthProviderCreate>
 ) =>
-  useApiMutation<AuthProviderAdminRead, AuthProviderCreate>(
+  useApiMutation<AuthProviderOwnerRead, AuthProviderCreate>(
     {
       mutationFn: (data) => createAuthProviderApiV1SettingsAuthProvidersPost(data),
       invalidate: () => invalidate(q.authProviders()),
@@ -217,9 +217,9 @@ export const useCreateAuthProvider = (
   );
 
 export const useUpdateAuthProvider = (
-  options?: MutationOpts<AuthProviderAdminRead, { providerId: number; data: AuthProviderUpdate }>
+  options?: MutationOpts<AuthProviderOwnerRead, { providerId: number; data: AuthProviderUpdate }>
 ) =>
-  useApiMutation<AuthProviderAdminRead, { providerId: number; data: AuthProviderUpdate }>(
+  useApiMutation<AuthProviderOwnerRead, { providerId: number; data: AuthProviderUpdate }>(
     {
       mutationFn: ({ providerId, data }) =>
         updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch(providerId, data),

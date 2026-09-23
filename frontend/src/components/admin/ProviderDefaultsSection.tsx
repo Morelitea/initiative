@@ -17,7 +17,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AuthProviderAdminRead } from "@/api/generated/initiativeAPI.schemas";
+import type { AuthProviderOwnerRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
-const ProviderDefaultRow = ({ provider }: { provider: AuthProviderAdminRead }) => {
+const ProviderDefaultRow = ({ provider }: { provider: AuthProviderOwnerRead }) => {
   const { t } = useTranslation("settings");
   const defaultQuery = useProviderDefault(provider.id);
   const setDefault = useSetProviderDefault(provider.id);

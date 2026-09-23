@@ -6,11 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildUser } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { AdminUserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { OperatorUserRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { AdminDeleteUserDialog } from "./AdminDeleteUserDialog";
 
-const targetUser: AdminUserRead = {
+const targetUser: OperatorUserRead = {
   ...buildUser({ id: 42, status: "active" }),
   email: "sole-admin@example.com",
   purge_at: null,

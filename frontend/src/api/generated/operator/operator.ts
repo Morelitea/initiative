@@ -22,13 +22,13 @@ import type {
 
 import type {
   AccountDeletionResponse,
-  AdminDeletionEligibilityResponse,
-  AdminSuspensionUpdate,
-  AdminUserDeleteRequest,
-  AdminUserRead,
-  AdminUsernameUpdate,
   ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   HTTPValidationError,
+  OperatorDeletionEligibilityResponse,
+  OperatorSuspensionUpdate,
+  OperatorUserDeleteRequest,
+  OperatorUserRead,
+  OperatorUsernameUpdate,
   PlatformRoleUpdate,
   VerificationSendResponse,
 } from "../initiativeAPI.schemas";
@@ -66,7 +66,7 @@ export const listAllUsersApiV1OperatorUsersGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AdminUserRead[]>(
+  return apiMutator<OperatorUserRead[]>(
     { url: `/api/v1/operator/users`, method: "GET", signal },
     options
   );
@@ -547,7 +547,7 @@ export const reactivateUserApiV1OperatorUsersUserIdReactivatePost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AdminUserRead>(
+  return apiMutator<OperatorUserRead>(
     { url: `/api/v1/operator/users/${userId}/reactivate`, method: "POST", signal },
     options
   );
@@ -652,7 +652,7 @@ export const restoreDeletedUserApiV1OperatorUsersUserIdRestorePost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AdminUserRead>(
+  return apiMutator<OperatorUserRead>(
     { url: `/api/v1/operator/users/${userId}/restore`, method: "POST", signal },
     options
   );
@@ -858,16 +858,16 @@ export const useRemoveUserAvatarApiV1OperatorUsersUserIdAvatarDelete = <
  */
 export const setUserUsernameApiV1OperatorUsersUserIdUsernamePatch = (
   userId: number,
-  adminUsernameUpdate: BodyType<AdminUsernameUpdate>,
+  operatorUsernameUpdate: BodyType<OperatorUsernameUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AdminUserRead>(
+  return apiMutator<OperatorUserRead>(
     {
       url: `/api/v1/operator/users/${userId}/username`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: adminUsernameUpdate,
+      data: operatorUsernameUpdate,
       signal,
     },
     options
@@ -917,12 +917,12 @@ export type SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationResult =
   Awaited<ReturnType<typeof setUserUsernameApiV1OperatorUsersUserIdUsernamePatch>>
 >;
 export type SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationBody =
-  BodyType<AdminUsernameUpdate>;
+  BodyType<OperatorUsernameUpdate>;
 export type SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationError =
   ErrorType<HTTPValidationError>;
 export type SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationVariables = {
   userId: number;
-  data: BodyType<AdminUsernameUpdate>;
+  data: BodyType<OperatorUsernameUpdate>;
 };
 
 /**
@@ -969,16 +969,16 @@ export const useSetUserUsernameApiV1OperatorUsersUserIdUsernamePatch = <
  */
 export const setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost = (
   userId: number,
-  adminSuspensionUpdate: BodyType<AdminSuspensionUpdate>,
+  operatorSuspensionUpdate: BodyType<OperatorSuspensionUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AdminUserRead>(
+  return apiMutator<OperatorUserRead>(
     {
       url: `/api/v1/operator/users/${userId}/suspension`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: adminSuspensionUpdate,
+      data: operatorSuspensionUpdate,
       signal,
     },
     options
@@ -1028,12 +1028,12 @@ export type SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationResul
   Awaited<ReturnType<typeof setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost>>
 >;
 export type SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationBody =
-  BodyType<AdminSuspensionUpdate>;
+  BodyType<OperatorSuspensionUpdate>;
 export type SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationError =
   ErrorType<HTTPValidationError>;
 export type SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationVariables = {
   userId: number;
-  data: BodyType<AdminSuspensionUpdate>;
+  data: BodyType<OperatorSuspensionUpdate>;
 };
 
 /**
@@ -1085,7 +1085,7 @@ export const clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AdminUserRead>(
+  return apiMutator<OperatorUserRead>(
     { url: `/api/v1/operator/users/${userId}/age-block`, method: "DELETE", signal },
     options
   );
@@ -1182,7 +1182,7 @@ export const updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AdminUserRead>(
+  return apiMutator<OperatorUserRead>(
     {
       url: `/api/v1/operator/users/${userId}/platform-role`,
       method: "PATCH",
@@ -1291,7 +1291,7 @@ export const checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibi
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AdminDeletionEligibilityResponse>(
+  return apiMutator<OperatorDeletionEligibilityResponse>(
     { url: `/api/v1/operator/users/${userId}/deletion-eligibility`, method: "GET", signal },
     options
   );
@@ -1529,7 +1529,7 @@ export function useCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionE
  */
 export const deleteUserApiV1OperatorUsersUserIdDelete = (
   userId: number,
-  adminUserDeleteRequest: BodyType<AdminUserDeleteRequest>,
+  operatorUserDeleteRequest: BodyType<OperatorUserDeleteRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1538,7 +1538,7 @@ export const deleteUserApiV1OperatorUsersUserIdDelete = (
       url: `/api/v1/operator/users/${userId}`,
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      data: adminUserDeleteRequest,
+      data: operatorUserDeleteRequest,
       signal,
     },
     options
@@ -1587,11 +1587,12 @@ export const getDeleteUserApiV1OperatorUsersUserIdDeleteMutationOptions = <
 export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteUserApiV1OperatorUsersUserIdDelete>>
 >;
-export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationBody = BodyType<AdminUserDeleteRequest>;
+export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationBody =
+  BodyType<OperatorUserDeleteRequest>;
 export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
 export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationVariables = {
   userId: number;
-  data: BodyType<AdminUserDeleteRequest>;
+  data: BodyType<OperatorUserDeleteRequest>;
 };
 
 /**
