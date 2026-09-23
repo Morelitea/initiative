@@ -861,7 +861,7 @@ async def create_initiative_app_handoff(
         is_guild_admin=guild_context.is_admin,
         initiative_id=initiative.id,
         is_initiative_manager=await rls_service.is_initiative_manager(
-            session, initiative_id=initiative.id, user=current_user
+            session, initiative_id=initiative.id
         ),
     )
     await session.commit()

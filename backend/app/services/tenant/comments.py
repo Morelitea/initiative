@@ -1064,7 +1064,6 @@ async def delete_comment(
         is_initiative_manager = await rls_service.is_initiative_manager(
             session,
             initiative_id=initiative_id,
-            user=user,
         )
 
     if not (is_author or is_guild_admin or is_initiative_manager):

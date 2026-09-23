@@ -15,6 +15,8 @@ this account hold the seat, is there a membership row — are the standing's:
 from __future__ import annotations
 
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy import func
+from sqlmodel import select
 
 from app.core.messages import InitiativeMessages
 from app.models.tenant.initiative import (
@@ -26,7 +28,7 @@ from app.models.tenant.initiative import (
 from app.models.platform.user import User
 
 # Re-export the RLS context helper so callers can import from a single place.
-from app.db.session import set_rls_context  # noqa: F401
+from app.db.session import require_guild_context, set_rls_context  # noqa: F401
 
 
 # ---------------------------------------------------------------------------
@@ -34,72 +36,29 @@ from app.db.session import set_rls_context  # noqa: F401
 # ---------------------------------------------------------------------------
 
 
-async def _get_membership_with_role(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-) -> InitiativeMember | None:
-    """Get initiative membership with role eagerly loaded."""
-    from sqlalchemy.orm import selectinload
-    from sqlmodel import select
-
-    stmt = (
-        select(InitiativeMember)
-        .options(
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            )
-        )
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            InitiativeMember.user_id == user_id,
-        )
-    )
-    result = await session.exec(stmt)
-    return result.one_or_none()
-
-
 # ---------------------------------------------------------------------------
 # Initiative manager checks
 # ---------------------------------------------------------------------------
 
 
-async def is_initiative_manager(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
-) -> bool:
-    """Check if user has manager-level role in the initiative."""
-    # No standing platform bypass: ``data.bypass`` no longer confers manager
-    # authority. An admin/owner reaches a guild only via an explicit break-glass
-    # grant, and a grant — like the existing PAM model — confers scoped content
-    # read/write (enforced by RLS + the resource-access helpers), never initiative
-    # management. So manager status is membership-derived only.
-    membership = await _get_membership_with_role(
-        session, initiative_id=initiative_id, user_id=user.id
-    )
-    if not membership or not membership.role_ref:
-        return False
-    return membership.role_ref.is_manager
+async def is_initiative_manager(session: AsyncSession, *, initiative_id: int) -> bool:
+    """Whether this request manages ``initiative_id``, by the standing.
+
+    The seam computed ``app.manager_initiatives`` from the roster and the
+    roles' rows when it routed the session; this reads that answer back rather
+    than asking the rows again. Granted access manages nothing.
+    """
+    context = require_guild_context(session)
+    return initiative_id in context.manager_initiatives
 
 
 async def assert_initiative_manager(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
+    session: AsyncSession, *, initiative_id: int
 ) -> None:
-    """Raise ``PermissionError`` unless user is an initiative manager."""
-    if await is_initiative_manager(session, initiative_id=initiative_id, user=user):
+    """Raise ``PermissionError`` unless this request manages the initiative."""
+    if await is_initiative_manager(session, initiative_id=initiative_id):
         return
     raise PermissionError(InitiativeMessages.MANAGER_REQUIRED)
-
-
-# ---------------------------------------------------------------------------
-# Initiative permission checks (RBAC via PermissionKey)
-# ---------------------------------------------------------------------------
 
 
 async def check_initiative_permission(
@@ -109,27 +68,26 @@ async def check_initiative_permission(
     user: User,
     permission_key: PermissionKey,
 ) -> bool:
-    """Check if user has a specific permission in the initiative.
+    """Whether ``user``'s role in the initiative permits ``permission_key``.
 
-    Args:
-        session: Database session
-        initiative_id: ID of the initiative
-        user: User to check permissions for
-        permission_key: Permission to check (e.g., PermissionKey.create_documents)
-
-    Returns:
-        True if user has the permission, False otherwise
+    Asked of the schema's own ``initiative_role_permits`` — the function the
+    content policies call — so the rule has one body: a manager holds every
+    key, a stored row decides, and the key's documented default decides when
+    there is none. It reads the standing the session was routed with, so it
+    answers for the request's own account.
     """
-    # No standing platform bypass: ``data.bypass`` no longer grants every
-    # permission. A break-glass / PAM grantee's content visibility and read/write
-    # are handled by the dedicated PAM path (list filters' ``has_active_grant``,
-    # the ``require_*_access`` helpers, and RLS at the assumed guild role) — a
-    # grant never confers initiative-level permission keys here, so permission is
-    # membership-derived only.
-    membership = await _get_membership_with_role(
-        session, initiative_id=initiative_id, user_id=user.id
+    default = DEFAULT_PERMISSION_VALUES.get(permission_key, False)
+    return bool(
+        (
+            await session.exec(
+                select(
+                    func.initiative_role_permits(
+                        initiative_id, user.id, permission_key.value, default
+                    )
+                )
+            )
+        ).one()
     )
-    return _role_grants(membership.role_ref if membership else None, permission_key)
 
 
 def _role_grants(

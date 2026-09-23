@@ -42,8 +42,10 @@ from app.db.authorization import (
     GUILD_ADMIN,
     RETIRED_GUILD_FUNCTION_SIGNATURES,
     SETTINGS_ADMIN,
+    STANDING_IS_THIS_GUILD,
     SYSTEM_SESSION,
     render_guild_authorization_functions,
+    standing_ids,
 )
 from app.db.frozen import (
     FROZEN_TABLES,
@@ -57,7 +59,7 @@ from app.db.frozen import (
     render_resource_frozen_for_grant_fn,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.db.tenancy import GUILD_SCOPED_TABLES, OWN_ROW_TABLES
+from app.db.tenancy import GUILD_SCOPED_TABLES, MANAGED_TABLES, OWN_ROW_TABLES
 
 
 # Hard delete = purge, and only a guild admin may purge (the interactive endpoint
@@ -146,11 +148,13 @@ _HEADER = """\
 -- SCOPE: only INITIATIVE-scoped CONTENT tables are here, exactly
 -- app.db.initiative_rls.INITIATIVE_SCOPED_TABLES. The STRUCTURAL initiative tables
 -- (initiatives, initiative_members, initiative_roles, initiative_role_permissions)
--- and guild-level / own-row tables (app.db.tenancy.GUILD_LEVEL_TABLES) are NOT
--- initiative-member-scoped: they are guild-scoped by the schema boundary (the
--- membership table can't be gated by the membership check it backs without
--- recursing; own-row scoping would break co-member rosters). The app layer still
--- does finer filtering (e.g. the initiatives list shows member-only for non-admins).
+-- are read within the schema boundary (co-members read their roster, and the
+-- standing statement reads the membership table before any standing exists) and
+-- written by their managers — the managed_* policies further down, from
+-- app.db.tenancy.MANAGED_TABLES. Guild-level / own-row tables
+-- (app.db.tenancy.GUILD_LEVEL_TABLES) are guild-scoped by the schema boundary.
+-- The app layer still does finer filtering (e.g. the initiatives list shows
+-- member-only for non-admins).
 --
 -- To add a new initiative-scoped table: add a path to INITIATIVE_PATHS in
 -- app/db/initiative_rls.py — provisioning and the boot back-fill apply the
@@ -208,6 +212,81 @@ _OWN_ROW_SECTION = """\
 # NULLIF-guard the cast — an unset context leaves the value empty, and a bare
 # ''::int raises and faults the whole query for every PERMISSIVE policy on the
 # table (same rule as the public shared-table policies; see CLAUDE.md §5).
+_MANAGED_SECTION = """\
+-- ===========================================================================
+-- The structural initiative tables (app.db.tenancy.MANAGED_TABLES): read within
+-- the schema, written by the initiative's managers. Reading stays open — a
+-- roster is read by its co-members, and the standing statement reads
+-- initiative_members before any standing exists. Writing asks the standing:
+-- a manager of that initiative (app.manager_initiatives, a value the seam
+-- computed, so the membership table is not gated by a read of itself), the
+-- community's admin, a settings rung beside a read_write grant, or the system
+-- engine. A member's own row into an initiative whose join policy is open is
+-- the one further way in. initiatives keeps its purge guard and trash reads.
+-- ==========================================================================="""
+
+_PAM_WRITE = "current_setting('app.pam_write'::text, true) = 'true'::text"
+
+
+def _managed_write_predicate(initiative_expr: str) -> str:
+    """Who changes an initiative's structure: its managers by the standing, the
+    community's admin, a settings rung writing beside a read_write grant, or
+    the system engine."""
+    return (
+        f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR ({SETTINGS_ADMIN} AND {_PAM_WRITE})"
+        f" OR ({STANDING_IS_THIS_GUILD}"
+        f" AND ({initiative_expr}) = ANY ({standing_ids('app.manager_initiatives')})))"
+    )
+
+
+#: A member's own row into an initiative that is open to join — the self-join
+#: route. Names the community's members (``app.current_guild_id`` is set for a
+#: membership routing and for nothing else) and the initiative's policy.
+_SELF_JOIN_LEG = (
+    "(user_id = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
+    " AND NULLIF(current_setting('app.current_guild_id'::text, true), '') IS NOT NULL"
+    " AND EXISTS (SELECT 1 FROM initiatives i WHERE i.id = initiative_id"
+    " AND i.join_policy = 'open' AND i.deleted_at IS NULL))"
+)
+
+
+def _managed_block(table: str, initiative_expr: str) -> str:
+    """RLS for a structural initiative table: reading open within the schema,
+    writing by the managed-write predicate. ``initiatives`` keeps its admin-only
+    purge guard and trash-read policies beside these."""
+    pred = _managed_write_predicate(initiative_expr)
+    insert_pred = (
+        f"({pred} OR {_SELF_JOIN_LEG})" if table == "initiative_members" else pred
+    )
+    lines = [
+        f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+        f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+        # The shape before this one: an allow-all for every command.
+        f"DROP POLICY IF EXISTS guild_level_open ON {table};",
+        f"DROP POLICY IF EXISTS managed_select ON {table};",
+        f"CREATE POLICY managed_select ON {table} AS PERMISSIVE FOR SELECT",
+        "  USING (true);",
+        f"DROP POLICY IF EXISTS managed_insert ON {table};",
+        f"CREATE POLICY managed_insert ON {table} AS PERMISSIVE FOR INSERT",
+        f"  WITH CHECK ({insert_pred});",
+        f"DROP POLICY IF EXISTS managed_update ON {table};",
+        f"CREATE POLICY managed_update ON {table} AS PERMISSIVE FOR UPDATE",
+        f"  USING ({pred}) WITH CHECK ({pred});",
+        f"DROP POLICY IF EXISTS managed_delete ON {table};",
+        f"CREATE POLICY managed_delete ON {table} AS PERMISSIVE FOR DELETE",
+        f"  USING ({pred});",
+    ]
+    if table in _GUILD_LEVEL_PURGE_TABLES:
+        lines += [
+            f"DROP POLICY IF EXISTS soft_delete_admin_purge ON {table};",
+            f"CREATE POLICY soft_delete_admin_purge ON {table} AS RESTRICTIVE FOR DELETE",
+            f"  USING ({_PURGE_GUARD_PREDICATE});",
+            *_trash_read_policy(table),
+            *_query_trash_policy(table),
+        ]
+    return "\n".join(lines)
+
+
 _OWN_ROW_PREDICATE = (
     "({col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
     f" OR {SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
@@ -411,9 +490,14 @@ def render_guild_rls_ddl() -> str:
         + "\n"
         + "\n\n".join(blocks)
     )
-    guards = [_guild_level_guard_block(t) for t in sorted(_GUILD_LEVEL_PURGE_TABLES)]
+    guards = [
+        _guild_level_guard_block(t)
+        for t in sorted(_GUILD_LEVEL_PURGE_TABLES - set(MANAGED_TABLES))
+    ]
     if guards:
         out += "\n\n" + _GUILD_LEVEL_SECTION + "\n\n" + "\n\n".join(guards)
+    managed = [_managed_block(t, e) for t, e in sorted(MANAGED_TABLES.items())]
+    out += "\n\n" + _MANAGED_SECTION + "\n\n" + "\n\n".join(managed)
     own_rows = [_own_row_block(t, c) for t, c in sorted(OWN_ROW_TABLES.items())]
     if own_rows:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)

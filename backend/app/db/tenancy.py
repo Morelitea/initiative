@@ -42,6 +42,7 @@ from app.db.initiative_rls import INITIATIVE_SCOPED_TABLES
 __all__ = [
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
+    "MANAGED_TABLES",
     "OWN_ROW_TABLES",
     "CREATED_BY_EXEMPT_TABLES",
     "INITIATIVE_SCOPED_TABLES",
@@ -216,11 +217,11 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # reference blobs by file_url string, and a blob can be pinned by
         # documents across initiatives), so it can't use initiative_access;
         # blob *content* access is already gated at the document layer.
-        # Structural initiative tables — deliberately guild-scoped, not
-        # initiative-member-scoped (the membership table can't be gated by the
-        # membership check it backs without recursing; own-row scoping would
-        # break co-member rosters). See the rendered RLS DDL header.
-        "initiatives",  # purge-guarded (admin-only DELETE), not membership-gated
+        # Structural initiative tables — guild-scoped for reading (a roster is
+        # read by its co-members, and the standing statement reads it before
+        # any standing exists), written by the initiative's managers: see
+        # MANAGED_TABLES below and the rendered RLS DDL header.
+        "initiatives",  # purge-guarded (admin-only DELETE) as well
         "initiative_members",
         "initiative_roles",
         "initiative_role_permissions",
@@ -259,6 +260,24 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "guild_app_user_delegations",
     }
 )
+
+# --- Managed overlay on the structural initiative tables ----------------------
+# Guild-level tables whose rows are an initiative's own structure: table -> the
+# SQL expression a row's initiative is read from. Reading stays open within the
+# schema; writing is the initiative's managers', the community's admin's, a
+# settings rung's beside a read_write grant, or the system engine's — rendered
+# as ``managed_*`` policies by ``app.db.guild_ddl.render_guild_rls_ddl`` from
+# the standing (``app.manager_initiatives``), so the membership table is gated
+# by a value the seam computed rather than by a read of itself. Every entry
+# here MUST also be in ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
+MANAGED_TABLES: dict[str, str] = {
+    "initiatives": "id",
+    "initiative_members": "initiative_id",
+    "initiative_roles": "initiative_id",
+    "initiative_role_permissions": (
+        "(SELECT r.initiative_id FROM initiative_roles r WHERE r.id = initiative_role_id)"
+    ),
+}
 
 # --- Own-row overlay on guild-level tables -----------------------------------
 # Guild-level tables whose rows belong to ONE user: table -> owner FK column.

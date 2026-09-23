@@ -233,7 +233,6 @@ async def _require_initiative_access(
         is_manager = await rls_service.is_initiative_manager(
             session,
             initiative_id=initiative_id,
-            user=user,
         )
         if not is_manager:
             raise HTTPException(
