@@ -130,6 +130,28 @@ class BillingGuildNameRead(SanitizedBaseModel):
     name: str
 
 
+class BillingGuildStatusRequest(SanitizedBaseModel):
+    """Body of ``POST /billing/guild-status``.
+
+    The guild rides the signed body rather than a query string, so the
+    envelope's HMAC covers it — like every other verb on this boundary.
+    """
+
+    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+
+
+class BillingGuildStatusRead(SanitizedBaseModel):
+    """Where one guild is in its lifecycle, ``deleted`` included.
+
+    What billing reads to learn that a community it charges for has been
+    deleted here, or has come back. Billing's own status writes never move a
+    guild into or out of ``deleted``, so this is the only way it finds out.
+    """
+
+    guild_ref: str
+    status: GuildStatus
+
+
 class BillingPortalHandoffResponse(SanitizedBaseModel):
     """Billing-portal handoff token and its lifetime in seconds."""
 

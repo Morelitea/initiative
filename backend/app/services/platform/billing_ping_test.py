@@ -263,3 +263,38 @@ async def test_payment_issue_unreachable_is_false(
 
     _answering(monkeypatch, _down)
     assert await billing_ping.guild_payment_failed(7) is False
+
+
+async def test_a_lifecycle_ping_names_only_a_guild_billing_already_knows(
+    session, billing_configured, monkeypatch
+):
+    """Never mints: a guild billing was never told about is not one it charges."""
+    posted: list[bytes] = []
+
+    class _Client:
+        def __init__(self, *a, **k): ...
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, *, content, headers):
+            assert url == "https://billing.internal/api/v1/pings/lifecycle"
+            posted.append(content)
+
+    monkeypatch.setattr(billing_ping.httpx, "AsyncClient", _Client)
+    unknown = await create_guild(session)
+    await billing_ping._send_lifecycle_ping(unknown.id)
+    assert posted == []
+
+    known = await create_guild(session)
+    ref = await billing_ping.billing_guild_ref(guild_id=known.id)
+    await billing_ping._send_lifecycle_ping(known.id)
+    assert [json.loads(body)["guild_ref"] for body in posted] == [ref]
+
+
+def test_each_ping_goes_to_its_own_path(billing_configured):
+    assert billing_ping.build_membership_ping("gbil_x")[0].endswith("/pings/membership")
+    assert billing_ping.build_lifecycle_ping("gbil_x")[0].endswith("/pings/lifecycle")

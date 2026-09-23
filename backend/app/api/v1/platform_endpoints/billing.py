@@ -26,6 +26,8 @@ from app.db.session import get_admin_session, set_billing_context
 from app.schemas.platform.billing import (
     BillingGuildNameRead,
     BillingGuildNameRequest,
+    BillingGuildStatusRead,
+    BillingGuildStatusRequest,
     BillingGuildTierApply,
     BillingGuildTierRead,
     BillingUsageRead,
@@ -181,6 +183,30 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
         )
     await session.commit()  # persist the one-shot jti redemption
     return BillingGuildNameRead(guild_ref=payload.guild_ref, name=name)
+
+
+@router.post("/guild-status", response_model=BillingGuildStatusRead)
+async def guild_status(request: Request, session: SessionDep) -> BillingGuildStatusRead:
+    """Signed read: one guild's lifecycle status, ``deleted`` included.
+
+    How billing learns a community it charges for was deleted here, or was
+    restored — the lifecycle ping only tells it to ask. A deleted guild answers
+    ``deleted`` rather than 404ing, because that is the answer billing acts on;
+    only a purged one 404s, with the jti unredeemed.
+    """
+    claims, payload = await _verify_and_parse(request, BillingGuildStatusRequest)
+    guild_id = await _resolve_guild(payload.guild_ref)
+    await set_billing_context(session, guild_id=guild_id)
+    await _burn_jti(session, claims)
+
+    guild_status = await billing_service.guild_lifecycle_status(session, guild_id)
+    if guild_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.GUILD_NOT_FOUND,
+        )
+    await session.commit()  # persist the one-shot jti redemption
+    return BillingGuildStatusRead(guild_ref=payload.guild_ref, status=guild_status)
 
 
 @router.post("/usage", response_model=BillingUsageRead)

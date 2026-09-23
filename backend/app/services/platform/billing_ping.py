@@ -1,7 +1,10 @@
-"""Fire-and-forget membership ping to the external billing service.
+"""Fire-and-forget pings to the external billing service.
 
-A nudge that a guild's membership changed. What the service does with it is
-its own business; this side only sends it.
+Two nudges: a guild's membership changed, and a guild was deleted or restored.
+What the service does with either is its own business; this side only sends
+it. Neither carries a fact — the lifecycle one in particular does not say which
+way the guild moved, because billing cancels a subscription on the answer and
+reads that answer over the signed boundary instead.
 
 * the payload is the guild's reference and a fresh event id, and nothing
   else — no member data, no PII, no count;
@@ -39,6 +42,7 @@ from app.services.platform.identity_refs import billing_guild_ref, existing_ref
 logger = logging.getLogger(__name__)
 
 MEMBERSHIP_PING_PATH = "/api/v1/pings/membership"
+LIFECYCLE_PING_PATH = "/api/v1/pings/lifecycle"
 PAYMENT_ISSUE_PATH = "/api/v1/payment-issue"
 
 # httpx defaults to no total deadline; keep the whole attempt short — the
@@ -58,6 +62,16 @@ def billing_ping_enabled() -> bool:
 
 
 def build_membership_ping(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
+    """Assemble (url, body, headers) for one membership ping. Pure — no I/O."""
+    return _build_ping(MEMBERSHIP_PING_PATH, guild_ref)
+
+
+def build_lifecycle_ping(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
+    """Assemble (url, body, headers) for one lifecycle ping. Pure — no I/O."""
+    return _build_ping(LIFECYCLE_PING_PATH, guild_ref)
+
+
+def _build_ping(ping_path: str, guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
     """Assemble (url, body, headers) for one ping. Pure — no I/O.
 
     The guild is named by the reference billing holds for it, which is the only
@@ -65,9 +79,7 @@ def build_membership_ping(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
     billing's verifier will see, so a base URL with a path prefix still signs
     correctly.
     """
-    return _signed_post(
-        MEMBERSHIP_PING_PATH, {"guild_ref": guild_ref, "event_id": uuid4().hex}
-    )
+    return _signed_post(ping_path, {"guild_ref": guild_ref, "event_id": uuid4().hex})
 
 
 def _signed_post(route: str, payload: dict) -> tuple[str, bytes, dict[str, str]]:
@@ -104,6 +116,40 @@ async def _send_membership_ping(guild_id: int) -> None:
         )
 
 
+async def _send_lifecycle_ping(guild_id: int) -> None:
+    """One attempt, no retry; never raises.
+
+    Names the guild by the reference billing already holds, and never mints
+    one: a guild billing has never been told about is not one it charges, so
+    there is nobody to tell.
+    """
+    try:
+        guild_ref = await existing_ref(
+            entity_type=IdentityEntity.guild,
+            entity_id=guild_id,
+            purpose=IdentityPurpose.billing,
+        )
+        if guild_ref is None:
+            return
+        url, body, headers = build_lifecycle_ping(guild_ref)
+        async with httpx.AsyncClient(timeout=_PING_TIMEOUT) as client:
+            await client.post(url, content=body, headers=headers)
+    except Exception:
+        logger.debug(
+            "billing: lifecycle ping for guild %s failed (billing's nightly "
+            "sweep reads it anyway)",
+            guild_id,
+        )
+
+
+def _dispatch(send, guild_id: int) -> None:
+    if not billing_ping_enabled():
+        return
+    task = asyncio.create_task(send(int(guild_id)))
+    _pending_pings.add(task)
+    task.add_done_callback(_pending_pings.discard)
+
+
 def notify_membership_changed(guild_id: int) -> None:
     """Nudge billing that ``guild_id``'s membership changed.
 
@@ -112,11 +158,18 @@ def notify_membership_changed(guild_id: int) -> None:
     billing is not configured. Callers may invoke this before their commit —
     a ping for a rolled-back change is harmless, because it carries no facts.
     """
-    if not billing_ping_enabled():
-        return
-    task = asyncio.create_task(_send_membership_ping(int(guild_id)))
-    _pending_pings.add(task)
-    task.add_done_callback(_pending_pings.discard)
+    _dispatch(_send_membership_ping, guild_id)
+
+
+def notify_lifecycle_changed(guild_id: int) -> None:
+    """Nudge billing that ``guild_id`` was deleted or restored.
+
+    Call **after** the commit: billing answers by reading the guild's status,
+    and a ping that arrives first reads the status it had before. Losing one
+    costs a day, not a charge that never stops — billing's nightly sweep reads
+    every guild's status as well.
+    """
+    _dispatch(_send_lifecycle_ping, guild_id)
 
 
 def build_payment_issue_query(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
