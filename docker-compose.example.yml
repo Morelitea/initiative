@@ -75,6 +75,9 @@ services:
       # How much the app says about itself on stderr (DEBUG, INFO, WARNING,
       # ERROR). The audit stream on stdout is not governed by this.
       # LOG_LEVEL: INFO
+      # Let Prometheus read /api/v1/metrics with this bearer token
+      # (openssl rand -hex 32). Unset, that endpoint answers 404.
+      # METRICS_TOKEN: your-metrics-token
       APP_URL: ${APP_URL:-http://localhost:8173}
       # Optional: Enable OIDC authentication
       # OIDC_ENABLED: true

@@ -1,0 +1,164 @@
+"""What this process measures, for Prometheus to read.
+
+The metric objects live here and nothing else does. The request edge
+(:mod:`app.core.request_audit`) records requests and sockets, the engines
+(:mod:`app.db.session`) record statements, and ``/api/v1/metrics`` on the
+health router answers the scrape.
+
+Labels are route templates, methods, status codes, engine names and account or
+community statuses — never a community or a person, so a series never names
+who it is about.
+
+Every series is per process. A deployment running several replicas is
+scraped once per replica: request and statement series add up across them
+with ``sum``, while the platform totals — the same count read by each — are
+taken with ``max``.
+"""
+
+from __future__ import annotations
+
+from typing import Iterator, Mapping
+
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram, Info
+from prometheus_client.core import GaugeMetricFamily
+from prometheus_client.registry import Collector
+from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.pool import QueuePool
+
+from app.core.version import get_version
+
+#: Seconds, from a cached lookup to a page nobody should have waited for.
+_REQUEST_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
+#: Seconds, finer at the bottom, where most statements land.
+_STATEMENT_BUCKETS = (
+    0.001,
+    0.0025,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+)
+
+#: The route label of a request no route answered. The path itself would be a
+#: new series for every path anybody typed.
+UNMATCHED_ROUTE = "unmatched"
+
+#: The methods a request is labelled by; anything else is ``other``.
+METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
+
+http_requests = Counter(
+    "initiative_http_requests",
+    "HTTP requests answered, by route template and status.",
+    ("method", "route", "status"),
+)
+http_request_duration = Histogram(
+    "initiative_http_request_duration_seconds",
+    "Time from a request arriving to its response finishing.",
+    ("method", "route"),
+    buckets=_REQUEST_BUCKETS,
+)
+http_requests_in_progress = Gauge(
+    "initiative_http_requests_in_progress",
+    "HTTP requests being answered right now.",
+    ("method",),
+)
+websocket_connections = Gauge(
+    "initiative_websocket_connections",
+    "Live connections (notifications, collaboration, queues, counters) open now.",
+)
+db_statement_duration = Histogram(
+    "initiative_db_statement_duration_seconds",
+    "Time each database statement took, by engine.",
+    ("engine",),
+    buckets=_STATEMENT_BUCKETS,
+)
+db_slow_statements = Counter(
+    "initiative_db_slow_statements",
+    "Statements over the slow threshold; each is also a warning in the log.",
+    ("engine",),
+)
+users = Gauge(
+    "initiative_users",
+    "Accounts on this deployment, by status.",
+    ("status",),
+)
+guilds = Gauge(
+    "initiative_guilds",
+    "Communities on this deployment, by status.",
+    ("status",),
+)
+sessions_active = Gauge(
+    "initiative_sessions_active",
+    "Signed-in sessions that have neither expired nor been signed out.",
+)
+Info("initiative_build", "The release this process is running.").info(
+    {"version": get_version()}
+)
+
+
+def method_label(method: str | None) -> str:
+    return method if method in METHODS else "other"
+
+
+def record_platform_totals(
+    *,
+    users_by_status: Mapping[str, int],
+    guilds_by_status: Mapping[str, int],
+    live_sessions: int,
+) -> None:
+    """Replace the platform totals with a fresh count.
+
+    Cleared first, so a status nobody holds any more stops being reported
+    rather than keeping its last value.
+    """
+    users.clear()
+    for status, count in users_by_status.items():
+        users.labels(status=status).set(count)
+    guilds.clear()
+    for status, count in guilds_by_status.items():
+        guilds.labels(status=status).set(count)
+    sessions_active.set(live_sessions)
+
+
+#: The engines whose pools are reported, by the label they are reported under.
+_watched_engines: dict[str, AsyncEngine] = {}
+
+
+def watch_pool(label: str, engine: AsyncEngine) -> None:
+    """Report this engine's connection pool on every scrape.
+
+    The engine is held rather than its pool, because disposing an engine
+    replaces the pool.
+    """
+    _watched_engines[label] = engine
+
+
+class _PoolCollector(Collector):
+    """Each watched pool's connections, read when Prometheus asks."""
+
+    def collect(self) -> Iterator[GaugeMetricFamily]:
+        family = GaugeMetricFamily(
+            "initiative_db_pool_connections",
+            "Connections in each engine's pool: checked out, idle, or beyond "
+            "the pool's size.",
+            labels=("engine", "state"),
+        )
+        for label, engine in _watched_engines.items():
+            pool = engine.pool
+            # Only a queue pool keeps these counts; a pool that opens a
+            # connection per use has nothing to report.
+            if not isinstance(pool, QueuePool):
+                continue
+            family.add_metric((label, "checked_out"), pool.checkedout())
+            family.add_metric((label, "idle"), pool.checkedin())
+            family.add_metric((label, "overflow"), max(pool.overflow(), 0))
+        yield family
+
+
+REGISTRY.register(_PoolCollector())
