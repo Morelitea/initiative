@@ -1941,6 +1941,82 @@ async def test_an_envelope_quoting_a_stranger_asks_before_it_applies(
     ).all()
 
 
+async def test_an_envelope_naming_strangers_only_as_assignees_still_asks(
+    client, acting_user, session
+):
+    """Assignees go through the people step's answer too, so an envelope
+    whose only people are assignees is a question like any other. It used to
+    apply on the spot and report them afterwards as unmatched — which is what
+    every Todoist, TickTick and Vikunja export did, since those name people
+    only as the person responsible for a task."""
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["comments"] = []
+    envelope["tasks"][0]["assignee_handles"] = ["Jordan", "Mel"]
+    envelope["tasks"].append(
+        {**envelope["tasks"][0], "title": "Hang it", "assignee_handles": ["Mel"]}
+    )
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == "staged"
+    assert job["plan"]["people"] == [
+        {
+            "handle": handle,
+            "name": None,
+            "comment_count": 0,
+            "suggested_user_id": None,
+        }
+        for handle in ("Jordan", "Mel")
+    ]
+    assert not (
+        await session.exec(select(Project).where(Project.name == "Imported Board"))
+    ).all()
+
+
+async def test_the_people_step_decides_who_an_imported_task_is_assigned_to(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The answer to the step is what lands: a handle nobody here goes by,
+    mapped to a member of the initiative, is that member's task."""
+    from sqlmodel import select
+
+    from app.models.tenant.task import Task, TaskAssignee
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["comments"] = []
+    envelope["tasks"][0]["assignee_handles"] = ["Jordan"]
+
+    job = (await _import_envelope(client, a, envelope, a.initiative.id)).json()
+    assert job["status"] == "staged"
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Jordan": a.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    done = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert done["status"] == "done", done.get("error")
+    assert done["result"]["unmatched_handles"] == []
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
+    assignees = (
+        await session.exec(select(TaskAssignee).where(TaskAssignee.task_id == task.id))
+    ).all()
+    assert [row.user_id for row in assignees] == [a.user.id]
+
+
 async def test_an_envelope_whose_people_all_match_is_not_a_second_step(
     client, acting_user, session
 ):
