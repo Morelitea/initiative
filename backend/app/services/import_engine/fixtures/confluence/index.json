@@ -156,7 +156,7 @@
       "parentId": "26181650",
       "position": 1845,
       "status": "current",
-      "file": "26509313-this-page-has-a-deliberately-very-long-title-so-we-can-see-how-the-importer-and-the-wiki-sidebar-handle-truncation-slugs-and-uniqueness-when-a-title-runs-well-past-what-anyone-would-sensibly-type-into-a-confluence-page-title-field.xml"
+      "file": "26509313-this-page-has-a-deliberately-very-long-title.xml"
     },
     {
       "id": "26509330",

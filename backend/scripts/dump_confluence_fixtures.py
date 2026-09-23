@@ -44,7 +44,10 @@ OUT = (
 
 
 def _slug(title: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "page"
+    # Short enough that the path stays well inside what every filesystem a
+    # contributor checks out on will take.
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:50].strip("-")
+    return slug or "page"
 
 
 def _next_path(payload: dict) -> str | None:
