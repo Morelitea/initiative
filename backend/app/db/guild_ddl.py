@@ -460,9 +460,23 @@ _FREEZE_SECTION = """\
 def render_retired_functions_ddl() -> str:
     """Drop the functions an earlier render put in the schema and this one no
     longer calls. Last in the script, after every policy that named one has
-    been re-created without it."""
+    been re-created without it.
+
+    Only the copy in the schema being rendered. The script runs with the
+    search path set to ``<schema>, public``, so an unqualified name with no
+    local copy resolves to ``public`` — and a release that kept the function
+    there (0.71 did) has every other guild's policies still bound to that
+    copy. Dropping it from one guild's render fails that guild, and then the
+    next, so no guild is ever re-rendered. The shared copy is retired once, at
+    boot, after every guild has stopped using it
+    (``ensure_public_copies_dropped``).
+    """
     return "\n".join(
-        f"DROP FUNCTION IF EXISTS {name}{args};"
+        "DO $retire$ BEGIN "
+        f"IF to_regprocedure(format('%I.{name}{args}', current_schema())) "
+        "IS NOT NULL THEN "
+        f"EXECUTE format('DROP FUNCTION %I.{name}{args}', current_schema()); "
+        "END IF; END $retire$;"
         for name, args in RETIRED_GUILD_FUNCTION_SIGNATURES.items()
     )
 
