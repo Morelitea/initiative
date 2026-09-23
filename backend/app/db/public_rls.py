@@ -38,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
 from app.db.authorization import GUILD_ADMIN, SETTINGS_ADMIN, SYSTEM_SESSION
+from app.models.platform.user import UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +197,7 @@ LIVE_WINDOW = (
     " AND ((expires_at IS NULL) OR (expires_at > now()))"
 )
 CLIENT_SECTOR = "purpose = 'client' AND entity_type = 'user'"
-MEMBER_ROLE_ONLY = "role = 'member'"
+MEMBER_ROLE_ONLY = f"role = '{UserRole.member.value}'"
 
 # --- The registry ---------------------------------------------------------------
 

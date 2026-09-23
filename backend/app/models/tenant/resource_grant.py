@@ -49,6 +49,28 @@ class ResourceAccessLevel(str, Enum):
     write = "write"
     read = "read"
 
+    def reaches(self, level: "ResourceAccessLevel") -> bool:
+        """Whether this level carries what ``level`` carries.
+
+        The sharing ladder asked as a comparison rather than as a set per
+        question: ``write`` reaches ``read``, ``owner`` reaches both.
+        """
+        return RESOURCE_LEVEL_LADDER.index(self) >= RESOURCE_LEVEL_LADDER.index(level)
+
+
+#: The sharing ladder, lowest rung first — the one ordering, which the
+#: policies' write leg and the app's level arithmetic both read.
+RESOURCE_LEVEL_LADDER: tuple[ResourceAccessLevel, ...] = (
+    ResourceAccessLevel.read,
+    ResourceAccessLevel.write,
+    ResourceAccessLevel.owner,
+)
+
+#: The levels that let somebody change a resource; ``read`` is the third.
+WRITE_LEVELS: tuple[ResourceAccessLevel, ...] = tuple(
+    level for level in RESOURCE_LEVEL_LADDER if level.reaches(ResourceAccessLevel.write)
+)
+
 
 class ResourceGrant(CreatedByMixin, table=True):
     __tablename__ = "resource_grants"

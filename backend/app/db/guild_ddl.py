@@ -60,6 +60,7 @@ from app.db.frozen import (
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.db.tenancy import GUILD_SCOPED_TABLES, MANAGED_TABLES, OWN_ROW_TABLES
+from app.models.tenant.initiative import InitiativeJoinPolicy
 
 
 # Hard delete = purge, and only a guild admin may purge (the interactive endpoint
@@ -246,7 +247,7 @@ _SELF_JOIN_LEG = (
     "(user_id = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
     " AND NULLIF(current_setting('app.current_guild_id'::text, true), '') IS NOT NULL"
     " AND EXISTS (SELECT 1 FROM initiatives i WHERE i.id = initiative_id"
-    " AND i.join_policy = 'open' AND i.deleted_at IS NULL))"
+    f" AND i.join_policy = '{InitiativeJoinPolicy.open.value}' AND i.deleted_at IS NULL))"
 )
 
 
