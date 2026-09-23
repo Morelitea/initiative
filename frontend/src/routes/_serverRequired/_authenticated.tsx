@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AcceptTerms } from "@/components/AcceptTerms";
+import { AccountTimeOut } from "@/components/AccountTimeOut";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AnnouncementCenter } from "@/components/announcements/AnnouncementCenter";
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
@@ -90,8 +91,22 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
       throw redirect({ to: redirectTo, search: carry });
     }
   },
-  component: AppLayout,
+  component: AuthenticatedLayout,
 });
+
+/**
+ * A suspended account signs in to its time-out screen and nothing else. Decided
+ * here, ahead of the app shell, so none of the shell's own requests — the
+ * realtime stream, recents, messages — are made for an account that would be
+ * refused every one of them.
+ */
+function AuthenticatedLayout() {
+  const { user, loading } = useAuth();
+  if (!loading && user?.status === "suspended") {
+    return <AccountTimeOut />;
+  }
+  return <AppLayout />;
+}
 
 function AppLayout() {
   // ALL hooks must be called before any conditional returns

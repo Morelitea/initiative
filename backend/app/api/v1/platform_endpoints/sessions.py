@@ -25,7 +25,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.api.deps import get_current_active_user
+from app.api.deps import AccountHolder
 from app.api.v1.platform_endpoints.session_opening import current_session_row
 from app.core import auth_context
 from app.core.audit_events import AuditEventType
@@ -33,7 +33,6 @@ from app.core.messages import AuthMessages
 from app.core.user_agents import describe, kind_of
 from app.db.session import get_admin_session
 from app.models.platform.auth_session import AuthSession
-from app.models.platform.user import User
 from app.schemas.platform.auth import SignedInSessionInfo
 from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
@@ -49,7 +48,7 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 async def list_my_sessions(
     request: Request,
     admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: AccountHolder,
 ) -> list[SignedInSessionInfo]:
     """Every browser session this account can still use, newest activity first.
 
@@ -80,7 +79,7 @@ async def list_my_sessions(
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_my_session(
     admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: AccountHolder,
     session_id: uuid.UUID,
 ) -> None:
     """End one of the account's sessions.
@@ -112,7 +111,7 @@ async def revoke_my_session(
 async def revoke_my_other_sessions(
     request: Request,
     admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: AccountHolder,
 ) -> None:
     """End every session the account holds except the one asking.
 

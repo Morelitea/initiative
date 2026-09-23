@@ -15,6 +15,7 @@
   "PASSWORD_TOO_SHORT": "Das Passwort muss mindestens 12 Zeichen lang sein.",
   "PASSWORD_BREACHED": "Dieses Passwort ist in einem bekannten Datenleck aufgetaucht. Bitte wähle ein anderes.",
   "INACTIVE_USER": "Inaktiver Benutzer",
+  "ACCOUNT_SUSPENDED": "Dein Konto ist gesperrt.",
   "EMAIL_NOT_VERIFIED": "E-Mail-Adresse nicht verifiziert",
   "TOKEN_NOT_FOUND": "Token nicht gefunden",
   "NOT_AUTHENTICATED": "Nicht authentifiziert",

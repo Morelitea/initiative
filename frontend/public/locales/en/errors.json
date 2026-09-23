@@ -9,6 +9,7 @@
   "PASSWORD_TOO_SHORT": "Password must be at least 12 characters.",
   "PASSWORD_BREACHED": "This password has appeared in a known data breach. Please choose a different one.",
   "INACTIVE_USER": "Inactive user",
+  "ACCOUNT_SUSPENDED": "Your account is suspended.",
   "EMAIL_NOT_VERIFIED": "Email not verified",
   "TOKEN_NOT_FOUND": "Token not found",
   "NOT_AUTHENTICATED": "Not authenticated",

@@ -15,6 +15,7 @@
   "PASSWORD_TOO_SHORT": "Le mot de passe doit comporter au moins 12 caractères.",
   "PASSWORD_BREACHED": "Ce mot de passe figure dans une fuite de données connue. Choisissez-en un autre.",
   "INACTIVE_USER": "Utilisateur inactif",
+  "ACCOUNT_SUSPENDED": "Votre compte est suspendu.",
   "EMAIL_NOT_VERIFIED": "Adresse e-mail non vérifiée",
   "TOKEN_NOT_FOUND": "Jeton introuvable",
   "NOT_AUTHENTICATED": "Non authentifié",

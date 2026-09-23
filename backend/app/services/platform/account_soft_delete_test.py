@@ -59,9 +59,10 @@ def test_deleted_is_absent_but_may_still_sign_in():
     """
     assert UserStatus.deleted in ABSENT_STATUSES
     assert UserStatus.deleted in SIGN_IN_STATUSES
-    # A suspension is the other absence, and is not a way back in.
+    # A suspension is the other absence. It signs in, to be told it is in
+    # time out, and reaches nothing else.
     assert UserStatus.suspended in ABSENT_STATUSES
-    assert UserStatus.suspended not in SIGN_IN_STATUSES
+    assert UserStatus.suspended in SIGN_IN_STATUSES
     # Somebody taking a break is neither: they are not erased by a timer, and
     # an admin is what brings them back.
     assert UserStatus.deactivated not in ABSENT_STATUSES

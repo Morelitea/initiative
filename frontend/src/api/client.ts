@@ -78,6 +78,9 @@ export const AUTH_FACTOR_REQUIRED_EVENT = "initiative:auth:factor-required";
  *  it lets them in. Not the deployment's ask: everywhere else carries on. */
 export const AUTH_AGE_REQUIRED_EVENT = "initiative:auth:age-required";
 
+/** The account was suspended: every route but its time-out screen refuses it. */
+export const AUTH_ACCOUNT_SUSPENDED_EVENT = "initiative:auth:account-suspended";
+
 export interface AgeChallengeDetail {
   /** True where the account already answered under the minimum. The dialog
    *  explains instead of asking, because that answer stands. */
@@ -397,6 +400,14 @@ apiClient.interceptors.response.use(undefined, async (error) => {
   // out — and unlike the deployment's ask, it is one community's door rather
   // than every request.
   const ageDetail = error.response?.data?.detail;
+  // Suspended since this tab loaded: the account is re-read, and the app
+  // shell gives way to the time-out screen.
+  if (ageDetail === "ACCOUNT_SUSPENDED") {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(AUTH_ACCOUNT_SUSPENDED_EVENT));
+    }
+    return Promise.reject(error);
+  }
   if (ageDetail === "GUILD_AGE_CONFIRMATION_REQUIRED" || ageDetail === "GUILD_AGE_BELOW_MINIMUM") {
     if (typeof window !== "undefined") {
       window.dispatchEvent(

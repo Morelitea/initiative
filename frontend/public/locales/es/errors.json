@@ -15,6 +15,7 @@
   "PASSWORD_TOO_SHORT": "La contraseña debe tener al menos 12 caracteres.",
   "PASSWORD_BREACHED": "Esta contraseña ha aparecido en una filtración de datos conocida. Elige otra.",
   "INACTIVE_USER": "Usuario inactivo",
+  "ACCOUNT_SUSPENDED": "Tu cuenta está suspendida.",
   "EMAIL_NOT_VERIFIED": "Email no verificado",
   "TOKEN_NOT_FOUND": "Token no encontrado",
   "NOT_AUTHENTICATED": "No autenticado",

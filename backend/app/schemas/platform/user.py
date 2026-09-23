@@ -12,7 +12,7 @@ from pydantic import (
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 
-from app.core.capabilities import Capability, capabilities_for
+from app.core.capabilities import Capability, standing_capabilities
 from app.core.cookie_categories import CookieCategory
 from app.core.email_masking import mask_email
 from app.core.emoji import validate_emoji
@@ -509,6 +509,18 @@ class CookieConsentUpdate(SanitizedBaseModel):
     version: int
 
 
+class AccountTimeOutRead(SanitizedBaseModel):
+    """What a suspended account is told on its time-out screen."""
+
+    #: Who to contact about it: the deployment's moderation contact, else its
+    #: general one, else ``None``.
+    contact_email: Optional[str] = None
+    #: When the suspension began, where it was recorded.
+    since: Optional[datetime] = None
+    #: The reason the moderator gave, where one was given.
+    reason: Optional[str] = None
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -584,20 +596,25 @@ class UserRead(UserBase):
     @computed_field(return_type=bool)  # type: ignore[misc]
     @property
     def can_create_guilds(self) -> bool:
+        if self.status == UserStatus.suspended:
+            return False
         if not settings.DISABLE_GUILD_CREATION:
             return True
         # When disabled, only platform roles that manage guilds can create them.
-        return Capability.GUILDS_MANAGE in capabilities_for(self.role)
+        return Capability.GUILDS_MANAGE in standing_capabilities(self.role, self.status)
 
     @computed_field(return_type=List[Capability])  # type: ignore[misc]
     @property
     def capabilities(self) -> List[Capability]:
-        """Platform capabilities granted by this user's standing role.
+        """Platform capabilities granted by this user's standing role — none
+        while the account is suspended.
 
         The frontend gates UI on these values (single source of truth);
         see ``app.core.capabilities``. Sorted by value.
         """
-        return sorted(capabilities_for(self.role), key=lambda c: c.value)
+        return sorted(
+            standing_capabilities(self.role, self.status), key=lambda c: c.value
+        )
 
 
 class AdminUserRead(UserRead):

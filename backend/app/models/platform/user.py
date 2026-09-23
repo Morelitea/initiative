@@ -99,8 +99,8 @@ class Presence(str, Enum):
 
 
 #: The statuses that may hold a session. A suspended account signs in — that is
-#: how its holder reaches their own account, and how they can be told why —
-#: and is stopped at every guild instead.
+#: how its holder is told they are in time out — and reaches only the time-out
+#: allow-list (``app.api.deps.AccountHolder``); every other route refuses it.
 LOGIN_STATUSES: frozenset[UserStatus] = frozenset(
     {UserStatus.active, UserStatus.suspended}
 )
@@ -112,8 +112,11 @@ LOGIN_STATUSES: frozenset[UserStatus] = frozenset(
 #: before there is anything to call off. The account is restored at the moment
 #: the session is opened (``sessions.create_session``), so nothing ever holds a
 #: live session while still deleted.
+#:
+#: ``suspended`` is here so its holder can be told they are in time out; see
+#: :data:`LOGIN_STATUSES` for what the session then reaches.
 SIGN_IN_STATUSES: frozenset[UserStatus] = frozenset(
-    {UserStatus.active, UserStatus.deleted}
+    {UserStatus.active, UserStatus.suspended, UserStatus.deleted}
 )
 
 #: The statuses whose holder does not appear where people are listed as

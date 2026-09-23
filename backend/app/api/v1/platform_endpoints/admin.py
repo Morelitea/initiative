@@ -506,6 +506,7 @@ async def set_user_suspension(
 
     user.status = UserStatus.suspended if payload.suspended else UserStatus.active
     user.updated_at = datetime.now(timezone.utc)
+    user.status_changed_at = user.updated_at
     session.add(user)
 
     if payload.suspended:

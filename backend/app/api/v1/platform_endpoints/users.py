@@ -17,8 +17,8 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
-    FactorExemptSessionDep,
-    FactorExemptUser,
+    FactorExemptAccountHolder,
+    FactorExemptAccountHolderSessionDep,
     RLSSessionDep,
     SettingsContextDep,
     SettingsRLSSessionDep,
@@ -59,7 +59,10 @@ from app.models.platform.guild import (
 )
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
+from app.core.intake import IntakeStream
+from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import Presence, User, UserStatus
+from app.services.platform import intake as intake_service
 from app.models.platform.user_cookie_consent import UserCookieConsent
 from app.schemas.platform.guild import (
     CommunityGuildRead,
@@ -67,6 +70,7 @@ from app.schemas.platform.guild import (
     GuildCategory,
 )
 from app.schemas.platform.user import (
+    AccountTimeOutRead,
     CookieConsentRead,
     CookieConsentUpdate,
     UserEmailCreate,
@@ -173,10 +177,46 @@ GuildAdminContext = Annotated[
 ]
 
 
+@router.get("/me/time-out", response_model=AccountTimeOutRead)
+async def read_my_time_out(
+    session: FactorExemptAccountHolderSessionDep,
+    current_user: FactorExemptAccountHolder,
+) -> AccountTimeOutRead:
+    """What a suspended account is told on its time-out screen: why, where a
+    reason was given, and whom to contact.
+
+    Answers for an active account too — nobody to contact, since there is
+    nothing to lift — so the screen can ask without first knowing the status.
+    """
+    if current_user.status != UserStatus.suspended:
+        return AccountTimeOutRead()
+    # The reason travels on the notice the suspension wrote; the newest one is
+    # this suspension's.
+    notice = (
+        await session.exec(
+            select(Notification)
+            .where(
+                Notification.user_id == current_user.id,
+                Notification.type == NotificationType.account_suspended,
+            )
+            .order_by(Notification.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    reason = (notice.data or {}).get("reason") if notice is not None else None
+    return AccountTimeOutRead(
+        contact_email=await intake_service.contact_for(
+            session, IntakeStream.moderation
+        ),
+        since=current_user.status_changed_at,
+        reason=reason.strip() if isinstance(reason, str) and reason.strip() else None,
+    )
+
+
 @router.get("/me", response_model=UserRead)
 async def read_users_me(
-    session: FactorExemptSessionDep,
-    current_user: FactorExemptUser,
+    session: FactorExemptAccountHolderSessionDep,
+    current_user: FactorExemptAccountHolder,
 ) -> UserRead:
     """Who you are. Reachable while the deployment's second-factor rule is
     unmet, because every screen that could answer it is drawn from this."""

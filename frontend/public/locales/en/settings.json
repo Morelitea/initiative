@@ -744,7 +744,7 @@
     "usernameChanged": "Username changed.",
     "suspend": "Suspend",
     "suspendTitle": "Suspend {{handle}}?",
-    "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach no community until this is lifted. They can still sign in to their own account, where they will see your reason.",
+    "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach nothing until this is lifted. They can still sign in, and see only that they are suspended, your reason, and whom to contact.",
     "suspendReasonLabel": "Reason (shown to them)",
     "actionError": "That could not be done. Try again.",
     "clearAgeBlock": "Reset age question",
@@ -764,7 +764,7 @@
       "avatarConfirmBody": "The picture on {{handle}} comes down and they are told. They can upload another.",
       "access": "Access",
       "suspendLabel": "Suspended",
-      "suspendHelp": "A suspended account can still sign in and read why, but reaches none of its communities.",
+      "suspendHelp": "A suspended account can sign in and read why, and reaches nothing else.",
       "role": "Platform role",
       "roleLabel": "Role",
       "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."

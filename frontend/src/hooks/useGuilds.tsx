@@ -214,7 +214,9 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   // Key guild loading on the user's *id*, not the user object: `refreshUser()`
   // always returns a fresh object, so an object-identity dep would refetch the
   // guild list and access grants on every profile refresh.
-  const userId = user?.id ?? null;
+  // A suspended account is in time out and reaches no community, so it has no
+  // list to fetch: it is treated as nobody here.
+  const userId = user && user.status !== "suspended" ? user.id : null;
   // Mirrored synchronously so a reply that was asked for on behalf of somebody
   // else can be recognised as such when it lands. Reads outlive the person they
   // were made for: signing out, or switching account, does not cancel a request
