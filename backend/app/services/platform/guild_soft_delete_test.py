@@ -12,6 +12,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import config as config_module
 from app.core.messages import GuildMessages
 from app.models.platform.app_setting import DEFAULT_GUILD_RETENTION_DAYS
 from app.models.platform.guild import (
@@ -22,8 +23,10 @@ from app.models.platform.guild import (
     GuildRole,
     GuildStatus,
 )
-from app.services.platform import guild_purge
+from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
+from app.services.platform import billing_ping, guild_purge
 from app.services.platform import guilds as guilds_service
+from app.services.platform.identity_refs import billing_guild_ref, existing_ref
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -212,6 +215,74 @@ async def test_restore_brings_it_back_at_the_status_the_operator_names(
     # And its admin has it back.
     listed = await client.get("/api/v1/guilds/", headers=get_auth_headers(admin))
     assert [g["id"] for g in listed.json()] == [guild.id]
+
+
+async def _billing_ref(guild_id: int) -> str | None:
+    return await existing_ref(
+        entity_type=IdentityEntity.guild,
+        entity_id=guild_id,
+        purpose=IdentityPurpose.billing,
+    )
+
+
+@pytest.fixture
+def lifecycle_pings(monkeypatch):
+    """Billing configured, and the lifecycle pings captured instead of sent."""
+    monkeypatch.setattr(
+        config_module.settings, "BILLING_SERVICE_URL", "https://billing.internal"
+    )
+    monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET", "ping-secret")
+    sent: list[int] = []
+
+    async def _capture(guild_id: int) -> None:
+        sent.append(guild_id)
+
+    monkeypatch.setattr(billing_ping, "_send_lifecycle_ping", _capture)
+    return sent
+
+
+async def test_billing_keeps_its_name_for_a_deleted_community_and_hears_both_ways(
+    client: AsyncClient, session: AsyncSession, acting_user, lifecycle_pings
+):
+    """Billing charges a deleted community until it learns otherwise, and learns
+    it by asking about the name it already holds. Dropping that name at the
+    delete left billing unable to ask — and a restore came back as a community
+    billing had never seen, on the free plan."""
+    operator = await acting_user("owner")
+    admin, guild = await _seated_guild(session)
+    await create_guild_membership(session, user=await create_user(session), guild=guild)
+    ref = await billing_guild_ref(guild_id=guild.id)
+
+    await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
+    assert await _billing_ref(guild.id) == ref
+    assert lifecycle_pings == [guild.id]
+
+    response = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/restore",
+        headers=operator.headers,
+        json={"status": "active"},
+    )
+    assert response.status_code == 200, response.text
+    assert await _billing_ref(guild.id) == ref
+    assert lifecycle_pings == [guild.id, guild.id]
+
+
+async def test_the_purge_is_what_drops_billings_name(
+    client: AsyncClient, session: AsyncSession
+):
+    admin, guild = await _seated_guild(session)
+    await billing_guild_ref(guild_id=guild.id)
+    await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
+    session.expunge_all()
+    row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
+
+    await guild_purge.purge_due_guilds(
+        session,
+        now=guild_purge.purge_at(row.status_changed_at, DEFAULT_GUILD_RETENTION_DAYS)
+        + timedelta(minutes=1),
+    )
+
+    assert await _billing_ref(guild.id) is None
 
 
 async def test_restore_refuses_a_community_that_is_not_deleted(

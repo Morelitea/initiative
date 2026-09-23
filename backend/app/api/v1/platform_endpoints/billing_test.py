@@ -1061,3 +1061,56 @@ async def test_a_reference_naming_no_guild_has_no_name(client: AsyncClient):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
+
+
+# ── a deleted guild ──────────────────────────────────────────────────────────
+
+
+async def test_billing_reads_that_a_guild_was_deleted(
+    client: AsyncClient, session: AsyncSession
+):
+    """``deleted`` is an answer, not a 404: it is what billing cancels on."""
+    guild = await create_guild(session, status="deleted")
+    ref = await billing_guild_ref(guild.id)
+
+    response = await _post(client, "guild-status", {"guild_ref": ref})
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"guild_ref": ref, "status": "deleted"}
+
+
+async def test_a_status_write_cannot_bring_a_deleted_guild_back(
+    client: AsyncClient, session: AsyncSession
+):
+    """A lapsed card's ``read_only`` landing on a deleted guild would restore
+    it and restart its purge clock. The caps still land."""
+    stamped = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    guild = await create_guild(session, status="deleted", status_changed_at=stamped)
+
+    response = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(guild.id, status="read_only", tier_name="Copper"),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "deleted"
+    assert response.json()["tier_name"] == "Copper"
+    await session.refresh(guild)
+    assert guild.status == "deleted"
+    assert guild.status_changed_at == stamped
+
+
+async def test_a_status_write_cannot_delete_a_guild(
+    client: AsyncClient, session: AsyncSession
+):
+    guild = await create_guild(session)
+
+    response = await _post(
+        client, "guild-tier", await _tier_payload(guild.id, status="deleted")
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "active"
+    await session.refresh(guild)
+    assert guild.status == "active"

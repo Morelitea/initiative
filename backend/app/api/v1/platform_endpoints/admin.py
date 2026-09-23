@@ -38,6 +38,7 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.platform import account_stream
+from app.services.platform import billing_ping
 from app.services.marketplace import app_refs
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
@@ -927,8 +928,10 @@ async def admin_delete_guild(
     # The receipt, once the deletion is a fact. Never allowed to fail it.
     await email_service.announce_community_deleted(session, notice)
     # See soft_delete_guild: these live on another connection, so they go after
-    # the commit that made the deletion real.
-    await app_refs.forget_guild(guild_id=guild_id)
+    # the commit that made the deletion real. Billing keeps its name for the
+    # guild until the purge, and is told to go and read what happened to it.
+    await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
+    billing_ping.notify_lifecycle_changed(guild_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

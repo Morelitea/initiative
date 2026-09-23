@@ -232,12 +232,13 @@ async def drop_install_refs(*, guild_id: int, app_install_id: int) -> int:
     return dropped
 
 
-async def drop_guild_app_refs(*, guild_id: int) -> int:
+async def drop_guild_app_refs(*, guild_id: int, keep_billing: bool = False) -> int:
     """Remove every reference minted in one guild. Returns the count.
 
     Every purpose, not only this module's, and the guild's own names as well
     as its members': the guild is going, so nothing it appears in has anything
-    left to name.
+    left to name. ``keep_billing`` spares billing's name for the guild — see
+    ``identity_refs.drop_guild_refs``.
 
     Called when the guild is deleted, for the same reason as
     ``drop_install_refs``, and like it opens its own session: guild deletion
@@ -245,21 +246,26 @@ async def drop_guild_app_refs(*, guild_id: int) -> int:
     them routed into the guild role being deleted.
     """
     async with db_session.AdminSessionLocal() as session:
-        dropped = await identity_refs.drop_guild_refs(session, guild_id=guild_id)
+        dropped = await identity_refs.drop_guild_refs(
+            session, guild_id=guild_id, keep_billing=keep_billing
+        )
         await session.commit()
     return dropped
 
 
-async def forget_guild(*, guild_id: int) -> None:
+async def forget_guild(*, guild_id: int, keep_billing: bool = False) -> None:
     """Drop a deleted guild's references, reporting rather than raising.
 
     Called after the deletion has committed, so there is nothing left to roll
     back and a failure here must not fail the request. It is logged with the
     guild, and what it leaves behind is reclaimed by
     ``identity_refs.purge_orphaned_sector_refs``.
+
+    A soft delete passes ``keep_billing``: its apps let go now, but billing
+    keeps the name it charges the guild by until the purge.
     """
     try:
-        await drop_guild_app_refs(guild_id=guild_id)
+        await drop_guild_app_refs(guild_id=guild_id, keep_billing=keep_billing)
     except SQLAlchemyError:
         logger.warning(
             "app refs: references for deleted guild %s were not removed; "

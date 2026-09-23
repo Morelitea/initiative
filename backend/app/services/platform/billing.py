@@ -323,17 +323,34 @@ async def apply_guild_tier(
             )
         guild_values: dict = {}
         if payload.status is not None and payload.status.value != row.status:
-            guild_values["status"] = payload.status.value
-            guild_values["status_changed_at"] = now
-            logger.info(
-                "billing: guild %s status %s -> %s (source=%s actor=%s event=%s)",
-                guild_id,
-                row.status,
-                payload.status.value,
-                payload.source.value,
-                payload.actor,
-                payload.event_id,
-            )
+            if GuildStatus.deleted.value in (row.status, payload.status.value):
+                # ``deleted`` belongs to the community's admins and the platform
+                # operators, never to billing: a status write must not delete a
+                # guild, and must not bring one back either. The second is the
+                # dangerous one — a lapsed card's ``read_only`` landing on a
+                # deleted guild would restore it and restart its purge clock.
+                # The caps still land, so a restore comes back on the plan
+                # billing last recorded.
+                logger.info(
+                    "billing: guild %s status write %s -> %s ignored (source=%s event=%s)",
+                    guild_id,
+                    row.status,
+                    payload.status.value,
+                    payload.source.value,
+                    payload.event_id,
+                )
+            else:
+                guild_values["status"] = payload.status.value
+                guild_values["status_changed_at"] = now
+                logger.info(
+                    "billing: guild %s status %s -> %s (source=%s actor=%s event=%s)",
+                    guild_id,
+                    row.status,
+                    payload.status.value,
+                    payload.source.value,
+                    payload.actor,
+                    payload.event_id,
+                )
         if administration_values or guild_values:
             if administration_values:
                 await session.exec(
@@ -377,6 +394,20 @@ async def guild_display_name(session: AsyncSession, guild_id: int) -> str | None
     return (
         await session.exec(select(Guild.name).where(Guild.id == guild_id))
     ).one_or_none()
+
+
+async def guild_lifecycle_status(
+    session: AsyncSession, guild_id: int
+) -> GuildStatus | None:
+    """One guild's lifecycle status, ``deleted`` included, or None once purged.
+
+    On the billing session, like the name: ``status`` is among the columns the
+    billing role already reads for the tier write.
+    """
+    status = (
+        await session.exec(select(Guild.status).where(Guild.id == guild_id))
+    ).one_or_none()
+    return None if status is None else GuildStatus(status)
 
 
 async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int:

@@ -433,19 +433,26 @@ async def drop_sector_refs(
     return result.rowcount or 0
 
 
-async def drop_guild_refs(session: AsyncSession, *, guild_id: int) -> int:
+async def drop_guild_refs(
+    session: AsyncSession, *, guild_id: int, keep_billing: bool = False
+) -> int:
     """Everything a deleted guild leaves in this table. Returns the count.
 
     Two halves, because a guild appears here in two ways. The sectors INSIDE
     it name its members to each app installed there. The guild itself is also
     named — by billing, whose sector is the whole deployment and whose rows
     therefore carry no ``sector_guild_id`` to find them by.
+
+    ``keep_billing`` takes the first half only, for a guild that is deleted but
+    not yet purged: billing still charges it until it hears otherwise, and asks
+    about it — and about it coming back — by that reference. The purge drops it.
     """
-    return await drop_sector_refs(
-        session, sector_guild_id=guild_id
-    ) + await drop_entity_refs(
-        session, entity_type=IdentityEntity.guild, entity_id=guild_id
-    )
+    dropped = await drop_sector_refs(session, sector_guild_id=guild_id)
+    if not keep_billing:
+        dropped += await drop_entity_refs(
+            session, entity_type=IdentityEntity.guild, entity_id=guild_id
+        )
+    return dropped
 
 
 async def forget_user(*, user_id: int) -> int:

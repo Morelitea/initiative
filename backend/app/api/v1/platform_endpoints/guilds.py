@@ -1680,8 +1680,10 @@ async def delete_guild(
     # The receipt, once the deletion is a fact. Never allowed to fail it.
     await email_service.announce_community_deleted(admin_session, notice)
     # See soft_delete_guild: these live on another connection, so they go after
-    # the commit that made the deletion real.
-    await app_refs.forget_guild(guild_id=guild_id)
+    # the commit that made the deletion real. Billing keeps its name for the
+    # guild until the purge, and is told to go and read what happened to it.
+    await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
+    billing_ping.notify_lifecycle_changed(guild_id)
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )

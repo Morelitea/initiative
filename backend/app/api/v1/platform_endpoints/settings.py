@@ -98,6 +98,7 @@ from app.core.login_methods import (
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import billing_ping
 from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
 from app.services.platform import push_tokens
@@ -1044,6 +1045,9 @@ async def restore_platform_guild(
         ) from exc
     logger.info("guild %s restored as %s by user %s", guild_id, guild.status, admin.id)
     await session.commit()
+    # Billing canceled what it charged while the guild was deleted, and puts
+    # back the plan and status it holds for it — not the status named here.
+    billing_ping.notify_lifecycle_changed(guild_id)
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return PlatformGuildStorageRead(
         id=guild.id,
