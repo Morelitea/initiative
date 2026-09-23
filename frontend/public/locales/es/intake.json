@@ -1,5 +1,16 @@
 {
   "ownerOnly": "Solo los propietarios de la plataforma pueden configurar dónde llega el trabajo de operaciones.",
+  "contacts": {
+    "title": "A quién contactar",
+    "description": "La dirección que da un aviso cuando pide a alguien que se ponga en contacto; por ejemplo, alguien cuya cuenta o comunidad está suspendida. Un tipo de trabajo sin dirección propia usa el contacto general; si no hay ninguno, el aviso remite a quien gestiona este servidor.",
+    "generalLabel": "Contacto general",
+    "generalPlaceholder": "nombre@example.com",
+    "streamPlaceholder": "Usa el contacto general",
+    "save": "Guardar contactos",
+    "saving": "Guardando…",
+    "saved": "Contactos guardados.",
+    "saveError": "No se pudieron guardar los contactos."
+  },
   "guild": {
     "title": "Comunidad de operaciones",
     "description": "La comunidad que recibe el trabajo de seguridad, moderación, soporte y comentarios de esta instalación.",

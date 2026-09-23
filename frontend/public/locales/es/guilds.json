@@ -218,7 +218,9 @@
   },
   "closed": {
     "title": "Esta comunidad está suspendida",
-    "description": "Nadie puede abrirla hasta que se levante la suspensión. Ponte en contacto con quien gestiona este servidor."
+    "description": "Nadie puede abrirla hasta que se levante la suspensión.",
+    "contact": "Ponte en contacto con {{email}}.",
+    "contactNobody": "Ponte en contacto con quien gestiona este servidor."
   },
   "statusNotice": {
     "title": "Algo va mal",

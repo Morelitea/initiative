@@ -132,6 +132,11 @@ class GuildRead(GuildBase):
     # database role level regardless, so the UI must be able to drop its write
     # affordances — the flag discloses the effect, not the reason.
     content_read_only: bool = False
+    # ADMIN-ONLY, and only for a suspended guild: who the closed entry tells
+    # them to contact — the deployment's moderation contact, else its general
+    # one (``app.services.platform.intake.contact_for``). ``None`` when neither
+    # is set, or for any other guild.
+    contact_email: Optional[str] = None
     # ADMIN-ONLY. What this guild may do about its own sign-in (operator
     # entitlement), so their settings UI knows which surfaces to offer;
     # ``None`` for non-admin members (they never configure auth).

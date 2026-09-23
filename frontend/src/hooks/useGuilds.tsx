@@ -132,6 +132,8 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   // PAM/break-glass overrides the lifecycle status — a grantee's writability
   // comes from the grant level, never from the guild being frozen.
   content_read_only: false,
+  // Only a closed community names who to contact, and a grant is never closed.
+  contact_email: null,
   // Admin-only entitlements; a grantee acts as a member here, so they're absent.
   auth_options: null,
   // Likewise: these settings are not inferred into a synthetic entry. An

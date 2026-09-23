@@ -179,18 +179,20 @@ export const AccessGrantStatus = {
  * - ``active``: normal operation.
  * - ``read_only``: members keep read access to content but writes are denied
  *   at the Postgres role level (routed into ``guild_<id>_ro``).
- * - ``suspended``: members lose all content access and the guild vanishes
- *   from their guild list. Guild admins keep the settings surface (billing /
- *   data ownership / danger zone) under all three.
+ * - ``suspended``: the guild is in time out. Nobody in it reaches anything
+ *   in it — content or settings, members and admins alike — and only the
+ *   platform lifts it. It vanishes from members' guild lists; its admins
+ *   keep a closed entry, so they can tell a time out from a loss.
+ *
+ * Guild admins keep the settings surface (billing / data ownership / danger
+ * zone) under ``active`` and ``read_only`` only.
  *
  * The fourth is not:
  *
  * - ``deleted``: the guild has been deleted and is being retained for
  *   :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
- *   it is destroyed. Nobody in the guild reaches it — not even its admins,
- *   whose settings carve-out is withdrawn, because a deleted guild has no
- *   billing surface left to reach and its danger zone has already been used.
- *   It is absent from every member's guild list.
+ *   it is destroyed. Nobody in the guild reaches it, its admins included,
+ *   and it is absent from every member's guild list.
  *
  *   Reached only through deletion and left only through restore, both of
  *   which do more than move a column, so it is deliberately not offered in
@@ -4639,6 +4641,7 @@ export interface GuildRead {
   tier_name: string | null;
   status: GuildStatus | null;
   content_read_only: boolean;
+  contact_email: string | null;
   auth_options: GuildAuthOption[] | null;
   allow_api_keys: boolean | null;
   enforce_compliance_session: boolean | null;
@@ -5220,6 +5223,13 @@ export interface IntakeBlueprintImport {
 }
 
 /**
+ * Set a contact address, or clear it with ``null``.
+ */
+export interface IntakeContactUpdate {
+  email?: string | null;
+}
+
+/**
  * One column a case could land in.
  */
 export interface IntakeStatusOption {
@@ -5256,12 +5266,14 @@ export interface IntakeOptionsRead {
 }
 
 /**
- * The pointer, and every stream whether bound or not.
+ * The pointer, every stream whether bound or not, and who to contact.
  */
 export interface IntakeSettingsRead {
   operations_guild_id?: number | null;
   operations_guild_name?: string | null;
   bindings: IntakeBindingRead[];
+  general_contact_email?: string | null;
+  contact_emails?: Partial<Record<IntakeStream, string>>;
 }
 
 export interface InterfaceSettingsResponse {

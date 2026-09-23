@@ -17,6 +17,8 @@ const importMutate = vi.fn();
 const upsertMutate = vi.fn();
 const deleteMutate = vi.fn();
 const guildMutate = vi.fn();
+const generalContactMutate = vi.fn();
+const streamContactMutate = vi.fn();
 
 const state = vi.hoisted(() => ({
   operationsGuildId: null as number | null,
@@ -24,6 +26,8 @@ const state = vi.hoisted(() => ({
   isError: false,
   optionsError: false,
   isFetching: false,
+  generalContact: null as string | null,
+  contactEmails: {} as Record<string, string>,
 }));
 
 const unbound = (stream: string) => ({
@@ -50,6 +54,8 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
           operations_guild_id: state.operationsGuildId,
           operations_guild_name: state.operationsGuildId ? "Operations" : null,
           bindings: state.bindings,
+          general_contact_email: state.generalContact,
+          contact_emails: state.contactEmails,
         },
     isLoading: false,
     isFetching: state.isFetching,
@@ -83,6 +89,8 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
   useUpsertIntakeBinding: () => ({ mutate: upsertMutate, isPending: false }),
   useImportIntakeBlueprint: () => ({ mutate: importMutate, isPending: false }),
   useDeleteIntakeBinding: () => ({ mutate: deleteMutate, isPending: false }),
+  useUpdateIntakeGeneralContact: () => ({ mutateAsync: generalContactMutate, isPending: false }),
+  useUpdateIntakeStreamContact: () => ({ mutateAsync: streamContactMutate, isPending: false }),
 }));
 
 vi.mock("@/hooks/useSettings", () => ({
@@ -100,6 +108,10 @@ describe("SettingsIntakePage", () => {
     upsertMutate.mockClear();
     deleteMutate.mockClear();
     guildMutate.mockClear();
+    generalContactMutate.mockReset().mockResolvedValue({});
+    streamContactMutate.mockReset().mockResolvedValue({});
+    state.generalContact = null;
+    state.contactEmails = {};
     state.operationsGuildId = null;
     state.bindings = STREAMS.map(unbound);
     state.isError = false;
@@ -235,5 +247,34 @@ describe("SettingsIntakePage", () => {
         "This project has been archived, so nothing can land in it. Bring it back, or point this stream at a live project."
       )
     ).toBeInTheDocument();
+  });
+
+  it("says who to contact before any community is named", async () => {
+    state.generalContact = "ops@example.com";
+    state.contactEmails = { moderation: "trust@example.com" };
+    renderPage();
+    const user = userEvent.setup();
+
+    const general = screen.getByLabelText("General contact");
+    expect(general).toHaveValue("ops@example.com");
+    expect(screen.getByLabelText("Moderation")).toHaveValue("trust@example.com");
+    expect(screen.getByLabelText("Support")).toHaveValue("");
+
+    const save = screen.getByRole("button", { name: "Save contacts" });
+    expect(save).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Support"), "help@example.com");
+    await user.clear(screen.getByLabelText("Moderation"));
+    await user.click(save);
+
+    expect(generalContactMutate).not.toHaveBeenCalled();
+    expect(streamContactMutate).toHaveBeenCalledWith({
+      stream: "moderation",
+      body: { email: null },
+    });
+    expect(streamContactMutate).toHaveBeenCalledWith({
+      stream: "support",
+      body: { email: "help@example.com" },
+    });
   });
 });

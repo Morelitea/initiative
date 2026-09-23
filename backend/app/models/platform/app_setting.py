@@ -1,7 +1,7 @@
 from typing import Optional
 
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import ENUM as PGEnum
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, text
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum, JSONB
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
@@ -357,4 +357,19 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(
             Integer, ForeignKey("guilds.id", ondelete="SET NULL"), nullable=True
         ),
+    )
+
+    # Who somebody is told to contact about operations work, set on the
+    # owner's intake settings page. One catch-all address for the deployment,
+    # and one optional address per intake stream keyed by its value; a stream
+    # with none of its own falls back to the catch-all and never to another
+    # stream (``app.services.platform.intake.contact_for``). Independent of the
+    # operations guild: a deployment that routes nothing can still say who to
+    # write to.
+    intake_general_contact: Optional[str] = Field(
+        default=None, sa_column=Column(String(320), nullable=True)
+    )
+    intake_contacts: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )

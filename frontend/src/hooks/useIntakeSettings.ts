@@ -1,6 +1,6 @@
 /**
- * The owner's intake settings: which community receives operations work, and
- * which project each stream lands in.
+ * The owner's intake settings: which community receives operations work,
+ * which project each stream lands in, and who somebody is told to contact.
  *
  * Every hook here is behind `config.manage` on the server. The read carries
  * every stream whether bound or not, so the page renders the full set rather
@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import type {
   IntakeBindingRead,
   IntakeBindingUpsert,
+  IntakeContactUpdate,
   IntakeOptionsRead,
   IntakeSettingsRead,
   IntakeStream,
@@ -24,7 +25,9 @@ import {
   importBlueprintApiV1SettingsIntakeStreamBlueprintPost,
   readIntakeOptionsApiV1SettingsIntakeOptionsGet,
   readIntakeSettingsApiV1SettingsIntakeGet,
+  updateGeneralContactApiV1SettingsIntakeContactPut,
   updateOperationsGuildApiV1SettingsIntakeGuildPut,
+  updateStreamContactApiV1SettingsIntakeStreamContactPut,
   upsertBindingApiV1SettingsIntakeStreamPut,
 } from "@/api/generated/intake/intake";
 import { invalidate, q } from "@/api/query-keys";
@@ -94,6 +97,31 @@ export const useDeleteIntakeBinding = (options?: MutationOpts<void, IntakeStream
   useApiMutation<void, IntakeStream>(
     {
       mutationFn: (stream) => deleteBindingApiV1SettingsIntakeStreamDelete(stream),
+      invalidate: refreshIntake,
+    },
+    options
+  );
+
+/** The deployment's catch-all contact address; `null` clears it. */
+export const useUpdateIntakeGeneralContact = (
+  options?: MutationOpts<IntakeSettingsRead, IntakeContactUpdate>
+) =>
+  useApiMutation<IntakeSettingsRead, IntakeContactUpdate>(
+    {
+      mutationFn: (data) => updateGeneralContactApiV1SettingsIntakeContactPut(data),
+      invalidate: refreshIntake,
+    },
+    options
+  );
+
+/** One stream's own contact address; `null` clears it back to the general one. */
+export const useUpdateIntakeStreamContact = (
+  options?: MutationOpts<IntakeSettingsRead, { stream: IntakeStream; body: IntakeContactUpdate }>
+) =>
+  useApiMutation<IntakeSettingsRead, { stream: IntakeStream; body: IntakeContactUpdate }>(
+    {
+      mutationFn: ({ stream, body }) =>
+        updateStreamContactApiV1SettingsIntakeStreamContactPut(stream, body),
       invalidate: refreshIntake,
     },
     options
