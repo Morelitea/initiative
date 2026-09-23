@@ -98,7 +98,7 @@ class GuildAppUserConnection(SQLModel, table=True):
     user_id: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("users.id", ondelete="CASCADE"),
+            ForeignKey("users.id"),
             nullable=False,
             index=True,
         )
@@ -133,9 +133,7 @@ class GuildAppUserConnection(SQLModel, table=True):
     )
     blocked_by_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(
-            Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-        ),
+        sa_column=Column(Integer, ForeignKey("users.id"), nullable=True),
     )
 
     created_at: datetime = Field(

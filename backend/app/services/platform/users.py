@@ -38,6 +38,7 @@ from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
+from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -45,6 +46,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
+from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 
 
@@ -575,10 +577,9 @@ async def soft_delete_user(
         await anonymize_user_mentions(session, user_id=user_id)
         await set_rls_context(session, guild_id=gid)
         # Drop the user's AI credentials (member API keys) + connection
-        # preference in this guild — the encrypted keys are a secret we must not
-        # leave behind. The CASCADE FK to public.users is a soft cross-schema ref
-        # (dropped in the guild schema), so it never fires; delete explicitly,
-        # routed as guild admin so the own-row RLS admits it.
+        # preference in this guild — the encrypted keys are a secret we must
+        # not leave behind, and this delete is what removes them. Routed as
+        # guild admin so the own-row RLS admits it.
         await session.exec(
             delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
         )
@@ -823,15 +824,23 @@ async def hard_delete_user(
         await anonymize_user_mentions(session, user_id=user_id)
         await set_rls_context(session, guild_id=gid)
 
-        # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
+        # Per-user guild-scoped rows: each one is deleted or nulled here, in
+        # every guild schema, because this loop does it and nothing else will.
+        # account_erasure_rows_test asserts the outcome for each table.
         await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))
         await session.exec(
             delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id)
         )
         await session.exec(delete(RecentView).where(RecentView.user_id == user_id))
+        # The ledger that stops an event reminder being sent twice: one row per
+        # (event, person), of no use to anyone once the person is gone.
+        await session.exec(
+            delete(EventReminderDispatch).where(
+                EventReminderDispatch.user_id == user_id
+            )
+        )
         # AI credentials (member API keys) + connection preference for this
-        # guild. CASCADE to public.users is a soft cross-schema ref (dropped in
-        # the guild schema), so it never fires — delete explicitly.
+        # guild — held in custody for them, so erasure must not leave them.
         await session.exec(
             delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
         )
@@ -847,6 +856,14 @@ async def hard_delete_user(
             update(TaskAssignmentDigestItem)
             .where(TaskAssignmentDigestItem.assigned_by_id == user_id)
             .values(assigned_by_id=None)
+        )
+        await session.exec(
+            delete(ReactionDigestItem).where(ReactionDigestItem.user_id == user_id)
+        )
+        await session.exec(
+            update(ReactionDigestItem)
+            .where(ReactionDigestItem.reactor_id == user_id)
+            .values(reactor_id=None)
         )
         # All per-user DAC grants (project, document, queue, counter group,
         # calendar event) live in the polymorphic resource_grants table now;

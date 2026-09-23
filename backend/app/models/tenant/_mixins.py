@@ -22,10 +22,9 @@ class SoftDeleteMixin(SQLModel):
     a bare list of mixed entity types (the recents tab bar, the trash can).
     It defaults to `name`; only models that call it something else override it.
 
-    The ``deleted_by`` FK uses ``foreign_key="users.id"`` for SQLModel
-    convenience; the ``ON DELETE SET NULL`` semantic is enforced in the
-    Alembic migration that adds the column, matching the existing
-    convention in this codebase.
+    ``deleted_by`` names the person who binned the row, and is the one
+    person-naming column here that declares no ``foreign_key`` at all — see
+    the note on it below.
     """
 
     deleted_at: Optional[datetime] = Field(
@@ -33,12 +32,10 @@ class SoftDeleteMixin(SQLModel):
         sa_type=DateTime(timezone=True),
         nullable=True,
     )
-    # NOTE: the FK constraint to users(id) ON DELETE SET NULL is created in
-    # the Alembic migration (20260426_0078). We deliberately don't declare
-    # foreign_key= here because SQLAlchemy would then see two FKs from this
-    # table to users (``created_by`` + this audit FK) and fail to
-    # auto-determine join conditions on relationships that join to users.
-    # Audit lookups go through the trash service, never through an ORM
+    # NOTE: no ``foreign_key=`` here, deliberately. SQLAlchemy would then see
+    # two references from this table to users (``created_by`` + this one) and
+    # fail to auto-determine join conditions on relationships that join to
+    # users. Audit lookups go through the trash service, never through an ORM
     # relationship, so SQLAlchemy doesn't need the metadata.
     deleted_by: Optional[int] = Field(default=None, nullable=True)
     purge_at: Optional[datetime] = Field(
@@ -133,6 +130,12 @@ class CreatedByMixin(SQLModel):
     thread telling one departed author from another. An id with no row behind
     it renders as a former member rather than merging into a shared
     placeholder.
+
+    Every other column in a guild schema that names a person reads the same
+    way, author or not. What becomes of those rows when an account closes is
+    ``app.services.platform.users.hard_delete_user``, which walks every guild
+    schema and deletes or nulls them itself; ``cross_schema_refs_test.py``
+    holds the line at no column here declaring a rule instead.
 
     ``created_by_test.py`` fails CI if a guild-schema table carries neither
     this mixin nor an entry in ``tenancy.CREATED_BY_EXEMPT_TABLES``.
