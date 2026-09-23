@@ -520,22 +520,6 @@ async def get_membership(
     return result.one_or_none()
 
 
-async def _guild_admin_rows(
-    session: AsyncSession, guild_id: int
-) -> tuple[GuildSetting | None, GuildAdministration | None]:
-    """The two rows a community's admin sees beside its name: its trash
-    retention window, which lives in the community's own schema, and its caps,
-    which the routed role reads under that table's own policy. Run inside the
-    excursion that routes there, so one trip answers both."""
-    row = (await session.exec(select(GuildSetting).limit(1))).one_or_none()
-    administration = (
-        await session.exec(
-            select(GuildAdministration).where(GuildAdministration.guild_id == guild_id)
-        )
-    ).one_or_none()
-    return row, administration
-
-
 async def list_memberships(
     session: AsyncSession,
     *,
@@ -544,28 +528,27 @@ async def list_memberships(
     """Return (guild, membership, retention_days, member_count, administration)
     for each guild the user belongs to.
 
-    The guild + membership rows are shared (public). ``retention_days`` lives in
-    each guild's own schema (``guild_settings``), so it's read per guild with the
-    user's membership context — a single cross-guild join would hit the empty
-    public table and report NULL for everyone. ``guild_settings.id`` is a
-    per-schema serial that collides across schemas, so each settings row is
-    detached after reading so a cached row can't shadow the next guild's. It is
-    read only where the caller is that guild's admin: retention is one of the
-    administration fields ``GuildRead`` withholds from ordinary members, so for
-    them it comes back ``None`` and costs no query.
+    One bounded pass, whatever the number of guilds:
 
-    ``member_count`` is the total number of members in the guild. It's read
-    inside the same per-guild loop because the ``guild_memberships_select`` RLS
-    policy only exposes sibling rows while that guild's context is active
-    (``guild_id = current_guild_id``); under the caller's user-only context a
-    cross-guild count would see just the user's own row.
-
-    ``administration`` (caps + plan label + sign-in entitlement) is read on the
-    same admin-only terms as retention, and for the same reason: ``GuildRead``
-    serves those fields to guild admins alone, so a member's request never pays
-    for the row."""
+    * The guild and membership rows, and ``administration`` (caps, plan label
+      and sign-in entitlement), are shared tables the caller reads on their own
+      platform tier: ``guild_administration`` admits a member's own guilds.
+      ``administration`` is read only for the guilds the caller administers,
+      since ``GuildRead`` serves those fields to guild admins alone.
+    * ``member_count`` is every guild's total, counted in one grouped query on
+      the system engine over the guild ids the caller's own read returned. The
+      caller's tier reads only its own membership rows, so a count there would
+      see one member per guild.
+    * ``retention_days`` lives in each guild's own schema (``guild_settings``)
+      and is one of the administration fields, so it is read only where the
+      caller is that guild's admin, each guild entered through the seam on its
+      settings surface (:func:`gather_across_guilds`). A guild the seam does not
+      admit the caller to right now reports ``None``; a member's entry is
+      ``None`` and costs no query.
+    """
     # lazy: avoids a circular import
-    from app.db.session import guild_schema_context, set_rls_context
+    from app.db.session import AdminSessionLocal, set_rls_context
+    from app.services.cross_guild import gather_across_guilds
 
     await set_rls_context(session, user_id=user_id)
     pairs = (
@@ -581,49 +564,80 @@ async def list_memberships(
         )
     ).all()
 
-    out: list[
-        tuple[Guild, GuildMembership, int | None, int, GuildAdministration | None]
-    ] = []
-    for guild, membership in pairs:
-        # A suspended guild disappears from its members' guild list. Guild
-        # ADMINS keep the entry, carrying its status, so the app can show them
-        # a closed community rather than a missing one — they reach nothing
-        # inside it until the platform lifts the suspension. The row is simply
-        # absent for members.
-        #
-        # A guild ON HOLD or DELETED disappears for everyone, admins included.
-        # Only a platform operator sees it.
-        if GuildStatus(guild.status) in UNLISTED_STATUSES:
-            continue
-        if (
-            guild.status not in LIVE_STATUS_VALUES
-            and membership.role not in GUILD_ADMIN_ROLES
-        ):
-            continue
-        retention: int | None = None
-        administration: GuildAdministration | None = None
-        row: GuildSetting | None = None
-        # An excursion into the guild's own schema, and back out. It routes
-        # with the community alone, which is what the seam is for when a
-        # *person* is being routed: this list has already decided who may see
-        # what, and a sidebar of twenty communities is not twenty access
-        # establishments. The roster size is counted inside it because the
-        # ``guild_memberships_select`` policy shows sibling rows only while
-        # that community is the routed one.
-        async with guild_schema_context(session, guild_id=guild.id):
-            if membership.role in GUILD_ADMIN_ROLES:
-                row, administration = await _guild_admin_rows(session, guild.id)
-            member_count = await count_members(session, guild_id=guild.id)
-        if membership.role in GUILD_ADMIN_ROLES:
-            # No row yet → the 90-day default; an explicit NULL is the user's "never".
-            retention = 90 if row is None else row.retention_days
-            if row is not None:
-                session.expunge(row)
-        out.append((guild, membership, retention, member_count, administration))
+    # A suspended guild disappears from its members' guild list. Guild ADMINS
+    # keep the entry, carrying its status, so the app can show them a closed
+    # community rather than a missing one — they reach nothing inside it until
+    # the platform lifts the suspension. The row is simply absent for members.
+    #
+    # A guild ON HOLD or DELETED disappears for everyone, admins included. Only
+    # a platform operator sees it.
+    listed = [
+        (guild, membership)
+        for guild, membership in pairs
+        if GuildStatus(guild.status) not in UNLISTED_STATUSES
+        and (guild.status in LIVE_STATUS_VALUES or membership.role in GUILD_ADMIN_ROLES)
+    ]
+    if not listed:
+        return []
 
-    # Restore the user-only context the caller (UserSessionDep) handed us.
-    await set_rls_context(session, user_id=user_id)
-    return out
+    administered = [
+        guild for guild, membership in listed if membership.role in GUILD_ADMIN_ROLES
+    ]
+    administrations: dict[int, GuildAdministration] = {}
+    if administered:
+        administrations = {
+            row.guild_id: row
+            for row in (
+                await session.exec(
+                    select(GuildAdministration).where(
+                        GuildAdministration.guild_id.in_(
+                            [guild.id for guild in administered]
+                        )
+                    )
+                )
+            ).all()
+        }
+
+    async with AdminSessionLocal() as admin_session:
+        counts = await count_members_by_guild(
+            admin_session, guild_ids=[guild.id for guild, _ in listed]
+        )
+
+    retention: dict[int, int | None] = {}
+    live_administered = [
+        guild.id for guild in administered if guild.status in LIVE_STATUS_VALUES
+    ]
+    if live_administered:
+
+        async def _retention(
+            routed: AsyncSession, guild_id: int
+        ) -> list[tuple[int, int | None]]:
+            return [(guild_id, await get_guild_retention_days(routed, guild_id))]
+
+        retention = dict(
+            await gather_across_guilds(
+                session,
+                user_id,
+                live_administered,
+                _retention,
+                for_settings=True,
+            )
+        )
+        # Back to the user-only context the caller (UserSessionDep) handed us.
+        await set_rls_context(session, user_id=user_id)
+
+    return [
+        (
+            guild,
+            membership,
+            retention.get(guild.id) if membership.role in GUILD_ADMIN_ROLES else None,
+            counts.get(guild.id, 0),
+            administrations.get(guild.id)
+            if membership.role in GUILD_ADMIN_ROLES
+            else None,
+        )
+        for guild, membership in listed
+    ]
 
 
 async def count_members_by_guild(

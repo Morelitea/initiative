@@ -259,18 +259,18 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # engine already creates and reaps these rows, and a rollup rewrites one
     # it wrote itself rather than reaching a row it could not otherwise touch.
     "notifications": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # Authoring runs under the tier holding announcements.manage (0363); the
-    # system engine reads every row for the orphan-picture janitor.
-    "announcements": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Authoring runs under the tier holding announcements.manage (0365); the
+    # system engine only reads every row's sections, for the orphan-picture
+    # janitor (0366).
+    "announcements": frozenset({"SELECT"}),
     # Receipts are written by the reader under their own role. The system
     # engine only ever removes them, when the announcement they name goes.
     "announcement_reads": frozenset({"SELECT", "DELETE"}),
-    # The authoring tier stores and touches the pictures, and both it and the
-    # system engine's janitor prune them; the request path reads them under
-    # its own role (a signed-in account may fetch any of them). UPDATE is the
-    # dedupe touch — the same bytes uploaded twice keep one row, and the second
-    # upload restarts the orphan clock on it.
-    "announcement_images": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # The authoring tier stores and touches the pictures (0365); the system
+    # engine's janitor reads their age and prunes the ones no announcement
+    # names (0366). The request path reads them under its own role (a
+    # signed-in account may fetch any of them).
+    "announcement_images": frozenset({"SELECT", "DELETE"}),
     # Email-verification, password-reset and device tokens, matched by hash
     # before the account is known: minted, redeemed, slid, revoked and swept on
     # the system engine alone (0358), like auth_sessions and user_api_keys.
@@ -781,7 +781,7 @@ SHARED_TABLE_TIER_GRANTS: dict[str, dict[Capability, frozenset[str]]] = {
         Capability.CONFIG_MANAGE: frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     },
     # Announcements and their pictures are written under the tier that manages
-    # them (announcements_manage, announcement_images_manage; migration 0363).
+    # them (announcements_manage, announcement_images_manage; migration 0365).
     # Every tier reads them through its floor.
     "announcements": {
         Capability.ANNOUNCEMENTS_MANAGE: frozenset({"INSERT", "UPDATE", "DELETE"}),

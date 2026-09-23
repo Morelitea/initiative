@@ -49,7 +49,7 @@ from app.core.user_input_validators import (
     normalize_time_format,
     normalize_week_starts_on,
 )
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import get_admin_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
@@ -1287,20 +1287,22 @@ async def update_users_me(
 async def approve_user(
     user_id: int,
     session: AdminSessionDep,
+    guild_session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
     """Let a pending member of this guild sign in.
 
-    Runs on the system engine: the row is another account's, and an account is
-    not a guild's to write. ``GuildAdminContext`` plus the membership join
-    below are the authorization — the guild admin may only reach someone who is
-    already a member of the guild they administer.
+    The account write runs on the system engine: the row is another account's,
+    and an account is not a guild's to write. ``GuildAdminContext`` plus the
+    membership join below are the authorization — the guild admin may only
+    reach someone who is already a member of the guild they administer.
 
     Answers with ``UserGuildRead`` — the account as the guild reads it, which
     is the standing that just changed and the handle it belongs to. The row
     loaded here is the whole ``User``, because the write needs it; what leaves
-    is the guild's read of it.
+    is the guild's read of it, with its initiative roles read on the request's
+    own routed session.
     """
     stmt = (
         select(User)
@@ -1331,11 +1333,9 @@ async def approve_user(
         session.add(user)
         await session.commit()
         await session.refresh(user)
-    # Initiative roles live in the guild schema; SET ROLE into it for the read.
-    # Platform management, on the system engine, which the policies admit by
-    # the connection's own login rather than by anything this call says.
-    await set_rls_context(session, guild_id=guild_context.guild_id)
-    await initiatives_service.load_user_initiative_roles(session, [user])
+    # Initiative roles live in the guild schema, which the routed session
+    # reads as the admin the caller is.
+    await initiatives_service.load_user_initiative_roles(guild_session, [user])
     return user
 
 

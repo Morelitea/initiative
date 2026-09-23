@@ -50,10 +50,7 @@ from app.core.security import (
 from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import app_refs
 from app.db.schema_provisioning import deprovision_guild
-from app.db.session import (
-    get_admin_session,
-    set_rls_context,
-)
+from app.db.session import get_admin_session
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services import email as email_service
@@ -929,6 +926,7 @@ async def set_guild_icon(
     guild_id: int,
     guild_context: SettingsAdminWriteContextDep,
     session: AdminSessionDep,
+    settings_session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     icon: UploadFile = File(...),
 ) -> GuildRead:
@@ -941,7 +939,7 @@ async def set_guild_icon(
     )
     await session.commit()
     return await _guild_payload_after_image_change(
-        session, guild_id=guild_id, user=current_user, guild_context=guild_context
+        settings_session, guild_id=guild_id, guild_context=guild_context
     )
 
 
@@ -950,6 +948,7 @@ async def clear_guild_icon(
     guild_id: int,
     guild_context: SettingsAdminWriteContextDep,
     session: AdminSessionDep,
+    settings_session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     """Remove the guild's icon. It falls back to its lettered avatar."""
@@ -958,7 +957,7 @@ async def clear_guild_icon(
     )
     await session.commit()
     return await _guild_payload_after_image_change(
-        session, guild_id=guild_id, user=current_user, guild_context=guild_context
+        settings_session, guild_id=guild_id, guild_context=guild_context
     )
 
 
@@ -967,6 +966,7 @@ async def set_guild_banner(
     guild_id: int,
     guild_context: SettingsAdminWriteContextDep,
     session: AdminSessionDep,
+    settings_session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     full: UploadFile = File(...),
     card: UploadFile = File(...),
@@ -994,7 +994,7 @@ async def set_guild_banner(
     )
     await session.commit()
     return await _guild_payload_after_image_change(
-        session, guild_id=guild_id, user=current_user, guild_context=guild_context
+        settings_session, guild_id=guild_id, guild_context=guild_context
     )
 
 
@@ -1003,6 +1003,7 @@ async def clear_guild_banner(
     guild_id: int,
     guild_context: SettingsAdminWriteContextDep,
     session: AdminSessionDep,
+    settings_session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     """Remove the guild's banner. Both surfaces fall back to their plain form."""
@@ -1011,7 +1012,7 @@ async def clear_guild_banner(
     )
     await session.commit()
     return await _guild_payload_after_image_change(
-        session, guild_id=guild_id, user=current_user, guild_context=guild_context
+        settings_session, guild_id=guild_id, guild_context=guild_context
     )
 
 
@@ -1019,22 +1020,16 @@ async def _guild_payload_after_image_change(
     session: AsyncSession,
     *,
     guild_id: int,
-    user: User,
     guild_context: GuildContext,
 ) -> GuildRead:
     """The guild as its admin now sees it, so the SPA needs no follow-up read.
 
-    Routed into the guild first, and only once the write above has committed.
-    A ``GuildRead`` is not all public-schema: the trash retention window lives
-    in the guild's own schema, which an unrouted session cannot see at all.
-    ``SET ROLE`` drops the system engine's bypass, which is why this runs after
-    the commit rather than around it — and everything read below is then read
-    as the guild admin the caller actually is.
+    Read on the route's own settings session, routed into the guild by the
+    seam, once the image write on the system engine has committed. A
+    ``GuildRead`` is not all public-schema: the trash retention window lives
+    in the guild's own schema, and the routed session reads it, the roster
+    size, the caps and the image digests as the admin the caller is.
     """
-    # Platform management on the system engine: the guild row was just
-    # written there, and the schema read below is admitted by the connection's
-    # own login.
-    await set_rls_context(session, guild_id=guild_id)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     if guild is None:
         raise HTTPException(
