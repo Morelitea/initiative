@@ -1101,6 +1101,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
         ),
     ),
     "app_service_nonces": FORCED_NO_POLICY,
+    "app_setting_secrets": FORCED_NO_POLICY,
     "app_service_registrations": FORCED_NO_POLICY,
     "auth_challenges": FORCED_NO_POLICY,
     "auth_provider_secrets": FORCED_NO_POLICY,

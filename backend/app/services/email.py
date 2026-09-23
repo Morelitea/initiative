@@ -136,6 +136,7 @@ def _strip_html(html: str) -> str:
 
 
 def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
+    """The connection settings, without the password (see ``_smtp_password``)."""
     host = settings_obj.smtp_host
     from_address = settings_obj.smtp_from_address
     if not host or not from_address:
@@ -147,11 +148,22 @@ def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
         secure=bool(settings_obj.smtp_secure),
         reject_unauthorized=bool(settings_obj.smtp_reject_unauthorized),
         username=settings_obj.smtp_username,
-        password=decrypt_field(settings_obj.smtp_password_encrypted, SALT_SMTP_PASSWORD)
-        if settings_obj.smtp_password_encrypted
-        else None,
+        password=None,
         from_address=from_address,
     )
+
+
+async def _smtp_password() -> str | None:
+    """The stored SMTP password, decrypted, or ``None`` when none is stored.
+
+    Read on a system-engine session of its own: ``app_setting_secrets`` is
+    granted to no request-path role, and a message goes out from whichever
+    session its caller holds.
+    """
+    secrets_row = await app_settings_service.load_app_setting_secrets()
+    if not secrets_row.smtp_password_encrypted:
+        return None
+    return decrypt_field(secrets_row.smtp_password_encrypted, SALT_SMTP_PASSWORD)
 
 
 def _smtp_context(reject_unauthorized: bool) -> ssl.SSLContext:
@@ -274,7 +286,10 @@ async def send_email(
         raise ValueError("At least one recipient email is required")
     if settings_obj is None:
         settings_obj = await app_settings_service.get_app_settings(session)
+    # Built before the password is read: an install with no mail server raises
+    # here without opening a system-engine session.
     config = _build_smtp_config(settings_obj)
+    config.password = await _smtp_password()
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = config.from_address

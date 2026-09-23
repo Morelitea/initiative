@@ -203,9 +203,7 @@ class AppSetting(SQLModel, table=True):
     smtp_username: Optional[str] = Field(
         default=None, sa_column=Column(String(255), nullable=True)
     )
-    smtp_password_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
-    )
+    # The SMTP password lives on ``app_setting_secrets``.
     smtp_from_address: Optional[str] = Field(
         default=None, sa_column=Column(String(255), nullable=True)
     )
@@ -329,9 +327,7 @@ class AppSetting(SQLModel, table=True):
     s3_access_key_id: Optional[str] = Field(
         default=None, sa_column=Column(String(255), nullable=True)
     )
-    s3_secret_access_key_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
-    )
+    # The S3 secret access key lives on ``app_setting_secrets``.
     s3_use_path_style: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),

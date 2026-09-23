@@ -159,6 +159,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "platform_provider_defaults",
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
+        "app_setting_secrets",  # the settings' stored credentials; app_admin-only
         # Deployment-wide notices and what each person has done with them. One
         # announcement is shown in every guild and read by an account, not by a
         # membership, so none of the three has a guild to live in.

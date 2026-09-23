@@ -6,6 +6,7 @@ from app.models.platform.announcement import (
     AnnouncementReadReceipt,
 )
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_app import GuildApp
@@ -154,6 +155,7 @@ __all__ = [
     "TaskStatus",
     "ProjectFilterPreset",
     "AppSetting",
+    "AppSettingSecret",
     "Guild",
     "GuildAdministration",
     "GuildImage",
