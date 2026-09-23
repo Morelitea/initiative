@@ -11,6 +11,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services import audit as audit_service
 from app.services.auth import guild_provider_connections as guild_connections
+from app.services.platform import provider_placement
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
@@ -20,6 +21,7 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
 )
 from app.models.platform.oidc_claim_mapping import (
+    ClaimRuleAuthor,
     OIDCClaimMapping,
     OIDCMappingTargetType,
 )
@@ -139,13 +141,27 @@ async def sync_oidc_assignments(
     # so it speaks for the arrivals that guild's connection admits.
     stmt = select(OIDCClaimMapping).where(OIDCClaimMapping.provider_id == provider_id)
     rules = (await session.exec(stmt)).all()
+    community_rules = [r for r in rules if r.author == ClaimRuleAuthor.community]
+    provider_rules = [r for r in rules if r.author == ClaimRuleAuthor.provider]
     admitted = await guild_connections.communities_admitting(
         session,
         provider_id=provider_id,
         claims=claims,
-        guild_ids={rule.guild_id for rule in rules},
+        guild_ids={rule.guild_id for rule in community_rules},
     )
-    mappings = [rule for rule in rules if rule.guild_id in admitted]
+    # The platform's rules for this provider place people where the community
+    # accepts them, or everywhere where the deployment says so, and only
+    # arrivals from the directory a rule names, if it names one.
+    placeable = await provider_placement.placeable_communities(
+        session,
+        provider_id=provider_id,
+        guild_ids={rule.guild_id for rule in provider_rules},
+    )
+    mappings = [rule for rule in community_rules if rule.guild_id in admitted] + [
+        rule
+        for rule in provider_rules
+        if rule.guild_id in placeable and provider_placement.in_scope(rule, claims)
+    ]
     # No early return on an empty set. A provider whose last rule was deleted
     # grants nothing, which is not the same as having nothing to take back —
     # the sweeps below are what hand those memberships over.
@@ -156,7 +172,8 @@ async def sync_oidc_assignments(
     matched_initiative_ids: set[int] = set()
 
     for mapping in mappings:
-        if mapping.claim_value.lower() in claim_values:
+        # A rule naming no group places everybody its directory matched.
+        if mapping.claim_value is None or mapping.claim_value.lower() in claim_values:
             matched.append(mapping)
             if mapping.target_type == OIDCMappingTargetType.guild:
                 matched_guild_ids.add(mapping.guild_id)

@@ -100,6 +100,13 @@ class GuildProviderConnection(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
 
+    #: Whether the platform's rules for this provider may place people in this
+    #: community, beside the rules the community writes itself.
+    accepts_provider_placement: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+
     #: When somebody outside the community agreed that these values are its
     #: to claim, and who. A community names its own ``claim_values`` and
     #: nothing here can tell whether it holds the domain or tenant they

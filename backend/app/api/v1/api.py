@@ -75,6 +75,7 @@ from app.api.v1.platform_endpoints import (
     app_services,
     auth,
     auth_providers,
+    provider_placement,
     billing,
     config,
     contacts,
@@ -192,6 +193,11 @@ api_router.include_router(
 )
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
+)
+api_router.include_router(
+    provider_placement.router,
+    prefix="/settings/placement",
+    tags=["provider-placement"],
 )
 api_router.include_router(
     guild_provider_connections.router,

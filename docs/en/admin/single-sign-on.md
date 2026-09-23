@@ -174,14 +174,36 @@ Any standards-compliant OIDC provider works, and the wizard already knows each o
 
 ## Sorting people into communities
 
-If your provider already knows who's in which group, a community can read that and put people where they belong the moment they first sign in. No invite, no waiting for somebody to notice the email.
+If your provider already knows who's in which group, Initiative can read that and put people where they belong the moment they sign in. No invite, no waiting for somebody to notice the email.
 
-The work splits down the middle. **You** tell Initiative where the provider keeps its groups: set the provider's **Groups claim** — `groups` for most, `realm_access.roles` for Keycloak. **The community** says what those groups mean to it, in its own **Settings → Security → Where your people land**. That section only appears for a community you've given [its own sign-in](#letting-a-community-use-a-provider), so a community that wants its groups sorted needs that switch first.
+First tell Initiative where the provider keeps its groups: set its **Groups claim** — `groups` for most, `realm_access.roles` for Keycloak. Then the rules can come from either end:
 
-Each rule belongs to one community and one of its providers, because two providers can both have a group called `staff` and mean entirely different people. What a rule can say, and what happens when somebody leaves a group, lives with the community: [Where your people land](../security/community-security.md#where-your-people-land).
+| Who writes them | Where | Suits |
+|---|---|---|
+| **Operators and owners** | **Operator dashboard → Sign-in placement** | One identity team deciding where everybody goes, across every team at once. |
+| **A community** | Its own **Settings → Security → Where your people land** | A community running [its own sign-in](#letting-a-community-use-a-provider) that knows its own groups. See [Where your people land](../security/community-security.md#where-your-people-land). |
+
+Both sets apply together. Somebody matched by a rule from each lands with the higher of the two standings.
+
+### Rules on a provider
+
+Each rule says: people in this group land in this community, as a member or an admin — and, if you like, in one of its initiatives with a role. Pick the community and its initiatives turn up in the list.
+
+A rule places people only in a community that has agreed to it, and there are two ways to agree:
+
+- **The community agrees**, by switching on **Let the deployment place people from this provider** on its connection. Right for a server shared by separate organisations.
+- **An owner agrees for everybody**, with **Apply placement rules to every community** at the top of the page. Right for a server that is one organisation, where asking two hundred teams to each tick a box is a fortnight of chasing emails. Every change to that switch is written to the [audit stream](configuration.md#logs).
+
+A rule for a community that hasn't agreed is kept, marked **Not applying**, and starts working the moment it does. Communities always see the rules that place people in them, listed on their Security tab as set by the deployment.
+
+### One provider, several directories
+
+A **bridge** — Keycloak or Authentik standing in front of other identity providers — signs in people from several directories through one provider. It is also how a directory that only speaks SAML reaches Initiative. Two of those directories can each have a group called `staff`, meaning entirely different people.
+
+So a rule can name a **directory** as well: a claim the bridge adds to its tokens, and the value for one source — `idp` = `acme-adfs`, say. The rule then matches only people from there. Name a directory and leave the group empty, and it places everybody arriving from that directory.
 
 ??? techspec "How the mapping is evaluated"
-    On each sign-in Initiative reads the provider's claim path from the ID token, falling back to the userinfo response, and applies each rule belonging to that provider whose community counts the person as its own — the community's connection, or your default for the provider where it has none, has to admit their claims. The authorization flow uses PKCE. Reconciliation is idempotent and scoped to the signing-in provider on both halves: it grants what that provider's rules match, and releases only the memberships that same provider's earlier syncs created. Where a provider supplies a refresh token (`offline_access`), a background sweep re-reads group claims for every provider that asserts one about every quarter of an hour, so changes land without waiting for the person to sign in again.
+    On each sign-in Initiative reads the provider's claim path from the ID token, falling back to the userinfo response, and applies that provider's rules. A community's own rule applies where its connection — or your default for the provider, where it has none — admits the person's claims. A rule on the provider applies where the community accepts provider rules or they apply everywhere, and, if it names a directory, where the claim it names carries that value. The authorization flow uses PKCE. Reconciliation is idempotent and scoped to the signing-in provider on both halves: it grants what that provider's rules match, and releases only the memberships that same provider's earlier syncs created. Where a provider supplies a refresh token (`offline_access`), a background sweep re-reads group claims for every provider that asserts one about every quarter of an hour, so changes land without waiting for the person to sign in again.
 
 ## Related
 

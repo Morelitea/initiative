@@ -20,7 +20,7 @@ Five rungs, each adding to the one below:
 | **Member** | Standard access to their own communities. No server-wide privileges. This is everyone by default. |
 | **Support** | Read-only visibility of the platform's users, can **request** time-bound access to a community to help with an issue, and can let somebody answer the age question again after a typo. |
 | **Moderator** | Everything Support can do, **plus** user management (suspend/reactivate) and content moderation. |
-| **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), approves access requests, and writes [announcements](announcements.md). |
+| **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), approves access requests, writes [announcements](announcements.md), and writes [sign-in placement rules](single-sign-on.md#rules-on-a-provider). |
 | **Owner** | Full control, **including server-wide configuration** (single sign-on, email, branding, AI). The only role that can change configuration. |
 
 !!! info "Capabilities, not just titles"

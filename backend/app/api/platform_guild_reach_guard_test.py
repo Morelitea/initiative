@@ -93,6 +93,15 @@ _WRAPPERS: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/intake_setup.py", "_route"): (
         "intake setup's routing helper; moves to /g/{guild_id} next (P5b)"
     ),
+    (f"{_SERVICES}/provider_placement.py", "_initiatives_in"): (
+        "reads one community's initiatives and roles for a provider placement rule"
+    ),
+    (f"{_SERVICES}/provider_placement.py", "_resolve_destination"): (
+        "checks a provider placement rule's initiative is the named community's"
+    ),
+    (f"{_SERVICES}/provider_placement.py", "list_targets"): (
+        "lists a placeable community's initiatives for a provider placement rule"
+    ),
 }
 
 #: Every call site that routes into a community, and why it may.
@@ -185,6 +194,24 @@ _ALLOWED: dict[tuple[str, str], str] = {
     ),
     (f"{_SERVICES}/intake_setup.py", "provision_from_blueprint"): (
         "intake setup; moves to /g/{guild_id} next (P5b)"
+    ),
+    # --- Provider placement rules: one placeable community at a time ------
+    (f"{_ENDPOINTS}/provider_placement.py", "list_placement_targets"): (
+        "the initiatives a provider placement rule may name, in a community "
+        "its rules apply to"
+    ),
+    (f"{_SERVICES}/provider_placement.py", "list_rules"): (
+        "names the initiatives provider placement rules place into, in the "
+        "communities they apply to"
+    ),
+    (f"{_SERVICES}/provider_placement.py", "_read_one"): (
+        "names the initiative a provider placement rule places into"
+    ),
+    (f"{_SERVICES}/provider_placement.py", "create_rule"): (
+        "checks a new provider placement rule's initiative"
+    ),
+    (f"{_SERVICES}/provider_placement.py", "update_rule"): (
+        "checks a changed provider placement rule's initiative"
     ),
 }
 

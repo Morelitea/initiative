@@ -40,6 +40,8 @@ If your provider reports which groups somebody is in, **rules** say what those g
 - Standing is reconciled at **each sign-in** through that provider. Take a group away and the next sign-in takes the standing with it.
 - Memberships given by hand are never touched, and deleting a rule revokes nothing by itself — the next sign-in does.
 
+**Rules set by the deployment.** Your server's operators can write rules on a provider too. They place people here when your connection to that provider has **Let the deployment place people from this provider** switched on, or when the server applies its rules to every community. They're listed beside your own, read-only, and marked when they're not applying.
+
 !!! warning "An empty answer is still an answer"
     A provider asked for groups that reports none matches no rules, and the standings those rules granted are released. That is different from a provider nobody has told where its groups live: there, rules never run at all, and the tab marks the provider so you can see why nothing matches.
 

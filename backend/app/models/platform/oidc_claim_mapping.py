@@ -13,6 +13,19 @@ class OIDCMappingTargetType(str, Enum):
     initiative = "initiative"
 
 
+class ClaimRuleAuthor(str, Enum):
+    """Who wrote a rule, and so who may change it.
+
+    A community writes rules for itself on its own Security tab. The platform
+    writes a provider's rules, which place people in whichever community they
+    name where that community lets them (or the deployment says they apply
+    everywhere). Each surface reads and writes only its own author's rows.
+    """
+
+    community = "community"
+    provider = "provider"
+
+
 class OIDCClaimMapping(SQLModel, table=True):
     __tablename__ = "oidc_claim_mappings"
     __allow_unmapped__ = True
@@ -30,9 +43,27 @@ class OIDCClaimMapping(SQLModel, table=True):
             index=True,
         ),
     )
-    claim_value: str = Field(
+    #: Who wrote the rule — see :class:`ClaimRuleAuthor`.
+    author: ClaimRuleAuthor = Field(
+        default=ClaimRuleAuthor.community,
+        sa_column=Column(String(16), nullable=False, server_default="community"),
+    )
+    #: The group the rule places. Null only on a provider rule that names a
+    #: directory instead, which places everybody arriving from it.
+    claim_value: Optional[str] = Field(
+        default=None,
         max_length=500,
-        sa_column=Column(String(500), nullable=False),
+        sa_column=Column(String(500), nullable=True),
+    )
+    #: On a provider rule, the verified claim and value that name which of the
+    #: provider's directories the rule is about — for a provider that signs in
+    #: people from more than one, such as a bridge in front of several. Both or
+    #: neither.
+    scope_claim: Optional[str] = Field(
+        default=None, sa_column=Column(String(64), nullable=True)
+    )
+    scope_value: Optional[str] = Field(
+        default=None, sa_column=Column(String(256), nullable=True)
     )
     target_type: OIDCMappingTargetType = Field(
         sa_column=Column(String(20), nullable=False),
@@ -66,8 +97,8 @@ class OIDCClaimMapping(SQLModel, table=True):
     # a niche self-hoster feature and didn't justify the split.
     #
     # Guardrails that compensate for the missing FK:
-    #   - the create endpoint (settings.py) validates the initiative/role exists
-    #     and belongs to the mapping's guild before inserting;
+    #   - whoever writes a rule validates the initiative/role exists and
+    #     belongs to the mapping's guild before inserting;
     #   - oidc_sync skips any initiative/role reference that no longer resolves,
     #     so a dangling row can't crash a login sync.
     initiative_id: Optional[int] = Field(
