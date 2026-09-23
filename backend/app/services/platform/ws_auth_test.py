@@ -144,7 +144,7 @@ async def test_jwt_without_sub_does_not_fall_through_to_device_lookup(
         raise AssertionError("device-token lookup must not run for a JWT bearer")
 
     monkeypatch.setattr(
-        ws_auth_module.user_tokens, "get_device_token", _must_not_be_called
+        ws_auth_module.user_tokens, "authenticate_device_token", _must_not_be_called
     )
 
     subless_token = pyjwt.encode(

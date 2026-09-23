@@ -61,8 +61,8 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     ``token_version`` — this mirrors ``get_current_user`` so logout /
     password reset / password change (which bump ``token_version``)
     revoke realtime sockets too. Device tokens are revoked separately
-    (consumed / expired in the database) and are validated by
-    ``user_tokens.get_device_token``.
+    (consumed / expired in the database) and are validated on the system
+    engine by ``user_tokens.authenticate_device_token``.
 
     Like the HTTP validators, this records what the credential proved in
     ``app.core.auth_context`` — the satisfied-provider set, and whether the
@@ -106,7 +106,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
             return None
 
     # Fall back to device token validation.
-    device_token = await user_tokens.get_device_token(session, token=token)
+    device_token = await user_tokens.authenticate_device_token(token)
     if device_token:
         statement = select(User).where(User.id == device_token.user_id)
         result = await session.exec(statement)

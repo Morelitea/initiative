@@ -93,7 +93,6 @@ async def _record_recovery_refusal(
 async def remove_password(
     request: Request,
     response: Response,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: CurrentUser,
     payload: PasswordRemove,
@@ -154,8 +153,6 @@ async def remove_password(
     )
     carried_provider_auth = prior.provider_auth if prior is not None else None
 
-    await user_tokens.revoke_device_tokens_first(session, user_id=current_user.id)
-
     # The row is written on the system engine, which is where the rest of this
     # request's writes land.
     account = await admin_session.get(User, current_user.id)
@@ -172,14 +169,12 @@ async def remove_password(
         event_type=AuditEventType.AUTH_PASSWORD_REMOVED,
         actor_user_id=account.id,
     )
-    # Bump token_version and retire the API keys, refresh sessions and
-    # half-finished sign-ins that rested on the password.
+    # Bump token_version and retire the device tokens, API keys, refresh
+    # sessions and half-finished sign-ins that rested on the password.
     #
     # Staged, not committed: the replacement session below joins them in one
     # transaction, so the account keeps what it had if that fails.
-    await user_tokens.revoke_user_sessions(
-        session, user=account, admin_session=admin_session, commit=False
-    )
+    await user_tokens.revoke_user_sessions(admin_session, user=account, commit=False)
 
     # A recovery set exists from the moment the account becomes passwordless,
     # because a code is now how it gets a password back — on a deployment with
@@ -215,7 +210,6 @@ async def remove_password(
         satisfied_providers=carried_providers,
         provider_auth=carried_provider_auth,
     )
-    await session.commit()
 
     await email_service.announce_password_removed(admin_session, account)
     return RecoveryCodes(codes=codes)
@@ -254,16 +248,11 @@ async def recover_with_code(
         await _record_recovery_refusal(admin_session, user_id=user.id)
         raise _recovery_code_invalid()
 
-    # The account is left signed out on its phones and still passwordless,
-    # which is where it began — and its code unspent, so the same one works on
-    # the retry.
-    await user_tokens.revoke_device_tokens_first(session, user_id=user.id)
-
     user.hashed_password = get_password_hash(payload.password)
     user.password_set_at = datetime.now(timezone.utc)
     # Staged before ``revoke_user_sessions`` below, which commits this session:
-    # ``user`` is bound to it, so the password, the spent code and these two
-    # records land on one commit.
+    # ``user`` is bound to it, so the password, the spent code, the revocations
+    # and these two records land on one commit.
     await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
@@ -292,10 +281,7 @@ async def recover_with_code(
         # land on that one commit.
         user.updated_at = datetime.now(timezone.utc)
         admin_session.add(user)
-        await user_tokens.revoke_user_sessions(
-            session, user=user, admin_session=admin_session
-        )
-        await session.commit()
+        await user_tokens.revoke_user_sessions(admin_session, user=user)
     except Exception as exc:
         await admin_session.rollback()
         logger.exception("Could not record a recovery for user %s", user_id)

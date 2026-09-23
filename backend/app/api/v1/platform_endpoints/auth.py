@@ -573,12 +573,15 @@ async def _register_account(
 
     if smtp_configured and not address_confirmed:
         try:
-            token = await user_tokens.create_token(
-                session,
-                user_id=user.id,
-                purpose=UserTokenPurpose.email_verification,
-                expires_minutes=60 * 24,
-            )
+            # On a system-engine session of its own: ``session`` is routed to
+            # the account by now, and the token table is the system engine's.
+            async with AdminSessionLocal() as token_session:
+                token = await user_tokens.create_token(
+                    token_session,
+                    user_id=user.id,
+                    purpose=UserTokenPurpose.email_verification,
+                    expires_minutes=60 * 24,
+                )
             await email_service.send_verification_email(session, user, token)
         except email_service.EmailNotConfiguredError:
             logger.warning(
@@ -1125,7 +1128,6 @@ async def _revoke_signed_out_login(
 async def logout(
     request: Request,
     response: Response,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
     payload: RefreshRequest | None = None,
@@ -1147,23 +1149,19 @@ async def logout(
     the token is one installed client's, so consuming it is the same per-device
     scope by another name.
     """
-    # ``admin_session`` is a SEPARATE, deliberate session: ``auth_sessions`` is
-    # reached on the system engine, as everywhere else that touches it.
+    # ``auth_sessions`` and ``user_tokens`` are both reached on the system
+    # engine, so the device token, the login chain and the record commit
+    # together.
     if current_user is not None:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("DeviceToken "):
-            # ``SessionDep`` carries no context of its own, and reading the
-            # token slides its expiry against rows scoped to the caller — name
-            # them so the lookup sees the same answer every other request does.
-            await set_rls_context(session, user_id=current_user.id)
             device_token_str = auth_header[12:]
             device_token = await user_tokens.get_device_token(
-                session, token=device_token_str
+                admin_session, token=device_token_str
             )
             if device_token:
                 device_token.consumed_at = datetime.now(timezone.utc)
-                session.add(device_token)
-                await session.commit()
+                admin_session.add(device_token)
         await _revoke_signed_out_login(
             request, admin_session, payload=payload, user_id=current_user.id
         )
@@ -1289,10 +1287,10 @@ async def create_device_token(
             },
         )
 
-    # Both credentials on one transaction, so a failure takes both. Minted on
-    # the system engine rather than the request one for that reason alone: a
-    # device token committed on its own would outlive the response it was for,
-    # and each retry would leave another live one in the account's device list.
+    # Both credentials on one transaction, so a failure takes both. Both tables
+    # are the system engine's, and staging them together matters: a device
+    # token committed on its own would outlive the response it was for, and
+    # each retry would leave another live one in the account's device list.
     #
     # The session carries ``pwd`` because that is what was presented here —
     # which is what the device token itself cannot say, and why a device-token
@@ -1355,7 +1353,6 @@ async def create_device_token(
 @limiter.limit("20/15minutes")
 async def exchange_device_token(
     request: Request,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     payload: DeviceTokenExchangeRequest,
 ) -> Token:
@@ -1375,7 +1372,9 @@ async def exchange_device_token(
     nothing, which satisfies no community's sign-in requirement. See
     ``user_tokens.claim_handoff_amr``.
     """
-    record = await user_tokens.get_device_token(session, token=payload.device_token)
+    record = await user_tokens.get_device_token(
+        admin_session, token=payload.device_token
+    )
     if record is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1434,11 +1433,13 @@ async def exchange_device_token(
 
 @router.get("/device-tokens", response_model=list[DeviceTokenInfo])
 async def list_device_tokens(
-    session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> list[DeviceTokenInfo]:
     """List all device tokens for the current user."""
-    tokens = await user_tokens.get_user_device_tokens(session, user_id=current_user.id)
+    tokens = await user_tokens.get_user_device_tokens(
+        admin_session, user_id=current_user.id
+    )
     return [
         DeviceTokenInfo(
             id=t.id,
@@ -1451,13 +1452,13 @@ async def list_device_tokens(
 
 @router.delete("/device-tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_device_token(
-    session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     token_id: int,
 ) -> None:
     """Revoke a device token."""
     success = await user_tokens.revoke_device_token(
-        session,
+        admin_session,
         token_id=token_id,
         user_id=current_user.id,
     )
@@ -1952,7 +1953,7 @@ async def _complete_provider_login(
     if is_mobile:
         device_name = completion.device_name or "Mobile Device"
         device_token = await user_tokens.create_device_token(
-            session,
+            admin_session,
             user_id=user.id,
             device_name=device_name,
             # What the provider said about this authentication, kept for the
@@ -2138,13 +2139,14 @@ async def provider_callback(
 async def resend_verification_email(
     request: Request,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> VerificationSendResponse:
     if await addresses.has_proven_address(session, user_id=current_user.id):
         return VerificationSendResponse(status="already_verified")
     try:
         token = await user_tokens.create_token(
-            session,
+            admin_session,
             user_id=current_user.id,
             purpose=UserTokenPurpose.email_verification,
             expires_minutes=60 * 24,
@@ -2166,18 +2168,14 @@ async def resend_verification_email(
 @limiter.limit("5/15minutes")
 async def confirm_verification(
     request: Request,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     payload: VerificationConfirmRequest,
 ) -> VerificationSendResponse:
-    # Validated first, spent last. The two writes land on different engines —
-    # the account is the system engine's (the caller holds a token, not a
-    # session) and the token is the request path's — so the order decides which
-    # way a failure between them falls. Verifying first means a failure leaves a
-    # token that verifies an already-verified account, which is a no-op; the
-    # other order would spend the token and leave the account unverified.
+    # The account and the token are both the system engine's (the caller holds
+    # a token, not a session), so the address it proves and the token it spends
+    # commit together.
     record = await user_tokens.get_valid_token(
-        session,
+        admin_session,
         token=payload.token,
         purpose=UserTokenPurpose.email_verification,
     )
@@ -2202,19 +2200,21 @@ async def confirm_verification(
             )
         except addresses.AddressError as exc:
             # Somebody else proved the same address first. The claim is over,
-            # and the token that carried it is spent either way.
+            # and the token that carried it is spent either way. The rollback
+            # expired ``record``, so it is spent by its value.
             await admin_session.rollback()
-            record.consumed_at = datetime.now(timezone.utc)
-            session.add(record)
-            await session.commit()
+            await user_tokens.consume_token(
+                admin_session,
+                token=payload.token,
+                purpose=UserTokenPurpose.email_verification,
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
             ) from exc
-    await admin_session.commit()
 
     record.consumed_at = datetime.now(timezone.utc)
-    session.add(record)
-    await session.commit()
+    admin_session.add(record)
+    await admin_session.commit()
     return VerificationSendResponse(status="verified")
 
 
@@ -2235,7 +2235,7 @@ async def request_password_reset(
         return VerificationSendResponse(status="sent")
     try:
         token = await user_tokens.create_token(
-            session,
+            admin_session,
             user_id=user.id,
             purpose=UserTokenPurpose.password_reset,
             expires_minutes=60,
@@ -2266,7 +2266,7 @@ async def reset_password(
     # reset token; ``consume_token`` is one-shot.
     await enforce_password_policy(payload.password)
     record = await user_tokens.consume_token(
-        session,
+        admin_session,
         token=payload.token,
         purpose=UserTokenPurpose.password_reset,
     )
@@ -2284,28 +2284,24 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
-    await user_tokens.revoke_device_tokens_first(session, user_id=user.id)
-
     user.hashed_password = get_password_hash(payload.password)
     user.password_set_at = datetime.now(timezone.utc)
     # Staged before ``revoke_user_sessions`` below, which commits this session:
-    # ``user`` is bound to it, so the new password and this record land on the
-    # same commit rather than the record trailing a change already durable.
+    # ``user`` is bound to it, so the new password, the revocations and this
+    # record land on the same commit rather than the record trailing a change
+    # already durable.
     await audit_service.record(
         admin_session,
         event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
         actor_user_id=user.id,
         detail={"via": "reset"},
     )
-    # Bump token_version and revoke API keys / refresh sessions so no stale
-    # credential (JWT or captured refresh) survives either. ``token_version``
-    # is bumped on ``user``, which is bound to the system engine here, so that
-    # half commits with the password below.
-    await user_tokens.revoke_user_sessions(
-        session, user=user, admin_session=admin_session
-    )
+    # Bump token_version and revoke device tokens / API keys / refresh sessions
+    # so no stale credential (JWT or captured refresh) survives either.
+    # ``token_version`` is bumped on ``user``, which is bound to the system
+    # engine here, so that half commits with the password.
+    await user_tokens.revoke_user_sessions(admin_session, user=user)
     user.updated_at = datetime.now(timezone.utc)
     admin_session.add(user)
-    await session.commit()
     await admin_session.commit()
     return VerificationSendResponse(status="reset")

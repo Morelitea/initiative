@@ -118,8 +118,11 @@ async def _authenticate_device_token(
     that have to end up pointing at the same phone -- its push token and its
     message key store -- both read it from there rather than being told an id
     by the client.
+
+    The token is resolved on the system engine, as a personal API key is; the
+    account it names is loaded on the request's own session.
     """
-    device_token = await user_tokens.get_device_token(session, token=token)
+    device_token = await user_tokens.authenticate_device_token(token)
     if not device_token:
         return None
     statement = select(User).where(User.id == device_token.user_id)

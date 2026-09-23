@@ -1,3 +1,11 @@
+"""Single-use and device tokens (``user_tokens``).
+
+The table is read and written on the system engine alone, like
+``auth_sessions`` and ``user_api_keys``: every function here takes a session on
+``app_admin``, and the request-path authenticators reach it through
+:func:`authenticate_device_token`, which opens one of its own.
+"""
+
 import logging
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
@@ -143,8 +151,8 @@ async def purge_expired_tokens(session: AsyncSession) -> None:
     await session.commit()
 
 
-# ``user_tokens`` and ``auth_challenges`` are shared/public tables the system
-# engine holds DELETE on (see app/db/system_grants.py), so the sweep runs on
+# ``user_tokens`` and ``auth_challenges`` are read and written on the system
+# engine alone (see app/db/system_grants.py), so the sweep runs on
 # AdminSessionLocal with no guild routing.
 TOKEN_PURGE_POLL_SECONDS = 3600
 
@@ -313,6 +321,20 @@ async def get_device_token(
     return record
 
 
+async def authenticate_device_token(token: str) -> Optional[UserToken]:
+    """Resolve a presented device token on the system engine, sliding its window.
+
+    What the request-path authenticators call (``deps.get_current_user`` and
+    the WebSocket handshake): the lookup is a match by hash before anybody is
+    known, so it opens a system-engine session of its own, as a personal API
+    key's lookup does. The row comes back detached, with its columns loaded.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        return await get_device_token(admin_session, token=token)
+
+
 async def _record_device_token_use(*, user_id: int) -> None:
     """Note that a device token was presented, at the throttle above.
 
@@ -429,28 +451,10 @@ async def revoke_other_device_tokens(
     return result.rowcount
 
 
-async def revoke_device_tokens_first(
-    session: AsyncSession,
-    *,
-    user_id: int,
-) -> None:
-    """Revoke the account's device tokens and commit them, ahead of the rest.
-
-    They live on a table the system engine holds no UPDATE on, so the two
-    halves of a credential change cannot share a transaction. This half goes
-    first, which is the order that fails safely: everything after it is staged,
-    so a failure there leaves the account signed out on its phones with the
-    password where it was.
-    """
-    await revoke_active_device_tokens(session, user_id=user_id)
-    await session.commit()
-
-
 async def revoke_user_sessions(
-    session: AsyncSession,
+    admin_session: AsyncSession,
     *,
     user: User,
-    admin_session: AsyncSession,
     commit: bool = True,
 ) -> None:
     """Invalidate every outstanding session for ``user`` after a credential
@@ -465,22 +469,20 @@ async def revoke_user_sessions(
     the self-service password change, the forgot-password reset, and the admin
     password reset so the three paths can't drift.
 
-    Two sessions by design: the caller's ``session`` carries the request-path
-    writes (``token_version``, device tokens) and the caller commits it;
-    ``admin_session`` is the system engine, the only role that may touch the
-    ``app_admin``-only tables — ``auth_sessions`` and ``user_api_keys``. The
-    API-key deactivation and refresh-session revocation are committed here by
-    default so they can't be forgotten by a caller — revoking ahead of a
-    password write that later fails just logs the user out, which is the
-    fail-safe direction.
+    Every table this writes is the system engine's, so the revocations share
+    ``admin_session``'s transaction. ``token_version`` is bumped on ``user``
+    wherever it is bound, and whoever holds that session commits it. The
+    revocations are committed here by default so they can't be forgotten by a
+    caller — revoking ahead of a password write that later fails just logs the
+    user out, which is the fail-safe direction.
 
-    ``commit=False`` leaves them staged, for the one caller that opens a
+    ``commit=False`` leaves them staged, for the callers that open a
     replacement session immediately afterwards: staged together, the
     revocations and their replacement land in one transaction, so a failure to
     open the replacement leaves the account holding everything it had.
     """
     user.token_version += 1
-    await revoke_active_device_tokens(session, user_id=user.id)
+    await revoke_active_device_tokens(admin_session, user_id=user.id)
     await api_keys_service.deactivate_user_api_keys(admin_session, user_id=user.id)
     await session_service.revoke_all_for_user(admin_session, user_id=user.id)
     # A sign-in part-way through rests on the password it proved, so it goes

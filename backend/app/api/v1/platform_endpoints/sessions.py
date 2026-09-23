@@ -25,7 +25,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.api.deps import SessionDep, get_current_active_user
+from app.api.deps import get_current_active_user
 from app.api.v1.platform_endpoints.session_opening import current_session_row
 from app.core import auth_context
 from app.core.audit_events import AuditEventType
@@ -111,7 +111,6 @@ async def revoke_my_session(
 @router.post("/sessions/revoke-others", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_my_other_sessions(
     request: Request,
-    session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> None:
@@ -123,17 +122,14 @@ async def revoke_my_other_sessions(
     session spares its own row and takes every device token, a native client
     spares its own token and takes every session.
 
-    Two sessions by necessity rather than by choice — the device tokens are on
-    a table the system engine cannot write — so the device half commits first.
-    That is the order that fails safely: a failure after it leaves the account
-    with fewer credentials than it started with, never more.
+    Both tables are the system engine's, so the two halves and the record
+    commit together.
     """
     await user_tokens.revoke_other_device_tokens(
-        session,
+        admin_session,
         user_id=current_user.id,
         keep_token_id=auth_context.device_token_id(),
     )
-    await session.commit()
 
     current = current_session_row(request)
     await session_service.revoke_all_for_user(

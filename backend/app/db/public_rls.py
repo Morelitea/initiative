@@ -1098,6 +1098,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "mfa_recovery_codes": FORCED_NO_POLICY,
     "oidc_claim_mappings": FORCED_NO_POLICY,
     "user_api_keys": FORCED_NO_POLICY,
+    "user_tokens": FORCED_NO_POLICY,
     "user_email_assertions": FORCED_NO_POLICY,
     "user_emails": FORCED_NO_POLICY,
     "user_passkeys": FORCED_NO_POLICY,
@@ -1108,8 +1109,36 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "auto_delegation_jti_blocklist": NO_RLS,
     "billing_jti_blocklist": NO_RLS,
     "email_outbox": NO_RLS,
-    "push_tokens": NO_RLS,
-    "user_tokens": NO_RLS,
+    "push_tokens": TableRls(
+        policies=(
+            # A device registers, re-registers and unregisters under its owner's
+            # platform tier; delivery reads and prunes on the system engine.
+            Policy(
+                "push_tokens_self_read",
+                SELECT,
+                ("platform_base",),
+                using=own_row("user_id"),
+            ),
+            Policy(
+                "push_tokens_self_insert",
+                INSERT,
+                ("platform_base",),
+                check=own_row("user_id"),
+            ),
+            Policy(
+                "push_tokens_self_update",
+                UPDATE,
+                ("platform_base",),
+                using=own_row("user_id"),
+            ),
+            Policy(
+                "push_tokens_self_delete",
+                DELETE,
+                ("platform_base",),
+                using=own_row("user_id"),
+            ),
+        ),
+    ),
     "notifications": TableRls(
         policies=(
             # The reader's own bell: list it, mark it read, dismiss it.

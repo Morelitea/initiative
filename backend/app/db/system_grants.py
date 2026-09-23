@@ -265,14 +265,13 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # them). UPDATE is the dedupe touch — the same bytes uploaded twice keep
     # one row, and the second upload restarts the orphan clock on it.
     "announcement_images": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # UPDATE is the sweep that brings device tokens already issued under a
-    # session limit that has just changed (migration 0295). The sliding window
-    # itself is written by the request path under its own role; what the system
-    # engine does here is the one thing that crosses every account at once.
+    # Email-verification, password-reset and device tokens, matched by hash
+    # before the account is known: minted, redeemed, slid, revoked and swept on
+    # the system engine alone (0358), like auth_sessions and user_api_keys.
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # the system engine delivers push itself (background digests, PAM notices),
-    # and delivery bookkeeping is part of that: UPDATE stamps last_used_at,
-    # DELETE prunes tokens FCM reports as unregistered
+    # Every push is delivered through the system engine: it reads the
+    # recipient's rows, UPDATE stamps last_used_at, DELETE prunes tokens FCM
+    # reports as unregistered (0358).
     "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # pre-auth credential store — validated by token_hash before the user is
     # known, so the lookup + create + deactivate all run on the system engine
@@ -308,7 +307,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # in the column ACL, not the table ACL). ``role`` is writable only by the
     # system engine — see security_invariants_test.
     "users": frozenset({"SELECT"}),
-    "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0358: every token path runs on the system engine, pre-routing included.
+    "user_tokens": None,
     # Minted on the system engine, behind the surfaces that hand a reference to
     # an outside party. SELECT covers the table and one policy admits the rows:
     # ``purpose = 'client'``, the sector an account's own access token names it
@@ -577,14 +577,10 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "announcement_images": frozenset({"SELECT"}),
     # 0156: system-engine-only, no request-path grant.
     "user_api_keys": None,
-    # The next two carry the schema default, which no migration has narrowed,
-    # and no policy. A token is resolved on the bare login role before a
-    # request is routed (SHARED_TABLE_APP_USER_GRANTS), and device registration
-    # runs under a platform tier (platform_endpoints/push.py). Recorded as the
-    # catalog stands; each narrowing is a migration's decision with its own
-    # test.
-    "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0358: tokens are the system engine's, and a push is delivered on it; the
+    # guild floor reaches neither table.
+    "user_tokens": None,
+    "push_tokens": None,
     # 0357: redemption runs on the bare login role and its janitor on the
     # system engine; neither floor reaches the table.
     "auto_delegation_jti_blocklist": None,
@@ -668,7 +664,11 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "announcement_reads": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "announcement_images": frozenset({"SELECT"}),
     "user_api_keys": None,
-    "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0358: tokens are the system engine's alone.
+    "user_tokens": None,
+    # A device's own registration: the upsert reads and writes the row it
+    # conflicts on and returns it, and unregistering deletes it. The policies
+    # admit the account's own rows (0358).
     "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "auto_delegation_jti_blocklist": None,
     "billing_event_log": None,
