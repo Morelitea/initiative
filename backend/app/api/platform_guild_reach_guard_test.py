@@ -66,14 +66,13 @@ _SERVICES = "app/services/platform"
 
 #: Functions that route into whichever community their caller names.
 _WRAPPERS: dict[tuple[str, str], str] = {
-    (f"{_ENDPOINTS}/guilds.py", "_guild_payload_after_image_change"): (
-        "re-reads the caller's own community after an icon or banner change"
-    ),
     (f"{_SERVICES}/billing.py", "guild_storage_usage"): (
         "storage aggregate for the billing service"
     ),
     (f"{_SERVICES}/guilds.py", "align_admin_initiative_roles"): (
-        "reconciles a promoted admin's initiative rows"
+        "reconciles a promoted admin's initiative rows, on the system engine "
+        "beside the membership role write (the guild role holds no UPDATE on "
+        "guild_memberships)"
     ),
     (f"{_SERVICES}/guilds.py", "enroll_new_member_in_auto_join_initiatives"): (
         "enrolls a new member in the community's auto-join initiatives"
@@ -85,7 +84,8 @@ _WRAPPERS: dict[tuple[str, str], str] = {
         "the caller joins a listed community"
     ),
     (f"{_SERVICES}/guilds.py", "restore_guild"): (
-        "brings a deleted community back and seats its superadmin"
+        "brings a deleted community back and seats its superadmin, with the "
+        "seat's auto-join enrolments (ensure_membership)"
     ),
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"
@@ -114,23 +114,10 @@ _ALLOWED: dict[tuple[str, str], str] = {
         "routes the leaving member through establish_guild_access"
     ),
     # --- The caller's own community, behind its settings gate -------------
-    (f"{_ENDPOINTS}/guilds.py", "set_guild_icon"): (
-        "the caller's own community, as its settings admin"
-    ),
-    (f"{_ENDPOINTS}/guilds.py", "clear_guild_icon"): (
-        "the caller's own community, as its settings admin"
-    ),
-    (f"{_ENDPOINTS}/guilds.py", "set_guild_banner"): (
-        "the caller's own community, as its settings admin"
-    ),
-    (f"{_ENDPOINTS}/guilds.py", "clear_guild_banner"): (
-        "the caller's own community, as its settings admin"
-    ),
     (f"{_ENDPOINTS}/guilds.py", "update_guild_membership"): (
-        "the caller's own community's role route, as its settings admin"
-    ),
-    (f"{_ENDPOINTS}/users.py", "approve_user"): (
-        "the caller's own community, as its admin"
+        "the caller's own community's role route, as its settings admin: the "
+        "role write and the initiative reconcile after it run on the system "
+        "engine (the guild role holds no UPDATE on guild_memberships)"
     ),
     # --- Joining and creating ----------------------------------------------
     (f"{_ENDPOINTS}/auth.py", "_register_account"): (
@@ -146,12 +133,9 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/guilds.py", "redeem_invite_for_user"): (
         "the invitee joins the community the invite names"
     ),
-    (f"{_SERVICES}/guilds.py", "list_memberships"): (
-        "the caller's own communities: settings and member counts for the list"
-    ),
     # --- Lifecycle -----------------------------------------------------------
     (f"{_ENDPOINTS}/settings.py", "restore_platform_guild"): (
-        "restores a deleted community (guilds.manage)"
+        "restores a deleted community and seats its superadmin (guilds.manage)"
     ),
     (f"{_SERVICES}/app_settings.py", "ensure_defaults"): (
         "startup seeding of the primary community"

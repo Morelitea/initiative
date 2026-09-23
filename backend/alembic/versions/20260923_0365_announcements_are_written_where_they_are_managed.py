@@ -25,7 +25,6 @@ Create Date: 2026-09-23
 
 from alembic import op
 
-from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
 
 revision = "20260923_0365"
@@ -33,13 +32,9 @@ down_revision = "20260923_0364"
 branch_labels = None
 depends_on = None
 
-#: The tier roles holding ``announcements.manage``, as the capability registry
-#: spells them.
+#: The tier roles holding ``announcements.manage`` at this revision.
 AUTHORS: tuple[str, ...] = tuple(
-    sorted(
-        f"{settings.PLATFORM_ROLE_PREFIX}platform_{role.value}"
-        for role in roles_with_capability(Capability.ANNOUNCEMENTS_MANAGE)
-    )
+    f"{settings.PLATFORM_ROLE_PREFIX}platform_{tier}" for tier in ("operator", "owner")
 )
 
 WRITES = "INSERT, UPDATE, DELETE"

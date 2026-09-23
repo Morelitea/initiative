@@ -740,8 +740,7 @@ async def serve_upload_file(
     # Validate access (membership or live PAM grant) against the path guild →
     # route into that ONE guild schema and look the filename up there. Fail
     # closed: no access, no schema, or no Upload row in that guild all 404
-    # without confirming the blob exists. The frozen ``public.uploads`` backup
-    # is never read.
+    # without confirming the blob exists.
     from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
     from app.models.platform.guild import LIVE_STATUS_VALUES

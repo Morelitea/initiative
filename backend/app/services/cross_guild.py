@@ -28,7 +28,8 @@ T = TypeVar("T")
 #: ``session.info``, so its lifetime is the session's — i.e. the request's.
 #: Keyed by user as well as guild because this function takes the user as an
 #: argument: one session may legitimately gather for more than one of them, and
-#: a guild-only key would hand the second the first's standing. A cached
+#: a guild-only key would hand the second the first's standing. The surface
+#: (content or settings) is part of the key, since each establishes its own. A cached
 #: context is never written on its own — it is re-applied through the same
 #: routing-and-standing pair a first visit goes through, which is what keeps
 #: the session and its standing naming one community.
@@ -86,6 +87,8 @@ async def gather_across_guilds(
     guild_ids: Sequence[int],
     fetch: Callable[[AsyncSession, int], Awaitable[list[T]]],
     satisfied_providers: Sequence[int] | str | None = None,
+    *,
+    for_settings: bool = False,
 ) -> list[T]:
     """Route into each guild's schema, call ``fetch(session, guild_id)``, and
     concatenate the results. The identity map is expunged between guilds because
@@ -100,7 +103,11 @@ async def gather_across_guilds(
     ``satisfied_providers`` defaults to the ambient ``auth_context`` — the
     session's ``sat`` on a request path — so a policy-gated guild contributes
     exactly when the caller's session satisfies its policy. User-attributed
-    system jobs pass ``SYSTEM_SATISFIED`` explicitly."""
+    system jobs pass ``SYSTEM_SATISFIED`` explicitly.
+
+    ``for_settings`` enters each community on its configuration surface, as
+    ``/g/{guild_id}`` settings routes do (``establish_guild_access``'s
+    ``for_settings``), for a read of what its administrator configures."""
     if not guild_ids:
         return []
     from app.api.deps import (
@@ -122,7 +129,7 @@ async def gather_across_guilds(
     if user is None or user.status == UserStatus.suspended:
         return []
 
-    contexts: dict[tuple[int, int], GuildContext] = session.info.setdefault(
+    contexts: dict[tuple[int, int, bool], GuildContext] = session.info.setdefault(
         _CONTEXT_CACHE_KEY, {}
     )
 
@@ -136,13 +143,18 @@ async def gather_across_guilds(
         # nothing per schema, so it goes straight back — every step below
         # reads it.
         session.add(user)
-        cached = contexts.get((user_id, guild_id))
+        key = (user_id, guild_id, for_settings)
+        cached = contexts.get(key)
         try:
             if cached is None:
                 context = await establish_guild_access(
-                    session, user, guild_id, satisfied_providers=satisfied_providers
+                    session,
+                    user,
+                    guild_id,
+                    satisfied_providers=satisfied_providers,
+                    for_settings=for_settings,
                 )
-                contexts[(user_id, guild_id)] = context
+                contexts[key] = context
             else:
                 # The lookup's answer is the same one it gave a moment ago in
                 # this request; what has to happen again is the routing and the
