@@ -566,6 +566,7 @@ async def soft_delete_user(
     import secrets
     from app.models.platform.guild import Guild
     from app.models.platform.push_token import PushToken
+    from app.services.tenant import webhook_subscriptions as webhooks_service
     from app.services.tenant.mention_parser import anonymize_user_mentions
 
     # Mention scrub first — it routes per guild and expunges between guilds,
@@ -586,6 +587,12 @@ async def soft_delete_user(
         await session.exec(
             delete(GuildAIMemberPref).where(GuildAIMemberPref.user_id == user_id)
         )
+        # Their webhook subscriptions, in every guild — not only the ones they
+        # are still a member of, since a subscription outlives leaving. Taken
+        # rather than deactivated: an erased account cannot come back, so what
+        # a standing-down row would hold is a target URL and the secret its
+        # receiver signs with, kept for nobody.
+        await webhooks_service.delete_for_member(session, user_id=user_id)
     session.expunge_all()
     await set_rls_context(session)
 
@@ -783,6 +790,7 @@ async def hard_delete_user(
         actor_user_id: Who asked for it, for the record
     """
     from app.services.tenant import initiatives as initiatives_service
+    from app.services.tenant import webhook_subscriptions as webhooks_service
     from app.services.tenant.mention_parser import anonymize_user_mentions
     from app.models.tenant.queue import QueueItem
     from app.models.platform.push_token import PushToken
@@ -865,6 +873,10 @@ async def hard_delete_user(
             .where(ReactionDigestItem.reactor_id == user_id)
             .values(reactor_id=None)
         )
+        # The subscriptions they registered. Their reach was this account's
+        # reach, re-derived every delivery pass, so the row has nothing left to
+        # deliver — and it holds a target URL and a shared secret.
+        await webhooks_service.delete_for_member(session, user_id=user_id)
         # All per-user DAC grants (project, document, queue, counter group,
         # calendar event) live in the polymorphic resource_grants table now;
         # one delete clears every resource type for this user in the schema.
