@@ -8,9 +8,10 @@ the two policies, which the registry (``app.db.public_rls``) no longer names.
 
 ``oidc_claim_mappings`` is read at sign-in and written by the seat's claim-rule
 routes, both on the system engine. The floors held full DML behind a policy
-that admitted any routed session of the mapping's community. The verbs go
-here, the policy with them, and the registry records the table as
-``FORCED_NO_POLICY`` — row security on, nothing admitted on the request path.
+that admitted any routed session of the mapping's community, and the read
+floor held the SELECT it derives from the guild floor. The verbs go here, the
+policy with them, and the registry records the table as ``FORCED_NO_POLICY``
+— row security on, nothing admitted on the request path.
 
 ``guild_invites`` keeps its verbs on both floors: an administrator writes an
 invite on a routed request. Its policies now ask for the administrator, as the
@@ -31,6 +32,7 @@ branch_labels = None
 depends_on = None
 
 FLOORS = ("app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base")
+READ_FLOOR = "app_guild_base_ro"
 
 
 def _for_each_floor(statement: str) -> None:
@@ -48,6 +50,20 @@ def _for_each_floor(statement: str) -> None:
         )
 
 
+def _for_read_floor(statement: str) -> None:
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{READ_FLOOR}') THEN
+                EXECUTE '{statement.format(floor=READ_FLOOR)}';
+            END IF;
+        END
+        $$;
+        """
+    )
+
+
 def upgrade() -> None:
     _for_each_floor("REVOKE INSERT ON public.guild_memberships FROM {floor}")
     op.execute(
@@ -58,6 +74,7 @@ def upgrade() -> None:
         " ON public.guild_memberships"
     )
     _for_each_floor("REVOKE ALL ON public.oidc_claim_mappings FROM {floor}")
+    _for_read_floor("REVOKE SELECT ON public.oidc_claim_mappings FROM {floor}")
     op.execute("DROP POLICY IF EXISTS guild_isolation ON public.oidc_claim_mappings")
 
 
@@ -68,3 +85,4 @@ def downgrade() -> None:
     _for_each_floor(
         "GRANT SELECT, INSERT, UPDATE, DELETE ON public.oidc_claim_mappings TO {floor}"
     )
+    _for_read_floor("GRANT SELECT ON public.oidc_claim_mappings TO {floor}")
