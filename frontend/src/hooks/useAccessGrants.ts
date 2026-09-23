@@ -62,7 +62,7 @@ export const useMyAccessGrants = () =>
   });
 
 /**
- * The full queue filtered by status — requires access.read (approvers). Pass
+ * The full queue filtered by status — requires access.approve (approvers). Pass
  * ``live: true`` to keep only grants still within their window (so server-side
  * paging of the active list is accurate).
  */

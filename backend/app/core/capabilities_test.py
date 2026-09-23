@@ -6,6 +6,7 @@ from app.core.capabilities import (
     Capability,
     can_assign_role,
     capabilities_for,
+    role_rank,
     roles_with_capability,
 )
 from app.models.platform.user import UserRole
@@ -35,6 +36,27 @@ def test_data_bypass_is_admin_and_owner():
     assert roles_with_capability(Capability.DATA_BYPASS) == frozenset(
         {UserRole.operator, UserRole.owner}
     )
+
+
+@pytest.mark.unit
+def test_access_approve_is_operator_and_owner():
+    """Approvers are also the ones who read the full access-grant queue."""
+    assert roles_with_capability(Capability.ACCESS_APPROVE) == frozenset(
+        {UserRole.operator, UserRole.owner}
+    )
+
+
+@pytest.mark.unit
+def test_role_rank_follows_the_ladder():
+    ladder = [
+        UserRole.member,
+        UserRole.support,
+        UserRole.moderator,
+        UserRole.operator,
+        UserRole.owner,
+    ]
+    assert [role_rank(role) for role in ladder] == list(range(len(ladder)))
+    assert sorted(UserRole, key=role_rank) == ladder
 
 
 @pytest.mark.unit

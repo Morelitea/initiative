@@ -31,10 +31,9 @@ class Capability(str, Enum):
     ``UserRead.capabilities``); treat them as part of the API contract.
     """
 
-    # Read-only cross-guild visibility (served via admin endpoints that
-    # bypass RLS, gated purely by capability).
+    # Read-only visibility of the platform's user list (served via admin
+    # endpoints, gated purely by capability).
     USERS_READ = "users.read"
-    GUILDS_READ = "guilds.read"
 
     # Trust & safety / user lifecycle.
     CONTENT_MODERATE = "content.moderate"
@@ -68,7 +67,6 @@ class Capability(str, Enum):
     # Privileged Access Management (time-bound, per-guild grants).
     ACCESS_REQUEST = "access.request"
     ACCESS_APPROVE = "access.approve"
-    ACCESS_READ = "access.read"
 
     # App-wide configuration (OIDC, SMTP, branding, role labels). owner only.
     CONFIG_MANAGE = "config.manage"
@@ -88,7 +86,6 @@ _MEMBER: FrozenSet[Capability] = frozenset()
 _SUPPORT: FrozenSet[Capability] = _MEMBER | {
     Capability.USERS_READ,
     Capability.USERS_AGE_UNBLOCK,
-    Capability.GUILDS_READ,
     Capability.ACCESS_REQUEST,
 }
 
@@ -104,7 +101,6 @@ _OPERATOR: FrozenSet[Capability] = _MODERATOR | {
     Capability.DATA_BYPASS,
     Capability.ROLES_ASSIGN,
     Capability.ACCESS_APPROVE,
-    Capability.ACCESS_READ,
 }
 
 _OWNER: FrozenSet[Capability] = (
@@ -155,22 +151,16 @@ def user_has_capability(user: "User", capability: Capability) -> bool:
     return capability in capabilities_for(user.role)
 
 
-# Privilege ladder, least → most. Assignment is bounded by rank rather than
-# capability-subset: the presets aren't strictly nested (owner intentionally
-# drops ``access.request``, which the lower tiers carry), so a subset check
-# would wrongly forbid an owner from assigning ``operator``. Mirrors the
-# frontend's PLATFORM_ROLE_ORDER.
-_ROLE_RANK: dict[UserRole, int] = {
-    UserRole.member: 0,
-    UserRole.support: 1,
-    UserRole.moderator: 2,
-    UserRole.operator: 3,
-    UserRole.owner: 4,
-}
+# Privilege ladder, least → most, taken from ``UserRole``'s declaration order.
+# Assignment is bounded by rank rather than capability-subset: the presets
+# aren't strictly nested (owner intentionally drops ``access.request``, which
+# the lower tiers carry), so a subset check would wrongly forbid an owner from
+# assigning ``operator``. Mirrors the frontend's PLATFORM_ROLE_ORDER.
+_ROLE_ORDER: tuple[UserRole, ...] = tuple(UserRole)
 
 
 def role_rank(role: UserRole) -> int:
-    return _ROLE_RANK.get(role, 0)
+    return _ROLE_ORDER.index(role)
 
 
 def can_assign_role(actor: "User", target_role: UserRole) -> bool:

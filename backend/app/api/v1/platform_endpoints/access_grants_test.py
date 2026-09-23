@@ -80,7 +80,7 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     assert grant["guild_name"] == guild.name
     grant_id = grant["id"]
 
-    # The owner sees it in the full queue (mine=false requires access.read).
+    # The owner sees it in the full queue (mine=false requires access.approve).
     queue = await client.get(
         f"{GRANTS}?mine=false&status=pending", headers=owner.headers
     )
