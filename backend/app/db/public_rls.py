@@ -310,10 +310,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
             Policy(
                 "announcement_image_read",
                 SELECT,
-                (
-                    "app_guild_base",
-                    "platform_base",
-                ),
+                ("platform_base",),
                 using=OPEN,
             ),
         ),
@@ -345,10 +342,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
             Policy(
                 "announcement_live_read",
                 SELECT,
-                (
-                    "app_guild_base",
-                    "platform_base",
-                ),
+                ("platform_base",),
                 using=LIVE_WINDOW,
             ),
         ),
@@ -560,15 +554,23 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ("public",),
                 using=pam_read("guild_id"),
             ),
+            # Before routing and on the platform path: the communities the
+            # reader belongs to.
             Policy(
                 "guild_administration_select",
                 SELECT,
                 (
-                    "app_guild_base",
                     "app_user",
                     "platform_base",
                 ),
                 using=routed_or_member("guild_id"),
+            ),
+            # A routed request reads its own community's row.
+            Policy(
+                "guild_administration_select_routed",
+                SELECT,
+                ("app_guild_base",),
+                using=routed_or_pam("guild_id"),
             ),
             # A settings rung routed read-only reads the community it
             # administers.
@@ -582,7 +584,28 @@ PUBLIC_RLS: dict[str, TableRls] = {
     ),
     "guild_auth_policies": TableRls(
         policies=(
-            Policy("guild_auth_policies_read", SELECT, ("public",), using=OPEN),
+            # The gate reads a community's rule before any routing exists.
+            Policy("guild_auth_policies_read", SELECT, ("app_user",), using=OPEN),
+            # The platform path reads the rules of the communities the reader
+            # belongs to.
+            Policy(
+                "guild_auth_policies_member_read",
+                SELECT,
+                ("platform_base",),
+                using=member_of_guild("guild_id"),
+            ),
+            # A routed request, the seat's included, reads its own community's
+            # rule.
+            Policy(
+                "guild_auth_policies_routed_read",
+                SELECT,
+                (
+                    "app_guild_base",
+                    "app_guild_base_ro",
+                    "app_superadmin",
+                ),
+                using=routed_or_pam("guild_id"),
+            ),
             Policy(
                 "guild_auth_policies_seat_delete",
                 DELETE,
@@ -609,11 +632,16 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 "guild_image_member_read",
                 SELECT,
                 (
-                    "app_guild_base",
                     "app_user",
                     "platform_base",
                 ),
                 using=routed_or_member("guild_id"),
+            ),
+            Policy(
+                "guild_image_member_read_routed",
+                SELECT,
+                ("app_guild_base",),
+                using=routed_or_pam("guild_id"),
             ),
         ),
     ),
@@ -668,11 +696,30 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ("public",),
                 using=routed_and_own("guild_id", "user_id"),
             ),
+            # The reader's own rows and the routed community's, for the bare
+            # login, the platform floor, and the roles that own the member
+            # projections, the direct-message rules and the billing path.
             Policy(
                 "guild_memberships_select",
                 SELECT,
-                ("public",),
+                (
+                    "app_dm_reader",
+                    "app_profile_reader",
+                    "app_user",
+                    "initiative_billing",
+                    "platform_base",
+                ),
                 using=routed_or_own("guild_id", "user_id"),
+            ),
+            # A routed request reads its own community's roster.
+            Policy(
+                "guild_memberships_select_routed",
+                SELECT,
+                (
+                    "app_guild_base",
+                    "app_guild_base_ro",
+                ),
+                using=routed_or_pam("guild_id"),
             ),
             Policy(
                 "guild_memberships_update",
@@ -684,7 +731,27 @@ PUBLIC_RLS: dict[str, TableRls] = {
     ),
     "guild_provider_connections": TableRls(
         policies=(
-            Policy("guild_provider_connections_read", SELECT, ("public",), using=OPEN),
+            # The gate reads a community's connections before any routing
+            # exists.
+            Policy(
+                "guild_provider_connections_read", SELECT, ("app_user",), using=OPEN
+            ),
+            Policy(
+                "guild_provider_connections_member_read",
+                SELECT,
+                ("platform_base",),
+                using=member_of_guild("guild_id"),
+            ),
+            # A routed request reads its own community's connections.
+            Policy(
+                "guild_provider_connections_routed_read",
+                SELECT,
+                (
+                    "app_guild_base",
+                    "app_guild_base_ro",
+                ),
+                using=routed_or_pam("guild_id"),
+            ),
         ),
     ),
     "guilds": TableRls(
@@ -702,16 +769,26 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 using=billing_scoped("id"),
             ),
             Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
+            # Before routing and on the platform path: the communities the
+            # reader belongs to.
             Policy(
                 "guild_select",
                 SELECT,
                 (
-                    "app_guild_base",
-                    "app_superadmin",
                     "app_user",
                     "platform_base",
                 ),
                 using=routed_or_member("id"),
+            ),
+            # A routed request, the seat's included, reads its own community.
+            Policy(
+                "guild_select_routed",
+                SELECT,
+                (
+                    "app_guild_base",
+                    "app_superadmin",
+                ),
+                using=routed_or_pam("id"),
             ),
             Policy("guild_update", UPDATE, ("public",), using=routed_admin_write("id")),
             Policy("guilds_pam_read", SELECT, ("public",), using=pam_read("id")),
@@ -785,14 +862,11 @@ PUBLIC_RLS: dict[str, TableRls] = {
     ),
     "marketplace_media": TableRls(
         policies=(
+            # Served before a session is routed, to anyone holding the digest.
             Policy(
                 "marketplace_media_read",
                 SELECT,
-                (
-                    "app_guild_base",
-                    "app_user",
-                    "platform_base",
-                ),
+                ("app_user",),
                 using=OPEN,
             ),
         ),
@@ -840,7 +914,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 "user_avatar_public_read",
                 SELECT,
                 (
-                    "app_guild_base",
                     "app_user",
                     "platform_base",
                 ),
@@ -849,28 +922,19 @@ PUBLIC_RLS: dict[str, TableRls] = {
             Policy(
                 "user_avatar_self_delete",
                 DELETE,
-                (
-                    "app_guild_base",
-                    "platform_base",
-                ),
+                ("platform_base",),
                 using=own_row("user_id"),
             ),
             Policy(
                 "user_avatar_self_insert",
                 INSERT,
-                (
-                    "app_guild_base",
-                    "platform_base",
-                ),
+                ("platform_base",),
                 check=own_row("user_id"),
             ),
             Policy(
                 "user_avatar_self_update",
                 UPDATE,
-                (
-                    "app_guild_base",
-                    "platform_base",
-                ),
+                ("platform_base",),
                 using=own_row("user_id"),
             ),
         ),
@@ -878,39 +942,15 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "user_cookie_consent": TableRls(
         policies=(
             Policy(
-                "user_cookie_consent_self_insert_app_guild_base",
-                INSERT,
-                ("app_guild_base",),
-                check=own_row("user_id"),
-            ),
-            Policy(
                 "user_cookie_consent_self_insert_{prefix}platform_base",
                 INSERT,
                 ("platform_base",),
                 check=own_row("user_id"),
             ),
             Policy(
-                "user_cookie_consent_self_select_app_guild_base",
-                SELECT,
-                ("app_guild_base",),
-                using=own_row("user_id"),
-            ),
-            Policy(
-                "user_cookie_consent_self_select_app_guild_base_ro",
-                SELECT,
-                ("app_guild_base_ro",),
-                using=own_row("user_id"),
-            ),
-            Policy(
                 "user_cookie_consent_self_select_{prefix}platform_base",
                 SELECT,
                 ("platform_base",),
-                using=own_row("user_id"),
-            ),
-            Policy(
-                "user_cookie_consent_self_update_app_guild_base",
-                UPDATE,
-                ("app_guild_base",),
                 using=own_row("user_id"),
             ),
             Policy(
@@ -926,10 +966,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
             Policy(
                 "user_decoration_self_read",
                 SELECT,
-                (
-                    "app_guild_base",
-                    "platform_base",
-                ),
+                ("platform_base",),
                 using=own_row("user_id"),
             ),
         ),
@@ -1012,39 +1049,15 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "user_notification_prefs": TableRls(
         policies=(
             Policy(
-                "user_notification_prefs_self_insert_app_guild_base",
-                INSERT,
-                ("app_guild_base",),
-                check=own_row("user_id"),
-            ),
-            Policy(
                 "user_notification_prefs_self_insert_{prefix}platform_base",
                 INSERT,
                 ("platform_base",),
                 check=own_row("user_id"),
             ),
             Policy(
-                "user_notification_prefs_self_select_app_guild_base",
-                SELECT,
-                ("app_guild_base",),
-                using=own_row("user_id"),
-            ),
-            Policy(
-                "user_notification_prefs_self_select_app_guild_base_ro",
-                SELECT,
-                ("app_guild_base_ro",),
-                using=own_row("user_id"),
-            ),
-            Policy(
                 "user_notification_prefs_self_select_{prefix}platform_base",
                 SELECT,
                 ("platform_base",),
-                using=own_row("user_id"),
-            ),
-            Policy(
-                "user_notification_prefs_self_update_app_guild_base",
-                UPDATE,
-                ("app_guild_base",),
                 using=own_row("user_id"),
             ),
             Policy(
@@ -1060,7 +1073,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
             Policy(
                 "user_view_preferences_self_scope",
                 ALL,
-                ("public",),
+                ("platform_base",),
                 using=own_row("user_id"),
             ),
         ),
