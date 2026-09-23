@@ -126,11 +126,29 @@ Open **Community settings** from the sidebar or the rail:
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
 | **Users** | Members, roles, invite links. |
 | **Initiatives** | Create and manage the community's initiatives. |
-| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, whether personal API keys reach it, how long a session lasts. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
+| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, whether personal API keys reach it, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
 | **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
 | **Trash** | Recently deleted things, restorable. |
-| **Data** | Export the whole community, restore a backup, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
+| **Data** | Export the whole community, restore a backup, bring work in from another tool, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
 | **Danger zone** | The stuff you can't undo. |
+
+### Bringing work in from another tool
+
+Coming from somewhere else? You do not have to retype four years of tasks by hand. The **Import** button on **Community settings → Data** opens one wizard for all of it:
+
+1. **Where's it coming from** — **Todoist**, **TickTick**, **Vikunja**, or an **Initiative backup** you exported yourself. The wizard tells you where in that app to find the export file.
+2. **Drop the file in.**
+3. **Say where it lands** — which list or project from the file, what to call it here, and which initiative it belongs to.
+4. **Say who its people are**, if it quotes anybody. Handles that match a member are filled in already; the rest you point at somebody, or leave blank and the words keep the name they arrived under.
+
+A project arrives whole: dates, priorities, tags, assignees, checklists, comments, and when things were finished. Its own sections or lists become your statuses, so nothing has to be mapped onto columns by hand.
+
+It arrives as a **new project** and touches nothing that's already here, which means a first attempt you hate costs you one delete.
+
+!!! note "Todoist leaves out what you finished"
+    Its export carries outstanding work only, so completed tasks won't come across. That's Todoist's export rather than our import, and the wizard says so before you upload rather than after.
+
+Importing a single exported file into one tool is a different, smaller thing, and it stays on that tool's own page.
 
 ### Trash and retention
 
@@ -142,12 +160,18 @@ This is the setting that quietly saves somebody's entire afternoon roughly twice
 
 The hard-to-undo things, chiefly **deleting the community**.
 
-That permanently removes *everything* — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, including retyping things by hand.
+It vanishes for everyone in it immediately — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, retyping `DELETE COMMUNITY <NAME>` by hand. Only a **superadmin** can do it; an ordinary admin isn't offered the tab.
 
-The friction is entirely deliberate and we're not sorry about it. Only come here when you genuinely mean it, and ideally not at 11pm.
+Nothing is destroyed straight away, though. Whoever runs the server keeps deleted communities for a window — ninety days unless they've changed it — and during it a platform operator can bring the whole thing back from **Settings → Platform → Communities**, exactly as it was, handing it to a new owner if nobody's left who could run it.
+
+You get an email afterwards saying it's gone, that nothing has been destroyed yet, and the date the window closes. Members get no mail: it leaving their list is the part they can do anything about. So the 11pm decision is recoverable, as long as somebody notices in time.
+
+The one thing that doesn't come back is the community's connections to any apps it had installed. It authorised those, so it has to authorise them again.
+
+The friction is entirely deliberate and we're not sorry about it.
 
 ??? techspec "For the technically minded — what community deletion does"
-    It removes the community's isolated database area and the database roles tied to it, then cleans up the shared records connecting people to it: memberships, invites, single-sign-on mappings, access grants. Thorough and final. If you only want *out* of a community, **leave** it from the rail instead — that removes just you.
+    When the window finally runs out, it removes the community's isolated database area and the database roles tied to it, then cleans up the shared records connecting people to it: memberships, invites, single-sign-on mappings, access grants. Until then all of that is intact, which is what makes a restore a restore rather than a rebuild. If you only want *out* of a community, **leave** it from the rail instead — that removes just you.
 
 ## Leaving a community
 

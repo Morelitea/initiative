@@ -96,6 +96,36 @@ Nobody is signed out. The next time somebody this covers opens the app they're a
 
 Two things the page will stop you doing, both for the same reason: you can't require a factor while you haven't got one yourself, and you can't withdraw the authenticator app and passkeys from the [ways in](single-sign-on.md) while a requirement is standing. Lower the requirement first, then withdraw.
 
+## What notifications may carry
+
+**Settings → Platform → Security** asks three questions about everything that leaves the app:
+
+| Switch | What changing it does |
+|---|---|
+| **Mobile notifications** | Turn it off and nothing is sent to a phone: this server stores no device registrations and declines new ones. Devices register again if you switch it back on. |
+| **Email notifications** | Turn it off and no notification email is written, on any cadence anybody has chosen. |
+| **Hide notification details** | Turn it **on** and a push or an email reads "You were mentioned in a comment", with the app the place to find out the rest. |
+
+All three start where every deployment has always had them: notifications go out, and they say what they're about.
+
+**Every community is held to these as a ceiling.** A community's own [Security tab](../security/community-security.md#what-notifications-carry) asks the same three questions for itself, and the stricter answer wins — so a community can be quieter than your server, never louder. Where you've switched something off, their switch says so and has nothing left to decide.
+
+!!! note "Account mail is not a notification"
+    Sign-in codes, address confirmations, password resets and the notices an account gets about itself go out whatever you set here. Switching notification email off must not be a way to lock somebody out of their own account.
+
+## How long deleted things are kept
+
+Deleting an account or a community no longer destroys anything on the spot. Both windows are yours, under **Settings → Platform → Community**:
+
+| Window | Default | What happens during it |
+|---|---|---|
+| **Keep accounts for** | 30 days | The person has gone as far as everyone else is concerned. If they sign back in during the window, the deletion is called off entirely — communities, roles and documents where they left them. You can also restore one. |
+| **Keep communities for** | 90 days | It has vanished for its members. An operator can restore it from **Settings → Platform → Communities**, choosing what it comes back as and, where nobody is left who could run it, who takes it over. |
+
+Leave either blank and **nothing is erased on a timer** — the right answer for a deployment required to keep records rather than shed them. Both are counted from the moment each thing was deleted, so changing the number moves the date for things already in the queue.
+
+A community's connections to installed apps are the one thing a restore doesn't bring back. The community authorised those, so the community has to authorise them again.
+
 ## Running behind a reverse proxy
 
 For any real deployment you'll put Initiative behind a reverse proxy that handles HTTPS.

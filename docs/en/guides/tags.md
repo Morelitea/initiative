@@ -24,7 +24,7 @@ Done. It's attached, and now available everywhere else too.
 
 ## Finding things by tag
 
-- In **Table** views, **filter** by tag to cut a busy list down to what's labelled.
+- **Filter by tag** on a list — tasks in a **Table** view, and the lists of projects, documents, wikis, queues, counter groups, galleries and dashboards.
 - The **Tags** area in the sidebar lists every tag in the community.
 - A tag's **detail page** shows everything carrying it, split into **Tasks**, **Projects** and **Documents**.
 

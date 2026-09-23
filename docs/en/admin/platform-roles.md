@@ -102,6 +102,8 @@ Operators and owners can write **announcements** — notices shown in a dialog t
 
 **Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
 
+Deleted communities are in that list too, marked with the date everything in them is destroyed. **Restore** brings one back as it was — and where nobody is left who could run it, asks you who takes it over. See [How long deleted things are kept](configuration.md#how-long-deleted-things-are-kept).
+
 ## Related
 
 - [Announcements](announcements.md) — telling everyone something.

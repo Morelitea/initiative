@@ -114,8 +114,11 @@ Initiative is built to avoid locking your information in:
 
 - **Anything you delete** goes to the **Trash** first, where it can be restored until the retention period passes — then it's permanently removed. Administrators set how long that is (see [Working with communities](../guides/communities.md#trash-and-retention)).
 - **Your account** can be **deactivated** (you can't sign in, but your content stays) or **deleted**. Deleting offers a choice: *anonymize* (your personal details are removed and your past contributions show as "Deleted user") or, for administrators, *hard delete* (everything is removed). See [Profile & preferences](../account/profile-and-preferences.md).
+- **Deletion takes effect immediately and completes after a retention window.** A deleted account disappears for everyone else at once and is erased when the window ends; signing back in before then cancels the deletion. A deleted community behaves the same way and can be restored by a platform operator until its window ends. The deployment sets both windows — 30 days for accounts and 90 days for communities unless changed, or no automatic erasure at all where a deployment is required to retain records. See [How long deleted things are kept](../admin/configuration.md#how-long-deleted-things-are-kept).
 
 Together, the **export** tools above and these **removal** tools cover the two requests privacy laws ask for most often: handing someone a copy of the data held about them (a *right to access* request), and erasing their personal information (a *right to erasure* request).
+
+Where an erasure has to complete sooner than the retention window allows, an administrator's **hard delete** removes the account and everything cascading from it immediately, and cannot be reversed.
 
 ### Accountability
 

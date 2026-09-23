@@ -152,6 +152,16 @@ Set a window — 22:00 to 07:00, say — and email and mobile hold off inside it
 
 If push shows as **Blocked**, that's your phone rather than us. Open your device settings, find Initiative, and let it talk to you. We can ask; your phone decides.
 
+## If a channel isn't there
+
+Everything above is yours. Two things sit above it, and both can only make things quieter.
+
+Whoever runs your server, and separately each community, can switch off **notifications to phones** or **notifications by email**, or ask that what leaves the app doesn't name what it's about — so a push reads *"You were mentioned in a comment"* and you open the app for the rest. Somewhere with a rule about what may appear on a lock screen has a reason for that.
+
+The **bell always says everything**. It never leaves the app, so there's nothing to hold back.
+
+If a switch here looks decided for you, that's where it was decided. Ask whoever runs the community. Meanwhile: sign-in codes, address confirmations, password resets and anything about your own account are not notifications and turn up regardless.
+
 ## Announcements
 
 Notifications are about *your* work. An **announcement** is about the app itself: a version that changed something, a setting that moved, a maintenance window your administrator wants you to know about.
