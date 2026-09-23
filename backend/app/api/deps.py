@@ -1089,18 +1089,21 @@ def _raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
     ) from exc
 
 
-def holds_guild_role(context: GuildContext, *roles: GuildRole) -> bool:
+def holds_guild_role(
+    context: GuildContext, *roles: GuildRole, settings: bool = False
+) -> bool:
     """Whether this request reaches any of ``roles``, by the standing.
 
     :meth:`GuildContext.reaches` is the one answer — a rung asked for is that
-    rung or above, a settings grant answers at the rung it lends — and this
-    is its form for a guard naming several. Kept beside
-    :func:`require_guild_roles` because some endpoints ask part-way through
-    a handler rather than at the door, and the two must not drift.
+    rung or above, and on the configuration surface (``settings``) a settings
+    grant answers at the rung it lends — and this is its form for a guard
+    naming several. Kept beside :func:`require_guild_roles` because some
+    endpoints ask part-way through a handler rather than at the door, and the
+    two must not drift.
     """
     if not roles:
         return True
-    return any(context.reaches(role) for role in roles)
+    return any(context.reaches(role, settings=settings) for role in roles)
 
 
 def require_seat(
@@ -1143,7 +1146,7 @@ def require_guild_roles(
     async def dependency(
         context: Annotated[GuildContext, Depends(establish)],
     ) -> GuildContext:
-        if not holds_guild_role(context, *roles):
+        if not holds_guild_role(context, *roles, settings=settings):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
         if write:
             require_grant_writes(context)

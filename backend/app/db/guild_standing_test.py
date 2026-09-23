@@ -36,19 +36,30 @@ def test_the_seat_reaches_every_rung():
     assert c.rung is GuildRole.superadmin
 
 
-def test_a_settings_grant_reaches_the_rung_it_lends():
+def test_a_settings_grant_reaches_the_rung_it_lends_on_the_settings_surface():
     lent_admin = _context(settings_grant_level="admin", settings_rung="admin")
-    assert lent_admin.reaches(GuildRole.admin)
-    assert not lent_admin.reaches(GuildRole.superadmin)
-    assert not lent_admin.reaches(GuildRole.member)
+    assert lent_admin.reaches(GuildRole.admin, settings=True)
+    assert not lent_admin.reaches(GuildRole.superadmin, settings=True)
+    assert not lent_admin.reaches(GuildRole.member, settings=True)
     assert lent_admin.rung is GuildRole.admin
 
     lent_seat = _context(
         settings_grant_level="superadmin", settings_rung="superadmin", seat=True
     )
-    assert lent_seat.reaches(GuildRole.admin)
-    assert lent_seat.reaches(GuildRole.superadmin)
+    assert lent_seat.reaches(GuildRole.admin, settings=True)
+    assert lent_seat.reaches(GuildRole.superadmin, settings=True)
     assert lent_seat.rung is GuildRole.superadmin
+
+
+def test_a_settings_grant_lends_no_rung_off_the_settings_surface():
+    lent_admin = _context(settings_grant_level="admin", settings_rung="admin")
+    assert not lent_admin.reaches(GuildRole.admin)
+
+    lent_seat = _context(
+        settings_grant_level="superadmin", settings_rung="superadmin", seat=True
+    )
+    assert not lent_seat.reaches(GuildRole.admin)
+    assert not lent_seat.reaches(GuildRole.superadmin)
 
 
 def test_a_content_grant_reaches_nothing_on_the_ladder():

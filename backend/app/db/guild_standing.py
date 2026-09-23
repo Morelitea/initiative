@@ -341,19 +341,23 @@ class GuildContext:
             return GuildRole(self.settings_rung)
         return self.role
 
-    def reaches(self, rung: "GuildRole") -> bool:
+    def reaches(self, rung: "GuildRole", *, settings: bool = False) -> bool:
         """Whether this request carries what ``rung`` carries, by the standing.
 
         The community's ladder asked of a request rather than of a row: the
         seat is what ``guild_superadmin()`` computed, the admin rung is the
-        membership row's fact or a settings grant at either rung, and the
-        member rung is a membership row. ``support`` is below every rung —
-        granted access is its own identity — so every request reaches it.
+        membership row's fact, and the member rung is a membership row.
+        ``support`` is below every rung — granted access is its own identity —
+        so every request reaches it.
+
+        ``settings`` asks on the community's configuration surface, where a
+        settings grant also answers at the rung it lends. Everywhere else the
+        rungs above member are the membership row's alone.
         """
         if rung is GuildRole.superadmin:
-            return self.seat
+            return self.seat and (settings or self.admin)
         if rung is GuildRole.admin:
-            return self.admin or self.settings_rung is not None
+            return self.admin or (settings and self.settings_rung is not None)
         if rung is GuildRole.member:
             return self.guild_role is not None and GuildRole(self.guild_role).reaches(
                 GuildRole.member
