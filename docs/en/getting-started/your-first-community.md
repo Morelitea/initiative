@@ -34,12 +34,12 @@ Starting fresh for your own group? You can create a community yourself, as long 
 1. On the **community rail** down the left edge, choose **Create community** (look for the **+**).
 2. Give it a **name** — usually just what your group is actually called. "Fairview Bakery". "PTA Committee". "The Nguyens".
 3. Add an **icon** while you're there. Once you're in three communities, that rail of tiny pictures is the only thing standing between you and posting the surprise party plans in the work one.
-4. Create it. Congratulations, you're an administrator.
+4. Create it. Congratulations, you're its [superadmin](../guides/communities.md#why-superadmin-is-separate), the top seat.
 
 ![Creating a new community](../images/getting-started/create-community.png)
 
 !!! info "No 'Create community' button?"
-    Some servers turn that off deliberately, so everybody joins through invites instead. Ask an administrator to invite you, or to make one for you.
+    Some servers turn that off deliberately, so everybody joins through invites instead. Ask a community admin to invite you, or whoever runs the server to make one for you.
 
 ## What a brand-new community comes with
 

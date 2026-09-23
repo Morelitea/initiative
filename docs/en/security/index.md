@@ -9,7 +9,7 @@ icon: lucide/shield-check
 Short answer: the only people who see something are the people you deliberately gave it to. That isn't a setting to hunt for and switch on — it's how the layers work by default, all the way down to the database. Here's what that means day to day, and where the detail lives.
 
 - **This page** explains what security means for *you*, as someone using Initiative day to day.
-- **[How your data is kept separate](how-your-data-is-kept-separate.md)** is the technical explanation of multi-tenancy and how the boundaries are enforced — written for project managers, administrators, and anyone evaluating Initiative.
+- **[How your data is kept separate](how-your-data-is-kept-separate.md)** is the technical explanation of multi-tenancy and how the boundaries are enforced — written for project managers, people who run servers, and anyone evaluating Initiative.
 - **[Your community's sign-in and security](community-security.md)** is for a community that decides who gets in and on what terms — its own single sign-on, where groups land, personal API keys, and session length.
 - **[Private messages](private-messages.md)** explains what end-to-end encryption covers, and what could and could not be handed over if somebody asked.
 - **[Data & compliance](data-and-compliance.md)** covers data ownership, encryption, your data rights, and what compliance posture you can expect.
@@ -61,6 +61,6 @@ Security is a partnership, and your half of it is genuinely not complicated:
 - **Be careful with access keys.** Treat an API key like a password; if one might be exposed, delete it.
 - **Tell someone if something looks wrong.** If you can see something you don't think you should, that's worth reporting — see [Reporting a problem](reporting-a-problem.md).
 
-## For administrators
+## If you run the server
 
-If you run the server, security also depends on how you set it up and look after it — strong secrets, backups, updates, and sensible configuration. That's covered in the [administrator guide](../admin/index.md), especially [Configuration](../admin/configuration.md) and [Backups & updates](../admin/backups-and-updates.md).
+If you run the server, security also depends on how you set it up and look after it — strong secrets, backups, updates, and sensible configuration. That's covered in the [server guide](../running-a-server/index.md), especially [Configuration](../running-a-server/configuration.md) and [Backups & updates](../running-a-server/backups-and-updates.md).

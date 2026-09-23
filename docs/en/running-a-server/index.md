@@ -2,7 +2,7 @@
 icon: lucide/server-cog
 ---
 
-# For administrators
+# Running a server
 
 This section is for whoever **runs** Initiative for their group: installing it, configuring it, and keeping it alive.
 

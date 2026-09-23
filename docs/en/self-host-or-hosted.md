@@ -12,7 +12,7 @@ Initiative comes two ways. Same software, same protections, either way. The diff
 
     Free, open source, and the whole thing. Runs happily on a spare mini PC, a NAS, or a cheap cloud box.
 
-    [:octicons-arrow-right-24: Installation guide](admin/installation.md)
+    [:octicons-arrow-right-24: Installation guide](running-a-server/installation.md)
 
 -   :material-cloud-outline: __Let us host it__ · *coming soon*
 
@@ -72,10 +72,10 @@ You can start on one and move to the other, too. Same software, and the export f
 !!! info "The hosted service isn't open yet"
     It's coming. Until then, self-hosting is the way in — and it's a genuinely good way in, not a consolation prize with a countdown on it. Plenty of groups will run it themselves forever and never once feel short-changed.
 
-    Start with the [installation guide](admin/installation.md).
+    Start with the [installation guide](running-a-server/installation.md).
 
 ## Related
 
-- [Installation](admin/installation.md) — get a server running.
+- [Installation](running-a-server/installation.md) — get a server running.
 - [Data & compliance](security/data-and-compliance.md) — ownership, residency, and what a court could actually be handed.
-- [Backups & updates](admin/backups-and-updates.md) — the two jobs that are yours if you self-host.
+- [Backups & updates](running-a-server/backups-and-updates.md) — the two jobs that are yours if you self-host.

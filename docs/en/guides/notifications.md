@@ -164,16 +164,16 @@ A switch that looks decided for you was decided in one of those two places, and 
 
 ## Announcements
 
-Notifications are about *your* work. An **announcement** is about the app itself: a version that changed something, a setting that moved, a maintenance window your administrator wants you to know about.
+Notifications are about *your* work. An **announcement** is about the app itself: a version that changed something, a setting that moved, a maintenance window whoever runs the server wants you to know about.
 
 They arrive as a dialog rather than quietly in the bell, because they're the kind of thing genuinely worth stopping you for. Some are a single card; a longer one becomes a few pages you step through with **Next**. **Got it** clears it and it doesn't come back — unless whoever wrote it asked for more than one acknowledgement, in which case the dialog says so up front.
 
 Dismissed one at speed and immediately regretted it? Nothing is lost. The **info icon in the sidebar footer** opens **Past announcements**: everything you've been shown, newest first, read and unread marked, with a filter for the ones you haven't read. Pictures open full size on a click.
 
-Run a server and want to write one? See [Announcements](../admin/announcements.md).
+Run a server and want to write one? See [Announcements](../running-a-server/announcements.md).
 
 ## Related
 
 - [Your space](your-space.md) — where your tasks and events gather.
 - [Profile & preferences](../account/profile-and-preferences.md) — your timezone and everything else.
-- [Announcements](../admin/announcements.md) — writing them, for administrators.
+- [Announcements](../running-a-server/announcements.md) — writing them, for operators.

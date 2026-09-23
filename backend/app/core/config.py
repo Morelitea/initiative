@@ -551,7 +551,7 @@ class Settings(BaseSettings):
     # Point at your own object store (e.g. a self-hosted Garage instance): set
     # S3_BUCKET + S3_ENDPOINT_URL + S3_REGION, S3_USE_PATH_STYLE=true (Garage and
     # most non-AWS stores), and the access/secret keys (or leave them unset to use
-    # the ambient credential chain). See docs/en/admin/object-storage.md.
+    # the ambient credential chain). See docs/en/running-a-server/object-storage.md.
     S3_BUCKET: str | None = None
     S3_REGION: str = "us-east-1"
     S3_ENDPOINT_URL: str | None = None

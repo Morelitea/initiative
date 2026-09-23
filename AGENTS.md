@@ -38,7 +38,7 @@ history/
 
 ## Project Structure & Module Organization
 
-`backend/` hosts the FastAPI service; routers sit in `app/api`, config in `core`, persistence helpers in `db`, domain models in `models`, payloads in `schemas`, and business logic in `services`, with `main.py` as the uvicorn entry point. `frontend/src` stays feature-first (`api`, `components`, `features`, `pages`, `hooks`, `lib`, `types`). Dockerfiles plus the root `docker-compose.yml` wire Postgres, backend, and the nginx React build. User-facing documentation is a Zensical static site under `docs/en/` (build/preview with `zensical build`/`serve`; see `docs/en/admin/maintaining-these-docs.md`).
+`backend/` hosts the FastAPI service; routers sit in `app/api`, config in `core`, persistence helpers in `db`, domain models in `models`, payloads in `schemas`, and business logic in `services`, with `main.py` as the uvicorn entry point. `frontend/src` stays feature-first (`api`, `components`, `features`, `pages`, `hooks`, `lib`, `types`). Dockerfiles plus the root `docker-compose.yml` wire Postgres, backend, and the nginx React build. User-facing documentation is a Zensical static site under `docs/en/` (build/preview with `zensical build`/`serve`; see `docs/en/running-a-server/maintaining-these-docs.md`).
 
 ## Build, Test, and Development Commands
 

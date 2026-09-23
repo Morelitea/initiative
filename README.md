@@ -96,7 +96,7 @@ docker-compose up -d
 **First-time setup:**
 
 1. The first user to register becomes the platform owner
-2. Configure SMTP in the admin panel to enable email notifications
+2. Configure SMTP under **Settings → Platform → Email** to enable email notifications
 3. Create your first guild and start inviting people
 
 See [Key Environment Variables](#key-environment-variables) for full configuration options.
@@ -141,7 +141,7 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 | `DISABLE_GUILD_CREATION` | Restrict guild creation to `guilds.manage` holders (operator and owner) | `false` |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without invite link | `true` |
 | `ENABLE_MCP` | Mount the in-app MCP server at `/api/v1/mcp/` for AI assistants (see [MCP Server](#mcp-server)) | `false` |
-| `MARKETPLACE_EXTRA_CATALOG_DIR` | Directory of your own marketplace listing files (see [Publishing your own listings](docs/en/admin/publishing-listings.md)) | - |
+| `MARKETPLACE_EXTRA_CATALOG_DIR` | Directory of your own marketplace listing files (see [Publishing your own listings](docs/en/running-a-server/publishing-listings.md)) | - |
 | `CAPTCHA_PROVIDER` | Captcha vendor for registration: `hcaptcha`, `turnstile`, or `recaptcha` (v2 only). Unset / unrecognised disables the gate | - |
 | `CAPTCHA_SITE_KEY` | Public key sent to the SPA to render the widget | - |
 | `CAPTCHA_SECRET_KEY` | Server-side key for the provider's siteverify endpoint | - |
@@ -155,7 +155,7 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 | `PUID` | UID the container runs as (for rootless/NAS setups) | `1000` |
 | `PGID` | GID the container runs as (for rootless/NAS setups) | `1000` |
 
-For FCM setup, see [docs/en/admin/push-notifications.md](docs/en/admin/push-notifications.md). For a complete list of options, see `backend/.env.example`.
+For FCM setup, see [docs/en/running-a-server/push-notifications.md](docs/en/running-a-server/push-notifications.md). For a complete list of options, see `backend/.env.example`.
 
 ### Database connections
 
@@ -208,7 +208,7 @@ The server is then served at **`/api/v1/mcp/`** (note the trailing slash) on you
 
 ### What it can access
 
-The surface is curated and **default-deny** — only the following are exposed. Everything else (tags, properties, members and admin, auth, settings, uploads and downloads, deletes, archiving, bulk operations, sharing/grants, and AI generation) is **not**.
+The surface is curated and **default-deny** — only the following are exposed. Everything else (tags, properties, membership and roles, operator endpoints, auth, settings, uploads and downloads, deletes, archiving, bulk operations, sharing/grants, and AI generation) is **not**.
 
 **Reads** (any API key) — initiatives and every tool they hold:
 

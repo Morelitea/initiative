@@ -92,7 +92,7 @@ Ask for one, the other, or both. Each is approved and recorded on its own.
 !!! info "Why it's built this way"
     Privileged access has to be deliberately taken, is scoped to one community, expires on its own, and leaves a record naming who took it and why. That's a stronger position than a permanent bypass nobody has to justify. More in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
-![Access requests and break-glass](../images/admin/access-grants.png)
+![Access requests and break-glass](../images/running-a-server/access-grants.png)
 
 ## Announcements
 

@@ -8,7 +8,7 @@ Settings live in three places, depending on who they affect. Which sounds like t
 
 - **User settings** — you. Open them from your name and picture at the bottom of the sidebar.
 - **Community settings** — a whole workspace, for community admins. See [Working with communities](../guides/communities.md).
-- **Platform settings** — the whole server, for its owner. See the [administrator guide](../admin/index.md).
+- **Platform settings** — the whole server, for its owner. See the [server guide](../running-a-server/index.md).
 
 This section is about **your** settings.
 

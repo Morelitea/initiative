@@ -32,7 +32,7 @@ nano docker-compose.yml
 # 3. Start
 docker compose up -d
 
-# 4. Open http://localhost:8173 — the first user to register becomes the platform admin
+# 4. Open http://localhost:8173 — the first user to register becomes the platform owner
 ```
 
 The example compose file ships Postgres 17 and all required settings pre-wired, so it works as-is once you set `SECRET_KEY`.
@@ -68,7 +68,7 @@ A trimmed set — see the [full list](https://github.com/Morelitea/initiative#ke
 |---|---|---|
 | `SECRET_KEY` | JWT signing and encryption key | Required |
 | `APP_URL` | Public base URL (required for OIDC callbacks) | — |
-| `DISABLE_GUILD_CREATION` | Restrict guild creation to super admin | `false` |
+| `DISABLE_GUILD_CREATION` | Restrict guild creation to `guilds.manage` holders (operator and owner) | `false` |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without an invite | `true` |
 | `BEHIND_PROXY` | Trust `X-Forwarded-For` headers | `false` |
 | `PUID` / `PGID` | UID/GID the app runs as | `1000` / `1000` |

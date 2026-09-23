@@ -50,11 +50,11 @@ Short answers to what people actually ask, with a pointer to the longer version 
     Links can expire, run out of uses, or be switched off by an admin. None of this is a judgement on you as a person. Ask for a fresh one — it takes them about four seconds.
 
 ??? question "I don't see a 'Create community' button"
-    Some servers turn community creation off on purpose so people join through invites instead. Ask an admin to invite you, or to make one for you.
+    Some servers turn community creation off on purpose so people join through invites instead. Ask a community admin to invite you, or whoever runs the server to make one for you.
 
     Give it a few minutes, then check spam. It is almost always spam.
 
-    If it still hasn't turned up, the server may not have email configured at all — ask your administrator. Reset links also go stale, so if yours has been sitting there since Tuesday, request another. See [Signing in](getting-started/signing-in.md).
+    If it still hasn't turned up, the server may not have email configured at all — ask whoever runs it. Reset links also go stale, so if yours has been sitting there since Tuesday, request another. See [Signing in](getting-started/signing-in.md).
 
 ??? question "I've been signed out and can't get back in"
     Changing your password signs out every device — that one's deliberate. If you didn't change it, use **Forgot password** on the sign-in screen. If your server uses single sign-on there may be no password to reset; sign in the way you normally do.
@@ -87,11 +87,11 @@ Short answers to what people actually ask, with a pointer to the longer version 
     | What you see | What it is | What to do |
     |---|---|---|
     | A date-of-birth box when you click Join | You haven't answered yet | Answer it. Once. |
-    | A box saying you told us you're not old enough | Your account answered as under 16 | An admin can reset it — see below |
+    | A box saying you told us you're not old enough | Your account answered as under 16 | Whoever runs the server can reset it — see below |
 
     Either way, everything inside the communities you already belong to still works, and so does the rest of Initiative. What the question stands in front of is joining a *listed* community.
 
-    Extremely common, entirely fixable, and nobody is cross with you. Ask an administrator of your server to **reset the age question** — anyone on the support tier or above can do it, and it's recorded in the audit log like every other action taken on somebody's account.
+    Extremely common, entirely fixable, and nobody is cross with you. Ask whoever runs your server to **reset the age question** — anyone on the support tier or above can do it, and it's recorded in the audit log like every other action taken on somebody's account.
 
     They can't see what you typed, incidentally, because it was never kept. Resetting simply lets you have another go.
 
@@ -99,7 +99,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
         A question you can retry until it comes out right isn't really a question. So the answer stands, and undoing it takes somebody else — which is why the reset is logged.
 
 ??? question "Can this be switched off?"
-    Yes, by the platform owner under **Settings › Admin › Community**. Switching it off is the owner confirming that every account on the deployment belongs to someone 18 or older — which a company or school rollout knows and a public server doesn't. See [Data & compliance](security/data-and-compliance.md).
+    Yes, by the platform owner under **Settings › Platform › Community**. Switching it off is the owner confirming that every account on the deployment belongs to someone 18 or older — which a company or school rollout knows and a public server doesn't. See [Data & compliance](security/data-and-compliance.md).
 
 ## Finding things
 
@@ -136,7 +136,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ## Your account
 
 ??? question "Can I change my username?"
-    Not on your own — your handle is how people find and mention you, so changing it is an admin action. Your **display name** is yours to change any time under [Profile & preferences](account/profile-and-preferences.md).
+    Not on your own — your handle is how people find and mention you, so changing it is a job for whoever runs the server. Your **display name** is yours to change any time under [Profile & preferences](account/profile-and-preferences.md).
 
 ??? question "Why does my name show in one community and not another?"
     Each community decides whether it shows real names or just handles. In a handles-only community your display name isn't rendered to anyone there.
@@ -177,8 +177,8 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Can other groups on the same server see our stuff?"
     No. Each community's data is separated at the database level. See [How your data is kept separate](security/how-your-data-is-kept-separate.md).
 
-??? question "Can an administrator read our private initiative?"
-    A **community admin** can see everything in their own community — that's part of running it. Platform staff on a hosted service get in only through **temporary, recorded** access that expires on its own. See [Platform roles](admin/platform-roles.md).
+??? question "Can a community admin, or whoever runs the server, read our private initiative?"
+    A **community admin** can see everything in their own community — that's part of running it. Platform staff on a hosted service get in only through **temporary, recorded** access that expires on its own. See [Platform roles](running-a-server/platform-roles.md).
 
 ??? question "Can a community admin read my direct messages?"
     No. Messages are end-to-end encrypted, so they're readable on the devices in the conversation and nowhere else — not by an admin, not by whoever runs the server, not by us. They're also not community content, so they're not in exports or search. See [Private messages](security/private-messages.md).
@@ -195,16 +195,16 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Can I get my data out?"
     Yes. Projects export to a portable file, spreadsheets to CSV or Excel, calendars to `.ics`. See [Getting your data out](security/data-and-compliance.md#getting-your-data-out).
 
-## For administrators
+## If you run the server
 
 ??? question "How do I update to a new version?"
-    Back up, then `docker compose pull` and `docker compose up -d`. Migrations run themselves. See [Backups & updates](admin/backups-and-updates.md).
+    Back up, then `docker compose pull` and `docker compose up -d`. Migrations run themselves. See [Backups & updates](running-a-server/backups-and-updates.md).
 
 ??? question "What do I need to back up?"
     The database and the uploads, together and regularly — plus keep your `SECRET_KEY` somewhere safe so a restore can actually decrypt.
 
 ??? question "Can I connect our company login?"
-    Yes — Initiative speaks OIDC, including mapping your provider's groups to communities and roles. See [Single sign-on](admin/single-sign-on.md).
+    Yes — Initiative speaks OIDC, including mapping your provider's groups to communities and roles. See [Single sign-on](running-a-server/single-sign-on.md).
 
 ## Still stuck?
 

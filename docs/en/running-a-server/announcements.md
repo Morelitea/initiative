@@ -29,8 +29,8 @@ An announcement is a **title** plus one or more **sections**. Each section has a
 !!! screenshot "The announcement editor"
     **Show:** the editor with a title filled in, two sections, and the preview panel beside it.
 
-    Save as `en/images/admin/announcement-editor.png`, then replace this box with:
-    `![The announcement editor](../images/admin/announcement-editor.png)`
+    Save as `en/images/running-a-server/announcement-editor.png`, then replace this box with:
+    `![The announcement editor](../images/running-a-server/announcement-editor.png)`
 
 ### Turning it into a wizard
 
@@ -77,8 +77,8 @@ The **category** sets the label and colour on the dialog and in the archive: **R
 !!! screenshot "The announcements archive"
     **Show:** the archive page with a mix of read and unread notices, and the unread filter.
 
-    Save as `en/images/admin/announcements-archive.png`, then replace this box with:
-    `![The announcements archive](../images/admin/announcements-archive.png)`
+    Save as `en/images/running-a-server/announcements-archive.png`, then replace this box with:
+    `![The announcements archive](../images/running-a-server/announcements-archive.png)`
 
 ## Editing, unpublishing and deleting
 

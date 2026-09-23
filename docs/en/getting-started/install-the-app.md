@@ -28,7 +28,7 @@ After that it opens in its own window with no browser furniture around it, stays
 
 ## The Android app
 
-There's a proper Android app as well. Same Initiative inside, but it can do the thing a browser tab can't: **push notifications**, arriving on your phone while the app is shut. If your community's administrator has [set that up](../admin/push-notifications.md), this is the version you want.
+There's a proper Android app as well. Same Initiative inside, but it can do the thing a browser tab can't: **push notifications**, arriving on your phone while the app is shut. If whoever runs your server has [set that up](../running-a-server/push-notifications.md), this is the version you want.
 
 [![Get it on Obtainium](https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png){ width="240" }](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FMorelitea%2Finitiative)
 

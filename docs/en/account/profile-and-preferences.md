@@ -121,14 +121,14 @@ The **Danger Zone** tab. Two paths, and Initiative walks you through either with
 
 ### Deactivate
 
-Temporarily switches your account off. You can't sign in, and you're removed from your communities (rejoining needs a fresh invite), but your name, email and content are kept. An administrator can reactivate you. Good for "I'm stepping away for a while."
+Temporarily switches your account off. You can't sign in, and you're removed from your communities (rejoining needs a fresh invite), but your name, email and content are kept. Whoever runs the server can reactivate you. Good for "I'm stepping away for a while."
 
 ### Delete
 
 You disappear for everyone else straight away. What you hold is kept a while longer, and then erased.
 
 - **Anonymize** — your name, email and avatar go, and you can't sign in, but things you wrote stay in place as "Deleted user". This keeps your teammates' history intact while removing *your* personal details.
-- **Hard delete** (administrators) — everything goes, including content you authored.
+- **Hard delete** (platform operators) — everything goes, including content you authored.
 
 Before deletion, Initiative makes sure your **owned projects are transferred**, so nothing your group depends on disappears with you.
 
