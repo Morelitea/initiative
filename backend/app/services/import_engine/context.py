@@ -14,6 +14,7 @@ importer reads what it needs and ignores the rest; most ignore both.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from app.services.import_engine.links import LinkCollector
 from app.services.import_engine.people import PeopleMap
@@ -30,3 +31,19 @@ class ImportContext:
 
     links: LinkCollector = field(default_factory=LinkCollector)
     people: PeopleMap = field(default_factory=PeopleMap)
+    #: Property names somebody unticked on the review. Their definitions are
+    #: not created, and every value naming one falls away with it — the
+    #: review lists what an import would add to an initiative somebody else
+    #: runs, and this is the answer to that list.
+    excluded_properties: frozenset[str] = frozenset()
+
+
+def excluded_property_names(raw: Any) -> frozenset[str]:
+    """What a confirm recorded as unticked, read back defensively.
+
+    It round-tripped through a request into the job's params, so anything
+    that is not a list of non-empty strings is treated as nothing unticked.
+    """
+    if not isinstance(raw, list):
+        return frozenset()
+    return frozenset(name for name in raw if isinstance(name, str) and name)

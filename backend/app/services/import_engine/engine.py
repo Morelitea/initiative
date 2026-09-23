@@ -250,6 +250,7 @@ async def apply_one_envelope(
     target_initiative: Initiative,
     user: User,
     people_map: Any = None,
+    exclude_properties: Any = None,
 ) -> "EnvelopeImportResult":
     """Apply one envelope and then resolve the links it asserted.
 
@@ -264,13 +265,17 @@ async def apply_one_envelope(
     the handles in it are matched against the target initiative's own
     members, or carried as names.
     """
-    from app.services.import_engine.context import ImportContext
+    from app.services.import_engine.context import (
+        ImportContext,
+        excluded_property_names,
+    )
     from app.services.import_engine.people import resolve_people_map
 
     context = ImportContext(
         people=await resolve_people_map(
             session, guild_id=routed_guild_id(session), raw=people_map
-        )
+        ),
+        excluded_properties=excluded_property_names(exclude_properties),
     )
     result = await importer.apply(
         session,

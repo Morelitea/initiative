@@ -3321,6 +3321,98 @@ async def test_a_jira_import_brings_its_images_as_uploads(
     assert blob is not None
 
 
+async def test_a_property_unticked_on_the_review_is_not_created(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The review lists every property the import would add to the
+    initiative; one unticked there is not created, and no task carries a
+    value for it. The rest arrive as usual."""
+    from sqlmodel import select
+
+    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["priority"] = {"name": "Highest"}
+    issue["fields"]["issuetype"] = {"name": "Story"}
+    monkeypatch.setattr(
+        atlassian_service, "request_public_target", _jira_site(issues=[issue])
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"exclude_properties": ["Priority"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["params"]["exclude_properties"] == ["Priority"]
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    names = {
+        d.name
+        for d in (
+            await session.exec(
+                select(PropertyDefinition).where(
+                    PropertyDefinition.initiative_id == a.initiative.id
+                )
+            )
+        ).all()
+    }
+    assert "Priority" not in names
+    assert {"Issue type", "Jira key"} <= names
+
+    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
+    values = (
+        await session.exec(
+            select(TaskPropertyValue, PropertyDefinition)
+            .join(
+                PropertyDefinition,
+                PropertyDefinition.id == TaskPropertyValue.property_id,
+            )
+            .where(TaskPropertyValue.task_id == task.id)
+        )
+    ).all()
+    assert {definition.name for _value, definition in values} == {
+        "Issue type",
+        "Jira key",
+    }
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["Priority", [1, 2], [""], ["x" * 256], ["p"] * 501],
+)
+async def test_confirm_refuses_a_malformed_list_of_unticked_properties(
+    client, acting_user, session, bad
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job = ImportJob(
+        created_by=a.user.id,
+        source="atlassian",
+        params={},
+        status=ImportJobStatus.staged,
+        payload_ref="imports/x.zip",
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+
+    resp = await client.post(
+        a.g(f"/imports/jobs/{job.id}/confirm"),
+        headers=a.headers,
+        json={"exclude_properties": bad},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_INVALID_PARAMS"
+
+
 async def test_starting_a_jira_import_refuses_what_it_can_up_front(
     client, acting_user, session, monkeypatch
 ):

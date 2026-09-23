@@ -145,6 +145,8 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   // Jira branch.
   const [jiraConnection, setJiraConnection] = useState<JiraConnection | null>(null);
   const [jiraJobId, setJiraJobId] = useState<number | null>(null);
+  // Properties unticked on the review: not created when the import runs.
+  const [excludedProperties, setExcludedProperties] = useState<Set<string>>(new Set());
 
   const [pickError, setPickError] = useState<string | null>(null);
   const [stagedJob, setStagedJob] = useState<ImportJobRead | null>(null);
@@ -185,6 +187,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       setPeopleMap({});
       setJiraConnection(null);
       setJiraJobId(null);
+      setExcludedProperties(new Set());
       importJob.reset();
     } else if (importJob.busy) {
       // A job from a previous wizard session is still applying — resume its
@@ -389,7 +392,10 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       const job = await confirmMutation.mutateAsync({
         guildId,
         jobId: stagedJob.id,
-        data: Object.keys(mapped).length > 0 ? { people_map: mapped } : {},
+        data: {
+          ...(Object.keys(mapped).length > 0 ? { people_map: mapped } : {}),
+          ...(excludedProperties.size > 0 ? { exclude_properties: [...excludedProperties] } : {}),
+        },
       });
       // From here the apply is an ordinary job the progress view watches.
       forgetJiraJob();
@@ -673,7 +679,11 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
 
       {step === "review" && stagedJob && (
         <div className="space-y-4">
-          <JiraReviewSummary job={stagedJob} />
+          <JiraReviewSummary
+            job={stagedJob}
+            excluded={excludedProperties}
+            onExcludedChange={setExcludedProperties}
+          />
           <p className="text-muted-foreground text-xs">{t("wizard.jira.review.note")}</p>
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={() => void handleCancelStaged()}>

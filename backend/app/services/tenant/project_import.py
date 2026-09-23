@@ -189,10 +189,17 @@ async def import_project(
 
     # 4. Property definitions → (name, type) → id map (shared conventions:
     # match by name+type with option compatibility, rename on collision).
+    # A property unticked on the review is not declared at all; its values
+    # then resolve to nothing and are skipped below, with the rest.
+    excluded = context.excluded_properties if context is not None else frozenset()
     resolved_props = await resolve_property_definitions(
         session,
         initiative_id=target_initiative.id,
-        definitions=envelope.property_definitions,
+        definitions=[
+            definition
+            for definition in envelope.property_definitions
+            if definition.name not in excluded
+        ],
     )
     prop_key_to_id = resolved_props.key_to_id
     property_create_count = resolved_props.created

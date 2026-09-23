@@ -145,3 +145,20 @@ async def test_two_things_claiming_one_name_keeps_the_first(session, acting_user
         relationship_type=RelationshipType.related_to,
         other_kind=SearchEntityType.task,
     ) == [other.id]
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (["Priority", "Team"], frozenset({"Priority", "Team"})),
+        (None, frozenset()),
+        ("Priority", frozenset()),
+        (["Priority", 3, "", None], frozenset({"Priority"})),
+    ],
+)
+def test_unticked_properties_are_read_back_defensively(raw, expected):
+    """They round-tripped through a request into the job's params, so only a
+    list of names counts."""
+    from app.services.import_engine.context import excluded_property_names
+
+    assert excluded_property_names(raw) == expected
