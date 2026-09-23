@@ -388,13 +388,8 @@ async def remove_user_from_guild_initiatives(
     inherits privilege they did not ask for, which matters most in a guild with
     heavy turnover. Guild admins still administer it, and can claim it whenever
     they choose (``app.services.tenant.ownership``).
-
-    Their webhook subscriptions are deactivated here for the same reason the
-    grants go: a subscription delivers what its creator can reach, so one whose
-    creator has left reaches nothing and should stop saying it is live.
     """
     from app.services.tenant import ownership as ownership_service
-    from app.services.tenant import webhook_subscriptions as webhooks_service
 
     # Find initiatives in this guild where the user is a member
     initiative_ids_result = await session.exec(
@@ -410,10 +405,6 @@ async def remove_user_from_guild_initiatives(
     # RLS is evaluated against the *live* membership this function is about to
     # delete.
     await ownership_service.release_owned_content(session, user_id=user_id)
-
-    # Same reason, same window: on a session routed as the leaver, the policy
-    # that admits this write reads the membership about to be deleted below.
-    await webhooks_service.deactivate_for_member(session, user_id=user_id)
 
     # Clear task assignments per initiative before dropping the membership rows.
     for init_id in initiative_ids:

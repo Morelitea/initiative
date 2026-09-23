@@ -1,27 +1,22 @@
 """Drain ``event_outbox`` to each subscription's target.
 
-The authorization decision is a query, not a check. For every subscription the
-poller routes a session **as that subscription's owner** and reads each batch
-through it, so ``event_outbox``'s own RLS decides the batch and nothing here
-re-implements it. A guild-wide subscription therefore means "everything in this
-guild I belong to", and it stays true as membership changes: leaving an
-initiative, losing a PAM grant, or being deactivated all stop the matching
-deliveries on the next pass with no subscription edit and no cache to
-invalidate.
+**A subscription's reach is the scope it names.** ``initiative_id`` set means
+that initiative's changes; naming none means the community's. ``_matches``
+applies it per change item, before a batch is assembled, and that is the whole
+of the decision — no account's standing is consulted anywhere in a pass.
 
-Which transactions to *look at* is a different question, and it is asked as the
-system login instead — see ``_drain_subscription`` for why. RLS is the answer to
-"what may this owner see of transaction N", and it is asked of exactly that
-transaction's rows. It is not asked of the whole log every five seconds.
+That is the right granularity because of what a delivery is. An envelope is
+identifiers and changed column **names**; a consumer reads current state back
+through the REST path, where every gate applies to the read. An automation
+calling back presents a delegation naming a member, and that request is gated
+as if the member had made it, on a grant re-read every call — so what an
+automation may *do*, and the instant at which it stops being able to, is
+decided there rather than here.
 
-What the log is scoped by is the initiative, not per-resource sharing: the
-change log is no tool's own table, so it carries the membership gate and not
-the sharing one. An envelope is identifiers and changed column names, and a
-consumer reads current state back through the REST path, where sharing decides
-the read.
-
-``initiative_id`` on the subscription is a narrowing filter on top of that, never
-a widening one.
+A subscription is therefore the community's integration configuration, not the
+personal property of whoever registered it: it outlives their membership, their
+role and their account, and ending it is a decision somebody makes rather than a
+side effect of an unrelated one. See ``history/webhook-scope-not-principal-design.md``.
 
 Progress is a ledger row per ``(subscription, transaction)``, not a cursor, and
 that is a correctness decision rather than a tuning one. Outbox ids come from a
@@ -68,7 +63,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.db import session as db_session
 from app.db.session import (
-    SYSTEM_SATISFIED,
     set_rls_context,
     set_system_guild_context,
 )
@@ -316,52 +310,30 @@ async def _drain_subscription(
     guild_id: int,
     now: datetime,
 ) -> None:
-    """Deliver one subscription's pending transactions, as its owner.
+    """Deliver one subscription's pending transactions, within its own scope.
 
-    The session is routed to the subscription's guild with the OWNER's user id,
-    so the outbox read is gated by that owner's membership (see the module
-    docstring for what that covers). ``satisfied_providers`` is the system
-    sentinel: a background pass has no login to satisfy a guild's auth policy
-    with, and that leg is about how a person authenticated, not about what this
-    owner may reach.
+    What this subscription may be told is ``_matches``: its event types, its
+    column filter, and the initiative it names. Nothing reads an account's
+    standing, because a subscription has no account — see the module docstring
+    for why the scope is the decision.
+
+    Two contexts, and the split is about privilege rather than authorization.
+    The candidate scan runs as the system login, because under a guild role
+    every row of the log goes through ``initiative_access()`` before the cheap
+    filters get a look, and the scan touches the whole log every pass to find
+    the handful still owed: measured 3.5s a scan against 1.7ms, on the same
+    rows. That login is granted exactly what the scan reads and no more —
+    ``SELECT (id, txn_id)`` on the log and five ledger columns, in
+    ``SYSTEM_GUILD_MAINTENANCE_GRANTS`` — so the work below, which reads what a
+    row says and writes the ledger, routes into the guild's own role for it.
+
+    Routed with ``guild_id`` alone: a poller is not anybody, so it carries no
+    user and no role, and the policies admit it by the connection's own login.
     """
-    # The candidate scan runs as the system login, not as the owner. Under the
-    # owner's guild role every row of the log is put through initiative_access()
-    # — a SQL function the planner cannot inline, about a millisecond a call —
-    # before the cheap filters get a look, and the scan touches the whole log
-    # every pass to find the handful still owed. Ten subscriptions over a few
-    # thousand rows is a poller that never finishes a pass and a database
-    # pinned at its CPU limit: measured 3.5s a scan owner-side against 1.7ms
-    # system-side, on the same rows. Keeping app_admin's BYPASSRLS costs only
-    # the two log columns this reads and the ledger's five, granted in
-    # SYSTEM_GUILD_MAINTENANCE_GRANTS.
-    #
-    # What the OWNER may see is still decided by RLS, on the per-transaction
-    # read below, in the owner's context, over an indexed handful of rows. A
-    # transaction holding nothing that owner may see comes back empty there
-    # and is settled the way any batch with nothing in it for this subscriber
-    # is, so it is not reconsidered every pass. That is the one observable
-    # change: a row the owner could not see when it was written is not held
-    # back for them to gain access to later.
     await set_system_guild_context(session, guild_id=guild_id)
     pending = await _pending_transactions(session, subscription, now=now)
 
-    # The owner's own standing, established the way a request of theirs would
-    # establish it. An owner who has since lost their place in the community
-    # sees nothing, which settles the batch rather than holding it.
-    from app.api.deps import GuildAccessError, establish_guild_access
-    from app.models.platform.user import User
-
-    await set_rls_context(session)
-    owner = await session.get(User, subscription.created_by)
-    if owner is None:
-        return
-    try:
-        await establish_guild_access(
-            session, owner, guild_id, satisfied_providers=SYSTEM_SATISFIED
-        )
-    except GuildAccessError:
-        return
+    await set_rls_context(session, guild_id=guild_id)
 
     for txn_id in pending:
         if not await _claim(session, subscription, txn_id, now=now):
