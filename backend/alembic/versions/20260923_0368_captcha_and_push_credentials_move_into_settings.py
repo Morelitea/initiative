@@ -97,11 +97,33 @@ def upgrade() -> None:
             sa.Column(name, sa.String(length=length), nullable=True),
         )
 
-    conn = op.get_bind()
-    if not conn.execute(text("SELECT 1 FROM app_settings WHERE id = 1")).first():
-        # Not yet booted. First boot seeds all of this from the same env values.
-        return
+    _backfill(op.get_bind())
 
+
+#: Both tables are FORCE ROW LEVEL SECURITY, which binds their owner -- the
+#: role this migration runs as. ``app_setting_secrets`` has no policies at all,
+#: and ``app_settings`` admits writes only from ``platform_owner``, so without
+#: lifting FORCE the INSERT is refused and every UPDATE matches no row.
+_TABLES = ("app_settings", "app_setting_secrets")
+
+
+def _backfill(conn) -> None:
+    """Copy the env values into the new columns, with FORCE lifted from both
+    tables for the writes and restored in the same transaction.
+
+    No try/finally: a failure aborts the transaction, which undoes the lift
+    with everything else, and DDL issued in an aborted transaction would only
+    replace the real error with "current transaction is aborted".
+    """
+    for table in _TABLES:
+        conn.execute(text(f"ALTER TABLE public.{table} NO FORCE ROW LEVEL SECURITY"))
+    if conn.execute(text("SELECT 1 FROM app_settings WHERE id = 1")).first():
+        _write_env_values(conn)
+    for table in reversed(_TABLES):
+        conn.execute(text(f"ALTER TABLE public.{table} FORCE ROW LEVEL SECURITY"))
+
+
+def _write_env_values(conn) -> None:
     plain = {
         "captcha_provider": _clean(settings.CAPTCHA_PROVIDER),
         "captcha_site_key": _clean(settings.CAPTCHA_SITE_KEY),
