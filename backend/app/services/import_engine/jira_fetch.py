@@ -36,7 +36,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
-from app.services.import_engine import jira_mapping
+from app.services.import_engine import jira_mapping, jira_sprints
 from app.services.import_engine.atlassian import AtlassianCredential, get_json
 from app.services.import_engine.contract import ImportEngineError
 
@@ -94,6 +94,16 @@ class FetchReport:
     properties: dict[str, tuple[str, int]] = field(default_factory=dict)
     #: Fields some issue filled that have no home here, by name.
     dropped_fields: list[str] = field(default_factory=list)
+    #: Distinct sprints the fetched issues were in.
+    sprints: int = 0
+    #: Calendars they will land on — one per board.
+    sprint_calendars: int = 0
+    #: Sprints planned but never started: no dates, so no event.
+    sprints_undated: int = 0
+    #: Why sprints will not come over at all, as a code — the target
+    #: initiative has no calendars, or the importer cannot create one there.
+    #: ``None`` when they will.
+    sprints_skipped: Optional[str] = None
 
 
 async def fetch_issue_type_statuses(
@@ -230,7 +240,12 @@ async def fetch_project_envelope(
     jql_extra: str | None = None,
     max_issues: int,
     field_catalog: Any = None,
-) -> tuple[jira_mapping.MappedProject, int, list[tuple[str, str]]]:
+) -> tuple[
+    jira_mapping.MappedProject,
+    int,
+    list[tuple[str, str]],
+    dict[str, list[jira_sprints.Sprint]],
+]:
     """One Jira project as an envelope, how many issues it cost, and what its
     issues are linked to.
 
@@ -276,7 +291,16 @@ async def fetch_project_envelope(
         field_catalog=field_catalog,
     )
     link_ends = [end for issue in issues for end in jira_mapping.link_far_ends(issue)]
-    return mapped, len(issues), link_ends
+    # Which sprints each issue was in, keyed by issue key. Built into events
+    # only once every project is read: one sprint can hold issues from several.
+    sprint_fields = jira_sprints.sprint_field_ids(field_catalog)
+    sprints = {
+        str(issue.get("key") or ""): found
+        for issue in issues
+        if isinstance(issue, dict)
+        and (found := jira_sprints.issue_sprints(issue, sprint_fields))
+    }
+    return mapped, len(issues), link_ends, sprints
 
 
 def _entry_path(index: int, project_key: str) -> str:
@@ -297,8 +321,10 @@ def build_bundle(
     target_initiative_id: int,
     app_version: str,
     site_url: str,
+    calendars: list[dict[str, Any]] | None = None,
 ) -> bytes:
-    """The zip the applier reads: a manifest and one envelope per project.
+    """The zip the applier reads: a manifest, one envelope per project, and
+    one calendar per board whose sprints came along.
 
     The manifest names **one** initiative and gives it ``target_initiative_id``
     — the one the person picked in the wizard. That is the whole reason §8.2
@@ -324,7 +350,31 @@ def build_bundle(
                 "asset": None,
             }
         )
+    for index, calendar in enumerate(calendars or [], start=1):
+        safe = "".join(c for c in calendar["name"] if c.isalnum() or c in "-_")
+        path = (
+            f"initiatives/1-imported/calendars/{index}-{safe or 'sprints'}"
+            ".initiative-calendar.json"
+        )
+        files[path] = json.dumps(calendar).encode("utf-8")
+        entries.append(
+            {
+                "path": path,
+                "tool": "calendar",
+                "type": "initiative-calendar",
+                "schema_version": 1,
+                "entity_id": index,
+                "title": calendar["name"],
+                "initiative_id": 1,
+                "tags": [],
+                "properties": [],
+                "asset": None,
+            }
+        )
 
+    tools = {"project": "included"}
+    if calendars:
+        tools["calendar"] = "included"
     manifest = {
         "type": "initiative-backup",
         "schema_version": 1,
@@ -337,7 +387,7 @@ def build_bundle(
             {
                 "id": 1,
                 "name": "Imported from Jira",
-                "tools": {"project": "included"},
+                "tools": tools,
                 # Apply into the initiative the person chose. Without this the
                 # applier would create one, which is the wrong answer for a
                 # fetch: they already said where it goes.
@@ -422,6 +472,7 @@ async def fetch_projects_bundle(
     app_version: str,
     jql_extra: str | None = None,
     progress: Optional[Callable[[FetchReport], Awaitable[None]]] = None,
+    sprints_blocked_by: str | None = None,
 ) -> tuple[bytes, FetchReport]:
     """Read the chosen projects and return the bundle plus what it found.
 
@@ -435,6 +486,11 @@ async def fetch_projects_bundle(
     about the fourth, rather than a failed job and no explanation. Every
     project unreadable is a different matter — that is the selection being
     wrong, and it fails.
+
+    ``sprints_blocked_by`` is the code for why sprints cannot land in the
+    target initiative — its calendars are off, or the importer may not create
+    one there. They are still counted, so the plan can say how many are being
+    left behind, and no task is linked to a sprint that will not exist.
     """
     if not project_keys:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
@@ -445,6 +501,8 @@ async def fetch_projects_bundle(
     envelopes: list[tuple[str, dict[str, Any]]] = []
     field_catalog = await fetch_field_catalog(credential)
     dropped_fields: set[str] = set()
+    all_sprints: dict[int, jira_sprints.Sprint] = {}
+    sprint_membership: dict[str, list[int]] = {}
 
     for key in project_keys:
         if remaining <= 0:
@@ -456,7 +514,7 @@ async def fetch_projects_bundle(
             project = await get_json(credential, f"/rest/api/3/project/{key}")
             if not isinstance(project, dict):
                 raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
-            mapped, used, ends = await fetch_project_envelope(
+            mapped, used, ends, sprints = await fetch_project_envelope(
                 credential,
                 project,
                 app_version=app_version,
@@ -474,6 +532,11 @@ async def fetch_projects_bundle(
         else:
             envelopes.append((key, mapped.envelope))
             link_ends.extend(ends)
+            for issue_key, found in sprints.items():
+                for sprint in found:
+                    all_sprints.setdefault(sprint.id, sprint)
+                sprint_membership[issue_key] = [sprint.id for sprint in found]
+            report.sprints = len(all_sprints)
             report.projects += 1
             report.tasks += len(mapped.envelope["tasks"])
             report.dropped_nodes += mapped.dropped_nodes
@@ -493,6 +556,21 @@ async def fetch_projects_bundle(
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
 
     _count_links(report, envelopes, link_ends)
+    calendars: list[dict[str, Any]] = []
+    if all_sprints and sprints_blocked_by is not None:
+        report.sprints_skipped = sprints_blocked_by
+    elif all_sprints:
+        board_names = await fetch_board_names(
+            credential,
+            {s.board_id for s in all_sprints.values() if s.board_id is not None},
+        )
+        calendars, placed = jira_sprints.build_sprint_calendars(
+            all_sprints, board_names
+        )
+        report.sprint_calendars = len(calendars)
+        report.sprints_undated = len(all_sprints) - len(placed)
+        _link_tasks_to_sprints(envelopes, sprint_membership, placed)
+
     bundle = build_bundle(
         envelopes,
         guild_id=guild_id,
@@ -500,5 +578,48 @@ async def fetch_projects_bundle(
         target_initiative_id=target_initiative_id,
         app_version=app_version,
         site_url=credential.site_url,
+        calendars=calendars,
     )
     return bundle, report
+
+
+async def fetch_board_names(
+    credential: AtlassianCredential, board_ids: set[int]
+) -> dict[int, str]:
+    """What each board is called, for the calendar its sprints land on.
+
+    A board the token cannot read keeps no name, and its calendar gets the
+    fallback one: not worth failing an import over. Being throttled is.
+    """
+    names: dict[int, str] = {}
+    for board_id in sorted(board_ids):
+        try:
+            board = await get_json(credential, f"/rest/agile/1.0/board/{board_id}")
+        except ImportEngineError as exc:
+            if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
+                raise
+            continue
+        name = board.get("name") if isinstance(board, dict) else None
+        if isinstance(name, str) and name.strip():
+            names[board_id] = name.strip()
+    return names
+
+
+def _link_tasks_to_sprints(
+    envelopes: list[tuple[str, dict[str, Any]]],
+    membership: dict[str, list[int]],
+    placed: set[int],
+) -> None:
+    """Relate each task to the sprints it was in — only the ones that became
+    events, so no link points at a sprint that will not exist."""
+    for _key, envelope in envelopes:
+        for task in envelope["tasks"]:
+            issue_key = str(task.get("external_ref") or "").removeprefix("jira:")
+            for sprint_id in membership.get(issue_key, []):
+                if sprint_id in placed:
+                    task["links"].append(
+                        {
+                            "type": "related_to",
+                            "target_external_ref": jira_sprints.sprint_ref(sprint_id),
+                        }
+                    )

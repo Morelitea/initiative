@@ -2714,12 +2714,13 @@ _JIRA_STATUSES = [
 ]
 
 
-def _jira_site(*, issues=None, locked=(), on_request=None):
+def _jira_site(*, issues=None, locked=(), on_request=None, catalog=None, boards=None):
     """Stub a site that answers both a connect and a fetch.
 
     ``locked`` names projects the token cannot read; ``on_request`` sees every
     URL before it is answered, which is how a test reaches into the middle of
-    a fetch.
+    a fetch. ``catalog`` is the site's field list and ``boards`` maps a board
+    id to its name.
     """
     import httpx
 
@@ -2743,6 +2744,14 @@ def _jira_site(*, issues=None, locked=(), on_request=None):
             return httpx.Response(200, json={"issues": issues or []})
         if "/rest/agile/1.0/board?" in url:
             return httpx.Response(404, json={})
+        if url.endswith("/rest/api/3/field") and catalog is not None:
+            return httpx.Response(200, json=catalog)
+        if "/rest/agile/1.0/board/" in url and boards:
+            board_id = int(url.rsplit("/", 1)[-1])
+            if board_id in boards:
+                return httpx.Response(
+                    200, json={"id": board_id, "name": boards[board_id]}
+                )
         return await probe(method, url, headers=headers, json=json)
 
     fake_request.requested = requested  # type: ignore[attr-defined]
@@ -3002,6 +3011,167 @@ async def test_a_jira_import_brings_its_fields_as_properties(
     assert by_name["Priority"].value_text == "Highest"
     assert by_name["Jira key"].value_text == "ACME-1"
     assert by_name["Reporter"].value_user_id == a.user.id
+
+
+_SPRINT_CATALOG = [
+    {
+        "id": "customfield_10020",
+        "name": "Sprint",
+        "custom": True,
+        "schema": {
+            "type": "array",
+            "items": "json",
+            "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+        },
+    }
+]
+
+
+def _in_sprint(issue, sprint_id=7, name="Sprint 7"):
+    issue["fields"]["customfield_10020"] = [
+        {
+            "id": sprint_id,
+            "name": name,
+            "state": "closed",
+            "boardId": 3,
+            "goal": "Ship the door",
+            "startDate": "2024-03-04T09:00:00.000Z",
+            "endDate": "2024-03-18T09:00:00.000Z",
+            "completeDate": "2024-03-18T10:00:00.000Z",
+        }
+    ]
+    return issue
+
+
+async def test_a_jira_sprint_becomes_an_event_its_tasks_are_related_to(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A sprint lands once, as an event on a calendar named after its board,
+    and each task that was in it is related to it — its dates live on the
+    event, not copied onto every task (D11)."""
+    from sqlmodel import select
+
+    from app.core.tools import Tool
+    from app.models.tenant.calendar import Calendar
+    from app.models.tenant.calendar_event import CalendarEvent
+    from app.models.tenant.relationship import EntityRelationship
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(
+            issues=[
+                _in_sprint(_jira_issue("ACME-1", "Fit the frame")),
+                _in_sprint(_jira_issue("ACME-2", "Hang the door")),
+            ],
+            catalog=_SPRINT_CATALOG,
+            boards={3: "Door team"},
+        ),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    setattr(a.initiative, Tool.calendar.view_permission, True)
+    session.add(a.initiative)
+    await session.commit()
+
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["sprints"], summary["sprint_calendars"]) == (1, 1)
+    assert summary["sprints_skipped"] is None
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    calendar = (
+        await session.exec(select(Calendar).where(Calendar.name == "Door team"))
+    ).one()
+    event = (
+        await session.exec(
+            select(CalendarEvent).where(CalendarEvent.calendar_id == calendar.id)
+        )
+    ).one()
+    assert event.title == "Sprint 7"
+    assert "Ship the door" in (event.description or "")
+    task_ids = {
+        t.id
+        for t in (await session.exec(select(Task))).all()
+        if t.title in {"Fit the frame", "Hang the door"}
+    }
+    # related_to is symmetric and stored once, in node order, so the event can
+    # be either end; whichever it is, the other end is the task.
+    rows = (
+        await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.relationship_type == "related_to"
+            )
+        )
+    ).all()
+    related = {
+        row.target_id if row.source_type == "calendar_event" else row.source_id
+        for row in rows
+        if (row.source_type, row.source_id) == ("calendar_event", event.id)
+        or (row.target_type, row.target_id) == ("calendar_event", event.id)
+    }
+    assert related == task_ids
+
+
+async def test_sprints_are_left_behind_and_said_so_when_calendars_are_off(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """An initiative without calendars cannot hold a sprint. The projects
+    still come over, and the plan says why the sprints do not — rather than
+    the apply refusing everything over a tool the projects never needed."""
+    from sqlmodel import select
+
+    from app.core.tools import Tool
+    from app.models.tenant.calendar import Calendar
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(
+            issues=[_in_sprint(_jira_issue("ACME-1", "Fit the frame"))],
+            catalog=_SPRINT_CATALOG,
+            boards={3: "Door team"},
+        ),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    setattr(a.initiative, Tool.calendar.view_permission, False)
+    session.add(a.initiative)
+    await session.commit()
+
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    summary = staged["plan"]["atlassian"]
+    assert summary["sprints"] == 1
+    assert summary["sprint_calendars"] == 0
+    assert summary["sprints_skipped"] == "IMPORT_TOOL_DISABLED"
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["links_unresolved"] == 0
+
+    session.expunge_all()
+    assert not (await session.exec(select(Calendar))).all()
 
 
 async def test_starting_a_jira_import_refuses_what_it_can_up_front(
