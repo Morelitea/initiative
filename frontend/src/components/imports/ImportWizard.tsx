@@ -1,5 +1,6 @@
-import { AlertTriangle, CheckCircle2, FileUp, Loader2, Package, XCircle } from "lucide-react";
-import { type ChangeEvent, useEffect, useMemo, useState } from "react";
+import { SiJira, SiTicktick, SiTodoist, SiVikunja } from "@icons-pack/react-simple-icons";
+import { AlertTriangle, CheckCircle2, FileUp, Loader2, XCircle } from "lucide-react";
+import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -10,11 +11,16 @@ import {
   useUploadBackupApiV1GGuildIdImportsBackupPost,
 } from "@/api/generated/imports/imports";
 import type { ForeignPreview, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
-import ticktickIcon from "@/assets/ticktick.svg";
-import todoistIcon from "@/assets/todoist.svg";
-import vikunjaIcon from "@/assets/vikunja.svg";
 import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
 import { ImportReport } from "@/components/imports/ImportReport";
+import {
+  JiraChooseStep,
+  type JiraConnection,
+  JiraConnectStep,
+  JiraFetchingStep,
+  JiraReviewSummary,
+} from "@/components/imports/JiraImportSteps";
+import { LogoIcon } from "@/components/LogoIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +42,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatBytes } from "@/lib/fileUtils";
 import { formatDateTime } from "@/lib/formatDate";
+import { getItem, removeItem, setItem } from "@/lib/storage";
 
 // Mirrors the backend's IMPORT_MAX_BACKUP_UPLOAD_BYTES default — the UX
 // layer; the server (ASGI middleware + bounded read) is the enforcement.
@@ -54,15 +61,27 @@ export interface ImportWizardProps {
  * rest are other products, each read by a mapper on the server that turns
  * the file into the same envelope a project export writes. */
 type ForeignSourceKey = "todoist" | "ticktick" | "vikunja";
-type Source = "backup" | ForeignSourceKey;
+/** ``jira`` reads a site over its API rather than an uploaded file: the
+ * server fetches, parks the result for review, then applies it like a
+ * backup. */
+type Source = "backup" | "jira" | ForeignSourceKey;
 
-const FOREIGN_ICONS: Record<string, string> = {
-  todoist: todoistIcon,
-  ticktick: ticktickIcon,
-  vikunja: vikunjaIcon,
+/** Each source's mark on its tile, in its own brand colour. A backup is this
+ * app's own archive, so it carries this app's logo. */
+const SOURCE_ICONS: Record<Source, ReactNode> = {
+  backup: <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" focusable="false" />,
+  jira: <SiJira color="#0052CC" className="h-8 w-8 shrink-0" aria-hidden="true" />,
+  todoist: <SiTodoist color="#E44332" className="h-8 w-8 shrink-0" aria-hidden="true" />,
+  ticktick: <SiTicktick color="#4772FA" className="h-8 w-8 shrink-0" aria-hidden="true" />,
+  vikunja: <SiVikunja color="#196AFF" className="h-8 w-8 shrink-0" aria-hidden="true" />,
 };
 
-const SOURCES: Source[] = ["backup", "todoist", "ticktick", "vikunja"];
+const SOURCES: Source[] = ["backup", "jira", "todoist", "ticktick", "vikunja"];
+
+/** A Jira job this wizard started and has not seen the end of. A fetch runs
+ * for minutes and outlives the dialog, so reopening picks it up where it is —
+ * still reading, or waiting for review — rather than losing it. */
+const jiraJobKey = (guildId: number) => `imports:jira-job:${guildId}`;
 
 type Step =
   | "source"
@@ -74,6 +93,11 @@ type Step =
   // Reading another product's export.
   | "file"
   | "choose"
+  // Reading a Jira site.
+  | "connect"
+  | "projects"
+  | "fetching"
+  | "review"
   // Shared tail.
   | "people"
   | "progress"
@@ -106,7 +130,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   // The file and choose steps are reachable only from a foreign tile, so the
   // one narrowing here spares every read of it below.
   const foreignSource: ForeignSourceKey | null =
-    source !== null && source !== "backup" ? source : null;
+    source !== null && source !== "backup" && source !== "jira" ? source : null;
 
   // Backup branch.
   const [file, setFile] = useState<File | null>(null);
@@ -117,6 +141,10 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const [preview, setPreview] = useState<ForeignPreview | null>(null);
   const [selection, setSelection] = useState<string>("");
   const [initiativeId, setInitiativeId] = useState<string>("");
+
+  // Jira branch.
+  const [jiraConnection, setJiraConnection] = useState<JiraConnection | null>(null);
+  const [jiraJobId, setJiraJobId] = useState<number | null>(null);
 
   const [pickError, setPickError] = useState<string | null>(null);
   const [stagedJob, setStagedJob] = useState<ImportJobRead | null>(null);
@@ -155,11 +183,20 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       setPickError(null);
       setStagedJob(null);
       setPeopleMap({});
+      setJiraConnection(null);
+      setJiraJobId(null);
       importJob.reset();
     } else if (importJob.busy) {
       // A job from a previous wizard session is still applying — resume its
       // progress view instead of offering a new flow.
       commit("progress");
+    } else {
+      const pendingJira = Number(getItem(jiraJobKey(guildId)));
+      if (Number.isFinite(pendingJira) && pendingJira > 0) {
+        setSource("jira");
+        setJiraJobId(pendingJira);
+        commit("fetching");
+      }
     }
   }, [open]);
 
@@ -190,7 +227,32 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const chooseSource = (picked: Source) => {
     setSource(picked);
     setPickError(null);
-    go(picked === "backup" ? "pick" : "file");
+    go(picked === "backup" ? "pick" : picked === "jira" ? "connect" : "file");
+  };
+
+  const forgetJiraJob = () => removeItem(jiraJobKey(guildId));
+
+  const handleJiraStarted = (job: ImportJobRead) => {
+    setItem(jiraJobKey(guildId), String(job.id));
+    setJiraJobId(job.id);
+    // Past this point the site is being read; the way out is Cancel.
+    commit("fetching");
+  };
+
+  const handleJiraStaged = useCallback(
+    (job: ImportJobRead) => {
+      setStagedJob(job);
+      commit("review");
+    },
+    [commit]
+  );
+
+  const handleJiraStopped = () => {
+    forgetJiraJob();
+    setJiraJobId(null);
+    setStagedJob(null);
+    // The connection is still good for another go, if there is one.
+    commit(jiraConnection ? "projects" : "connect");
   };
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -329,6 +391,8 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
         jobId: stagedJob.id,
         data: Object.keys(mapped).length > 0 ? { people_map: mapped } : {},
       });
+      // From here the apply is an ordinary job the progress view watches.
+      forgetJiraJob();
       importJob.watch(job.id);
       commit("progress");
     } catch (err) {
@@ -337,6 +401,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   };
 
   const handleCancelStaged = async () => {
+    forgetJiraJob();
     if (!stagedJob) {
       onOpenChange(false);
       return;
@@ -386,25 +451,23 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     };
   }, [peeked]);
 
-  const stepDescription =
-    step === "source"
-      ? t("wizard.source.prompt")
-      : step === "pick"
-        ? t("wizard.pick.hint")
-        : step === "file"
-          ? t("wizard.file.hint", { source: t(`wizard.source.names.${source ?? "backup"}`) })
-          : step === "choose"
-            ? t("wizard.choose.prompt")
-            : step === "plan"
-              ? t("wizard.plan.prompt")
-              : step === "people"
-                ? t("wizard.people.prompt")
-                : null;
+  const stepDescriptions: Partial<Record<Step, string>> = {
+    source: t("wizard.source.prompt"),
+    pick: t("wizard.pick.hint"),
+    file: t("wizard.file.hint", { source: t(`wizard.source.names.${source ?? "backup"}`) }),
+    choose: t("wizard.choose.prompt"),
+    plan: t("wizard.plan.prompt"),
+    people: t("wizard.people.prompt"),
+    connect: t("wizard.jira.connect.prompt"),
+    projects: t("wizard.jira.choose.prompt"),
+    review: t("wizard.jira.review.prompt"),
+  };
+  const stepDescription = stepDescriptions[step] ?? null;
 
   // The questions to answer; the upload, the run and the report are what
   // happens afterwards. The people step appears only where the file quotes
   // somebody — one quoting nobody has nothing to ask about.
-  const foreign = source != null && source !== "backup";
+  const foreign = source != null && source !== "backup" && source !== "jira";
   const total = (foreign ? 3 : 4) + (people.length > 0 ? 1 : 0);
   const position: Record<Step, number | null> = {
     source: 1,
@@ -414,6 +477,10 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     plan: 4,
     file: 2,
     choose: 3,
+    connect: 2,
+    projects: 3,
+    fetching: null,
+    review: 4,
     people: foreign ? 4 : 5,
     progress: null,
     report: null,
@@ -435,7 +502,12 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       // file, or out of the people step. Between the upload and the confirm
       // a job is staged server-side, and the way out of that is Cancel.
       onBack={
-        step === "pick" || step === "peek" || step === "file" || step === "choose"
+        step === "pick" ||
+        step === "peek" ||
+        step === "file" ||
+        step === "choose" ||
+        step === "connect" ||
+        step === "projects"
           ? back
           : step === "people" && !foreign
             ? back
@@ -452,11 +524,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
               onClick={() => chooseSource(option)}
               className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 text-left transition-colors hover:border-primary hover:bg-accent"
             >
-              {option === "backup" ? (
-                <Package className="h-8 w-8 shrink-0 text-muted-foreground" />
-              ) : (
-                <img src={FOREIGN_ICONS[option]} alt="" className="h-8 w-8 shrink-0" />
-              )}
+              {SOURCE_ICONS[option]}
               <span className="flex-1">
                 <span className="block font-medium text-sm">
                   {t(`wizard.source.names.${option}`)}
@@ -575,6 +643,56 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
           >
             {t("wizard.start")}
           </Button>
+        </div>
+      )}
+
+      {step === "connect" && (
+        <JiraConnectStep
+          onConnected={(connection) => {
+            setJiraConnection(connection);
+            go("projects");
+          }}
+        />
+      )}
+
+      {step === "projects" && jiraConnection && (
+        <JiraChooseStep
+          connection={jiraConnection}
+          initiatives={creatableInitiatives}
+          onStarted={handleJiraStarted}
+        />
+      )}
+
+      {step === "fetching" && jiraJobId != null && (
+        <JiraFetchingStep
+          jobId={jiraJobId}
+          onStaged={handleJiraStaged}
+          onStopped={handleJiraStopped}
+        />
+      )}
+
+      {step === "review" && stagedJob && (
+        <div className="space-y-4">
+          <JiraReviewSummary job={stagedJob} />
+          <p className="text-muted-foreground text-xs">{t("wizard.jira.review.note")}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => void handleCancelStaged()}>
+              {t("wizard.cancelUpload")}
+            </Button>
+            {people.length > 0 ? (
+              <Button className="flex-1" onClick={() => go("people")}>
+                {t("wizard.next")}
+              </Button>
+            ) : (
+              <Button
+                className="flex-1"
+                disabled={confirmMutation.isPending}
+                onClick={() => void handleConfirm()}
+              >
+                {t("wizard.start")}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

@@ -168,4 +168,29 @@ describe("ImportWizard", () => {
     expect(uploaded).toBe(false);
     expect(screen.queryByRole("button", { name: /upload backup/i })).not.toBeInTheDocument();
   });
+
+  it("reads a Jira site: the tile opens the connect step", async () => {
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: /^jira/i }));
+    expect(await screen.findByLabelText(/site address/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/api token/i)).toHaveAttribute("type", "password");
+  });
+
+  it("picks a Jira fetch back up when the wizard is opened again", async () => {
+    // A fetch outlives the dialog; the job it started is remembered, and
+    // reopening lands on its review once it has been staged.
+    localStorage.setItem("imports:jira-job:1", "77");
+    server.use(
+      guildHttp.get("/imports/jobs/:jobId", () =>
+        HttpResponse.json({
+          ...STAGED_JOB,
+          id: 77,
+          source: "atlassian",
+          plan: { atlassian: { projects: 1, tasks: 9 }, people: [] },
+        })
+      )
+    );
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    expect(await screen.findByText(/9 tasks from 1 project/i)).toBeInTheDocument();
+  });
 });

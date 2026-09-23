@@ -15,12 +15,14 @@
       "prompt": "Where is this coming from?",
       "names": {
         "backup": "Initiative backup",
+        "jira": "Jira",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
       },
       "descriptions": {
         "backup": "A .zip exported from Initiative, put back as it was.",
+        "jira": "Projects read straight from your Jira site.",
         "todoist": "A project exported as CSV.",
         "ticktick": "A backup CSV holding every list.",
         "vikunja": "The data.json from a Vikunja export."
@@ -101,6 +103,79 @@
       "unmatchedHandles": "Some people couldn't be matched by handle: {{handles}}",
       "failedEntries": "Items that failed to import:",
       "nothing": "Nothing was imported."
+    },
+    "jira": {
+      "connect": {
+        "prompt": "Connect to your Jira site.",
+        "siteLabel": "Site address",
+        "sitePlaceholder": "your-team.atlassian.net",
+        "emailLabel": "Your Atlassian email",
+        "tokenLabel": "API token",
+        "tokenLink": "Create an API token",
+        "note": "The token is used only to read the projects you pick, and it's deleted as soon as they've been read.",
+        "submit": "Connect",
+        "failed": "We couldn't connect to that site.",
+        "noJira": "We reached the site, but there's no Jira there that this token can see."
+      },
+      "choose": {
+        "prompt": "Which projects should come across, and where to?",
+        "projectsLabel": "Projects",
+        "selectAll": "Select all",
+        "selectNone": "Select none",
+        "notCounted": "not counted",
+        "issues_one": "{{count}} issue",
+        "issues_other": "{{count}} issues",
+        "includeComments": "Bring comments",
+        "includeAttachments": "Bring images",
+        "note": "Each project arrives as a new project in this initiative, with its columns, tasks, fields, links and sprints. Nothing is written until you've reviewed what we found.",
+        "submit": "Read these projects",
+        "failed": "We couldn't start reading those projects.",
+        "noProjects": "This token can't see any Jira projects."
+      },
+      "fetch": {
+        "title": "Reading your Jira site…",
+        "progress": "{{projects}} projects and {{tasks}} tasks read so far",
+        "note": "This can take a few minutes for a large project. You can close this window; opening the import again brings you back here.",
+        "cancel": "Stop",
+        "failed": "We couldn't read those projects.",
+        "stopped": "Reading stopped before it finished.",
+        "startOver": "Start over"
+      },
+      "review": {
+        "prompt": "Here's what we found. Nothing has been written yet.",
+        "tasks_one": "{{count}} task from {{projects}} project(s)",
+        "tasks_other": "{{count}} tasks from {{projects}} project(s)",
+        "links_one": "{{count}} link between tasks",
+        "links_other": "{{count}} links between tasks",
+        "comments_one": "{{count}} comment",
+        "comments_other": "{{count}} comments",
+        "images_one": "{{count}} image ({{size}})",
+        "images_other": "{{count}} images ({{size}})",
+        "sprints_one": "{{count}} sprint on {{calendars}} calendar(s)",
+        "sprints_other": "{{count}} sprints on {{calendars}} calendar(s)",
+        "propertiesTitle": "Fields that become properties",
+        "propertyCount_one": "{{count}} task",
+        "propertyCount_other": "{{count}} tasks",
+        "leftBehindTitle": "Not coming across",
+        "unreadableProjects": "Projects this token can't read: {{keys}}",
+        "sprintsSkipped_one": "{{count}} sprint: {{reason}}",
+        "sprintsSkipped_other": "{{count}} sprints: {{reason}}",
+        "noCalendar": "sprints need calendars, which this initiative doesn't have",
+        "sprintsUndated_one": "{{count}} sprint that never started, so it has no dates",
+        "sprintsUndated_other": "{{count}} sprints that never started, so they have no dates",
+        "linksOutside_one": "{{count}} link to an issue you didn't pick",
+        "linksOutside_other": "{{count}} links to issues you didn't pick",
+        "commentsRestricted_one": "{{count}} comment only some people could see in Jira",
+        "commentsRestricted_other": "{{count}} comments only some people could see in Jira",
+        "imagesSkipped_one": "{{count}} image that's too large or couldn't be read",
+        "imagesSkipped_other": "{{count}} images that are too large or couldn't be read",
+        "otherAttachments_one": "{{count}} attached file that isn't an image",
+        "otherAttachments_other": "{{count}} attached files that aren't images",
+        "droppedFields": "Fields with nowhere to go: {{fields}}",
+        "skippedIssues_one": "{{count}} issue we couldn't read",
+        "skippedIssues_other": "{{count}} issues we couldn't read",
+        "note": "Starting the import writes all of this into the initiative you picked. Cancel throws it away."
+      }
     }
   },
   "envelope": {
