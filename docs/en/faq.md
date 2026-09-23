@@ -149,9 +149,15 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "How do I leave a group?"
     On the community rail, open the community's menu and choose **Leave community**. If you're the last admin, you'll be made to promote somebody else first — you can't simply slip out and leave nobody holding it.
 
-    A suspended account can still sign in and reach its own settings, which is how you find out why.
+??? question "My account says it's suspended"
+    You can sign in, and you get one screen: that you're suspended, the reason the moderator gave if they gave one, and who to contact. Nothing else opens while it lasts — not your communities, not your own settings.
 
-    Every community is closed while it lasts, but nothing is taken away — memberships, work, everything you wrote all stay exactly where they are, and lifting the suspension restores the account whole. Ask an administrator of your server.
+    Nothing is taken away. Memberships, work, everything you wrote stays exactly where it is, and lifting the suspension hands the account back whole. The address on that screen is the one to write to.
+
+??? question "One of my communities has a lock on it"
+    It's suspended. Nobody in it can open it while that lasts, its admins included, which is why you're looking at a lock rather than the usual front page. Opening it says who to contact.
+
+    Nothing inside has been changed or deleted, and it all comes back as it was when the suspension is lifted. Members don't see the community at all in the meantime, so if people ask where it went, now you know.
 
 ??? question "What's the difference between deactivating and deleting my account?"
     **Deactivating** is reversible — switched off, data kept. **Deleting** is permanent, and you choose whether your past contributions are anonymized or removed outright. See [Closing your account](account/profile-and-preferences.md#closing-your-account).

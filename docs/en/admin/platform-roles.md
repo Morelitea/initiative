@@ -43,7 +43,7 @@ The **first person to register** on a new server becomes the **owner**. The owne
 
 - **Username** — the handle they're addressed by. The four digits after it stay as they are.
 - **Profile picture** — take one down. Putting one up stays theirs.
-- **Suspend** — freezes the account. They can still sign in and read why, and reach none of their communities. Nothing is deleted; lifting it hands everything back.
+- **Suspend** — puts the account in time out. They can sign in, and what they get is one screen: that they're suspended, the reason you gave, and [who to contact](#who-to-contact). Their communities, their own settings and every power their platform role carries stay out of reach until you lift it. Nothing is deleted; lifting it hands everything back exactly as it was.
 - **Platform role** — move them up or down the ladder. You can't grant a rung above your own.
 
 Each of those asks for its own capability, so a moderator opening the same panel sees the first three and not the fourth.
@@ -102,7 +102,41 @@ Operators and owners can write **announcements** — notices shown in a dialog t
 
 **Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
 
+### A community's status
+
+Each row on **Operator dashboard → Communities** has a status, and there are four:
+
+| Status | Its members | Its admins | In their community lists |
+|---|---|---|---|
+| **Active** | Everything, as normal. | Everything, as normal. | Listed. |
+| **Read-only** | Read, but can't change anything. | Keep running it: settings, invites, the lot. | Listed. |
+| **On hold** | Nothing. | Nothing. | Gone, for everyone. |
+| **Suspended** | Nothing. | Nothing, settings included. | Gone for members. Admins see it with a lock. |
+
+On hold and suspended both ask you to confirm first, because each takes everybody out in one click. Neither changes or deletes anything inside, and setting a community back to **Active** puts it all back.
+
+- **On hold** tells the community's superadmins once, by email and in the app, that it's on hold and [who to contact](#who-to-contact).
+- **Suspended** tells nobody directly. Its admins find the lock on their rail, and opening it says the community is suspended and gives them the address.
+
+Neither status keeps *you* out. A [grant or break-glass](#cross-community-access-break-glass-and-time-bound-grants) reaches a community whatever its status, which is how you look inside before deciding what happens to it.
+
+### Deleted communities
+
 Deleted communities are in that list too, marked with the date everything in them is destroyed. **Restore** brings one back as it was — and where nobody is left who could run it, asks you who takes it over. See [How long deleted things are kept](configuration.md#how-long-deleted-things-are-kept).
+
+## Who to contact
+
+Whenever Initiative tells somebody to get in touch, it names an address. You pick those under **Settings → Platform → Intake**, in **Who to contact**: one general address, then one for each kind of work.
+
+| When somebody sees | It names |
+|---|---|
+| Their account's time-out screen | Moderation |
+| A suspended community | Moderation |
+| A community on hold | Support |
+
+Leave a kind blank and it uses the general address. It never borrows another kind's, so a moderation question doesn't turn up in the support inbox wondering why it's there. With neither set, the notice says to contact whoever runs this server, which is true but not very helpful to somebody who doesn't know who that is.
+
+**Security** and **Feedback** have fields too. None of the notices above names them.
 
 ## Related
 
