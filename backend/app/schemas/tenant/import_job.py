@@ -142,6 +142,15 @@ class BackupPlanPerson(SanitizedBaseModel):
     suggested_user_id: Optional[int] = None
 
 
+class AtlassianPlanProperty(SanitizedBaseModel):
+    """One property the import would create, for the review step's list."""
+
+    name: str
+    type: str
+    #: How many imported tasks carry a value for it.
+    issue_count: int = 0
+
+
 class AtlassianFetchSummary(SanitizedBaseModel):
     """What reading an Atlassian site found, for the review step.
 
@@ -162,6 +171,11 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     links: int = 0
     #: Those whose other end was not brought over, so will not.
     links_outside_selection: int = 0
+    #: Every property the import would create — only fields some issue
+    #: filled in (§6.5) — with how many tasks carry each.
+    properties: list[AtlassianPlanProperty] = []
+    #: Fields something filled that have no home here, so will not come over.
+    dropped_fields: list[str] = []
 
 
 class BackupImportPlan(SanitizedBaseModel):

@@ -471,7 +471,9 @@ async def test_links_are_asked_for(monkeypatch):
     calls = _site(monkeypatch, issues=[_issue("ACME-1", "One")])
     await _bundle(monkeypatch)
     search = next(c for c in calls if "search/jql" in c["url"])
-    assert {"issuelinks", "parent"} <= set(search["json"]["fields"])
+    # Every navigable field, which carries the links and the parent too: which
+    # of a site's fields anybody filled in is only known by reading them.
+    assert search["json"]["fields"] == ["*navigable"]
 
 
 async def test_links_are_counted_once_and_split_by_whether_both_ends_came(
@@ -542,3 +544,57 @@ async def test_the_links_land_in_the_bundle(monkeypatch):
     assert envelope["tasks"][1]["links"] == [
         {"type": "depends_on", "target_external_ref": "jira:ACME-1"}
     ]
+
+
+# --- fields ------------------------------------------------------------------
+
+
+async def test_the_field_catalog_is_read_once_and_counts_sum_across_projects(
+    monkeypatch,
+):
+    """The catalog is the site's, not a project's, so one read serves every
+    project; and the same field on two boards is one property in the
+    initiative they land in, carried by every task that filled it."""
+    catalog_calls = []
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if url.endswith("/rest/api/3/field"):
+            catalog_calls.append(url)
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": "customfield_1",
+                        "name": "Story points",
+                        "custom": True,
+                        "schema": {"type": "number"},
+                    }
+                ],
+            )
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            key = url.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"key": key, "name": key})
+        if "search/jql" in url and json is not None:
+            key = json["jql"].split('"')[1]
+            return httpx.Response(
+                200,
+                json={"issues": [_issue(f"{key}-1", "One", customfield_1=3)]},
+            )
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OPS"])
+
+    assert len(catalog_calls) == 1
+    assert report.properties["Story points"] == ("number", 2)
+    assert report.properties["Jira key"] == ("text", 2)
+
+
+async def test_a_catalog_the_site_will_not_give_is_not_fatal(monkeypatch):
+    """The built-ins still map by their own ids; only a site's own fields go
+    untyped, and are left out."""
+    _site(monkeypatch, issues=[_issue("ACME-1", "One", priority={"name": "High"})])
+    _payload, report = await _bundle(monkeypatch)
+    assert report.properties["Priority"] == ("select", 1)

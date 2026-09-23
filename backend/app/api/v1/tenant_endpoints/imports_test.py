@@ -2942,6 +2942,68 @@ async def test_a_jira_import_brings_its_links_across(
     assert len(edges) == 2
 
 
+async def test_a_jira_import_brings_its_fields_as_properties(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """What issues filled in arrives as properties, and a person field — the
+    Reporter — is asked about in the people step and lands on whoever it was
+    mapped to."""
+    from sqlmodel import select
+
+    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["priority"] = {"name": "Highest"}
+    issue["fields"]["reporter"] = {"displayName": "Robin"}
+    monkeypatch.setattr(
+        atlassian_service, "request_public_target", _jira_site(issues=[issue])
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    listed = {p["name"]: p for p in staged["plan"]["atlassian"]["properties"]}
+    assert listed["Priority"] == {
+        "name": "Priority",
+        "type": "select",
+        "issue_count": 1,
+    }
+    assert listed["Reporter"]["type"] == "user_reference"
+    assert "Robin" in [p["handle"] for p in staged["plan"]["people"]]
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin": a.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
+    rows = (
+        await session.exec(
+            select(TaskPropertyValue, PropertyDefinition)
+            .join(
+                PropertyDefinition,
+                PropertyDefinition.id == TaskPropertyValue.property_id,
+            )
+            .where(TaskPropertyValue.task_id == task.id)
+        )
+    ).all()
+    by_name = {definition.name: value for value, definition in rows}
+    assert by_name["Priority"].value_text == "Highest"
+    assert by_name["Jira key"].value_text == "ACME-1"
+    assert by_name["Reporter"].value_user_id == a.user.id
+
+
 async def test_starting_a_jira_import_refuses_what_it_can_up_front(
     client, acting_user, session, monkeypatch
 ):
