@@ -1398,6 +1398,12 @@ export interface BodySetGuildIconApiV1GuildsGuildIdIconPut {
   icon: Blob;
 }
 
+export interface BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost {
+  file: Blob;
+  initiative_id: number;
+  include_attachments?: boolean;
+}
+
 export interface BodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost {
   file: Blob;
 }

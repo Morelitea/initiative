@@ -1,4 +1,4 @@
-import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import { AlertTriangle, ExternalLink, FileUp, Loader2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +7,7 @@ import {
   useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost,
   useGetImportJobApiV1GGuildIdImportsJobsJobIdGet,
   useStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPost,
+  useStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost,
 } from "@/api/generated/imports/imports";
 import type {
   AtlassianConfluenceSpace,
@@ -26,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
+import { getErrorCode, getErrorMessage, messageForCode } from "@/lib/errorMessage";
 import { formatBytes } from "@/lib/fileUtils";
 
 /** Where somebody makes the token the connect step asks for. */
@@ -107,12 +108,14 @@ export function atlassianSummary(job: ImportJobRead | null | undefined): Atlassi
 
 export interface AtlassianConnectStepProps {
   onConnected: (connection: AtlassianConnection) => void;
+  /** Take a Confluence HTML export instead of connecting to a site. */
+  onUseExport?: () => void;
 }
 
 /** The site, the account, and a token for it — proved by using it. The
  * answer is also the list of what the token can see in both products, so
  * connecting and looking around are one request. */
-export function AtlassianConnectStep({ onConnected }: AtlassianConnectStepProps) {
+export function AtlassianConnectStep({ onConnected, onUseExport }: AtlassianConnectStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
   const connect = useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost();
@@ -200,7 +203,127 @@ export function AtlassianConnectStep({ onConnected }: AtlassianConnectStepProps)
         {connect.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
         {t("wizard.atlassian.connect.submit")}
       </Button>
+      {onUseExport && (
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto w-full p-0 text-xs"
+          onClick={onUseExport}
+        >
+          {t("wizard.atlassian.export.offer")}
+        </Button>
+      )}
     </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// A Confluence HTML export
+// ---------------------------------------------------------------------------
+
+export interface AtlassianExportStepProps {
+  initiatives: AtlassianTarget[];
+  onStarted: (job: ImportJobRead) => void;
+}
+
+/** The zip Confluence's space export writes, for a site this server cannot
+ * reach or nobody wants to hand a token to. Uploaded, then read the way a
+ * site is — the same review follows. */
+export function AtlassianExportStep({ initiatives, onStarted }: AtlassianExportStepProps) {
+  const { t } = useTranslation("imports");
+  const guildId = useActiveGuildId();
+  const start = useStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost();
+  const [file, setFile] = useState<File | null>(null);
+  const [initiativeId, setInitiativeId] = useState<string>("");
+  const [includeAttachments, setIncludeAttachments] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const targets = initiatives.filter((initiative) => initiative.canCreateWikis);
+  const chosen = targets.some((initiative) => String(initiative.id) === initiativeId)
+    ? initiativeId
+    : targets.length === 1
+      ? String(targets[0].id)
+      : "";
+
+  const handleStart = async () => {
+    if (!file) return;
+    setError(null);
+    try {
+      const job = await start.mutateAsync({
+        guildId,
+        data: {
+          file,
+          initiative_id: Number(chosen),
+          include_attachments: includeAttachments,
+        },
+      });
+      onStarted(job);
+    } catch (err) {
+      // A zip that is not a space export is a different mistake from a
+      // broken backup, and says so.
+      setError(
+        getErrorCode(err) === "IMPORT_ZIP_INVALID"
+          ? t("wizard.atlassian.export.notExport")
+          : getErrorMessage(err, "imports:wizard.atlassian.export.failed")
+      );
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed p-6 text-center transition-colors hover:bg-accent">
+        <FileUp className="h-8 w-8 text-muted-foreground" />
+        <span className="font-medium text-sm">
+          {file ? file.name : t("wizard.atlassian.export.pick")}
+        </span>
+        <span className="text-muted-foreground text-xs">{t("wizard.atlassian.export.where")}</span>
+        <input
+          type="file"
+          accept=".zip,application/zip"
+          className="hidden"
+          aria-label={t("wizard.atlassian.export.pick")}
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        />
+      </label>
+
+      <div className="space-y-2">
+        <Label htmlFor="export-initiative">{t("wizard.choose.initiativeLabel")}</Label>
+        <Select value={chosen} onValueChange={setInitiativeId}>
+          <SelectTrigger id="export-initiative">
+            <SelectValue placeholder={t("wizard.choose.initiativePlaceholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            {targets.map((initiative) => (
+              <SelectItem key={initiative.id} value={String(initiative.id)}>
+                {initiative.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+        <Label htmlFor="export-attachments" className="font-normal text-sm">
+          {t("wizard.atlassian.choose.includeAttachments")}
+        </Label>
+        <Switch
+          id="export-attachments"
+          checked={includeAttachments}
+          onCheckedChange={setIncludeAttachments}
+        />
+      </div>
+
+      <p className="text-muted-foreground text-xs">{t("wizard.atlassian.export.note")}</p>
+      {error && <p className="text-destructive text-sm">{error}</p>}
+      <Button
+        className="w-full"
+        disabled={!file || !chosen || start.isPending}
+        onClick={() => void handleStart()}
+      >
+        {start.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+        {t("wizard.atlassian.choose.submit")}
+      </Button>
+    </div>
   );
 }
 

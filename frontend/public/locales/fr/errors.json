@@ -727,5 +727,5 @@
   "GUILD_STATUS_SET_BY_BILLING": "La facturation fixe le statut de cette communauté. Vous pouvez la suspendre, ou lever une suspension vers le statut que la facturation a fixé en dernier.",
   "ADMIN_USER_NOT_DELETED": "Ce compte n'a pas été supprimé, il n'y a donc rien à restaurer.",
   "CONNECTION_NEEDS_NARROWING": "Indiquez quels comptes de ce fournisseur sont les vôtres avant d'activer la connexion.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configurez la réception du support avant de proposer les demandes d’aide : reliez le flux de support à un projet dans Réglages › Administration › Réception."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configurez la réception du support avant de proposer les demandes d’aide : reliez le flux de support à un projet dans Paramètres de la plateforme › Réception."
 }

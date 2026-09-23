@@ -12,7 +12,9 @@ to bring over, and the worker's fetch that turns it into a bundle.
 A queued Atlassian job with no payload has not been fetched yet; one with a
 payload has been, and was confirmed. That is the whole of how the worker tells
 the two apart (:func:`awaits_fetch`), and it is why a re-claimed fetch drops
-its payload on the way back into the queue.
+its payload on the way back into the queue. The one exception is an uploaded
+Confluence HTML export: it is staged under :data:`EXPORT_SUFFIX`, which reads
+as not yet fetched, and the fetch converts it rather than calling a site.
 
 **The credential is spent by the fetch.** Everything the apply needs is in the
 bundle, so the moment the bundle is staged the token has no further use and is
@@ -79,9 +81,17 @@ _CALENDAR_ENVELOPE = "initiative-calendar"
 _DOCUMENT_ENVELOPE = "initiative-document"
 
 
+#: How an uploaded Confluence HTML export is staged, so the worker knows it
+#: still has to be read rather than applied.
+EXPORT_SUFFIX = "confluence-export.zip"
+
+
 def awaits_fetch(job: ImportJob) -> bool:
-    """Whether the worker should read the site for this job rather than apply."""
-    return job.source == SOURCE and not job.payload_ref
+    """Whether the worker should read the source for this job rather than
+    apply it: a site not yet read, or an export not yet converted."""
+    return job.source == SOURCE and (
+        not job.payload_ref or job.payload_ref.endswith(EXPORT_SUFFIX)
+    )
 
 
 def summary_of(report: jira_fetch.FetchReport) -> AtlassianFetchSummary:
@@ -219,6 +229,149 @@ async def start_import(
     return job
 
 
+async def start_export(
+    session: AsyncSession,
+    *,
+    user: User,
+    guild_id: int,
+    initiative_id: int,
+    payload: bytes,
+    include_attachments: bool = True,
+) -> ImportJob:
+    """Queue a job that reads a Confluence space's HTML export into
+    ``initiative_id`` as a wiki.
+
+    The zip is checked for being one — a zip, within the bounds a restore
+    accepts, with pages in it — and staged for the worker, which converts it
+    the way it reads a site; everything after that is the same review.
+    """
+    from app.services.import_engine.backup import open_backup_zip
+
+    archive = open_backup_zip(payload)
+    if not any(
+        info.filename.endswith(".html") and not info.filename.endswith("index.html")
+        for info in archive.infolist()
+    ):
+        raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
+
+    initiative = await import_engine.load_target_initiative(
+        session,
+        guild_id=guild_id,
+        initiative_id=initiative_id,
+        importer=import_engine.get_importer(_WIKI_ENVELOPE),
+        user=user,
+    )
+    await import_engine.count_active_jobs_locked(session, user=user)
+    job = ImportJob(
+        created_by=user.id,
+        source=SOURCE,
+        params={
+            "initiative_id": initiative.id,
+            "confluence_export": True,
+            "include_attachments": include_attachments,
+        },
+        payload_ref=import_engine.stage_payload(
+            guild_id, payload, suffix=EXPORT_SUFFIX
+        ),
+        status=ImportJobStatus.queued,
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
+
+
+async def _fetch_export(
+    job: ImportJob,
+    *,
+    guild_id: int,
+    open_user_session: Callable[[], AsyncContextManager[AsyncSession]],
+    progress: Callable[[AtlassianFetchSummary], Awaitable[None]] | None,
+) -> StagedFetch:
+    """Convert an uploaded HTML export into the bundle a site fetch writes."""
+    from app.api.deps import establish_guild_access
+    from app.services.import_engine import confluence_export
+    from app.services.import_engine.atlassian_bundle import merge_people, write_bundle
+    from app.services.import_engine.backup import open_backup_zip
+    from app.services.platform import accounts as accounts_service
+
+    params = job.params or {}
+    raw_ref = job.payload_ref
+    payload = import_engine.read_payload(guild_id, raw_ref) if raw_ref else None
+    # The upload is read once. A conversion interrupted after this starts
+    # over from nothing, and says so, rather than finding half of one.
+    import_engine.delete_payload(guild_id, raw_ref)
+    job.payload_ref = None
+    if payload is None:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
+
+    user = await accounts_service.load_one(job.created_by)
+    if user is None or user.status != UserStatus.active:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_CREATOR_INACTIVE)
+
+    include_attachments = params.get("include_attachments") is not False
+    async with open_user_session() as user_session:
+        context = await establish_guild_access(
+            user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+        )
+        if context.content_read_only or context.is_pam or context.grant is not None:
+            raise ImportEngineError(ImportEngineMessages.IMPORT_WRITE_REQUIRED)
+        initiative = await import_engine.load_target_initiative(
+            user_session,
+            guild_id=guild_id,
+            initiative_id=params.get("initiative_id"),
+            importer=import_engine.get_importer(_WIKI_ENVELOPE),
+            user=user,
+        )
+        documents_allowed = True
+        if include_attachments:
+            try:
+                await import_engine.load_target_initiative(
+                    user_session,
+                    guild_id=guild_id,
+                    initiative_id=initiative.id,
+                    importer=import_engine.get_importer(_DOCUMENT_ENVELOPE),
+                    user=user,
+                )
+            except ImportEngineError:
+                documents_allowed = False
+        roster = await load_guild_member_handles(user_session, guild_id=guild_id)
+
+    fetched, site_url = await confluence_export.export_to_fetched(
+        open_backup_zip(payload),
+        guild_id=guild_id,
+        app_version=get_version(),
+        asset_budget=jira_attachments.bundle_budget() if include_attachments else None,
+        documents=documents_allowed,
+    )
+    summary = combined_summary(None, fetched.report)
+    if progress is not None:
+        await progress(summary)
+
+    bundle = write_bundle(
+        images=fetched.images,
+        wikis=fetched.envelopes,
+        wiki_files=fetched.files,
+        people=merge_people([], fetched.people),
+        guild_id=guild_id,
+        guild_name="Confluence export",
+        target_initiative_id=initiative.id,
+        app_version=get_version(),
+        site_url=site_url,
+    )
+
+    from app.services.import_engine import backup as backup_service
+
+    plan: BackupImportPlan = backup_service.plan_backup(
+        bundle, existing_initiative_names=set(), member_ids_by_handle=roster
+    )
+    plan.atlassian = summary
+    payload_ref = import_engine.stage_payload(guild_id, bundle, suffix="zip")
+    return StagedFetch(payload_ref=payload_ref, plan=plan.model_dump(mode="json"))
+
+
 def combined_summary(
     jira: jira_fetch.FetchReport | None,
     confluence: confluence_fetch.ConfluenceFetchReport | None,
@@ -332,6 +485,13 @@ async def fetch(
     from app.services.platform import accounts as accounts_service
 
     params = job.params or {}
+    if params.get("confluence_export"):
+        return await _fetch_export(
+            job,
+            guild_id=guild_id,
+            open_user_session=open_user_session,
+            progress=progress,
+        )
     # A job started before the option existed brought attachments across.
     include_attachments = params.get("include_attachments") is not False
     raw_projects = params.get("jira_projects", [])

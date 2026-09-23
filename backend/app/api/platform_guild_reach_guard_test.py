@@ -91,7 +91,7 @@ _WRAPPERS: dict[tuple[str, str], str] = {
         "provisions and seeds a new community's schema"
     ),
     (f"{_SERVICES}/intake_setup.py", "_route"): (
-        "intake setup's routing helper; moves to /g/{guild_id} next (P5b)"
+        "intake setup's routing helper: the platform owner's Intake page, into the operations community"
     ),
     (f"{_SERVICES}/provider_placement.py", "_initiatives_in"): (
         "reads one community's initiatives and roles for a provider placement rule"
@@ -173,27 +173,27 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/users.py", "hard_delete_user"): (
         "account erasure: every community the account's content may be in"
     ),
-    # --- Intake (moves to /g/{guild_id} next, P5b) ---------------------------
+    # --- Intake: the platform owner's setting, in the operations community ---
     (f"{_SERVICES}/intake.py", "stream_is_bound"): (
-        "intake: the operations community; moves to /g/{guild_id} next (P5b)"
+        "intake: opens a case in the operations community on the deployment's behalf"
     ),
     (f"{_SERVICES}/intake.py", "open_case"): (
-        "intake: the operations community; moves to /g/{guild_id} next (P5b)"
+        "intake: opens a case in the operations community on the deployment's behalf"
     ),
     (f"{_SERVICES}/intake_setup.py", "bind"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
+        "intake setup: the platform owner's Intake page (config.manage)"
     ),
     (f"{_SERVICES}/intake_setup.py", "unbind"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
+        "intake setup: the platform owner's Intake page (config.manage)"
     ),
     (f"{_SERVICES}/intake_setup.py", "list_bindings"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
+        "intake setup: the platform owner's Intake page (config.manage)"
     ),
     (f"{_SERVICES}/intake_setup.py", "list_options"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
+        "intake setup: the platform owner's Intake page (config.manage)"
     ),
     (f"{_SERVICES}/intake_setup.py", "provision_from_blueprint"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
+        "intake setup: the platform owner's Intake page (config.manage)"
     ),
     # --- Provider placement rules: one placeable community at a time ------
     (f"{_ENDPOINTS}/provider_placement.py", "list_placement_targets"): (

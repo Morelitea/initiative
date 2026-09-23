@@ -443,15 +443,10 @@ async def fetch_spaces(
     if not space_keys:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
 
-    report = ConfluenceFetchReport()
+    gathered = Gathered()
+    report = gathered.report
     remaining = settings.IMPORT_MAX_ROWS if max_rows is None else max_rows
-    envelopes: list[tuple[str, dict[str, Any]]] = []
-    people: Counter[str] = Counter()
-    labels: set[str] = set()
-    images: list[StoredImage] = []
-    files: dict[str, list[confluence_attachments.PageFile]] = {}
-    downloads = confluence_attachments.AttachmentReport()
-    unshown_blocked = 0
+    downloads = gathered.downloads
     max_bytes = max(0, settings.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES)
 
     for key in space_keys:
@@ -518,40 +513,79 @@ async def fetch_spaces(
                 documents=documents,
                 comments=comments,
             )
-            envelopes.append((key, mapped.envelope))
-            images.extend(mapped.uploads)
-            if mapped.documents:
-                files[key] = mapped.documents
-            people.update(mapped.people)
-            report.spaces += 1
-            report.pages += mapped.pages
-            report.containers += mapped.containers
-            report.dropped.update(mapped.dropped)
-            report.pages_over_limit += mapped.over_limit
-            if asset_budget is None:
-                report.attachments += sum(len(a) for a in mapped.attachments.values())
-            report.images += len(mapped.uploads)
-            report.files += len(mapped.documents)
-            report.attachment_bytes += sum(
-                len(blob.data)
-                for blob in (*mapped.uploads, *(f.stored for f in mapped.documents))
-            )
-            unshown_blocked += mapped.documents_blocked
-            for entry in mapped.envelope["pages"]:
-                labels.update(tag.casefold() for tag in entry["tags"])
-            report.labels = len(labels)
-            report.comments += mapped.comments
+            gathered.add(key, mapped, counted_references=asset_budget is None)
             remaining -= mapped.pages + mapped.comments + 1
-        report.attachments_skipped = (
-            downloads.oversize + downloads.unreadable + downloads.refused
-        )
-        report.files_blocked = downloads.blocked + unshown_blocked
+        gathered.settle()
         if progress is not None:
             await progress(report)
 
-    if not envelopes:
+    if not gathered.envelopes:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
 
-    return ConfluenceFetched(
-        envelopes=envelopes, people=people, report=report, images=images, files=files
-    )
+    return gathered.fetched()
+
+
+class Gathered:
+    """What mapping each space produced, and the running report — kept the
+    same way whether the spaces were read from a site or from an export."""
+
+    def __init__(self) -> None:
+        self.report = ConfluenceFetchReport()
+        self.downloads = confluence_attachments.AttachmentReport()
+        self.envelopes: list[tuple[str, dict[str, Any]]] = []
+        self.people: Counter[str] = Counter()
+        self.images: list[StoredImage] = []
+        self.files: dict[str, list[confluence_attachments.PageFile]] = {}
+        self._labels: set[str] = set()
+        self._unshown_blocked = 0
+
+    def add(
+        self,
+        key: str,
+        mapped: confluence_mapping.MappedSpace,
+        *,
+        counted_references: bool,
+    ) -> None:
+        """Take one mapped space. ``counted_references`` counts the files its
+        pages name as left behind, for a read that brought no attachments."""
+        report = self.report
+        self.envelopes.append((key, mapped.envelope))
+        self.images.extend(mapped.uploads)
+        if mapped.documents:
+            self.files[key] = mapped.documents
+        self.people.update(mapped.people)
+        report.spaces += 1
+        report.pages += mapped.pages
+        report.containers += mapped.containers
+        report.dropped.update(mapped.dropped)
+        report.pages_over_limit += mapped.over_limit
+        if counted_references:
+            report.attachments += sum(len(a) for a in mapped.attachments.values())
+        report.images += len(mapped.uploads)
+        report.files += len(mapped.documents)
+        report.attachment_bytes += sum(
+            len(blob.data)
+            for blob in (*mapped.uploads, *(f.stored for f in mapped.documents))
+        )
+        self._unshown_blocked += mapped.documents_blocked
+        for entry in mapped.envelope["pages"]:
+            self._labels.update(tag.casefold() for tag in entry["tags"])
+        report.labels = len(self._labels)
+        report.comments += mapped.comments
+
+    def settle(self) -> None:
+        """Bring the download counts into the report."""
+        downloads = self.downloads
+        self.report.attachments_skipped = (
+            downloads.oversize + downloads.unreadable + downloads.refused
+        )
+        self.report.files_blocked = downloads.blocked + self._unshown_blocked
+
+    def fetched(self) -> ConfluenceFetched:
+        return ConfluenceFetched(
+            envelopes=self.envelopes,
+            people=self.people,
+            report=self.report,
+            images=self.images,
+            files=self.files,
+        )
