@@ -7,15 +7,15 @@ the retention clock.
 
 No new columns. ``status_changed_at`` already records when the hold began.
 
-Revision ID: 20260923_0359
-Revises: 20260923_0358
+Revision ID: 20260923_0360
+Revises: 20260923_0359
 Create Date: 2026-09-23
 """
 
 from alembic import op
 
-revision = "20260923_0359"
-down_revision = "20260923_0358"
+revision = "20260923_0360"
+down_revision = "20260923_0359"
 branch_labels = None
 depends_on = None
 
