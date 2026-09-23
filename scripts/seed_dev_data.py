@@ -1039,9 +1039,7 @@ async def _create_operations_guild(
         session, ids, guild, [operator, *members], admin_users=[operator]
     )
     await session.commit()
-    await set_rls_context(
-        session, user_id=owner.id, guild_id=guild.id, guild_role="admin"
-    )
+    await set_rls_context(session, guild_id=guild.id)
 
     initiative, _, _ = await _create_initiative(
         session,
@@ -1383,9 +1381,7 @@ async def _create_community_guild(
     _expunge_guild_scoped(session)
     await provision_guild(guild_id)
     await _add_guild_members(session, ids, guild, members)
-    await set_rls_context(
-        session, user_id=admin.id, guild_id=guild_id, guild_role="admin"
-    )
+    await set_rls_context(session, guild_id=guild_id)
     initiative, _pm_role, _member_role = await _create_initiative(
         session,
         ids,
@@ -1470,9 +1466,7 @@ async def _apply_deferred_archives(session: AsyncSession, admin: User) -> None:
         by_guild.setdefault(guild_id, []).append((project_id, when))
 
     for guild_id, rows in by_guild.items():
-        await set_rls_context(
-            session, user_id=admin.id, guild_id=guild_id, guild_role="admin"
-        )
+        await set_rls_context(session, guild_id=guild_id)
         for project_id, when in rows:
             # Stated as a statement rather than through the ORM: project ids
             # start again in every community's schema, so the identity map would
@@ -3656,9 +3650,7 @@ async def seed() -> None:
         # Route into the primary community's schema (search_path + SET ROLE) so all
         # of its community-scoped data — initiatives, projects, tasks, ... — is
         # created there, not in public.
-        await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin"
-        )
+        await set_rls_context(session, guild_id=g1_id)
 
         # Look up the primary community's "Default Initiative", creating it if it
         # doesn't exist (same approach as the community 2/3 sections below).
@@ -6924,9 +6916,7 @@ async def seed() -> None:
         )
 
         # Route into the community before creating its content.
-        await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g2_id, guild_role="admin"
-        )
+        await set_rls_context(session, guild_id=g2_id)
 
         # Default initiative for g2
         g2_default_init = await seed_initiative(session, admin_user, guild_id=g2_id)
@@ -8936,9 +8926,7 @@ async def seed() -> None:
             admin_users=[admin4],
         )
 
-        await set_rls_context(
-            session, user_id=admin3.id, guild_id=g3_id, guild_role="admin"
-        )
+        await set_rls_context(session, guild_id=g3_id)
 
         # Default initiative (admin3, the community creator, becomes its PM)
         g3_default_init = await seed_initiative(session, admin3, guild_id=g3_id)

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Initiative Import Test : Macros Gallery</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Initiative Import Test</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="Initiative-Import-Test-Home_26116204.html">Initiative Import Test Home</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="Edge-Cases_26181650.html">Edge Cases</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Initiative Import Test : Macros Gallery
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                            
+        
+    
+        
+    
+        
+        
+            Created by <span class='author'> Jordan Janzen</span> on Sep 22, 2026
+                        </div>
+                    <div id="main-content" class="wiki-content group">
+                    <p>Native macros an importer has to either translate, flatten or drop. Each is preceded by a line naming it so a dropped macro is easy to spot.</p><h2 id="MacrosGallery-Excerpt(bodied)">Excerpt (bodied)</h2>This text lives inside an excerpt macro.<h2 id="MacrosGallery-Pageproperties(bodied)">Page properties (bodied)</h2><div class='plugin-tabmeta-details'><div class="table-wrap"><table data-layout="default" class="confluenceTable"><tbody><tr><th class="confluenceTh"><p>Owner</p></th><td class="confluenceTd"><p>Platform</p></td></tr><tr><th class="confluenceTh"><p>Stage</p></th><td class="confluenceTd"><p><span class="status-macro aui-lozenge aui-lozenge-visual-refresh aui-lozenge-progress">DRAFT</span></p></td></tr></tbody></table></div></div><h2 id="MacrosGallery-Includepage">Include page</h2><p>Child of <a href="https://morels.atlassian.net/wiki/spaces/IMPTEST/pages/26247169/Architecture+Overview" data-linked-resource-id="26247169" data-linked-resource-version="1" data-linked-resource-type="page">Architecture Overview</a>. One schema per tenant, shared identity tables in <code>public</code>.</p><h2 id="MacrosGallery-Tables">Tables</h2><div class="table-wrap"><table data-layout="default" data-table-display-mode="fixed" class="confluenceTable"><colgroup><col style="width: 160.0px;"/><col style="width: 320.0px;"/><col style="width: 120.0px;"/></colgroup><tbody><tr><th class="confluenceTh"><p>Table</p></th><th class="confluenceTh"><p>Purpose</p></th><th class="confluenceTh"><p>Rows</p></th></tr><tr><td class="confluenceTd"><p><code>users</code></p></td><td class="confluenceTd"><p>Identity</p></td><td class="confluenceTd"><p>12,450</p></td></tr><tr><td class="confluenceTd"><p><code>projects</code></p></td><td class="confluenceTd"><p>Per-tenant work containers</p><ul><li><p>A list inside a cell</p></li></ul></td><td class="confluenceTd"><p>830</p></td></tr></tbody></table></div><h2 id="MacrosGallery-Schema">Schema</h2><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="syntaxhighlighter-pre" data-syntaxhighlighter-params="brush: sql; gutter: false; theme: Confluence" data-theme="Confluence">CREATE TABLE projects (
+    id          serial PRIMARY KEY,
+    name        text NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);</pre>
+</div></div><h2 id="MacrosGallery-Indexes">Indexes</h2><p>Added in version 2 of this page; version 3 is a minor edit to the users row count.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="syntaxhighlighter-pre" data-syntaxhighlighter-params="brush: sql; gutter: false; theme: Confluence" data-theme="Confluence">CREATE INDEX projects_name_idx ON projects (lower(name));</pre>
+</div></div><h2 id="MacrosGallery-Attachmentslist">Attachments list</h2>
+
+    
+    
+
+<div class="plugin_attachments_container">
+    <div class="plugin_attachments_table_container">
+        <fieldset class="hidden">
+            <input type="hidden" class="plugin_attachments_macro_render_param" name="pageId" value="26509330">
+            <input type="hidden" class="plugin_attachments_macro_render_param" name="pageSize" value="500">
+            <input type="hidden" class="plugin_attachments_macro_render_param" name="totalPages" value="1">
+            <input type="hidden" name="deleteConfirmMessage" value="Are you sure you want to send the attached file "{0}" to the trash? Only a space administrator can undo this action."/>
+                                                    <input type="hidden" name="outputType" value="html_export">
+        </fieldset>
+                
+
+
+
+
+
+
+    
+
+
+<table class="attachments aui"
+    data-sort-by="date"
+    data-sort-order=""
+    data-tablesorter-headers='{"0": {"sorter": false}}'>
+        <tr class="header-row">
+        <th class="expand-column attachment-summary-toggle">&nbsp;</th>
+        <th class="filename-column">
+            File
+        </th>
+        <th class="modified-column">
+            Modified
+        </th>
+    </tr>
+
+        
+    <tbody>
+            </tbody>
+</table>
+
+
+    </div>
+    <div class="plugin_attachments_upload_container">
+                                <div class="attachments-table-drop-zone">
+                                    <div class="drop-zone-empty-text">
+                        No files shared here yet.
+                    </div>
+                                <li class="drop-zone-text">
+                    <div class="drop-zone-image"></div>
+                    <span>Drag and drop to upload or <a class="aui-button aui-button-link browse-files">browse for files</a></span>
+                    <img src="/wiki/images/icons/wait.gif" class='plugin_attachments_dropzone_uploadwaiticon'/>
+                </li>
+                <form method="POST" class="plugin_attachments_uploadform aui hidden" action="/wiki/pages/plugins/attachments/doattachfile.action?pageId=26509330" enctype="multipart/form-data">
+                    <input type="hidden" name="atl_token" value="${xsrfTokenGenerator.generateToken($request)}">
+                    <div class="field-group">
+                        <label>Upload file</label>
+                        <input type="file" name="file_0" size="30">
+                    </div>
+                    <div class="field-group">
+                        <label>File description</label>
+                        <input type="text" class="blank-search text" name="comment_0" size="20" placeholder="Comment" >
+                        <input type="hidden" name="labels" value="$macroParams.labels"/>
+                    </div>
+                    <div class="field-group">
+                        <input type="submit" class="submit aui-button" name="confirm" value="Upload">
+                    </div>
+                    <iframe class="plugin_attachments_uploadiframe hidden" name="yQrcnMATD6akqrCPQTEOeBGkhb6UMgUP8elrge6uy9twXHH8cjxY03XoAqNLWNlb" src=""></iframe>
+                </form>
+            </div>
+            </div>
+
+    <div>
+            </div>
+</div>
+
+<h2 id="MacrosGallery-Anchor(inline)">Anchor (inline)</h2><p>Target here: <span class="confluence-anchor-link" id="MacrosGallery-my-anchor"><span class="confluence-anchor-link" id="my-anchor"></span></span></p><h2 id="MacrosGallery-Tabs">Tabs</h2><p>Native extension</p><h2 id="MacrosGallery-Mermaidcodeblock">Mermaid code block</h2><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="syntaxhighlighter-pre" data-syntaxhighlighter-params="brush: java; gutter: false; theme: Confluence" data-theme="Confluence">flowchart LR
+  Confluence--&gt;Importer--&gt;Wiki</pre>
+</div></div><h2 id="MacrosGallery-Embeddedvideo">Embedded video</h2><a class="external-link" data-card-appearance="embed" data-layout="center" href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" rel="nofollow">https://www.youtube.com/watch?v=dQw4w9WgXcQ</a><h2 id="MacrosGallery-Externalimage">External image</h2><span class="confluence-embedded-file-wrapper image-center-wrapper"><img class="confluence-embedded-image confluence-external-resource image-center" alt="PostgreSQL elephant" src="https://www.postgresql.org/media/img/about/press/elephant.png" data-image-src="https://www.postgresql.org/media/img/about/press/elephant.png" loading="lazy"></span>
+                    </div>
+
+                    
+                                                      
+                </div>             </div> 
+            <div id="footer" role="contentinfo">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on Sep 23, 2026 14:50</p>
+                    <div id="footer-logo"><a href="http://www.atlassian.com/">Atlassian</a></div>
+                </section>
+            </div>
+        </div>     </body>
+</html>

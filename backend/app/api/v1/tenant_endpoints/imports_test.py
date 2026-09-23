@@ -4283,6 +4283,96 @@ async def test_a_confluence_pages_comments_arrive_on_its_wiki_page(
     assert inline.content == "> Welcom\n\nTypo"
 
 
+async def _upload_export(client, actor, zip_bytes, *, initiative_id, **form):
+    return await client.post(
+        actor.g("/imports/atlassian/export"),
+        headers=actor.headers,
+        data={"initiative_id": str(initiative_id), **form},
+        files={"file": ("export.zip", zip_bytes, "application/zip")},
+    )
+
+
+async def test_a_confluence_html_export_becomes_a_wiki(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Upload the zip Confluence's space export writes: the worker converts
+    it, the review shows it like a fetched space, and confirming files the
+    wiki, its tree and its files into the chosen initiative — no site, no
+    token."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine.confluence_export_test import export_bytes
+    from app.services.tenant.wikis import document_parent
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    resp = await _upload_export(
+        client, a, export_bytes(), initiative_id=a.initiative.id
+    )
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["spaces"], summary["pages"]) == (1, 4)
+    assert (summary["page_images"], summary["page_files"]) == (1, 1)
+    assert {p["handle"] for p in staged["plan"]["people"]} == {"Robin Ade", "Sam Bee"}
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin Ade": b.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Team Docs"))).one()
+    assert wiki.initiative_id == a.initiative.id
+    pages = {
+        p.title: p
+        for p in (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+        ).all()
+    }
+    assert wiki.home_page_id == pages["Home"].id
+    assert pages["Guide"].parent_page_id == pages["Home"].id
+    assert pages["Home"].created_by == b.user.id
+    document = (
+        await session.exec(
+            select(Document).where(Document.document_type == DocumentType.file)
+        )
+    ).one()
+    assert document.original_filename == "spec.pdf"
+    assert document_parent(wiki, document.id) == pages["Home"].id
+
+
+async def test_an_upload_that_is_not_an_export_is_refused_up_front(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    not_zip = await _upload_export(
+        client, a, b"not a zip", initiative_id=a.initiative.id
+    )
+    assert not_zip.status_code == 400
+    assert not_zip.json()["detail"] == "IMPORT_ZIP_INVALID"
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("notes.txt", "hello")
+    no_pages = await _upload_export(
+        client, a, buffer.getvalue(), initiative_id=a.initiative.id
+    )
+    assert no_pages.status_code == 400
+    assert no_pages.json()["detail"] == "IMPORT_ZIP_INVALID"
+
+
 async def test_starting_a_confluence_import_refuses_what_it_can_up_front(
     client, acting_user
 ):

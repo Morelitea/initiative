@@ -24,6 +24,7 @@ import type {
   AtlassianConnectRequest,
   AtlassianConnectResponse,
   AtlassianImportRequest,
+  BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost,
   BodyUploadBackupApiV1GGuildIdImportsBackupPost,
   ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
   EnvelopeImportRequest,
@@ -627,6 +628,143 @@ export const useStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPost = <
 > => {
   return useMutation(
     getStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Start reading a Confluence space's HTML export into an initiative.
+ *
+ * The zip Confluence's "Export space → HTML" writes, for a site this server
+ * cannot reach or somebody would rather not hand a token to. It is staged
+ * and the job comes back ``queued``; the worker converts it the way it reads
+ * a site, and parks it at ``staged`` with the same plan for
+ * ``POST /imports/jobs/{id}/confirm``. The initiative needs wikis switched on
+ * and the caller able to create one there.
+ * @summary Start Confluence Export Import
+ */
+export const startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost = (
+  guildId: number,
+  bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost: BodyType<BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(
+    `file`,
+    bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost.file
+  );
+  formData.append(
+    `initiative_id`,
+    bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost.initiative_id.toString()
+  );
+  if (
+    bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost.include_attachments !==
+    undefined
+  ) {
+    formData.append(
+      `include_attachments`,
+      bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost.include_attachments.toString()
+    );
+  }
+
+  return apiMutator<ImportJobRead>(
+    {
+      url: `/api/v1/g/${guildId}/imports/atlassian/export`,
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationKey =
+  () => ["startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost"] as const;
+
+export const getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>
+      >,
+      TError,
+      StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>>,
+    TError,
+    StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>
+      >,
+      StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables
+    > = (props) => {
+      const { guildId, data } = props ?? {};
+
+      return startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost(
+        guildId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>>
+  >;
+export type StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationBody =
+  BodyType<BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>;
+export type StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables = {
+  guildId: number;
+  data: BodyType<BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>;
+};
+
+/**
+ * @summary Start Confluence Export Import
+ */
+export const useStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>
+      >,
+      TError,
+      StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>>,
+  TError,
+  StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationOptions(options),
     queryClient
   );
 };
