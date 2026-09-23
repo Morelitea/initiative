@@ -19,6 +19,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
+from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine.contract import ImportEngineError
 
@@ -34,6 +35,36 @@ IMAGE_TYPES: dict[str, str] = {
     "image/gif": ".gif",
     "image/webp": ".webp",
 }
+
+
+#: Held back from the bundle's byte and member bounds for the manifest and
+#: the envelopes, so attachments cannot crowd them out.
+_BUNDLE_RESERVE_BYTES = 64 * 1024 * 1024
+_BUNDLE_RESERVE_FILES = 500
+
+
+@dataclass
+class AssetBudget:
+    """What the bundle can still hold, shared by everything one import reads.
+
+    Kept under the bounds the restore checks when it opens the zip — its
+    uncompressed size and its member count — with room left for the
+    manifest and the envelopes, so a bundle the fetch wrote is never one the
+    apply refuses whole.
+    """
+
+    bytes_left: int
+    files_left: int
+
+
+def bundle_budget() -> AssetBudget:
+    """A whole bundle's worth, before anything has been spent."""
+    return AssetBudget(
+        bytes_left=max(
+            0, settings.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES - _BUNDLE_RESERVE_BYTES
+        ),
+        files_left=max(0, settings.IMPORT_MAX_ZIP_MEMBERS - _BUNDLE_RESERVE_FILES),
+    )
 
 
 @dataclass(frozen=True)

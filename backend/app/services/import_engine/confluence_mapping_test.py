@@ -6,6 +6,8 @@ import pytest
 
 from app.schemas.tenant.import_envelopes import WikiEnvelope
 from app.services.import_engine import confluence_mapping as cm
+from app.services.import_engine.confluence_attachments import PageMedia
+from app.services.import_engine.jira_attachments import StoredImage
 
 pytestmark = pytest.mark.unit
 
@@ -268,3 +270,66 @@ def test_labels_are_read_once_each():
         {"results": [{"name": "a"}, {"name": "b"}, {"name": "a"}, {"x": 1}]}
     ) == ("a", "b")
     assert cm.page_labels("nope") == ()
+
+
+def stored(name, content_type="application/pdf"):
+    return StoredImage(
+        filename=name,
+        storage_key=f"key-{name}",
+        content_type=content_type,
+        data=b"12345",
+    )
+
+
+def media_of(*files, images=()):
+    media = PageMedia()
+    for name in files:
+        media.files[name] = stored(name)
+    for name in images:
+        media.stored_images[name] = stored(name, "image/png")
+        media.images[name] = f"/uploads/1/key-{name}"
+    return media
+
+
+def test_a_page_shows_its_pictures_and_mentions_its_files():
+    mapped = build(
+        [
+            page(
+                1,
+                "Home",
+                body=(
+                    '<p><ac:image><ri:attachment ri:filename="chart.png"/></ac:image>'
+                    '<ac:link><ri:attachment ri:filename="spec.pdf"/></ac:link></p>'
+                ),
+            )
+        ],
+        media={"1": media_of("spec.pdf", images=("chart.png", "hidden.png"))},
+    )
+    (paragraph,) = by_title(mapped)["Home"]["content"]["root"]["children"]
+    image, mention = paragraph["children"]
+    assert image["src"] == "/uploads/1/key-chart.png"
+    assert mention["importRef"] == "entry:assets/key-spec.pdf"
+    assert [s.filename for s in mapped.uploads] == ["chart.png"]
+    # The picture the page never shows comes over as a document with the file.
+    assert [s.filename for s in mapped.documents] == ["spec.pdf", "hidden.png"]
+
+
+def test_without_documents_a_picture_nobody_shows_is_counted():
+    mapped = build(
+        [page(1, "Home", body="<p>nothing shown</p>")],
+        media={"1": media_of(images=("hidden.png",))},
+        documents=False,
+    )
+    assert mapped.documents == [] and mapped.uploads == []
+    assert mapped.documents_blocked == 1
+
+
+def test_a_page_left_out_for_size_leaves_its_attachments_too():
+    big = "<p>" + "x" * 5000 + "</p>"
+    mapped = build(
+        [page(1, "One", body=big), page(2, "Two", body=big)],
+        media={"2": media_of("spec.pdf")},
+        max_bytes=8000,
+    )
+    assert mapped.over_limit == 1
+    assert mapped.documents == []

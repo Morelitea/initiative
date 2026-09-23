@@ -216,6 +216,16 @@ class WikiImporter:
                 if endpoint is not None and endpoint.kind == SearchEntityType.task:
                     jira_tasks[key] = endpoint.id
         jira_tasks.update(await _tasks_by_jira_key(session, wanted - jira_tasks.keys()))
+        # A file the pages link to was written earlier in this job, as a
+        # document of its own.
+        documents: dict[str, int] = {}
+        if context is not None:
+            for ref in {
+                r for page in env.pages for r in _marks(page.content, "importRef")
+            }:
+                endpoint = context.links.lookup(ref)
+                if endpoint is not None and endpoint.kind == SearchEntityType.document:
+                    documents[ref] = endpoint.id
         by_original = {page.slug.strip(): slug for page, slug in zip(env.pages, slugs)}
         for page_env, row in zip(env.pages, rows):
             mentioned = {
@@ -237,6 +247,7 @@ class WikiImporter:
                 },
                 mentioned=mentioned,
                 jira_tasks=jira_tasks,
+                documents=documents,
             )
             if linked is not None:
                 row.content = linked
@@ -270,21 +281,26 @@ def _text_node(text: str) -> dict[str, Any]:
     }
 
 
-def _jira_keys(content: Any) -> set[str]:
-    """The Jira issue keys a page's content waits to have placed."""
-    keys: set[str] = set()
+def _marks(content: Any, name: str) -> set[str]:
+    """Every value of one import placeholder a page's content carries."""
+    found: set[str] = set()
 
     def walk(node: Any) -> None:
         if not isinstance(node, dict):
             return
-        key = node.get("importJiraKey")
-        if isinstance(key, str) and key:
-            keys.add(key)
+        value = node.get(name)
+        if isinstance(value, str) and value:
+            found.add(value)
         for child in node.get("children") or []:
             walk(child)
 
     walk(content.get("root") if isinstance(content, dict) else None)
-    return keys
+    return found
+
+
+def _jira_keys(content: Any) -> set[str]:
+    """The Jira issue keys a page's content waits to have placed."""
+    return _marks(content, "importJiraKey")
 
 
 async def _tasks_by_jira_key(session: AsyncSession, keys: set[str]) -> dict[str, int]:
@@ -339,6 +355,7 @@ def _place_references(
     page_ids: dict[str, int],
     mentioned: dict[str, int],
     jira_tasks: dict[str, int] | None = None,
+    documents: dict[str, int] | None = None,
 ) -> dict[str, Any] | None:
     """``content`` with its import references resolved, or ``None`` if it
     had none.
@@ -353,10 +370,14 @@ def _place_references(
     chip take the task's id, and a link to the issue becomes a mention of the
     task. When it did not, the mention is a link back to Jira again, the chip
     is left out, and a link stays the link it was.
+
+    A document mention carrying an ``importRef`` points at the document that
+    file became in this job, and is the file's name again if it did not.
     """
     if not isinstance(content, dict):
         return None
     tasks = jira_tasks or {}
+    files = documents or {}
     changed = False
 
     def walk(node: Any) -> Any:
@@ -373,6 +394,15 @@ def _place_references(
                 return _text_node(text)
             placed = {k: v for k, v in node.items() if k != "importSlug"}
             placed["entityId"] = target
+            return placed
+        if node_type == "entity-mention" and "importRef" in node:
+            changed = True
+            ref = node.get("importRef")
+            document_id = files.get(ref) if isinstance(ref, str) else None
+            if document_id is None:
+                return _text_node(str(node.get("text") or ""))
+            placed = {k: v for k, v in node.items() if k != "importRef"}
+            placed["entityId"] = document_id
             return placed
         jira_key = node.get("importJiraKey")
         if isinstance(jira_key, str):

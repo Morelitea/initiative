@@ -165,7 +165,7 @@ describe("AtlassianChooseStep", () => {
 
     await userEvent.click(screen.getByLabelText(/Operations/));
     await userEvent.click(screen.getByLabelText(/Team Docs/));
-    await userEvent.click(screen.getByLabelText(/bring images/i));
+    await userEvent.click(screen.getByLabelText(/bring attachments/i));
     // With projects ticked, only the initiative that takes projects is left,
     // so it is the one chosen.
     await userEvent.click(start);
@@ -188,6 +188,9 @@ describe("AtlassianChooseStep", () => {
       <AtlassianChooseStep connection={CONNECTION} initiatives={TARGETS} onStarted={vi.fn()} />
     );
     await userEvent.click(screen.getByLabelText(/Team Docs/));
+    // Comments are an issue's; attachments are a page's too.
+    expect(screen.getByLabelText(/bring comments/i)).toBeDisabled();
+    expect(screen.getByLabelText(/bring attachments/i)).toBeEnabled();
     await userEvent.click(screen.getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "Docs only" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Engineering" })).toBeInTheDocument();
@@ -344,6 +347,32 @@ describe("AtlassianReviewSummary", () => {
     expect(screen.getByText(/9 tasks from 1 project/i)).toBeInTheDocument();
     expect(screen.getByText(/12 pages from 1 spaces/i)).toBeInTheDocument();
     expect(screen.getByText(/3 links between issues and pages, joined up/i)).toBeInTheDocument();
+  });
+
+  it("says what a space's attachments become, and which stay behind", () => {
+    renderWithProviders(
+      <AtlassianReviewSummary
+        job={job({
+          status: "staged",
+          plan: {
+            atlassian: {
+              spaces: 1,
+              pages: 2,
+              page_images: 2,
+              page_files: 1,
+              page_attachment_bytes: 2048,
+              page_attachments_skipped: 1,
+              page_files_blocked: 2,
+            },
+          },
+        })}
+        excluded={new Set()}
+        onExcludedChange={() => {}}
+      />
+    );
+    expect(screen.getByText(/3 attachments \(2(\.0)? KB\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 attachment that's too large/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 files, because this initiative has documents/i)).toBeInTheDocument();
   });
 
   it("leaves out a product nothing was asked of", () => {

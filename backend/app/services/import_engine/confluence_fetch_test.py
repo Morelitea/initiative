@@ -13,6 +13,7 @@ import pytest
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import atlassian, confluence_fetch
 from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine.jira_attachments import bundle_budget
 
 pytestmark = pytest.mark.unit
 
@@ -55,6 +56,8 @@ def _site(
     users=None,
     locked=(),
     throttled=False,
+    attachments=None,
+    files=None,
 ):
     """A Confluence site. ``batches`` pages the listing: a list of page lists,
     each followed by a ``next`` link but the last."""
@@ -63,9 +66,11 @@ def _site(
     labels = labels or {}
     names: dict[str, str] = users if users is not None else {"acc-1": "Robin Ade"}
     batches = batches if batches is not None else [pages or []]
+    attachments = attachments or {}
+    files = files or {}
 
     async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
-        calls.append({"method": method, "url": url, "json": json})
+        calls.append({"method": method, "url": url, "json": json, "headers": headers})
         if throttled:
             return httpx.Response(429, json={})
         if "/wiki/api/v2/spaces?keys=" in url:
@@ -94,6 +99,20 @@ def _site(
                     + f"&cursor={index + 1}"
                 }
             return httpx.Response(200, json=body)
+        if "/attachments?" in url:
+            page_id = url.split("/pages/")[1].split("/")[0]
+            return httpx.Response(200, json={"results": attachments.get(page_id, [])})
+        if "/child/attachment/" in url:
+            # The site hands a download on to the media host.
+            att_id = url.split("/child/attachment/")[1].split("/")[0]
+            return httpx.Response(
+                302, headers={"location": f"https://media.example.com/{att_id}"}
+            )
+        if url.startswith("https://media.example.com/"):
+            att_id = url.rsplit("/", 1)[1]
+            if att_id in files:
+                return httpx.Response(200, content=files[att_id])
+            return httpx.Response(404)
         if "/labels" in url:
             page_id = url.split("/pages/")[1].split("/")[0]
             return httpx.Response(
@@ -278,6 +297,91 @@ async def test_progress_hears_each_space_and_can_stop_the_walk(monkeypatch):
     with pytest.raises(Stop):
         await _bundle(space_keys=["DOCS", "MORE"], progress=progress)
     assert heard == [1]
+
+
+async def test_a_pages_attachments_come_as_uploads_and_documents_in_its_wiki(
+    monkeypatch,
+):
+    calls = _site(
+        monkeypatch,
+        pages=[
+            _page(
+                1,
+                "Home",
+                body=(
+                    '<p><ac:image><ri:attachment ri:filename="chart.png"/></ac:image>'
+                    '<ac:link><ri:attachment ri:filename="spec.pdf"/></ac:link></p>'
+                ),
+            )
+        ],
+        attachments={
+            "1": [
+                {
+                    "id": "att1",
+                    "title": "chart.png",
+                    "mediaType": "image/png",
+                    "fileSize": 4,
+                },
+                {
+                    "id": "att2",
+                    "title": "spec.pdf",
+                    "mediaType": "application/pdf",
+                    "fileSize": 4,
+                },
+                {"id": "att3", "title": "gone.pdf", "mediaType": "application/pdf"},
+            ]
+        },
+        files={"att1": b"\x89PNG", "att2": b"%PDF"},
+    )
+    bundle, report = await _bundle(asset_budget=bundle_budget())
+    with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+    wiki_entry, file_entry = manifest["entries"]
+    pdf_key = file_entry["asset"].removeprefix("assets/")
+    assert file_entry["type"] == "file" and file_entry["tool"] == "document"
+    assert (
+        file_entry["title"] == "spec.pdf" and file_entry["path"] == file_entry["asset"]
+    )
+    assert file_entry["attach_to"] == {"kind": "wiki", "ref": wiki_entry["path"]}
+    assert manifest["initiatives"][0]["tools"] == {
+        "wiki": "included",
+        "document": "included",
+    }
+    assert {a["original_filename"] for a in manifest["assets"]} == {
+        "chart.png",
+        "spec.pdf",
+    }
+
+    with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
+        wiki = json.loads(archive.read(wiki_entry["path"]))
+        assert archive.read(file_entry["asset"]) == b"%PDF"
+    (paragraph,) = wiki["pages"][0]["content"]["root"]["children"]
+    image, mention = paragraph["children"]
+    assert image["src"].startswith("/uploads/1/") and image["src"].endswith(".png")
+    assert mention["importRef"] == f"entry:assets/{pdf_key}"
+
+    assert (report.images, report.files, report.attachment_bytes) == (1, 1, 8)
+    assert report.attachments_skipped == 1 and report.attachments == 0
+    # The download went on to the media host without the site's token.
+    hop = next(c for c in calls if c["url"].startswith("https://media.example.com/"))
+    assert "Authorization" not in (hop["headers"] or {})
+
+
+async def test_without_a_budget_no_attachment_is_asked_for(monkeypatch):
+    calls = _site(
+        monkeypatch,
+        pages=[
+            _page(
+                1,
+                "Home",
+                body='<p><ac:link><ri:attachment ri:filename="spec.pdf"/></ac:link></p>',
+            )
+        ],
+    )
+    _bundle_bytes, report = await _bundle()
+    assert not [c for c in calls if "attachment" in c["url"]]
+    # The file the page links to is named as staying behind.
+    assert report.attachments == 1
 
 
 def test_a_next_link_that_is_not_the_listing_is_not_followed():

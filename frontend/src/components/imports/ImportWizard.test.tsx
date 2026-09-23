@@ -254,7 +254,7 @@ describe("ImportWizard", () => {
     );
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
     await waitFor(() => expect(screen.getByText(/12 pages from 1 spaces/i)).toBeInTheDocument());
-    expect(screen.getByText(/3 attached files don't come over yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 attached files stay behind/i)).toBeInTheDocument();
     expect(screen.getByText(/left out: toc ×2/i)).toBeInTheDocument();
     // No properties to untick: a wiki carries none.
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();

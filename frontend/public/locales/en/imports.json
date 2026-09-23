@@ -126,7 +126,7 @@
         "issues_one": "{{count}} issue",
         "issues_other": "{{count}} issues",
         "includeComments": "Bring comments",
-        "includeAttachments": "Bring images",
+        "includeAttachments": "Bring attachments",
         "note": "Each project arrives as a new project and each space as a new wiki in this initiative, with links between them joined up. Nothing is written until you've reviewed what we found.",
         "submit": "Start reading",
         "failed": "We couldn't start reading those.",
@@ -196,8 +196,14 @@
         "unreadableSpaces": "Couldn't read: {{keys}}",
         "overLimit_one": "{{count}} page would make the wiki too large to import in one go",
         "overLimit_other": "{{count}} pages would make the wiki too large to import in one go",
-        "attachments_one": "{{count}} attached file doesn't come over yet",
-        "attachments_other": "{{count}} attached files don't come over yet",
+        "attachments_one": "{{count}} attached file stays behind, because attachments were switched off",
+        "attachments_other": "{{count}} attached files stay behind, because attachments were switched off",
+        "attachmentsArriving_one": "{{count}} attachment ({{size}}): pictures where the pages show them, files as documents in the wiki",
+        "attachmentsArriving_other": "{{count}} attachments ({{size}}): pictures where the pages show them, files as documents in the wiki",
+        "attachmentsSkipped_one": "{{count}} attachment that's too large or couldn't be read",
+        "attachmentsSkipped_other": "{{count}} attachments that are too large or couldn't be read",
+        "filesBlocked_one": "{{count}} file, because this initiative has documents switched off",
+        "filesBlocked_other": "{{count}} files, because this initiative has documents switched off",
         "dropped": "Left out: {{items}}"
       }
     }
