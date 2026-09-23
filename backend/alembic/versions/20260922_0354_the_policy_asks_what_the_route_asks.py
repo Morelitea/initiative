@@ -34,20 +34,28 @@ depends_on = None
 FLOORS = ("app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base")
 READ_FLOOR = "app_guild_base_ro"
 
+#: The read half of ``app_guild_base``, which holds SELECT where the writable
+#: floor holds it and nothing where it does not.
+READ_FLOOR = "app_guild_base_ro"
+
+
+def _on_role(role: str, statement: str) -> None:
+    op.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+                EXECUTE '{statement.format(floor=role)}';
+            END IF;
+        END
+        $$;
+        """
+    )
+
 
 def _for_each_floor(statement: str) -> None:
     for floor in FLOORS:
-        op.execute(
-            f"""
-            DO $$
-            BEGIN
-                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{floor}') THEN
-                    EXECUTE '{statement.format(floor=floor)}';
-                END IF;
-            END
-            $$;
-            """
-        )
+        _on_role(floor, statement)
 
 
 def _for_read_floor(statement: str) -> None:

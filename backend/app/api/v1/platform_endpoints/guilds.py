@@ -1007,6 +1007,7 @@ async def _guild_payload_after_image_change(
 async def create_guild_billing_handoff(
     guild_id: int,
     _session: SeatWriteSessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> BillingPortalHandoffResponse:
     """Mint a billing-portal handoff. The guild's superadmin only.
@@ -1020,6 +1021,8 @@ async def create_guild_billing_handoff(
             detail=BillingMessages.PORTAL_NOT_CONFIGURED,
         )
 
+    guild = await admin_session.get(Guild, guild_id)
+
     try:
         user_ref, guild_ref = await billing_refs(
             user_id=current_user.id, guild_id=guild_id
@@ -1031,6 +1034,7 @@ async def create_guild_billing_handoff(
             guild_role=GuildRole.admin.value,
             user_ref=user_ref,
             guild_ref=guild_ref,
+            guild_name=guild.name if guild is not None else None,
         )
     except HandoffSigningNotConfiguredError as exc:
         raise HTTPException(

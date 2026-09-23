@@ -814,6 +814,7 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
     assert payload["user_ref"].startswith("ubil_")
     assert payload["guild_ref"].startswith("gbil_")
     assert "guild_id" not in payload
+    assert payload["guild_name"] == guild.name
     assert payload["jti"]
     # Lifetime stays inside the receiver's ceiling.
     assert payload["exp"] - payload["iat"] <= 300

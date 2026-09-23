@@ -1086,10 +1086,10 @@ async def create_platform_guild_billing_service_handoff(
             detail=BillingMessages.PORTAL_NOT_CONFIGURED,
         )
 
-    exists = (
-        await session.exec(select(Guild.id).where(Guild.id == guild_id))
+    guild_name = (
+        await session.exec(select(Guild.name).where(Guild.id == guild_id))
     ).one_or_none()
-    if exists is None:
+    if guild_name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildMessages.GUILD_NOT_FOUND,
@@ -1129,6 +1129,7 @@ async def create_platform_guild_billing_service_handoff(
             grant_id=grant.id,
             user_ref=user_ref,
             guild_ref=guild_ref,
+            guild_name=guild_name,
             approver_ref=(
                 await billing_user_ref(user_id=grant.approved_by_id)
                 if grant.approved_by_id is not None
