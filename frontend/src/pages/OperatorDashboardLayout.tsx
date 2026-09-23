@@ -40,6 +40,12 @@ export const OperatorDashboardLayout = () => {
         capabilities: [Capability.guildsManage],
       },
       {
+        value: "placement",
+        label: t("operatorDashboard.tabs.placement"),
+        path: "/settings/operator/placement",
+        capabilities: [Capability.guildsManage],
+      },
+      {
         value: "announcements",
         label: t("operatorDashboard.tabs.announcements"),
         path: "/settings/operator/announcements",

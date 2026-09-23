@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { ProviderPlacementRuleRead } from "@/api/generated/initiativeAPI.schemas";
 
 const createRule = vi.fn();
 const deleteRule = vi.fn();
@@ -23,11 +24,18 @@ const connection = (providerId: number, name: string) => ({
 
 let rules: unknown[] = [];
 let reportingIds: number[] = [];
+let providerRules: ProviderPlacementRuleRead[] = [];
+let placementEverywhere = false;
 let connections = [connection(11, "Entra")];
 
 vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildClaimRules: () => ({
-    data: { rules, reporting_provider_ids: reportingIds },
+    data: {
+      rules,
+      reporting_provider_ids: reportingIds,
+      provider_rules: providerRules,
+      placement_everywhere: placementEverywhere,
+    },
     isLoading: false,
   }),
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
@@ -58,6 +66,8 @@ describe("GuildClaimRulesSection", () => {
     rules = [];
     reportingIds = [11];
     connections = [connection(11, "Entra")];
+    providerRules = [];
+    placementEverywhere = false;
     createRule.mockReset();
     deleteRule.mockReset();
   });
@@ -115,6 +125,68 @@ describe("GuildClaimRulesSection", () => {
 
     expect(screen.getByText("eng-platform")).toBeInTheDocument();
     expect(screen.getByText(/no groups reported/i)).toBeInTheDocument();
+  });
+
+  it("lists the deployment's rules read-only, marking one that is not applying", () => {
+    // Nothing connected: the community cannot write rules of its own, and the
+    // deployment's rules for it are still listed.
+    connections = [];
+    providerRules = [
+      {
+        id: 40,
+        provider_id: 21,
+        provider_display_name: "Keycloak",
+        provider_icon: null,
+        claim_value: "eng",
+        scope_claim: "idp",
+        scope_value: "acme-adfs",
+        guild_id: 1,
+        guild_name: "Engineering",
+        guild_role: "member",
+        initiative_id: null,
+        initiative_name: null,
+        initiative_role_id: null,
+        initiative_role_name: null,
+        applies: false,
+      },
+    ];
+    render();
+
+    expect(screen.getByText(/set by the deployment/i)).toBeInTheDocument();
+    expect(screen.getByText("Group eng in idp = acme-adfs")).toBeInTheDocument();
+    expect(screen.getByText(/arriving through keycloak/i)).toBeInTheDocument();
+    expect(screen.getByText("Not applying")).toBeInTheDocument();
+    // Read-only: the only remove button would be for the community's own rules.
+    expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/applies its placement rules to every community/i)).toBeNull();
+  });
+
+  it("says when the deployment applies its rules to every community", () => {
+    placementEverywhere = true;
+    providerRules = [
+      {
+        id: 41,
+        provider_id: 21,
+        provider_display_name: "Keycloak",
+        provider_icon: null,
+        claim_value: null,
+        scope_claim: "idp",
+        scope_value: "acme-adfs",
+        guild_id: 1,
+        guild_name: "Engineering",
+        guild_role: "admin",
+        initiative_id: null,
+        initiative_name: null,
+        initiative_role_id: null,
+        initiative_role_name: null,
+        applies: true,
+      },
+    ];
+    render();
+
+    expect(screen.getByText("Everybody from idp = acme-adfs")).toBeInTheDocument();
+    expect(screen.getByText(/applies its placement rules to every community/i)).toBeInTheDocument();
+    expect(screen.queryByText("Not applying")).not.toBeInTheDocument();
   });
 
   it("points at the connection when there is nothing to write a rule against", () => {

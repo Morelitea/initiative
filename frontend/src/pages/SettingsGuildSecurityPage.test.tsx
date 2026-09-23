@@ -30,6 +30,7 @@ const connection = (id: number, providerId: number, slug: string, name: string) 
   claim: null,
   claim_values: [],
   enabled: true,
+  accepts_provider_placement: false,
   login_ready: true,
 });
 let connections = [
@@ -136,7 +137,12 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useUpdateProviderConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useDisconnectProvider: () => ({ mutate: vi.fn(), isPending: false }),
   useGuildClaimRules: () => ({
-    data: { rules: [], reporting_provider_ids: [] },
+    data: {
+      rules: [],
+      reporting_provider_ids: [],
+      provider_rules: [],
+      placement_everywhere: false,
+    },
     isLoading: false,
   }),
   useCreateClaimRule: () => ({ mutate: vi.fn(), isPending: false }),

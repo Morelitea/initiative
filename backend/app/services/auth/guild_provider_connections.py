@@ -55,6 +55,7 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "claim_values",
     "enabled",
     "auto_join",
+    "accepts_provider_placement",
 )
 
 
@@ -72,6 +73,7 @@ def connection_read(
         enabled=connection.enabled,
         auto_join=connection.auto_join,
         narrowing_approved=connection.narrowing_approved_at is not None,
+        accepts_provider_placement=connection.accepts_provider_placement,
         login_ready=is_login_ready_provider(provider),
     )
 
@@ -318,6 +320,7 @@ async def create_connection(
         claim_values=claim_values,
         enabled=payload.enabled,
         auto_join=payload.auto_join,
+        accepts_provider_placement=payload.accepts_provider_placement,
     )
     session.add(row)
     try:
@@ -391,6 +394,8 @@ async def update_connection(
         row.enabled = data["enabled"]
     if "auto_join" in data and data["auto_join"] is not None:
         row.auto_join = data["auto_join"]
+    if data.get("accepts_provider_placement") is not None:
+        row.accepts_provider_placement = data["accepts_provider_placement"]
     # Asked of the row as it now stands, so neither half can be removed on its
     # own: clearing the narrowing of an enabled connection is refused, and so
     # is enabling one that has none.

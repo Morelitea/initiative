@@ -398,6 +398,15 @@ class AuthProviderMessages:
     #: One group lands in one place. A second rule for the same group and the
     #: same destination would be two answers to one question.
     RULE_EXISTS = "AUTH_PROVIDER_RULE_EXISTS"
+    #: A provider rule names a community that neither accepts the platform's
+    #: rules for that provider nor is covered by the deployment applying them
+    #: everywhere.
+    PLACEMENT_NOT_ACCEPTED = "AUTH_PROVIDER_PLACEMENT_NOT_ACCEPTED"
+    #: A provider rule names neither a group nor a directory to match.
+    RULE_NEEDS_A_MATCH = "AUTH_PROVIDER_RULE_NEEDS_A_MATCH"
+    #: A provider rule names a directory claim without a value, or a value
+    #: without the claim.
+    RULE_SCOPE_HALF_SET = "AUTH_PROVIDER_RULE_SCOPE_HALF_SET"
 
 
 class TagMessages:

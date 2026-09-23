@@ -26,7 +26,7 @@ That second half is the point. A provider like Google vouches for anybody with a
 
 It is both halves or neither, and any one value is enough to count. You never handle an issuer, a client id or a secret: a community connects to a provider, it does not configure one.
 
-**Joining on arrival** is a switch on the connection. Leave it off and you invite people yourself. Turn it on and anybody who counts as yours becomes a member when they sign in. Those are ordinary memberships — turning the switch back off, or disconnecting, removes nobody.
+**Joining on arrival** is a switch on the connection. Leave it off and you invite people yourself. Turn it on and anybody who counts as yours becomes a member when they sign in, once the server's operators have agreed that the domain or tenant you named is yours. Those are ordinary memberships — turning the switch back off, or disconnecting, removes nobody.
 
 **The member sign-in link** offers your community's providers and lands people inside it rather than at the front door. It is a link, not an invite — it grants nothing on its own and never expires.
 
@@ -39,6 +39,8 @@ If your provider reports which groups somebody is in, **rules** say what those g
 - A rule grants **member or admin** — never the superadmin seat.
 - Standing is reconciled at **each sign-in** through that provider. Take a group away and the next sign-in takes the standing with it.
 - Memberships given by hand are never touched, and deleting a rule revokes nothing by itself — the next sign-in does.
+
+**Rules set by the deployment.** Your server's operators can write rules on a provider too. They place people here when your connection to that provider has **Let the deployment place people from this provider** switched on, or when the server applies its rules to every community. They're listed beside your own, read-only, and marked when they're not applying.
 
 !!! warning "An empty answer is still an answer"
     A provider asked for groups that reports none matches no rules, and the standings those rules granted are released. That is different from a provider nobody has told where its groups live: there, rules never run at all, and the tab marks the provider so you can see why nothing matches.

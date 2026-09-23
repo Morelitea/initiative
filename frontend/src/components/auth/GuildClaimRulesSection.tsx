@@ -9,6 +9,12 @@
  * Which claim carries groups is the operator's to set on the provider, so a
  * connection they have not set it on is offered with a note rather than
  * hidden: the rule would be written correctly and simply never match.
+ *
+ * Below the community's own rules sit the ones the deployment wrote for its
+ * providers that name this community. They are read-only here, and each says
+ * whether it applies: it does once this community's connection accepts its
+ * provider's rules, or everywhere once the deployment applies them to every
+ * community.
  */
 
 import { Plus, Trash2 } from "lucide-react";
@@ -17,6 +23,11 @@ import { useTranslation } from "react-i18next";
 
 import type { GuildClaimRuleRead } from "@/api/generated/initiativeAPI.schemas";
 import { ProviderMark } from "@/components/auth/ProviderMark";
+import {
+  describePlacementMatch,
+  NotApplyingBadge,
+  placementRoleLabel,
+} from "@/components/auth/ProviderPlacementRuleSummary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +80,8 @@ export const GuildClaimRulesSection = ({ guildId }: { guildId: number }) => {
   const [removing, setRemoving] = useState<GuildClaimRuleRead | null>(null);
 
   const rules = rulesQuery.data?.rules ?? [];
+  const providerRules = rulesQuery.data?.provider_rules ?? [];
+  const placementEverywhere = rulesQuery.data?.placement_everywhere ?? false;
   const reporting = new Set(rulesQuery.data?.reporting_provider_ids ?? []);
   const connections = connectionsQuery.data ?? [];
   const initiatives = initiativesQuery.data ?? [];
@@ -107,10 +120,7 @@ export const GuildClaimRulesSection = ({ guildId }: { guildId: number }) => {
     );
   };
 
-  /** Spelled out rather than interpolated into the key, so the two standings a
-   *  rule may hand out are the two the translations carry. */
-  const roleLabel = (role: string) =>
-    role === "admin" ? t("guildAuth.rules.role.admin") : t("guildAuth.rules.role.member");
+  const roleLabel = (role: string) => placementRoleLabel(role, t);
 
   const canSubmit =
     providerId !== "" &&
@@ -133,7 +143,7 @@ export const GuildClaimRulesSection = ({ guildId }: { guildId: number }) => {
           {t("guildAuth.rules.add")}
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         {rulesQuery.isLoading ? (
           <p className="text-muted-foreground text-sm">{t("authProviders.loading")}</p>
         ) : rules.length === 0 ? (
@@ -183,6 +193,50 @@ export const GuildClaimRulesSection = ({ guildId }: { guildId: number }) => {
               </li>
             ))}
           </ul>
+        )}
+
+        {providerRules.length > 0 && (
+          <section className="space-y-2" aria-labelledby="deployment-rules-title">
+            <div className="space-y-1">
+              <h3 id="deployment-rules-title" className="font-semibold text-sm">
+                {t("guildAuth.rules.deployment.title")}
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                {t("guildAuth.rules.deployment.description")}
+              </p>
+              {placementEverywhere && (
+                <p className="text-muted-foreground text-sm">
+                  {t("guildAuth.rules.deployment.everywhere")}
+                </p>
+              )}
+            </div>
+            <ul className="divide-y rounded-md border">
+              {providerRules.map((rule) => (
+                <li key={rule.id} className="flex items-start gap-3 px-3 py-3">
+                  <ProviderMark icon={rule.provider_icon} className="mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{describePlacementMatch(rule, t)}</span>
+                      {!rule.applies && <NotApplyingBadge />}
+                    </div>
+                    <p className="text-muted-foreground text-sm">
+                      {rule.initiative_name
+                        ? t("guildAuth.rules.landsInInitiative", {
+                            provider: rule.provider_display_name,
+                            role: roleLabel(rule.guild_role),
+                            initiative: rule.initiative_name,
+                            initiativeRole: rule.initiative_role_name ?? "",
+                          })
+                        : t("guildAuth.rules.landsInCommunity", {
+                            provider: rule.provider_display_name,
+                            role: roleLabel(rule.guild_role),
+                          })}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </CardContent>
 

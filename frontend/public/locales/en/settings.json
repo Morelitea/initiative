@@ -1062,7 +1062,77 @@
       "users": "Users",
       "access": "Access",
       "guilds": "Communities",
+      "placement": "Sign-in placement",
       "announcements": "Announcements"
+    }
+  },
+  "providerPlacement": {
+    "title": "Sign-in placement",
+    "description": "Place the people a sign-in provider signs in — by the group or directory it reports — in a community, and in an initiative there if you name one.",
+    "loading": "Loading placement rules…",
+    "loadError": "Could not load placement rules. Please try again.",
+    "adminOnly": "Sign-in placement is managed by platform operators and owners.",
+    "everywhere": {
+      "label": "Apply placement rules to every community",
+      "help": "On, a rule places people in the community it names whether or not that community accepted. Every change is recorded.",
+      "ownerOnly": "The platform owner sets this.",
+      "confirmTitle": "Apply placement rules to every community?",
+      "confirmDescription": "Every rule then places people in the community it names, including communities that have not accepted its provider's rules. The change is recorded in the audit log.",
+      "confirm": "Apply everywhere",
+      "enabled": "Placement rules now apply to every community",
+      "disabled": "Placement rules now apply where a community accepted them",
+      "error": "Could not change where placement rules apply"
+    },
+    "noProviders": "No sign-in providers yet. Once one is added on the Authentication page, its placement rules are written here.",
+    "noGroups": "This provider reports no groups yet: a rule naming a group matches nobody until an owner sets the provider's groups claim on the Authentication page. Rules naming only a directory work already.",
+    "empty": "No rules for this provider yet.",
+    "add": "Add rule",
+    "addFor": "Add a rule for {{provider}}",
+    "addTitle": "Add a placement rule",
+    "addDescription": "Say who this rule matches on {{provider}}, and where they land.",
+    "editTitle": "Edit placement rule",
+    "editDescription": "Places people from {{provider}} in {{community}}. A rule keeps its provider and community; for another, add a new rule.",
+    "editLabel": "Edit rule",
+    "match": {
+      "group": "Group {{group}}",
+      "groupInDirectory": "Group {{group}} in {{claim}} = {{value}}",
+      "directory": "Everybody from {{claim}} = {{value}}"
+    },
+    "landsInCommunity": "Joins {{community}} as {{role}}",
+    "landsInInitiative": "Joins {{community}} as {{role}}, and {{initiative}} as {{initiativeRole}}",
+    "notApplying": "Not applying",
+    "notApplyingHint": "The community hasn't accepted this provider's rules, and they don't apply everywhere.",
+    "groupLabel": "Group",
+    "groupPlaceholder": "eng",
+    "groupHelp": "Exactly as the provider spells it. Leave it empty to place everybody from the directory below.",
+    "directoryLabel": "Only people from one directory",
+    "directoryHelp": "For a provider that signs people in from several directories: the claim that names the directory, and this directory's value.",
+    "directoryClaimLabel": "Claim",
+    "directoryClaimPlaceholder": "idp",
+    "directoryValueLabel": "Value",
+    "directoryValuePlaceholder": "acme-adfs",
+    "needsMatch": "Name a group, a directory, or both.",
+    "communityLabel": "Community",
+    "communityPlaceholder": "Choose a community",
+    "communitySearch": "Search communities",
+    "communityEmpty": "No communities match",
+    "notAccepted": "Not accepted",
+    "communityHelp": "A community marked Not accepted takes this provider's rules once it accepts them on its Security page.",
+    "targetsUnavailable": "Initiatives are listed once this community takes this provider's rules.",
+    "save": "Save rule",
+    "added": "Rule added",
+    "addError": "Could not add that rule",
+    "saved": "Rule saved",
+    "saveError": "Could not save that rule",
+    "remove": "Delete rule",
+    "removeTitle": "Delete this rule?",
+    "removeDescription": "People it matches stop being placed in {{community}} by it, and what it gave them is released the next time they sign in through this provider.",
+    "removed": "Rule deleted",
+    "removeError": "Could not delete that rule",
+    "requests": {
+      "title": "Waiting for an answer",
+      "help": "These communities named a domain or tenant as their own on a connection. Agreeing lets the people it matches join them on arrival, where they asked for that.",
+      "agreed": "Agreed for {{community}}"
     }
   },
   "storage": {
@@ -1202,7 +1272,9 @@
       "makeItOurs": "Make it ours",
       "claimNameLabel": "Claim name",
       "claimNamePlaceholder": "e.g. org, realm",
-      "joinsOnceAgreed": "Will join matching arrivals on sight once whoever runs this server agrees these values are yours. Until then it admits them, and joining is by invitation."
+      "joinsOnceAgreed": "Will join matching arrivals on sight once whoever runs this server agrees these values are yours. Until then it admits them, and joining is by invitation.",
+      "acceptsPlacementLabel": "Let the deployment place people from this provider",
+      "acceptsPlacementHelp": "The deployment's placement rules for this provider can add people here, beside your own rules."
     },
     "rules": {
       "title": "Where your people land",
@@ -1235,7 +1307,12 @@
       "removed": "Rule removed",
       "removeError": "Could not remove that rule",
       "removeTitle": "Remove this rule?",
-      "removeDescription": "People carrying {{group}} stop being placed here, and anyone this rule put here loses that standing the next time they sign in through that provider."
+      "removeDescription": "People carrying {{group}} stop being placed here, and anyone this rule put here loses that standing the next time they sign in through that provider.",
+      "deployment": {
+        "title": "Set by the deployment",
+        "description": "Placement rules whoever runs this deployment wrote for its providers, naming this community. They place people here beside your own rules once you let a provider's rules in on its connection.",
+        "everywhere": "The deployment applies its placement rules to every community."
+      }
     },
     "sections": {
       "whoGetsIn": "Who gets in",

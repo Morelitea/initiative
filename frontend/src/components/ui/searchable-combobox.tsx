@@ -25,6 +25,8 @@ export interface SearchableComboboxItem {
    * one they would otherwise share. Only {@link AsyncCombobox} draws it.
    */
   sublabel?: string;
+  /** Listed but not choosable — say why in {@link hint}. */
+  disabled?: boolean;
 }
 
 export interface SearchableComboboxProps {
@@ -101,6 +103,7 @@ export const SearchableCombobox = ({
                 <CommandItem
                   key={item.value}
                   value={item.label}
+                  disabled={item.disabled}
                   onSelect={() => handleSelect(item.value)}
                 >
                   <Check
