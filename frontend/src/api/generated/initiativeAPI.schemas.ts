@@ -4595,6 +4595,10 @@ export interface GuildOrderUpdate {
   guildIds: number[];
 }
 
+export interface GuildPaymentIssueRead {
+  payment_failed?: boolean;
+}
+
 /**
  * Connect to one of the providers on offer.
  */

@@ -10,6 +10,7 @@ import { ShieldAlert } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { GuildStatusNotice, guildStatusNoticeApplies } from "@/components/guilds/GuildStatusNotice";
 import { StatusMessage } from "@/components/StatusMessage";
 import { GuildHomeSkeleton, PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -145,13 +146,27 @@ export function GuildLayout() {
   // like an active one — that's what keeps operators from being locked out),
   // so their content requests succeed and the pin would only strand them on a
   // settings page their synthesized role can't view.
+  const notice = guildStatusNoticeApplies(guild) ? (
+    <GuildStatusNotice key={`${guild.id}:${guild.status}`} guild={guild} />
+  ) : null;
+
   if (
     guild.status === "suspended" &&
     guild.accessType !== "grant" &&
     shouldPinSuspendedGuildToSettings(location.pathname, guildId)
   ) {
-    return <Navigate to={guildPath(guildId, "/settings")} replace />;
+    return (
+      <>
+        {notice}
+        <Navigate to={guildPath(guildId, "/settings")} replace />
+      </>
+    );
   }
 
-  return <Outlet />;
+  return (
+    <>
+      {notice}
+      <Outlet />
+    </>
+  );
 }

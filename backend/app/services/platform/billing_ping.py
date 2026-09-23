@@ -33,15 +33,19 @@ from uuid import uuid4
 import httpx
 
 from app.core.config import settings
-from app.services.platform.identity_refs import billing_guild_ref
+from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
+from app.services.platform.identity_refs import billing_guild_ref, existing_ref
 
 logger = logging.getLogger(__name__)
 
 MEMBERSHIP_PING_PATH = "/api/v1/pings/membership"
+PAYMENT_ISSUE_PATH = "/api/v1/payment-issue"
 
 # httpx defaults to no total deadline; keep the whole attempt short — the
 # ping is advisory and must never hold resources behind a slow billing pod.
 _PING_TIMEOUT = httpx.Timeout(3.0, connect=2.0)
+_PAYMENT_ISSUE_TIMEOUT = httpx.Timeout(2.0, connect=1.0)
+_PAYMENT_ISSUE_MAX_BYTES = 256
 
 # Strong references so in-flight pings aren't garbage-collected mid-send
 # (asyncio keeps only weak refs to tasks).
@@ -61,13 +65,16 @@ def build_membership_ping(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
     billing's verifier will see, so a base URL with a path prefix still signs
     correctly.
     """
+    return _signed_post(
+        MEMBERSHIP_PING_PATH, {"guild_ref": guild_ref, "event_id": uuid4().hex}
+    )
+
+
+def _signed_post(route: str, payload: dict) -> tuple[str, bytes, dict[str, str]]:
     base = settings.BILLING_SERVICE_URL.rstrip("/")
-    url = base + MEMBERSHIP_PING_PATH
+    url = base + route
     path = urlsplit(url).path
-    body = json.dumps(
-        {"guild_ref": guild_ref, "event_id": uuid4().hex},
-        separators=(",", ":"),
-    ).encode()
+    body = json.dumps(payload, separators=(",", ":")).encode()
     ts = str(int(time.time()))
     message = "\n".join(["POST", path, ts, hashlib.sha256(body).hexdigest()]).encode()
     signature = hmac.new(
@@ -110,3 +117,34 @@ def notify_membership_changed(guild_id: int) -> None:
     task = asyncio.create_task(_send_membership_ping(int(guild_id)))
     _pending_pings.add(task)
     task.add_done_callback(_pending_pings.discard)
+
+
+def build_payment_issue_query(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
+    return _signed_post(PAYMENT_ISSUE_PATH, {"guild_ref": guild_ref})
+
+
+async def guild_payment_failed(guild_id: int) -> bool:
+    if not billing_ping_enabled():
+        return False
+    try:
+        guild_ref = await existing_ref(
+            entity_type=IdentityEntity.guild,
+            entity_id=guild_id,
+            purpose=IdentityPurpose.billing,
+        )
+        if guild_ref is None:
+            return False
+        url, body, headers = build_payment_issue_query(guild_ref)
+        async with httpx.AsyncClient(
+            timeout=_PAYMENT_ISSUE_TIMEOUT, follow_redirects=False
+        ) as client:
+            response = await client.post(url, content=body, headers=headers)
+        if (
+            response.status_code != 200
+            or len(response.content) > _PAYMENT_ISSUE_MAX_BYTES
+        ):
+            return False
+        answer = response.json()
+    except Exception:
+        return False
+    return isinstance(answer, dict) and answer.get("payment_failed") is True

@@ -39,7 +39,7 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.core.messages import BillingMessages, GuildMessages
-from app.core.rate_limit import limiter
+from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import (
     AUTH_POLICY_UNMET_HEADER,
     HandoffSigningNotConfiguredError,
@@ -89,6 +89,7 @@ from app.schemas.platform.guild import (
     GuildInviteAcceptRequest,
     GuildInviteCreate,
     GuildInviteRead,
+    GuildPaymentIssueRead,
     GuildInviteStatus,
     GuildOrderUpdate,
     GuildNotificationPolicyRead,
@@ -112,6 +113,7 @@ from app.services.platform import guild_entitlements
 from app.services.platform import notification_policy
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_claim
+from app.services.platform import billing_ping
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.platform import guilds as guilds_service
@@ -1044,6 +1046,29 @@ async def create_guild_billing_handoff(
     return BillingPortalHandoffResponse(
         handoff_token=token,
         expires_in_seconds=expires_in_seconds,
+    )
+
+
+@router.get(
+    "/{guild_id}/billing/payment-issue",
+    response_model=GuildPaymentIssueRead,
+)
+@limiter.limit("6/minute", key_func=get_user_or_ip_key)
+async def read_guild_payment_issue(
+    request: Request,
+    guild_id: int,
+    _session: SeatSessionDep,
+    admin_session: AdminSessionDep,
+) -> GuildPaymentIssueRead:
+    guild = await admin_session.get(Guild, guild_id)
+    if (
+        guild is None
+        or guild.status == GuildStatus.active.value
+        or not settings.BILLING_URL
+    ):
+        return GuildPaymentIssueRead()
+    return GuildPaymentIssueRead(
+        payment_failed=await billing_ping.guild_payment_failed(guild_id)
     )
 
 

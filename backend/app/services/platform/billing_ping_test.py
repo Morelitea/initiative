@@ -23,8 +23,10 @@ import httpx
 import pytest
 
 from app.core import config as config_module
+from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
+from app.services.platform.identity_refs import existing_ref
 from app.testing import create_guild, create_user, route_session_to_guild
 
 pytestmark = pytest.mark.integration
@@ -162,3 +164,102 @@ async def test_noop_removal_does_not_ping(session, billing_configured, sent_ping
     await _drain_pings()
     assert sent_pings == []
     await session.rollback()
+
+
+_REAL_ASYNC_CLIENT = httpx.AsyncClient
+
+
+def _answering(monkeypatch, handler):
+    seen: list[httpx.Request] = []
+
+    def _recording(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return handler(request)
+
+    def _client(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(_recording)
+        return _REAL_ASYNC_CLIENT(*args, **kwargs)
+
+    monkeypatch.setattr(billing_ping.httpx, "AsyncClient", _client)
+    return seen
+
+
+@pytest.fixture
+def known_ref(monkeypatch):
+    async def _existing_ref(**kwargs):
+        return "gbil_known"
+
+    monkeypatch.setattr(billing_ping, "existing_ref", _existing_ref)
+
+
+async def test_payment_issue_unconfigured_makes_no_call(monkeypatch, known_ref):
+    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json={}))
+    assert await billing_ping.guild_payment_failed(7) is False
+    assert seen == []
+
+
+async def test_payment_issue_without_a_ref_makes_no_call_and_mints_nothing(
+    session, billing_configured, monkeypatch
+):
+    guild = await create_guild(session)
+    await session.commit()
+    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json={}))
+    assert await billing_ping.guild_payment_failed(guild.id) is False
+    assert seen == []
+    assert (
+        await existing_ref(
+            entity_type=IdentityEntity.guild,
+            entity_id=guild.id,
+            purpose=IdentityPurpose.billing,
+        )
+        is None
+    )
+
+
+async def test_payment_issue_sends_only_the_ref_signed(
+    billing_configured, known_ref, monkeypatch
+):
+    seen = _answering(
+        monkeypatch, lambda r: httpx.Response(200, json={"payment_failed": True})
+    )
+    assert await billing_ping.guild_payment_failed(7) is True
+    (request,) = seen
+    assert request.method == "POST"
+    assert str(request.url) == "https://billing.internal/api/v1/payment-issue"
+    body = request.content
+    assert json.loads(body) == {"guild_ref": "gbil_known"}
+    ts = request.headers["X-Billing-Timestamp"]
+    message = "\n".join(
+        ["POST", "/api/v1/payment-issue", ts, hashlib.sha256(body).hexdigest()]
+    ).encode()
+    expected = hmac.new(_SECRET.encode(), message, hashlib.sha256).hexdigest()
+    assert request.headers["X-Billing-Signature"] == expected
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(200, json={"payment_failed": False}),
+        httpx.Response(200, json={"payment_failed": "true"}),
+        httpx.Response(200, json=[True]),
+        httpx.Response(200, content=b"not json"),
+        httpx.Response(200, json={"payment_failed": True, "pad": "x" * 300}),
+        httpx.Response(302, headers={"Location": "https://elsewhere"}),
+        httpx.Response(500, json={"payment_failed": True}),
+    ],
+)
+async def test_payment_issue_anything_but_a_plain_true_is_false(
+    billing_configured, known_ref, monkeypatch, response
+):
+    _answering(monkeypatch, lambda r: response)
+    assert await billing_ping.guild_payment_failed(7) is False
+
+
+async def test_payment_issue_unreachable_is_false(
+    billing_configured, known_ref, monkeypatch
+):
+    def _down(request):
+        raise httpx.ConnectError("down")
+
+    _answering(monkeypatch, _down)
+    assert await billing_ping.guild_payment_failed(7) is False
