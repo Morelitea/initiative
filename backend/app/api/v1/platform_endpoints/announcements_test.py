@@ -9,7 +9,11 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.announcement import Announcement, AnnouncementImage
+from app.models.platform.announcement import (
+    Announcement,
+    AnnouncementImage,
+    AnnouncementReadReceipt,
+)
 from app.models.platform.user import UserRole
 from app.testing.factories import create_user, get_auth_headers
 
@@ -355,6 +359,52 @@ async def test_deleting_an_announcement_removes_it(
         f"/api/v1/announcements/admin/{announcement_id}", headers=author_headers
     )
     assert missing.status_code == 404
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("tier", [UserRole.operator, UserRole.owner])
+async def test_an_author_on_their_own_tier_writes_drafts_and_deletes_receipts(
+    client: AsyncClient, session: AsyncSession, tier
+):
+    """Authoring runs on the author's platform tier: a draft is written, read
+    back in the admin list and edited there, and deleting a notice takes every
+    reader's receipt for it along."""
+    author = await create_user(session, role=tier)
+    author_headers = get_auth_headers(author)
+    reader = await create_user(session)
+
+    draft = await client.post(
+        "/api/v1/announcements/admin",
+        headers=author_headers,
+        json=_body(title="Still drafting", published_at=None),
+    )
+    assert draft.status_code == 201, draft.text
+    draft_id = draft.json()["id"]
+    edited = await client.patch(
+        f"/api/v1/announcements/admin/{draft_id}",
+        headers=author_headers,
+        json={"title": "Drafted"},
+    )
+    assert edited.status_code == 200, edited.text
+    listed = await client.get("/api/v1/announcements/admin", headers=author_headers)
+    assert "Drafted" in {item["title"] for item in listed.json()["items"]}
+
+    live = await client.post(
+        "/api/v1/announcements/admin", headers=author_headers, json=_body()
+    )
+    key = live.json()["key"]
+    dismissed = await client.post(
+        f"/api/v1/announcements/{key}/dismiss", headers=get_auth_headers(reader)
+    )
+    assert dismissed.status_code == 204
+
+    deleted = await client.delete(
+        f"/api/v1/announcements/admin/{live.json()['id']}", headers=author_headers
+    )
+    assert deleted.status_code == 204, deleted.text
+    reader_id = reader.id
+    session.expire_all()
+    assert await session.get(AnnouncementReadReceipt, (reader_id, key)) is None
 
 
 @pytest.mark.integration

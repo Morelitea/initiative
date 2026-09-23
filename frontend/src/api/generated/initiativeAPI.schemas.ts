@@ -154,6 +154,15 @@ export interface AccessGrantCreate {
 }
 
 /**
+ * What the caller may ask for through the request flow, as this
+ * deployment configures it — read by the request form to offer its
+ * durations.
+ */
+export interface AccessGrantLimits {
+  max_duration_minutes: number;
+}
+
+/**
  * Lifecycle of a privileged-access grant.
  *
  * ``pending`` → (``approved`` | ``denied``); ``approved`` → (``revoked`` |
@@ -1503,6 +1512,7 @@ export interface BreakGlassCreate {
  */
 export interface BreakGlassRequirements {
   second_factor_required: boolean;
+  max_duration_minutes: number;
   totp_enrolled: boolean;
   passkey_enrolled: boolean;
 }
@@ -9125,10 +9135,23 @@ export type ListAnnouncementsApiV1AnnouncementsGetParams = {
 };
 
 export type ListAccessGrantsApiV1AccessGrantsGetParams = {
+  status?: string | null;
   /**
-   * List only your own requests.
+   * Keep only grants that haven't expired yet.
    */
-  mine?: boolean;
+  live?: boolean;
+  /**
+   * Page size — the number of most-recent grants returned.
+   */
+  limit?: number | null;
+  /**
+   * Number of grants to skip (for paging).
+   * @minimum 0
+   */
+  offset?: number;
+};
+
+export type ListAccessGrantQueueApiV1AccessGrantsQueueGetParams = {
   status?: string | null;
   /**
    * Keep only grants that haven't expired yet.

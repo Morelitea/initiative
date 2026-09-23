@@ -444,7 +444,8 @@ async def test_deleting_an_announcement_takes_its_receipts_with_it(session):
     await service.record_receipt(session, user_id=reader.id, key=key, dismissed=True)
     await session.commit()
 
-    await service.delete_announcement(session, announcement=announcement)
+    assert await service.delete_announcement(session, announcement=announcement) == key
+    await service.delete_receipts(session, key=key)
     await session.commit()
 
     assert await session.get(AnnouncementReadReceipt, (reader.id, key)) is None

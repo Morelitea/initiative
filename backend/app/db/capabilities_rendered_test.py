@@ -8,6 +8,7 @@ compare its answer with the capability registry's.
 
 from __future__ import annotations
 
+import secrets
 from typing import Awaitable, Callable
 
 import pytest
@@ -25,6 +26,7 @@ from app.db.public_rls import (
 )
 from app.db.session import set_rls_context
 from app.models.platform.ai_connection import PlatformAIConnection
+from app.models.platform.announcement import Announcement, AnnouncementImage
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import UserRole
 from app.testing import (
@@ -105,6 +107,53 @@ async def _the_settings_row(session: AsyncSession) -> Probe:
     )
 
 
+async def _a_community_nobody_asked_about(session: AsyncSession) -> Probe:
+    guild = await create_guild(session)
+    return "select", "SELECT id FROM public.guilds WHERE id = :id", {"id": guild.id}
+
+
+async def _its_administration(session: AsyncSession) -> Probe:
+    guild = await create_guild(session)
+    return (
+        "select",
+        "SELECT guild_id FROM public.guild_administration WHERE guild_id = :id",
+        {"id": guild.id},
+    )
+
+
+async def _a_draft(session: AsyncSession) -> Probe:
+    row = Announcement(title="probe")
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return (
+        "select",
+        "SELECT id FROM public.announcements WHERE id = :id",
+        {"id": row.id},
+    )
+
+
+async def _a_picture(session: AsyncSession) -> Probe:
+    digest = secrets.token_hex(32)
+    session.add(
+        AnnouncementImage(
+            sha256=digest,
+            content_type="image/png",
+            byte_size=1,
+            width=1,
+            height=1,
+            data=b"\x00",
+        )
+    )
+    await session.commit()
+    return (
+        "update",
+        "UPDATE public.announcement_images SET created_at = created_at "
+        "WHERE sha256 = :sha",
+        {"sha": digest},
+    )
+
+
 CASES: list[tuple[str, str, Capability, Callable[[AsyncSession], Awaitable[Probe]]]] = [
     ("users", "users_platform_read", Capability.USERS_READ, _another_user),
     (
@@ -120,6 +169,30 @@ CASES: list[tuple[str, str, Capability, Callable[[AsyncSession], Awaitable[Probe
         _a_connection,
     ),
     ("app_settings", "app_settings_owner", Capability.CONFIG_MANAGE, _the_settings_row),
+    (
+        "guilds",
+        "guilds_manage_read",
+        Capability.GUILDS_MANAGE,
+        _a_community_nobody_asked_about,
+    ),
+    (
+        "guild_administration",
+        "guild_administration_guilds_manage_read",
+        Capability.GUILDS_MANAGE,
+        _its_administration,
+    ),
+    (
+        "announcements",
+        "announcements_manage",
+        Capability.ANNOUNCEMENTS_MANAGE,
+        _a_draft,
+    ),
+    (
+        "announcement_images",
+        "announcement_images_manage",
+        Capability.ANNOUNCEMENTS_MANAGE,
+        _a_picture,
+    ),
 ]
 
 

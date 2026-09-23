@@ -305,9 +305,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         { content?: AccessGrantRead; settings?: AccessGrantRead }
       >();
       try {
-        const grants = await apiClient.get<AccessGrantRead[]>("/access-grants/", {
-          params: { mine: true },
-        });
+        const grants = await apiClient.get<AccessGrantRead[]>("/access-grants/");
         for (const grant of grants.data) {
           if (!grant.is_live || (grant.purpose !== "content" && grant.purpose !== "settings")) {
             continue;

@@ -7,7 +7,11 @@ Two audiences on one router, deliberately kept apart by path and by session:
   rather than by a filter someone could forget. What they may record is their
   own receipt, and RLS confines that to their own rows.
 * **Authors** (``/announcements/admin/…``) hold ``announcements.manage`` and
-  run on the system engine, which is what can see a draft at all.
+  also run on ``UserSessionDep``: the tiers holding that capability read and
+  write every announcement and picture through their own policies
+  (``announcements_manage``, ``announcement_images_manage``), drafts included.
+  Deleting a notice clears its readers' receipts afterwards on the system
+  engine, which alone reaches other people's receipts.
 
 Pictures are served from ``/announcements/images/{sha256}`` and authenticated
 the way ``/uploads/*`` is — an ``<img>`` carries the session cookie on web and
@@ -35,7 +39,7 @@ from app.api.deps import (
     require_capability,
 )
 from app.core.capabilities import Capability
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import set_rls_context
 from app.core.messages import AnnouncementMessages
 from app.models.platform.announcement import (
     ANNOUNCEMENT_IMAGE_MAX_BYTES,
@@ -54,10 +58,6 @@ from app.services.platform import announcements as announcements_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 
 router = APIRouter()
-
-# The system engine: the only role that can see a draft, and the one that holds
-# the picture bytes.
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 #: ``db:<id>`` or ``builtin:<slug>`` — the two forms a receipt can name. Bounded
 #: here so a malformed key is a 422 rather than a lookup.
@@ -170,7 +170,7 @@ async def read_announcement_image(
 
 @router.get("/admin", response_model=AnnouncementAdminListResponse)
 async def list_all_announcements(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _author: AuthorDep,
 ) -> AnnouncementAdminListResponse:
     """Every announcement, drafts and compiled-in notices included."""
@@ -184,7 +184,7 @@ async def list_all_announcements(
 )
 async def create_announcement(
     payload: AnnouncementWrite,
-    session: AdminSessionDep,
+    session: UserSessionDep,
     author: AuthorDep,
 ) -> AnnouncementAdminRead:
     announcement = await announcements_service.create(
@@ -200,7 +200,7 @@ async def create_announcement(
 async def update_announcement(
     announcement_id: int,
     payload: AnnouncementUpdate,
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _author: AuthorDep,
 ) -> AnnouncementAdminRead:
     announcement = await _load(session, announcement_id)
@@ -216,13 +216,22 @@ async def update_announcement(
 @router.delete("/admin/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_announcement(
     announcement_id: int,
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _author: AuthorDep,
 ) -> Response:
     announcement = await _load(session, announcement_id)
-    await announcements_service.delete_announcement(session, announcement=announcement)
+    key = await announcements_service.delete_announcement(
+        session, announcement=announcement
+    )
     await announcements_service.prune_unreferenced_images(session)
     await session.commit()
+    # Receipts are each reader's own rows; the system engine clears them once
+    # the notice they name is gone.
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        await announcements_service.delete_receipts(admin_session, key=key)
+        await admin_session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -232,7 +241,7 @@ async def delete_announcement(
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_announcement_image(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     author: AuthorDep,
     file: UploadFile = File(...),
 ) -> AnnouncementImageRead:

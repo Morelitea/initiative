@@ -364,7 +364,7 @@ async def _notification_payload(session) -> NotificationSettingsResponse:
 
 @router.get("/notifications", response_model=NotificationSettingsResponse)
 async def get_notification_settings(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> NotificationSettingsResponse:
     """What this deployment permits a notification to leave the app carrying."""
@@ -834,18 +834,49 @@ def _guild_storage_read(
     )
 
 
+async def _member_tallies() -> tuple[dict[int, int], set[int]]:
+    """Each community's member count, and which communities hold their seat.
+
+    Two grouped queries for the whole deployment, on the system engine: the
+    platform tier reads no roster but its own memberships, and this list needs
+    only the totals, not the rows behind them.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        counts = dict(
+            (
+                await admin_session.exec(
+                    select(GuildMembership.guild_id, func.count()).group_by(
+                        GuildMembership.guild_id
+                    )
+                )
+            ).all()
+        )
+        seated = set(
+            (
+                await admin_session.exec(
+                    select(GuildMembership.guild_id)
+                    .where(GuildMembership.role == GuildRole.superadmin)
+                    .distinct()
+                )
+            ).all()
+        )
+    return counts, seated
+
+
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
 async def list_platform_guild_storage(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _admin: GuildsManageDep,
 ) -> list[PlatformGuildStorageRead]:
     """List every guild with its storage cap, for the Operator dashboard Guilds tab.
 
-    Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
-    (``guilds``, ``guild_administration``, ``guild_memberships``) — no
-    guild-scoped content — so it runs on the system admin engine without routing
-    into any guild schema. The caps join in a single pass, and member counts come
-    from one grouped query rather than per-guild (no N+1).
+    Admin/owner (``guilds.manage``). Reads only shared ``public`` tables. The
+    guilds and their administration rows are read on the caller's platform
+    tier, under the ``guilds.manage`` policies on both; the caps join in a
+    single pass. Member counts and seats are totals read on the system engine
+    (``_member_tallies``), one grouped query each rather than per guild.
     """
     # Outer join on purpose: this is the operator's view of *every* guild, and a
     # guild missing its companion row must still be listed (with blank caps) so
@@ -859,29 +890,8 @@ async def list_platform_guild_storage(
             .order_by(Guild.name)
         )
     ).all()
-    counts = dict(
-        (
-            await session.exec(
-                select(GuildMembership.guild_id, func.count()).group_by(
-                    GuildMembership.guild_id
-                )
-            )
-        ).all()
-    )
     retention = await guild_purge.retention_days(session)
-    # Which guilds still hold the seat that configures them. One grouped query
-    # beside the member counts rather than a per-guild check, for the same
-    # reason: this list is every guild on the deployment.
-    seated = {
-        row
-        for row in (
-            await session.exec(
-                select(GuildMembership.guild_id)
-                .where(GuildMembership.role == GuildRole.superadmin)
-                .distinct()
-            )
-        ).all()
-    }
+    counts, seated = await _member_tallies()
     return [
         _guild_storage_read(
             g,

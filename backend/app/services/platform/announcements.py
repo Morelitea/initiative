@@ -513,15 +513,25 @@ async def update(
 
 async def delete_announcement(
     session: AsyncSession, *, announcement: Announcement
-) -> None:
-    """Remove the notice and every receipt naming it."""
+) -> str:
+    """Remove the notice, returning the key its receipts were recorded against.
+
+    The receipts are every reader's own rows, so they go separately
+    (``delete_receipts``) on a session that reaches them.
+    """
     key = db_announcement_key(announcement.id or 0)
+    await session.delete(announcement)
+    await session.flush()
+    return key
+
+
+async def delete_receipts(session: AsyncSession, *, key: str) -> None:
+    """Remove every receipt naming ``key``, once the notice itself has gone."""
     await session.exec(
         delete(AnnouncementReadReceipt).where(
             AnnouncementReadReceipt.announcement_key == key
         )
     )
-    await session.delete(announcement)
     await session.flush()
 
 

@@ -23,10 +23,12 @@ import type {
 import type {
   AccessGrantApprove,
   AccessGrantCreate,
+  AccessGrantLimits,
   AccessGrantRead,
   BreakGlassCreate,
   BreakGlassRequirements,
   HTTPValidationError,
+  ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
   ListAccessGrantsApiV1AccessGrantsGetParams,
   PasskeyAuthenticationOptions,
 } from "../initiativeAPI.schemas";
@@ -153,12 +155,11 @@ export const useCreateAccessRequestApiV1AccessGrantsPost = <
   );
 };
 /**
- * List access grants.
+ * List your own access grants.
  *
- * Defaults to your own requests. ``mine=false`` returns the full queue and
- * requires ``access.approve`` (approvers). Grants are ordered newest-first;
- * ``limit``/``offset`` page the result so it can't grow unbounded, and
- * ``live=true`` narrows to grants that are still within their window.
+ * Ordered newest-first; ``limit``/``offset`` page the result so it can't grow
+ * unbounded, and ``live=true`` narrows to grants that are still within their
+ * window. The full queue is ``GET /access-grants/queue``.
  * @summary List Access Grants
  */
 export const listAccessGrantsApiV1AccessGrantsGet = (
@@ -315,8 +316,8 @@ export function useListAccessGrantsApiV1AccessGrantsGet<
 /**
  * What a break-glass request will be asked for.
  *
- * The form reads this to know whether to offer a code field, and whether the
- * caller has a factor to answer with.
+ * The form reads this to know whether to offer a code field, whether the
+ * caller has a factor to answer with, and the longest window it may ask for.
  * @summary Break Glass Requirements
  */
 export const breakGlassRequirementsApiV1AccessGrantsBreakGlassGet = (
@@ -665,6 +666,314 @@ export const useBeginBreakGlassPasskeyApiV1AccessGrantsBreakGlassPasskeyPost = <
     queryClient
   );
 };
+/**
+ * Every grant on the platform, for approvers (``access.approve``).
+ *
+ * Newest-first and paged like the caller's own list; ``live=true`` keeps only
+ * grants still within their window.
+ * @summary List Access Grant Queue
+ */
+export const listAccessGrantQueueApiV1AccessGrantsQueueGet = (
+  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccessGrantRead[]>(
+    { url: `/api/v1/access-grants/queue`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey = (
+  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams
+) => {
+  return [`/api/v1/access-grants/queue`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>
+  > = ({ signal }) => listAccessGrantQueueApiV1AccessGrantsQueueGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListAccessGrantQueueApiV1AccessGrantsQueueGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>
+>;
+export type ListAccessGrantQueueApiV1AccessGrantsQueueGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
+  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
+  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
+  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Access Grant Queue
+ */
+
+export function useListAccessGrantQueueApiV1AccessGrantsQueueGet<
+  TData = Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAccessGrantQueueApiV1AccessGrantsQueueGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAccessGrantQueueApiV1AccessGrantsQueueGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryOptions(
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The longest grant the caller may ask for, as this deployment sets it.
+ * @summary Read Access Grant Limits
+ */
+export const readAccessGrantLimitsApiV1AccessGrantsLimitsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccessGrantLimits>(
+    { url: `/api/v1/access-grants/limits`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey = () => {
+  return [`/api/v1/access-grants/limits`] as const;
+};
+
+export const getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>
+  > = ({ signal }) => readAccessGrantLimitsApiV1AccessGrantsLimitsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>
+>;
+export type ReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
+  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
+  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
+  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Access Grant Limits
+ */
+
+export function useReadAccessGrantLimitsApiV1AccessGrantsLimitsGet<
+  TData = Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAccessGrantLimitsApiV1AccessGrantsLimitsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * @summary Get Access Grant
  */

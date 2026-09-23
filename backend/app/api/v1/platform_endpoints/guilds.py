@@ -18,7 +18,6 @@ from fastapi import (
 
 from app.api.deps import (
     GuildContext,
-    SeatContextDep,
     SeatSessionDep,
     SeatWriteSessionDep,
     SettingsAdminContextDep,
@@ -1063,8 +1062,7 @@ async def _guild_payload_after_image_change(
 )
 async def create_guild_billing_handoff(
     guild_id: int,
-    _session: SeatWriteSessionDep,
-    admin_session: AdminSessionDep,
+    seat_session: SeatWriteSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> BillingPortalHandoffResponse:
     """Mint a billing-portal handoff. The guild's superadmin only.
@@ -1078,7 +1076,7 @@ async def create_guild_billing_handoff(
             detail=BillingMessages.PORTAL_NOT_CONFIGURED,
         )
 
-    guild = await admin_session.get(Guild, guild_id)
+    guild = await seat_session.get(Guild, guild_id)
 
     try:
         user_ref, guild_ref = await billing_refs(
@@ -1113,10 +1111,9 @@ async def create_guild_billing_handoff(
 async def read_guild_payment_issue(
     request: Request,
     guild_id: int,
-    _session: SeatSessionDep,
-    admin_session: AdminSessionDep,
+    seat_session: SeatSessionDep,
 ) -> GuildPaymentIssueRead:
-    guild = await admin_session.get(Guild, guild_id)
+    guild = await seat_session.get(Guild, guild_id)
     if (
         guild is None
         or guild.status == GuildStatus.active.value
@@ -1186,17 +1183,16 @@ async def _platform_asks_everyone(session) -> bool:
 @router.get("/{guild_id}/auth-settings", response_model=GuildAuthSettingsRead)
 async def get_guild_auth_settings(
     guild_id: int,
-    _session: SeatSessionDep,
-    admin_session: AdminSessionDep,
+    seat_session: SeatSessionDep,
 ) -> GuildAuthSettingsRead:
     """Read the controls held by this community's superadmin seat."""
-    guild = await admin_session.get(Guild, guild_id)
+    guild = await seat_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
     administration = await guilds_service.get_administration(
-        admin_session, guild_id=guild_id
+        seat_session, guild_id=guild_id
     )
     return GuildAuthSettingsRead(
         auth_options=sorted(effective_options(administration.auth_options))
@@ -1230,20 +1226,19 @@ def _notification_policy_read(
 )
 async def get_guild_notification_policy(
     guild_id: int,
-    _guild_context: SeatContextDep,
-    admin_session: AdminSessionDep,
+    seat_session: SeatSessionDep,
 ) -> GuildNotificationPolicyRead:
     """What this community's notifications may leave the app carrying."""
     await _require_guild_auth_option(
-        admin_session, guild_id, GuildAuthOption.restrictions
+        seat_session, guild_id, GuildAuthOption.restrictions
     )
-    guild = await admin_session.get(Guild, guild_id)
+    guild = await seat_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
     return _notification_policy_read(
-        guild, await notification_policy.resolve(admin_session, None)
+        guild, await notification_policy.resolve(seat_session, None)
     )
 
 
