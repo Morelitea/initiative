@@ -59,6 +59,7 @@ def write_bundle(
     images: Sequence[StoredImage] = (),
     wikis: Sequence[tuple[str, dict[str, Any]]] = (),
     wiki_files: Mapping[str, Sequence[PageFile]] = {},
+    task_files: Sequence[StoredImage] = (),
     people: list[dict[str, Any]],
     guild_id: int,
     guild_name: str,
@@ -76,6 +77,9 @@ def write_bundle(
     by the space's key: each is an entry of its own, filed in its wiki under
     the page it was attached to, and named by its asset's path — the ref a
     page's mention of it carries.
+
+    ``task_files`` are the files Jira issues had attached: each an entry of
+    its own, which the task it came from is attached to by that same ref.
     """
     entries: list[dict[str, Any]] = []
     files: dict[str, bytes] = {}
@@ -146,6 +150,23 @@ def write_bundle(
                     },
                 }
             )
+
+    for document in task_files:
+        documents.append(document)
+        entries.append(
+            {
+                "path": f"assets/{document.storage_key}",
+                "tool": "document",
+                "type": "file",
+                "schema_version": None,
+                "entity_id": len(entries) + 1,
+                "title": document.filename,
+                "initiative_id": 1,
+                "tags": [],
+                "properties": [],
+                "asset": f"assets/{document.storage_key}",
+            }
+        )
 
     assets = []
     for image in (*images, *documents):

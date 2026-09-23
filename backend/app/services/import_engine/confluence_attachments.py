@@ -24,17 +24,13 @@ from app.core.messages import ImportEngineMessages
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.jira_attachments import (
     IMAGE_TYPES,
+    MAX_FILE_BYTES,
     MAX_IMAGE_BYTES,
+    REFUSED_TYPES,
     AssetBudget,
     StoredImage,
+    file_extension,
 )
-
-#: The design's cap on one file that is not a picture.
-MAX_FILE_BYTES = 50 * 1024 * 1024
-
-#: Types never brought over. SVG is markup that can carry script, and these
-#: are files from somebody else's site.
-_REFUSED_TYPES = frozenset({"image/svg+xml"})
 
 _ATTACHMENT_ID = re.compile(r"(?:att)?\d{1,20}")
 
@@ -78,18 +74,12 @@ def read_attachments(payload: Any) -> list[PageAttachment]:
     return found
 
 
-def _extension(filename: str) -> str:
-    dot = filename.rfind(".")
-    extension = filename[dot:].lower() if dot > 0 else ""
-    return extension if 1 < len(extension) <= 10 and extension[1:].isalnum() else ""
-
-
 def storage_key(attachment: PageAttachment) -> str:
     """A fresh, flat storage key — never the site's filename, which is
     somebody else's text and not a path this server should write to."""
     if attachment.is_image:
         return f"{uuid.uuid4().hex}{IMAGE_TYPES[attachment.media_type]}"
-    return f"{uuid.uuid4().hex}{_extension(attachment.filename)}"
+    return f"{uuid.uuid4().hex}{file_extension(attachment.filename)}"
 
 
 @dataclass
@@ -167,7 +157,7 @@ async def download_page_attachments(
     """
     media = PageMedia()
     for attachment in attachments:
-        if attachment.media_type in _REFUSED_TYPES:
+        if attachment.media_type in REFUSED_TYPES:
             report.refused += 1
             continue
         if not documents and not attachment.is_image:

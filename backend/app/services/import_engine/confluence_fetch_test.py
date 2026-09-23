@@ -415,8 +415,11 @@ async def test_a_pages_comments_come_with_it_replies_and_all(monkeypatch):
                 {
                     **_comment(20, "<p>Fix this</p>"),
                     "properties": {"inlineOriginalSelection": "teh"},
-                }
+                },
+                # Resolved: the discussion is over, so it and its replies stay.
+                {**_comment(21, "<p>Done already</p>"), "resolutionStatus": "resolved"},
             ],
+            "inline-comments/21/children": [_comment(22, "<p>Thanks</p>")],
         },
     )
     bundle, report = await _bundle(include_comments=True)
@@ -427,6 +430,8 @@ async def test_a_pages_comments_come_with_it_replies_and_all(monkeypatch):
     assert reply["author_handle"] == "Sam Bee"
     assert inline["content"]["root"]["children"][0]["type"] == "quote"
     assert report.comments == 3
+    assert report.comments_resolved == 1
+    assert not [c for c in calls if "inline-comments/21/children" in c["url"]]
     # Both kinds are asked for, with their bodies.
     asked = [c["url"] for c in calls if "-comments" in c["url"]]
     assert any("/pages/1/footer-comments?body-format=storage" in u for u in asked)

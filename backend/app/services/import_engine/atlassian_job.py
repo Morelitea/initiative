@@ -109,6 +109,8 @@ def summary_of(report: jira_fetch.FetchReport) -> AtlassianFetchSummary:
         images_oversize=report.images_oversize,
         images_unreadable=report.images_unreadable,
         other_attachments=report.other_attachments,
+        files=report.files,
+        file_bytes=report.file_bytes,
     )
 
 
@@ -129,6 +131,7 @@ def confluence_summary_of(
         page_attachments_skipped=report.attachments_skipped,
         page_files_blocked=report.files_blocked,
         page_comments=report.comments,
+        page_comments_resolved=report.comments_resolved,
         labels=report.labels,
         dropped_macros=[
             AtlassianDroppedItem(name=name, count=count)
@@ -239,6 +242,7 @@ def combined_summary(
             "page_attachments_skipped",
             "page_files_blocked",
             "page_comments",
+            "page_comments_resolved",
             "labels",
             "dropped_macros",
         ):
@@ -397,11 +401,11 @@ async def fetch(
                 )
             except ImportEngineError as exc:
                 sprints_blocked_by = exc.code
-        # A page's attached files become documents, which the apply refuses
-        # the whole bundle over if the initiative cannot take them. Asked
-        # now, so only the pictures come instead.
+        # Attached files become documents — a page's and an issue's — which
+        # the apply refuses the whole bundle over if the initiative cannot
+        # take them. Asked now, so only the pictures come instead.
         documents_allowed = True
-        if spaces and include_attachments:
+        if include_attachments:
             try:
                 await import_engine.load_target_initiative(
                     user_session,
@@ -449,6 +453,7 @@ async def fetch(
                 include_comments=params.get("include_comments") is not False,
                 include_attachments=include_attachments,
                 asset_budget=asset_budget,
+                documents=documents_allowed,
                 # An issue's "Confluence pages" are worth asking for only when
                 # the pages are coming too.
                 link_pages=bool(spaces),
@@ -498,6 +503,7 @@ async def fetch(
         images=[*(jira.images if jira else []), *(pages.images if pages else [])],
         wikis=wiki_envelopes,
         wiki_files=pages.files if pages else {},
+        task_files=jira.files if jira else [],
         people=merge_people(
             jira.people if jira else [], pages.people if pages else Counter()
         ),
