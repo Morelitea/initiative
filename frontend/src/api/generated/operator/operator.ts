@@ -27,7 +27,7 @@ import type {
   AdminUserDeleteRequest,
   AdminUserRead,
   AdminUsernameUpdate,
-  ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   HTTPValidationError,
   PlatformRoleUpdate,
   VerificationSendResponse,
@@ -62,62 +62,62 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * deliberately NOT loaded here — a platform user view exposes platform data only.
  * @summary List All Users
  */
-export const listAllUsersApiV1AdminUsersGet = (
+export const listAllUsersApiV1OperatorUsersGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AdminUserRead[]>(
-    { url: `/api/v1/admin/users`, method: "GET", signal },
+    { url: `/api/v1/operator/users`, method: "GET", signal },
     options
   );
 };
 
-export const getListAllUsersApiV1AdminUsersGetQueryKey = () => {
-  return [`/api/v1/admin/users`] as const;
+export const getListAllUsersApiV1OperatorUsersGetQueryKey = () => {
+  return [`/api/v1/operator/users`] as const;
 };
 
-export const getListAllUsersApiV1AdminUsersGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
+export const getListAllUsersApiV1OperatorUsersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>, TError, TData>
+    UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
   >;
   request?: SecondParameter<typeof apiMutator>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListAllUsersApiV1AdminUsersGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListAllUsersApiV1OperatorUsersGetQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>> = ({
     signal,
-  }) => listAllUsersApiV1AdminUsersGet(requestOptions, signal);
+  }) => listAllUsersApiV1OperatorUsersGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
+    Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListAllUsersApiV1AdminUsersGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>
+export type ListAllUsersApiV1OperatorUsersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>
 >;
-export type ListAllUsersApiV1AdminUsersGetQueryError = ErrorType<HTTPValidationError>;
+export type ListAllUsersApiV1OperatorUsersGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListAllUsersApiV1AdminUsersGet<
-  TData = Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
+export function useListAllUsersApiV1OperatorUsersGet<
+  TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
+          Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
           TError,
-          Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>
+          Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>
         >,
         "initialData"
       >;
@@ -125,19 +125,19 @@ export function useListAllUsersApiV1AdminUsersGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAllUsersApiV1AdminUsersGet<
-  TData = Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
+export function useListAllUsersApiV1OperatorUsersGet<
+  TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
+          Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
           TError,
-          Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>
+          Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>
         >,
         "initialData"
       >;
@@ -145,13 +145,13 @@ export function useListAllUsersApiV1AdminUsersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAllUsersApiV1AdminUsersGet<
-  TData = Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
+export function useListAllUsersApiV1OperatorUsersGet<
+  TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -161,19 +161,19 @@ export function useListAllUsersApiV1AdminUsersGet<
  * @summary List All Users
  */
 
-export function useListAllUsersApiV1AdminUsersGet<
-  TData = Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
+export function useListAllUsersApiV1OperatorUsersGet<
+  TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAllUsersApiV1AdminUsersGetQueryOptions(options);
+  const queryOptions = getListAllUsersApiV1OperatorUsersGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -188,32 +188,32 @@ export function useListAllUsersApiV1AdminUsersGet<
  * Platform-admin only.
  * @summary Export Platform Users Csv
  */
-export const exportPlatformUsersCsvApiV1AdminUsersExportCsvGet = (
-  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+export const exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet = (
+  params?: ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/admin/users/export.csv`, method: "GET", params, signal },
+    { url: `/api/v1/operator/users/export.csv`, method: "GET", params, signal },
     options
   );
 };
 
-export const getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryKey = (
-  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams
+export const getExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetQueryKey = (
+  params?: ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams
 ) => {
-  return [`/api/v1/admin/users/export.csv`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/operator/users/export.csv`, ...(params ? [params] : [])] as const;
 };
 
-export const getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+export const getExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  params?: ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
         TError,
         TData
       >
@@ -224,44 +224,45 @@ export const getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryOptions = 
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryKey(params);
+    queryOptions?.queryKey ??
+    getExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetQueryKey(params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>
+    Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>
   > = ({ signal }) =>
-    exportPlatformUsersCsvApiV1AdminUsersExportCsvGet(params, requestOptions, signal);
+    exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+    Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>
+export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>
 >;
-export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryError =
+export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+export function useExportPlatformUsersCsvApiV1OperatorUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  params: undefined | ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
           TError,
-          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>
+          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>
         >,
         "initialData"
       >;
@@ -269,24 +270,24 @@ export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+export function useExportPlatformUsersCsvApiV1OperatorUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  params?: ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
           TError,
-          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>
+          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>
         >,
         "initialData"
       >;
@@ -294,15 +295,15 @@ export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+export function useExportPlatformUsersCsvApiV1OperatorUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  params?: ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
         TError,
         TData
       >
@@ -315,15 +316,15 @@ export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
  * @summary Export Platform Users Csv
  */
 
-export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+export function useExportPlatformUsersCsvApiV1OperatorUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  params?: ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet>>,
         TError,
         TData
       >
@@ -332,7 +333,7 @@ export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryOptions(
+  const queryOptions = getExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetQueryOptions(
     params,
     options
   );
@@ -356,38 +357,38 @@ export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
  * it, and the account is told.
  * @summary Clear Second Factor
  */
-export const clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete = (
+export const clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete = (
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/admin/users/${userId}/second-factor`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/second-factor`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationKey = () =>
-  ["clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete"] as const;
+export const getClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationKey = () =>
+  ["clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete"] as const;
 
-export const getClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationOptions = <
+export const getClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+    Awaited<ReturnType<typeof clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete>>,
     TError,
-    ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationVariables,
+    ClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+  Awaited<ReturnType<typeof clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete>>,
   TError,
-  ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationVariables,
+  ClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationKey();
+  const mutationKey = getClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -395,52 +396,52 @@ export const getClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
-    ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationVariables
+    Awaited<ReturnType<typeof clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete>>,
+    ClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationVariables
   > = (props) => {
     const { userId } = props ?? {};
 
-    return clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete(userId, requestOptions);
+    return clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete(userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>
+export type ClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete>>
 >;
 
-export type ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationError =
+export type ClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationVariables = {
+export type ClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationVariables = {
   userId: number;
 };
 
 /**
  * @summary Clear Second Factor
  */
-export const useClearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete = <
+export const useClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+      Awaited<ReturnType<typeof clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete>>,
       TError,
-      ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationVariables,
+      ClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete>>,
+  Awaited<ReturnType<typeof clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete>>,
   TError,
-  ClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationVariables,
+  ClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClearSecondFactorApiV1AdminUsersUserIdSecondFactorDeleteMutationOptions(options),
+    getClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -448,38 +449,38 @@ export const useClearSecondFactorApiV1AdminUsersUserIdSecondFactorDelete = <
  * Trigger a password reset email for a user (admin only).
  * @summary Trigger Password Reset
  */
-export const triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost = (
+export const triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost = (
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<VerificationSendResponse>(
-    { url: `/api/v1/admin/users/${userId}/reset-password`, method: "POST", signal },
+    { url: `/api/v1/operator/users/${userId}/reset-password`, method: "POST", signal },
     options
   );
 };
 
-export const getTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationKey = () =>
-  ["triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost"] as const;
+export const getTriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationKey = () =>
+  ["triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost"] as const;
 
-export const getTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationOptions = <
+export const getTriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost>>,
+    Awaited<ReturnType<typeof triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost>>,
     TError,
-    TriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationVariables,
+    TriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost>>,
+  Awaited<ReturnType<typeof triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost>>,
   TError,
-  TriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationVariables,
+  TriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationKey();
+  const mutationKey = getTriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -487,52 +488,53 @@ export const getTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost>>,
-    TriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationVariables
+    Awaited<ReturnType<typeof triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost>>,
+    TriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationVariables
   > = (props) => {
     const { userId } = props ?? {};
 
-    return triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost(userId, requestOptions);
+    return triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost(userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type TriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost>>
->;
+export type TriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost>>
+  >;
 
-export type TriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationError =
+export type TriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationError =
   ErrorType<HTTPValidationError>;
-export type TriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationVariables = {
+export type TriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationVariables = {
   userId: number;
 };
 
 /**
  * @summary Trigger Password Reset
  */
-export const useTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost = <
+export const useTriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost>>,
+      Awaited<ReturnType<typeof triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost>>,
       TError,
-      TriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationVariables,
+      TriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost>>,
+  Awaited<ReturnType<typeof triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost>>,
   TError,
-  TriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationVariables,
+  TriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostMutationOptions(options),
+    getTriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPostMutationOptions(options),
     queryClient
   );
 };
@@ -540,38 +542,38 @@ export const useTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost = <
  * Reactivate a deactivated user account (admin only).
  * @summary Reactivate User
  */
-export const reactivateUserApiV1AdminUsersUserIdReactivatePost = (
+export const reactivateUserApiV1OperatorUsersUserIdReactivatePost = (
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AdminUserRead>(
-    { url: `/api/v1/admin/users/${userId}/reactivate`, method: "POST", signal },
+    { url: `/api/v1/operator/users/${userId}/reactivate`, method: "POST", signal },
     options
   );
 };
 
-export const getReactivateUserApiV1AdminUsersUserIdReactivatePostMutationKey = () =>
-  ["reactivateUserApiV1AdminUsersUserIdReactivatePost"] as const;
+export const getReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationKey = () =>
+  ["reactivateUserApiV1OperatorUsersUserIdReactivatePost"] as const;
 
-export const getReactivateUserApiV1AdminUsersUserIdReactivatePostMutationOptions = <
+export const getReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reactivateUserApiV1AdminUsersUserIdReactivatePost>>,
+    Awaited<ReturnType<typeof reactivateUserApiV1OperatorUsersUserIdReactivatePost>>,
     TError,
-    ReactivateUserApiV1AdminUsersUserIdReactivatePostMutationVariables,
+    ReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof reactivateUserApiV1AdminUsersUserIdReactivatePost>>,
+  Awaited<ReturnType<typeof reactivateUserApiV1OperatorUsersUserIdReactivatePost>>,
   TError,
-  ReactivateUserApiV1AdminUsersUserIdReactivatePostMutationVariables,
+  ReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getReactivateUserApiV1AdminUsersUserIdReactivatePostMutationKey();
+  const mutationKey = getReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -579,50 +581,52 @@ export const getReactivateUserApiV1AdminUsersUserIdReactivatePostMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof reactivateUserApiV1AdminUsersUserIdReactivatePost>>,
-    ReactivateUserApiV1AdminUsersUserIdReactivatePostMutationVariables
+    Awaited<ReturnType<typeof reactivateUserApiV1OperatorUsersUserIdReactivatePost>>,
+    ReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationVariables
   > = (props) => {
     const { userId } = props ?? {};
 
-    return reactivateUserApiV1AdminUsersUserIdReactivatePost(userId, requestOptions);
+    return reactivateUserApiV1OperatorUsersUserIdReactivatePost(userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ReactivateUserApiV1AdminUsersUserIdReactivatePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof reactivateUserApiV1AdminUsersUserIdReactivatePost>>
+export type ReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reactivateUserApiV1OperatorUsersUserIdReactivatePost>>
 >;
 
-export type ReactivateUserApiV1AdminUsersUserIdReactivatePostMutationError =
+export type ReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationError =
   ErrorType<HTTPValidationError>;
-export type ReactivateUserApiV1AdminUsersUserIdReactivatePostMutationVariables = { userId: number };
+export type ReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationVariables = {
+  userId: number;
+};
 
 /**
  * @summary Reactivate User
  */
-export const useReactivateUserApiV1AdminUsersUserIdReactivatePost = <
+export const useReactivateUserApiV1OperatorUsersUserIdReactivatePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof reactivateUserApiV1AdminUsersUserIdReactivatePost>>,
+      Awaited<ReturnType<typeof reactivateUserApiV1OperatorUsersUserIdReactivatePost>>,
       TError,
-      ReactivateUserApiV1AdminUsersUserIdReactivatePostMutationVariables,
+      ReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof reactivateUserApiV1AdminUsersUserIdReactivatePost>>,
+  Awaited<ReturnType<typeof reactivateUserApiV1OperatorUsersUserIdReactivatePost>>,
   TError,
-  ReactivateUserApiV1AdminUsersUserIdReactivatePostMutationVariables,
+  ReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getReactivateUserApiV1AdminUsersUserIdReactivatePostMutationOptions(options),
+    getReactivateUserApiV1OperatorUsersUserIdReactivatePostMutationOptions(options),
     queryClient
   );
 };
@@ -643,38 +647,38 @@ export const useReactivateUserApiV1AdminUsersUserIdReactivatePost = <
  * dropped are not coming back.
  * @summary Restore Deleted User
  */
-export const restoreDeletedUserApiV1AdminUsersUserIdRestorePost = (
+export const restoreDeletedUserApiV1OperatorUsersUserIdRestorePost = (
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AdminUserRead>(
-    { url: `/api/v1/admin/users/${userId}/restore`, method: "POST", signal },
+    { url: `/api/v1/operator/users/${userId}/restore`, method: "POST", signal },
     options
   );
 };
 
-export const getRestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationKey = () =>
-  ["restoreDeletedUserApiV1AdminUsersUserIdRestorePost"] as const;
+export const getRestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationKey = () =>
+  ["restoreDeletedUserApiV1OperatorUsersUserIdRestorePost"] as const;
 
-export const getRestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationOptions = <
+export const getRestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+    Awaited<ReturnType<typeof restoreDeletedUserApiV1OperatorUsersUserIdRestorePost>>,
     TError,
-    RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationVariables,
+    RestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+  Awaited<ReturnType<typeof restoreDeletedUserApiV1OperatorUsersUserIdRestorePost>>,
   TError,
-  RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationVariables,
+  RestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getRestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationKey();
+  const mutationKey = getRestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -682,52 +686,52 @@ export const getRestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
-    RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationVariables
+    Awaited<ReturnType<typeof restoreDeletedUserApiV1OperatorUsersUserIdRestorePost>>,
+    RestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationVariables
   > = (props) => {
     const { userId } = props ?? {};
 
-    return restoreDeletedUserApiV1AdminUsersUserIdRestorePost(userId, requestOptions);
+    return restoreDeletedUserApiV1OperatorUsersUserIdRestorePost(userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>
+export type RestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof restoreDeletedUserApiV1OperatorUsersUserIdRestorePost>>
 >;
 
-export type RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationError =
+export type RestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationError =
   ErrorType<HTTPValidationError>;
-export type RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationVariables = {
+export type RestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationVariables = {
   userId: number;
 };
 
 /**
  * @summary Restore Deleted User
  */
-export const useRestoreDeletedUserApiV1AdminUsersUserIdRestorePost = <
+export const useRestoreDeletedUserApiV1OperatorUsersUserIdRestorePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+      Awaited<ReturnType<typeof restoreDeletedUserApiV1OperatorUsersUserIdRestorePost>>,
       TError,
-      RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationVariables,
+      RestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof restoreDeletedUserApiV1AdminUsersUserIdRestorePost>>,
+  Awaited<ReturnType<typeof restoreDeletedUserApiV1OperatorUsersUserIdRestorePost>>,
   TError,
-  RestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationVariables,
+  RestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRestoreDeletedUserApiV1AdminUsersUserIdRestorePostMutationOptions(options),
+    getRestoreDeletedUserApiV1OperatorUsersUserIdRestorePostMutationOptions(options),
     queryClient
   );
 };
@@ -748,38 +752,38 @@ export const useRestoreDeletedUserApiV1AdminUsersUserIdRestorePost = <
  * is the whole authorization.
  * @summary Remove User Avatar
  */
-export const removeUserAvatarApiV1AdminUsersUserIdAvatarDelete = (
+export const removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete = (
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/admin/users/${userId}/avatar`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/avatar`, method: "DELETE", signal },
     options
   );
 };
 
-export const getRemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationKey = () =>
-  ["removeUserAvatarApiV1AdminUsersUserIdAvatarDelete"] as const;
+export const getRemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationKey = () =>
+  ["removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete"] as const;
 
-export const getRemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationOptions = <
+export const getRemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+    Awaited<ReturnType<typeof removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete>>,
     TError,
-    RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationVariables,
+    RemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+  Awaited<ReturnType<typeof removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete>>,
   TError,
-  RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationVariables,
+  RemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getRemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationKey();
+  const mutationKey = getRemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -787,50 +791,52 @@ export const getRemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
-    RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationVariables
+    Awaited<ReturnType<typeof removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete>>,
+    RemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationVariables
   > = (props) => {
     const { userId } = props ?? {};
 
-    return removeUserAvatarApiV1AdminUsersUserIdAvatarDelete(userId, requestOptions);
+    return removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete(userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>
+export type RemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete>>
 >;
 
-export type RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationError =
+export type RemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationVariables = { userId: number };
+export type RemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationVariables = {
+  userId: number;
+};
 
 /**
  * @summary Remove User Avatar
  */
-export const useRemoveUserAvatarApiV1AdminUsersUserIdAvatarDelete = <
+export const useRemoveUserAvatarApiV1OperatorUsersUserIdAvatarDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+      Awaited<ReturnType<typeof removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete>>,
       TError,
-      RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationVariables,
+      RemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+  Awaited<ReturnType<typeof removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete>>,
   TError,
-  RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationVariables,
+  RemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationOptions(options),
+    getRemoveUserAvatarApiV1OperatorUsersUserIdAvatarDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -850,7 +856,7 @@ export const useRemoveUserAvatarApiV1AdminUsersUserIdAvatarDelete = <
  * a pick on undoing a moderation decision.
  * @summary Set User Username
  */
-export const setUserUsernameApiV1AdminUsersUserIdUsernamePatch = (
+export const setUserUsernameApiV1OperatorUsersUserIdUsernamePatch = (
   userId: number,
   adminUsernameUpdate: BodyType<AdminUsernameUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -858,7 +864,7 @@ export const setUserUsernameApiV1AdminUsersUserIdUsernamePatch = (
 ) => {
   return apiMutator<AdminUserRead>(
     {
-      url: `/api/v1/admin/users/${userId}/username`,
+      url: `/api/v1/operator/users/${userId}/username`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: adminUsernameUpdate,
@@ -868,27 +874,27 @@ export const setUserUsernameApiV1AdminUsersUserIdUsernamePatch = (
   );
 };
 
-export const getSetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationKey = () =>
-  ["setUserUsernameApiV1AdminUsersUserIdUsernamePatch"] as const;
+export const getSetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationKey = () =>
+  ["setUserUsernameApiV1OperatorUsersUserIdUsernamePatch"] as const;
 
-export const getSetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationOptions = <
+export const getSetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+    Awaited<ReturnType<typeof setUserUsernameApiV1OperatorUsersUserIdUsernamePatch>>,
     TError,
-    SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationVariables,
+    SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+  Awaited<ReturnType<typeof setUserUsernameApiV1OperatorUsersUserIdUsernamePatch>>,
   TError,
-  SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationVariables,
+  SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationKey();
+  const mutationKey = getSetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -896,25 +902,25 @@ export const getSetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
-    SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationVariables
+    Awaited<ReturnType<typeof setUserUsernameApiV1OperatorUsersUserIdUsernamePatch>>,
+    SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationVariables
   > = (props) => {
     const { userId, data } = props ?? {};
 
-    return setUserUsernameApiV1AdminUsersUserIdUsernamePatch(userId, data, requestOptions);
+    return setUserUsernameApiV1OperatorUsersUserIdUsernamePatch(userId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>
+export type SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setUserUsernameApiV1OperatorUsersUserIdUsernamePatch>>
 >;
-export type SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationBody =
+export type SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationBody =
   BodyType<AdminUsernameUpdate>;
-export type SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationError =
+export type SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationError =
   ErrorType<HTTPValidationError>;
-export type SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationVariables = {
+export type SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationVariables = {
   userId: number;
   data: BodyType<AdminUsernameUpdate>;
 };
@@ -922,28 +928,28 @@ export type SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationVariables =
 /**
  * @summary Set User Username
  */
-export const useSetUserUsernameApiV1AdminUsersUserIdUsernamePatch = <
+export const useSetUserUsernameApiV1OperatorUsersUserIdUsernamePatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+      Awaited<ReturnType<typeof setUserUsernameApiV1OperatorUsersUserIdUsernamePatch>>,
       TError,
-      SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationVariables,
+      SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+  Awaited<ReturnType<typeof setUserUsernameApiV1OperatorUsersUserIdUsernamePatch>>,
   TError,
-  SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationVariables,
+  SetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationOptions(options),
+    getSetUserUsernameApiV1OperatorUsersUserIdUsernamePatchMutationOptions(options),
     queryClient
   );
 };
@@ -961,7 +967,7 @@ export const useSetUserUsernameApiV1AdminUsersUserIdUsernamePatch = <
  * content.
  * @summary Set User Suspension
  */
-export const setUserSuspensionApiV1AdminUsersUserIdSuspensionPost = (
+export const setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost = (
   userId: number,
   adminSuspensionUpdate: BodyType<AdminSuspensionUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -969,7 +975,7 @@ export const setUserSuspensionApiV1AdminUsersUserIdSuspensionPost = (
 ) => {
   return apiMutator<AdminUserRead>(
     {
-      url: `/api/v1/admin/users/${userId}/suspension`,
+      url: `/api/v1/operator/users/${userId}/suspension`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: adminSuspensionUpdate,
@@ -979,27 +985,27 @@ export const setUserSuspensionApiV1AdminUsersUserIdSuspensionPost = (
   );
 };
 
-export const getSetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationKey = () =>
-  ["setUserSuspensionApiV1AdminUsersUserIdSuspensionPost"] as const;
+export const getSetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationKey = () =>
+  ["setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost"] as const;
 
-export const getSetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationOptions = <
+export const getSetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+    Awaited<ReturnType<typeof setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost>>,
     TError,
-    SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationVariables,
+    SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+  Awaited<ReturnType<typeof setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost>>,
   TError,
-  SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationVariables,
+  SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationKey();
+  const mutationKey = getSetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1007,25 +1013,25 @@ export const getSetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationOpti
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
-    SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationVariables
+    Awaited<ReturnType<typeof setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost>>,
+    SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationVariables
   > = (props) => {
     const { userId, data } = props ?? {};
 
-    return setUserSuspensionApiV1AdminUsersUserIdSuspensionPost(userId, data, requestOptions);
+    return setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost(userId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>
+export type SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost>>
 >;
-export type SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationBody =
+export type SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationBody =
   BodyType<AdminSuspensionUpdate>;
-export type SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationError =
+export type SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationError =
   ErrorType<HTTPValidationError>;
-export type SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationVariables = {
+export type SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationVariables = {
   userId: number;
   data: BodyType<AdminSuspensionUpdate>;
 };
@@ -1033,28 +1039,28 @@ export type SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationVariable
 /**
  * @summary Set User Suspension
  */
-export const useSetUserSuspensionApiV1AdminUsersUserIdSuspensionPost = <
+export const useSetUserSuspensionApiV1OperatorUsersUserIdSuspensionPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+      Awaited<ReturnType<typeof setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost>>,
       TError,
-      SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationVariables,
+      SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+  Awaited<ReturnType<typeof setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost>>,
   TError,
-  SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationVariables,
+  SetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationOptions(options),
+    getSetUserSuspensionApiV1OperatorUsersUserIdSuspensionPostMutationOptions(options),
     queryClient
   );
 };
@@ -1074,38 +1080,38 @@ export const useSetUserSuspensionApiV1AdminUsersUserIdSuspensionPost = <
  * a log is for.
  * @summary Clear Age Block
  */
-export const clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = (
+export const clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete = (
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AdminUserRead>(
-    { url: `/api/v1/admin/users/${userId}/age-block`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/age-block`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationKey = () =>
-  ["clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete"] as const;
+export const getClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationKey = () =>
+  ["clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete"] as const;
 
-export const getClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationOptions = <
+export const getClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+    Awaited<ReturnType<typeof clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete>>,
     TError,
-    ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationVariables,
+    ClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+  Awaited<ReturnType<typeof clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete>>,
   TError,
-  ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationVariables,
+  ClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationKey();
+  const mutationKey = getClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1113,50 +1119,52 @@ export const getClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
-    ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationVariables
+    Awaited<ReturnType<typeof clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete>>,
+    ClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationVariables
   > = (props) => {
     const { userId } = props ?? {};
 
-    return clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete(userId, requestOptions);
+    return clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete(userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>
+export type ClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete>>
 >;
 
-export type ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationError =
+export type ClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationVariables = { userId: number };
+export type ClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationVariables = {
+  userId: number;
+};
 
 /**
  * @summary Clear Age Block
  */
-export const useClearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = <
+export const useClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+      Awaited<ReturnType<typeof clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete>>,
       TError,
-      ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationVariables,
+      ClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+  Awaited<ReturnType<typeof clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete>>,
   TError,
-  ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationVariables,
+  ClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationOptions(options),
+    getClearAgeBlockApiV1OperatorUsersUserIdAgeBlockDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -1168,7 +1176,7 @@ export const useClearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = <
  * - Cannot demote the last owner
  * @summary Update Platform Role
  */
-export const updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = (
+export const updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch = (
   userId: number,
   platformRoleUpdate: BodyType<PlatformRoleUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1176,7 +1184,7 @@ export const updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = (
 ) => {
   return apiMutator<AdminUserRead>(
     {
-      url: `/api/v1/admin/users/${userId}/platform-role`,
+      url: `/api/v1/operator/users/${userId}/platform-role`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: platformRoleUpdate,
@@ -1186,27 +1194,27 @@ export const updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = (
   );
 };
 
-export const getUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationKey = () =>
-  ["updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch"] as const;
+export const getUpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationKey = () =>
+  ["updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch"] as const;
 
-export const getUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationOptions = <
+export const getUpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>>,
+    Awaited<ReturnType<typeof updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch>>,
     TError,
-    UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationVariables,
+    UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>>,
+  Awaited<ReturnType<typeof updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch>>,
   TError,
-  UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationVariables,
+  UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationKey();
+  const mutationKey = getUpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1214,25 +1222,29 @@ export const getUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>>,
-    UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationVariables
+    Awaited<ReturnType<typeof updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch>>,
+    UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationVariables
   > = (props) => {
     const { userId, data } = props ?? {};
 
-    return updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch(userId, data, requestOptions);
+    return updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch(
+      userId,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>>
+export type UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch>>
 >;
-export type UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationBody =
+export type UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationBody =
   BodyType<PlatformRoleUpdate>;
-export type UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationError =
+export type UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationVariables = {
+export type UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationVariables = {
   userId: number;
   data: BodyType<PlatformRoleUpdate>;
 };
@@ -1240,28 +1252,28 @@ export type UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationVari
 /**
  * @summary Update Platform Role
  */
-export const useUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = <
+export const useUpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>>,
+      Awaited<ReturnType<typeof updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch>>,
       TError,
-      UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationVariables,
+      UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>>,
+  Awaited<ReturnType<typeof updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch>>,
   TError,
-  UpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationVariables,
+  UpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchMutationOptions(options),
+    getUpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatchMutationOptions(options),
     queryClient
   );
 };
@@ -1274,27 +1286,26 @@ export const useUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = <
  * unowned for a guild admin to claim.
  * @summary Check User Deletion Eligibility
  */
-export const checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet = (
+export const checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet = (
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AdminDeletionEligibilityResponse>(
-    { url: `/api/v1/admin/users/${userId}/deletion-eligibility`, method: "GET", signal },
+    { url: `/api/v1/operator/users/${userId}/deletion-eligibility`, method: "GET", signal },
     options
   );
 };
 
-export const getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey = (
-  userId: number
-) => {
-  return [`/api/v1/admin/users/${userId}/deletion-eligibility`] as const;
-};
+export const getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey =
+  (userId: number) => {
+    return [`/api/v1/operator/users/${userId}/deletion-eligibility`] as const;
+  };
 
-export const getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryOptions =
+export const getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+      ReturnType<typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet>
     >,
     TError = ErrorType<HTTPValidationError>,
   >(
@@ -1304,7 +1315,7 @@ export const getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibi
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet
+              typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
             >
           >,
           TError,
@@ -1318,14 +1329,16 @@ export const getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibi
 
     const queryKey =
       queryOptions?.queryKey ??
-      getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey(userId);
+      getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey(userId);
 
     const queryFn: QueryFunction<
       Awaited<
-        ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+        ReturnType<
+          typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
+        >
       >
     > = ({ signal }) =>
-      checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet(
+      checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet(
         userId,
         requestOptions,
         signal
@@ -1338,25 +1351,27 @@ export const getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibi
       ...queryOptions,
     } as UseQueryOptions<
       Awaited<
-        ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+        ReturnType<
+          typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
+        >
       >,
       TError,
       TData
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type CheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryResult =
+export type CheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+      ReturnType<typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet>
     >
   >;
-export type CheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryError =
+export type CheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet<
+export function useCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet<
   TData = Awaited<
-    ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+    ReturnType<typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1365,7 +1380,9 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+          ReturnType<
+            typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
+          >
         >,
         TError,
         TData
@@ -1375,13 +1392,13 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet
+              typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet
+              typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
             >
           >
         >,
@@ -1391,9 +1408,9 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet<
+export function useCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet<
   TData = Awaited<
-    ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+    ReturnType<typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1402,7 +1419,9 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+          ReturnType<
+            typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
+          >
         >,
         TError,
         TData
@@ -1412,13 +1431,13 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet
+              typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet
+              typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
             >
           >
         >,
@@ -1428,9 +1447,9 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet<
+export function useCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet<
   TData = Awaited<
-    ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+    ReturnType<typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1439,7 +1458,9 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+          ReturnType<
+            typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
+          >
         >,
         TError,
         TData
@@ -1453,9 +1474,9 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
  * @summary Check User Deletion Eligibility
  */
 
-export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet<
+export function useCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet<
   TData = Awaited<
-    ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+    ReturnType<typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1464,7 +1485,9 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
+          ReturnType<
+            typeof checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet
+          >
         >,
         TError,
         TData
@@ -1475,7 +1498,7 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryOptions(
+    getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryOptions(
       userId,
       options
     );
@@ -1504,7 +1527,7 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
  * - Cannot delete the last owner
  * @summary Delete User
  */
-export const deleteUserApiV1AdminUsersUserIdDelete = (
+export const deleteUserApiV1OperatorUsersUserIdDelete = (
   userId: number,
   adminUserDeleteRequest: BodyType<AdminUserDeleteRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1512,7 +1535,7 @@ export const deleteUserApiV1AdminUsersUserIdDelete = (
 ) => {
   return apiMutator<AccountDeletionResponse>(
     {
-      url: `/api/v1/admin/users/${userId}`,
+      url: `/api/v1/operator/users/${userId}`,
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       data: adminUserDeleteRequest,
@@ -1522,27 +1545,27 @@ export const deleteUserApiV1AdminUsersUserIdDelete = (
   );
 };
 
-export const getDeleteUserApiV1AdminUsersUserIdDeleteMutationKey = () =>
-  ["deleteUserApiV1AdminUsersUserIdDelete"] as const;
+export const getDeleteUserApiV1OperatorUsersUserIdDeleteMutationKey = () =>
+  ["deleteUserApiV1OperatorUsersUserIdDelete"] as const;
 
-export const getDeleteUserApiV1AdminUsersUserIdDeleteMutationOptions = <
+export const getDeleteUserApiV1OperatorUsersUserIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteUserApiV1AdminUsersUserIdDelete>>,
+    Awaited<ReturnType<typeof deleteUserApiV1OperatorUsersUserIdDelete>>,
     TError,
-    DeleteUserApiV1AdminUsersUserIdDeleteMutationVariables,
+    DeleteUserApiV1OperatorUsersUserIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteUserApiV1AdminUsersUserIdDelete>>,
+  Awaited<ReturnType<typeof deleteUserApiV1OperatorUsersUserIdDelete>>,
   TError,
-  DeleteUserApiV1AdminUsersUserIdDeleteMutationVariables,
+  DeleteUserApiV1OperatorUsersUserIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteUserApiV1AdminUsersUserIdDeleteMutationKey();
+  const mutationKey = getDeleteUserApiV1OperatorUsersUserIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1550,23 +1573,23 @@ export const getDeleteUserApiV1AdminUsersUserIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteUserApiV1AdminUsersUserIdDelete>>,
-    DeleteUserApiV1AdminUsersUserIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteUserApiV1OperatorUsersUserIdDelete>>,
+    DeleteUserApiV1OperatorUsersUserIdDeleteMutationVariables
   > = (props) => {
     const { userId, data } = props ?? {};
 
-    return deleteUserApiV1AdminUsersUserIdDelete(userId, data, requestOptions);
+    return deleteUserApiV1OperatorUsersUserIdDelete(userId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteUserApiV1AdminUsersUserIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteUserApiV1AdminUsersUserIdDelete>>
+export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteUserApiV1OperatorUsersUserIdDelete>>
 >;
-export type DeleteUserApiV1AdminUsersUserIdDeleteMutationBody = BodyType<AdminUserDeleteRequest>;
-export type DeleteUserApiV1AdminUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
-export type DeleteUserApiV1AdminUsersUserIdDeleteMutationVariables = {
+export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationBody = BodyType<AdminUserDeleteRequest>;
+export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
+export type DeleteUserApiV1OperatorUsersUserIdDeleteMutationVariables = {
   userId: number;
   data: BodyType<AdminUserDeleteRequest>;
 };
@@ -1574,25 +1597,28 @@ export type DeleteUserApiV1AdminUsersUserIdDeleteMutationVariables = {
 /**
  * @summary Delete User
  */
-export const useDeleteUserApiV1AdminUsersUserIdDelete = <
+export const useDeleteUserApiV1OperatorUsersUserIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteUserApiV1AdminUsersUserIdDelete>>,
+      Awaited<ReturnType<typeof deleteUserApiV1OperatorUsersUserIdDelete>>,
       TError,
-      DeleteUserApiV1AdminUsersUserIdDeleteMutationVariables,
+      DeleteUserApiV1OperatorUsersUserIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteUserApiV1AdminUsersUserIdDelete>>,
+  Awaited<ReturnType<typeof deleteUserApiV1OperatorUsersUserIdDelete>>,
   TError,
-  DeleteUserApiV1AdminUsersUserIdDeleteMutationVariables,
+  DeleteUserApiV1OperatorUsersUserIdDeleteMutationVariables,
   TContext
 > => {
-  return useMutation(getDeleteUserApiV1AdminUsersUserIdDeleteMutationOptions(options), queryClient);
+  return useMutation(
+    getDeleteUserApiV1OperatorUsersUserIdDeleteMutationOptions(options),
+    queryClient
+  );
 };

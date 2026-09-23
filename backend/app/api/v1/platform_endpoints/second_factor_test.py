@@ -286,7 +286,7 @@ async def test_support_can_clear_a_lost_factor(
     staff = await acting_user("moderator")
 
     response = await client.delete(
-        f"/api/v1/admin/users/{user.id}/second-factor", headers=staff.headers
+        f"/api/v1/operator/users/{user.id}/second-factor", headers=staff.headers
     )
     assert response.status_code == 204, response.text
 
@@ -302,7 +302,7 @@ async def test_clearing_a_factor_is_not_for_everybody(
     bystander = await acting_user("support")
 
     response = await client.delete(
-        f"/api/v1/admin/users/{user.id}/second-factor", headers=bystander.headers
+        f"/api/v1/operator/users/{user.id}/second-factor", headers=bystander.headers
     )
     assert response.status_code == 403
 

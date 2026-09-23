@@ -39,7 +39,7 @@ const builtin: AnnouncementAdminRead = {
 };
 
 const listResponds = (items: AnnouncementAdminRead[]) => {
-  server.use(http.get("*/api/v1/announcements/admin", () => HttpResponse.json({ items })));
+  server.use(http.get("*/api/v1/announcements/operator", () => HttpResponse.json({ items })));
 };
 
 describe("SettingsPlatformAnnouncementsPage", () => {
@@ -70,7 +70,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted: Record<string, unknown> | null = null;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", async ({ request }) => {
+      http.post("*/api/v1/announcements/operator", async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...live, ...posted }, { status: 201 });
       })
@@ -96,7 +96,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted: Record<string, unknown> | null = null;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", async ({ request }) => {
+      http.post("*/api/v1/announcements/operator", async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...live, ...posted }, { status: 201 });
       })
@@ -128,7 +128,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted = false;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", () => {
+      http.post("*/api/v1/announcements/operator", () => {
         posted = true;
         return HttpResponse.json(live, { status: 201 });
       })
@@ -159,7 +159,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted: Record<string, unknown> | null = null;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", async ({ request }) => {
+      http.post("*/api/v1/announcements/operator", async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...live, ...posted }, { status: 201 });
       })
@@ -184,7 +184,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted = false;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", () => {
+      http.post("*/api/v1/announcements/operator", () => {
         posted = true;
         return HttpResponse.json(live, { status: 201 });
       })

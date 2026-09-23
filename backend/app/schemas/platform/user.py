@@ -76,7 +76,7 @@ class UserCreate(SanitizedBaseModel):
     # platform role from the request body. Registration computes the role
     # itself (first user = owner, everyone else = member) and the admin
     # endpoint forces ``member``; standing platform roles change only via
-    # ``/admin/users/{id}/platform-role`` (capability-gated, bounded
+    # ``/operator/users/{id}/platform-role`` (capability-gated, bounded
     # delegation). See SEC-1.
     email: EmailStr
     # The name part of the handle. The number behind it is drawn server-side —

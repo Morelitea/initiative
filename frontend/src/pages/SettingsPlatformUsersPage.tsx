@@ -421,7 +421,7 @@ export const SettingsPlatformUsersPage = () => {
           open={deleteUserTarget !== null}
           onOpenChange={(open) => !open && setDeleteUserTarget(null)}
           onSuccess={() => {
-            void invalidate(q.adminUsers());
+            void invalidate(q.operatorUsers());
           }}
           targetUser={deleteUserTarget}
         />

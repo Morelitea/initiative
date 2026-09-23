@@ -32,7 +32,7 @@ async def test_a_break_glass_holder_seats_a_superadmin_from_the_guilds_own_route
     operator = await acting_user("operator")
 
     role_route = f"/api/v1/guilds/{guild_id}/members/{successor_id}"
-    eligibility = f"/api/v1/admin/users/{keyholder_id}/deletion-eligibility"
+    eligibility = f"/api/v1/operator/users/{keyholder_id}/deletion-eligibility"
 
     blocked = await client.get(eligibility, headers=operator.headers)
     assert blocked.status_code == 200, blocked.text
@@ -84,7 +84,7 @@ async def test_a_break_glass_holder_deletes_the_community_from_its_own_settings(
     await acting_user(guild_role=GuildRole.member, guild=keyholder.guild)
     operator = await acting_user("operator")
 
-    eligibility = f"/api/v1/admin/users/{keyholder_id}/deletion-eligibility"
+    eligibility = f"/api/v1/operator/users/{keyholder_id}/deletion-eligibility"
     body = {
         "password": PASSWORD,
         "confirmation_text": f"DELETE COMMUNITY {guild_name.upper()}",
@@ -124,7 +124,7 @@ async def test_the_platform_has_no_route_of_its_own_to_delete_a_community(
     operator = await acting_user("operator")
 
     response = await client.delete(
-        f"/api/v1/admin/guilds/{keyholder.guild.id}"
+        f"/api/v1/operator/guilds/{keyholder.guild.id}"
         f"?blocked_user_id={keyholder.user.id}",
         headers=operator.headers,
     )

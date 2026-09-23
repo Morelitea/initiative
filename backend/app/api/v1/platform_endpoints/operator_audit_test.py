@@ -46,7 +46,7 @@ async def test_exporting_every_account_is_recorded_with_its_count(
     capfd.readouterr()
 
     response = await client.get(
-        "/api/v1/admin/users/export.csv", headers=get_auth_headers(operator)
+        "/api/v1/operator/users/export.csv", headers=get_auth_headers(operator)
     )
     assert response.status_code == 200, response.text
 
@@ -66,7 +66,7 @@ async def test_an_export_of_one_account_records_that_it_was_a_subset(
     capfd.readouterr()
 
     response = await client.get(
-        f"/api/v1/admin/users/export.csv?user_id={target.id}",
+        f"/api/v1/operator/users/export.csv?user_id={target.id}",
         headers=get_auth_headers(operator),
     )
     assert response.status_code == 200, response.text
@@ -82,7 +82,7 @@ async def test_an_export_that_matched_nobody_records_nothing(
     capfd.readouterr()
 
     response = await client.get(
-        "/api/v1/admin/users/export.csv?user_id=9999998&user_id=9999999",
+        "/api/v1/operator/users/export.csv?user_id=9999998&user_id=9999999",
         headers=get_auth_headers(operator),
     )
     assert response.status_code == 404
@@ -111,7 +111,7 @@ async def test_closing_someone_elses_account_is_recorded_against_them(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/admin/users/{target_id}",
+        f"/api/v1/operator/users/{target_id}",
         headers=get_auth_headers(operator),
         json={"action": action},
     )
@@ -144,7 +144,7 @@ async def test_closing_an_account_records_every_community_it_left(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/admin/users/{target_id}",
+        f"/api/v1/operator/users/{target_id}",
         headers=get_auth_headers(operator),
         json={"action": "deactivate"},
     )
@@ -166,7 +166,7 @@ async def test_a_refused_account_deletion_records_nothing(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/admin/users/{operator.id}",
+        f"/api/v1/operator/users/{operator.id}",
         headers=get_auth_headers(operator),
         json={"action": "deactivate"},
     )

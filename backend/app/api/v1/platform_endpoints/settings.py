@@ -14,7 +14,7 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.api.v1.platform_endpoints.access_grants import check_second_factor
-from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
+from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR

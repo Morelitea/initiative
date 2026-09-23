@@ -23,7 +23,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, Request, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.platform_endpoints.admin import ConfigManageDep
+from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session
 from app.schemas.platform.settings import (

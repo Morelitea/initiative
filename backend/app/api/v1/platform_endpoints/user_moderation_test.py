@@ -41,7 +41,7 @@ class TestRenaming:
         subject = await create_user(session, username="unsuitable", discriminator=42)
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/operator/users/{subject.id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "renamed"},
         )
@@ -59,7 +59,7 @@ class TestRenaming:
         subject = await create_user(session)
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/operator/users/{subject.id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "owner"},
         )
@@ -74,7 +74,7 @@ class TestRenaming:
         subject = await create_user(session, username_chosen=False)
 
         await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/operator/users/{subject.id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "assigned-name"},
         )
@@ -95,7 +95,7 @@ class TestRenaming:
         capfd.readouterr()
 
         await client.patch(
-            f"/api/v1/admin/users/{subject_id}/username",
+            f"/api/v1/operator/users/{subject_id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "after"},
         )
@@ -118,7 +118,7 @@ class TestRenaming:
         subject = await create_user(session)
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/operator/users/{subject.id}/username",
             headers=get_auth_headers(actor),
             json={"username": "nope"},
         )
@@ -138,7 +138,7 @@ class TestSuspension:
 
     async def _suspend(self, client, moderator, member, suspended=True, reason=None):
         return await client.post(
-            f"/api/v1/admin/users/{member.id}/suspension",
+            f"/api/v1/operator/users/{member.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": suspended, **({"reason": reason} if reason else {})},
         )
@@ -271,7 +271,7 @@ class TestSuspension:
         moderator, _member, _guild = moderator_and_member
 
         response = await client.post(
-            f"/api/v1/admin/users/{moderator.id}/suspension",
+            f"/api/v1/operator/users/{moderator.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
@@ -285,7 +285,7 @@ class TestSuspension:
         closed = await create_user(session, status=UserStatus.deactivated)
 
         response = await client.post(
-            f"/api/v1/admin/users/{closed.id}/suspension",
+            f"/api/v1/operator/users/{closed.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
@@ -299,7 +299,7 @@ class TestSuspension:
         subject = await create_user(session)
 
         response = await client.post(
-            f"/api/v1/admin/users/{subject.id}/suspension",
+            f"/api/v1/operator/users/{subject.id}/suspension",
             headers=get_auth_headers(actor),
             json={"suspended": True},
         )
@@ -315,7 +315,7 @@ class TestNothingElse:
         writes = {
             (route.path, verb)
             for route in app.routes
-            if getattr(route, "path", "").startswith("/api/v1/admin/users")
+            if getattr(route, "path", "").startswith("/api/v1/operator/users")
             for verb in getattr(route, "methods", set())
             if verb in {"POST", "PATCH", "PUT", "DELETE"}
         }
@@ -324,22 +324,22 @@ class TestNothingElse:
             # Support (users.age_unblock) — the one write the lowest rung
             # holds, because getting somebody back into their account after a
             # mistyped birth year is support work, not a moderation decision.
-            ("/api/v1/admin/users/{user_id}/age-block", "DELETE"),
+            ("/api/v1/operator/users/{user_id}/age-block", "DELETE"),
             # Moderator (content.moderate / users.manage).
-            ("/api/v1/admin/users/{user_id}/avatar", "DELETE"),
-            ("/api/v1/admin/users/{user_id}/username", "PATCH"),
-            ("/api/v1/admin/users/{user_id}/suspension", "POST"),
-            ("/api/v1/admin/users/{user_id}/reactivate", "POST"),
-            ("/api/v1/admin/users/{user_id}/restore", "POST"),
+            ("/api/v1/operator/users/{user_id}/avatar", "DELETE"),
+            ("/api/v1/operator/users/{user_id}/username", "PATCH"),
+            ("/api/v1/operator/users/{user_id}/suspension", "POST"),
+            ("/api/v1/operator/users/{user_id}/reactivate", "POST"),
+            ("/api/v1/operator/users/{user_id}/restore", "POST"),
             # Sends the holder a link; it never sets a password.
-            ("/api/v1/admin/users/{user_id}/reset-password", "POST"),
+            ("/api/v1/operator/users/{user_id}/reset-password", "POST"),
             # Clears a second factor the holder can no longer present — the
             # lost-phone path. Like the reset above it is a removal, never a
             # read: nothing here hands back the seed or the recovery codes.
-            ("/api/v1/admin/users/{user_id}/second-factor", "DELETE"),
+            ("/api/v1/operator/users/{user_id}/second-factor", "DELETE"),
             # Operator and above, deliberately out of a moderator's reach.
-            ("/api/v1/admin/users/{user_id}/platform-role", "PATCH"),
-            ("/api/v1/admin/users/{user_id}", "DELETE"),
+            ("/api/v1/operator/users/{user_id}/platform-role", "PATCH"),
+            ("/api/v1/operator/users/{user_id}", "DELETE"),
         }
 
 
@@ -361,7 +361,7 @@ class TestTheAggregateRoutes:
         assert before.status_code == 200
 
         await client.post(
-            f"/api/v1/admin/users/{a.user.id}/suspension",
+            f"/api/v1/operator/users/{a.user.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
@@ -376,7 +376,7 @@ class TestTheAggregateRoutes:
         moderator, a = suspended_with_work
 
         await client.post(
-            f"/api/v1/admin/users/{a.user.id}/suspension",
+            f"/api/v1/operator/users/{a.user.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
@@ -393,7 +393,7 @@ class TestTheAggregateRoutes:
         moderator, a = suspended_with_work
 
         await client.post(
-            f"/api/v1/admin/users/{a.user.id}/suspension",
+            f"/api/v1/operator/users/{a.user.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
@@ -409,7 +409,7 @@ class TestTheAggregateRoutes:
 
         for suspended in (True, False):
             await client.post(
-                f"/api/v1/admin/users/{a.user.id}/suspension",
+                f"/api/v1/operator/users/{a.user.id}/suspension",
                 headers=get_auth_headers(moderator),
                 json={"suspended": suspended},
             )
@@ -428,7 +428,7 @@ class TestTimeOut:
         moderator = await create_user(session, role=UserRole.moderator)
         subject = await create_user(session, role=UserRole.moderator)
         response = await client.post(
-            f"/api/v1/admin/users/{subject.id}/suspension",
+            f"/api/v1/operator/users/{subject.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
@@ -454,7 +454,7 @@ class TestTimeOut:
         assert me["capabilities"] == []
         assert me["can_create_guilds"] is False
 
-        response = await client.get("/api/v1/admin/users", headers=headers)
+        response = await client.get("/api/v1/operator/users", headers=headers)
         assert response.status_code == 403
 
     async def test_everything_else_is_refused(self, client, suspended):
@@ -498,7 +498,7 @@ class TestTimeOut:
         moderator = await create_user(session, role=UserRole.moderator)
         subject = await create_user(session)
         await client.post(
-            f"/api/v1/admin/users/{subject.id}/suspension",
+            f"/api/v1/operator/users/{subject.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True, "reason": "Spam in three communities"},
         )
@@ -527,7 +527,7 @@ class TestPlatformRole:
         capfd.readouterr()
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject_id}/platform-role",
+            f"/api/v1/operator/users/{subject_id}/platform-role",
             headers=get_auth_headers(operator),
             json={"role": "support"},
         )
@@ -556,7 +556,7 @@ class TestPlatformRole:
         capfd.readouterr()
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject_id}/platform-role",
+            f"/api/v1/operator/users/{subject_id}/platform-role",
             headers=get_auth_headers(operator),
             json={"role": "owner"},
         )

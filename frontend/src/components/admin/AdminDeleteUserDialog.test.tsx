@@ -38,7 +38,7 @@ describe("AdminDeleteUserDialog community blocker resolution", () => {
   beforeEach(() => {
     let eligibilityCalls = 0;
     server.use(
-      http.get("/api/v1/admin/users/42/deletion-eligibility", () => {
+      http.get("/api/v1/operator/users/42/deletion-eligibility", () => {
         eligibilityCalls += 1;
         // First check: blocked by the community. Once the seat is resolved
         // inside the community, checking again comes back clear.

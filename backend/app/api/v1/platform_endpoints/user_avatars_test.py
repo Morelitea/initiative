@@ -154,7 +154,7 @@ async def test_a_moderator_takes_a_picture_down_and_the_owner_is_told(
     await _upload(client, get_auth_headers(owner))
 
     response = await client.delete(
-        f"/api/v1/admin/users/{owner.id}/avatar", headers=get_auth_headers(moderator)
+        f"/api/v1/operator/users/{owner.id}/avatar", headers=get_auth_headers(moderator)
     )
 
     assert response.status_code == 204
@@ -177,7 +177,7 @@ async def test_below_moderator_cannot_take_a_picture_down(
     await _upload(client, get_auth_headers(owner))
 
     response = await client.delete(
-        f"/api/v1/admin/users/{owner.id}/avatar", headers=get_auth_headers(actor)
+        f"/api/v1/operator/users/{owner.id}/avatar", headers=get_auth_headers(actor)
     )
 
     assert response.status_code == 403
@@ -399,7 +399,7 @@ async def test_a_takedown_and_its_notice_are_one_write(
 
     with pytest.raises(RuntimeError):
         await client.delete(
-            f"/api/v1/admin/users/{owner.id}/avatar",
+            f"/api/v1/operator/users/{owner.id}/avatar",
             headers=get_auth_headers(moderator),
         )
 

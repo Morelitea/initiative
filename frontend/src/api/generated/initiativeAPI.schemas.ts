@@ -1398,7 +1398,7 @@ export interface BodySetGuildIconApiV1GuildsGuildIdIconPut {
   icon: Blob;
 }
 
-export interface BodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost {
+export interface BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost {
   file: Blob;
 }
 
@@ -8998,7 +8998,7 @@ export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
   state?: string | null;
 };
 
-export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams = {
+export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams = {
   user_id?: number[] | null;
 };
 

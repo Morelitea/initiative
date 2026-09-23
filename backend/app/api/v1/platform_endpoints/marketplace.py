@@ -25,7 +25,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep
-from app.api.v1.platform_endpoints.admin import ConfigManageDep
+from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import MarketplaceMessages, MarketplaceRegistryMessages

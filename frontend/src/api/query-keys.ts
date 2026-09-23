@@ -488,13 +488,13 @@ const resolvedAISettings = (): Spec => ({ guildExact: ["/api/v1/settings/ai/reso
 // list across every guild the user belongs to) — personal, never guild-scoped.
 const myAI = (): Spec => ({ personalExact: ["/api/v1/me/ai"] });
 
-// ── Users / Admin (personal / platform) ──────────────────────────────────────
+// ── Users / Operator (personal / platform) ──────────────────────────────────────
 
 const currentUser = (): Spec => ({ personalExact: ["/api/v1/users/me"] });
 
 const userStats = (): Spec => ({ personalPrefix: ["/api/v1/me/stats"] });
 
-const adminUsers = (): Spec => ({ personalPrefix: ["/api/v1/admin"] });
+const operatorUsers = (): Spec => ({ personalPrefix: ["/api/v1/operator"] });
 
 // ── Guild Members (guild) ────────────────────────────────────────────────────
 // The member roster is guild-scoped (`/api/v1/g/{id}/users/`), even though the
@@ -658,7 +658,6 @@ const guildContent = (): Spec =>
 
 /** Every description, by name. The only export a call site needs beside `invalidate`. */
 export const q = {
-  adminUsers,
   allAISettings,
   allCalendarEntries,
   allCalendarEvents,
@@ -723,6 +722,7 @@ export const q = {
   myAI,
   myPermissions,
   notifications,
+  operatorUsers,
   platformAIConnections,
   platformAIMode,
   platformGuilds,

@@ -62,7 +62,7 @@ async def test_a_reader_sees_a_published_announcement(
     reader = await create_user(session)
 
     created = await client.post(
-        "/api/v1/announcements/admin", headers=author_headers, json=_body()
+        "/api/v1/announcements/operator", headers=author_headers, json=_body()
     )
     assert created.status_code == 201
 
@@ -81,7 +81,7 @@ async def test_a_draft_is_invisible_to_a_reader(
     reader = await create_user(session)
 
     await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(published_at=None),
     )
@@ -99,7 +99,7 @@ async def test_dismissing_removes_it_from_the_next_fetch(
     reader_headers = get_auth_headers(reader)
 
     created = await client.post(
-        "/api/v1/announcements/admin", headers=author_headers, json=_body()
+        "/api/v1/announcements/operator", headers=author_headers, json=_body()
     )
     key = created.json()["key"]
 
@@ -128,7 +128,7 @@ async def test_the_archive_returns_what_the_queue_has_finished_with(
     reader_headers = get_auth_headers(reader)
 
     created = await client.post(
-        "/api/v1/announcements/admin", headers=author_headers, json=_body()
+        "/api/v1/announcements/operator", headers=author_headers, json=_body()
     )
     key = created.json()["key"]
     await client.post(f"/api/v1/announcements/{key}/dismiss", headers=reader_headers)
@@ -155,7 +155,7 @@ async def test_a_notice_that_asks_for_two_dismissals_survives_the_first(
     reader_headers = get_auth_headers(reader)
 
     created = await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(dismissals_required=2),
     )
@@ -179,7 +179,7 @@ async def test_pages_and_a_trigger_route_survive_the_round_trip(
     reader = await create_user(session)
 
     created = await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(
             trigger_route="/c/*/i/*/projects/**",
@@ -203,7 +203,7 @@ async def test_a_trigger_route_that_is_not_a_path_is_refused(
 ):
     _, author_headers = await _author(session)
     response = await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(trigger_route="https://elsewhere.example/x"),
     )
@@ -223,7 +223,7 @@ async def test_an_account_made_since_publication_is_not_told_about_it(
     await session.commit()
 
     created = await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(published_at=published.isoformat(), audience_accounts="existing"),
     )
@@ -268,12 +268,14 @@ async def test_writing_an_announcement_needs_the_capability(
 
     for user in (member, moderator):
         response = await client.post(
-            "/api/v1/announcements/admin", headers=get_auth_headers(user), json=_body()
+            "/api/v1/announcements/operator",
+            headers=get_auth_headers(user),
+            json=_body(),
         )
         assert response.status_code == 403
 
     listed = await client.get(
-        "/api/v1/announcements/admin", headers=get_auth_headers(member)
+        "/api/v1/announcements/operator", headers=get_auth_headers(member)
     )
     assert listed.status_code == 403
 
@@ -284,12 +286,12 @@ async def test_an_author_sees_drafts_in_the_admin_list(
 ):
     _, author_headers = await _author(session)
     await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(title="A draft", published_at=None),
     )
 
-    listed = await client.get("/api/v1/announcements/admin", headers=author_headers)
+    listed = await client.get("/api/v1/announcements/operator", headers=author_headers)
     assert listed.status_code == 200
     titles = [item["title"] for item in listed.json()["items"]]
     assert "A draft" in titles
@@ -304,14 +306,14 @@ async def test_editing_publishes_and_unpublishes(
     reader_headers = get_auth_headers(reader)
 
     created = await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(published_at=None),
     )
     announcement_id = created.json()["id"]
 
     published = await client.patch(
-        f"/api/v1/announcements/admin/{announcement_id}",
+        f"/api/v1/announcements/operator/{announcement_id}",
         headers=author_headers,
         json={
             "published_at": (
@@ -330,7 +332,7 @@ async def test_editing_publishes_and_unpublishes(
     )
 
     await client.patch(
-        f"/api/v1/announcements/admin/{announcement_id}",
+        f"/api/v1/announcements/operator/{announcement_id}",
         headers=author_headers,
         json={"clear_published_at": True},
     )
@@ -345,18 +347,18 @@ async def test_deleting_an_announcement_removes_it(
 ):
     _, author_headers = await _author(session)
     created = await client.post(
-        "/api/v1/announcements/admin", headers=author_headers, json=_body()
+        "/api/v1/announcements/operator", headers=author_headers, json=_body()
     )
     announcement_id = created.json()["id"]
 
     deleted = await client.delete(
-        f"/api/v1/announcements/admin/{announcement_id}", headers=author_headers
+        f"/api/v1/announcements/operator/{announcement_id}", headers=author_headers
     )
     assert deleted.status_code == 204
     assert await session.get(Announcement, announcement_id) is None
 
     missing = await client.delete(
-        f"/api/v1/announcements/admin/{announcement_id}", headers=author_headers
+        f"/api/v1/announcements/operator/{announcement_id}", headers=author_headers
     )
     assert missing.status_code == 404
 
@@ -374,23 +376,23 @@ async def test_an_author_on_their_own_tier_writes_drafts_and_deletes_receipts(
     reader = await create_user(session)
 
     draft = await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(title="Still drafting", published_at=None),
     )
     assert draft.status_code == 201, draft.text
     draft_id = draft.json()["id"]
     edited = await client.patch(
-        f"/api/v1/announcements/admin/{draft_id}",
+        f"/api/v1/announcements/operator/{draft_id}",
         headers=author_headers,
         json={"title": "Drafted"},
     )
     assert edited.status_code == 200, edited.text
-    listed = await client.get("/api/v1/announcements/admin", headers=author_headers)
+    listed = await client.get("/api/v1/announcements/operator", headers=author_headers)
     assert "Drafted" in {item["title"] for item in listed.json()["items"]}
 
     live = await client.post(
-        "/api/v1/announcements/admin", headers=author_headers, json=_body()
+        "/api/v1/announcements/operator", headers=author_headers, json=_body()
     )
     key = live.json()["key"]
     dismissed = await client.post(
@@ -399,7 +401,7 @@ async def test_an_author_on_their_own_tier_writes_drafts_and_deletes_receipts(
     assert dismissed.status_code == 204
 
     deleted = await client.delete(
-        f"/api/v1/announcements/admin/{live.json()['id']}", headers=author_headers
+        f"/api/v1/announcements/operator/{live.json()['id']}", headers=author_headers
     )
     assert deleted.status_code == 204, deleted.text
     reader_id = reader.id
@@ -413,7 +415,7 @@ async def test_an_announcement_needs_a_section_with_something_in_it(
 ):
     _, author_headers = await _author(session)
     response = await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(sections=[{"heading": "   "}]),
     )
@@ -426,7 +428,7 @@ async def test_a_section_picture_must_be_a_path_or_an_http_url(
 ):
     _, author_headers = await _author(session)
     response = await client.post(
-        "/api/v1/announcements/admin",
+        "/api/v1/announcements/operator",
         headers=author_headers,
         json=_body(
             sections=[{"body": "x", "image_url": "javascript:alert(1)"}],
@@ -443,7 +445,7 @@ async def test_uploading_a_picture_returns_a_url_that_serves_it(
     reader = await create_user(session)
 
     uploaded = await client.post(
-        "/api/v1/announcements/admin/images",
+        "/api/v1/announcements/operator/images",
         headers=author_headers,
         files={"file": ("shot.png", _png(padding=64), "image/png")},
     )
@@ -467,7 +469,7 @@ async def test_re_uploading_the_same_picture_still_serves_it(
     data = _png(padding=128)
 
     first = await client.post(
-        "/api/v1/announcements/admin/images",
+        "/api/v1/announcements/operator/images",
         headers=author_headers,
         files={"file": ("shot.png", data, "image/png")},
     )
@@ -481,7 +483,7 @@ async def test_re_uploading_the_same_picture_still_serves_it(
     await session.commit()
 
     again = await client.post(
-        "/api/v1/announcements/admin/images",
+        "/api/v1/announcements/operator/images",
         headers=author_headers,
         files={"file": ("shot.png", data, "image/png")},
     )
@@ -497,7 +499,7 @@ async def test_uploading_something_that_is_not_an_image_is_refused(
 ):
     _, author_headers = await _author(session)
     response = await client.post(
-        "/api/v1/announcements/admin/images",
+        "/api/v1/announcements/operator/images",
         headers=author_headers,
         files={"file": ("notes.txt", b"just some text, honestly", "image/png")},
     )
@@ -511,7 +513,7 @@ async def test_uploading_a_picture_needs_the_capability(
 ):
     member = await create_user(session)
     response = await client.post(
-        "/api/v1/announcements/admin/images",
+        "/api/v1/announcements/operator/images",
         headers=get_auth_headers(member),
         files={"file": ("shot.png", _png(), "image/png")},
     )
