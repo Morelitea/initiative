@@ -244,6 +244,8 @@ PageResolver = Callable[[str, Optional[str]], Optional[PageTarget]]
 UserResolver = Callable[[str], Optional[str]]
 #: ``filename`` → the URL it is served from here, or ``None``.
 FileResolver = Callable[[str], Optional[str]]
+#: ``filename`` → the ref of the document the file became, or ``None``.
+DocumentResolver = Callable[[str], Optional[str]]
 #: The block listing the pages beneath this one, or ``None`` when it has none.
 ChildrenResolver = Callable[[], Optional[dict[str, Any]]]
 
@@ -261,6 +263,8 @@ class StorageResult:
     mentions: list[str] = field(default_factory=list)
     #: Attachment filenames the body shows or links to, in order of first use.
     attachments: list[str] = field(default_factory=list)
+    #: The attachments among those it shows as pictures.
+    shown: list[str] = field(default_factory=list)
 
     @property
     def dropped_nodes(self) -> int:
@@ -447,8 +451,10 @@ class _Walker:
         attachment: Optional[FileResolver],
         site_url: Optional[str],
         children: Optional[ChildrenResolver] = None,
+        document: Optional[DocumentResolver] = None,
     ) -> None:
         self.children = children
+        self.document = document
         self.page = page
         self.user = user
         self.image = image
@@ -464,6 +470,28 @@ class _Walker:
     def note_attachment(self, filename: str) -> None:
         if filename and filename not in self.result.attachments:
             self.result.attachments.append(filename)
+
+    def file_link(
+        self, filename: str, text: list[dict], *, in_link: bool
+    ) -> list[dict]:
+        """A link to an attached file: a mention of the document it became,
+        a link to where it is served, or its words."""
+        self.note_attachment(filename)
+        ref = self.document(filename) if (self.document and filename) else None
+        if ref and not in_link:
+            return [
+                {
+                    "type": "entity-mention",
+                    "version": 1,
+                    "entityType": "document",
+                    "entityId": 0,
+                    "text": "".join(n.get("text", "") for n in text) or filename,
+                    # Resolved to the imported document's id on apply.
+                    "importRef": ref,
+                }
+            ]
+        url = self.attachment(filename) if (self.attachment and filename) else None
+        return self.link(url, text, in_link) if url else text
 
     def note_mention(self, name: str) -> None:
         if name and name not in self.result.mentions:
@@ -563,10 +591,7 @@ class _Walker:
         filename = attachment.attr("ri:filename") if attachment is not None else ""
         if not filename:
             return None
-        self.note_attachment(filename)
-        url = self.attachment(filename) if self.attachment else None
-        words = [_text(filename)]
-        return self.link(url, words, in_link) if url else words
+        return self.file_link(filename, [_text(filename)], in_link=in_link)
 
     def adf_extension(self, element: _Element, *, fmt: int) -> list[dict]:
         """A node the newer editor stores natively, carried with a fallback
@@ -1063,10 +1088,8 @@ class _Walker:
         attachment = element.first("ri:attachment")
         if attachment is not None:
             filename = attachment.attr("ri:filename")
-            self.note_attachment(filename)
-            url = self.attachment(filename) if (self.attachment and filename) else None
             text = body or ([_text(filename, fmt)] if filename else [])
-            return self.link(url, text, in_link) if url else text
+            return self.file_link(filename, text, in_link=in_link)
 
         url_ref = element.first("ri:url")
         if url_ref is not None:
@@ -1089,6 +1112,8 @@ class _Walker:
             if attachment is not None:
                 filename = attachment.attr("ri:filename")
                 self.note_attachment(filename)
+                if filename and filename not in self.result.shown:
+                    self.result.shown.append(filename)
                 alt = alt or filename
                 src = self.image(filename) if (self.image and filename) else None
             elif remote is not None:
@@ -1249,6 +1274,7 @@ def storage_to_lexical(
     attachment: Optional[FileResolver] = None,
     site_url: Optional[str] = None,
     children: Optional[ChildrenResolver] = None,
+    document: Optional[DocumentResolver] = None,
 ) -> StorageResult:
     """Convert one page body.
 
@@ -1257,11 +1283,14 @@ def storage_to_lexical(
     names an account id, and a mention it cannot name keeps its link text.
     ``image`` and ``attachment`` give the URL an attachment is served from
     here, by filename; an image nobody can place becomes its alt text and is
-    counted. ``site_url`` is where a Jira issue macro links to.
+    counted. ``document`` names the document a file became, and a link to
+    one becomes a mention of it. ``site_url`` is where a Jira issue macro
+    links to.
 
     A wiki-page mention is written with ``entityId`` 0 and an ``importSlug``:
     the apply swaps in the imported page's id, or turns it back into text if
-    that page did not arrive.
+    that page did not arrive. A document mention carries an ``importRef`` the
+    same way.
     """
     walker = _Walker(
         page=page,
@@ -1270,6 +1299,7 @@ def storage_to_lexical(
         attachment=attachment,
         site_url=site_url,
         children=children,
+        document=document,
     )
     tree = _parse(xhtml if isinstance(xhtml, str) else "")
     body = walker.blocks(tree.children)

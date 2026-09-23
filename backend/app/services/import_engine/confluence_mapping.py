@@ -19,10 +19,12 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 from urllib.parse import quote
 
+from app.services.import_engine.confluence_attachments import PageMedia, file_ref
 from app.services.import_engine.confluence_storage import (
     PageTarget,
     storage_to_lexical,
 )
+from app.services.import_engine.jira_attachments import StoredImage
 from app.services.tenant.wikis import slugify_page_title
 
 #: A title the wiki cannot hold is cut to what it can.
@@ -65,6 +67,13 @@ class MappedSpace:
     people: Counter[str] = field(default_factory=Counter)
     #: Attachment filenames the pages show or link to, by page id.
     attachments: dict[str, list[str]] = field(default_factory=dict)
+    #: The pictures the kept pages show, to travel as uploads.
+    uploads: list[StoredImage] = field(default_factory=list)
+    #: Everything else the kept pages had attached, to become file documents.
+    documents: list[StoredImage] = field(default_factory=list)
+    #: Pictures a page never shows, left behind because the initiative
+    #: cannot take documents.
+    documents_blocked: int = 0
 
 
 def read_page(raw: Any, labels: tuple[str, ...] = ()) -> Optional[SourcePage]:
@@ -150,12 +159,19 @@ def build_wiki_envelope(
     site_url: str,
     app_version: str,
     max_bytes: Optional[int] = None,
+    media: Optional[dict[str, PageMedia]] = None,
+    documents: bool = True,
 ) -> MappedSpace:
     """The space's pages as one wiki envelope.
 
     ``users`` names the account ids the pages carry — authors, and anybody a
     body mentions. ``max_bytes`` bounds the envelope: pages that would take
     it past are left out and counted, whole, rather than truncated.
+
+    ``media`` is what each page's attachments became, by page id. A picture
+    the page shows renders from its upload; a link to a file becomes a
+    mention of the document it will be. ``documents`` false is an initiative
+    that cannot take one, and only the shown pictures come.
     """
     space_key = str(space.get("key") or "").strip()
     by_id = {page.id: page for page in pages}
@@ -216,6 +232,8 @@ def build_wiki_envelope(
         position = positions[parent]
         positions[parent] += 1
         mentions: list[str] = []
+        shown: list[str] = []
+        files = (media or {}).get(page.id) or PageMedia()
         if page.is_folder:
             content = None
         else:
@@ -224,6 +242,12 @@ def build_wiki_envelope(
                 page.body,
                 page=resolve_page,
                 user=lambda account: users.get(account),
+                image=files.images.get,
+                # A link to a picture goes to the picture.
+                attachment=files.images.get,
+                document=lambda name, files=files: (
+                    file_ref(files.files[name]) if name in files.files else None
+                ),
                 site_url=site_url,
                 # Confluence's "children" macro draws the pages beneath this
                 # one; so does this list.
@@ -235,6 +259,7 @@ def build_wiki_envelope(
             )
             mapped.dropped.update(result.dropped)
             mentions = result.mentions
+            shown = result.shown
             if result.attachments:
                 mapped.attachments[page.id] = result.attachments
             content = None if _is_blank(result.content) else result.content
@@ -271,6 +296,13 @@ def build_wiki_envelope(
             budget -= size
         envelope_pages.append(entry)
         mapped.pages += 1
+        mapped.uploads.extend(files.uploads(shown))
+        if documents:
+            mapped.documents.extend(files.documents(shown))
+        else:
+            mapped.documents_blocked += len(files.stored_images) - len(
+                files.uploads(shown)
+            )
         for name in {name for name in (author, *mentions) if name}:
             mapped.people[name] += 1
 

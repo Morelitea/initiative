@@ -153,21 +153,21 @@ It arrives as a **new project** and touches nothing that's already here, which m
 Jira and Confluence have no file to drop in. Pick **Jira & Confluence** in the same wizard and it reads your site directly instead — both products in one go, or just the one you want:
 
 1. **Connect** with your site's address, your Atlassian email and an [API token](https://id.atlassian.com/manage-profile/security/api-tokens). The token reads only what you pick, and it's deleted as soon as it's been read.
-2. **Tick the projects and spaces**, choose the initiative they all land in, and decide whether the issues' comments and images come along.
+2. **Tick the projects and spaces**, choose the initiative they all land in, and decide whether comments and attachments come along.
 3. **Wait while it reads.** A big project takes a few minutes. You can close the window and make a cup of tea — opening the import again picks up exactly where it was.
 4. **Check what it found.** Nothing is written yet. You get the count of everything coming across, the Jira fields that become properties (untick any you don't want), and — just as plainly — anything that won't make it.
 5. **Say who its people are**, then start it. Somebody who's in both products is asked about once.
 
 Each **Jira project** becomes a new project here: its columns, fields, links between issues, sub-tasks under their parents, and each sprint as an event on a calendar named after its board. Sprints need calendars, so an initiative without them gets everything except the sprints, and the review says so first.
 
-Each **Confluence space** becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank. Links from one page to another point at the imported page. Panels become [callouts](documents.md#writing-a-text-document), status lozenges statuses in their own colours, a decision log a checklist ticked where it was decided, and a Mermaid code block a drawn diagram.
+Each **Confluence space** becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank. Links from one page to another point at the imported page. Panels become [callouts](documents.md#writing-a-text-document), status lozenges statuses in their own colours, a decision log a checklist ticked where it was decided, and a Mermaid code block a drawn diagram. Pictures sit where the page showed them. Every other attached file becomes a document filed in the wiki, and a page's link to one points at it — so the spreadsheet everyone was told to "just check the attachment" for is one click away. Files need documents switched on in the initiative; without them the pictures come on their own, and the review counts the files left behind.
 
 Bring a project and its space over together and they arrive joined up, whichever way they pointed:
 
 - A page that mentions an issue — through Confluence's Jira macro or a plain link — points at the task it became, with a [smart chip](documents.md#smart-chips) showing that task's status as it is today, not as it was the day the page was written.
 - An issue that links to a page, in its description, a comment or its list of Confluence pages, points at the wiki page.
 
-A page that mentions an issue from an earlier Jira import is joined up too. The review says how many links it's joining, and names anything with no equivalent here — a table of contents, a draw.io diagram, the macro somebody installed in 2017 and never mentioned again — before you commit to it. Attached files on pages don't come across yet.
+A page that mentions an issue from an earlier Jira import is joined up too. The review says how many links it's joining, and names anything with no equivalent here — a table of contents, a draw.io diagram, the macro somebody installed in 2017 and never mentioned again — before you commit to it.
 
 Importing a single exported file into one tool is a different, smaller thing, and it stays on that tool's own page.
 

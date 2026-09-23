@@ -3777,15 +3777,29 @@ async def test_importing_into_an_initiative_you_cannot_reach_is_a_404(
 # ---------------------------------------------------------------------------
 
 
-def _confluence_site(*, pages, users=None, labels=None):
+def _confluence_site(*, pages, users=None, labels=None, attachments=None, files=None):
     """Stub a Confluence site answering a connect and a fetch of one space."""
     import httpx
 
     probe = _atlassian_site()
     names: dict[str, str] = users or {}
     page_labels: dict[str, list[str]] = labels or {}
+    page_attachments: dict[str, list[dict]] = attachments or {}
+    blobs: dict[str, bytes] = files or {}
 
     async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/attachments?" in url:
+            page_id = url.split("/pages/")[1].split("/")[0]
+            return httpx.Response(
+                200, json={"results": page_attachments.get(page_id, [])}
+            )
+        if "/child/attachment/" in url:
+            att_id = url.split("/child/attachment/")[1].split("/")[0]
+            return httpx.Response(
+                302, headers={"location": f"https://media.example.com/{att_id}"}
+            )
+        if url.startswith("https://media.example.com/"):
+            return httpx.Response(200, content=blobs[url.rsplit("/", 1)[1]])
         if "/wiki/api/v2/spaces?keys=" in url:
             return httpx.Response(
                 200,
@@ -3925,6 +3939,165 @@ async def test_a_confluence_space_becomes_a_wiki_with_its_tree_and_its_people(
     assert by_type["entity-mention"]["entityId"] == home.id
     assert "importSlug" not in by_type["entity-mention"]
     assert by_type["mention"]["mentionUserId"] == b.user.id
+
+
+_PNG, _PDF = b"\x89PNG\r\n\x1a\nchart", b"%PDF-spec"
+
+
+def _attachment_site():
+    """One page showing a picture, linking a PDF, and holding a picture it
+    never shows."""
+    png, pdf = _PNG, _PDF
+    return _confluence_site(
+        pages=[
+            _confluence_page(
+                1,
+                "Home",
+                '<p><ac:image><ri:attachment ri:filename="chart.png"/></ac:image>'
+                '<ac:link><ri:attachment ri:filename="spec.pdf"/>'
+                "<ac:plain-text-link-body><![CDATA[the spec]]>"
+                "</ac:plain-text-link-body></ac:link></p>",
+            )
+        ],
+        users={"acc-1": "Robin Ade"},
+        attachments={
+            "1": [
+                {
+                    "id": "att1",
+                    "title": "chart.png",
+                    "mediaType": "image/png",
+                    "fileSize": len(png),
+                },
+                {
+                    "id": "att2",
+                    "title": "spec.pdf",
+                    "mediaType": "application/pdf",
+                    "fileSize": len(pdf),
+                },
+                {
+                    "id": "att3",
+                    "title": "hidden.png",
+                    "mediaType": "image/png",
+                    "fileSize": len(png),
+                },
+            ]
+        },
+        files={"att1": png, "att2": pdf, "att3": png},
+    )
+
+
+async def test_a_confluence_pages_attachments_arrive_as_uploads_and_documents(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A picture the page shows is an upload it renders from; a file it links
+    to is a document filed in the wiki, and the link is a mention of it; a
+    picture nobody shows is a document too, rather than lost."""
+    from sqlmodel import select
+
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant.relationships import Endpoint
+
+    png, pdf = _PNG, _PDF
+    site = _attachment_site()
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
+        "id"
+    ]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["page_images"], summary["page_files"]) == (1, 2)
+    assert summary["page_attachment_bytes"] == 2 * len(png) + len(pdf)
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["assets_restored"] == 3
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Docs"))).one()
+    home = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+    ).one()
+    documents = {
+        d.original_filename: d
+        for d in (
+            await session.exec(
+                select(Document).where(
+                    Document.initiative_id == a.initiative.id,
+                    Document.document_type == DocumentType.file,
+                )
+            )
+        ).all()
+    }
+    assert set(documents) == {"spec.pdf", "hidden.png"}
+    assert sorted(
+        await relationships_service.related_ids(
+            session,
+            Endpoint(kind=SearchEntityType.wiki, id=wiki.id),
+            relationship_type=RelationshipType.part_of,
+            other_kind=SearchEntityType.document,
+        )
+    ) == sorted(d.id for d in documents.values())
+
+    (paragraph,) = home.content["root"]["children"]
+    image, mention = paragraph["children"]
+    assert image["src"].startswith(f"/uploads/{a.guild.id}/")
+    assert mention["entityType"] == "document"
+    assert mention["entityId"] == documents["spec.pdf"].id
+    assert mention["text"] == "the spec" and "importRef" not in mention
+
+
+async def test_an_initiative_without_documents_takes_only_the_pictures(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Files would be documents, which this initiative has switched off: the
+    pictures the page shows still come, the rest are counted as left behind,
+    and the import is not refused over them."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(atlassian_service, "request_public_target", _attachment_site())
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a.initiative.documents_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+
+    job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
+        "id"
+    ]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["page_images"], summary["page_files"]) == (1, 0)
+    assert summary["page_files_blocked"] == 2
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    session.expunge_all()
+    assert (await session.exec(select(Document))).all() == []
 
 
 async def test_starting_a_confluence_import_refuses_what_it_can_up_front(

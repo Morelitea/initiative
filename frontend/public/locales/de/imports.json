@@ -126,7 +126,7 @@
         "issues_one": "{{count}} Vorgang",
         "issues_other": "{{count}} Vorgänge",
         "includeComments": "Kommentare übernehmen",
-        "includeAttachments": "Bilder übernehmen",
+        "includeAttachments": "Anhänge übernehmen",
         "note": "Jedes Projekt wird als neues Projekt und jeder Bereich als neues Wiki in dieser Initiative angelegt, mit verknüpften Verweisen zwischen ihnen. Geschrieben wird erst, nachdem du geprüft hast, was wir gefunden haben.",
         "submit": "Lesen starten",
         "failed": "Wir konnten nicht mit dem Lesen beginnen.",
@@ -196,8 +196,14 @@
         "unreadableSpaces": "Nicht lesbar: {{keys}}",
         "overLimit_one": "{{count}} Seite würde das Wiki für einen Import zu groß machen",
         "overLimit_other": "{{count}} Seiten würden das Wiki für einen Import zu groß machen",
-        "attachments_one": "{{count}} angehängte Datei wird noch nicht übernommen",
-        "attachments_other": "{{count}} angehängte Dateien werden noch nicht übernommen",
+        "attachments_one": "{{count}} angehängte Datei bleibt zurück, weil Anhänge ausgeschaltet waren",
+        "attachments_other": "{{count}} angehängte Dateien bleiben zurück, weil Anhänge ausgeschaltet waren",
+        "attachmentsArriving_one": "{{count}} Anhang ({{size}}): Bilder dort, wo die Seiten sie zeigen, Dateien als Dokumente im Wiki",
+        "attachmentsArriving_other": "{{count}} Anhänge ({{size}}): Bilder dort, wo die Seiten sie zeigen, Dateien als Dokumente im Wiki",
+        "attachmentsSkipped_one": "{{count}} Anhang, der zu groß ist oder nicht gelesen werden konnte",
+        "attachmentsSkipped_other": "{{count}} Anhänge, die zu groß sind oder nicht gelesen werden konnten",
+        "filesBlocked_one": "{{count}} Datei, weil in dieser Initiative Dokumente ausgeschaltet sind",
+        "filesBlocked_other": "{{count}} Dateien, weil in dieser Initiative Dokumente ausgeschaltet sind",
         "dropped": "Ausgelassen: {{items}}"
       }
     }

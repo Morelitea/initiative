@@ -49,7 +49,11 @@ from app.schemas.tenant.import_job import (
     BackupImportPlan,
 )
 from app.services.import_engine import engine as import_engine
-from app.services.import_engine import confluence_fetch, jira_fetch
+from app.services.import_engine import (
+    confluence_fetch,
+    jira_attachments,
+    jira_fetch,
+)
 from app.services.import_engine.atlassian import AtlassianCredential
 from app.services.import_engine.common import load_guild_member_handles
 from app.services.import_engine.contract import ImportEngineError
@@ -70,6 +74,9 @@ _WIKI_ENVELOPE = "initiative-wiki"
 
 #: The importer a board's sprints go through, as calendar events.
 _CALENDAR_ENVELOPE = "initiative-calendar"
+
+#: The importer a page's attached files go through, as file documents.
+_DOCUMENT_ENVELOPE = "initiative-document"
 
 
 def awaits_fetch(job: ImportJob) -> bool:
@@ -116,6 +123,11 @@ def confluence_summary_of(
         unreadable_spaces=list(report.unreadable_spaces),
         pages_over_limit=report.pages_over_limit,
         page_attachments=report.attachments,
+        page_images=report.images,
+        page_files=report.files,
+        page_attachment_bytes=report.attachment_bytes,
+        page_attachments_skipped=report.attachments_skipped,
+        page_files_blocked=report.files_blocked,
         labels=report.labels,
         dropped_macros=[
             AtlassianDroppedItem(name=name, count=count)
@@ -220,6 +232,11 @@ def combined_summary(
             "unreadable_spaces",
             "pages_over_limit",
             "page_attachments",
+            "page_images",
+            "page_files",
+            "page_attachment_bytes",
+            "page_attachments_skipped",
+            "page_files_blocked",
             "labels",
             "dropped_macros",
         ):
@@ -309,6 +326,8 @@ async def fetch(
     from app.services.platform import accounts as accounts_service
 
     params = job.params or {}
+    # A job started before the option existed brought attachments across.
+    include_attachments = params.get("include_attachments") is not False
     raw_projects = params.get("jira_projects", [])
     raw_spaces = params.get("confluence_spaces", [])
     site_url = params.get("site_url")
@@ -376,6 +395,21 @@ async def fetch(
                 )
             except ImportEngineError as exc:
                 sprints_blocked_by = exc.code
+        # A page's attached files become documents, which the apply refuses
+        # the whole bundle over if the initiative cannot take them. Asked
+        # now, so only the pictures come instead.
+        documents_allowed = True
+        if spaces and include_attachments:
+            try:
+                await import_engine.load_target_initiative(
+                    user_session,
+                    guild_id=guild_id,
+                    initiative_id=target_initiative_id,
+                    importer=import_engine.get_importer(_DOCUMENT_ENVELOPE),
+                    user=user,
+                )
+            except ImportEngineError:
+                documents_allowed = False
         # The community's roster, so the plan can suggest who each person the
         # site names is — read now, as the person, like a backup upload does.
         roster = await load_guild_member_handles(user_session, guild_id=guild_id)
@@ -397,6 +431,8 @@ async def fetch(
         if progress is not None:
             await progress(combined_summary(jira_report, report))
 
+    # One bundle, so one budget for everything attached, issues and pages.
+    asset_budget = jira_attachments.bundle_budget() if include_attachments else None
     if projects:
         try:
             jira = await jira_fetch.fetch_projects(
@@ -409,7 +445,8 @@ async def fetch(
                 # A job started before the option existed brought comments
                 # across.
                 include_comments=params.get("include_comments") is not False,
-                include_attachments=params.get("include_attachments") is not False,
+                include_attachments=include_attachments,
+                asset_budget=asset_budget,
                 # An issue's "Confluence pages" are worth asking for only when
                 # the pages are coming too.
                 link_pages=bool(spaces),
@@ -430,6 +467,9 @@ async def fetch(
                 progress=report_spaces,
                 # What the issues left of the import's row budget.
                 max_rows=settings.IMPORT_MAX_ROWS - (jira.rows_used if jira else 0),
+                guild_id=guild_id,
+                asset_budget=asset_budget,
+                documents=documents_allowed,
             )
         except ImportEngineError as exc:
             if (
@@ -452,8 +492,9 @@ async def fetch(
     bundle = write_bundle(
         projects=project_envelopes,
         calendars=jira.calendars if jira else [],
-        images=jira.images if jira else [],
+        images=[*(jira.images if jira else []), *(pages.images if pages else [])],
         wikis=wiki_envelopes,
+        wiki_files=pages.files if pages else {},
         people=merge_people(
             jira.people if jira else [], pages.people if pages else Counter()
         ),

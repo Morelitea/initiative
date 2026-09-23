@@ -83,6 +83,11 @@ export interface AtlassianPlanSummary {
   unreadable_spaces?: string[];
   pages_over_limit?: number;
   page_attachments?: number;
+  page_images?: number;
+  page_files?: number;
+  page_attachment_bytes?: number;
+  page_attachments_skipped?: number;
+  page_files_blocked?: number;
   labels?: number;
   dropped_macros?: Array<{ name: string; count: number }>;
 }
@@ -391,8 +396,8 @@ export function AtlassianChooseStep({
         )}
       </div>
 
-      {projects.length > 0 && (
-        <div className="space-y-3 rounded-lg border p-3">
+      <div className="space-y-3 rounded-lg border p-3">
+        {projects.length > 0 && (
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="jira-comments" className="font-normal text-sm">
               {t("wizard.atlassian.choose.includeComments")}
@@ -404,19 +409,19 @@ export function AtlassianChooseStep({
               onCheckedChange={setIncludeComments}
             />
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="jira-attachments" className="font-normal text-sm">
-              {t("wizard.atlassian.choose.includeAttachments")}
-            </Label>
-            <Switch
-              id="jira-attachments"
-              checked={includeAttachments}
-              disabled={!wantsProjects}
-              onCheckedChange={setIncludeAttachments}
-            />
-          </div>
+        )}
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="atlassian-attachments" className="font-normal text-sm">
+            {t("wizard.atlassian.choose.includeAttachments")}
+          </Label>
+          <Switch
+            id="atlassian-attachments"
+            checked={includeAttachments}
+            disabled={!wantsProjects && !wantsSpaces}
+            onCheckedChange={setIncludeAttachments}
+          />
         </div>
-      )}
+      </div>
 
       <p className="text-muted-foreground text-xs">{t("wizard.atlassian.choose.note")}</p>
       {error && <p className="text-destructive text-sm">{error}</p>}
@@ -668,6 +673,12 @@ export function ConfluenceReviewSummary({ job }: { job: ImportJobRead }) {
     (summary.labels ?? 0) > 0
       ? t("wizard.confluence.review.labels", { count: summary.labels })
       : null,
+    (summary.page_images ?? 0) + (summary.page_files ?? 0) > 0
+      ? t("wizard.confluence.review.attachmentsArriving", {
+          count: (summary.page_images ?? 0) + (summary.page_files ?? 0),
+          size: formatBytes(summary.page_attachment_bytes ?? 0),
+        })
+      : null,
   ].filter((line): line is string => line !== null);
 
   const dropped = summary.dropped_macros ?? [];
@@ -682,6 +693,14 @@ export function ConfluenceReviewSummary({ job }: { job: ImportJobRead }) {
       : null,
     (summary.page_attachments ?? 0) > 0
       ? t("wizard.confluence.review.attachments", { count: summary.page_attachments })
+      : null,
+    (summary.page_attachments_skipped ?? 0) > 0
+      ? t("wizard.confluence.review.attachmentsSkipped", {
+          count: summary.page_attachments_skipped,
+        })
+      : null,
+    (summary.page_files_blocked ?? 0) > 0
+      ? t("wizard.confluence.review.filesBlocked", { count: summary.page_files_blocked })
       : null,
     dropped.length > 0
       ? t("wizard.confluence.review.dropped", {

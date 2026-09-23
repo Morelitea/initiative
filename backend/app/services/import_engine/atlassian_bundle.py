@@ -14,7 +14,7 @@ import json
 import zipfile
 from collections import Counter
 from datetime import datetime, timezone
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from app.services.import_engine.common import handle_key
 from app.services.import_engine.jira_attachments import StoredImage
@@ -57,6 +57,7 @@ def write_bundle(
     calendars: Sequence[dict[str, Any]] = (),
     images: Sequence[StoredImage] = (),
     wikis: Sequence[tuple[str, dict[str, Any]]] = (),
+    wiki_files: Mapping[str, Sequence[StoredImage]] = {},
     people: list[dict[str, Any]],
     guild_id: int,
     guild_name: str,
@@ -69,6 +70,10 @@ def write_bundle(
     The manifest names **one** initiative and gives it
     ``target_initiative_id`` — the one the person picked — so the applier
     files everything into it rather than creating one named after a site.
+
+    ``wiki_files`` are the file documents each space's pages had attached,
+    by the space's key: each is an entry of its own, filed in its wiki, and
+    named by its asset's path — the ref a page's mention of it carries.
     """
     entries: list[dict[str, Any]] = []
     files: dict[str, bytes] = {}
@@ -110,18 +115,33 @@ def write_bundle(
             calendar["name"],
             calendar,
         )
+    documents: list[StoredImage] = []
     for index, (key, envelope) in enumerate(wikis, start=1):
-        add(
-            "wiki",
-            "initiative-wiki",
+        wiki_path = (
             f"initiatives/1-imported/wikis/{index}-{_safe(key, 'space')}"
-            ".initiative-wiki.json",
-            envelope["name"],
-            envelope,
+            ".initiative-wiki.json"
         )
+        add("wiki", "initiative-wiki", wiki_path, envelope["name"], envelope)
+        for document in wiki_files.get(key, ()):
+            documents.append(document)
+            entries.append(
+                {
+                    "path": f"assets/{document.storage_key}",
+                    "tool": "document",
+                    "type": "file",
+                    "schema_version": None,
+                    "entity_id": len(entries) + 1,
+                    "title": document.filename,
+                    "initiative_id": 1,
+                    "tags": [],
+                    "properties": [],
+                    "asset": f"assets/{document.storage_key}",
+                    "attach_to": {"kind": "wiki", "ref": wiki_path},
+                }
+            )
 
     assets = []
-    for image in images:
+    for image in (*images, *documents):
         path = f"assets/{image.storage_key}"
         files[path] = image.data
         assets.append(
@@ -140,6 +160,7 @@ def write_bundle(
             ("project", projects),
             ("calendar", calendars),
             ("wiki", wikis),
+            ("document", documents),
         )
         if present
     }
