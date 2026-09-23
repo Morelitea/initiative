@@ -29,7 +29,6 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import UserRole
 from app.testing import (
     create_access_grant,
-    create_app_service_registration,
     create_guild,
     create_user,
 )
@@ -82,15 +81,6 @@ async def _another_users_grant(session: AsyncSession) -> Probe:
     )
 
 
-async def _a_registration(session: AsyncSession) -> Probe:
-    row = await create_app_service_registration(session)
-    return (
-        "select",
-        "SELECT id FROM public.app_service_registrations WHERE id = :id",
-        {"id": row.id},
-    )
-
-
 async def _a_connection(session: AsyncSession) -> Probe:
     row = PlatformAIConnection(label="probe", provider="openai")
     session.add(row)
@@ -122,12 +112,6 @@ CASES: list[tuple[str, str, Capability, Callable[[AsyncSession], Awaitable[Probe
         "access_grants_admin",
         Capability.ACCESS_APPROVE,
         _another_users_grant,
-    ),
-    (
-        "app_service_registrations",
-        "app_service_registrations_owner_read",
-        Capability.APPS_MANAGE,
-        _a_registration,
     ),
     (
         "platform_ai_connections",

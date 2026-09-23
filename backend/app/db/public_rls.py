@@ -299,7 +299,9 @@ NO_RLS = TableRls(enabled=False, forced=False)
 PUBLIC_RLS: dict[str, TableRls] = {
     "access_grants": TableRls(
         policies=(
-            Policy("access_grants_admin", ALL, Capability.ACCESS_APPROVE, using=OPEN),
+            Policy(
+                "access_grants_admin", SELECT, Capability.ACCESS_APPROVE, using=OPEN
+            ),
             Policy("access_grants_self", ALL, ("public",), using=own_row("user_id")),
         ),
     ),
@@ -348,16 +350,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
                     "platform_base",
                 ),
                 using=LIVE_WINDOW,
-            ),
-        ),
-    ),
-    "app_service_registrations": TableRls(
-        policies=(
-            Policy(
-                "app_service_registrations_owner_read",
-                SELECT,
-                Capability.APPS_MANAGE,
-                using=OPEN,
             ),
         ),
     ),
@@ -541,7 +533,10 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "federated_identities": TableRls(
         policies=(
             Policy(
-                "federated_identities_self", ALL, ("public",), using=own_row("user_id")
+                "federated_identities_self",
+                SELECT,
+                ("platform_base",),
+                using=own_row("user_id"),
             ),
         ),
     ),
@@ -624,28 +619,31 @@ PUBLIC_RLS: dict[str, TableRls] = {
     ),
     # An invite is the administrator's: issued, listed and withdrawn on a
     # routed request by the community's admin or a live settings grant at
-    # either rung. Redeeming and previewing one by code run on the system
-    # engine, which these do not bind.
+    # either rung, so the policies name the guild floor. Redeeming, previewing
+    # and scrubbing one by code run on the system engine, which these do not
+    # bind.
     "guild_invites": TableRls(
         policies=(
             Policy(
                 "guild_delete",
                 DELETE,
-                ("public",),
+                ("app_guild_base",),
                 using=routed_admin_write("guild_id"),
             ),
             Policy(
                 "guild_insert",
                 INSERT,
-                ("public",),
+                ("app_guild_base",),
                 check=routed_admin_write("guild_id"),
             ),
-            Policy("guild_select", SELECT, ("public",), using=routed_admin("guild_id")),
             Policy(
-                "guild_update",
-                UPDATE,
-                ("public",),
-                using=routed_admin_write("guild_id"),
+                "guild_select",
+                SELECT,
+                (
+                    "app_guild_base",
+                    "app_guild_base_ro",
+                ),
+                using=routed_admin("guild_id"),
             ),
         ),
     ),
@@ -704,8 +702,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 using=billing_scoped("id"),
             ),
             Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
-            Policy("guild_delete", DELETE, ("public",), using=seat_write("id")),
-            Policy("guild_insert", INSERT, ("public",), check=SIGNED_IN),
             Policy(
                 "guild_select",
                 SELECT,
@@ -855,7 +851,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 DELETE,
                 (
                     "app_guild_base",
-                    "app_user",
                     "platform_base",
                 ),
                 using=own_row("user_id"),
@@ -865,7 +860,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 INSERT,
                 (
                     "app_guild_base",
-                    "app_user",
                     "platform_base",
                 ),
                 check=own_row("user_id"),
@@ -875,7 +869,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 UPDATE,
                 (
                     "app_guild_base",
-                    "app_user",
                     "platform_base",
                 ),
                 using=own_row("user_id"),
@@ -1095,6 +1088,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
         ),
     ),
     "app_service_nonces": FORCED_NO_POLICY,
+    "app_service_registrations": FORCED_NO_POLICY,
     "auth_challenges": FORCED_NO_POLICY,
     "auth_provider_secrets": FORCED_NO_POLICY,
     "auth_providers": FORCED_NO_POLICY,

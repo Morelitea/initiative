@@ -13,6 +13,8 @@ matches the registry (drift in either direction) lives in
 
 import pytest
 
+from app.core.capabilities import Capability
+from app.db.public_rls import PLATFORM_TIER_ROLES
 from app.db.system_grants import (
     GRANTABLE_SHARED_TABLES,
     SHARED_TABLE_APP_GUILD_BASE_GRANTS,
@@ -20,8 +22,10 @@ from app.db.system_grants import (
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_PLATFORM_BASE_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
+    SHARED_TABLE_TIER_GRANTS,
     VALID_GRANT_VERBS,
     grant_sql,
+    tier_table_grants,
 )
 
 pytestmark = pytest.mark.unit
@@ -74,3 +78,25 @@ def test_grant_sql_renders_canonical_order():
 def test_grant_sql_returns_none_for_no_access():
     assert grant_sql(None) is None
     assert grant_sql(frozenset()) is None
+
+
+def test_tier_grants_name_shared_tables_capabilities_and_known_verbs():
+    for table, by_capability in SHARED_TABLE_TIER_GRANTS.items():
+        assert table in GRANTABLE_SHARED_TABLES, f"{table}: not a shared table"
+        assert by_capability, f"{table}: no capability named"
+        for capability, verbs in by_capability.items():
+            assert isinstance(capability, Capability), f"{table}: {capability!r}"
+            assert verbs, f"{table}.{capability}: no verbs"
+            unknown = set(verbs) - VALID_GRANT_VERBS
+            assert not unknown, f"{table}.{capability}: unknown verbs {unknown}"
+
+
+def test_tier_grants_render_to_every_tier():
+    """Every tier has an entry, and a capability's verbs land on each tier
+    holding it."""
+    rendered = tier_table_grants()
+    assert set(rendered) == PLATFORM_TIER_ROLES
+    assert rendered["platform_owner"]["app_settings"] == frozenset(
+        {"INSERT", "UPDATE", "DELETE"}
+    )
+    assert rendered["platform_member"] == {}

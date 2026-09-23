@@ -1,10 +1,9 @@
 """Role-security test for the app service registry.
 
-The table holds each app's shared-secret ciphertext, so it is denied to the
-request path at the *grant* layer and not only by policy: the schema's default
-privileges are wound back, ``app_admin`` (the system engine) carries the writes,
-and the platform owner carries a SELECT-only policy so an admin screen can be
-served role-scoped.
+The table holds each app's shared-secret ciphertext and is read and written on
+the system engine alone: the schema's default privileges are wound back,
+``app_admin`` carries every verb, and no request-path role holds a grant or a
+policy on it.
 
 Style mirrors ``auth_provider_secrets_rls_test``: ``SET ROLE platform_<tier>``
 drops to a non-superuser role so table GRANTs and policies are enforced exactly
@@ -16,10 +15,13 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.db.schema_provisioning import platform_role_name
+from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS
 from app.db.system_grants import (
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
+    SHARED_TABLE_TIER_GRANTS,
 )
+from app.models.platform.user import UserRole
 from app.testing import create_user
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
@@ -60,55 +62,33 @@ async def _make_row(session, public_id: str = "acme.widgets") -> None:
 
 
 def test_registry_records_the_grant_decision():
-    """The shared-table registry names this table for both login roles — the
-    system engine writes it, the bare pre-routing role holds nothing."""
+    """The registries name this table for the system engine alone: it holds
+    every verb, the bare pre-routing role and every tier hold nothing, and the
+    table carries no policy."""
     assert SHARED_TABLE_SYSTEM_GRANTS[TABLE] == frozenset(
         {"SELECT", "INSERT", "UPDATE", "DELETE"}
     )
     assert SHARED_TABLE_APP_USER_GRANTS[TABLE] is None
+    assert TABLE not in SHARED_TABLE_TIER_GRANTS
+    assert PUBLIC_RLS[TABLE] == FORCED_NO_POLICY
 
 
-async def test_lower_platform_tiers_cannot_read_registrations(session):
-    """Only the owner tier holds a grant; every tier below is denied at the
-    grant layer, before any policy is consulted."""
+async def test_no_platform_tier_reads_or_writes_registrations(session):
+    """Every tier, the owner included, is refused at the grant layer."""
     user = await create_user(session)
     await _make_row(session)
 
-    for tier in ("member", "support", "moderator", "operator"):
-        await _assume(session, tier, user.id)
-        with pytest.raises(DBAPIError):
-            async with session.begin_nested():
-                await session.exec(text(f"SELECT secret_encrypted FROM {TABLE}"))
-        await _reset(session)
-
-
-async def test_owner_reads_but_cannot_write_registrations(session):
-    """The owner tier reads the registry under its SELECT policy; writing runs
-    on the system engine, so the owner role holds no write grant."""
-    user = await create_user(session)
-    await _make_row(session, public_id="acme.readable")
-
-    await _assume(session, "owner", user.id)
-    seen = (
-        await session.exec(
-            text(f"SELECT count(*) FROM {TABLE} WHERE public_id = 'acme.readable'")
-        )
-    ).scalar_one()
-    assert seen == 1
-
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(
-                text(f"UPDATE {TABLE} SET enabled = false WHERE public_id = :pid"),
-                params={"pid": "acme.readable"},
-            )
-    await _reset(session)
-
-    await _assume(session, "owner", user.id)
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(text(f"DELETE FROM {TABLE}"))
-    await _reset(session)
+    for tier in UserRole:
+        for statement in (
+            f"SELECT secret_encrypted FROM {TABLE}",
+            f"UPDATE {TABLE} SET enabled = false",
+            f"DELETE FROM {TABLE}",
+        ):
+            await _assume(session, tier.value, user.id)
+            with pytest.raises(DBAPIError):
+                async with session.begin_nested():
+                    await session.exec(text(statement))
+            await _reset(session)
 
 
 async def test_registrations_table_forces_rls(session):
