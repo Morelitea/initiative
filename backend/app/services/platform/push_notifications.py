@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.models.platform.notification import NotificationType
+from app.models.platform.push_token import PushToken
 from app.services.platform import notification_policy, push_tokens
 
 logger = logging.getLogger(__name__)
@@ -252,6 +253,38 @@ async def _recipient_locale(user_id: int) -> str:
         return (getattr(user, "locale", None) if user else None) or "en"
 
 
+async def _recipient_tokens(user_id: int) -> list[PushToken]:
+    """One recipient's registered devices, read on the system engine.
+
+    The rows are the recipient's rather than the sending session's to read,
+    the same way their account and notification settings are.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        return await push_tokens.get_push_tokens_for_user(
+            admin_session, user_id=user_id
+        )
+
+
+async def _record_delivery(
+    user_id: int, *, delivered_ids: list[int], dead_tokens: list[str]
+) -> None:
+    """Write what a delivery learned back on the system engine, in one commit."""
+    if not delivered_ids and not dead_tokens:
+        return
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        await push_tokens.record_delivery(
+            admin_session,
+            user_id=user_id,
+            delivered_ids=delivered_ids,
+            dead_tokens=dead_tokens,
+        )
+        await admin_session.commit()
+
+
 async def send_push_to_user(
     session: AsyncSession,
     user_id: int,
@@ -271,8 +304,12 @@ async def send_push_to_user(
     of them declining sends nothing, and either of them asking for a redacted
     notification replaces the wording with the kind of thing that happened.
 
+    The recipient's device rows are read and written on the system engine
+    rather than on ``session``, which is the caller's and often routed into a
+    community; ``session`` is kept for the callers that pass it.
+
     Args:
-        session: Database session
+        session: The caller's session (not used for the device rows)
         user_id: User ID
         notification_type: Type of notification (for logging/analytics)
         title: Notification title
@@ -295,8 +332,7 @@ async def send_push_to_user(
     if not settings.FCM_ENABLED:
         return 0
 
-    # Get all push tokens for user
-    tokens = await push_tokens.get_push_tokens_for_user(session, user_id=user_id)
+    tokens = await _recipient_tokens(user_id)
     if only_device_token_ids is not None:
         tokens = [
             token for token in tokens if token.device_token_id in only_device_token_ids
@@ -316,7 +352,8 @@ async def send_push_to_user(
         )
 
     successful = 0
-    tokens_to_delete = []
+    delivered_ids: list[int] = []
+    tokens_to_delete: list[str] = []
 
     channel_id = channel_for(notification_type)
 
@@ -332,20 +369,18 @@ async def send_push_to_user(
 
         if success:
             successful += 1
-            # Update last_used_at
-            await push_tokens.update_last_used(
-                session, push_token=token_record.push_token
-            )
+            if token_record.id is not None:
+                delivered_ids.append(token_record.id)
         elif should_delete:
             # Token is invalid (404/410 from FCM), mark for deletion
+            logger.info(
+                f"Deleting invalid push token: {token_record.push_token[:20]}..."
+            )
             tokens_to_delete.append(token_record.push_token)
 
-    # Delete invalid tokens
-    for invalid_token in tokens_to_delete:
-        logger.info(f"Deleting invalid push token: {invalid_token[:20]}...")
-        await push_tokens.delete_push_token(
-            session, user_id=user_id, push_token=invalid_token
-        )
+    await _record_delivery(
+        user_id, delivered_ids=delivered_ids, dead_tokens=tokens_to_delete
+    )
 
     logger.info(
         f"Sent push notification to {successful}/{len(tokens)} devices "

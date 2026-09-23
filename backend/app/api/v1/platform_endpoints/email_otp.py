@@ -74,9 +74,7 @@ async def _retire_credentials_predating_proof(
     session.add(user)
     # Staged rather than committed: the session this sign-in opens lands in
     # the same transaction, so the account never sits with nothing.
-    await user_tokens.revoke_user_sessions(
-        session, user=user, admin_session=session, commit=False
-    )
+    await user_tokens.revoke_user_sessions(session, user=user, commit=False)
     await audit_service.record(
         session,
         event_type=AuditEventType.AUTH_CREDENTIALS_RETIRED,

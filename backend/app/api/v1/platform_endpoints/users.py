@@ -992,7 +992,7 @@ async def add_my_address(
         await admin_session.commit()
         await admin_session.refresh(added)
         token = await user_tokens_service.create_token(
-            session,
+            admin_session,
             user_id=current_user.id,
             purpose=UserTokenPurpose.email_verification,
             user_email_id=added.id,
@@ -1107,7 +1107,7 @@ async def update_users_me(
         # Staged, not committed: the replacement session below joins them in
         # one transaction, so the account keeps what it had if that fails.
         await user_tokens_service.revoke_user_sessions(
-            session, user=current_user, admin_session=admin_session, commit=False
+            admin_session, user=current_user, commit=False
         )
         # ...but keep THIS device signed in: the revocation above took the
         # caller's own access token AND refresh chain, so a fresh session is

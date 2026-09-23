@@ -10,6 +10,8 @@ import re
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
+from sqlmodel import select
 
 from app.models.platform.notification import NotificationType
 from app.services.platform.push_notifications import (
@@ -119,3 +121,70 @@ def test_the_manifest_falls_back_to_a_channel_the_app_creates():
     assert declared.group(1) in registered, (
         f"manifest falls back to {declared.group(1)!r}, which the app never creates"
     )
+
+
+# --- the recipient's devices ---------------------------------------------------
+
+
+async def _as_guild_floor(session) -> None:
+    await session.exec(text("SELECT set_config('role', 'app_guild_base', false)"))
+
+
+async def _reset_role(session) -> None:
+    await session.exec(text("SELECT set_config('role', 'none', false)"))
+
+
+@pytest.mark.integration
+@pytest.mark.database
+async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
+    session, monkeypatch
+):
+    """The caller's session holds nothing on ``push_tokens`` here, as a
+    community-routed one does not: the recipient's rows are read, the delivered
+    one stamped and the dead one dropped all the same. The same value
+    registered by another account is left alone."""
+    from app.models.platform.push_token import PushToken
+    from app.services.platform import push_notifications, push_tokens
+    from app.testing import create_user
+
+    monkeypatch.setattr(push_notifications.settings, "FCM_ENABLED", True, raising=False)
+
+    async def _send(
+        push_token, title, body, data=None, platform="android", channel_id=None
+    ):
+        return (True, False) if push_token == "live" else (False, True)
+
+    monkeypatch.setattr(push_notifications, "send_push_notification", _send)
+
+    recipient = await create_user(session)
+    bystander = await create_user(session)
+    for user, value in ((recipient, "live"), (recipient, "gone"), (bystander, "gone")):
+        await push_tokens.register_push_token(
+            session, user_id=user.id, push_token=value, platform="android"
+        )
+    recipient_id, bystander_id = recipient.id, bystander.id
+
+    await _as_guild_floor(session)
+    try:
+        sent = await push_notifications.send_push_to_user(
+            session=session,
+            user_id=recipient_id,
+            notification_type=NotificationType.mention,
+            title="t",
+            body="b",
+            locale="en",
+        )
+    finally:
+        await _reset_role(session)
+    assert sent == 1
+
+    session.expire_all()
+    rows = (
+        await session.exec(
+            select(PushToken).where(PushToken.user_id.in_([recipient_id, bystander_id]))
+        )
+    ).all()
+    held = {(row.user_id, row.push_token): row for row in rows}
+    assert set(held) == {(recipient_id, "live"), (bystander_id, "gone")}
+    assert held[(recipient_id, "live")].last_used_at is not None
+    assert held[(bystander_id, "gone")].last_used_at is None
