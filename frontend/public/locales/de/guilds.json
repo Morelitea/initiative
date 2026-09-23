@@ -297,6 +297,8 @@
     "accountSuspended": "Dein Konto wurde gesperrt.",
     "accountSuspendedWithReason": "Dein Konto wurde gesperrt: {{reason}}",
     "accountUnsuspended": "Dein Konto ist nicht mehr gesperrt.",
+    "guildOnHold": "{{community}} ist pausiert. Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "guildOnHoldWithContact": "{{community}} ist pausiert. Wende dich an {{contact}}, um das zu klären.",
     "defaultNotification": "Du hast eine neue Benachrichtigung.",
     "push": {
       "enableTitle": "Push-Benachrichtigungen aktivieren",
@@ -370,7 +372,8 @@
     "readOnly": "Du hast temporären schreibgeschützten Zugriff auf {{guild}}.",
     "readWrite": "Du hast temporären Zugriff auf {{guild}}.",
     "guildReadOnly": "Diese Community ist schreibgeschützt",
-    "guildSuspended": "Diese Community ist gesperrt"
+    "guildSuspended": "Diese Community ist gesperrt",
+    "guildOnHold": "Diese Community ist pausiert"
   },
   "readOnlyBanner": {
     "message": "{{guild}} ist derzeit schreibgeschützt. Du kannst alles ansehen, aber Änderungen sind deaktiviert."

@@ -704,11 +704,11 @@ async def test_operator_manual_sets_status_and_names_the_actor(
             source="operator_manual",
             actor="staff:7",
             event_id="evt-operator-suspend",
-            status="suspended",
+            status="on_hold",
         ),
     )
     assert suspended.status_code == 200, suspended.text
-    assert suspended.json()["status"] == "suspended"
+    assert suspended.json()["status"] == "on_hold"
 
     anonymous = await _post(
         client,
@@ -1099,16 +1099,79 @@ async def test_a_status_write_cannot_bring_a_deleted_guild_back(
     assert guild.status_changed_at == stamped
 
 
-async def test_a_status_write_cannot_delete_a_guild(
-    client: AsyncClient, session: AsyncSession
+# --- Which statuses billing may write ----------------------------------------
+
+
+@pytest.mark.parametrize("status", ["suspended", "deleted"])
+async def test_billing_cannot_suspend_or_delete(
+    client: AsyncClient, session: AsyncSession, status: str
 ):
     guild = await create_guild(session)
-
     response = await _post(
-        client, "guild-tier", await _tier_payload(guild.id, status="deleted")
+        client, "guild-tier", await _tier_payload(guild.id, status=status)
     )
-
-    assert response.status_code == 200, response.text
-    assert response.json()["status"] == "active"
+    assert response.status_code == 422
     await session.refresh(guild)
     assert guild.status == "active"
+
+
+async def test_billing_leaves_a_suspended_guild_suspended(
+    client: AsyncClient, session: AsyncSession
+):
+    """A status write never lifts the operator's time out; the caps still land."""
+    guild = await create_guild(session)
+    guild.status = "suspended"
+    session.add(guild)
+    await session.commit()
+
+    response = await _post(
+        client,
+        "guild-tier",
+        await _tier_payload(guild.id, status="active", max_storage_bytes=2048),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "suspended"
+    assert response.json()["max_storage_bytes"] == 2048
+
+
+async def _hold_notices(session: AsyncSession, user_id: int) -> int:
+    from app.models.platform.notification import Notification, NotificationType
+
+    session.expire_all()
+    rows = await session.exec(
+        select(Notification).where(
+            Notification.user_id == user_id,
+            Notification.type == NotificationType.guild_on_hold,
+        )
+    )
+    return len(rows.all())
+
+
+async def test_a_hold_tells_the_seat_once(client: AsyncClient, session: AsyncSession):
+    from app.models.platform.guild import GuildRole
+    from app.testing import create_guild_membership, create_user
+
+    guild = await create_guild(session)
+    seat = await create_user(session)
+    admin = await create_user(session)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    guild_id, seat_id, admin_id = guild.id, seat.id, admin.id
+
+    first = await _post(
+        client, "guild-tier", await _tier_payload(guild_id, status="on_hold")
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["status"] == "on_hold"
+    assert await _hold_notices(session, seat_id) == 1
+    assert await _hold_notices(session, admin_id) == 0
+
+    again = await _post(
+        client, "guild-tier", await _tier_payload(guild_id, status="on_hold")
+    )
+    assert again.status_code == 200, again.text
+    assert await _hold_notices(session, seat_id) == 1

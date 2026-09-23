@@ -52,6 +52,9 @@ _IN_APP_ONLY = {
     NotificationType.username_changed,
     NotificationType.account_suspended,
     NotificationType.account_unsuspended,
+    # A community put on hold: an inbox notice beside its email, about paying
+    # for it, which is no reason to interrupt someone on a device.
+    NotificationType.guild_on_hold,
 }
 
 

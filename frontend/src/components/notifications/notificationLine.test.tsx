@@ -59,6 +59,14 @@ describe("notificationText — account notices", () => {
     );
   });
 
+  it("names who to contact about a hold when there is somebody", () => {
+    const named = notice("guild_on_hold", { community: "Acme", contact: "help@example.com" });
+    const nobody = notice("guild_on_hold", { community: "Acme", contact: null });
+    expect(notificationText(named, t)).toContain("notifications.guildOnHoldWithContact");
+    expect(notificationText(nobody, t)).toContain("notifications.guildOnHold");
+    expect(notificationText(nobody, t)).not.toContain("WithContact");
+  });
+
   it("covers the rest of the account notices", () => {
     expect(notificationText(notice("avatar_removed", {}), t)).toBe("notifications.avatarRemoved");
     expect(notificationText(notice("account_unsuspended", {}), t)).toBe(

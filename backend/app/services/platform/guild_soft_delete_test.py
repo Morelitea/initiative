@@ -81,6 +81,7 @@ def test_deleted_is_not_a_status_that_reaches_content():
     # Every status is either live or refused — none is unaccounted for.
     assert set(GuildStatus) - LIVE_STATUSES == {
         GuildStatus.suspended,
+        GuildStatus.on_hold,
         GuildStatus.deleted,
     }
 

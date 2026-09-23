@@ -363,5 +363,16 @@
     "recoverable": "Es wurde noch nichts zerstört. Bis <strong>{{date}}</strong> kann die Serverbetreuung sie genau so wiederherstellen, wie sie war — frag dort nach, falls das nicht beabsichtigt war.",
     "recoverableNoDate": "Es wurde nichts zerstört. Die Serverbetreuung kann sie genau so wiederherstellen, wie sie war — frag dort nach, falls das nicht beabsichtigt war.",
     "textBody": "Die Community {{community}} wurde gelöscht. Ihre Mitglieder sehen sie nicht mehr. Es wurde noch nichts zerstört, und die Serverbetreuung kann sie wiederherstellen."
+  },
+  "communityOnHold": {
+    "subject": "{{community}} ist pausiert",
+    "title": "{{community}} ist pausiert",
+    "greeting": "Hallo,",
+    "body": "<strong>{{community}}</strong> ist pausiert, deshalb kann sie vorerst niemand öffnen – weder ihre Mitglieder noch ihre Administratoren. Nichts darin wurde geändert oder entfernt.",
+    "contact": "Wende dich an <strong>{{contact}}</strong>, um das zu klären.",
+    "contactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "textBody": "{{community}} ist pausiert, deshalb kann sie vorerst niemand öffnen. Nichts darin wurde geändert oder entfernt.",
+    "textContact": "Wende dich an {{contact}}, um das zu klären.",
+    "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären."
   }
 }

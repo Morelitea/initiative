@@ -869,6 +869,56 @@ async def announce_community_deleted(
         logger.exception("could not send the community deletion receipt")
 
 
+async def send_community_on_hold_email(
+    session: AsyncSession,
+    *,
+    recipients: list[str],
+    community: str,
+    contact: str | None,
+    locale: str = "en",
+) -> None:
+    """Tell the people who hold a community's seat that it is on hold, and
+    whom to contact about it."""
+    settings_obj, accent = await _email_context(session)
+    next_step = (
+        email_t("communityOnHold.contact", locale=locale, contact=contact)
+        if contact
+        else email_t("communityOnHold.contactNobody", locale=locale)
+    )
+    body = f"""
+    <p>{email_t("communityOnHold.greeting", locale=locale)}</p>
+    <p>{email_t("communityOnHold.body", locale=locale, community=community)}</p>
+    <p>{next_step}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("communityOnHold.title", locale=locale, community=community),
+        body,
+        accent,
+        locale=locale,
+    )
+    text_next = (
+        email_t(
+            "communityOnHold.textContact", locale=locale, contact=contact, escape=False
+        )
+        if contact
+        else email_t("communityOnHold.textContactNobody", locale=locale, escape=False)
+    )
+    await send_email(
+        session,
+        recipients=recipients,
+        subject=email_t(
+            "communityOnHold.subject", locale=locale, community=community, escape=False
+        ),
+        html_body=html_body,
+        text_body=email_t(
+            "communityOnHold.textBody", locale=locale, community=community, escape=False
+        )
+        + " "
+        + text_next,
+        settings_obj=settings_obj,
+    )
+
+
 async def send_second_factor_changed_email(
     session: AsyncSession, user: User, *, enabled: bool
 ) -> None:

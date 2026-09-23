@@ -45,9 +45,11 @@ export const GuildAccessBanner = () => {
   const statusNote =
     activeGuild.status === "suspended"
       ? t("grantBanner.guildSuspended")
-      : activeGuild.status === "read_only"
-        ? t("grantBanner.guildReadOnly")
-        : null;
+      : activeGuild.status === "on_hold"
+        ? t("grantBanner.guildOnHold")
+        : activeGuild.status === "read_only"
+          ? t("grantBanner.guildReadOnly")
+          : null;
 
   return (
     <div className="flex items-center gap-2 border-amber-500/30 border-b bg-amber-500/10 px-4 py-2 text-amber-700 text-sm dark:text-amber-300">

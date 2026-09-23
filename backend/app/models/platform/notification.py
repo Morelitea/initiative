@@ -39,6 +39,9 @@ class NotificationType(str, Enum):
     username_changed = "username_changed"
     account_suspended = "account_suspended"
     account_unsuspended = "account_unsuspended"
+    #: A community this account holds the seat of was put on hold. Written once,
+    #: on the way in, naming whom to contact.
+    guild_on_hold = "guild_on_hold"
     connection_requested = "connection_requested"
     connection_accepted = "connection_accepted"
     message_request_received = "message_request_received"

@@ -305,6 +305,19 @@ describe("OperatorDashboardGuildsPage", () => {
       await user.click(screen.getByRole("button", { name: "Suspend community" }));
       expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { status: "suspended" } });
     });
+
+    it("gates a hold behind its own confirm dialog", async () => {
+      const user = mounted();
+
+      await user.click(statusControl("Capped Community"));
+      await user.click(await screen.findByRole("option", { name: "On hold" }));
+
+      expect(mutate).not.toHaveBeenCalled();
+      expect(await screen.findByText("Put Capped Community on hold?")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Put on hold" }));
+      expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { status: "on_hold" } });
+    });
   });
 
   describe("a refused save", () => {

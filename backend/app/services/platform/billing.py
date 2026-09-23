@@ -213,6 +213,12 @@ _GUILD_TIER_COLUMNS = (
 )
 
 
+#: A guild in one of these takes no status write from billing at all.
+_BILLING_UNTOUCHABLE_STATUS_VALUES: frozenset[str] = frozenset(
+    {GuildStatus.suspended.value, GuildStatus.deleted.value}
+)
+
+
 async def _select_tier_row(session: AsyncSession, guild_id: int):
     """Read the billing-visible slice of one guild. Explicit columns only —
     the role's grants are column-scoped, so an ORM ``SELECT *`` would fail."""
@@ -323,9 +329,10 @@ async def apply_guild_tier(
             )
         guild_values: dict = {}
         if payload.status is not None and payload.status.value != row.status:
-            if GuildStatus.deleted.value in (row.status, payload.status.value):
-                # A status write never moves a guild into or out of
-                # ``deleted``; deletion and restore own that. The caps still land.
+            if row.status in _BILLING_UNTOUCHABLE_STATUS_VALUES:
+                # A status write never moves a guild out of ``suspended`` or
+                # ``deleted``: the operator's time out and deletion own those.
+                # The caps still land.
                 logger.info(
                     "billing: guild %s status write %s -> %s ignored (source=%s event=%s)",
                     guild_id,

@@ -297,6 +297,8 @@
     "accountSuspended": "Your account has been suspended.",
     "accountSuspendedWithReason": "Your account has been suspended: {{reason}}",
     "accountUnsuspended": "Your account is no longer suspended.",
+    "guildOnHold": "{{community}} is on hold. Contact whoever runs this server to sort it out.",
+    "guildOnHoldWithContact": "{{community}} is on hold. Contact {{contact}} to sort it out.",
     "defaultNotification": "You have a new notification.",
     "push": {
       "enableTitle": "Enable Push Notifications",
@@ -370,7 +372,8 @@
     "readOnly": "You have temporary read-only access to {{guild}}.",
     "readWrite": "You have temporary access to {{guild}}.",
     "guildReadOnly": "This community is read-only",
-    "guildSuspended": "This community is suspended"
+    "guildSuspended": "This community is suspended",
+    "guildOnHold": "This community is on hold"
   },
   "readOnlyBanner": {
     "message": "{{guild}} is currently read-only. You can browse everything, but changes are disabled."

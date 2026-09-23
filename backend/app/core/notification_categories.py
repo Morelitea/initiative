@@ -280,6 +280,7 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
                 NotificationType.username_changed,
                 NotificationType.account_suspended,
                 NotificationType.account_unsuspended,
+                NotificationType.guild_on_hold,
                 NotificationType.access_grant_approved,
                 NotificationType.access_grant_denied,
                 NotificationType.access_grant_revoked,

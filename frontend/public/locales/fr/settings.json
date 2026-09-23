@@ -1023,12 +1023,18 @@
       "active": "Actif",
       "read_only": "Lecture seule",
       "suspended": "Suspendu",
+      "on_hold": "En attente",
       "deleted": "Supprimée"
     },
     "suspendConfirm": {
       "title": "Suspendre {{name}} ?",
-      "description": "Les membres perdent tout accès et la communauté disparaît de leur liste. Rien n'est supprimé et vous pouvez la réactiver à tout moment ; les opérateurs conservent l'accès via une autorisation break-glass.",
+      "description": "Tout le monde y perd l’accès, administrateurs compris, jusqu’à la levée de la suspension. Les membres ne la voient plus ; les administrateurs la voient fermée. Rien n’est supprimé, et les opérateurs gardent l’accès via une autorisation d’urgence.",
       "confirm": "Suspendre la communauté"
+    },
+    "holdConfirm": {
+      "title": "Mettre {{name}} en attente ?",
+      "description": "Tout le monde y perd l’accès, administrateurs compris, et elle disparaît de toutes les listes. Rien n’est supprimé. Ses superadministrateurs sont prévenus une fois, par e-mail et dans l’application, de qui contacter.",
+      "confirm": "Mettre en attente"
     },
     "columns": {
       "id": "ID",
