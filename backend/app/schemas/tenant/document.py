@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.core.relationships import Related
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.tenant.archive import ArchiveState
 
@@ -247,7 +246,7 @@ def serialize_document_summary(
         original_filename=document.original_filename,
         smart_link_url=smart_link_url,
         archived_at=document.archived_at,
-        **client_access(Tool.document, document, user_id, context=context),
+        **client_access(document, user_id, context=context),
         yjs_updated_at=document.yjs_updated_at,
     )
 

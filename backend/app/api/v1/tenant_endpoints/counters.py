@@ -351,7 +351,6 @@ async def delete_counter_group(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.counter_group],
         group,
-        current_user,
         require_owner=True,
         context=guild_context,
     )
@@ -891,10 +890,7 @@ async def websocket_counter_group(
         # applied inside compute_* through the active role context that
         # establish_guild_access set, so no separate admin check is needed.
         level = permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[Tool.counter_group],
-            group,
-            user.id,
-            context=require_guild_context(session),
+            group, context=require_guild_context(session)
         )
         if level is None:
             logger.warning(
@@ -917,10 +913,7 @@ async def websocket_counter_group(
             return False
         return (
             permissions_service.compute_permission(
-                permissions_service.DAC_RESOURCES[Tool.counter_group],
-                grp,
-                check_user.id,
-                context=require_guild_context(check_session),
+                grp, context=require_guild_context(check_session)
             )
             is not None
         )

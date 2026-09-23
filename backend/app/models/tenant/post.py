@@ -5,7 +5,9 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
+    attach_access_level,
     ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
@@ -204,3 +206,6 @@ def board_time():
     from sqlalchemy import func
 
     return func.coalesce(Post.published_at, Post.scheduled_for, Post.created_at)
+
+
+attach_access_level(Post, Tool.post)

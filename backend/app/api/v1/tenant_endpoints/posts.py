@@ -189,16 +189,7 @@ def _may_edit(post: Post, user: User, guild_context: GuildContext) -> bool:
     also caps at read while a community is frozen, which would hide a draft
     from its author rather than merely stop them editing it.
     """
-    if permissions_service.request_bypasses_dac(
-        guild_context,
-        initiative_id=post.initiative_id,
-        access="write",
-    ):
-        return True
-    level = permissions_service.effective_level(
-        permissions_service.DAC_RESOURCES[Tool.post], post, user.id
-    )
-    return level in ("write", "owner")
+    return permissions_service.may_write(post)
 
 
 async def _announce(

@@ -7,7 +7,7 @@ tools' own gated endpoints, so the loaders here only need what serialization
 and the permission engine read.
 """
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,7 +22,8 @@ def dashboard_loader_options() -> list:
     """Eager-load everything dashboard serialization + authorization needs."""
     return [
         selectinload(Dashboard.grants).selectinload(ResourceGrant.role),
-        selectinload(Dashboard.initiative).selectinload(Initiative.memberships),
+        selectinload(Dashboard.initiative),
+        undefer(Dashboard.access_level),
     ]
 
 
@@ -85,7 +86,6 @@ async def get_dashboard_for_export(
     require_access(
         DAC_RESOURCES[Tool.dashboard],
         dashboard,
-        current_user,
         context=db_session.guild_context(session),
         access="read",
     )

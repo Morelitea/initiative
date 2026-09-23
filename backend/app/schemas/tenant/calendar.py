@@ -5,7 +5,6 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
@@ -107,7 +106,7 @@ def serialize_calendar_summary(
         created_at=calendar.created_at,
         updated_at=calendar.updated_at,
         archived_at=calendar.archived_at,
-        **client_access(Tool.calendar, calendar, user_id, context=context),
+        **client_access(calendar, user_id, context=context),
         comments_enabled=calendar.comments_enabled,
         tags=annotated_tags(calendar),
         grants=serialize_grants(calendar),

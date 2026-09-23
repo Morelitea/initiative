@@ -1,25 +1,31 @@
-"""Tests for Discretionary Access Control (DAC) — the final privilege gate.
+"""The DAC engine, asked the way a request asks it.
 
-Every case here runs against real rows: a real guild schema, a real initiative,
-real ``resource_grants``, loaded through the same ``RESOURCE_ACCESS`` loader the
-endpoints use. The engine is one registry-driven function, so the cases are
-parametrized over ``DAC_RESOURCES`` rather than written once per tool — a tool
-added later inherits the coverage by registering.
+The rung a request holds on a row is the database's answer — the schema's
+``resource_level``, mapped on every shareable model as ``access_level`` — so
+every case here loads the row on the request login, routed through the seam
+as the reader, through the loader the endpoints use. ``resource_level_test``
+holds that function to the sharing gate, standing by standing. What this
+file holds is what the app layer still decides on top of the level: the
+named refusal, the frozen caps, the clauses a list spanning initiatives
+adds, and the audience a notice reaches.
 """
 
+from __future__ import annotations
+
 import pathlib
+from datetime import datetime, timezone
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import ColumnElement
-from sqlmodel import delete, select
+from sqlalchemy import ColumnElement, delete
+from sqlmodel import select
 
 from app.api import resource_access
 from app.core.tools import Tool
 from app.db import session as db_session
 from app.db.guild_standing import GuildContext
 from app.db.session import _RLS_PARAMS_INFO_KEY
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
@@ -29,13 +35,14 @@ from app.services.permissions import (
     DAC_RESOURCES,
     audience_user_ids,
     compute_permission,
-    effective_level,
     granted_scope_clause,
-    has_project_write_access,
     listing_scope_clause,
     require_access,
     writable_scope_clause,
 )
+from app.services.tenant import posts as posts_service
+from app.services.tenant import project_grants
+from app.testing import create_access_grant, create_user, route_as
 from app.testing.factories import TOOL_FACTORIES
 
 ALL_TOOLS = list(DAC_RESOURCES)
@@ -50,35 +57,44 @@ _TOOL_FACTORIES = TOOL_FACTORIES
 
 
 class World:
-    """One guild, one initiative, one resource of ``tool``, and four actors."""
+    """One guild, one initiative, one resource of ``tool``, and three actors."""
 
-    def __init__(self, session, tool, guild, initiative, row, owner, co_member, admin):
+    def __init__(
+        self,
+        session,
+        role_session,
+        tool,
+        guild,
+        initiative,
+        row,
+        owner,
+        co_member,
+        admin,
+    ):
         self.session = session
+        self.role_session = role_session
         self.tool = tool
         self.resource = DAC_RESOURCES[tool]
         self.guild = guild
         self.initiative = initiative
-        self.row = row
-        # Captured once: the tests expire the identity map to force a real
-        # re-read, and an expired instance cannot answer for its own id.
+        self.model = type(row)
         self.row_id = row.id
         self.initiative_id = getattr(row, "initiative_id", None)
         self.owner = owner
         self.co_member = co_member
         self.admin = admin
 
-    async def load(self):
-        """Re-read the resource through the loader the endpoints use, so the
-        eager-loaded shape under test is production's."""
+    async def as_reader(self, user):
+        """The resource as ``user`` reads it, and the standing it was read
+        under: on the request login, routed through the seam, through the
+        loader the endpoints use. ``None`` where the policy admits nothing."""
+        s = await self.role_session("app_user")
+        context = await route_as(s, user_id=user.id, guild_id=self.guild.id)
         loader = resource_access.RESOURCE_ACCESS[self.tool].loader
         assert loader is not None, f"{self.tool.value} has no loader"
-        # Expire just the resource: the loader re-reads it with its grants
-        # eagerly loaded, and the actors stay usable (expiring them would make
-        # every later attribute read a lazy load from sync code).
-        self.session.expire(self.row)
-        return await loader(self.session, self.row_id)
+        return await loader(s, self.row_id), context
 
-    async def grant(self, level, *, user=None, role_id=None, everyone=False):
+    async def grant(self, level, *, user=None, role_id=None, everyone=False) -> None:
         """Replace the resource's grants with exactly the ones named."""
         await self.session.exec(
             delete(ResourceGrant).where(
@@ -99,10 +115,9 @@ class World:
                 )
             )
         await self.session.commit()
-        return await self.load()
 
 
-async def build_world(session, acting_user, tool: Tool) -> World:
+async def build_world(session, role_session, acting_user, tool: Tool) -> World:
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     initiative, guild = owner.initiative, owner.guild
     for t in Tool:
@@ -121,7 +136,9 @@ async def build_world(session, acting_user, tool: Tool) -> World:
 
     factory = _TOOL_FACTORIES[tool]
     row = await factory(session, initiative, owner.user)
-    return World(session, tool, guild, initiative, row, owner, co_member, admin)
+    return World(
+        session, role_session, tool, guild, initiative, row, owner, co_member, admin
+    )
 
 
 def standing(
@@ -132,12 +149,10 @@ def standing(
     read_only: bool = False,
     overrides: tuple[int, ...] = (),
 ) -> GuildContext | None:
-    """A reader's standing in one community, shaped as the seam computes it.
+    """A reader's standing in one community, shaped as the seam computes it,
+    for the clause builders — which read the standing and no row.
 
-    ``None`` is a request with no standing anywhere — the shape every leg of a
-    DAC decision answers no to. Each case builds the one it is about and hands
-    the same object to every check it makes, the way an endpoint hands down the
-    context its session was routed with.
+    ``None`` is a request with no standing anywhere.
     """
     if guild is None:
         return None
@@ -156,9 +171,9 @@ def standing(
     )
 
 
-def refused(resource, row, user, **kwargs) -> HTTPException:
+def refused(resource, row, **kwargs) -> HTTPException:
     with pytest.raises(HTTPException) as exc:
-        require_access(resource, row, user, **kwargs)
+        require_access(resource, row, **kwargs)
     assert exc.value.status_code == 403
     return exc.value
 
@@ -187,13 +202,20 @@ async def _remove_from_initiative(session, initiative, user) -> None:
     await session.commit()
 
 
+async def _freeze(session, guild) -> None:
+    guild.status = GuildStatus.read_only.value
+    guild.status_changed_at = datetime.now(timezone.utc)
+    session.add(guild)
+    await session.commit()
+
+
 # ── Every tool resolves sharing through the same engine ──────────────────────
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_every_tool_resolves_sharing_through_one_engine(
-    session, acting_user, tool: Tool
+    session, role_session, acting_user, tool: Tool
 ):
     """Each tool answers the same questions the same way, with the refusal
     messages its registry entry names.
@@ -202,63 +224,48 @@ async def test_every_tool_resolves_sharing_through_one_engine(
     ``RESOURCE_ACCESS`` loader, so a tool added later inherits this behaviour by
     registering rather than by re-implementing it.
     """
-    w = await build_world(session, acting_user, tool)
+    w = await build_world(session, role_session, acting_user, tool)
     resource = w.resource
 
-    member = standing(w.guild)
-
     # The holder of the owner grant.
-    loaded = await w.grant("owner", user=w.owner.user)
-    require_access(resource, loaded, w.owner.user, context=member, access="write")
-    assert compute_permission(resource, loaded, w.owner.user.id, context=member) == (
-        "owner"
-    )
+    await w.grant("owner", user=w.owner.user)
+    row, context = await w.as_reader(w.owner.user)
+    require_access(resource, row, context=context, access="write")
+    assert compute_permission(row, context=context) == "owner"
 
-    # An initiative co-member with no grant on this resource.
-    assert compute_permission(
-        resource, loaded, w.co_member.user.id, context=member
-    ) is (None)
-    assert (
-        refused(
-            resource, loaded, w.co_member.user, context=member, access="read"
-        ).detail
-        == resource.denied_msg
-    )
+    # An initiative co-member with no grant on this resource: the table's own
+    # policy admits nothing, so there is no row to refuse.
+    row, _ = await w.as_reader(w.co_member.user)
+    assert row is None
 
     # A guild admin needs no grant at all.
-    as_admin = standing(w.guild, admin=True)
-    require_access(resource, loaded, w.admin.user, context=as_admin, access="write")
-    require_access(resource, loaded, w.admin.user, context=as_admin, require_owner=True)
-    assert compute_permission(resource, loaded, w.admin.user.id, context=as_admin) == (
-        "owner"
+    row, context = await w.as_reader(w.admin.user)
+    require_access(resource, row, context=context, access="write")
+    require_access(resource, row, context=context, require_owner=True)
+    assert compute_permission(row, context=context) == "owner"
+
+    # A PAM read grant opens the guild for reading only. The grantee holds the
+    # rung the grant lends, so the write stops at the level check and names
+    # the tool's own write message.
+    grantee = await create_user(session, role=UserRole.support)
+    await create_access_grant(session, user=grantee, guild=w.guild)
+    row, context = await w.as_reader(grantee)
+    require_access(resource, row, context=context, access="read")
+    assert (
+        refused(resource, row, context=context, access="write").detail
+        == resource.write_msg
     )
 
-    # A PAM read grant opens the guild for reading only. The grantee holds no
-    # grant row, so the write stops at the same "nothing shared with you" answer
-    # a stranger gets rather than at the level check.
-    grantee = standing(w.guild, grant="read")
-    require_access(resource, loaded, w.co_member.user, context=grantee, access="read")
+    # Holding a read grant of their own is where the level check answers.
+    await w.grant("read", user=w.co_member.user)
+    row, context = await w.as_reader(w.co_member.user)
+    require_access(resource, row, context=context, access="read")
     assert (
-        refused(
-            resource, loaded, w.co_member.user, context=grantee, access="write"
-        ).detail
-        == resource.denied_msg
-    )
-
-    # Holding a read grant of their own is where the level check answers, and it
-    # names the tool's own write message.
-    loaded = await w.grant("read", user=w.co_member.user)
-    require_access(resource, loaded, w.co_member.user, context=member, access="read")
-    assert (
-        refused(
-            resource, loaded, w.co_member.user, context=member, access="write"
-        ).detail
+        refused(resource, row, context=context, access="write").detail
         == resource.write_msg
     )
     assert (
-        refused(
-            resource, loaded, w.co_member.user, context=member, require_owner=True
-        ).detail
+        refused(resource, row, context=context, require_owner=True).detail
         == resource.owner_msg
     )
 
@@ -267,17 +274,17 @@ async def test_every_tool_resolves_sharing_through_one_engine(
 
 
 @pytest.mark.integration
-async def test_a_role_grant_elevates_over_a_users_own(session, acting_user):
+async def test_a_role_grant_elevates_over_a_users_own(
+    session, role_session, acting_user
+):
     """A grant to an initiative role the user holds outranks their own lower
     grant — the two combine by taking the higher."""
-    w = await build_world(session, acting_user, Tool.project)
-    member = standing(w.guild)
+    w = await build_world(session, role_session, acting_user, Tool.project)
 
     role_id = await _role_id_of(session, w.initiative, w.co_member.user)
-    loaded = await w.grant("read", user=w.co_member.user)
-    assert compute_permission(
-        w.resource, loaded, w.co_member.user.id, context=member
-    ) == ("read")
+    await w.grant("read", user=w.co_member.user)
+    row, context = await w.as_reader(w.co_member.user)
+    assert compute_permission(row, context=context) == "read"
 
     session.add(
         ResourceGrant(
@@ -289,50 +296,42 @@ async def test_a_role_grant_elevates_over_a_users_own(session, acting_user):
         )
     )
     await session.commit()
-    loaded = await w.load()
-    assert compute_permission(
-        w.resource, loaded, w.co_member.user.id, context=member
-    ) == ("write")
+    row, context = await w.as_reader(w.co_member.user)
+    assert compute_permission(row, context=context) == "write"
 
 
 @pytest.mark.integration
-async def test_general_access_covers_the_initiatives_members_only(session, acting_user):
+async def test_general_access_covers_the_initiatives_members_only(
+    session, role_session, acting_user
+):
     """An all-initiative-members grant reaches every member without naming them,
     and stops at the initiative boundary."""
-    w = await build_world(session, acting_user, Tool.project)
+    w = await build_world(session, role_session, acting_user, Tool.project)
     outsider = await acting_user(guild_role=GuildRole.member, guild=w.guild)
-    member = standing(w.guild)
 
-    loaded = await w.grant("write", everyone=True)
-    assert compute_permission(
-        w.resource, loaded, w.co_member.user.id, context=member
-    ) == ("write")
-    require_access(w.resource, loaded, w.co_member.user, context=member, access="write")
+    await w.grant("write", everyone=True)
+    row, context = await w.as_reader(w.co_member.user)
+    assert compute_permission(row, context=context) == "write"
+    require_access(w.resource, row, context=context, access="write")
 
-    assert (
-        compute_permission(w.resource, loaded, outsider.user.id, context=member) is None
-    )
-    refused(w.resource, loaded, outsider.user, context=member, access="read")
+    row, _ = await w.as_reader(outsider.user)
+    assert row is None
 
 
 @pytest.mark.integration
-async def test_membership_alone_grants_nothing(session, acting_user):
+async def test_membership_alone_grants_nothing(session, role_session, acting_user):
     """The gate is an AND-layer: being in the initiative is not access to its
     resources."""
-    w = await build_world(session, acting_user, Tool.project)
-    member = standing(w.guild)
-    loaded = await w.grant(None)
-    assert (
-        compute_permission(w.resource, loaded, w.co_member.user.id, context=member)
-        is None
-    )
-    refused(w.resource, loaded, w.co_member.user, context=member, access="read")
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    await w.grant(None)
+    row, _ = await w.as_reader(w.co_member.user)
+    assert row is None
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_a_grant_left_behind_after_removal_reaches_nothing(
-    session, acting_user, reading_as, tool: Tool
+    session, role_session, acting_user, reading_as, tool: Tool
 ):
     """A grant row outliving the user's initiative membership carries no access.
 
@@ -343,13 +342,14 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
     goes — asserted against the database on the request login, because that is
     where the answer comes from.
     """
-    w = await build_world(session, acting_user, tool)
+    w = await build_world(session, role_session, acting_user, tool)
     await w.grant("owner", user=w.co_member.user)
-    model = type(w.row)
 
     async def visible() -> bool:
         reader = await reading_as(w.co_member.user.id, w.guild.id)
-        rows = (await reader.exec(select(model.id).where(model.id == w.row.id))).all()
+        rows = (
+            await reader.exec(select(w.model.id).where(w.model.id == w.row_id))
+        ).all()
         await reader.rollback()
         return bool(rows)
 
@@ -362,39 +362,44 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
 
 
 @pytest.mark.integration
-async def test_has_project_write_access_tracks_the_level(session, acting_user):
-    """The synchronous filter helper agrees with the engine about who may write."""
-    w = await build_world(session, acting_user, Tool.project)
-    member = standing(w.guild)
-    for level, expected in (("owner", True), ("write", True), ("read", False)):
-        loaded = await w.grant(level, user=w.co_member.user)
-        assert (
-            has_project_write_access(loaded, w.co_member.user, context=member)
-            is expected
-        )
-    loaded = await w.grant(None)
-    assert has_project_write_access(loaded, w.co_member.user, context=member) is False
+async def test_write_holders_follow_the_level(session, role_session, acting_user):
+    """Who may be assigned a project's tasks is who holds write on it, asked of
+    the roster and the grant rows together."""
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    s = await role_session("app_user")
+    await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
+    project = await project_grants.get_project(s, w.row_id)
+    assert project is not None
+
+    co = w.co_member.user.id
+    for level, expected in (("owner", {co}), ("write", {co}), ("read", set())):
+        await w.grant(level, user=w.co_member.user)
+        assert await project_grants.write_holder_ids(s, project) == expected
+    await w.grant(None)
+    assert await project_grants.write_holder_ids(s, project) == set()
+
+    role_id = await _role_id_of(session, w.initiative, w.co_member.user)
+    await w.grant("write", role_id=role_id)
+    assert await project_grants.write_holder_ids(s, project) == {co}
+
+    await w.grant("write", everyone=True)
+    assert await project_grants.write_holder_ids(s, project) == {co, w.owner.user.id}
 
 
 # ── The overrides that sit above sharing ─────────────────────────────────────
 
 
 @pytest.mark.integration
-async def test_a_guild_admin_bypasses_the_scope_gate(session, acting_user):
+async def test_a_guild_admin_bypasses_the_scope_gate(
+    session, role_session, acting_user
+):
     """Guild admin is full authority over the guild, membership of the
     initiative or not."""
-    w = await build_world(session, acting_user, Tool.project)
-    loaded = await w.grant(None)
-    await _remove_from_initiative(session, w.initiative, w.co_member.user)
-    loaded = await w.load()
-
-    as_admin = standing(w.guild, admin=True)
-    require_access(
-        w.resource, loaded, w.co_member.user, context=as_admin, access="write"
-    )
-    require_access(
-        w.resource, loaded, w.co_member.user, context=as_admin, require_owner=True
-    )
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    await w.grant(None)
+    row, context = await w.as_reader(w.admin.user)
+    require_access(w.resource, row, context=context, access="write")
+    require_access(w.resource, row, context=context, require_owner=True)
 
 
 def test_a_standing_for_another_community_is_never_read_back():
@@ -415,96 +420,45 @@ def test_a_standing_for_another_community_is_never_read_back():
 
 
 @pytest.mark.integration
-async def test_a_platform_owner_holds_no_standing_bypass(session, acting_user):
+async def test_a_platform_owner_holds_no_standing_bypass(
+    session, role_session, acting_user
+):
     """``data.bypass`` is the right to break glass, not an ambient reach — a
-    platform owner with no membership and no live grant is refused."""
-    w = await build_world(session, acting_user, Tool.project)
-    loaded = await w.grant(None)
+    platform owner with no grant on the row is admitted nothing."""
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    await w.grant(None)
     w.co_member.user.role = UserRole.owner
     session.add(w.co_member.user)
     await session.commit()
-    refused(
-        w.resource, loaded, w.co_member.user, context=standing(w.guild), access="read"
-    )
+    row, _ = await w.as_reader(w.co_member.user)
+    assert row is None
 
 
 @pytest.mark.integration
-async def test_a_pam_grant_lifts_the_level_and_never_bleeds(session, acting_user):
-    """A grantee holds no grant row, so the level the client sees has to come
-    from the PAM grant — at the level it was issued, in its guild only, and
-    never as owner.
-
-    One tool stands for all of them: the lift reads the guild off the row and
-    never consults the resource, and the per-tool sweep above already covers
-    each tool reaching the engine.
-    """
-    w = await build_world(session, acting_user, Tool.project)
-    loaded = await w.grant(None)
-    stranger_id = w.co_member.user.id
-
-    assert compute_permission(w.resource, loaded, stranger_id, context=None) is None
-    assert (
-        compute_permission(
-            w.resource, loaded, stranger_id, context=standing(w.guild, grant="read")
-        )
-        == "read"
-    )
-    assert (
-        compute_permission(
-            w.resource,
-            loaded,
-            stranger_id,
-            context=standing(w.guild, grant="read_write"),
-        )
-        == "write"
-    )
-
-
-@pytest.mark.integration
-async def test_a_pam_grant_never_downgrades_an_owner(session, acting_user):
-    """An explicit owner grant outranks the write a read_write grant implies."""
-    w = await build_world(session, acting_user, Tool.project)
-    loaded = await w.grant("owner", user=w.co_member.user)
-    assert (
-        compute_permission(
-            w.resource,
-            loaded,
-            w.co_member.user.id,
-            context=standing(w.guild, grant="read_write"),
-        )
-        == "owner"
-    )
-
-
-@pytest.mark.integration
-async def test_a_frozen_guild_caps_everyone_at_read(session, acting_user):
+async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, acting_user):
     """A read_only guild caps the level the client sees and refuses every write
-    — checked before the admin leg, so full authority does not clear the hold.
+    — before the level is read, so full authority does not clear the hold.
 
     ``guild_suspension_test`` covers the same hold end-to-end through an
     endpoint; this pins where in the engine the cap sits.
     """
-    w = await build_world(session, acting_user, Tool.project)
-    loaded = await w.grant("owner", user=w.owner.user)
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    await w.grant("owner", user=w.owner.user)
+    await _freeze(session, w.guild)
 
-    frozen = standing(w.guild, read_only=True)
-
-    assert compute_permission(w.resource, loaded, w.owner.user.id, context=frozen) == (
-        "read"
-    )
-    require_access(w.resource, loaded, w.owner.user, context=frozen, access="read")
+    row, context = await w.as_reader(w.owner.user)
+    assert context.content_read_only
+    assert compute_permission(row, context=context) == "read"
+    require_access(w.resource, row, context=context, access="read")
     assert (
-        refused(w.resource, loaded, w.owner.user, context=frozen, access="write").detail
+        refused(w.resource, row, context=context, access="write").detail
         == w.resource.write_msg
     )
-    refused(w.resource, loaded, w.owner.user, context=frozen, require_owner=True)
+    refused(w.resource, row, context=context, require_owner=True)
 
-    frozen_admin = standing(w.guild, admin=True, read_only=True)
-    assert (
-        compute_permission(w.resource, loaded, w.admin.user.id, context=frozen_admin)
-        == "read"
-    )
-    refused(w.resource, loaded, w.admin.user, context=frozen_admin, access="write")
+    row, context = await w.as_reader(w.admin.user)
+    assert compute_permission(row, context=context) == "read"
+    refused(w.resource, row, context=context, access="write")
 
 
 # ── The clauses that survive the policies ───────────────────────────────────
@@ -601,12 +555,12 @@ def test_no_standing_at_all_narrows_rather_than_opens():
     )
 
 
-def test_the_writable_clause_does_not_collapse_when_confined():
+def test_the_writable_clause_asks_the_gate_when_confined():
     """Unlike the read listing, this one still has something to ask.
 
     A read policy admits a row shared at any level, so "which of these may I
-    change" is a narrower question than the one already answered — the grant
-    rows have to be filtered by level whatever the scope.
+    change" is a narrower question than the one already answered. Confined to
+    one initiative it is the table's own gate, asked at write.
     """
     sql = _compiled(
         writable_scope_clause(
@@ -614,7 +568,14 @@ def test_the_writable_clause_does_not_collapse_when_confined():
         )
     )
     assert sql != "true"
+    assert "resource_access(" in sql
+    assert sql.rstrip().endswith("true)")
+
+
+def test_the_writable_clause_spanning_initiatives_filters_the_grant_rows():
+    sql = _compiled(writable_scope_clause(Tool.project, Project.id, 1, context=None))
     assert "resource_grants" in sql
+    assert "'write'" in sql and "'owner'" in sql
 
 
 @pytest.mark.parametrize("tool", list(Tool))
@@ -667,7 +628,7 @@ class _Initiative:
 
 
 class _Row:
-    """The two collections both the audience and the access check read."""
+    """The two collections the audience reads."""
 
     def __init__(self, grants, memberships, initiative_id=1):
         self.grants = grants
@@ -675,35 +636,58 @@ class _Row:
         self.initiative_id = initiative_id
 
 
-def test_the_audience_is_exactly_who_the_access_check_would_admit():
+@pytest.mark.integration
+async def test_the_audience_is_exactly_who_the_database_admits(
+    session, role_session, acting_user
+):
     """The invariant the post notifier hangs on.
 
-    ``audience_user_ids`` and ``effective_level`` read the same rows and must
-    not drift: a notifier built on the first must not address anyone the second
-    would turn away, and must not miss anyone it would admit.
+    ``audience_user_ids`` reads the roster and the grant rows; the database
+    reads the same rows when a member asks for the notice. A notifier built
+    on the first must not address anyone the second would turn away, and must
+    not miss anyone it would admit.
     """
-    everyone = [_Membership(1, role_id=10), _Membership(2, role_id=20), _Membership(3)]
-    row = _Row(
-        grants=[
-            _Grant(user_id=1, level="owner"),
-            _Grant(role_id=20, level="write"),
-            _Grant(user_id=99),  # named, but not a member of the initiative
-        ],
-        memberships=everyone,
+    w = await build_world(session, role_session, acting_user, Tool.post)
+    named = w.co_member
+    by_role = w.owner  # the creator holds the manager role
+    unnamed = await acting_user(
+        guild_role=GuildRole.member,
+        guild=w.guild,
+        initiative=w.initiative,
+        initiative_role="member",
     )
+    departed = await acting_user(guild_role=GuildRole.member, guild=w.guild)
 
-    audience = audience_user_ids(row)
-    resource = DAC_RESOURCES[Tool.post]
-    # Everyone the audience names can in fact reach it...
-    for user_id in audience:
-        assert effective_level(resource, row, user_id) is not None
-    # ...and every MEMBER it leaves out cannot. (A grant naming somebody who is
-    # no longer in the initiative passes this check and still fails RLS, which
-    # is why the audience is narrowed to the roster — see the case below.)
-    for member in everyone:
-        if member.user_id not in audience:
-            assert effective_level(resource, row, member.user_id) is None
-    assert audience == {1, 2}
+    await w.grant("owner", user=named.user)
+    session.add_all(
+        [
+            ResourceGrant(
+                initiative_id=w.initiative_id,
+                resource_type=Tool.post,
+                resource_id=w.row_id,
+                role_id=await _role_id_of(session, w.initiative, by_role.user),
+                level="write",
+            ),
+            # Named, but not a member of the initiative.
+            ResourceGrant(
+                initiative_id=w.initiative_id,
+                resource_type=Tool.post,
+                resource_id=w.row_id,
+                user_id=departed.user.id,
+                level="read",
+            ),
+        ]
+    )
+    await session.commit()
+
+    post = await posts_service.get_post(session, w.row_id)
+    assert post is not None
+    audience = audience_user_ids(post)
+    assert audience == {named.user.id, by_role.user.id}
+
+    for actor in (named, by_role, unnamed, departed):
+        row, _ = await w.as_reader(actor.user)
+        assert (row is not None) is (actor.user.id in audience), actor.user.id
 
 
 def test_an_all_members_grant_reaches_every_member():

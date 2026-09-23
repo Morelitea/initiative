@@ -630,6 +630,10 @@ async def _schema_test_harness(engine, monkeypatch):
       ``AdminSessionLocal`` directly (secret-key rotation, upload back-fills,
       workers) run against test data under the real policy-bound role instead
       of silently hitting the dev database.
+    - Points the request-path engine at the test DB **as the real app_user
+      role**, for the same reason: the sockets and the seams that open a
+      session of their own (``db_session.AsyncSessionLocal``) rather than
+      taking the request's run against test data under the RLS-enforced role.
     - Wraps ``provision_guild`` (the universal provisioning choke point — factory,
       guild endpoints, backfill, and conversion all route through it) to record
       which guilds got a schema this test, so teardown can skip its cleanup scan
@@ -669,6 +673,21 @@ async def _schema_test_harness(engine, monkeypatch):
         ),
     )
 
+    test_app_engine = create_async_engine(
+        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
+    )
+    monkeypatch.setattr(db_session, "engine", test_app_engine)
+    monkeypatch.setattr(
+        db_session,
+        "AsyncSessionLocal",
+        async_sessionmaker(
+            bind=test_app_engine,
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        ),
+    )
+
     _provisioned_guild_ids.clear()
     _orig_provision_guild = schema_provisioning.provision_guild
 
@@ -684,6 +703,7 @@ async def _schema_test_harness(engine, monkeypatch):
     yield
     await test_admin_engine.dispose()
     await test_query_engine.dispose()
+    await test_app_engine.dispose()
 
 
 @pytest.fixture(scope="function")

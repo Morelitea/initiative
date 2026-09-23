@@ -32,7 +32,7 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 
 from app.db import session as db_session
 from app.core.messages import WikiMessages
@@ -53,11 +53,12 @@ _SLUG_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789")
 
 
 def list_loader_options() -> list:
-    """Eager-load what a wiki *list* row needs: its sharing, its initiative's
-    memberships (the DAC engine reads them), and the page it opens on."""
+    """Eager-load what a wiki *list* row needs: its sharing, the level the
+    request holds on it, and the page it opens on."""
     return [
         selectinload(Wiki.grants).selectinload(ResourceGrant.role),
-        selectinload(Wiki.initiative).selectinload(Initiative.memberships),
+        selectinload(Wiki.initiative),
+        undefer(Wiki.access_level),
         selectinload(Wiki.home_page),
     ]
 
@@ -542,7 +543,6 @@ async def get_wiki_for_export(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.wiki],
         wiki,
-        current_user,
         context=db_session.guild_context(session),
         access="read",
     )

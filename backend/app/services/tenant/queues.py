@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.db import session as db_session
@@ -49,13 +49,14 @@ from app.services.tenant import tags as tags_service
 
 def list_loader_options() -> list:
     """Eager-load what a queue *list* row needs: its items (for the count), its
-    sharing and its initiative's memberships (the DAC engine reads them).
+    sharing and the level the request holds on it.
     Lighter than :func:`get_queue`, which also walks each item's own links for
     the detail read."""
     return [
         selectinload(Queue.items),
         selectinload(Queue.grants).selectinload(ResourceGrant.role),
-        selectinload(Queue.initiative).selectinload(Initiative.memberships),
+        selectinload(Queue.initiative),
+        undefer(Queue.access_level),
     ]
 
 
@@ -72,7 +73,8 @@ async def get_queue(
         .options(
             selectinload(Queue.items).selectinload(QueueItem.user),
             selectinload(Queue.grants).selectinload(ResourceGrant.role),
-            selectinload(Queue.initiative).selectinload(Initiative.memberships),
+            selectinload(Queue.initiative),
+            undefer(Queue.access_level),
         )
     )
     if populate_existing:
@@ -111,7 +113,6 @@ async def get_queue_for_export(
     require_access(
         DAC_RESOURCES[Tool.queue],
         queue,
-        current_user,
         context=db_session.guild_context(session),
         access="read",
     )

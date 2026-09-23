@@ -18,7 +18,7 @@ both rules live in one place rather than in each of them.
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.api import resource_access
@@ -65,17 +65,17 @@ async def _load(session: RLSSessionDep, entity_type: str, entity_id: int) -> Any
     stmt = select(model).where(model.id == entity_id)
     if entity_type not in {"task", "initiative"}:
         stmt = stmt.options(
-            selectinload(model.initiative).selectinload(Initiative.memberships),
+            selectinload(model.initiative),
             selectinload(model.grants).selectinload(ResourceGrant.role),
+            undefer(model.access_level),
         )
     elif entity_type == "task":
         stmt = stmt.options(
             selectinload(Task.project)
             .selectinload(Project.grants)
             .selectinload(ResourceGrant.role),
-            selectinload(Task.project)
-            .selectinload(Project.initiative)
-            .selectinload(Initiative.memberships),
+            selectinload(Task.project).selectinload(Project.initiative),
+            selectinload(Task.project).undefer(Project.access_level),
         )
     else:
         stmt = stmt.options(

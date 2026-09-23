@@ -249,16 +249,13 @@ def serialize_calendar_event_summary(
     guild_id: Optional[int] = None,
 ) -> CalendarEventSummary:
     # Local import avoids a schema -> service import cycle.
-    from app.core.tools import Tool
-    from app.services.permissions import DAC_RESOURCES, compute_permission
+    from app.services.permissions import compute_permission
 
     # Access is inherited from the parent calendar; requires ``event.calendar``
-    # (with grants + initiative.memberships) eager-loaded.
+    # eager-loaded with its level.
     calendar = event.calendar
     my_permission_level = (
-        compute_permission(
-            DAC_RESOURCES[Tool.calendar], calendar, user_id, context=context
-        )
+        compute_permission(calendar, context=context)
         if user_id is not None and calendar is not None
         else None
     )

@@ -394,15 +394,6 @@ class GuildContext:
         """The rung a settings grant confers, read off the grant itself."""
         return self.settings_grant_level
 
-    def settings_rung_reaches(self, role: "GuildRole") -> bool:
-        """Whether the settings grant includes ``role``'s authority."""
-        level = self.settings_level
-        if level is None:
-            return False
-        if level == GuildRole.superadmin.value:
-            return role in (GuildRole.admin, GuildRole.superadmin)
-        return role is GuildRole.admin
-
     @property
     def grant_content(self) -> Optional[str]:
         """The content grant's level as the database found it: ``read``,
@@ -432,23 +423,6 @@ class GuildContext:
         if initiative_id is None:
             return False
         return initiative_id in self.override_initiatives
-
-    def bypasses_dac(
-        self,
-        *,
-        initiative_id: Optional[int] = None,
-        access: str = "read",
-        require_owner: bool = False,
-    ) -> bool:
-        """The single "sees/edits regardless of sharing rows?" answer: a
-        satisfying grant, a community admin, or "Full access" in the row's
-        initiative. Defined once so a call site cannot apply one leg and drop
-        another."""
-        if self.grant_satisfies(access=access, require_owner=require_owner):
-            return True
-        if self.is_admin:
-            return True
-        return self.overrides_sharing(initiative_id)
 
     def membership_only(self) -> "GuildContext":
         """This standing with what a grant reaches taken off.

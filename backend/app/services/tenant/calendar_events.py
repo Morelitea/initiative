@@ -22,7 +22,6 @@ from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.services.tenant import relationships
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services.tenant import tags as tags_service
@@ -50,9 +49,8 @@ async def get_event(
             selectinload(CalendarEvent.calendar)
             .selectinload(Calendar.grants)
             .selectinload(ResourceGrant.role),
-            selectinload(CalendarEvent.calendar)
-            .selectinload(Calendar.initiative)
-            .selectinload(Initiative.memberships),
+            selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative),
+            selectinload(CalendarEvent.calendar).undefer(Calendar.access_level),
             selectinload(CalendarEvent.property_values).selectinload(
                 CalendarEventPropertyValue.property_definition
             ),

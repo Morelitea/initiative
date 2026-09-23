@@ -2,8 +2,8 @@
 
 A calendar is the shareable DAC anchor for its events (``resource_type=
 'calendar'``); events inherit access from it the way tasks inherit from their
-project, so the loaders here eager-load ``grants`` + ``initiative.memberships``
-for the permission engine.
+project, so the loaders here eager-load ``grants`` and the level the request
+holds on the calendar.
 
 Two kinds of calendar live here. Nearly all of them belong to an initiative. A
 **guild calendar** — the one the calendar app installs — belongs to none, and
@@ -14,7 +14,7 @@ anything derived from an initiative has nothing to derive from and refuses.
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -62,7 +62,8 @@ def calendar_loader_options() -> list:
     """Eager-load everything calendar serialization + authorization needs."""
     return [
         selectinload(Calendar.grants).selectinload(ResourceGrant.role),
-        selectinload(Calendar.initiative).selectinload(Initiative.memberships),
+        selectinload(Calendar.initiative),
+        undefer(Calendar.access_level),
     ]
 
 
@@ -145,7 +146,6 @@ async def get_calendar_for_export(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.calendar],
         calendar,
-        current_user,
         context=db_session.guild_context(session),
         access="read",
     )
