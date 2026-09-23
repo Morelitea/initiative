@@ -204,8 +204,8 @@ async def check_deletion_eligibility(
             blockers.append(
                 f"User is the only superadmin of community '{guild_name}'. "
                 f"They can make another member superadmin, or somebody holding "
-                f"break-glass access to the community can appoint one from its "
-                f"settings; otherwise the community must be deleted first."
+                f"break-glass access to the community can appoint one, or delete "
+                f"the community, from its settings."
             )
         else:
             blockers.append(

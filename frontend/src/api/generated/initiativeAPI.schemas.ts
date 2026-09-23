@@ -9002,13 +9002,6 @@ export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams = {
   user_id?: number[] | null;
 };
 
-export type AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams = {
-  /**
-   * The user being deleted, for whom this guild must be a last-admin blocker. The delete is refused otherwise.
-   */
-  blocked_user_id: number;
-};
-
 export type ListCommunityGuildsApiV1GuildsCommunitiesGetParams = {
   q?: string | null;
   category?: GuildCategory | null;

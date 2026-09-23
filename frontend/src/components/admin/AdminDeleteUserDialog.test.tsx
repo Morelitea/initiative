@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -35,35 +35,21 @@ const eligibilityClear = {
 };
 
 describe("AdminDeleteUserDialog community blocker resolution", () => {
-  const deleteGuildSpy = vi.fn();
-
   beforeEach(() => {
-    deleteGuildSpy.mockClear();
     let eligibilityCalls = 0;
     server.use(
       http.get("/api/v1/admin/users/42/deletion-eligibility", () => {
         eligibilityCalls += 1;
-        // First check: blocked by the guild. After the guild is deleted the
-        // refreshed check comes back clear.
+        // First check: blocked by the community. Once the seat is resolved
+        // inside the community, checking again comes back clear.
         return HttpResponse.json(
           eligibilityCalls === 1 ? eligibilityWithGuildBlocker : eligibilityClear
         );
-      }),
-      http.delete("/api/v1/admin/guilds/77", ({ request }) => {
-        deleteGuildSpy(new URL(request.url).searchParams.get("blocked_user_id"));
-        return new HttpResponse(null, { status: 204 });
       })
     );
   });
 
-  // Regression test for the nested-modal freeze: the AlertDialog confirm
-  // inside the delete-user Dialog must close cleanly and dispatch the DELETE.
-  // With duplicate @radix-ui/react-focus-scope copies installed (Dialog and
-  // AlertDialog on different versions), the two focus traps never see each
-  // other's scope stack and fight over focus forever on close — stack
-  // overflow in jsdom, a frozen tab in the browser, and the request never
-  // sent. Pinned to one copy via the pnpm-workspace.yaml override.
-  it("deletes the blocking community from the confirm dialog and advances", async () => {
+  it("sends the operator into the community and checks again", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <AdminDeleteUserDialog
@@ -79,69 +65,17 @@ describe("AdminDeleteUserDialog community blocker resolution", () => {
     await user.click(await screen.findByRole("button", { name: /next/i }));
     expect(await screen.findByText(/Lone Community/)).toBeInTheDocument();
 
-    // Appointing a new superadmin happens inside the community; the dialog
-    // says so rather than offering a picker.
+    // The seat is resolved inside the community, under break-glass; the
+    // dialog says so and offers nothing that acts on the community itself.
     expect(screen.getByText(/break glass into the community/i)).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-
-    // Open the confirm dialog and confirm the guild deletion.
-    await user.click(screen.getByRole("button", { name: /delete community/i }));
-    const confirmDialog = await screen.findByRole("alertdialog");
-    await user.click(within(confirmDialog).getByRole("button", { name: /delete community/i }));
-
-    // The DELETE must be sent, scoped to the blocked user.
-    await waitFor(() => expect(deleteGuildSpy).toHaveBeenCalledWith("42"));
-
-    // The confirm dialog closes and the refreshed (now clear) eligibility
-    // advances the flow — nothing freezes or sticks around.
-    await waitFor(() => {
-      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    });
-
-    // The outer delete-user dialog must survive the confirm click. With
-    // duplicated @radix-ui/react-dismissable-layer copies, the outer dialog's
-    // layer registry can't see the AlertDialog's layer, treats the click as an
-    // outside interaction, and dismisses everything (leaving body
-    // pointer-events stuck at "none" — the frozen page).
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-  });
-});
-
-describe("AdminDeleteUserDialog where billing sets plans", () => {
-  beforeEach(() => {
-    server.use(
-      http.get("/api/v1/admin/users/42/deletion-eligibility", () =>
-        HttpResponse.json(eligibilityWithGuildBlocker)
-      ),
-      http.get("/api/v1/config", () =>
-        HttpResponse.json({
-          max_upload_bytes: 1024,
-          billing: {
-            url: "https://billing.example.com",
-            operator_handoff: true,
-            manages_plans: true,
-          },
-        })
-      )
-    );
-  });
-
-  it("sends the operator to the community to delete it", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(
-      <AdminDeleteUserDialog
-        open={true}
-        onOpenChange={vi.fn()}
-        onSuccess={vi.fn()}
-        targetUser={targetUser}
-      />,
-      { auth: { user: buildUser({ role: "owner" }) } }
-    );
-
-    await user.click(await screen.findByRole("button", { name: /next/i }));
-    expect(await screen.findByText(/Lone Community/)).toBeInTheDocument();
-
-    expect(await screen.findByText(/delete it from its own settings/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /delete community/i })).not.toBeInTheDocument();
+
+    // Checking again picks up the resolved blocker and moves on to confirm.
+    await user.click(screen.getByRole("button", { name: /check again/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /check again/i })).not.toBeInTheDocument()
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

@@ -196,7 +196,6 @@
   "ADMIN_CANNOT_DELETE_SELF": "Cannot delete your own account through admin endpoint",
   "ADMIN_USER_CANNOT_BE_DELETED": "User cannot be deleted",
   "ADMIN_PROJECT_TRANSFERS_REQUIRED": "Project transfers required for hard delete when user owns projects",
-  "ADMIN_GUILD_NOT_A_DELETION_BLOCKER": "This community can only be deleted here if the user is its sole admin. Refresh and try again.",
   "USER_CANNOT_DELETE_LAST_OWNER": "Cannot delete the last platform owner account",
   "USER_INVALID_PASSWORD": "Invalid password",
   "USER_CURRENT_PASSWORD_REQUIRED": "Enter your current password to change it.",
@@ -723,7 +722,6 @@
   "GUILD_STATUS_NOT_SETTABLE": "A community is deleted from its own settings, not from here.",
   "GUILD_PLAN_SET_BY_BILLING": "Billing sets this community's limits and features. Change them in billing.",
   "GUILD_STATUS_SET_BY_BILLING": "Billing sets this community's status. You can suspend it, or lift a suspension back to the status billing last set.",
-  "GUILD_DELETE_THROUGH_COMMUNITY": "Billing manages this community. Delete it from its own settings under a settings grant.",
   "ADMIN_USER_NOT_DELETED": "That account has not been deleted, so there is nothing to restore.",
   "CONNECTION_NEEDS_NARROWING": "Say which accounts on this provider are yours before turning the connection on.",
   "SUPPORT_INTAKE_NOT_CONFIGURED": "Set up support intake before offering help requests — bind the support stream to a project under Settings › Admin › Intake."

@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.break_glass_test import _enrol_factor, _next_code
-from app.testing import create_guild, create_user
+from app.testing import create_guild
 from app.testing.billing_managed import billing_manages_plans
 
 pytestmark = pytest.mark.integration
@@ -140,24 +140,6 @@ async def test_no_other_status_is_the_operators(
 
     assert resp.status_code == 409, resp.text
     assert resp.json()["detail"] == "GUILD_STATUS_SET_BY_BILLING"
-
-
-async def test_a_community_is_deleted_through_itself(
-    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
-):
-    operator = await acting_user("operator")
-    seat = await create_user(session)
-    guild_id = (await create_guild(session, creator=seat)).id
-    seat_id = seat.id
-    _billing_sets_plans(monkeypatch)
-
-    resp = await client.delete(
-        f"/api/v1/admin/guilds/{guild_id}?blocked_user_id={seat_id}",
-        headers=operator.headers,
-    )
-
-    assert resp.status_code == 409, resp.text
-    assert resp.json()["detail"] == "GUILD_DELETE_THROUGH_COMMUNITY"
 
 
 @pytest.mark.parametrize("managed", [True, False])

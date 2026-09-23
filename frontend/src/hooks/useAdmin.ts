@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
   checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet,
   clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete,
   deleteUserApiV1AdminUsersUserIdDelete,
@@ -88,22 +87,6 @@ export const useAdminDeleteUser = (
     {
       mutationFn: (request) => deleteUserApiV1AdminUsersUserIdDelete(userId, request),
       invalidate: () => invalidate(q.adminUsers()),
-    },
-    options
-  );
-
-/** Delete a guild that blocks a user's deletion (operator blocker resolution).
- * The guild must be one `blockedUserId` holds the only superadmin seat of. */
-export const useAdminDeleteGuild = (
-  options?: MutationOpts<void, { guildId: number; blockedUserId: number }>
-) =>
-  useApiMutation<void, { guildId: number; blockedUserId: number }>(
-    {
-      mutationFn: ({ guildId, blockedUserId }) =>
-        adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId, {
-          blocked_user_id: blockedUserId,
-        }),
-      invalidate: () => invalidate(q.adminUsers(), q.allGuilds()),
     },
     options
   );

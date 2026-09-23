@@ -59,7 +59,7 @@ The row's actions menu keeps the one-off jobs:
     - **Anonymize** — personal details removed; their content remains as "Deleted user"; not reversible.
     - **Hard delete** — everything removed, including authored content; not reversible.
 
-Before a destructive delete, Initiative makes you resolve one kind of **blocker**: an account holding a community's only [superadmin](../guides/communities.md#why-superadmin-is-separate) seat. Either the account holder hands the seat to another member first, or you [break glass](#cross-community-access-break-glass-and-time-bound-grants) into the community and appoint somebody from its **Settings → Users** — or, where there's nobody left to hand it to, delete the community. Content they owned is released on the way out for the community's admins to claim.
+Before a destructive delete, Initiative makes you resolve one kind of **blocker**: an account holding a community's only [superadmin](../guides/communities.md#why-superadmin-is-separate) seat. Either the account holder hands the seat to another member first, or you [break glass](#cross-community-access-break-glass-and-time-bound-grants) into the community and, from its own settings, appoint somebody in **Settings → Users** — or, where there's nobody left to hand it to, delete the community in **Settings → Danger zone**. Deleting a community always happens there, under a grant. Content they owned is released on the way out for the community's admins to claim.
 
 ## Cross-community access: break-glass and time-bound grants
 

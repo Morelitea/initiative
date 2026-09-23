@@ -12,7 +12,6 @@ from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
 from app.db.session import get_admin_session
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
 from app.schemas.platform.user import AdminUserRead, AccountDeletionResponse
@@ -28,14 +27,10 @@ from app.schemas.platform.admin import (
 from app.core.messages import (
     AdminMessages,
     AuthMessages,
-    GuildMessages,
     SettingsMessages,
     UserMessages,
 )
 from app.services.platform import account_stream
-from app.services.platform import billing as billing_service
-from app.services.platform import billing_ping
-from app.services.marketplace import app_refs
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -48,7 +43,6 @@ from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
-from app.services.platform import guilds as guilds_service
 
 logger = logging.getLogger(__name__)
 
@@ -837,90 +831,3 @@ async def delete_user(
         action="hard_delete",
         message=f"User {user.username} has been permanently deleted",
     )
-
-
-@router.delete(
-    "/guilds/{guild_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_class=Response,
-)
-async def admin_delete_guild(
-    guild_id: int,
-    session: AdminSessionDep,
-    _current_user: GuildsManageDep,
-    blocked_user_id: Annotated[
-        int,
-        Query(
-            description=(
-                "The user being deleted, for whom this guild must be a "
-                "last-admin blocker. The delete is refused otherwise."
-            )
-        ),
-    ],
-) -> Response:
-    """Delete a guild that blocks a user's deletion (platform operator).
-
-    Scoped to blocker resolution — NOT a general "delete any guild" tool: the
-    guild must be one ``blocked_user_id`` holds the SOLE superadmin seat of (so
-    deleting that user would leave it with nobody who can run it). Any other guild is refused; an operator reaches a live
-    guild's own deletion only by breaking glass into its danger zone. This
-    endpoint backs the "delete the blocking guild" option in the user-deletion
-    dialog, gated on ``guilds.manage``.
-
-    Deletes exactly the way the danger zone does: the community is retained
-    and can be restored, and its roster is kept — these are other people's
-    memberships, and this endpoint only fires where other people are in it.
-    What unblocks the account is that a deleted community has no seat to
-    protect, not that the seat was taken away.
-
-    Refused where billing sets plans: there a community is deleted from its
-    own settings, by its seat or under a settings grant.
-    """
-    if billing_service.billing_managed():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=GuildMessages.GUILD_DELETE_THROUGH_COMMUNITY,
-        )
-    await guilds_service.lock_guild_seats(session, guild_id)
-    if not await guilds_service.would_strand_guild(
-        session, guild_id=guild_id, user_id=blocked_user_id
-    ):
-        # Either the user isn't the guild's sole seat (not a real blocker), or
-        # the guild doesn't exist / they aren't in it — all refused identically.
-        # ``for_update`` narrows the race against a concurrent demotion of an
-        # existing admin; it can't lock a not-yet-existing row, so a brand-new
-        # concurrent admin INSERT is a theoretical window (see the service
-        # docstring) — negligible here, and the cascade removes that row anyway.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AdminMessages.GUILD_NOT_A_DELETION_BLOCKER,
-        )
-
-    stmt = select(Guild).where(Guild.id == guild_id)
-    result = await session.exec(stmt)
-    guild = result.one_or_none()
-    if not guild:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
-        )
-
-    # Mirrors the member-facing DELETE /guilds/{id}: the guild moves to
-    # ``deleted`` and everything is kept — shared rows, roster, the guild_<id>
-    # schema, the stored blobs — until guild_purge destroys it at the end of
-    # the retention window.
-    notice = await guilds_service.soft_delete_guild(
-        session,
-        guild,
-        actor_user_id=_current_user.id,
-        via="operator",
-        target_user_id=blocked_user_id,
-    )
-    await session.commit()
-    # The receipt, once the deletion is a fact. Never allowed to fail it.
-    await email_service.announce_community_deleted(session, notice)
-    # See soft_delete_guild: these live on another connection, so they go after
-    # the commit that made the deletion real. Billing keeps its name for the
-    # guild until the purge, and is told to go and read what happened to it.
-    await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
-    billing_ping.notify_lifecycle_changed(guild_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
