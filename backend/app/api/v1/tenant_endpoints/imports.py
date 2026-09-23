@@ -17,6 +17,7 @@ from fastapi import (
     Body,
     Depends,
     File,
+    Form,
     HTTPException,
     Response,
     UploadFile,
@@ -336,6 +337,56 @@ async def start_atlassian_import(
             space_keys=payload.space_keys,
             include_comments=payload.include_comments,
             include_attachments=payload.include_attachments,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
+
+
+@router.post(
+    "/atlassian/export",
+    response_model=ImportJobRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_confluence_export_import(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+    initiative_id: int = Form(...),
+    include_attachments: bool = Form(True),
+) -> ImportJobRead:
+    """Start reading a Confluence space's HTML export into an initiative.
+
+    The zip Confluence's "Export space → HTML" writes, for a site this server
+    cannot reach or somebody would rather not hand a token to. It is staged
+    and the job comes back ``queued``; the worker converts it the way it reads
+    a site, and parks it at ``staged`` with the same plan for
+    ``POST /imports/jobs/{id}/confirm``. The initiative needs wikis switched on
+    and the caller able to create one there."""
+    _require_writable(guild_context)
+    if guild_context.grant is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+    try:
+        payload = await read_upload_bounded(
+            file, settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+        )
+    except FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
+        )
+    try:
+        job = await atlassian_job.start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+            payload=payload,
+            include_attachments=include_attachments,
         )
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)

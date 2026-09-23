@@ -47,9 +47,10 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         "IMPORT_TOO_LARGE",
     ),
     (
-        # Multipart adds framing overhead around the zip; allow 1 MiB slack
-        # over the cap the handler's bounded read enforces exactly.
-        re.compile(r"^/api/v1/g/\d+/imports/backup$"),
+        # A backup, or a Confluence space's HTML export. Multipart adds
+        # framing overhead around the zip; allow 1 MiB slack over the cap the
+        # handler's bounded read enforces exactly.
+        re.compile(r"^/api/v1/g/\d+/imports/(backup|atlassian/export)$"),
         lambda: settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
         "IMPORT_TOO_LARGE",
     ),
@@ -58,7 +59,7 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # business arriving as a megabyte, and both routes reach outward on
         # what they are given, so the transport refuses an oversized one
         # before a handler ever looks at it.
-        re.compile(r"^/api/v1/g/\d+/imports/atlassian/(connect|jira)$"),
+        re.compile(r"^/api/v1/g/\d+/imports/atlassian/(connect|import)$"),
         lambda: ATLASSIAN_MAX_REQUEST_BYTES,
         "IMPORT_TOO_LARGE",
     ),

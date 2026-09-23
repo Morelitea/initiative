@@ -10,6 +10,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import {
   AtlassianChooseStep,
   AtlassianConnectStep,
+  AtlassianExportStep,
   AtlassianFetchingStep,
   AtlassianReviewSummary,
   JiraReviewSummary,
@@ -194,6 +195,60 @@ describe("AtlassianChooseStep", () => {
     await userEvent.click(screen.getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "Docs only" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Engineering" })).toBeInTheDocument();
+  });
+});
+
+describe("AtlassianExportStep", () => {
+  it("uploads the export with where it goes, then hands over the job", async () => {
+    let sent = "";
+    server.use(
+      guildHttp.post("/imports/atlassian/export", async ({ request }) => {
+        sent = await request.text();
+        return HttpResponse.json(job(), { status: 202 });
+      })
+    );
+    const onStarted = vi.fn();
+    renderWithProviders(<AtlassianExportStep initiatives={TARGETS} onStarted={onStarted} />);
+
+    const start = screen.getByRole("button", { name: /start reading/i });
+    expect(start).toBeDisabled();
+    await userEvent.upload(
+      screen.getByLabelText(/choose the export/i),
+      new File(["zip"], "DOCS.zip", { type: "application/zip" })
+    );
+    expect(screen.getByText("DOCS.zip")).toBeInTheDocument();
+    // Both initiatives take wikis; one has to be picked.
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: "Docs only" }));
+    await userEvent.click(start);
+
+    await waitFor(() => expect(onStarted).toHaveBeenCalled());
+    // A multipart body: the file and where it goes.
+    expect(sent).toMatch(/name="initiative_id"\s+5/);
+    expect(sent).toMatch(/name="include_attachments"\s+true/);
+    expect(sent).toMatch(/name="file"; filename="[^"]*"/);
+  });
+
+  it("says so when the zip is not a space export", async () => {
+    server.use(
+      guildHttp.post("/imports/atlassian/export", () =>
+        HttpResponse.json({ detail: "IMPORT_ZIP_INVALID" }, { status: 400 })
+      )
+    );
+    renderWithProviders(<AtlassianExportStep initiatives={[TARGETS[0]]} onStarted={vi.fn()} />);
+    await userEvent.upload(
+      screen.getByLabelText(/choose the export/i),
+      new File(["zip"], "backup.zip", { type: "application/zip" })
+    );
+    await userEvent.click(screen.getByRole("button", { name: /start reading/i }));
+    expect(await screen.findByText(/isn't a Confluence space's HTML export/i)).toBeInTheDocument();
+  });
+
+  it("is offered from the connect step", async () => {
+    const onUseExport = vi.fn();
+    renderWithProviders(<AtlassianConnectStep onConnected={vi.fn()} onUseExport={onUseExport} />);
+    await userEvent.click(screen.getByRole("button", { name: /html export/i }));
+    expect(onUseExport).toHaveBeenCalled();
   });
 });
 

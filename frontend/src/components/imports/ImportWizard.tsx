@@ -15,6 +15,7 @@ import {
   AtlassianChooseStep,
   type AtlassianConnection,
   AtlassianConnectStep,
+  AtlassianExportStep,
   AtlassianFetchingStep,
   AtlassianReviewSummary,
 } from "@/components/imports/AtlassianImportSteps";
@@ -96,6 +97,7 @@ type Step =
   // Reading an Atlassian site.
   | "connect"
   | "projects"
+  | "export"
   | "fetching"
   | "review"
   // Shared tail.
@@ -478,6 +480,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     people: t("wizard.people.prompt"),
     connect: t("wizard.atlassian.connect.prompt"),
     projects: t("wizard.atlassian.choose.prompt"),
+    export: t("wizard.atlassian.export.prompt"),
     review: t("wizard.jira.review.prompt"),
   };
   const stepDescription = stepDescriptions[step] ?? null;
@@ -497,6 +500,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     choose: 3,
     connect: 2,
     projects: 3,
+    export: 3,
     fetching: null,
     review: 4,
     people: foreign ? 4 : 5,
@@ -670,7 +674,12 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
             setJiraConnection(connection);
             go("projects");
           }}
+          onUseExport={() => go("export")}
         />
+      )}
+
+      {step === "export" && (
+        <AtlassianExportStep initiatives={atlassianTargets} onStarted={handleJiraStarted} />
       )}
 
       {step === "projects" && jiraConnection && (
