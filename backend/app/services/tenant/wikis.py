@@ -6,12 +6,13 @@ coherent: naming a page, filing it, moving it, and reading the tree back.
 
 Two kinds of thing sit in that tree: the pages written in the wiki, and the
 documents borrowed into it. A borrowed document keeps its own address and its
-own owner, so the wiki cannot write a position onto it — it records where it
-put it instead, in ``Wiki.document_positions`` — and it is always at the top
-level, because which page it is filed under would be a fact about a document
-that belongs to other places too. :func:`load_list` is the one place pages and
-documents are read as a single order, and :func:`place_in_list` is the one
-place that order is rewritten.
+own owner, so the wiki cannot write its place onto it — it records where it
+put it instead, in ``Wiki.document_positions``: which page it is filed under,
+and where among what else is filed there. Both are facts about this wiki, not
+about the document, which may sit somewhere else entirely in another wiki. A
+document is filed under a page but never holds anything itself.
+:func:`load_list` is the one place pages and documents are read as a single
+order, and :func:`place_in_list` is the one place that order is rewritten.
 
 A third structure, the headings inside a page, is content rather than filing
 and lives in the body.
@@ -163,12 +164,10 @@ async def next_position(
         else statement.where(WikiPage.parent_page_id == parent_page_id)
     )
     positions = list((await session.exec(statement)).all())
-    if parent_page_id is None:
-        positions.extend(
-            int(spot)
-            for spot in (wiki.document_positions or {}).values()
-            if isinstance(spot, int) and spot != UNPLACED
-        )
+    for spot in (wiki.document_positions or {}).values():
+        position, parent = _read_placement(spot)
+        if parent == parent_page_id and position != UNPLACED:
+            positions.append(position)
     return (max(positions) + 1) if positions else 0
 
 
@@ -213,10 +212,51 @@ async def load_pages(
 UNPLACED = 1_000_000_000
 
 
+def _read_placement(recorded: Any) -> tuple[int, int | None]:
+    """A recorded place as ``(position, parent page id)``.
+
+    Written as ``{"position": 3, "parent": 12}``; a bare number is a place
+    recorded before documents could be filed under a page, which is the top.
+    """
+    if isinstance(recorded, bool):
+        return UNPLACED, None
+    if isinstance(recorded, int):
+        return recorded, None
+    if isinstance(recorded, dict):
+        position = recorded.get("position")
+        parent = recorded.get("parent")
+        return (
+            position
+            if isinstance(position, int) and not isinstance(position, bool)
+            else UNPLACED,
+            parent
+            if isinstance(parent, int) and not isinstance(parent, bool)
+            else None,
+        )
+    return UNPLACED, None
+
+
+def _placement(wiki: Wiki, document_id: int) -> tuple[int, int | None]:
+    return _read_placement((wiki.document_positions or {}).get(str(document_id)))
+
+
 def _document_position(wiki: Wiki, document: Any) -> int:
     """Where this wiki puts this document, or the end if it has not said."""
-    recorded = (wiki.document_positions or {}).get(str(document.id))
-    return int(recorded) if isinstance(recorded, int) else UNPLACED
+    return _placement(wiki, document.id)[0]
+
+
+def document_parent(wiki: Wiki, document_id: int) -> int | None:
+    """The page this wiki files the document under, or ``None`` for the top."""
+    return _placement(wiki, document_id)[1]
+
+
+def file_document(wiki: Wiki, document_id: int, *, parent_page_id: int | None) -> None:
+    """File a document under a page (or at the top), at the end of what is
+    already there. For an import, which places each file under the page it
+    was attached to without a drag."""
+    placements = dict(wiki.document_positions or {})
+    placements[str(document_id)] = {"position": UNPLACED, "parent": parent_page_id}
+    wiki.document_positions = placements
 
 
 def _sort_key(wiki: Wiki, item: Any, page_order: WikiPageOrder):
@@ -240,6 +280,16 @@ def _sort_key(wiki: Wiki, item: Any, page_order: WikiPageOrder):
     # documents borrowed in — rather than by name, so a list somebody has not
     # arranged still reads in the order it was written.
     return (position, 0 if is_page else 1, item.id)
+
+
+def visible_document_parent(
+    wiki: Wiki, document_id: int, known: set[int]
+) -> int | None:
+    """The page a document is filed under, as far as this read can see: one
+    under a page the reader cannot see — a draft, or a page in the trash — is
+    drawn at the top rather than dropped."""
+    parent = document_parent(wiki, document_id)
+    return parent if parent in known else None
 
 
 def _parent_of(item: Any, known: set[int]) -> int | None:
@@ -274,7 +324,11 @@ async def load_list(
 
     filed: dict[int | None, list[Any]] = {}
     for item in (*pages, *documents):
-        parent = _parent_of(item, known) if isinstance(item, WikiPage) else None
+        parent = (
+            _parent_of(item, known)
+            if isinstance(item, WikiPage)
+            else visible_document_parent(wiki, item.id, known)
+        )
         filed.setdefault(parent, []).append(item)
     for group in filed.values():
         group.sort(key=lambda item: _sort_key(wiki, item, wiki.page_order))
@@ -294,20 +348,22 @@ async def load_list(
 async def siblings_of(
     session: AsyncSession, wiki: Wiki, parent_page_id: int | None
 ) -> list[Any]:
-    """Everything filed in one place, in order.
+    """Everything filed in one place, in order: the pages and the documents
+    filed there together, since one drag arranges them as one list.
 
-    At the top of a wiki that is its unfiled pages and every document borrowed
-    into it; under a page it is that page's own, because a document is never
-    filed under anything.
+    A document filed under a page that is gone counts at the top, where the
+    tree draws it.
     """
-    pages = [
-        page
-        for page in await load_pages(session, wiki.id, page_order=wiki.page_order)
-        if page.parent_page_id == parent_page_id
+    all_pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
+    known = {page.id for page in all_pages}
+    group: list[Any] = [
+        page for page in all_pages if page.parent_page_id == parent_page_id
     ]
-    group: list[Any] = [*pages]
-    if parent_page_id is None:
-        group.extend(await linked_documents(session, wiki.id))
+    group.extend(
+        document
+        for document in await linked_documents(session, wiki.id)
+        if visible_document_parent(wiki, document.id, known) == parent_page_id
+    )
     group.sort(key=lambda item: _sort_key(wiki, item, wiki.page_order))
     return group
 
@@ -324,8 +380,9 @@ async def place_in_list(
     Only the row's new neighbours are renumbered: positions mean something
     among the things filed together and nothing across the tree, so one pass
     over one group leaves no two of them sharing a number. Each is written
-    where it can be — a page in its own column, a document in the wiki's record
-    of where it put things — so a document is reordered without being touched.
+    where it can be — a page in its own columns, a document in the wiki's
+    record of where it put things — so a document is filed and reordered
+    without being touched.
 
     Drafts are counted even for a reader who cannot see them: the index comes
     from a list the person dragging was looking at, and they can write here.
@@ -333,6 +390,10 @@ async def place_in_list(
     if isinstance(moved, WikiPage):
         moved.parent_page_id = parent_page_id
         session.add(moved)
+    else:
+        # Recorded before the group is read, so the document counts among the
+        # things filed where it is going rather than where it was.
+        file_document(wiki, moved.id, parent_page_id=parent_page_id)
 
     others = [
         item
@@ -348,7 +409,7 @@ async def place_in_list(
             item.position = spot
             session.add(item)
         else:
-            placements[str(item.id)] = spot
+            placements[str(item.id)] = {"position": spot, "parent": parent_page_id}
     # Replaced rather than mutated: SQLAlchemy tracks the attribute, not what
     # the dict does to itself.
     wiki.document_positions = placements

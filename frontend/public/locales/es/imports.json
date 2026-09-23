@@ -193,6 +193,8 @@
         "containers_other": "{{count}} carpetas o páginas padre vacías se convierten en listas de las páginas que contienen",
         "labels_one": "{{count}} etiqueta de Confluence, como etiqueta",
         "labels_other": "{{count}} etiquetas de Confluence, como etiquetas",
+        "comments_one": "{{count}} comentario en las páginas, al pie y en el texto",
+        "comments_other": "{{count}} comentarios en las páginas, al pie y en el texto",
         "unreadableSpaces": "No se pudieron leer: {{keys}}",
         "overLimit_one": "{{count}} página haría la wiki demasiado grande para importarla de una vez",
         "overLimit_other": "{{count}} páginas harían la wiki demasiado grande para importarla de una vez",

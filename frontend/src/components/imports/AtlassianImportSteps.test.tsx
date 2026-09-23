@@ -188,8 +188,8 @@ describe("AtlassianChooseStep", () => {
       <AtlassianChooseStep connection={CONNECTION} initiatives={TARGETS} onStarted={vi.fn()} />
     );
     await userEvent.click(screen.getByLabelText(/Team Docs/));
-    // Comments are an issue's; attachments are a page's too.
-    expect(screen.getByLabelText(/bring comments/i)).toBeDisabled();
+    // A page has comments and attachments of its own.
+    expect(screen.getByLabelText(/bring comments/i)).toBeEnabled();
     expect(screen.getByLabelText(/bring attachments/i)).toBeEnabled();
     await userEvent.click(screen.getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "Docs only" })).toBeInTheDocument();
@@ -358,6 +358,7 @@ describe("AtlassianReviewSummary", () => {
             atlassian: {
               spaces: 1,
               pages: 2,
+              page_comments: 4,
               page_images: 2,
               page_files: 1,
               page_attachment_bytes: 2048,
@@ -370,6 +371,7 @@ describe("AtlassianReviewSummary", () => {
         onExcludedChange={() => {}}
       />
     );
+    expect(screen.getByText(/4 comments on the pages/i)).toBeInTheDocument();
     expect(screen.getByText(/3 attachments \(2(\.0)? KB\)/i)).toBeInTheDocument();
     expect(screen.getByText(/1 attachment that's too large/i)).toBeInTheDocument();
     expect(screen.getByText(/2 files, because this initiative has documents/i)).toBeInTheDocument();

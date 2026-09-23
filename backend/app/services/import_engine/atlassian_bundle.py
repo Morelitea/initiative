@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
 from app.services.import_engine.common import handle_key
+from app.services.import_engine.confluence_attachments import PageFile
 from app.services.import_engine.jira_attachments import StoredImage
 
 _MANIFEST_NAME = "manifest.json"
@@ -57,7 +58,7 @@ def write_bundle(
     calendars: Sequence[dict[str, Any]] = (),
     images: Sequence[StoredImage] = (),
     wikis: Sequence[tuple[str, dict[str, Any]]] = (),
-    wiki_files: Mapping[str, Sequence[StoredImage]] = {},
+    wiki_files: Mapping[str, Sequence[PageFile]] = {},
     people: list[dict[str, Any]],
     guild_id: int,
     guild_name: str,
@@ -72,8 +73,9 @@ def write_bundle(
     files everything into it rather than creating one named after a site.
 
     ``wiki_files`` are the file documents each space's pages had attached,
-    by the space's key: each is an entry of its own, filed in its wiki, and
-    named by its asset's path — the ref a page's mention of it carries.
+    by the space's key: each is an entry of its own, filed in its wiki under
+    the page it was attached to, and named by its asset's path — the ref a
+    page's mention of it carries.
     """
     entries: list[dict[str, Any]] = []
     files: dict[str, bytes] = {}
@@ -122,7 +124,8 @@ def write_bundle(
             ".initiative-wiki.json"
         )
         add("wiki", "initiative-wiki", wiki_path, envelope["name"], envelope)
-        for document in wiki_files.get(key, ()):
+        for page_file in wiki_files.get(key, ()):
+            document = page_file.stored
             documents.append(document)
             entries.append(
                 {
@@ -136,7 +139,11 @@ def write_bundle(
                     "tags": [],
                     "properties": [],
                     "asset": f"assets/{document.storage_key}",
-                    "attach_to": {"kind": "wiki", "ref": wiki_path},
+                    "attach_to": {
+                        "kind": "wiki",
+                        "ref": wiki_path,
+                        "page": page_file.page_slug,
+                    },
                 }
             )
 

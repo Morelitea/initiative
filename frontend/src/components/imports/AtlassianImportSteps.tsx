@@ -88,6 +88,7 @@ export interface AtlassianPlanSummary {
   page_attachment_bytes?: number;
   page_attachments_skipped?: number;
   page_files_blocked?: number;
+  page_comments?: number;
   labels?: number;
   dropped_macros?: Array<{ name: string; count: number }>;
 }
@@ -397,19 +398,17 @@ export function AtlassianChooseStep({
       </div>
 
       <div className="space-y-3 rounded-lg border p-3">
-        {projects.length > 0 && (
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="jira-comments" className="font-normal text-sm">
-              {t("wizard.atlassian.choose.includeComments")}
-            </Label>
-            <Switch
-              id="jira-comments"
-              checked={includeComments}
-              disabled={!wantsProjects}
-              onCheckedChange={setIncludeComments}
-            />
-          </div>
-        )}
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="atlassian-comments" className="font-normal text-sm">
+            {t("wizard.atlassian.choose.includeComments")}
+          </Label>
+          <Switch
+            id="atlassian-comments"
+            checked={includeComments}
+            disabled={!wantsProjects && !wantsSpaces}
+            onCheckedChange={setIncludeComments}
+          />
+        </div>
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="atlassian-attachments" className="font-normal text-sm">
             {t("wizard.atlassian.choose.includeAttachments")}
@@ -672,6 +671,9 @@ export function ConfluenceReviewSummary({ job }: { job: ImportJobRead }) {
       : null,
     (summary.labels ?? 0) > 0
       ? t("wizard.confluence.review.labels", { count: summary.labels })
+      : null,
+    (summary.page_comments ?? 0) > 0
+      ? t("wizard.confluence.review.comments", { count: summary.page_comments })
       : null,
     (summary.page_images ?? 0) + (summary.page_files ?? 0) > 0
       ? t("wizard.confluence.review.attachmentsArriving", {

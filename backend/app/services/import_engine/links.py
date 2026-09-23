@@ -186,6 +186,13 @@ _PAGE_URL = re.compile(
 _MARKDOWN_LINK = re.compile(r"\[([^\]\n]*)\]\(<?([^)>\s]+)>?\)")
 
 
+def wiki_page_slug_ref(wiki_id: int, slug: str) -> str:
+    """The name a page of an imported wiki answers to by the slug its
+    envelope gave it — kept apart from the slug it was stored under, which can
+    differ when two envelope slugs collide."""
+    return f"wiki:{wiki_id}:page:{slug}"
+
+
 def confluence_page_ref(url: str, site_url: str | None) -> Optional[str]:
     """The ref a Confluence page URL names — ``confluence:123`` — when it is a
     page on this site."""

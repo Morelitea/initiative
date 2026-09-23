@@ -193,6 +193,8 @@
         "containers_other": "{{count}} folders or empty parent pages become lists of the pages under them",
         "labels_one": "{{count}} label, as a tag",
         "labels_other": "{{count}} labels, as tags",
+        "comments_one": "{{count}} comment on the pages, footer and inline",
+        "comments_other": "{{count}} comments on the pages, footer and inline",
         "unreadableSpaces": "Couldn't read: {{keys}}",
         "overLimit_one": "{{count}} page would make the wiki too large to import in one go",
         "overLimit_other": "{{count}} pages would make the wiki too large to import in one go",

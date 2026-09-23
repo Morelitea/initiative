@@ -43,6 +43,9 @@ MAX_PAGE_REQUESTS = 200
 #: How deep a chain of folders is followed before it is treated as the top.
 MAX_FOLDER_DEPTH = 20
 
+#: How deep a thread of replies is followed.
+MAX_REPLY_DEPTH = 10
+
 #: Account ids per ``users-bulk`` request.
 USERS_PER_REQUEST = 100
 
@@ -84,6 +87,8 @@ class ConfluenceFetchReport:
     attachments_skipped: int = 0
     #: Files left behind because the initiative cannot take documents.
     files_blocked: int = 0
+    #: Comments carried onto the pages, footer and inline alike.
+    comments: int = 0
     #: Tags the pages' labels will become.
     labels: int = 0
 
@@ -288,11 +293,73 @@ async def fetch_page_media(
     )
 
 
-def _account_ids(pages: list[confluence_mapping.SourcePage]) -> set[str]:
+async def _listing(credential: AtlassianCredential, path: str) -> list[dict[str, Any]]:
+    """Every row of a v2 listing, bounded like the page walk is."""
+    rows: list[dict[str, Any]] = []
+    next_path: Optional[str] = path
+    for _ in range(MAX_PAGE_REQUESTS):
+        if next_path is None:
+            break
+        payload = await get_json(credential, next_path)
+        if not isinstance(payload, dict):
+            break
+        results = payload.get("results")
+        if isinstance(results, list):
+            rows.extend(row for row in results if isinstance(row, dict))
+        next_path = _next_path(payload)
+    return rows
+
+
+async def fetch_comments(
+    credential: AtlassianCredential, page_id: str
+) -> list[confluence_mapping.SourceComment]:
+    """What was said on a page: its footer comments and its inline ones, with
+    every reply. A thread that will not answer is left out rather than
+    failing the space. Being throttled is not."""
+    found: list[confluence_mapping.SourceComment] = []
+    for kind in ("footer-comments", "inline-comments"):
+
+        async def walk(path: str, parent: Optional[str], depth: int) -> None:
+            try:
+                rows = await _listing(credential, path)
+            except ImportEngineError as exc:
+                if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
+                    raise
+                return
+            for raw in rows:
+                comment = confluence_mapping.read_comment(raw, parent_id=parent)
+                if comment is None:
+                    continue
+                found.append(comment)
+                if depth < MAX_REPLY_DEPTH:
+                    await walk(
+                        f"/wiki/api/v2/{kind}/{comment.id}/children"
+                        f"?body-format=storage&limit={PAGE_LIMIT}",
+                        comment.id,
+                        depth + 1,
+                    )
+
+        await walk(
+            f"/wiki/api/v2/pages/{page_id}/{kind}?body-format=storage&limit={PAGE_LIMIT}",
+            None,
+            0,
+        )
+    return found
+
+
+def _account_ids(
+    pages: list[confluence_mapping.SourcePage],
+    comments: Optional[dict[str, list[confluence_mapping.SourceComment]]] = None,
+) -> set[str]:
     ids = {page.author_id for page in pages if page.author_id}
     for page in pages:
         if page.body:
             ids.update(_ACCOUNT_ID.findall(page.body))
+    for thread in (comments or {}).values():
+        for comment in thread:
+            if comment.author_id:
+                ids.add(comment.author_id)
+            ids.update(_ACCOUNT_ID.findall(comment.body))
     return ids
 
 
@@ -306,7 +373,9 @@ class ConfluenceFetched:
     #: The pictures the pages show, restored as uploads.
     images: list[StoredImage] = field(default_factory=list)
     #: Each space's file documents, by space key.
-    files: dict[str, list[StoredImage]] = field(default_factory=dict)
+    files: dict[str, list[confluence_attachments.PageFile]] = field(
+        default_factory=dict
+    )
 
 
 async def fetch_spaces_bundle(
@@ -345,6 +414,7 @@ async def fetch_spaces(
     guild_id: Optional[int] = None,
     asset_budget: Optional[AssetBudget] = None,
     documents: bool = True,
+    include_comments: bool = False,
 ) -> ConfluenceFetched:
     """Read the chosen spaces and return what was read plus what it found.
 
@@ -356,7 +426,9 @@ async def fetch_spaces(
     ``asset_budget`` is what the bundle can still hold for attachments —
     shared with the issues, when both are read — and without one none are
     fetched. ``documents`` false is an initiative that cannot take file
-    documents: only the pictures the pages show come.
+    documents: only the pictures the pages show come. ``include_comments``
+    brings what was said on each page, each comment a row of the import's
+    budget like a page is.
     """
     if not space_keys:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
@@ -367,7 +439,7 @@ async def fetch_spaces(
     people: Counter[str] = Counter()
     labels: set[str] = set()
     images: list[StoredImage] = []
-    files: dict[str, list[StoredImage]] = {}
+    files: dict[str, list[confluence_attachments.PageFile]] = {}
     downloads = confluence_attachments.AttachmentReport()
     unshown_blocked = 0
     max_bytes = max(0, settings.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES)
@@ -396,7 +468,17 @@ async def fetch_spaces(
                 folder = confluence_mapping.read_folder(raw)
                 if folder is not None:
                     pages.append(folder)
-            users = await fetch_user_names(credential, _account_ids(pages))
+            comments: dict[str, list[confluence_mapping.SourceComment]] = {}
+            if include_comments:
+                room = remaining - 1 - len(pages)
+                for page in pages:
+                    if page.is_folder or room <= 0:
+                        continue
+                    thread = (await fetch_comments(credential, page.id))[:room]
+                    if thread:
+                        comments[page.id] = thread
+                        room -= len(thread)
+            users = await fetch_user_names(credential, _account_ids(pages, comments))
             media: dict[str, confluence_attachments.PageMedia] = {}
             if asset_budget is not None and guild_id is not None:
                 for page in pages:
@@ -424,6 +506,7 @@ async def fetch_spaces(
                 max_bytes=max_bytes,
                 media=media,
                 documents=documents,
+                comments=comments,
             )
             envelopes.append((key, mapped.envelope))
             images.extend(mapped.uploads)
@@ -440,13 +523,15 @@ async def fetch_spaces(
             report.images += len(mapped.uploads)
             report.files += len(mapped.documents)
             report.attachment_bytes += sum(
-                len(blob.data) for blob in (*mapped.uploads, *mapped.documents)
+                len(blob.data)
+                for blob in (*mapped.uploads, *(f.stored for f in mapped.documents))
             )
             unshown_blocked += mapped.documents_blocked
             for entry in mapped.envelope["pages"]:
                 labels.update(tag.casefold() for tag in entry["tags"])
             report.labels = len(labels)
-            remaining -= mapped.pages + 1
+            report.comments += mapped.comments
+            remaining -= mapped.pages + mapped.comments + 1
         report.attachments_skipped = (
             downloads.oversize + downloads.unreadable + downloads.refused
         )

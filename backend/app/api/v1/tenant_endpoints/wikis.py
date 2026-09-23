@@ -361,11 +361,16 @@ async def list_wiki_pages(
     # The position each row is SERVED with is its place in the list as drawn —
     # a document's is kept on the wiki and a page's in its own column, and
     # neither is what a client counts with.
+    known = {row.id for row in rows if isinstance(row, WikiPage)}
     items = [
         serialize_wiki_page_summary(row, context=guild_context)
         if isinstance(row, WikiPage)
         else serialize_document_as_page(
-            row, wiki_id=wiki.id, position=spot, context=guild_context
+            row,
+            wiki_id=wiki.id,
+            position=spot,
+            parent_page_id=wikis_service.visible_document_parent(wiki, row.id, known),
+            context=guild_context,
         )
         for spot, row in enumerate(rows)
     ]
@@ -420,11 +425,11 @@ async def move_wiki_document(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageTree:
-    """Put a borrowed document somewhere else in this wiki's list.
+    """File a borrowed document under a page of this wiki, or at its top, and
+    put it in order there.
 
-    At the top of it, always: which page a document is filed under would be a
-    fact about a document that belongs to other places too, and this wiki does
-    not get to decide that.
+    Where it sits is recorded on the wiki, not on the document: the same
+    document can sit somewhere else entirely in another wiki.
 
     Write on the wiki is the whole gate, and read on the document is implied by
     it already being in a wiki this person may write: where it sits is a
@@ -441,7 +446,15 @@ async def move_wiki_document(
             status_code=status.HTTP_404_NOT_FOUND, detail=WikiMessages.PAGE_NOT_FOUND
         )
 
-    await wikis_service.place_in_list(session, wiki, document, move.position)
+    if move.parent_page_id is not None and (
+        await wikis_service.get_page(session, wiki.id, move.parent_page_id) is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=WikiMessages.PAGE_NOT_FOUND
+        )
+    await wikis_service.place_in_list(
+        session, wiki, document, move.position, move.parent_page_id
+    )
     await session.commit()
     return await list_wiki_pages(wiki_id, session, current_user, guild_context)
 

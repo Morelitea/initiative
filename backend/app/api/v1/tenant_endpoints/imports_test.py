@@ -1581,7 +1581,8 @@ async def test_envelope_link_out_of_the_file_is_counted(client, acting_user, ses
 async def test_backup_attach_to_files_a_document_in_its_wiki(
     client, acting_user, session, monkeypatch, role_session
 ):
-    """A file document that sat in a wiki still sits in it after a restore.
+    """A file document that sat in a wiki still sits in it after a restore,
+    under the page it was filed under.
 
     The edge names two rows whose ids the archive cannot carry, so it crosses
     as ``attach_to`` on the document's entry, pointing at the wiki's entry
@@ -1620,7 +1621,7 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
         "type": "initiative-wiki",
         "schema_version": 1,
         "name": "Handbook",
-        "pages": [],
+        "pages": [{"title": "Rules", "slug": "rules", "content": {}}],
     }
     wiki_entry = {
         "path": wiki_path,
@@ -1645,7 +1646,7 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
         "tags": [],
         "properties": [],
         "asset": "assets/field-notes.pdf",
-        "attach_to": {"kind": "wiki", "ref": wiki_path},
+        "attach_to": {"kind": "wiki", "ref": wiki_path, "page": "rules"},
     }
     manifest = _minimal_manifest(entries=[file_entry, wiki_entry])
     manifest["initiatives"][0]["tools"]["wiki"] = "included"
@@ -1690,6 +1691,14 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
         relationship_type=RelationshipType.part_of,
         other_kind=SearchEntityType.wiki,
     ) == [wiki.id]
+    # And under the page it was filed under.
+    from app.models.tenant.wiki import WikiPage
+    from app.services.tenant.wikis import document_parent
+
+    rules = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+    ).one()
+    assert document_parent(wiki, document.id) == rules.id
 
 
 async def test_backup_applies_into_an_existing_initiative(
@@ -3777,7 +3786,9 @@ async def test_importing_into_an_initiative_you_cannot_reach_is_a_404(
 # ---------------------------------------------------------------------------
 
 
-def _confluence_site(*, pages, users=None, labels=None, attachments=None, files=None):
+def _confluence_site(
+    *, pages, users=None, labels=None, attachments=None, files=None, comments=None
+):
     """Stub a Confluence site answering a connect and a fetch of one space."""
     import httpx
 
@@ -3786,8 +3797,12 @@ def _confluence_site(*, pages, users=None, labels=None, attachments=None, files=
     page_labels: dict[str, list[str]] = labels or {}
     page_attachments: dict[str, list[dict]] = attachments or {}
     blobs: dict[str, bytes] = files or {}
+    threads: dict[str, list[dict]] = comments or {}
 
     async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "-comments" in url:
+            path = url.split("/wiki/api/v2/")[1].split("?")[0]
+            return httpx.Response(200, json={"results": threads.get(path, [])})
         if "/attachments?" in url:
             page_id = url.split("/pages/")[1].split("/")[0]
             return httpx.Response(
@@ -4053,6 +4068,12 @@ async def test_a_confluence_pages_attachments_arrive_as_uploads_and_documents(
         )
     ) == sorted(d.id for d in documents.values())
 
+    # Filed in the wiki under the page they were attached to.
+    await session.refresh(wiki)
+    from app.services.tenant.wikis import document_parent
+
+    assert {document_parent(wiki, d.id) for d in documents.values()} == {home.id}
+
     (paragraph,) = home.content["root"]["children"]
     image, mention = paragraph["children"]
     assert image["src"].startswith(f"/uploads/{a.guild.id}/")
@@ -4098,6 +4119,96 @@ async def test_an_initiative_without_documents_takes_only_the_pictures(
     assert done["status"] == ImportJobStatus.done.value, done.get("error")
     session.expunge_all()
     assert (await session.exec(select(Document))).all() == []
+
+
+async def test_a_confluence_pages_comments_arrive_on_its_wiki_page(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Footer and inline comments land in the page's thread, replies under what
+    they answer, each under whoever the people step said wrote it — and a
+    comment's link to another page points at the page it became."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+
+    def said(comment_id, body, author):
+        return {
+            "id": str(comment_id),
+            "version": {"authorId": author, "createdAt": "2024-05-01T10:00:00.000Z"},
+            "body": {"storage": {"value": body}},
+        }
+
+    site = _confluence_site(
+        pages=[
+            _confluence_page(1, "Home", "<p>Welcome</p>"),
+            _confluence_page(2, "Guide", "<p>How to</p>", parent=1),
+        ],
+        users={"acc-1": "Robin Ade", "acc-2": "Sam Bee"},
+        comments={
+            "pages/1/footer-comments": [
+                said(
+                    10,
+                    '<p>Read <ac:link><ri:page ri:content-title="Guide"/></ac:link> '
+                    '<ac:link><ri:user ri:account-id="acc-2"/></ac:link></p>',
+                    "acc-1",
+                )
+            ],
+            "footer-comments/10/children": [said(11, "<p>Done</p>", "acc-2")],
+            "pages/1/inline-comments": [
+                {
+                    **said(20, "<p>Typo</p>", "acc-2"),
+                    "properties": {"inlineOriginalSelection": "Welcom"},
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
+        "id"
+    ]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    assert staged["plan"]["atlassian"]["page_comments"] == 3
+
+    # Robin is placed; Sam is left as a name.
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin Ade": b.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Docs"))).one()
+    pages = {
+        p.title: p
+        for p in (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+        ).all()
+    }
+    thread = (
+        await session.exec(
+            select(Comment)
+            .where(Comment.wiki_page_id == pages["Home"].id)
+            .order_by(Comment.id)
+        )
+    ).all()
+    first, reply, inline = thread
+    assert first.created_by == b.user.id and first.imported_author_name is None
+    assert first.content == (f"Read #wiki_page[Guide]({pages['Guide'].id}) @Sam Bee")
+    assert reply.parent_comment_id == first.id
+    assert reply.created_by == a.user.id and reply.imported_author_name == "Sam Bee"
+    assert inline.content == "> Welcom\n\nTypo"
 
 
 async def test_starting_a_confluence_import_refuses_what_it_can_up_front(

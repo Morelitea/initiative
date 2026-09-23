@@ -193,6 +193,8 @@
         "containers_other": "{{count}} dossiers ou pages parentes vides deviennent des listes des pages qu'ils contiennent",
         "labels_one": "{{count}} libellé, en étiquette",
         "labels_other": "{{count}} libellés, en étiquettes",
+        "comments_one": "{{count}} commentaire sur les pages, en bas de page et dans le texte",
+        "comments_other": "{{count}} commentaires sur les pages, en bas de page et dans le texte",
         "unreadableSpaces": "Illisibles : {{keys}}",
         "overLimit_one": "{{count}} page rendrait le wiki trop volumineux pour un seul import",
         "overLimit_other": "{{count}} pages rendraient le wiki trop volumineux pour un seul import",
