@@ -555,6 +555,97 @@ def test_comments_arrive_oldest_first_with_their_author_and_date():
     assert "hidden@example.com" not in str(mapped.comments)
 
 
+def _mention(name, account="acc-1"):
+    return {"type": "mention", "attrs": {"id": account, "text": f"@{name}"}}
+
+
+def test_a_reply_names_the_comment_it_answers():
+    """Jira's threaded replies carry ``parentId``; the reply arrives under
+    its comment rather than beside it."""
+    mapped = jm.map_comments(
+        {
+            "comment": {
+                "comments": [
+                    _jira_comment(
+                        "Robin", "Question", "2024-03-04T09:00:00.000+0000", id="10"
+                    ),
+                    _jira_comment(
+                        "Sam",
+                        "Answer",
+                        "2024-03-05T09:00:00.000+0000",
+                        id="11",
+                        parentId=10,
+                    ),
+                    _jira_comment(
+                        "Sam", "Aside", "2024-03-06T09:00:00.000+0000", parentId="x"
+                    ),
+                ]
+            }
+        }
+    )
+    question, answer, aside = mapped.comments
+    assert question["external_ref"] == "jira-comment:10"
+    assert "reply_to_ref" not in question
+    assert answer["reply_to_ref"] == "jira-comment:10"
+    # An id that is not one is no thread.
+    assert "external_ref" not in aside and "reply_to_ref" not in aside
+
+
+def test_a_mention_is_rendered_as_the_name_and_listed():
+    """Who a mention is here is the people step's answer, so the fetch
+    writes the name and lists it for the apply to link."""
+    body = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    _mention("Jordan Janzen"),
+                    {"type": "text", "text": " thoughts? cc "},
+                    _mention("Mel", "acc-2"),
+                    {"type": "text", "text": " and "},
+                    _mention("Jordan Janzen"),
+                ],
+            }
+        ],
+    }
+    mapped = jm.map_comments(
+        {
+            "comment": {
+                "comments": [
+                    {
+                        "author": {"displayName": "Robin"},
+                        "body": body,
+                        "created": "2024-03-04T09:00:00.000+0000",
+                    }
+                ]
+            }
+        }
+    )
+    (comment,) = mapped.comments
+    assert comment["body"] == "@Jordan Janzen thoughts? cc @Mel and @Jordan Janzen"
+    assert comment["mention_handles"] == ["Jordan Janzen", "Mel"]
+
+    issue = _issue(
+        "ACME-1",
+        "One",
+        description={
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Ask "}, _mention("Mel")],
+                }
+            ],
+        },
+    )
+    task = _map(issue)
+    assert task["description"] == "Ask @Mel"
+    assert task["mention_handles"] == ["Mel"]
+
+
 def test_a_restricted_comment_stays_behind_and_is_counted():
     """Visible to one role at the source; bringing it over would show it to
     everybody in the initiative."""

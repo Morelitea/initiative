@@ -19,6 +19,7 @@ See plan & ``project_export.py`` for the format. The algorithm:
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -54,6 +55,7 @@ from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.people import PeopleMap, initiative_member_id
 from app.services.tenant import task_completion
+from app.services.tenant.task_statuses import defaults_for_category
 from app.services.import_engine.common import (
     decode_property_value,
     ensure_tag,
@@ -142,13 +144,14 @@ async def import_project(
     status_id_to_category: dict[int, TaskStatusCategory] = {}
     default_status_id: int | None = None
     for s in envelope.task_statuses:
+        default_color, default_icon = defaults_for_category(s.category)
         status_row = TaskStatus(
             project_id=project.id,
             name=s.name,
             category=s.category,
             position=s.position,
-            color=s.color,
-            icon=s.icon,
+            color=s.color or default_color,
+            icon=s.icon or default_icon,
             is_default=s.is_default,
         )
         session.add(status_row)
@@ -300,7 +303,12 @@ async def _import_task(
         project_id=project_id,
         task_status_id=status_id,
         title=envelope_task.title,
-        description=envelope_task.description,
+        description=_link_mentions(
+            envelope_task.description,
+            envelope_task.mention_handles,
+            context=context,
+            initiative_member_handles=initiative_member_handles,
+        ),
         priority=envelope_task.priority,
         start_date=envelope_task.start_date,
         due_date=envelope_task.due_date,
@@ -406,6 +414,14 @@ async def _import_task(
                 envelope_task.external_ref, link.type, link.target_external_ref
             )
 
+    # A reply hangs under the comment it answers. The envelope lists comments
+    # oldest first, so a parent is written before its replies; only a comment
+    # something answers is flushed for its id. A reply whose parent did not
+    # come across (restricted at the source, or empty) stands on its own.
+    answered = {
+        c.reply_to_ref for c in envelope_task.comments if c.reply_to_ref is not None
+    }
+    written: dict[str, int] = {}
     comment_count = 0
     for envelope_comment in envelope_task.comments:
         body = (envelope_comment.body or "").strip()
@@ -417,15 +433,24 @@ async def _import_task(
             initiative_member_handles=initiative_member_handles,
             importer_id=importer_id,
         )
-        session.add(
-            Comment(
-                task_id=task.id,
-                content=body,
-                created_by=author_id,
-                imported_author_name=source_name,
-                created_at=envelope_comment.created_at or datetime.now(timezone.utc),
-            )
+        comment = Comment(
+            task_id=task.id,
+            content=_link_mentions(
+                body,
+                envelope_comment.mention_handles,
+                context=context,
+                initiative_member_handles=initiative_member_handles,
+            ),
+            created_by=author_id,
+            imported_author_name=source_name,
+            parent_comment_id=written.get(envelope_comment.reply_to_ref or ""),
+            created_at=envelope_comment.created_at or datetime.now(timezone.utc),
         )
+        session.add(comment)
+        ref = envelope_comment.external_ref
+        if ref is not None and ref in answered and ref not in written:
+            await session.flush()
+            written[ref] = comment.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         comment_count += 1
 
     return len(seen_user_ids), comment_count
@@ -443,6 +468,46 @@ def _timestamps(envelope_task: ProjectExportTask) -> dict[str, datetime]:
     if envelope_task.updated_at is not None:
         stamps["updated_at"] = envelope_task.updated_at
     return stamps
+
+
+def _link_mentions(
+    text: str | None,
+    handles: list[str],
+    *,
+    context: ImportContext | None,
+    initiative_member_handles: dict[str, int],
+) -> str | None:
+    """``text`` with each ``@<handle>`` it mentions linked to an account here.
+
+    Placed the way a comment's author is (:func:`_comment_author`): the
+    account the people step mapped the handle to, else a member of the target
+    initiative with that exact handle. A mention nobody places stays the name
+    it arrived as. Handles are tried longest first, so ``@Ann Lee`` is never
+    read as ``@Ann`` followed by a surname.
+    """
+    if not text or not handles:
+        return text
+    targets: dict[str, int] = {}
+    for handle in handles:
+        mapped = context.people.user_id(handle) if context is not None else None
+        if mapped is None:
+            mapped = initiative_member_handles.get(handle_key(handle))
+        if mapped is not None:
+            targets[handle] = mapped
+    if not targets:
+        return text
+    ordered = sorted(set(handles), key=len, reverse=True)
+    pattern = re.compile("@(" + "|".join(re.escape(h) for h in ordered) + r")(?![\w])")
+
+    def link(match: re.Match[str]) -> str:
+        handle = match.group(1)
+        user_id = targets.get(handle)
+        if user_id is None:
+            return match.group(0)
+        label = handle.replace("[", "").replace("]", "")
+        return f"@[{label}]({user_id})"
+
+    return pattern.sub(link, text)
 
 
 def _comment_author(

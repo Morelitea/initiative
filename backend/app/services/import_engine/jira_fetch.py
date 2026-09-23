@@ -593,10 +593,11 @@ def build_bundle(
 def _people(envelopes: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
     """Everyone the bundle names, for the wizard's people step.
 
-    Assignees, and whoever a person field names — a Reporter, a site's own
-    user fields — since both are placed through the step's answer. Comments
-    are a later item. Counted per mention so the step can say how much hangs
-    on getting one row right, and ordered most-named first.
+    Assignees, whoever a person field names — a Reporter, a site's own user
+    fields — comment authors, and everybody a description or a comment
+    @-mentions, since all of them are placed through the step's answer.
+    Counted per appearance so the step can say how much hangs on getting one
+    row right, and ordered most-named first.
     """
     from app.services.import_engine.people import user_reference_handles
 
@@ -607,6 +608,12 @@ def _people(envelopes: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]
             named = [
                 *(task.get("assignee_handles") or []),
                 *user_reference_handles(task.get("property_values") or []),
+                *(task.get("mention_handles") or []),
+                *(
+                    handle
+                    for comment in task.get("comments") or []
+                    for handle in comment.get("mention_handles") or []
+                ),
             ]
             for handle in named:
                 name = str(handle).strip()

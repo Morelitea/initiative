@@ -1911,6 +1911,71 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
     assert comment.imported_author_name == "Alice Chen"
 
 
+async def test_mentions_link_to_whoever_the_people_step_names(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Somebody only mentioned is still asked about, and once they are
+    placed their ``@name`` links to them — in the description and in a reply,
+    which arrives under the comment it answers. A name nobody placed stays a
+    name."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    envelope = _project_envelope_with_comment("Robin", "Robin")
+    task = envelope["tasks"][0]
+    task["description"] = "Ask @Alice Chen first"
+    task["mention_handles"] = ["Alice Chen"]
+    task["comments"][0]["external_ref"] = "jira-comment:1"
+    task["comments"].append(
+        {
+            "author_handle": "Robin",
+            "author_name": "Robin",
+            "body": "@Alice Chen agreed, and @Alice too",
+            "created_at": "2024-03-05T09:30:00+00:00",
+            "reply_to_ref": "jira-comment:1",
+            "mention_handles": ["Alice Chen", "Alice"],
+        }
+    )
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert {p["handle"] for p in job["plan"]["people"]} == {
+        "Robin",
+        "Alice Chen",
+        "Alice",
+    }
+
+    confirm = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Alice Chen": b.user.id}},
+    )
+    assert confirm.status_code == 200, confirm.text
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    await import_worker.process_import_jobs()
+
+    imported = (
+        await session.exec(select(Task).where(Task.title == "Fit the door"))
+    ).one()
+    assert imported.description == f"Ask @[Alice Chen]({b.user.id}) first"
+    comments = {
+        c.content: c
+        for c in (
+            await session.exec(select(Comment).where(Comment.task_id == imported.id))
+        ).all()
+    }
+    parent = comments["The frame is out of true"]
+    reply = comments[f"@[Alice Chen]({b.user.id}) agreed, and @Alice too"]
+    assert reply.parent_comment_id == parent.id
+    assert parent.parent_comment_id is None
+
+
 async def test_an_envelope_quoting_a_stranger_asks_before_it_applies(
     client, acting_user, session
 ):

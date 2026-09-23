@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from app.core.relationships import RelationshipType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
@@ -247,8 +247,12 @@ def map_issue(
                 return urls[name]
         return None
 
+    mentioned: list[str] = []
     rendered = adf_to_markdown(
-        fields.get("description"), lift_tasks=True, media=media if urls else None
+        fields.get("description"),
+        lift_tasks=True,
+        media=media if urls else None,
+        mention=_collect_mention(mentioned),
     )
 
     task: dict[str, Any] = {
@@ -268,6 +272,7 @@ def map_issue(
         "links": map_links(fields),
         "comments": [],
         "external_ref": _external_ref(issue),
+        "mention_handles": mentioned,
     }
 
     lost = rendered.dropped_nodes
@@ -306,6 +311,36 @@ def map_issue(
     return task, lost
 
 
+def comment_ref(comment_id: str) -> str:
+    """The name a comment answers to in its task's thread."""
+    return f"jira-comment:{comment_id}"
+
+
+def _comment_id(value: Any) -> Optional[str]:
+    """A comment id as Jira sends it — digits, as a string or a number."""
+    if isinstance(value, bool):
+        return None
+    text = str(value).strip() if isinstance(value, (int, str)) else ""
+    return text if text.isdigit() else None
+
+
+def _collect_mention(into: list[str]) -> Callable[[str, str], Optional[str]]:
+    """A mention resolver that notes each name and links none of them.
+
+    Who a name is here is the people step's answer, which comes after the
+    fetch, so the name is rendered as ``@<name>`` and listed; the apply links
+    the ones that were placed (``project_import``).
+    """
+
+    def note(_account: str, name: str) -> Optional[str]:
+        name = name.strip()
+        if name and name != "unknown" and name not in into:
+            into.append(name)
+        return None
+
+    return note
+
+
 @dataclass
 class MappedComments:
     """An issue's comments, and what reading them cost."""
@@ -333,10 +368,10 @@ def map_comments(fields: dict, *, media: Any = None) -> MappedComments:
 
     A comment's author travels as a display name: who that is *here* is the
     people step's to answer, and one nobody maps keeps their name on the
-    comment rather than landing on a stranger (see ``project_import``).
-    Jira's comments are flat, so there is no thread to rebuild. A checkbox in
-    a comment stays a checkbox in its text — only a description's become the
-    task's checklist.
+    comment rather than landing on a stranger (see ``project_import``). So
+    does everybody its body mentions. A reply names the comment it answers
+    by ``parentId``, and arrives under it. A checkbox in a comment stays a
+    checkbox in its text — only a description's become the task's checklist.
     """
     field = fields.get("comment")
     raw = field.get("comments") if isinstance(field, dict) else None
@@ -349,7 +384,10 @@ def map_comments(fields: dict, *, media: Any = None) -> MappedComments:
         if comment.get("visibility"):
             result.restricted += 1
             continue
-        rendered = adf_to_markdown(comment.get("body"), media=media)
+        mentioned: list[str] = []
+        rendered = adf_to_markdown(
+            comment.get("body"), media=media, mention=_collect_mention(mentioned)
+        )
         result.dropped_nodes += rendered.dropped_nodes
         body = rendered.markdown.strip()
         if not body and isinstance(comment.get("body"), str):
@@ -362,7 +400,14 @@ def map_comments(fields: dict, *, media: Any = None) -> MappedComments:
             "author_handle": author,
             "author_name": author,
             "body": body,
+            "mention_handles": mentioned,
         }
+        comment_id = _comment_id(comment.get("id"))
+        if comment_id:
+            entry["external_ref"] = comment_ref(comment_id)
+        parent_id = _comment_id(comment.get("parentId"))
+        if parent_id:
+            entry["reply_to_ref"] = comment_ref(parent_id)
         created = _timestamp(comment.get("created"))
         if created:
             entry["created_at"] = created
