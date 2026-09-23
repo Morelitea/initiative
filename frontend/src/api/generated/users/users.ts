@@ -3390,15 +3390,16 @@ export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
 /**
  * Let a pending member of this guild sign in.
  *
- * Runs on the system engine: the row is another account's, and an account is
- * not a guild's to write. ``GuildAdminContext`` plus the membership join
- * below are the authorization — the guild admin may only reach someone who is
- * already a member of the guild they administer.
+ * The account write runs on the system engine: the row is another account's,
+ * and an account is not a guild's to write. ``GuildAdminContext`` plus the
+ * membership join below are the authorization — the guild admin may only
+ * reach someone who is already a member of the guild they administer.
  *
  * Answers with ``UserGuildRead`` — the account as the guild reads it, which
  * is the standing that just changed and the handle it belongs to. The row
  * loaded here is the whole ``User``, because the write needs it; what leaves
- * is the guild's read of it.
+ * is the guild's read of it, with its initiative roles read on the request's
+ * own routed session.
  * @summary Approve User
  */
 export const approveUserApiV1GGuildIdUsersUserIdApprovePost = (
