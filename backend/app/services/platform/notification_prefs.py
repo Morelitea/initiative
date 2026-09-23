@@ -567,10 +567,10 @@ async def load_prefs_for_delivery(user_id: int) -> dict[str, Any]:
     are loaded this way (see ``accounts.load``). Reading them under the
     account's own rule would find nothing and quietly deliver every default.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
-        return await load_prefs(admin_session, user_id)
+    async with SystemSessionLocal() as system_session:
+        return await load_prefs(system_session, user_id)
 
 
 async def load_prefs(session: AsyncSession, user_id: int) -> dict[str, Any]:

@@ -99,8 +99,8 @@ async def ensure_push_config_fresh() -> ResolvedPushConfig:
         return _resolved
     from app.db import session as db_session  # noqa: PLC0415
 
-    async with db_session.AdminSessionLocal() as admin_session:
-        return await refresh_push_config(admin_session)
+    async with db_session.SystemSessionLocal() as system_session:
+        return await refresh_push_config(system_session)
 
 
 def reset_for_tests() -> None:

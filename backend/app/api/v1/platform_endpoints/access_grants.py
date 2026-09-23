@@ -21,7 +21,7 @@ from app.api.deps import UserSessionDep, get_current_active_user, require_capabi
 from app.core.capabilities import Capability, user_has_capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.models.platform.user import User
 from app.models.platform.access_grant import (
     AccessGrantPurpose,
@@ -48,7 +48,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 AccessRequestDep = Annotated[
     User, Depends(require_capability(Capability.ACCESS_REQUEST))
 ]
@@ -101,7 +101,7 @@ async def _one(grant, *, system_session: AsyncSession | None = None) -> AccessGr
 @router.post("/", response_model=AccessGrantRead, status_code=status.HTTP_201_CREATED)
 async def create_access_request(
     payload: AccessGrantCreate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: AccessRequestDep,
 ) -> AccessGrantRead:
     """Request time-bound access to a guild (requires ``access.request``).
@@ -229,7 +229,7 @@ async def check_second_factor(
 
 @router.get("/break-glass", response_model=BreakGlassRequirements)
 async def break_glass_requirements(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: BreakGlassDep,
 ) -> BreakGlassRequirements:
     """What a break-glass request will be asked for.
@@ -250,7 +250,7 @@ async def break_glass_requirements(
 
 @router.post("/break-glass/passkey", response_model=PasskeyAuthenticationOptions)
 async def begin_break_glass_passkey(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: BreakGlassDep,
 ) -> PasskeyAuthenticationOptions:
     """Options for answering a break-glass request with one of this account's
@@ -283,7 +283,7 @@ async def begin_break_glass_passkey(
 )
 async def break_glass_access(
     payload: BreakGlassCreate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: BreakGlassDep,
 ) -> AccessGrantRead:
     """Self-issue a time-bound break-glass grant to a guild (requires
@@ -455,7 +455,7 @@ async def get_access_grant(
 async def approve_access_grant(
     grant_id: int,
     payload: AccessGrantApprove,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: AccessApproveDep,
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
@@ -493,7 +493,7 @@ async def approve_access_grant(
 @router.post("/{grant_id}/deny", response_model=AccessGrantRead)
 async def deny_access_grant(
     grant_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: AccessApproveDep,
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
@@ -526,7 +526,7 @@ async def deny_access_grant(
 @router.post("/{grant_id}/revoke", response_model=AccessGrantRead)
 async def revoke_access_grant(
     grant_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: AccessApproveDep,
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
@@ -564,7 +564,7 @@ async def revoke_access_grant(
 )
 async def cancel_access_request(
     grant_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     """Withdraw your own still-pending request."""

@@ -790,9 +790,9 @@ async def to_read(
             system_session, user_ids=user_ids, guild_ids=guild_ids
         )
     else:
-        from app.db.session import AdminSessionLocal
+        from app.db.session import SystemSessionLocal
 
-        async with AdminSessionLocal() as own_session:
+        async with SystemSessionLocal() as own_session:
             users, addresses_by_user, guilds = await _enrichment(
                 own_session, user_ids=user_ids, guild_ids=guild_ids
             )

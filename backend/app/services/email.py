@@ -373,11 +373,11 @@ async def _account_recipients(user: User) -> list[str]:
     arrive with whichever session their endpoint runs on — a password reset
     with the request-path one, an operator's reset with the admin one.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.services.auth import addresses
 
-    async with AdminSessionLocal() as admin_session:
-        return await addresses.proven_addresses(admin_session, user_id=user.id)
+    async with SystemSessionLocal() as system_session:
+        return await addresses.proven_addresses(system_session, user_id=user.id)
 
 
 async def _send_to_primary(
@@ -398,11 +398,11 @@ async def _send_to_primary(
     On its own system-engine session, for the reason ``_account_recipients``
     gives. An account with no primary address is not written to.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.services.auth import addresses
 
-    async with AdminSessionLocal() as admin_session:
-        address = await addresses.primary_address(admin_session, user_id=user.id)
+    async with SystemSessionLocal() as system_session:
+        address = await addresses.primary_address(system_session, user_id=user.id)
     if address is None:
         logger.warning("no primary address for account %s; not sending", user.id)
         return

@@ -129,20 +129,20 @@ async def resolve_many(
 
 async def load(guild_id: int | None) -> NotificationPolicy:
     """The answer for one community, read on the system engine."""
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
-        return await resolve(admin_session, guild_id)
+    async with SystemSessionLocal() as system_session:
+        return await resolve(system_session, guild_id)
 
 
 async def load_many(
     guild_ids: Iterable[int | None],
 ) -> Mapping[int | None, NotificationPolicy]:
     """The answer for a set of communities, read on the system engine."""
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
-        return await resolve_many(admin_session, guild_ids)
+    async with SystemSessionLocal() as system_session:
+        return await resolve_many(system_session, guild_ids)
 
 
 # --- What a redacted notification says ---------------------------------------

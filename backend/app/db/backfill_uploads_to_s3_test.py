@@ -214,7 +214,7 @@ async def test_backfill_finally_releases_lock_after_aborted_transaction(
                 )
         assert got, "advisory lock must be released after a failed run"
 
-        async with db_session.admin_engine.connect() as conn:
+        async with db_session.system_engine.connect() as conn:
             who = (await conn.execute(text("SELECT current_user"))).scalar()
         assert who == "app_admin"
     finally:

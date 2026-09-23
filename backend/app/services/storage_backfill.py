@@ -38,7 +38,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s3
 from app.db import session as db_session
-from app.db.session import AdminSessionLocal
+from app.db.session import SystemSessionLocal
 from app.db.system_grants import SHARED_TABLE_SYSTEM_GRANTS, grant_sql
 
 logger = logging.getLogger(__name__)
@@ -276,9 +276,9 @@ async def _finalize(
 
 
 async def _run() -> None:
-    """Detached task: run the backfill with its own admin session and persist
+    """Detached task: run the backfill with its own system session and persist
     progress + the final outcome to the shared row."""
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
 
         async def _on_progress(summary: BackfillSummary) -> None:
             await _persist(session, status="running", summary=summary)

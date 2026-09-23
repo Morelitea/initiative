@@ -38,7 +38,7 @@ from app.core.request_audit import RequestAuditMiddleware
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
-from app.db.session import AdminSessionLocal, get_admin_session
+from app.db.session import SystemSessionLocal, get_system_session
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
@@ -162,9 +162,9 @@ async def lifespan(app: FastAPI):
     # login, a privileged app login) — so the operator sees which login each
     # repair below will act on.
     await verify_engine_identities()
-    # Before anything touches the system engine: a policy-bound admin login
-    # (restored database, hand-created role) reads shared tables as empty and
-    # the seeding below would die with an opaque RLS violation (issue #835).
+    # Before anything touches the system engine: confirm its login holds
+    # BYPASSRLS, which a restored database or a hand-created role can lack and
+    # the seeding below needs (issue #835).
     await ensure_system_engine_bypassrls()
     # One gate deeper: a restored/recreated role can bypass RLS yet be missing
     # the per-table GRANTs (cluster state a stamped DB never re-applies), so
@@ -248,7 +248,7 @@ async def lifespan(app: FastAPI):
     # An announcement meant for people upgrading past some release has no way
     # to know that from a publication date; this pair is how it finds out.
     try:
-        async with AdminSessionLocal() as version_session:
+        async with SystemSessionLocal() as version_session:
             previous = await app_settings_service.record_running_version(
                 version_session, version=__version__
             )
@@ -268,7 +268,7 @@ async def lifespan(app: FastAPI):
         # the first-boot race and created the owner between our existence check
         # and commit.
         logger.info("first-owner bootstrap: created by a concurrent replica")
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
         # Prime the process-wide storage config snapshot from the DB so the
         # request path uses the saved backend/credentials, not just env vars.
@@ -291,7 +291,7 @@ async def lifespan(app: FastAPI):
     from app.services.auth.platform_provider import seed_platform_provider_from_env
 
     try:
-        async with AdminSessionLocal() as seed_session:
+        async with SystemSessionLocal() as seed_session:
             await seed_platform_provider_from_env(seed_session)
     except Exception:
         logger.exception("Platform OIDC env seed failed; configure via settings UI")
@@ -302,7 +302,7 @@ async def lifespan(app: FastAPI):
     from app.services.marketplace.builtin import seed_builtin_listings
 
     try:
-        async with AdminSessionLocal() as catalog_session:
+        async with SystemSessionLocal() as catalog_session:
             seeded = await seed_builtin_listings(catalog_session)
             await catalog_session.commit()
         logger.info("marketplace: %d built-in listing(s) seeded", seeded)
@@ -322,7 +322,7 @@ async def lifespan(app: FastAPI):
 
     if operator_catalog_dir() is not None:
         try:
-            async with AdminSessionLocal() as operator_catalog_session:
+            async with SystemSessionLocal() as operator_catalog_session:
                 scan = await scan_operator_catalog(operator_catalog_session)
                 await operator_catalog_session.commit()
             logger.info(
@@ -350,7 +350,7 @@ async def lifespan(app: FastAPI):
         try:
             from app.services.marketplace import registrations as app_registrations
 
-            async with AdminSessionLocal() as app_service_session:
+            async with SystemSessionLocal() as app_service_session:
                 reconciled = await app_registrations.reconcile_from_config(
                     app_service_session
                 )
@@ -733,7 +733,7 @@ async def serve_upload_file(
     guild_id: int,
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
-    session: Annotated[AsyncSession, Depends(get_admin_session)],
+    session: Annotated[AsyncSession, Depends(get_system_session)],
 ) -> Response:
     """Serve an uploaded file — requires authentication and an Upload row in
     the path-addressed guild."""
@@ -781,7 +781,7 @@ async def serve_upload_file(
             status_code=403, detail=GuildMessages.GUILD_API_KEYS_REFUSED
         )
 
-    # The admin login role has NO table grants on a guild schema, so SET ROLE
+    # The system login role has NO table grants on a guild schema, so SET ROLE
     # into the guild role (``set_rls_context``) before reading its ``uploads``
     # — and only if the schema actually exists (pg_namespace is readable by
     # any role; SET ROLE into a missing role would error).

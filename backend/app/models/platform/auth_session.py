@@ -34,7 +34,7 @@ class AuthSession(SQLModel, table=True):
     **app_admin-only.** Session validation is a pre-auth lookup *by refresh-token
     hash* (the user is unknown until it resolves), so it structurally cannot run
     under own-row RLS — it runs on the system engine, exactly like access_grants.
-    "List/revoke my sessions" also runs on the system engine (``AdminSessionDep``)
+    "List/revoke my sessions" also runs on the system engine (``SystemSessionDep``)
     filtered by the authenticated user, so the refresh-token hash never crosses the
     request path. The schema-default request-path DML is REVOKEd in the migration.
     """

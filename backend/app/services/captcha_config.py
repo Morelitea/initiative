@@ -109,8 +109,8 @@ async def ensure_captcha_config_fresh() -> ResolvedCaptchaConfig:
         return _resolved
     from app.db import session as db_session  # noqa: PLC0415
 
-    async with db_session.AdminSessionLocal() as admin_session:
-        return await refresh_captcha_config(admin_session)
+    async with db_session.SystemSessionLocal() as system_session:
+        return await refresh_captcha_config(system_session)
 
 
 def reset_for_tests() -> None:

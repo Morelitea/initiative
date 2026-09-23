@@ -11,7 +11,7 @@ chain, including its still-live tail.
 lookup *by refresh-token hash* — the user is unknown until it resolves — so it
 structurally cannot run under own-row RLS. The request path holds no grant on
 ``auth_sessions`` at all (migration 20260706_0132); these functions take the
-admin session, like ``services.platform.access_grants``.
+system session, like ``services.platform.access_grants``.
 
 Nothing calls this yet — the ``/auth/refresh`` endpoint + dual-verify wiring land
 in the next slice. This PR is the tested logic layer only (additive-first).
@@ -67,7 +67,7 @@ _REFRESH_TOKEN_BYTES = 32
 #: a window and then removed.
 SESSION_RETENTION_DAYS = 30
 
-#: ``auth_sessions`` is app_admin-only, so the sweep runs on AdminSessionLocal
+#: ``auth_sessions`` is app_admin-only, so the sweep runs on SystemSessionLocal
 #: with no guild routing — the same shape as the expired-token purge.
 SESSION_PURGE_POLL_SECONDS = 3600
 
@@ -555,9 +555,9 @@ async def purge_dead_sessions(
 async def process_dead_session_purge() -> None:
     """Hourly background sweep over ``auth_sessions`` (see
     :data:`SESSION_RETENTION_DAYS`)."""
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         removed = await purge_dead_sessions(session)
         if removed:
             logger.info("session purge removed %d dead session row(s)", removed)

@@ -168,7 +168,7 @@ async def _count_install(listing_id: Optional[int]) -> None:
         # Read off the module rather than bound at import: the session maker is
         # swapped per test, and a name captured at import time would keep
         # pointing at the real database.
-        async with db_session.AdminSessionLocal() as session:
+        async with db_session.SystemSessionLocal() as session:
             await catalog_service.bump_installs_count(session, listing_id)
             await session.commit()
     except Exception:

@@ -4,7 +4,7 @@ Mounted on ``/auth`` beside the routes that open a session, because this is
 the other end of the same thing: sign-in writes a row here, and this is where
 somebody reads the rows back and closes one they do not recognise.
 
-**Runs on the system engine** (``AdminSessionDep``), filtered by the
+**Runs on the system engine** (``SystemSessionDep``), filtered by the
 authenticated user. ``auth_sessions`` is reached that way everywhere — the
 request path is granted nothing on it — and the filter is what makes this the
 account's own list rather than a view of the table. What comes back carries no
@@ -31,7 +31,7 @@ from app.core import auth_context
 from app.core.audit_events import AuditEventType
 from app.core.messages import AuthMessages
 from app.core.user_agents import describe, kind_of
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.models.platform.auth_session import AuthSession
 from app.schemas.platform.auth import SignedInSessionInfo
 from app.services import audit as audit_service
@@ -41,13 +41,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 @router.get("/sessions", response_model=list[SignedInSessionInfo])
 async def list_my_sessions(
     request: Request,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: AccountHolder,
 ) -> list[SignedInSessionInfo]:
     """Every browser session this account can still use, newest activity first.
@@ -58,7 +58,7 @@ async def list_my_sessions(
     """
     current = current_session_row(request)
     rows = await session_service.list_live_for_user(
-        admin_session, user_id=current_user.id
+        system_session, user_id=current_user.id
     )
     return [
         SignedInSessionInfo(
@@ -78,7 +78,7 @@ async def list_my_sessions(
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_my_session(
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: AccountHolder,
     session_id: uuid.UUID,
 ) -> None:
@@ -89,28 +89,28 @@ async def revoke_my_session(
     exist, because the id is the only thing the caller supplied and it should
     not learn which of the two it got wrong.
     """
-    row = await admin_session.get(AuthSession, session_id)
+    row = await system_session.get(AuthSession, session_id)
     if row is None or row.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthMessages.SESSION_NOT_FOUND,
         )
-    await session_service.revoke_chain(admin_session, session_id=session_id)
+    await session_service.revoke_chain(system_session, session_id=session_id)
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_SESSION_REVOKED,
         actor_user_id=current_user.id,
         target_user_id=current_user.id,
         target_type="auth_session",
         detail={"scope": "one"},
     )
-    await admin_session.commit()
+    await system_session.commit()
 
 
 @router.post("/sessions/revoke-others", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_my_other_sessions(
     request: Request,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: AccountHolder,
 ) -> None:
     """End every session the account holds except the one asking.
@@ -125,23 +125,23 @@ async def revoke_my_other_sessions(
     commit together.
     """
     await user_tokens.revoke_other_device_tokens(
-        admin_session,
+        system_session,
         user_id=current_user.id,
         keep_token_id=auth_context.device_token_id(),
     )
 
     current = current_session_row(request)
     await session_service.revoke_all_for_user(
-        admin_session,
+        system_session,
         user_id=current_user.id,
         except_session_id=str(current) if current is not None else None,
     )
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_SESSION_REVOKED,
         actor_user_id=current_user.id,
         target_user_id=current_user.id,
         target_type="auth_session",
         detail={"scope": "others"},
     )
-    await admin_session.commit()
+    await system_session.commit()

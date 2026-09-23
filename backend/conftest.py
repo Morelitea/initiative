@@ -34,7 +34,7 @@ from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.db.session import (
     clear_rls_context,
-    get_admin_session,
+    get_system_session,
     get_session,
 )
 from app.testing.schema_harness import clear_search_path_pin
@@ -626,8 +626,8 @@ async def _schema_test_harness(engine, monkeypatch):
     - Points the provisioning engine at the test DB so create_guild / the guilds
       endpoint provision schemas/roles on the test database.
     - Points the system (admin) engine at the test DB **as the real app_admin
-      role**, so maintenance jobs that use ``db_session.admin_engine`` /
-      ``AdminSessionLocal`` directly (secret-key rotation, upload back-fills,
+      role**, so maintenance jobs that use ``db_session.system_engine`` /
+      ``SystemSessionLocal`` directly (secret-key rotation, upload back-fills,
       workers) run against test data under the real policy-bound role instead
       of silently hitting the dev database.
     - Points the request-path engine at the test DB **as the real app_user
@@ -650,10 +650,10 @@ async def _schema_test_harness(engine, monkeypatch):
     # test so a stale render can't leak across the per-worker test DB lifecycle.
     schema_provisioning.reset_provisioning_bundle()
 
-    test_admin_engine = create_async_engine(
+    test_system_engine = create_async_engine(
         _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
     )
-    monkeypatch.setattr(db_session, "admin_engine", test_admin_engine)
+    monkeypatch.setattr(db_session, "system_engine", test_system_engine)
 
     # The query surface keeps a pool of its own, so it needs pointing at this
     # worker's database like the others — it is created at import against the
@@ -664,9 +664,9 @@ async def _schema_test_harness(engine, monkeypatch):
     monkeypatch.setattr(db_session, "query_engine", test_query_engine)
     monkeypatch.setattr(
         db_session,
-        "AdminSessionLocal",
+        "SystemSessionLocal",
         async_sessionmaker(
-            bind=test_admin_engine,
+            bind=test_system_engine,
             autoflush=False,
             expire_on_commit=False,
             class_=AsyncSession,
@@ -701,7 +701,7 @@ async def _schema_test_harness(engine, monkeypatch):
         schema_provisioning, "provision_guild", _tracking_provision_guild
     )
     yield
-    await test_admin_engine.dispose()
+    await test_system_engine.dispose()
     await test_query_engine.dispose()
     await test_app_engine.dispose()
 
@@ -859,24 +859,24 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     for *data setup* (factories commit, so the request connection sees the rows) and
     for the privileged teardown (TRUNCATE / DROP SCHEMA / DROP ROLE).
 
-    ``AdminSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS,
+    ``SystemSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS,
     grant-bounded) session,
-    mirroring the production admin engine, so bootstrapping endpoints (guild
+    mirroring the production system engine, so bootstrapping endpoints (guild
     creation, background-job style ops) keep their intended RLS bypass instead of
     silently leaning on the superuser.
 
-    Each request/admin session is bound to a single connection so the per-request
+    Each request/system session is bound to a single connection so the per-request
     ``SET ROLE`` / ``search_path`` GUCs persist across the request's statements.
     """
     app_engine = create_async_engine(
         _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
     )
-    admin_engine = create_async_engine(
+    system_engine = create_async_engine(
         _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
     )
     req_conn = await app_engine.connect()
-    admin_conn = await admin_engine.connect()
-    # NOTE on deadlocks: the request path (app_user) and admin path (app_admin)
+    admin_conn = await system_engine.connect()
+    # NOTE on deadlocks: the request path (app_user) and system path (app_admin)
     # are now SEPARATE connections, so an endpoint that locks a row on one and
     # waits on the other can app-level deadlock — a wait Postgres can't detect.
     # The net is the DATABASE-level statement_timeout armed in _run_test_migrations
@@ -885,7 +885,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     req_session = async_sessionmaker(
         bind=req_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )()
-    admin_session = async_sessionmaker(
+    system_session = async_sessionmaker(
         bind=admin_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )()
 
@@ -906,7 +906,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         await session.commit()
 
     # Mirror production's per-request session lifecycle: ``get_session`` /
-    # ``get_admin_session`` yield from ``async with AsyncSessionLocal()``, which
+    # ``get_system_session`` yield from ``async with AsyncSessionLocal()``, which
     # rolls back and releases locks when the request ends. The test reuses ONE
     # persistent session per role (bound to a connection so SET ROLE / search_path
     # survive), so it must roll back per request itself — otherwise a handler that
@@ -928,17 +928,17 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         finally:
             await req_session.rollback()
 
-    async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
+    async def override_get_system_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
-        clear_rls_context(admin_session)
-        clear_search_path_pin(admin_session)
+        clear_rls_context(system_session)
+        clear_search_path_pin(system_session)
         try:
-            yield admin_session
+            yield system_session
         finally:
-            await admin_session.rollback()
+            await system_session.rollback()
 
     app.dependency_overrides[get_session] = override_get_session
-    app.dependency_overrides[get_admin_session] = override_get_admin_session
+    app.dependency_overrides[get_system_session] = override_get_system_session
 
     # Disable rate limiting in tests
     limiter.enabled = False
@@ -962,7 +962,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             yield test_client
     finally:
         app.dependency_overrides.clear()
-        # Release the request/admin connections BEFORE the session-fixture teardown
+        # Release the request/system connections BEFORE the session-fixture teardown
         # runs its privileged TRUNCATE/DROP SCHEMA (which would block on any lock
         # these idle-in-transaction connections still hold, hanging the NEXT test
         # until its statement_timeout fires).
@@ -974,7 +974,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         # it failed — so it runs for every engine regardless.
         for sess, conn, eng in (
             (req_session, req_conn, app_engine),
-            (admin_session, admin_conn, admin_engine),
+            (system_session, admin_conn, system_engine),
         ):
             with suppress(Exception):
                 await sess.close()

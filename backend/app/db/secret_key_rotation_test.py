@@ -295,7 +295,7 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
         # connections; a fresh checkout afterwards must run as the plain system
         # login again (a lingering guild role would RLS-filter public tables to
         # zero rows for every later consumer of the pool).
-        async with db_session.admin_engine.connect() as conn:
+        async with db_session.system_engine.connect() as conn:
             who = (await conn.execute(text("SELECT current_user"))).scalar()
             visible = await conn.scalar(text("SELECT count(*) FROM public.guilds"))
         assert who == "app_admin"

@@ -423,7 +423,7 @@ async def sign_for_app(public_id: str, message: str) -> Optional[str]:
     without a secret — and the caller sends no address rather than an unsigned
     one.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         row = await _by_public_id(session, public_id)
         if row is None or not row.secret_encrypted:
             return None

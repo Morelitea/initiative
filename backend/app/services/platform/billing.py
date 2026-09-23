@@ -433,7 +433,7 @@ async def guild_lifecycle_status(
     return None if status is None else GuildStatus(status)
 
 
-async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int:
+async def guild_storage_usage(system_session: AsyncSession, guild_id: int) -> int:
     """Current stored bytes for one guild, for the signed usage read.
 
     ``uploads`` lives in the per-guild ``guild_<id>`` schema, which the
@@ -449,10 +449,10 @@ async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int
 
     # Existence check at the public baseline before routing into the schema.
     exists = (
-        await admin_session.exec(select(Guild.id).where(Guild.id == guild_id))
+        await system_session.exec(select(Guild.id).where(Guild.id == guild_id))
     ).one_or_none()
     if exists is None:
         raise BillingGuildNotFoundError(guild_id)
 
-    await set_rls_context(admin_session, guild_id=guild_id)
-    return await get_guild_storage_usage(admin_session)
+    await set_rls_context(system_session, guild_id=guild_id)
+    return await get_guild_storage_usage(system_session)

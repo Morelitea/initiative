@@ -76,7 +76,7 @@ def _open_user_session() -> AsyncSession:
 
 async def process_import_jobs() -> None:
     now = datetime.now(timezone.utc)
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         await set_rls_context(session)
         guild_ids = list(
             await session.exec(
@@ -403,7 +403,7 @@ async def process_import_gc() -> None:
     delete the payload and mark the job expired. Terminal rows keep their
     (small) result reports — only payloads are GC'd."""
     now = datetime.now(timezone.utc)
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         await set_rls_context(session)
         guild_ids = list(
             await session.exec(

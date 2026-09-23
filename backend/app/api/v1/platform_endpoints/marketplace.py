@@ -29,7 +29,7 @@ from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import MarketplaceMessages, MarketplaceRegistryMessages
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.models.platform.marketplace_registry import MarketplaceMedia
 from app.schemas.platform.marketplace import (
     OperatorCatalogProblem,
@@ -46,7 +46,7 @@ from app.services.marketplace import operator_catalog as operator_catalog_servic
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 #: A mirrored image is addressed by the hex SHA-256 of its own bytes.
 _DIGEST_LENGTH = 64
@@ -55,7 +55,7 @@ _HEX_DIGITS = frozenset("0123456789abcdef")
 
 @router.post("/operator-catalog/rescan", response_model=OperatorCatalogScanResult)
 async def rescan_operator_catalog(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> OperatorCatalogScanResult:
     """Re-read the deployment's own catalog directory (``config.manage``).
@@ -166,7 +166,7 @@ def _refresh_read(result: registry_service.RefreshResult) -> RegistryRefreshRead
 
 @router.get("/registry/status", response_model=RegistryStatusRead)
 async def read_registry_status(
-    session: AdminSessionDep, current_user: ConfigManageDep
+    session: SystemSessionDep, current_user: ConfigManageDep
 ) -> RegistryStatusRead:
     """Where this deployment stands with its configured registry.
 
@@ -196,7 +196,7 @@ async def read_registry_status(
 
 @router.post("/registry/refresh", response_model=RegistryRefreshRead)
 async def refresh_registry_now(
-    session: AdminSessionDep, current_user: ConfigManageDep
+    session: SystemSessionDep, current_user: ConfigManageDep
 ) -> RegistryRefreshRead:
     """Fetch and apply the registry index now.
 

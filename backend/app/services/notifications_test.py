@@ -64,7 +64,7 @@ from app.testing import route_as
 
 async def _dispatch(session: AsyncSession) -> None:
     """Drive the reminder pass with the test session. The worker's
-    AdminSessionLocal (app_admin) sees the shared users table; mirror that so the
+    SystemSessionLocal (app_admin) sees the shared users table; mirror that so the
     user-list read isn't RLS-filtered (the gather inside is still member-scoped)."""
     await set_rls_context(session)
     await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
@@ -431,7 +431,7 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
 
-    # Mirror the worker's starting context: its AdminSessionLocal (app_admin) sees
+    # Mirror the worker's starting context: its SystemSessionLocal (app_admin) sees
     # the shared users table; the gather inside still scopes guild data per member.
     await set_rls_context(session)
     await _run_overdue_pass(session, now=datetime.now(timezone.utc))

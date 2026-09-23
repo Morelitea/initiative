@@ -143,9 +143,9 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
     Runs on its own system session and routes into the operations guild, the
     way :func:`open_case` does, because the binding lives there.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         guild_id = await operations_guild_id(session)
         if guild_id is None:
             return False
@@ -323,13 +323,13 @@ async def open_case(
     """
     # Imported here, not at module scope, so the session maker is read at call
     # time — the idiom the other system-engine callers use.
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     moment = now or datetime.now(timezone.utc)
     if dedupe_key is not None and len(dedupe_key) > DEDUPE_KEY_LENGTH:
         raise ValueError("dedupe_key is longer than the column that stores it")
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         guild_id = await operations_guild_id(session)
         if guild_id is None:
             return None

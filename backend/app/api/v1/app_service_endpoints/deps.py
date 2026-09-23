@@ -21,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import AppChannelMessages
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.services.marketplace.app_channel_auth import (
     AppChannelAuthError,
     CallingApp,
@@ -30,7 +30,7 @@ from app.services.marketplace.app_channel_auth import (
 from app.services.tenant.app_channels import AppChannelError
 
 __all__ = [
-    "AdminSessionDep",
+    "SystemSessionDep",
     "CallerDep",
     "parse_body",
     "raw_body",
@@ -38,7 +38,7 @@ __all__ = [
     "to_http",
 ]
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 #: The raw request body, stashed on the request state by :func:`signed_caller`
 #: so a route can parse the same bytes the signature was checked over.
@@ -53,7 +53,7 @@ def to_http(exc: AppChannelAuthError | AppChannelError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=exc.code)
 
 
-async def signed_caller(request: Request, session: AdminSessionDep) -> CallingApp:
+async def signed_caller(request: Request, session: SystemSessionDep) -> CallingApp:
     """The registration whose secret signed this request.
 
     Raises before any route body runs, so an unauthenticated call never reaches

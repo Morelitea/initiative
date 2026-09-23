@@ -20,10 +20,10 @@ import uuid
 
 
 async def _load_cfg():
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.services import storage_config
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await storage_config.refresh_storage_config(session)
     return storage_config.current_storage_config()
 

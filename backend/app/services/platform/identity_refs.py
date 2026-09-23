@@ -1,7 +1,7 @@
 """Minting and resolving the references outside parties know entities by.
 
 The table is ``public.identity_refs`` and every function here expects a session
-on the **system engine** (``AdminSessionDep``): these mint and remove, which is
+on the **system engine** (``SystemSessionDep``): these mint and remove, which is
 where that stays. The request path reads one sector of its own, in
 ``services.auth.subject``.
 
@@ -148,9 +148,9 @@ async def billing_user_ref(*, user_id: int) -> str:
     For the people a handoff names besides the one presenting it — the
     approver of a support visit — who need the same treatment and no more.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         ref = await ensure_ref(
             session,
             entity_type=IdentityEntity.user,
@@ -167,9 +167,9 @@ async def billing_guild_ref(*, guild_id: int) -> str:
     For the paths that name a guild to billing without a person attached — the
     membership nudge, and the tests that post what billing would.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         ref = await ensure_ref(
             session,
             entity_type=IdentityEntity.guild,
@@ -195,9 +195,9 @@ async def existing_ref(
     create a row in it is another, and a reference that does not exist is an
     answer rather than a gap to fill.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         row = await _live_ref(
             session,
             entity_type=entity_type,
@@ -216,10 +216,10 @@ async def billing_refs(*, user_id: int, guild_id: int) -> tuple[str, str]:
     routed to other roles and one background task holding no session at all.
     The same pattern ``services.platform.user_tokens`` uses for its sweep.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     purpose = IdentityPurpose.billing
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         user_ref = await ensure_ref(
             session,
             entity_type=IdentityEntity.user,
@@ -248,9 +248,9 @@ async def resolve_billing_guild(*, ref: str) -> int | None:
     Narrower than ``resolve_ref``: a reference minted for a user, or for
     another purpose, is not an answer to this question.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         row = await resolve_ref(session, ref=ref)
     if row is None:
         return None
@@ -472,10 +472,10 @@ async def forget_user(*, user_id: int) -> int:
     commit, where a failure must not undo the erasure;
     :func:`purge_orphaned_entity_refs` removes what it leaves.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     try:
-        async with AdminSessionLocal() as session:
+        async with SystemSessionLocal() as session:
             dropped = await drop_entity_refs(
                 session, entity_type=IdentityEntity.user, entity_id=user_id
             )
@@ -581,9 +581,9 @@ async def sweep_identity_refs(
 async def process_identity_ref_sweep() -> None:
     """One pass of the identity-ref sweep loop. Idempotent and safe to run on
     a schedule even when nothing is due."""
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await sweep_identity_refs(session)
 
 

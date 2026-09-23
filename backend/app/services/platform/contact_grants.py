@@ -371,12 +371,12 @@ async def revoke_stale_message_grants(
 
     Returns how many were dropped, so a caller can decide whether to signal.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     dropped = 0
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         grants = (
-            await admin_session.exec(
+            await system_session.exec(
                 select(ContactGrant).where(
                     ContactGrant.kind == ContactGrantKind.message,
                     or_(
@@ -389,17 +389,17 @@ async def revoke_stale_message_grants(
         touched: set[int] = set()
         for grant in grants:
             if not await _pair_still_allowed(
-                admin_session, grant.user_id_low, grant.user_id_high
+                system_session, grant.user_id_low, grant.user_id_high
             ):
-                await admin_session.delete(grant)
+                await system_session.delete(grant)
                 touched.update({grant.user_id_low, grant.user_id_high})
                 dropped += 1
         if dropped:
             # Both sides of every pair that actually went — which is already
             # the bound worth having: a community's worth of revocations costs
             # the pairs revoked, not the size of the membership.
-            contacts_stream.queue_many(admin_session, touched)
-            await admin_session.commit()
+            contacts_stream.queue_many(system_session, touched)
+            await system_session.commit()
     return dropped
 
 

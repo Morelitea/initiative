@@ -29,7 +29,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace.definitions import GUILD_INSTALLABLE_APP_KINDS
@@ -259,5 +259,5 @@ async def process_app_auto_updates() -> None:
     """One pass of the auto-update loop. Idempotent, and quiet when nothing is
     due — an install already on the version the catalog offers resolves to
     nothing to do."""
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _update_all_guilds(session)

@@ -198,7 +198,7 @@ async def backfill_mandatory_apps() -> BackfillResult:
         return BackfillResult()
 
     installed = failed = 0
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         guild_ids = list(
             (await session.exec(select(Guild.id).order_by(Guild.id))).all()
         )

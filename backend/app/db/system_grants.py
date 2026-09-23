@@ -100,7 +100,7 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "guilds": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # The operator-set caps / plan label / sign-in entitlement. The system engine
     # is the only writer on the request path: the platform Guilds dashboard runs
-    # on AdminSessionDep, and provisioning creates the row with the guild. (The
+    # on SystemSessionDep, and provisioning creates the row with the guild. (The
     # verified billing path writes its three columns under its own role, which is
     # granted per column in migration 0178 and so is not listed here.) DELETE
     # rides the FK cascade off ``guilds``, but the guild-deletion path removes it
@@ -128,7 +128,7 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listing_versions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # App service registrations: full DML on the system engine, which is the
     # only reader and writer — the owner-gated CRUD endpoints run on
-    # AdminSessionDep (as access_grants and auth_providers do), boot
+    # SystemSessionDep (as access_grants and auth_providers do), boot
     # reconciliation upserts from APP_SERVICES_CONFIG, the verify path stamps
     # status/manifest_hash, and the signed-caller and delegation-key lookups
     # read it. No request-path role holds anything on it.
@@ -215,13 +215,13 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # OIDC sync reads mappings; the settings endpoints manage them
     "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # login provider registry (successor to app_settings.oidc_*): fully managed
-    # on the system engine — login reads + provider CRUD via AdminSessionDep with
+    # on the system engine — login reads + provider CRUD via SystemSessionDep with
     # capability/ownership checks (as access_grants). Like oidc_claim_mappings, it
     # carries NO permissive RLS policy; the request path does not read provider
     # config.
     "auth_providers": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # provider client secret — read/written only by the system engine (provider
-    # CRUD via AdminSessionDep + config.manage); no request-path grant
+    # CRUD via SystemSessionDep + config.manage); no request-path grant
     "auth_provider_secrets": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # identity linking — resolved/created at login (pre-auth, by subject);
     # link/unlink go through the system engine only
@@ -402,7 +402,7 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "guild_invites": None,
     "guild_memberships": frozenset({"SELECT"}),
     "access_grants": frozenset({"SELECT"}),
-    # provider reads for the login page go via the system engine (AdminSessionDep),
+    # provider reads for the login page go via the system engine (SystemSessionDep),
     # not the bare login role
     "auth_providers": None,
     # client secrets are system-engine-only; no request role ever reads them

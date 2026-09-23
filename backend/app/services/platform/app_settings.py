@@ -262,8 +262,8 @@ async def load_app_setting_secrets() -> AppSettingSecret:
     For readers that hold whatever session their caller runs on — the mailer
     and the storage client — so the credential read never depends on it.
     """
-    async with db_session.AdminSessionLocal() as admin_session:
-        return await get_app_setting_secrets(admin_session)
+    async with db_session.SystemSessionLocal() as system_session:
+        return await get_app_setting_secrets(system_session)
 
 
 async def _ensure_secrets_row(session: AsyncSession) -> AppSettingSecret:
@@ -627,7 +627,7 @@ async def update_community_settings(
 async def update_email_settings(
     session: AsyncSession,
     *,
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     host: str | None,
     port: int | None,
     secure: bool,
@@ -639,16 +639,16 @@ async def update_email_settings(
     test_recipient: str | None,
     actor_user_id: int | None = None,
 ) -> tuple[AppSetting, AppSettingSecret]:
-    """Save the mail settings; the password on ``admin_session``.
+    """Save the mail settings; the password on ``system_session``.
 
     ``session`` writes the settings row (under the owner's tier) and
-    ``admin_session`` — the system engine — the password. The settings row and
+    ``system_session`` — the system engine — the password. The settings row and
     its record commit first, then the password: the credentials row hangs off
     the settings row, and a password is never stored without the save it came
     with. Returns both rows.
     """
     settings_row = await ensure_settings_row(session)
-    secrets_row = await get_app_setting_secrets(admin_session)
+    secrets_row = await get_app_setting_secrets(system_session)
     stored_password = secrets_row.smtp_password_encrypted
     before = {
         **audit_service.snapshot(settings_row, EMAIL_FIELDS),
@@ -682,16 +682,16 @@ async def update_email_settings(
     await session.refresh(settings_row)
     if password_provided:
         await _write_secret(
-            admin_session, column=EMAIL_SECRET_FIELD, encrypted=new_password
+            system_session, column=EMAIL_SECRET_FIELD, encrypted=new_password
         )
-        secrets_row = await get_app_setting_secrets(admin_session)
+        secrets_row = await get_app_setting_secrets(system_session)
     return settings_row, secrets_row
 
 
 async def update_storage_settings(
     session: AsyncSession,
     *,
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     backend: str,
     s3_bucket: str | None,
     s3_region: str | None,
@@ -704,14 +704,14 @@ async def update_storage_settings(
     s3_local_fallback: bool,
     actor_user_id: int | None = None,
 ) -> tuple[AppSetting, AppSettingSecret]:
-    """Save the storage settings; the secret key on ``admin_session``.
+    """Save the storage settings; the secret key on ``system_session``.
 
     Written in the order :func:`update_email_settings` writes: the settings
     row and its record, then the secret key on the system engine, then the
     process-wide storage config is reloaded. Returns both rows.
     """
     settings_row = await ensure_settings_row(session)
-    secrets_row = await get_app_setting_secrets(admin_session)
+    secrets_row = await get_app_setting_secrets(system_session)
     stored_secret = secrets_row.s3_secret_access_key_encrypted
     before = {
         **audit_service.snapshot(settings_row, STORAGE_FIELDS),
@@ -746,9 +746,9 @@ async def update_storage_settings(
     await session.refresh(settings_row)
     if secret_provided:
         await _write_secret(
-            admin_session, column=STORAGE_SECRET_FIELD, encrypted=new_secret
+            system_session, column=STORAGE_SECRET_FIELD, encrypted=new_secret
         )
-        secrets_row = await get_app_setting_secrets(admin_session)
+        secrets_row = await get_app_setting_secrets(system_session)
     # Refresh the process-wide resolved storage config so the live request path
     # picks up new creds/backend immediately (lazy import avoids a cycle: the
     # storage_config module reads get_app_settings from here).
@@ -761,14 +761,14 @@ async def update_storage_settings(
 async def update_captcha_settings(
     session: AsyncSession,
     *,
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     provider: str | None,
     site_key: str | None,
     secret_key: str | None,
     secret_provided: bool,
     actor_user_id: int | None = None,
 ) -> tuple[AppSetting, AppSettingSecret]:
-    """Save the captcha settings; the verification secret on ``admin_session``.
+    """Save the captcha settings; the verification secret on ``system_session``.
 
     The order :func:`update_storage_settings` writes in: the settings row and
     its record, then the secret on the system engine, then the process-wide
@@ -776,7 +776,7 @@ async def update_captcha_settings(
     saved rather than what was saved at boot.
     """
     settings_row = await ensure_settings_row(session)
-    secrets_row = await get_app_setting_secrets(admin_session)
+    secrets_row = await get_app_setting_secrets(system_session)
     stored_secret = secrets_row.captcha_secret_key_encrypted
     before = {
         **audit_service.snapshot(settings_row, CAPTCHA_FIELDS),
@@ -805,9 +805,9 @@ async def update_captcha_settings(
     await session.refresh(settings_row)
     if secret_provided:
         await _write_secret(
-            admin_session, column=CAPTCHA_SECRET_FIELD, encrypted=new_secret
+            system_session, column=CAPTCHA_SECRET_FIELD, encrypted=new_secret
         )
-        secrets_row = await get_app_setting_secrets(admin_session)
+        secrets_row = await get_app_setting_secrets(system_session)
     from app.services import captcha_config
 
     await captcha_config.refresh_captcha_config(session)
@@ -817,7 +817,7 @@ async def update_captcha_settings(
 async def update_push_settings(
     session: AsyncSession,
     *,
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     enabled: bool,
     project_id: str | None,
     application_id: str | None,
@@ -827,12 +827,12 @@ async def update_push_settings(
     secret_provided: bool,
     actor_user_id: int | None = None,
 ) -> tuple[AppSetting, AppSettingSecret]:
-    """Save the push settings; the service-account JSON on ``admin_session``.
+    """Save the push settings; the service-account JSON on ``system_session``.
 
     Same order and the same reasons as :func:`update_captcha_settings`.
     """
     settings_row = await ensure_settings_row(session)
-    secrets_row = await get_app_setting_secrets(admin_session)
+    secrets_row = await get_app_setting_secrets(system_session)
     stored_secret = secrets_row.fcm_service_account_json_encrypted
     before = {
         **audit_service.snapshot(settings_row, PUSH_FIELDS),
@@ -864,9 +864,9 @@ async def update_push_settings(
     await session.refresh(settings_row)
     if secret_provided:
         await _write_secret(
-            admin_session, column=PUSH_SECRET_FIELD, encrypted=new_secret
+            system_session, column=PUSH_SECRET_FIELD, encrypted=new_secret
         )
-        secrets_row = await get_app_setting_secrets(admin_session)
+        secrets_row = await get_app_setting_secrets(system_session)
     from app.services.platform import push_config
 
     await push_config.refresh_push_config(session)
@@ -878,7 +878,7 @@ async def ensure_defaults(session: AsyncSession) -> None:
     primary_guild_id = await guilds_service.get_primary_guild_id(session)
     # guild_settings is guild-scoped (lives only in the guild schema), so route
     # into the primary guild before seeding it — mirroring init_db.init(). On
-    # the unrouted (public) admin session the table isn't visible. Reset to the
+    # the unrouted (public) system session the table isn't visible. Reset to the
     # public baseline in a finally so a failure can't leave the session
     # guild-routed for a caller that reuses it.
     await set_rls_context(session, guild_id=primary_guild_id)

@@ -27,7 +27,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SystemSessionLocal, set_rls_context
 from app.services.stream_authz import authority as stream_authority
 from app.services.tenant.collaborative_resources import (
     YJS_STATE_COLUMN,
@@ -488,7 +488,7 @@ class CollaborationManager:
                 # room already holds. It runs on the system engine and routes
                 # into the community for its schema, which the policies admit
                 # by the connection's own login.
-                async with AdminSessionLocal() as session:
+                async with SystemSessionLocal() as session:
                     await set_rls_context(session, guild_id=room.guild_id)
                     await self._write_room(room, session)
             except Exception:

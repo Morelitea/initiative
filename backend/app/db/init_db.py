@@ -18,7 +18,7 @@ from app.db.schema_provisioning import (
     verify_engine_identities,
 )
 from app.db.session import (
-    AdminSessionLocal,
+    SystemSessionLocal,
     migration_chain,
     migration_lock,
     run_migrations,
@@ -42,7 +42,7 @@ async def init_owner() -> None:
     if not (settings.FIRST_OWNER_EMAIL and settings.FIRST_OWNER_PASSWORD):
         return
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         existing = await addresses.find_user_by_address(
             session, settings.FIRST_OWNER_EMAIL
         )
@@ -270,7 +270,7 @@ async def init() -> None:
     # actually hold the audited privileges (exact GRANTs in the error if not).
     await verify_effective_shared_grants()
     await init_owner()
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         # The platform settings singleton, before anything reads it: a read
         # serves defaults in memory rather than creating the row, so this is
         # where it comes from on a database that has never had one.

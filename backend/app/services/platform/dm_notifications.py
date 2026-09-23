@@ -129,10 +129,10 @@ async def notify(
     Failures here are logged and swallowed: the message is already delivered,
     and a bell line is not worth failing a send over.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     try:
-        async with AdminSessionLocal() as session:
+        async with SystemSessionLocal() as session:
             recipient = await session.get(User, recipient_id)
             if recipient is None:
                 return
@@ -243,10 +243,10 @@ async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) 
     waiting on an approval nobody was ever told to give. The person is also, by
     construction, awake and holding a device they signed into moments ago.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     try:
-        async with AdminSessionLocal() as session:
+        async with SystemSessionLocal() as session:
             user = await session.get(User, user_id)
             if user is None:
                 return

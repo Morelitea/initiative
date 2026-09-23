@@ -170,7 +170,7 @@ async def reader_is_in_the_initiative(
 
     # Late-bound (module attribute at call time) so the test harness's
     # sessionmaker patch applies to the probe too.
-    async with db_session.AdminSessionLocal() as probe, probe.begin():
+    async with db_session.SystemSessionLocal() as probe, probe.begin():
         # One transaction, explicitly: the routing is transaction-local, and the
         # probe runs on a session of its own rather than the request's.
         await set_rls_context(probe, guild_id=guild_id)

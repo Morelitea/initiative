@@ -159,7 +159,7 @@ api_router.include_router(
     announcements.router, prefix="/announcements", tags=["announcements"]
 )
 # Platform / app-wide config (owner-only) and cross-guild PAM management — NOT
-# guild-scoped (AdminSessionDep / capability-gated), so they stay top-level.
+# guild-scoped (SystemSessionDep / capability-gated), so they stay top-level.
 api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )

@@ -1560,7 +1560,7 @@ async def _count_install(listing_id: Optional[int]) -> None:
     if listing_id is None:
         return
     try:
-        async with db_session.AdminSessionLocal() as admin:
+        async with db_session.SystemSessionLocal() as admin:
             await catalog_service.bump_installs_count(admin, listing_id)
             await admin.commit()
     except Exception:

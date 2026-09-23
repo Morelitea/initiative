@@ -429,7 +429,7 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
     # System engine (policy-bound): the public half runs as app_admin under its
     # enumerated `_system` policies; each guild schema is entered by assuming
     # that guild's own role (app_admin holds INHERIT FALSE membership in all).
-    engine = db_session.admin_engine
+    engine = db_session.system_engine
 
     # Platform tables (public). Reads stream on one connection; writes commit on a
     # second (engine.begin()) — separate connections so an open read cursor and the

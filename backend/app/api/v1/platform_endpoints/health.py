@@ -98,7 +98,7 @@ async def _rate_limit_store() -> None:
 
 CHECKS: dict[str, Callable[[], Awaitable[None]]] = {
     "database": lambda: _ping("engine"),
-    "database_system": lambda: _ping("admin_engine"),
+    "database_system": lambda: _ping("system_engine"),
     "database_provisioning": lambda: _ping("provisioning_engine"),
     "storage": _storage,
     "notify_bus": _notify_bus,
@@ -161,7 +161,7 @@ async def _count_platform_totals() -> None:
     from app.db import session as db_session  # noqa: PLC0415
 
     async def count() -> None:
-        async with db_session.admin_engine.connect() as connection:
+        async with db_session.system_engine.connect() as connection:
             users = await connection.execute(
                 select(User.status, func.count()).group_by(User.status)
             )

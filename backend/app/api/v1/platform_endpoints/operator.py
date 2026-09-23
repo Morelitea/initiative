@@ -10,7 +10,7 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
@@ -66,7 +66,7 @@ RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASS
 # App-wide configuration (OIDC, SMTP, branding, role labels, platform AI).
 # Owner-only — imported by settings.py / ai_settings.py.
 ConfigManageDep = Annotated[User, Depends(require_capability(Capability.CONFIG_MANAGE))]
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 @router.get("/users", response_model=List[OperatorUserRead])
@@ -78,7 +78,7 @@ async def list_all_users(
 
     Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
     cross-user read is authorized by RLS (``users_platform_read``, support+) rather
-    than the system admin engine. Initiative roles are guild-scoped and
+    than the system engine. Initiative roles are guild-scoped and
     deliberately NOT loaded here — a platform user view exposes platform data only.
     """
     stmt = select(User).order_by(User.created_at.asc())
@@ -180,7 +180,7 @@ async def export_platform_users_csv(
 @router.delete("/users/{user_id}/second-factor", status_code=status.HTTP_204_NO_CONTENT)
 async def clear_second_factor(
     user_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: UsersManageDep,
 ) -> None:
     """Remove somebody's second factor for them.
@@ -222,7 +222,7 @@ async def clear_second_factor(
 @router.post("/users/{user_id}/reset-password", response_model=VerificationSendResponse)
 async def trigger_password_reset(
     user_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _current_user: UsersManageDep,
 ) -> VerificationSendResponse:
     """Trigger a password reset email for a user (admin only)."""
@@ -263,7 +263,7 @@ async def trigger_password_reset(
 @router.post("/users/{user_id}/reactivate", response_model=OperatorUserRead)
 async def reactivate_user(
     user_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _current_user: UsersManageDep,
 ) -> OperatorUserRead:
     """Reactivate a deactivated user account (admin only)."""
@@ -300,7 +300,7 @@ async def reactivate_user(
 @router.post("/users/{user_id}/restore", response_model=OperatorUserRead)
 async def restore_deleted_user(
     user_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: UsersManageDep,
 ) -> OperatorUserRead:
     """Call off a pending erasure from the users table (``users.manage``).
@@ -339,7 +339,7 @@ async def restore_deleted_user(
 @router.delete("/users/{user_id}/avatar", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_user_avatar(
     user_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: ContentModerateDep,
 ) -> Response:
     """Take down a user's profile picture.
@@ -396,7 +396,7 @@ async def remove_user_avatar(
 async def set_user_username(
     user_id: int,
     payload: OperatorUsernameUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: ContentModerateDep,
 ) -> OperatorUserRead:
     """Change someone's username.
@@ -452,7 +452,7 @@ async def set_user_username(
 async def set_user_suspension(
     user_id: int,
     payload: OperatorSuspensionUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: UsersManageDep,
 ) -> OperatorUserRead:
     """Freeze an account, or let it go.
@@ -534,7 +534,7 @@ async def set_user_suspension(
 @router.delete("/users/{user_id}/age-block", response_model=OperatorUserRead)
 async def clear_age_block(
     user_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: UsersAgeUnblockDep,
 ) -> OperatorUserRead:
     """Let an account answer the age question again.
@@ -587,7 +587,7 @@ async def clear_age_block(
 async def update_platform_role(
     user_id: int,
     payload: PlatformRoleUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: RolesAssignDep,
 ) -> OperatorUserRead:
     """Update a user's platform role (``roles.assign``).
@@ -674,7 +674,7 @@ async def update_platform_role(
 )
 async def check_user_deletion_eligibility(
     user_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: UsersDeleteDep,
 ) -> OperatorDeletionEligibilityResponse:
     """Check if a user can be deleted (admin only).
@@ -730,7 +730,7 @@ async def check_user_deletion_eligibility(
 async def delete_user(
     user_id: int,
     payload: OperatorUserDeleteRequest,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: UsersDeleteDep,
 ) -> AccountDeletionResponse:
     """Delete, anonymize, or deactivate a user account (admin only).

@@ -191,7 +191,7 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
       documents still pin uploads (the user might restore them).
 
     Caller must use a session that can DELETE from ``uploads`` — typically
-    ``AdminSessionDep`` for the auto-purge worker, or an admin-role
+    ``SystemSessionDep`` for the auto-purge worker, or an admin-role
     ``RLSSessionDep`` for the manual "Delete Now" action. Caller commits.
     """
     from sqlalchemy import delete as sa_delete, or_, text

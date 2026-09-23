@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.intake import IntakeStream
 from app.core.messages import IntakeMessages
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import get_system_session, set_rls_context
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.schemas.platform.intake import (
@@ -37,7 +37,7 @@ from app.api.deps import get_current_active_user
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 def _read(view: BindingView) -> IntakeBindingRead:
@@ -90,7 +90,7 @@ async def _settings(session: AsyncSession) -> IntakeSettingsRead:
 
 @router.get("/intake", response_model=IntakeSettingsRead)
 async def read_intake_settings(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> IntakeSettingsRead:
     """Where each stream lands, and when it last opened a case.
@@ -103,7 +103,7 @@ async def read_intake_settings(
 
 @router.get("/intake/options", response_model=IntakeOptionsRead)
 async def read_intake_options(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> IntakeOptionsRead:
     """What the settings page can bind a stream to.
@@ -120,7 +120,7 @@ async def read_intake_options(
 @router.put("/intake/guild", response_model=IntakeSettingsRead)
 async def update_operations_guild(
     payload: OperationsGuildUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> IntakeSettingsRead:
     """Name the guild that receives this deployment's operations work.
@@ -135,7 +135,7 @@ async def update_operations_guild(
 @router.put("/intake/contact", response_model=IntakeSettingsRead)
 async def update_general_contact(
     payload: IntakeContactUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> IntakeSettingsRead:
     """Set the deployment's catch-all contact address, or clear it.
@@ -151,7 +151,7 @@ async def update_general_contact(
 async def update_stream_contact(
     stream: str,
     payload: IntakeContactUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> IntakeSettingsRead:
     """Set one stream's contact address, or clear it back to the general one."""
@@ -165,7 +165,7 @@ async def update_stream_contact(
 async def upsert_binding(
     stream: str,
     payload: IntakeBindingUpsert,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> IntakeBindingRead:
     """Route one stream into a project of the operations guild."""
@@ -183,7 +183,7 @@ async def upsert_binding(
 async def import_blueprint(
     stream: str,
     payload: IntakeBlueprintImport,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _admin: ConfigManageDep,
 ) -> IntakeBindingRead:
@@ -204,7 +204,7 @@ async def import_blueprint(
 @router.delete("/intake/{stream}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_binding(
     stream: str,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> None:
     """Stop routing a stream. The project and every case in it stay."""

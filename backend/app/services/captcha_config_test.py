@@ -78,7 +78,7 @@ async def test_refresh_loads_db_over_env(
 
     await app_settings_service.update_captcha_settings(
         session,
-        admin_session=session,
+        system_session=session,
         provider="turnstile",
         site_key="db-site",
         secret_key="db-secret",
@@ -101,7 +101,7 @@ async def test_secret_is_kept_when_not_sent(session: AsyncSession) -> None:
     """
     await app_settings_service.update_captcha_settings(
         session,
-        admin_session=session,
+        system_session=session,
         provider="hcaptcha",
         site_key="first",
         secret_key="keep-me",
@@ -109,7 +109,7 @@ async def test_secret_is_kept_when_not_sent(session: AsyncSession) -> None:
     )
     await app_settings_service.update_captcha_settings(
         session,
-        admin_session=session,
+        system_session=session,
         provider="hcaptcha",
         site_key="second",
         secret_key=None,
@@ -126,7 +126,7 @@ async def test_secret_is_cleared_when_sent_empty(session: AsyncSession) -> None:
     """An explicit empty secret clears it, and enforcement stops with it."""
     await app_settings_service.update_captcha_settings(
         session,
-        admin_session=session,
+        system_session=session,
         provider="hcaptcha",
         site_key="site",
         secret_key="to-clear",
@@ -134,7 +134,7 @@ async def test_secret_is_cleared_when_sent_empty(session: AsyncSession) -> None:
     )
     await app_settings_service.update_captcha_settings(
         session,
-        admin_session=session,
+        system_session=session,
         provider="hcaptcha",
         site_key="site",
         secret_key="",

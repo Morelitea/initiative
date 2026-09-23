@@ -461,9 +461,9 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> None:
 
 
 async def process_email_outbox() -> None:
-    from app.db.session import AdminSessionLocal, set_rls_context
+    from app.db.session import SystemSessionLocal, set_rls_context
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await set_rls_context(session)
         await _run_pass(session, now=datetime.now(timezone.utc))
 

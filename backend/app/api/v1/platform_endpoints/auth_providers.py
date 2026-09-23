@@ -25,7 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.schemas.platform.settings import (
     AuthProviderOwnerRead,
     AuthProviderCreate,
@@ -38,12 +38,12 @@ from app.schemas.platform.settings import (
 from app.services.auth import provider_defaults, provider_probe, provider_registry
 
 router = APIRouter()
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 @router.get("/", response_model=List[AuthProviderOwnerRead])
 async def list_auth_providers(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> List[AuthProviderOwnerRead]:
     return await provider_registry.list_providers(session)
@@ -54,7 +54,7 @@ async def list_auth_providers(
 )
 async def create_auth_provider(
     provider_in: AuthProviderCreate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> AuthProviderOwnerRead:
     return await provider_registry.create_provider(
@@ -66,7 +66,7 @@ async def create_auth_provider(
 async def update_auth_provider(
     provider_id: int,
     provider_in: AuthProviderUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> AuthProviderOwnerRead:
     return await provider_registry.update_provider(
@@ -77,7 +77,7 @@ async def update_auth_provider(
 @router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_auth_provider(
     provider_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> None:
     """Delete a provider. Its linked identities (and their stored refresh
@@ -111,7 +111,7 @@ async def discover_auth_provider(
 async def test_auth_provider(
     request: Request,
     provider_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> AuthProviderProbeResult:
     """Look up a saved provider's own issuer. The address comes off the row."""
@@ -124,7 +124,7 @@ async def test_auth_provider(
 )
 async def get_provider_default(
     provider_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> Optional[PlatformProviderDefaultRead]:
     """The deployment's own answer for this provider, or null where it has
@@ -136,7 +136,7 @@ async def get_provider_default(
 async def set_provider_default(
     provider_id: int,
     payload: PlatformProviderDefaultUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> PlatformProviderDefaultRead:
     """Answer once for the communities that have not.
@@ -153,7 +153,7 @@ async def set_provider_default(
 @router.delete("/{provider_id}/default", status_code=status.HTTP_204_NO_CONTENT)
 async def clear_provider_default(
     provider_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> None:
     """Withdraw the answer. Communities that wrote their own keep them; the

@@ -53,7 +53,7 @@ def _open_user_session() -> AsyncSession:
 
 async def process_export_jobs() -> None:
     now = datetime.now(timezone.utc)
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         await set_rls_context(session)
         guild_ids = list(
             await session.exec(
@@ -214,7 +214,7 @@ async def process_export_gc() -> None:
     from app.services.storage import get_guild_storage
 
     now = datetime.now(timezone.utc)
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         await set_rls_context(session)
         guild_ids = list(
             await session.exec(

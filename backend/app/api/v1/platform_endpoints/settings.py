@@ -20,7 +20,7 @@ from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import (
@@ -132,7 +132,7 @@ _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
     "support_enabled",
 )
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 router = APIRouter()
 
@@ -187,7 +187,7 @@ def _platform_oidc_response(provider) -> OIDCSettingsResponse:
 
 @router.get("/auth", response_model=OIDCSettingsResponse)
 async def get_oidc_settings(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCSettingsResponse:
     """The install's redirect addresses. System engine: ``auth_providers``
@@ -237,7 +237,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
 
 @router.get("/auth/platform", response_model=PlatformAuthSettingsResponse)
 async def get_platform_auth_settings(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Which ways in are permitted. System engine: the guard counts read
@@ -249,7 +249,7 @@ async def get_platform_auth_settings(
 @router.put("/auth/methods", response_model=PlatformAuthSettingsResponse)
 async def update_login_methods(
     payload: LoginMethodsUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set which ways in this deployment permits — at least one.
@@ -272,7 +272,7 @@ async def update_login_methods(
 )
 async def update_second_factor_requirement(
     payload: SecondFactorRequirementUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set who this deployment asks to hold a second factor.
@@ -297,7 +297,7 @@ async def update_second_factor_requirement(
 @router.put("/auth/session-lifetime", response_model=PlatformAuthSettingsResponse)
 async def update_session_lifetime(
     payload: SessionLifetimeUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set how long somebody may stay signed in before signing in again.
@@ -353,7 +353,7 @@ async def get_notification_settings(
 @router.put("/notifications", response_model=NotificationSettingsResponse)
 async def update_notification_settings(
     payload: NotificationSettingsUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> NotificationSettingsResponse:
     """Decide what this deployment permits a notification to leave the app with.
@@ -522,13 +522,13 @@ async def update_community_settings(
 @router.get("/email", response_model=EmailSettingsResponse)
 async def get_email_settings(
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> EmailSettingsResponse:
     # Whether a password is stored is read on the system engine, which alone
     # holds app_setting_secrets.
     settings_obj = await app_settings_service.get_app_settings(session)
-    secrets = await app_settings_service.get_app_setting_secrets(admin_session)
+    secrets = await app_settings_service.get_app_setting_secrets(system_session)
     return _email_settings_payload(settings_obj, secrets)
 
 
@@ -536,7 +536,7 @@ async def get_email_settings(
 async def update_email_settings(
     payload: EmailSettingsUpdate,
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> EmailSettingsResponse:
     # The settings row is written under the owner's tier; the password, when
@@ -545,7 +545,7 @@ async def update_email_settings(
     password_provided = "password" in data
     updated, secrets = await app_settings_service.update_email_settings(
         session,
-        admin_session=admin_session,
+        system_session=system_session,
         host=payload.host,
         port=payload.port,
         secure=payload.secure,
@@ -615,13 +615,13 @@ def _storage_settings_payload(
 @router.get("/storage", response_model=StorageSettingsResponse)
 async def get_storage_settings(
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> StorageSettingsResponse:
     # Whether a secret key is stored is read on the system engine, which alone
     # holds app_setting_secrets.
     settings_obj = await app_settings_service.get_app_settings(session)
-    secrets = await app_settings_service.get_app_setting_secrets(admin_session)
+    secrets = await app_settings_service.get_app_setting_secrets(system_session)
     return _storage_settings_payload(settings_obj, secrets)
 
 
@@ -629,7 +629,7 @@ async def get_storage_settings(
 async def update_storage_settings(
     payload: StorageSettingsUpdate,
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> StorageSettingsResponse:
     # The settings row is written under the owner's tier; the secret key, when
@@ -638,7 +638,7 @@ async def update_storage_settings(
     secret_provided = "s3_secret_access_key" in data
     updated, secrets = await app_settings_service.update_storage_settings(
         session,
-        admin_session=admin_session,
+        system_session=system_session,
         backend=payload.backend,
         s3_bucket=payload.s3_bucket,
         s3_region=payload.s3_region,
@@ -699,7 +699,7 @@ def _backfill_payload(row: dict) -> StorageBackfillStatusResponse:
 
 @router.post("/storage/backfill", response_model=StorageBackfillStatusResponse)
 async def start_storage_backfill(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> StorageBackfillStatusResponse:
     # The backfill writes to S3 via the saved credentials, so they must be set
@@ -724,7 +724,7 @@ async def start_storage_backfill(
 
 @router.get("/storage/backfill", response_model=StorageBackfillStatusResponse)
 async def get_storage_backfill_status(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> StorageBackfillStatusResponse:
     return _backfill_payload(await storage_backfill.get_status(session))
@@ -758,11 +758,11 @@ def _captcha_payload(
 @router.get("/captcha", response_model=CaptchaSettingsResponse)
 async def get_captcha_settings(
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> CaptchaSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
-    secrets = await app_settings_service.get_app_setting_secrets(admin_session)
+    secrets = await app_settings_service.get_app_setting_secrets(system_session)
     return _captcha_payload(settings_obj, secrets)
 
 
@@ -770,7 +770,7 @@ async def get_captcha_settings(
 async def update_captcha_settings(
     payload: CaptchaSettingsUpdate,
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> CaptchaSettingsResponse:
     # An absent secret_key keeps the stored one; an explicit null or "" clears
@@ -779,7 +779,7 @@ async def update_captcha_settings(
     data = payload.model_dump(exclude_unset=True)
     updated, secrets = await app_settings_service.update_captcha_settings(
         session,
-        admin_session=admin_session,
+        system_session=system_session,
         provider=payload.provider,
         site_key=payload.site_key,
         secret_key=payload.secret_key,
@@ -808,11 +808,11 @@ def _push_payload(
 @router.get("/push", response_model=PushSettingsResponse)
 async def get_push_settings(
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     _admin: ConfigManageDep,
 ) -> PushSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
-    secrets = await app_settings_service.get_app_setting_secrets(admin_session)
+    secrets = await app_settings_service.get_app_setting_secrets(system_session)
     return _push_payload(settings_obj, secrets)
 
 
@@ -820,13 +820,13 @@ async def get_push_settings(
 async def update_push_settings(
     payload: PushSettingsUpdate,
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     admin: ConfigManageDep,
 ) -> PushSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
     updated, secrets = await app_settings_service.update_push_settings(
         session,
-        admin_session=admin_session,
+        system_session=system_session,
         enabled=payload.enabled,
         project_id=payload.project_id,
         application_id=payload.application_id,
@@ -934,12 +934,12 @@ async def _member_tallies() -> tuple[dict[int, int], set[int]]:
     platform tier reads no roster but its own memberships, and this list needs
     only the totals, not the rows behind them.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         counts = dict(
             (
-                await admin_session.exec(
+                await system_session.exec(
                     select(GuildMembership.guild_id, func.count()).group_by(
                         GuildMembership.guild_id
                     )
@@ -948,7 +948,7 @@ async def _member_tallies() -> tuple[dict[int, int], set[int]]:
         )
         seated = set(
             (
-                await admin_session.exec(
+                await system_session.exec(
                     select(GuildMembership.guild_id)
                     .where(GuildMembership.role == GuildRole.superadmin)
                     .distinct()
@@ -1001,7 +1001,7 @@ async def list_platform_guild_storage(
 async def update_platform_guild_storage(
     guild_id: int,
     payload: PlatformGuildStorageUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
     """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
@@ -1145,7 +1145,7 @@ async def update_platform_guild_storage(
 @router.get("/guilds/{guild_id}/narrowings", response_model=list[GuildNarrowingPending])
 async def read_guild_narrowings(
     guild_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: GuildsManageDep,
 ) -> list[GuildNarrowingPending]:
     """What this community says its own arrivals look like, and whether
@@ -1168,7 +1168,7 @@ async def agree_guild_narrowing(
     guild_id: int,
     connection_id: int,
     payload: GuildNarrowingAgreement,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: GuildsManageDep,
 ) -> GuildNarrowingPending:
     """Agree that these values are this community's, or withdraw that.
@@ -1190,7 +1190,7 @@ async def agree_guild_narrowing(
 async def restore_platform_guild(
     guild_id: int,
     payload: PlatformGuildRestore,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
     """Bring a deleted guild back before its retention window runs out.
@@ -1249,7 +1249,7 @@ async def restore_platform_guild(
 )
 async def create_platform_guild_billing_service_handoff(
     guild_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: GuildsManageDep,
     console: Literal["support", "operator"] = "support",
     answer: SecondFactorAnswer | None = None,

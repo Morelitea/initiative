@@ -32,7 +32,7 @@ from app.core.messages import AuthMessages
 from app.core.password_policy import enforce_password_policy
 from app.core.rate_limit import limiter
 from app.core.security import get_password_hash, has_usable_password
-from app.db.session import get_admin_session, get_session
+from app.db.session import get_system_session, get_session
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.auth import VerificationSendResponse
@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: Giving up a way in is done by the person in a session of their own rather
@@ -68,7 +68,7 @@ def _recovery_code_invalid() -> HTTPException:
 
 
 async def _record_recovery_refusal(
-    admin_session: AsyncSession, *, user_id: int
+    system_session: AsyncSession, *, user_id: int
 ) -> None:
     """Write down a refused recovery, against the account it named.
 
@@ -77,7 +77,7 @@ async def _record_recovery_refusal(
     refuse.
     """
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
         actor_user_id=None,
         target_user_id=user_id,
@@ -85,7 +85,7 @@ async def _record_recovery_refusal(
         target_id=user_id,
         detail={"method": "recovery_code", "during": "recover"},
     )
-    await admin_session.commit()
+    await system_session.commit()
 
 
 @router.post("/password/remove", response_model=RecoveryCodes)
@@ -93,7 +93,7 @@ async def _record_recovery_refusal(
 async def remove_password(
     request: Request,
     response: Response,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: CurrentUser,
     payload: PasswordRemove,
     _first_party: str = FirstPartyOnly,
@@ -125,7 +125,7 @@ async def remove_password(
     # that answer: a credential it does not accept opens nothing, so an account
     # holding only one keeps its password.
     remaining = await identity_service.ways_in(
-        admin_session, user_id=current_user.id
+        system_session, user_id=current_user.id
     ) - {LoginMethod.password}
     if not remaining:
         raise HTTPException(
@@ -139,7 +139,7 @@ async def remove_password(
     # own account of that.
     prior_id = getattr(request.state, "session_id", None)
     prior = (
-        await admin_session.get(AuthSession, uuid.UUID(str(prior_id)))
+        await system_session.get(AuthSession, uuid.UUID(str(prior_id)))
         if prior_id
         else None
     )
@@ -155,7 +155,7 @@ async def remove_password(
 
     # The row is written on the system engine, which is where the rest of this
     # request's writes land.
-    account = await admin_session.get(User, current_user.id)
+    account = await system_session.get(User, current_user.id)
     if account is None:  # pragma: no cover - resolved a moment ago
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
@@ -163,9 +163,9 @@ async def remove_password(
     account.hashed_password = None
     account.password_set_at = None
     account.updated_at = datetime.now(timezone.utc)
-    admin_session.add(account)
+    system_session.add(account)
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_PASSWORD_REMOVED,
         actor_user_id=account.id,
     )
@@ -174,7 +174,7 @@ async def remove_password(
     #
     # Staged, not committed: the replacement session below joins them in one
     # transaction, so the account keeps what it had if that fails.
-    await user_tokens.revoke_user_sessions(admin_session, user=account, commit=False)
+    await user_tokens.revoke_user_sessions(system_session, user=account, commit=False)
 
     # A recovery set exists from the moment the account becomes passwordless,
     # because a code is now how it gets a password back — on a deployment with
@@ -184,14 +184,14 @@ async def remove_password(
     # settings page has been calling low.
     codes: list[str] = []
     held = await totp_service.remaining_recovery_codes(
-        admin_session, user_id=account.id
+        system_session, user_id=account.id
     )
     if held < totp_service.LOW_ON_RECOVERY_CODES:
         codes = await totp_service.issue_recovery_codes(
-            admin_session, user_id=account.id
+            system_session, user_id=account.id
         )
         await audit_service.record(
-            admin_session,
+            system_session,
             event_type=AuditEventType.AUTH_RECOVERY_CODES_ISSUED,
             actor_user_id=account.id,
         )
@@ -204,14 +204,14 @@ async def remove_password(
     await replace_session(
         request,
         response,
-        admin_session,
+        system_session,
         user=account,
         amr=carried_amr,
         satisfied_providers=carried_providers,
         provider_auth=carried_provider_auth,
     )
 
-    await email_service.announce_password_removed(admin_session, account)
+    await email_service.announce_password_removed(system_session, account)
     return RecoveryCodes(codes=codes)
 
 
@@ -220,7 +220,7 @@ async def remove_password(
 async def recover_with_code(
     request: Request,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: PasswordRecover,
 ) -> VerificationSendResponse:
     """Set a password with a recovery code, for an account that holds none.
@@ -236,16 +236,16 @@ async def recover_with_code(
     # would not take must not cost the account one of its codes.
     await enforce_password_policy(payload.password)
 
-    user = await addresses.find_user_by_address(admin_session, payload.email)
+    user = await addresses.find_user_by_address(system_session, payload.email)
     if user is None:
         raise _recovery_code_invalid()
     if user.status != UserStatus.active or has_usable_password(user.hashed_password):
-        await _record_recovery_refusal(admin_session, user_id=user.id)
+        await _record_recovery_refusal(system_session, user_id=user.id)
         raise _recovery_code_invalid()
     if not await totp_service.consume_recovery_code(
-        admin_session, user_id=user.id, code=payload.recovery_code
+        system_session, user_id=user.id, code=payload.recovery_code
     ):
-        await _record_recovery_refusal(admin_session, user_id=user.id)
+        await _record_recovery_refusal(system_session, user_id=user.id)
         raise _recovery_code_invalid()
 
     user.hashed_password = get_password_hash(payload.password)
@@ -254,17 +254,17 @@ async def recover_with_code(
     # ``user`` is bound to it, so the password, the spent code, the revocations
     # and these two records land on one commit.
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_RECOVERY_CODE_USED,
         actor_user_id=user.id,
         detail={
             "remaining": await totp_service.remaining_recovery_codes(
-                admin_session, user_id=user.id
+                system_session, user_id=user.id
             )
         },
     )
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_PASSWORD_CHANGED,
         actor_user_id=user.id,
         detail={"via": "recovery_code"},
@@ -272,7 +272,7 @@ async def recover_with_code(
     # Bump token_version and retire the device tokens, API keys and refresh
     # sessions the account held before it was recovered.
     #
-    # ``user`` is staged on ``admin_session``, so its id is read here rather
+    # ``user`` is staged on ``system_session``, so its id is read here rather
     # than after a rollback that would leave the columns to be fetched again.
     user_id = user.id
     try:
@@ -280,10 +280,10 @@ async def recover_with_code(
         # engine: the password, the stamp, the spent code and the records all
         # land on that one commit.
         user.updated_at = datetime.now(timezone.utc)
-        admin_session.add(user)
-        await user_tokens.revoke_user_sessions(admin_session, user=user)
+        system_session.add(user)
+        await user_tokens.revoke_user_sessions(system_session, user=user)
     except Exception as exc:
-        await admin_session.rollback()
+        await system_session.rollback()
         logger.exception("Could not record a recovery for user %s", user_id)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

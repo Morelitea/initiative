@@ -49,7 +49,7 @@ from app.core.user_input_validators import (
     normalize_time_format,
     normalize_week_starts_on,
 )
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
@@ -168,7 +168,7 @@ me_router = APIRouter()
 # platform user endpoints stay on ``router`` (top-level /users).
 guild_router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.admin))
@@ -476,7 +476,7 @@ async def list_decoration_packs(
 async def install_decoration_pack(
     uid: str,
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DecorationPack:
     """Take a pack, putting its decorations in your library.
@@ -488,18 +488,18 @@ async def install_decoration_pack(
     """
     pack = await _pack_or_404(session, uid)
     conflicting = await profile_decorations_service.install_pack(
-        admin_session, user_id=current_user.id, pack=pack
+        system_session, user_id=current_user.id, pack=pack
     )
     if conflicting:
         # Another pack already gave this library one of these ids. A decoration
         # id names one thing, so the row belongs to whoever granted it first
         # and this install would have been a partial one reported as whole.
-        await admin_session.rollback()
+        await system_session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=UserMessages.DECORATION_ALREADY_GRANTED,
         )
-    await admin_session.commit()
+    await system_session.commit()
     return _pack_entry(pack, installed=True)
 
 
@@ -507,7 +507,7 @@ async def install_decoration_pack(
 async def remove_decoration_pack(
     uid: str,
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DecorationPack:
     """Give a pack back, taking its decorations out of your library.
@@ -518,9 +518,9 @@ async def remove_decoration_pack(
     """
     pack = await _pack_or_404(session, uid)
     await profile_decorations_service.remove_pack(
-        admin_session, user_id=current_user.id, pack=pack
+        system_session, user_id=current_user.id, pack=pack
     )
-    await admin_session.commit()
+    await system_session.commit()
     return _pack_entry(pack, installed=False)
 
 
@@ -591,7 +591,7 @@ async def read_user_profile(
 @router.get("/{handle}/communities", response_model=List[CommunityGuildRead])
 async def read_user_communities(
     handle: str,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> List[CommunityGuildRead]:
     """The listed communities one person belongs to.
@@ -614,7 +614,7 @@ async def read_user_communities(
         )
     name, discriminator = parsed
     subject = (
-        await admin_session.exec(
+        await system_session.exec(
             select(User).where(
                 func.lower(User.username) == name,
                 User.discriminator == discriminator,
@@ -629,12 +629,12 @@ async def read_user_communities(
         )
 
     guilds = await guilds_service.list_profile_communities(
-        admin_session, user_id=subject.id
+        system_session, user_id=subject.id
     )
     mine = {
         row.guild_id
         for row in (
-            await admin_session.exec(
+            await system_session.exec(
                 select(GuildMembership).where(
                     GuildMembership.user_id == current_user.id
                 )
@@ -645,11 +645,11 @@ async def read_user_communities(
     # How many people are in each, which the card names and this read has to
     # ask for: nothing about a guild row carries it.
     members = await guilds_service.count_members_by_guild(
-        admin_session, guild_ids=[guild.id for guild in guilds]
+        system_session, guild_ids=[guild.id for guild in guilds]
     )
     # Digests only, in one query: a card names its pictures, never carries them.
     images = await images_service.image_urls(
-        admin_session,
+        system_session,
         [guild.id for guild in guilds],
         GuildImageVariant.icon,
         GuildImageVariant.card,
@@ -974,7 +974,7 @@ def _address_read(row) -> UserEmailRead:
 
 @router.get("/me/emails", response_model=UserEmailListResponse)
 async def list_my_addresses(
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserEmailListResponse:
     """Every address this account holds.
@@ -982,7 +982,7 @@ async def list_my_addresses(
     On the system engine: ``user_emails`` carries no request-path grants,
     because resolving an address happens before anybody is authenticated.
     """
-    rows = await addresses.list_for_user(admin_session, user_id=current_user.id)
+    rows = await addresses.list_for_user(system_session, user_id=current_user.id)
     return UserEmailListResponse(items=[_address_read(row) for row in rows])
 
 
@@ -996,7 +996,7 @@ async def add_my_address(
     request: Request,
     payload: UserEmailCreate,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> VerificationSendResponse:
     """Start holding another address, and write to it to prove it.
@@ -1017,7 +1017,7 @@ async def add_my_address(
 
     try:
         added = await addresses.add_for_user(
-            admin_session, user_id=current_user.id, email=payload.email
+            system_session, user_id=current_user.id, email=payload.email
         )
     except addresses.AddressError as exc:
         raise HTTPException(
@@ -1027,10 +1027,10 @@ async def add_my_address(
     # again is how a letter that did not arrive is sent again. ``None`` means
     # somebody has proven the address, and nothing is written.
     if added is not None:
-        await admin_session.commit()
-        await admin_session.refresh(added)
+        await system_session.commit()
+        await system_session.refresh(added)
         token = await user_tokens_service.create_token(
-            admin_session,
+            system_session,
             user_id=current_user.id,
             purpose=UserTokenPurpose.email_verification,
             user_email_id=added.id,
@@ -1052,12 +1052,12 @@ async def add_my_address(
 @router.delete("/me/emails/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_my_address(
     address_id: int,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     try:
         await addresses.remove_for_user(
-            admin_session, user_id=current_user.id, address_id=address_id
+            system_session, user_id=current_user.id, address_id=address_id
         )
     except addresses.AddressError as exc:
         raise HTTPException(
@@ -1068,20 +1068,20 @@ async def remove_my_address(
             ),
             detail=exc.code,
         ) from exc
-    await admin_session.commit()
+    await system_session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/me/emails/{address_id}/primary", response_model=UserEmailRead)
 async def make_my_address_primary(
     address_id: int,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserEmailRead:
     """Move where account mail goes."""
     try:
         row = await addresses.set_primary_for_user(
-            admin_session, user_id=current_user.id, address_id=address_id
+            system_session, user_id=current_user.id, address_id=address_id
         )
     except addresses.AddressError as exc:
         raise HTTPException(
@@ -1092,8 +1092,8 @@ async def make_my_address_primary(
             ),
             detail=exc.code,
         ) from exc
-    await admin_session.commit()
-    await admin_session.refresh(row)
+    await system_session.commit()
+    await system_session.refresh(row)
     return _address_read(row)
 
 
@@ -1102,7 +1102,7 @@ async def update_users_me(
     request: Request,
     user_in: UserSelfUpdate,
     session: UserSessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     response: Response,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
@@ -1131,7 +1131,7 @@ async def update_users_me(
         # account that holds none answers with a recent sign-in instead.
         await require_password_or_recent_proof(
             request,
-            admin_session,
+            system_session,
             current_user,
             update_data.get("current_password"),
         )
@@ -1144,7 +1144,7 @@ async def update_users_me(
         # Staged, not committed: the replacement session below joins them in
         # one transaction, so the account keeps what it had if that fails.
         await user_tokens_service.revoke_user_sessions(
-            admin_session, user=current_user, commit=False
+            system_session, user=current_user, commit=False
         )
         # ...but keep THIS device signed in: the revocation above took the
         # caller's own access token AND refresh chain, so a fresh session is
@@ -1155,7 +1155,7 @@ async def update_users_me(
         await replace_session(
             request,
             response,
-            admin_session,
+            system_session,
             user=current_user,
             amr=["pwd"] if held_password else [],
             satisfied_providers=[],
@@ -1286,7 +1286,7 @@ async def update_users_me(
 @guild_router.post("/{user_id}/approve", response_model=UserGuildRead)
 async def approve_user(
     user_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     guild_session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
@@ -1341,7 +1341,7 @@ async def approve_user(
 
 @router.get("/me/deletion-eligibility", response_model=DeletionEligibilityResponse)
 async def check_deletion_eligibility(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DeletionEligibilityResponse:
     """Check if the current user can be deleted and what blockers exist."""
@@ -1362,7 +1362,7 @@ async def check_deletion_eligibility(
 async def delete_own_account(
     http_request: Request,
     request: AccountDeletionRequest,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccountDeletionResponse:
     """Delete or deactivate the current user's account."""
@@ -1450,12 +1450,12 @@ async def delete_own_account(
 
 @router.get("/me/api-keys", response_model=ApiKeyListResponse)
 async def list_my_api_keys(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> ApiKeyListResponse:
     """List all API keys for the current user."""
     # user_api_keys is a system-engine-only table (no request-path grant, no
-    # own-row policy), so key management runs on AdminSessionDep; the explicit
+    # own-row policy), so key management runs on SystemSessionDep; the explicit
     # user_id filter in the service is the ownership scope.
     keys = await api_keys_service.list_api_keys(session, user=current_user)
     return ApiKeyListResponse(keys=keys)
@@ -1468,7 +1468,7 @@ async def list_my_api_keys(
 )
 async def create_my_api_key(
     payload: ApiKeyCreateRequest,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> ApiKeyCreateResponse:
     """Create a new API key for the current user."""
@@ -1510,7 +1510,7 @@ async def create_my_api_key(
 @router.delete("/me/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_my_api_key(
     api_key_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> None:
     """Delete an API key for the current user."""
@@ -1670,7 +1670,7 @@ async def transfer_ownership(
 async def delete_user(
     user_id: int,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> None:
@@ -1687,7 +1687,7 @@ async def delete_user(
     # guild role this request has assumed. FOR UPDATE to prevent a race with a
     # concurrent platform-role change.
     if await users_service.is_last_capability_holder(
-        admin_session, user_id, Capability.CONFIG_MANAGE, for_update=True
+        system_session, user_id, Capability.CONFIG_MANAGE, for_update=True
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1720,11 +1720,11 @@ async def delete_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
-    await guilds_service.lock_guild_seats(admin_session, guild_context.guild_id)
+    await guilds_service.lock_guild_seats(system_session, guild_context.guild_id)
     # And the seat stays filled for as long as the guild requires a sign-in:
     # the requirement is lifted from the surface the seat holds.
     if await guilds_service.must_keep_superadmin(
-        admin_session, guild_id=guild_context.guild_id, user_id=user_id
+        system_session, guild_id=guild_context.guild_id, user_id=user_id
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

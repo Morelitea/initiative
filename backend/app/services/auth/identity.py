@@ -15,7 +15,7 @@ confirmation flow is the caller's decision, made where the UX lives.
 ``link_identity`` is the one mechanism for creating the link.
 
 Runs on the system engine (``federated_identities`` writes and cross-user
-reads are app_admin surfaces); callers pass their admin session. Never raises
+reads are app_admin surfaces); callers pass their system session. Never raises
 for a policy refusal — refusals are outcomes (the pattern from the session
 service: no raise-with-uncommitted-writes).
 """

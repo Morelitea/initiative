@@ -151,7 +151,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
         if (time.monotonic() - _loaded_at) < CACHE_TTL_SECONDS:
             return _cache
 
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         rows = (
             await session.exec(
                 select(AppServiceRegistration).order_by(
@@ -442,7 +442,7 @@ async def resolve_delegated_member(
     from app.models.tenant.guild_app import GuildApp
     from app.services.marketplace.app_refs import resolve_app_ref
 
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         try:
             # The reference first, on the unrouted session: it lives in a
             # platform-wide table the guild roles hold nothing on.
@@ -507,7 +507,7 @@ async def delegation_allowed(
 
     write_leg = GuildAppUserDelegation.can_write.is_(True) if need_write else sa_true()
 
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         try:
             # Guild content lives in the guild's own schema, so the read is
             # routed there. `admin` because this asks what the guild has and

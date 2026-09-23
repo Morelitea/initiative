@@ -1072,13 +1072,13 @@ async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
     it: ``to_self_read`` for the address's own holder, ``to_admin_read`` for
     everybody else, masked.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         return (
-            await addresses.primary_addresses(admin_session, user_ids=user_ids),
+            await addresses.primary_addresses(system_session, user_ids=user_ids),
             await addresses.accounts_with_a_proven_address(
-                admin_session, user_ids=user_ids
+                system_session, user_ids=user_ids
             ),
         )
 
@@ -1134,11 +1134,11 @@ async def _account_retention_days() -> int | None:
     Same reason as :func:`_reach`: this shape is built outside any particular
     request's session, and the setting is one row read once for the whole page.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.services.platform import app_settings as app_settings_service
 
-    async with AdminSessionLocal() as admin_session:
-        row = await app_settings_service.get_app_settings(admin_session)
+    async with SystemSessionLocal() as system_session:
+        row = await app_settings_service.get_app_settings(system_session)
         return row.deleted_account_retention_days
 
 

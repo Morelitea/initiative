@@ -122,7 +122,7 @@ _CHAIN_ROOT_SQL = text(
 
 
 async def chain_started_at(
-    admin_session: AsyncSession, *, session_id: uuid.UUID
+    system_session: AsyncSession, *, session_id: uuid.UUID
 ) -> datetime | None:
     """When the sign-in this session descends from was opened.
 
@@ -135,13 +135,13 @@ async def chain_started_at(
     """
     # One round trip on the session's own connection: a chain gains a row per
     # refresh, so walking it a row at a time would be as many.
-    connection = await admin_session.connection()
+    connection = await system_session.connection()
     result = await connection.execute(_CHAIN_ROOT_SQL, {"sid": session_id})
     return result.scalar_one_or_none()
 
 
 async def record_sign_in_failure(
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     user: User | None,
     *,
     method: str,
@@ -161,7 +161,7 @@ async def record_sign_in_failure(
     """
     target_user_id = user.id if user is not None else None
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_SIGN_IN_FAILED,
         actor_user_id=None,
         target_user_id=target_user_id,
@@ -169,7 +169,7 @@ async def record_sign_in_failure(
         target_id=target_user_id,
         detail={"method": method, "reason": reason},
     )
-    await admin_session.commit()
+    await system_session.commit()
 
 
 def access_ttl_for(row: AuthSession, *, now: datetime) -> timedelta | None:
@@ -192,7 +192,7 @@ def access_ttl_for(row: AuthSession, *, now: datetime) -> timedelta | None:
 async def open_session(
     request: Request,
     response: Response,
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     *,
     user_id: int,
     token_version: int,
@@ -216,12 +216,12 @@ async def open_session(
     password plus a factor records what the factor was, and a passkey records
     which kind of key answered alongside ``mfa``.
 
-    Anything the caller staged in ``admin_session`` — a device token, a
+    Anything the caller staged in ``system_session`` — a device token, a
     credential's counter — commits with the session, or goes with it.
     """
     try:
         issued = await session_service.create_session(
-            admin_session,
+            system_session,
             user_id=user_id,
             amr=amr,
             satisfied_providers=[],
@@ -229,17 +229,19 @@ async def open_session(
             ip=get_inet_client_ip(request),
         )
         await audit_service.record(
-            admin_session,
+            system_session,
             event_type=AuditEventType.AUTH_SIGNED_IN,
             actor_user_id=user_id,
             detail=audit_detail,
         )
         # The name the token will carry, minted in the same transaction as the
         # session it belongs to.
-        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
-        await admin_session.commit()
+        subject = await subject_service.subject_for_user(
+            system_session, user_id=user_id
+        )
+        await system_session.commit()
     except Exception as exc:
-        await admin_session.rollback()
+        await system_session.rollback()
         logger.exception("Could not open a session for user %s", user_id)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -266,7 +268,7 @@ async def open_session(
 async def replace_session(
     request: Request,
     response: Response,
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     *,
     user: User,
     amr: list[str],
@@ -279,7 +281,7 @@ async def replace_session(
     For the changes that retire every credential an account holds — a password
     set, a password given up — which would otherwise take the caller's own
     session with them. What the account held is revoked by the caller and
-    staged on ``admin_session``; the session opened here joins that staging, so
+    staged on ``system_session``; the session opened here joins that staging, so
     one commit carries both and a failure leaves the account holding what it
     had.
 
@@ -292,13 +294,13 @@ async def replace_session(
     A session is the only credential there is, so a store that cannot be
     written ends the request rather than answering with a lesser one.
     """
-    # Read before the writes below: ``user`` may be staged on ``admin_session``,
+    # Read before the writes below: ``user`` may be staged on ``system_session``,
     # and a rollback leaves its columns to be fetched again.
     user_id = user.id
     token_version = user.token_version
     try:
         issued = await session_service.create_session(
-            admin_session,
+            system_session,
             user_id=user_id,
             amr=amr,
             satisfied_providers=satisfied_providers,
@@ -308,10 +310,12 @@ async def replace_session(
         )
         # The name the token will carry, minted in the same transaction as the
         # session it belongs to.
-        subject = await subject_service.subject_for_user(admin_session, user_id=user_id)
-        await admin_session.commit()
+        subject = await subject_service.subject_for_user(
+            system_session, user_id=user_id
+        )
+        await system_session.commit()
     except Exception as exc:
-        await admin_session.rollback()
+        await system_session.rollback()
         logger.exception("Could not open a session for user %s", user_id)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -334,7 +338,7 @@ async def replace_session(
 async def upgrade_session(
     request: Request,
     response: Response,
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     *,
     user: User,
     add_amr: list[str],
@@ -356,7 +360,7 @@ async def upgrade_session(
     refresh cookie. A credential that is not a session is refused — this
     endpoint upgrades one, and there is nothing else here to add to.
     """
-    prior = await admin_session.get(AuthSession, require_session_row(request))
+    prior = await system_session.get(AuthSession, require_session_row(request))
     if prior is not None and (prior.user_id != user.id or prior.revoked_at is not None):
         prior = None
     if prior is None:
@@ -371,7 +375,7 @@ async def upgrade_session(
 
     try:
         issued = await session_service.create_session(
-            admin_session,
+            system_session,
             user_id=user.id,
             amr=amr,
             satisfied_providers=satisfied,
@@ -383,11 +387,13 @@ async def upgrade_session(
         # the session issued just above is what replaces all of them. The
         # provider step-up revokes the chain for the same reason. ``prior`` is
         # not optional here — the request is refused above where there is none.
-        await session_service.revoke_chain(admin_session, session_id=prior.id)
-        subject = await subject_service.subject_for_user(admin_session, user_id=user.id)
-        await admin_session.commit()
+        await session_service.revoke_chain(system_session, session_id=prior.id)
+        subject = await subject_service.subject_for_user(
+            system_session, user_id=user.id
+        )
+        await system_session.commit()
     except Exception as exc:
-        await admin_session.rollback()
+        await system_session.rollback()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=AuthMessages.SESSION_STORE_UNAVAILABLE,

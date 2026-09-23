@@ -13,7 +13,7 @@ from sqlmodel import select
 from app.api.deps import UserSessionDep, get_current_active_user
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import get_system_session, set_rls_context
 from app.core.notification_categories import (
     CATEGORY_SPECS,
     ALL_CHANNELS,
@@ -167,7 +167,7 @@ async def update_my_notification_preferences(
     payload: NotificationPreferencesUpdate,
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    admin_session: Annotated[AsyncSession, Depends(get_admin_session)],
+    system_session: Annotated[AsyncSession, Depends(get_system_session)],
 ) -> NotificationPreferencesRead:
     """Move some switches.
 
@@ -241,13 +241,13 @@ async def update_my_notification_preferences(
     # only ever appends to it — so the re-timing runs on the system engine.
     if _retimes(payload):
         await email_outbox.recompute_pending(
-            admin_session,
+            system_session,
             user_id=current_user.id,
             prefs=doc,
             tz_name=current_user.timezone,
             last_active_at=current_user.last_active_at,
         )
-        await admin_session.commit()
+        await system_session.commit()
 
     # A queue nobody will ever be sent is discarded, not kept: it is guild
     # scoped, so this reaches into each of the account's guild schemas.

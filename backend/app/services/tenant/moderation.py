@@ -200,9 +200,9 @@ async def _place_in_initiative(
     Its own system session, routed as the guild admin: the row belongs to the
     initiative's moderators, and the reporter must not be able to read it back.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await set_rls_context(session, guild_id=guild_id)
         # Two people reporting the same thing in the same instant both look for
         # an open row before either writes one. They queue here instead, so the

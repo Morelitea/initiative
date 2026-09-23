@@ -122,7 +122,7 @@ async def sweep_registrations(
 ) -> SweepResult:
     """Re-verify every enabled registration that can be verified."""
     checked = ok = failed = skipped = 0
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         rows = (
             await session.exec(
                 select(AppServiceRegistration).order_by(AppServiceRegistration.id)

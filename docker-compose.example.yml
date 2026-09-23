@@ -50,7 +50,7 @@ services:
       # PGID: 1000
       # RLS-enforced connection (app_user role, the request path)
       DATABASE_URL_APP: postgresql+asyncpg://app_user:${APP_USER_PASSWORD:-app_user_password}@db:5432/${POSTGRES_DB:-initiative}
-      # System engine for background jobs and seeding (app_admin role — policy-bound, no RLS bypass)
+      # System engine for background jobs and seeding (app_admin role, BYPASSRLS)
       DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:${APP_ADMIN_PASSWORD:-app_admin_password}@db:5432/${POSTGRES_DB:-initiative}
       # Provisioning connection for migrations + guild schema/role creation.
       # app_provisioner is least-privilege (no superuser).

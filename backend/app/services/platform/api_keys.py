@@ -126,19 +126,19 @@ async def authenticate_api_key(
 
     ``user_api_keys`` is a pre-auth credential store (looked up by ``token_hash``
     before the user is known), so it carries no request-path grant and no own-row
-    policy — the lookup runs on the system engine (``AdminSessionLocal``), like
+    policy — the lookup runs on the system engine (``SystemSessionLocal``), like
     ``auth_sessions``. The resolved ``User`` is loaded on the caller's request
     ``session`` so it stays attached for the rest of the request; only the
     detached ``api_key``'s already-loaded scope columns are read downstream.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     token_hash = _hash_token(token)
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         statement = select(UserApiKey).where(
             UserApiKey.token_hash == token_hash, UserApiKey.is_active.is_(True)
         )
-        api_key = (await admin_session.exec(statement)).one_or_none()
+        api_key = (await system_session.exec(statement)).one_or_none()
         if not api_key:
             return None
 
@@ -154,7 +154,7 @@ async def authenticate_api_key(
 
         # Record use only once an active user is confirmed (matches prior order).
         api_key.last_used_at = now
-        await admin_session.commit()
+        await system_session.commit()
 
     return user, api_key
 

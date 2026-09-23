@@ -253,11 +253,11 @@ async def _recipient_locale(user_id: int) -> str:
     locale in hand; the recipient's account is not the sending session's to
     read, the same way their notification settings are not.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.models.platform.user import User
 
-    async with AdminSessionLocal() as admin_session:
-        user = await admin_session.get(User, user_id)
+    async with SystemSessionLocal() as system_session:
+        user = await system_session.get(User, user_id)
         return (getattr(user, "locale", None) if user else None) or "en"
 
 
@@ -267,11 +267,11 @@ async def _recipient_tokens(user_id: int) -> list[PushToken]:
     The rows are the recipient's rather than the sending session's to read,
     the same way their account and notification settings are.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         return await push_tokens.get_push_tokens_for_user(
-            admin_session, user_id=user_id
+            system_session, user_id=user_id
         )
 
 
@@ -281,16 +281,16 @@ async def _record_delivery(
     """Write what a delivery learned back on the system engine, in one commit."""
     if not delivered_ids and not dead_tokens:
         return
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         await push_tokens.record_delivery(
-            admin_session,
+            system_session,
             user_id=user_id,
             delivered_ids=delivered_ids,
             dead_tokens=dead_tokens,
         )
-        await admin_session.commit()
+        await system_session.commit()
 
 
 async def send_push_to_user(
