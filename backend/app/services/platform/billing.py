@@ -80,6 +80,17 @@ def billing_inbound_enabled() -> bool:
     return bool(settings.BILLING_PUBLIC_KEY_PEM and settings.BILLING_HMAC_SECRET)
 
 
+def billing_managed() -> bool:
+    """True when a community's plan is set by the billing service.
+
+    A portal to change it in and a signed way for it to write both have to
+    exist; with either missing, the operator sets caps and entitlements by
+    hand. The database reads the same answer from ``public.billing_managed()``
+    (``app.db.billing_managed``).
+    """
+    return bool(settings.BILLING_URL) and billing_inbound_enabled()
+
+
 def verify_billing_envelope(
     *,
     method: str,
@@ -328,13 +339,17 @@ async def apply_guild_tier(
                 billing_capabilities.administration_values(payload.feature_keys)
             )
         guild_values: dict = {}
+        if payload.status is not None:
+            # Recorded whatever the guild's status is, so a suspension that
+            # lifts returns the guild to what billing last said.
+            administration_values["billing_status"] = payload.status.value
         if payload.status is not None and payload.status.value != row.status:
             if row.status in _BILLING_UNTOUCHABLE_STATUS_VALUES:
                 # A status write never moves a guild out of ``suspended`` or
                 # ``deleted``: the operator's time out and deletion own those.
-                # The caps still land.
+                # The caps still land, and the status is recorded above.
                 logger.info(
-                    "billing: guild %s status write %s -> %s ignored (source=%s event=%s)",
+                    "billing: guild %s status write %s -> %s held (source=%s event=%s)",
                     guild_id,
                     row.status,
                     payload.status.value,

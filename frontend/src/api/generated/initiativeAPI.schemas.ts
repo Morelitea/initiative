@@ -813,6 +813,7 @@ export interface CaptchaConfig {
 export interface BillingConfig {
   url: string;
   operator_handoff?: boolean;
+  manages_plans?: boolean;
 }
 
 /**
@@ -1482,6 +1483,9 @@ export type BreakGlassCreatePasskey = { [key: string]: unknown } | null;
  * to extend.
  */
 export interface BreakGlassCreate {
+  code?: string | null;
+  recovery_code?: string | null;
+  passkey?: BreakGlassCreatePasskey;
   guild_id: number;
   requested_duration_minutes?: number | null;
   /**
@@ -1489,9 +1493,6 @@ export interface BreakGlassCreate {
    * @maxLength 2000
    */
   reason: string;
-  code?: string | null;
-  recovery_code?: string | null;
-  passkey?: BreakGlassCreatePasskey;
 }
 
 /**
@@ -6273,6 +6274,7 @@ export interface PlatformGuildStorageRead {
   max_users: number | null;
   status: GuildStatus;
   status_changed_at: string | null;
+  status_choices: GuildStatus[];
   purge_at: string | null;
   has_seat: boolean;
   auth_options: GuildAuthOption[];
@@ -7512,6 +7514,23 @@ export interface SearchSuggestion {
   can_write?: boolean;
   tool_title?: string | null;
   initiative_name?: string | null;
+}
+
+export type SecondFactorAnswerPasskey = { [key: string]: unknown } | null;
+
+/**
+ * The account's own second factor, presented with a self-issued grant.
+ *
+ * Asked for once any ``data.bypass`` holder has one. Any of the three
+ * answers is accepted: a code from the authenticator, one of the recovery
+ * codes, or an assertion from one of the account's passkeys — begun at
+ * ``POST /access-grants/break-glass/passkey`` so the challenge it answers
+ * belongs to this request.
+ */
+export interface SecondFactorAnswer {
+  code?: string | null;
+  recovery_code?: string | null;
+  passkey?: SecondFactorAnswerPasskey;
 }
 
 /**

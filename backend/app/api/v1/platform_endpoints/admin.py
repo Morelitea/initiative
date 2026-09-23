@@ -38,6 +38,7 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.platform import account_stream
+from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.marketplace import app_refs
 from app.services.platform import user_tokens
@@ -890,7 +891,15 @@ async def admin_delete_guild(
     memberships, and this endpoint only fires where other people are in it.
     What unblocks the account is that a deleted community has no seat to
     protect, not that the seat was taken away.
+
+    Refused where billing sets plans: there a community is deleted from its
+    own settings, by its seat or under a settings grant.
     """
+    if billing_service.billing_managed():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=GuildMessages.GUILD_DELETE_THROUGH_COMMUNITY,
+        )
     await guilds_service.lock_guild_seats(session, guild_id)
     if not await guilds_service.would_strand_guild(
         session, guild_id=guild_id, user_id=blocked_user_id

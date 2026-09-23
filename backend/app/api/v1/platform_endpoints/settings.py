@@ -13,6 +13,7 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.api.v1.platform_endpoints.access_grants import check_second_factor
 from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.audit_events import AuditEventType
@@ -64,14 +65,14 @@ from app.schemas.platform.settings import (
     StorageSettingsUpdate,
     StorageTestResponse,
 )
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import GuildStatus, operator_status_choices
 from app.schemas.platform.guild import (
     PlatformGuildRestore,
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
 )
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
-from app.schemas.platform.access_grant import BreakGlassCreate
+from app.schemas.platform.access_grant import BreakGlassCreate, SecondFactorAnswer
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.push import FCMConfigResponse
 from app.core.messages import (
@@ -98,6 +99,7 @@ from app.core.login_methods import (
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
@@ -768,6 +770,49 @@ def _guild_purge_at(guild: Guild, retention: int | None) -> datetime | None:
     return guild_purge.purge_at(guild.status_changed_at, retention)
 
 
+def _guild_storage_read(
+    guild: Guild,
+    administration: GuildAdministration | None,
+    *,
+    member_count: int,
+    has_seat: bool,
+    retention: int | None,
+) -> PlatformGuildStorageRead:
+    """One row of the Guilds tab.
+
+    ``administration`` is None only for a guild missing its companion row,
+    which is listed with blank caps rather than dropped.
+    """
+    current = GuildStatus(guild.status)
+    recorded = administration.billing_status if administration else None
+    return PlatformGuildStorageRead(
+        id=guild.id,
+        name=guild.name,
+        member_count=member_count,
+        purge_at=_guild_purge_at(guild, retention),
+        has_seat=has_seat,
+        tier_name=administration.tier_name if administration else None,
+        max_storage_bytes=(
+            administration.max_storage_bytes if administration else None
+        ),
+        max_users=administration.max_users if administration else None,
+        status=current,
+        status_changed_at=guild.status_changed_at,
+        status_choices=list(
+            operator_status_choices(
+                current,
+                billing_status=GuildStatus(recorded) if recorded else None,
+                billing_managed=billing_service.billing_managed(),
+            )
+        ),
+        auth_options=sorted(administration.auth_options) if administration else [],
+        banner_image_enabled=(
+            administration.banner_image_enabled if administration else True
+        ),
+        support_enabled=administration.support_enabled if administration else False,
+    )
+
+
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
 async def list_platform_guild_storage(
     session: AdminSessionDep,
@@ -817,26 +862,12 @@ async def list_platform_guild_storage(
         ).all()
     }
     return [
-        PlatformGuildStorageRead(
-            id=g.id,
-            name=g.name,
+        _guild_storage_read(
+            g,
+            administration,
             member_count=counts.get(g.id, 0),
-            purge_at=_guild_purge_at(g, retention),
             has_seat=g.id in seated,
-            tier_name=administration.tier_name if administration else None,
-            max_storage_bytes=(
-                administration.max_storage_bytes if administration else None
-            ),
-            max_users=administration.max_users if administration else None,
-            status=GuildStatus(g.status),
-            status_changed_at=g.status_changed_at,
-            auth_options=sorted(administration.auth_options) if administration else [],
-            banner_image_enabled=(
-                administration.banner_image_enabled if administration else True
-            ),
-            support_enabled=(
-                administration.support_enabled if administration else False
-            ),
+            retention=retention,
         )
         for g, administration in rows
     ]
@@ -861,8 +892,25 @@ async def update_platform_guild_storage(
     path (see ``_load_guild_context``) but never touches stored data, and PAM /
     break-glass grants override it so operators can't lock themselves out.
     Lowering a cap below current usage just blocks further uploads / new joins.
+
+    Where billing sets plans (``billing_service.billing_managed``), the caps and
+    entitlements are refused and the status may only move to one of the row's
+    ``status_choices``; the triggers of migration 0362 hold the database to the
+    same rule.
     """
     provided = payload.model_fields_set
+    managed = billing_service.billing_managed()
+    if managed and (
+        "max_storage_bytes" in provided
+        or "max_users" in provided
+        or payload.auth_options is not None
+        or payload.banner_image_enabled is not None
+        or payload.support_enabled is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=GuildMessages.GUILD_PLAN_SET_BY_BILLING,
+        )
     before: dict[str, Any] = {}
     status_before: str | None = None
     status_after: str | None = None
@@ -883,6 +931,23 @@ async def update_platform_guild_storage(
             support_enabled=payload.support_enabled,
         )
         if payload.status is not None and guild.status != payload.status.value:
+            recorded = (
+                await guilds_service.get_administration(session, guild_id=guild_id)
+            ).billing_status
+            choices = operator_status_choices(
+                GuildStatus(guild.status),
+                billing_status=GuildStatus(recorded) if recorded else None,
+                billing_managed=managed,
+            )
+            if payload.status not in choices:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        GuildMessages.GUILD_STATUS_SET_BY_BILLING
+                        if managed
+                        else GuildMessages.GUILD_STATUS_NOT_SETTABLE
+                    ),
+                )
             logger.info(
                 "guild %s status %s -> %s by user %s",
                 guild_id,
@@ -944,21 +1009,12 @@ async def update_platform_guild_storage(
         if status_after == GuildStatus.on_hold.value:
             await guilds_service.announce_on_hold(session, guild_id)
             guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    member_count = await guilds_service.count_members(session, guild_id=guild_id)
-    return PlatformGuildStorageRead(
-        id=guild.id,
-        name=guild.name,
-        member_count=member_count,
-        tier_name=administration.tier_name,
-        max_storage_bytes=administration.max_storage_bytes,
-        max_users=administration.max_users,
-        status=GuildStatus(guild.status),
-        status_changed_at=guild.status_changed_at,
-        purge_at=_guild_purge_at(guild, await guild_purge.retention_days(session)),
+    return _guild_storage_read(
+        guild,
+        administration,
+        member_count=await guilds_service.count_members(session, guild_id=guild_id),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild.id),
-        auth_options=sorted(administration.auth_options),
-        banner_image_enabled=administration.banner_image_enabled,
-        support_enabled=administration.support_enabled,
+        retention=await guild_purge.retention_days(session),
     )
 
 
@@ -1054,20 +1110,12 @@ async def restore_platform_guild(
     await session.commit()
     billing_ping.notify_lifecycle_changed(guild_id)
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
-    return PlatformGuildStorageRead(
-        id=guild.id,
-        name=guild.name,
+    return _guild_storage_read(
+        guild,
+        administration,
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
-        tier_name=administration.tier_name,
-        max_storage_bytes=administration.max_storage_bytes,
-        max_users=administration.max_users,
-        status=GuildStatus(guild.status),
-        status_changed_at=guild.status_changed_at,
-        purge_at=_guild_purge_at(guild, await guild_purge.retention_days(session)),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
-        auth_options=sorted(administration.auth_options),
-        banner_image_enabled=administration.banner_image_enabled,
-        support_enabled=administration.support_enabled,
+        retention=await guild_purge.retention_days(session),
     )
 
 
@@ -1080,14 +1128,17 @@ async def create_platform_guild_billing_service_handoff(
     session: AdminSessionDep,
     admin: GuildsManageDep,
     console: Literal["support", "operator"] = "support",
+    answer: SecondFactorAnswer | None = None,
 ) -> BillingPortalHandoffResponse:
     """Mint the operator handoff into the billing portal for one guild.
 
-    Backs the Guilds tab's per-guild billing button. Admin/owner
-    (``guilds.manage``). The token names the ``access_grants`` row that
-    authorises the visit: an already-live grant is reused, otherwise one is
-    self-issued (read-only — the operator is not reaching guild content
-    through this) so the visit is recorded on both sides.
+    Backs the Guilds tab's billing buttons. Admin/owner (``guilds.manage``).
+    The token names the ``access_grants`` row that authorises the visit: a
+    live billing grant is reused, otherwise one is self-issued — after the
+    account's second factor, as breaking glass takes it — so the visit is
+    recorded on both sides. A billing grant reaches the billing account and
+    nothing in the guild; what it may do there is the billing service's to
+    decide.
     """
     if not app_config.BILLING_URL:
         raise HTTPException(
@@ -1111,6 +1162,12 @@ async def create_platform_guild_billing_service_handoff(
         purpose=AccessGrantPurpose.billing,
     )
     if grant is None:
+        await check_second_factor(
+            session,
+            actor=admin,
+            answer=answer or SecondFactorAnswer(),
+            during="billing_handoff",
+        )
         try:
             grant = await access_grants_service.break_glass(
                 session,

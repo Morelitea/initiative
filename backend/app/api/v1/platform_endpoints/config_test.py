@@ -91,6 +91,7 @@ async def test_config_exposes_billing_url_when_set(client: AsyncClient, monkeypa
     assert response.json()["billing"] == {
         "url": "https://billing.example.com",
         "operator_handoff": False,
+        "manages_plans": False,
     }
 
 

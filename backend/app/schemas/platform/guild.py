@@ -294,6 +294,10 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # only to platform operators here — never to guild members (GuildRead omits it).
     status: GuildStatus = GuildStatus.active
     status_changed_at: Optional[datetime] = None
+    # The statuses the operator may move this guild to, the current one
+    # included where it is one of them (``operator_status_choices``). Empty
+    # for a deleted guild.
+    status_choices: List[GuildStatus] = Field(default_factory=list)
     # When a deleted guild is destroyed: its deletion time plus the retention
     # window. Null unless ``status`` is ``deleted``. Computed from the two
     # columns beside it rather than stored, so the window is stated in one

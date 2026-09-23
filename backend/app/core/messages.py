@@ -166,6 +166,14 @@ class GuildMessages:
     #: ``deleted`` is reached by deleting a guild and left by restoring it,
     #: never by setting the status control to it.
     GUILD_STATUS_NOT_SETTABLE = "GUILD_STATUS_NOT_SETTABLE"
+    #: The deployment's billing service sets this community's caps and
+    #: entitlements; they are changed there.
+    GUILD_PLAN_SET_BY_BILLING = "GUILD_PLAN_SET_BY_BILLING"
+    #: Where billing sets plans, the operator moves a community into and out
+    #: of a suspension and no other way.
+    GUILD_STATUS_SET_BY_BILLING = "GUILD_STATUS_SET_BY_BILLING"
+    #: Where billing sets plans, a community is deleted from its own settings.
+    GUILD_DELETE_THROUGH_COMMUNITY = "GUILD_DELETE_THROUGH_COMMUNITY"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
     # Asked to join a guild that is not listed in the community directory (or

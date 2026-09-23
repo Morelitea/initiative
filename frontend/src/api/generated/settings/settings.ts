@@ -48,6 +48,7 @@ import type {
   PlatformGuildRestore,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
+  SecondFactorAnswer,
   SecondFactorRequirementUpdate,
   SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
@@ -2706,6 +2707,11 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
  * path (see ``_load_guild_context``) but never touches stored data, and PAM /
  * break-glass grants override it so operators can't lock themselves out.
  * Lowering a cap below current usage just blocks further uploads / new joins.
+ *
+ * Where billing sets plans (``billing_service.billing_managed``), the caps and
+ * entitlements are refused and the status may only move to one of the row's
+ * ``status_choices``; the triggers of migration 0362 hold the database to the
+ * same rule.
  * @summary Update Platform Guild Storage
  */
 export const updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = (
@@ -3219,16 +3225,19 @@ export const useRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = <
 /**
  * Mint the operator handoff into the billing portal for one guild.
  *
- * Backs the Guilds tab's per-guild billing button. Admin/owner
- * (``guilds.manage``). The token names the ``access_grants`` row that
- * authorises the visit: an already-live grant is reused, otherwise one is
- * self-issued (read-only — the operator is not reaching guild content
- * through this) so the visit is recorded on both sides.
+ * Backs the Guilds tab's billing buttons. Admin/owner (``guilds.manage``).
+ * The token names the ``access_grants`` row that authorises the visit: a
+ * live billing grant is reused, otherwise one is self-issued — after the
+ * account's second factor, as breaking glass takes it — so the visit is
+ * recorded on both sides. A billing grant reaches the billing account and
+ * nothing in the guild; what it may do there is the billing service's to
+ * decide.
  * @summary Create Platform Guild Billing Service Handoff
  */
 export const createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost =
   (
     guildId: number,
+    secondFactorAnswerNull?: BodyType<SecondFactorAnswer | null> | null,
     params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams,
     options?: SecondParameter<typeof apiMutator>,
     signal?: AbortSignal
@@ -3237,6 +3246,8 @@ export const createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdB
       {
         url: `/api/v1/settings/guilds/${guildId}/billing/service-handoff`,
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        data: secondFactorAnswerNull,
         params,
         signal,
       },
@@ -3289,10 +3300,11 @@ export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
       >,
       CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationVariables
     > = (props) => {
-      const { guildId, params } = props ?? {};
+      const { guildId, data, params } = props ?? {};
 
       return createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost(
         guildId,
+        data,
         params,
         requestOptions
       );
@@ -3309,12 +3321,15 @@ export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBi
       >
     >
   >;
-
+export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationBody =
+  | BodyType<SecondFactorAnswer | null>
+  | undefined;
 export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationError =
   ErrorType<HTTPValidationError>;
 export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationVariables =
   {
     guildId: number;
+    data?: BodyType<SecondFactorAnswer | null>;
     params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams;
   };
 

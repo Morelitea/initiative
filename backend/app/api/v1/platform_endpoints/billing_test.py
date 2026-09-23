@@ -1118,7 +1118,10 @@ async def test_billing_cannot_suspend_or_delete(
 async def test_billing_leaves_a_suspended_guild_suspended(
     client: AsyncClient, session: AsyncSession
 ):
-    """A status write never lifts the operator's time out; the caps still land."""
+    """A status write never lifts the operator's time out; the caps still land,
+    and the status is recorded for when the suspension lifts."""
+    from app.models.platform.guild_administration import GuildAdministration
+
     guild = await create_guild(session)
     guild.status = "suspended"
     session.add(guild)
@@ -1127,11 +1130,19 @@ async def test_billing_leaves_a_suspended_guild_suspended(
     response = await _post(
         client,
         "guild-tier",
-        await _tier_payload(guild.id, status="active", max_storage_bytes=2048),
+        await _tier_payload(guild.id, status="on_hold", max_storage_bytes=2048),
     )
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "suspended"
     assert response.json()["max_storage_bytes"] == 2048
+    guild_id = guild.id
+    session.expire_all()
+    administration = (
+        await session.exec(
+            select(GuildAdministration).where(GuildAdministration.guild_id == guild_id)
+        )
+    ).one()
+    assert administration.billing_status == "on_hold"
 
 
 async def _hold_notices(session: AsyncSession, user_id: int) -> int:

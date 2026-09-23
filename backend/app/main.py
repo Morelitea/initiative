@@ -134,6 +134,10 @@ async def lifespan(app: FastAPI):
     from app.db.public_rls import ensure_public_rls
 
     await ensure_authorization_functions()
+    # Whether plans are billing's, which the plan and status triggers read.
+    from app.db.billing_managed import ensure_billing_managed
+
+    await ensure_billing_managed()
     # The shared tables' row security, from its registry (app.db.public_rls),
     # the way the guild schemas get theirs from INITIATIVE_PATHS. Stamped on
     # the public schema, so a boot with nothing changed does nothing.
