@@ -10,7 +10,7 @@ from typing import Any, Optional
 from pydantic import ConfigDict
 
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.services.import_engine.contract import EnvelopeImportResult
 
 
@@ -92,7 +92,12 @@ class ForeignImportRequest(SanitizedBaseModel):
 
     initiative_id: int
     selection: str = ""
-    content: str
+    #: The file itself, verbatim. Raw rather than plain text: a plain string
+    #: field is capped at a few kilobytes and has its markup stripped, and an
+    #: export is neither short nor something to rewrite before it is parsed.
+    #: Its size is bounded at the transport instead (``body_limit``), and the
+    #: parser is what decides whether it reads.
+    content: RawTextStr
 
 
 class EntryResult(SanitizedBaseModel):
