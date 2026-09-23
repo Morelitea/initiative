@@ -200,14 +200,25 @@ SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
 # ``platform_<users.role>``.
 PLATFORM_TIERS: tuple[str, ...] = tuple(role.value for role in UserRole)
 
+#: The platform role a suspended account assumes whatever its tier: it holds no
+#: rung while in time out. ``platform_suspended`` inherits only
+#: ``platform_base_ro``, the read half of ``platform_base``, so what it reaches
+#: is its own rows, read, and nothing written. Not a rung — ``users.role`` never
+#: holds it — so it sits beside the ladder rather than on it.
+PLATFORM_SUSPENDED = "suspended"
+
+#: Every platform role a request may assume: the ladder, and the time-out role.
+PLATFORM_ROUTES: tuple[str, ...] = (*PLATFORM_TIERS, PLATFORM_SUSPENDED)
+
 
 def platform_role_name(role: str) -> str:
     """Cluster-global Postgres role for a platform tier, e.g. ``platform_operator``.
 
     Carries ``settings.PLATFORM_ROLE_PREFIX`` (empty in prod/dev; ``test_`` under
     the suite) so these cluster-global roles don't collide with a co-located dev
-    DB's. ``role`` is a ``users.role`` value and is validated by the caller against
-    :data:`PLATFORM_TIERS` before reaching the privileged ``SET ROLE`` sink.
+    DB's. ``role`` is a ``users.role`` value or :data:`PLATFORM_SUSPENDED`, and is
+    validated by the caller against :data:`PLATFORM_ROUTES` before reaching the
+    privileged ``SET ROLE`` sink.
     """
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
 
