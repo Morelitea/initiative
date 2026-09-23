@@ -697,9 +697,9 @@ async def set_rls_context(
     # Validate the tier before it reaches the SET ROLE name sink. The value comes
     # from the ``users.role`` enum, but treat the privileged role-name injection
     # point as untrusted: reject anything not on the known ladder.
-    from app.db.schema_provisioning import PLATFORM_TIERS
+    from app.db.schema_provisioning import PLATFORM_ROUTES
 
-    if platform_role is not None and platform_role not in PLATFORM_TIERS:
+    if platform_role is not None and platform_role not in PLATFORM_ROUTES:
         raise ValueError(f"Invalid platform_role: {platform_role!r}")
 
     # A call that names a user but not their tier is re-establishing this

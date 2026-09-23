@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -240,6 +240,7 @@ KNOWN_ROLES = (
             "app_superadmin",
             "initiative_billing",
             "platform_base",
+            "platform_base_ro",
         }
     )
     | PLATFORM_TIER_ROLES
@@ -1207,6 +1208,47 @@ PUBLIC_RLS: dict[str, TableRls] = {
             ),
         ),
     ),
+}
+
+
+# --- The platform read floor ----------------------------------------------------
+#
+# ``platform_base_ro`` is the read half of ``platform_base``: what a suspended
+# account's ``platform_suspended`` role inherits, and nothing else does. It is
+# derived here rather than written into each entry above, so it reads exactly
+# the rows ``platform_base`` reads and the two cannot drift: every SELECT policy
+# granted to ``platform_base`` is granted to it as well, and every ALL policy
+# gains a SELECT twin for it. Nothing that writes is extended.
+
+PLATFORM_BASE = "platform_base"
+PLATFORM_READ_FLOOR = "platform_base_ro"
+
+
+def _with_read_floor(policy: Policy) -> tuple[Policy, ...]:
+    if isinstance(policy.roles, Capability) or PLATFORM_BASE not in policy.roles:
+        return (policy,)
+    if policy.command == SELECT:
+        return (replace(policy, roles=(*policy.roles, PLATFORM_READ_FLOOR)),)
+    if policy.command == ALL:
+        return (
+            policy,
+            Policy(
+                f"{policy.name}_read_floor",
+                SELECT,
+                (PLATFORM_READ_FLOOR,),
+                using=policy.using,
+                restrictive=policy.restrictive,
+            ),
+        )
+    return (policy,)
+
+
+PUBLIC_RLS = {
+    table: replace(
+        rls,
+        policies=tuple(p for policy in rls.policies for p in _with_read_floor(policy)),
+    )
+    for table, rls in PUBLIC_RLS.items()
 }
 
 
