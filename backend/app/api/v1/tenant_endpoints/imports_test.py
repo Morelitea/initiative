@@ -3341,14 +3341,96 @@ async def test_a_jira_import_brings_its_images_as_uploads(
     client, acting_user, session, monkeypatch, role_session
 ):
     """An attached image lands in the community's storage as an ordinary
-    upload, and the task shows it; a PDF beside it is counted and left for
-    the file-document item."""
+    upload, and the task shows it; a PDF beside it becomes a file document of
+    its own, and the task is attached to it."""
     from sqlmodel import select
 
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.models.tenant.document import Document, DocumentType
     from app.models.tenant.task import Task
     from app.models.tenant.upload import Upload
     from app.services.import_engine import atlassian as atlassian_service
     from app.services.storage import get_guild_storage
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant.relationships import Endpoint
+
+    png = b"\x89PNG\r\n\x1a\nfake-image"
+    pdf = b"%PDF-spec"
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["attachment"] = [
+        {
+            "id": "10",
+            "filename": "frame.png",
+            "mimeType": "image/png",
+            "size": len(png),
+        },
+        {
+            "id": "11",
+            "filename": "spec.pdf",
+            "mimeType": "application/pdf",
+            "size": len(pdf),
+        },
+    ]
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(issues=[issue], files={"10": png, "11": pdf}),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["images"], summary["files"], summary["other_attachments"]) == (
+        1,
+        1,
+        0,
+    )
+    assert summary["image_bytes"] == len(png)
+    assert summary["file_bytes"] == len(pdf)
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["assets_restored"] == 2
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
+    upload = (
+        await session.exec(select(Upload).where(Upload.content_type == "image/png"))
+    ).one()
+    assert f"/uploads/{a.guild.id}/{upload.filename}" in (task.description or "")
+    blob = get_guild_storage(a.guild.id).open_readable(upload.filename)
+    assert blob is not None
+
+    document = (
+        await session.exec(
+            select(Document).where(Document.document_type == DocumentType.file)
+        )
+    ).one()
+    assert document.original_filename == "spec.pdf"
+    assert await relationships_service.related_ids(
+        session,
+        Endpoint(kind=SearchEntityType.task, id=task.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+    ) == [document.id]
+
+
+async def test_a_jira_file_stays_behind_when_the_initiative_has_no_documents(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The pictures still come; the file is counted rather than taking the
+    whole import down with it."""
+    from app.services.import_engine import atlassian as atlassian_service
 
     png = b"\x89PNG\r\n\x1a\nfake-image"
     issue = _jira_issue("ACME-1", "Fit the frame")
@@ -3364,9 +3446,12 @@ async def test_a_jira_import_brings_its_images_as_uploads(
     monkeypatch.setattr(
         atlassian_service,
         "request_public_target",
-        _jira_site(issues=[issue], files={"10": png}),
+        _jira_site(issues=[issue], files={"10": png, "11": b"%PDF-spec"}),
     )
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a.initiative.documents_enabled = False
+    session.add(a.initiative)
+    await session.commit()
     job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
 
     await _run_import_worker(monkeypatch, role_session)
@@ -3375,24 +3460,11 @@ async def test_a_jira_import_brings_its_images_as_uploads(
     ).json()
     assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
     summary = staged["plan"]["atlassian"]
-    assert (summary["images"], summary["other_attachments"]) == (1, 1)
-    assert summary["image_bytes"] == len(png)
-
-    await client.post(
-        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    assert (summary["images"], summary["files"], summary["other_attachments"]) == (
+        1,
+        0,
+        1,
     )
-    await _run_import_worker(monkeypatch, role_session)
-    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
-    assert done["status"] == ImportJobStatus.done.value, done.get("error")
-    assert done["result"]["assets_restored"] == 1
-
-    session.expunge_all()
-    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
-    upload = (await session.exec(select(Upload))).one()
-    assert upload.content_type == "image/png"
-    assert f"/uploads/{a.guild.id}/{upload.filename}" in (task.description or "")
-    blob = get_guild_storage(a.guild.id).open_readable(upload.filename)
-    assert blob is not None
 
 
 async def test_a_property_unticked_on_the_review_is_not_created(

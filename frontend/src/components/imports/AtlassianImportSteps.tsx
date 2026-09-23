@@ -76,6 +76,8 @@ export interface AtlassianPlanSummary {
   images_oversize?: number;
   images_unreadable?: number;
   other_attachments?: number;
+  files?: number;
+  file_bytes?: number;
   cross_links?: number;
   spaces?: number;
   pages?: number;
@@ -89,6 +91,7 @@ export interface AtlassianPlanSummary {
   page_attachments_skipped?: number;
   page_files_blocked?: number;
   page_comments?: number;
+  page_comments_resolved?: number;
   labels?: number;
   dropped_macros?: Array<{ name: string; count: number }>;
 }
@@ -548,6 +551,12 @@ export function JiraReviewSummary({ job, excluded, onExcludedChange }: JiraRevie
           size: formatBytes(summary.image_bytes ?? 0),
         })
       : null,
+    (summary.files ?? 0) > 0
+      ? t("wizard.jira.review.files", {
+          count: summary.files,
+          size: formatBytes(summary.file_bytes ?? 0),
+        })
+      : null,
     (summary.sprint_calendars ?? 0) > 0
       ? t("wizard.jira.review.sprints", {
           count: (summary.sprints ?? 0) - (summary.sprints_undated ?? 0),
@@ -695,6 +704,11 @@ export function ConfluenceReviewSummary({ job }: { job: ImportJobRead }) {
       : null,
     (summary.page_attachments ?? 0) > 0
       ? t("wizard.confluence.review.attachments", { count: summary.page_attachments })
+      : null,
+    (summary.page_comments_resolved ?? 0) > 0
+      ? t("wizard.confluence.review.commentsResolved", {
+          count: summary.page_comments_resolved,
+        })
       : null,
     (summary.page_attachments_skipped ?? 0) > 0
       ? t("wizard.confluence.review.attachmentsSkipped", {

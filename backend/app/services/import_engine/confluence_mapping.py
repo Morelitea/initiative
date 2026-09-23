@@ -68,6 +68,8 @@ class SourceComment:
     #: The words an inline comment was anchored to, quoted above it — the
     #: wiki's comments sit under the page rather than beside a sentence.
     selection: Optional[str] = None
+    #: An inline comment somebody marked resolved: the discussion is over.
+    resolved: bool = False
 
 
 @dataclass
@@ -171,6 +173,7 @@ def read_comment(
         author_id=_text(version.get("authorId")),
         created_at=_text(version.get("createdAt")),
         selection=selection[:1000] if selection else None,
+        resolved=str(raw.get("resolutionStatus") or "").lower() == "resolved",
     )
 
 

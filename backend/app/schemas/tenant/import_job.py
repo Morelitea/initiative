@@ -207,7 +207,12 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: the site would not hand over.
     images_oversize: int = 0
     images_unreadable: int = 0
-    #: Attached files that are not images, which do not come over yet.
+    #: Attached files that are not images, each coming over as a document
+    #: attached to its task, and the storage they will use.
+    files: int = 0
+    file_bytes: int = 0
+    #: Attached files that are not images, left behind: attachments were
+    #: switched off, or the initiative has documents switched off.
     other_attachments: int = 0
     #: Confluence: spaces read, and the pages they became.
     spaces: int = 0
@@ -236,6 +241,8 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     page_files_blocked: int = 0
     #: Comments on the pages — footer and inline — that will come over.
     page_comments: int = 0
+    #: Inline comments marked resolved at the source, left behind.
+    page_comments_resolved: int = 0
     #: Tags the pages' labels will become.
     labels: int = 0
     #: What the pages held that will not come over, by kind, most first.

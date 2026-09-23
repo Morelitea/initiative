@@ -121,7 +121,12 @@ class FetchReport:
     images_oversize: int = 0
     #: Images the site would not hand over.
     images_unreadable: int = 0
-    #: Attachments that are not images — file documents are a later item.
+    #: Files that are not images, each coming over as a document attached to
+    #: its task, and their bytes.
+    files: int = 0
+    file_bytes: int = 0
+    #: Files that are not images, left behind: attachments were not asked
+    #: for, the initiative cannot take documents, or the type is never brought.
     other_attachments: int = 0
     #: Comments that will come over.
     comments: int = 0
@@ -338,6 +343,7 @@ async def fetch_project_envelope(
     include_comments: bool = False,
     image_budget: Optional[jira_attachments.AssetBudget] = None,
     guild_id: Optional[int] = None,
+    documents: bool = False,
 ) -> FetchedProject:
     """One Jira project as an envelope, how many issues it cost, and what its
     issues are linked to.
@@ -400,9 +406,10 @@ async def fetch_project_envelope(
             download=download,
             budget_bytes=image_budget.bytes_left,
             max_files=image_budget.files_left,
+            documents=documents,
         )
-        image_budget.bytes_left -= images.image_bytes
-        image_budget.files_left -= images.images
+        image_budget.bytes_left -= images.image_bytes + images.file_bytes
+        image_budget.files_left -= images.images + images.files
 
     mapped = jira_mapping.build_project_envelope(
         project=project,
@@ -414,6 +421,7 @@ async def fetch_project_envelope(
         field_catalog=field_catalog,
         include_comments=include_comments,
         images_by_issue=images.by_issue,
+        files_by_issue=images.files_by_issue,
         guild_id=guild_id,
     )
     link_ends = [end for issue in issues for end in jira_mapping.link_far_ends(issue)]
@@ -524,6 +532,8 @@ class JiraFetched:
     #: Rows the apply will spend on this: tasks, comments, projects and
     #: sprint calendars — what a fetch after this one has left to use.
     rows_used: int
+    #: Attached files that are not pictures, each a document of its own.
+    files: list[jira_attachments.StoredImage] = field(default_factory=list)
 
 
 async def fetch_projects_bundle(
@@ -540,6 +550,7 @@ async def fetch_projects_bundle(
     fetched = await fetch_projects(credential, guild_id=guild_id, **kwargs)
     bundle = write_bundle(
         projects=fetched.envelopes,
+        task_files=fetched.files,
         calendars=fetched.calendars,
         images=fetched.images,
         people=fetched.people,
@@ -565,6 +576,7 @@ async def fetch_projects(
     include_attachments: bool = True,
     link_pages: bool = False,
     asset_budget: Optional[jira_attachments.AssetBudget] = None,
+    documents: bool = False,
 ) -> JiraFetched:
     """Read the chosen projects and return what was read plus what it found.
 
@@ -595,6 +607,7 @@ async def fetch_projects(
     dropped_fields: set[str] = set()
     all_sprints: dict[int, jira_sprints.Sprint] = {}
     all_images: list[jira_attachments.StoredImage] = []
+    all_files: list[jira_attachments.StoredImage] = []
     image_budget = (
         (asset_budget or jira_attachments.bundle_budget())
         if include_attachments
@@ -622,6 +635,7 @@ async def fetch_projects(
                 include_comments=include_comments,
                 image_budget=image_budget,
                 guild_id=guild_id,
+                documents=documents,
             )
             mapped = fetched.mapped
         except ImportEngineError as exc:
@@ -640,8 +654,12 @@ async def fetch_projects(
             report.images_oversize += images.oversize
             report.images_unreadable += images.unreadable
             report.other_attachments += images.other_files
+            report.files += images.files
+            report.file_bytes += images.file_bytes
             for stored in images.by_issue.values():
                 all_images.extend(stored)
+            for stored in images.files_by_issue.values():
+                all_files.extend(stored)
             for issue_key, found in fetched.sprints.items():
                 for sprint in found:
                     all_sprints.setdefault(sprint.id, sprint)
@@ -665,7 +683,8 @@ async def fetch_projects(
             )
             report.comments += project_comments
             report.comments_restricted += fetched.restricted_comments
-            remaining -= fetched.issues_used + project_comments
+            # A file document is a row too.
+            remaining -= fetched.issues_used + project_comments + images.files
         if progress is not None:
             await progress(report)
 
@@ -695,6 +714,7 @@ async def fetch_projects(
         envelopes=envelopes,
         calendars=calendars,
         images=all_images,
+        files=all_files,
         people=_people(envelopes),
         report=report,
         rows_used=settings.IMPORT_MAX_ROWS - remaining + len(calendars),

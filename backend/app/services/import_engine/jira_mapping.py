@@ -586,6 +586,7 @@ def build_project_envelope(
     field_catalog: Any = None,
     include_comments: bool = False,
     images_by_issue: Optional[dict[str, list[StoredImage]]] = None,
+    files_by_issue: Optional[dict[str, list[StoredImage]]] = None,
     guild_id: Optional[int] = None,
 ) -> MappedProject:
     """A whole Jira project as the envelope an ordinary import applies.
@@ -594,6 +595,9 @@ def build_project_envelope(
     and keep it: position is assigned by sequence here rather than read from
     a field, because Jira's rank is an opaque LexoRank string that means
     nothing outside Jira.
+
+    ``files_by_issue`` are the attached files that are not pictures, each
+    coming over as a document the task is attached to.
     """
     statuses = collect_statuses(
         issue_type_statuses, board_column_order=board_column_order
@@ -633,6 +637,13 @@ def build_project_envelope(
             continue
         task, lost = mapped
         key = task["external_ref"].removeprefix("jira:")
+        # Each file the issue had attached is a document of its own, and the
+        # task is attached to it once both exist. Named by its manifest entry,
+        # which is its asset's path.
+        task["links"].extend(
+            {"type": "attached", "target_external_ref": f"entry:assets/{f.storage_key}"}
+            for f in (files_by_issue or {}).get(key, [])
+        )
         task["property_values"] = fields.values_by_issue.get(key, [])
         if key in fields.start_dates:
             task["start_date"] = fields.start_dates[key]

@@ -263,6 +263,9 @@ describe("JiraReviewSummary", () => {
                 comments_restricted: 1,
                 images: 3,
                 image_bytes: 2_500_000,
+                files: 2,
+                file_bytes: 1024,
+                other_attachments: 1,
                 sprints: 4,
                 sprint_calendars: 0,
                 sprints_skipped: "IMPORT_TOOL_DISABLED",
@@ -281,6 +284,12 @@ describe("JiraReviewSummary", () => {
     expect(screen.getByText(/40 tasks from 2 project/i)).toBeInTheDocument();
     expect(screen.getByText(/7 links between tasks/i)).toBeInTheDocument();
     expect(screen.getByText(/3 images \(2\.4 MB\)/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/2 attached files, each as a document on its task/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 attached file that isn't an image stays behind/i)
+    ).toBeInTheDocument();
     expect(screen.getByText("Story points")).toBeInTheDocument();
     expect(screen.getByText("18 tasks")).toBeInTheDocument();
 
@@ -359,6 +368,7 @@ describe("AtlassianReviewSummary", () => {
               spaces: 1,
               pages: 2,
               page_comments: 4,
+              page_comments_resolved: 2,
               page_images: 2,
               page_files: 1,
               page_attachment_bytes: 2048,
@@ -372,6 +382,7 @@ describe("AtlassianReviewSummary", () => {
       />
     );
     expect(screen.getByText(/4 comments on the pages/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 resolved inline comments/i)).toBeInTheDocument();
     expect(screen.getByText(/3 attachments \(2(\.0)? KB\)/i)).toBeInTheDocument();
     expect(screen.getByText(/1 attachment that's too large/i)).toBeInTheDocument();
     expect(screen.getByText(/2 files, because this initiative has documents/i)).toBeInTheDocument();

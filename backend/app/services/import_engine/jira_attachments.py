@@ -1,15 +1,15 @@
-"""A Jira issue's images, brought over as uploads (design §6.1).
+"""A Jira issue's attachments, brought over (design §6.1).
 
 An image attached to an issue becomes a blob in the bundle's ``assets/``,
 restored by the ordinary backup apply under a storage key made here — so it
 is quota-checked, deduplicated and registered like any other upload — and
 the markdown shows it where the description or a comment embedded it.
 
-Only raster images, and only up to :data:`MAX_IMAGE_BYTES`. Anything else
-attached — a PDF, a spreadsheet — is a file document, which is a later item;
-it is counted here so the plan can say what is not coming over. SVG is left
-out on purpose: it is markup that can carry script, and these are files from
-somebody else's site.
+Any other file — a PDF, a spreadsheet — becomes a file document of its own,
+attached to the task: a file has one home, the initiative's documents, and
+the task is linked to it. Images up to :data:`MAX_IMAGE_BYTES`, other files
+up to :data:`MAX_FILE_BYTES`. SVG is left out on purpose: it is markup, and
+these are files from somebody else's site.
 """
 
 from __future__ import annotations
@@ -27,6 +27,12 @@ logger = logging.getLogger(__name__)
 
 #: The design's per-image cap.
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+#: The cap on one attached file that is not a picture.
+MAX_FILE_BYTES = 50 * 1024 * 1024
+
+#: Types never brought over, picture or not.
+REFUSED_TYPES = frozenset({"image/svg+xml"})
 
 #: The image types brought over, and the extension each is stored under.
 IMAGE_TYPES: dict[str, str] = {
@@ -91,12 +97,18 @@ class ImageReport:
     image_bytes: int = 0
     #: Images over the per-image cap, or past the bundle's byte budget.
     oversize: int = 0
-    #: Attachments that are not images: file documents are a later item.
+    #: Files that are not images, left behind: attachments were brought for
+    #: their pictures only, or the initiative cannot take documents.
     other_files: int = 0
-    #: Images the site would not hand over.
+    #: Attachments the site would not hand over.
     unreadable: int = 0
     #: What each issue's images became, by issue key.
     by_issue: dict[str, list[StoredImage]] = field(default_factory=dict)
+    #: Every other file that came over, to become a document attached to its
+    #: task, by issue key.
+    files: int = 0
+    file_bytes: int = 0
+    files_by_issue: dict[str, list[StoredImage]] = field(default_factory=dict)
 
 
 def issue_attachments(issue: Any) -> list[Attachment]:
@@ -127,10 +139,19 @@ def issue_attachments(issue: Any) -> list[Attachment]:
     return found
 
 
+def file_extension(filename: str) -> str:
+    """A filename's extension, kept only when it looks like one."""
+    dot = filename.rfind(".")
+    extension = filename[dot:].lower() if dot > 0 else ""
+    return extension if 1 < len(extension) <= 10 and extension[1:].isalnum() else ""
+
+
 def storage_key(attachment: Attachment) -> str:
     """A fresh, flat storage key — never the site's filename, which is
     somebody else's text and not a path this server should write to."""
-    return f"{uuid.uuid4().hex}{IMAGE_TYPES[attachment.mime_type]}"
+    if attachment.mime_type in IMAGE_TYPES:
+        return f"{uuid.uuid4().hex}{IMAGE_TYPES[attachment.mime_type]}"
+    return f"{uuid.uuid4().hex}{file_extension(attachment.filename)}"
 
 
 Downloader = Callable[[str, int], Awaitable[bytes]]
@@ -142,6 +163,7 @@ async def download_images(
     download: Downloader,
     budget_bytes: int,
     max_files: int,
+    documents: bool = False,
 ) -> ImageReport:
     """Fetch every issue's images, within the per-image cap and a total budget.
 
@@ -149,27 +171,30 @@ async def download_images(
     will not hand over is counted and skipped — one broken attachment is not
     a reason to lose the project — but being throttled stops the fetch, as it
     does everywhere else. What would take the bundle past ``budget_bytes`` or
-    ``max_files`` is skipped and counted as oversize.
+    ``max_files`` is skipped and counted as oversize. ``documents`` brings the
+    files that are not pictures too; without it they are counted.
     """
     report = ImageReport()
     spent = 0
     for issue in issues:
         key = str(issue.get("key") or "").strip() if isinstance(issue, dict) else ""
         for attachment in issue_attachments(issue):
-            if attachment.mime_type not in IMAGE_TYPES:
+            is_image = attachment.mime_type in IMAGE_TYPES
+            if attachment.mime_type in REFUSED_TYPES or (
+                not is_image and not documents
+            ):
                 report.other_files += 1
                 continue
+            cap = MAX_IMAGE_BYTES if is_image else MAX_FILE_BYTES
             if (
-                attachment.size > MAX_IMAGE_BYTES
+                attachment.size > cap
                 or spent + attachment.size > budget_bytes
-                or report.images >= max_files
+                or report.images + report.files >= max_files
             ):
                 report.oversize += 1
                 continue
             try:
-                data = await download(
-                    attachment.id, min(MAX_IMAGE_BYTES, budget_bytes - spent)
-                )
+                data = await download(attachment.id, min(cap, budget_bytes - spent))
             except ImportEngineError as exc:
                 if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
                     raise
@@ -179,16 +204,20 @@ async def download_images(
                     report.unreadable += 1
                 continue
             spent += len(data)
-            report.images += 1
-            report.image_bytes += len(data)
-            report.by_issue.setdefault(key, []).append(
-                StoredImage(
-                    filename=attachment.filename,
-                    storage_key=storage_key(attachment),
-                    content_type=attachment.mime_type,
-                    data=data,
-                )
+            stored = StoredImage(
+                filename=attachment.filename,
+                storage_key=storage_key(attachment),
+                content_type=attachment.mime_type or "application/octet-stream",
+                data=data,
             )
+            if is_image:
+                report.images += 1
+                report.image_bytes += len(data)
+                report.by_issue.setdefault(key, []).append(stored)
+            else:
+                report.files += 1
+                report.file_bytes += len(data)
+                report.files_by_issue.setdefault(key, []).append(stored)
     return report
 
 

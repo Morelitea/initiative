@@ -89,6 +89,9 @@ class ConfluenceFetchReport:
     files_blocked: int = 0
     #: Comments carried onto the pages, footer and inline alike.
     comments: int = 0
+    #: Inline comments marked resolved at the source, left behind with their
+    #: replies: the discussion they held is over.
+    comments_resolved: int = 0
     #: Tags the pages' labels will become.
     labels: int = 0
 
@@ -311,11 +314,14 @@ async def _listing(credential: AtlassianCredential, path: str) -> list[dict[str,
 
 
 async def fetch_comments(
-    credential: AtlassianCredential, page_id: str
+    credential: AtlassianCredential,
+    page_id: str,
+    report: Optional[ConfluenceFetchReport] = None,
 ) -> list[confluence_mapping.SourceComment]:
     """What was said on a page: its footer comments and its inline ones, with
-    every reply. A thread that will not answer is left out rather than
-    failing the space. Being throttled is not."""
+    every reply. An inline comment marked resolved is left behind, replies
+    and all, and counted. A thread that will not answer is left out rather
+    than failing the space. Being throttled is not."""
     found: list[confluence_mapping.SourceComment] = []
     for kind in ("footer-comments", "inline-comments"):
 
@@ -329,6 +335,10 @@ async def fetch_comments(
             for raw in rows:
                 comment = confluence_mapping.read_comment(raw, parent_id=parent)
                 if comment is None:
+                    continue
+                if comment.resolved and parent is None:
+                    if report is not None:
+                        report.comments_resolved += 1
                     continue
                 found.append(comment)
                 if depth < MAX_REPLY_DEPTH:
@@ -474,7 +484,7 @@ async def fetch_spaces(
                 for page in pages:
                     if page.is_folder or room <= 0:
                         continue
-                    thread = (await fetch_comments(credential, page.id))[:room]
+                    thread = (await fetch_comments(credential, page.id, report))[:room]
                     if thread:
                         comments[page.id] = thread
                         room -= len(thread)
