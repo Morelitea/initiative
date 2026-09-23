@@ -10,6 +10,7 @@ from app.core.audit_events import AuditEventType
 from app.db.session import set_rls_context
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services import audit as audit_service
+from app.services.auth import guild_provider_connections as guild_connections
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
@@ -114,6 +115,7 @@ async def sync_oidc_assignments(
     user_id: int,
     provider_id: int,
     claim_values: set[str],
+    claims: dict,
 ) -> OIDCSyncResult:
     """Reconcile guild/initiative memberships against one provider's claims.
 
@@ -123,16 +125,27 @@ async def sync_oidc_assignments(
     Another provider's rules and another provider's memberships are not this
     sign-in's business.
 
+    ``claim_values`` are the groups the provider asserted; ``claims`` is the
+    whole verified set, which says whose tenant the arrival belongs to. A rule
+    applies only where its community counts the arrival as one of its own.
+
     Must be called with an admin session (bypasses RLS).
     """
     result = OIDCSyncResult()
 
     # This provider's rules. Two providers spell their groups their own way, so
-    # a claim value means nothing until you know who asserted it. A provider
-    # reads all of its rules; each names the guild it grants in, and is written
-    # by that guild's superadmin.
+    # a claim value means nothing until you know who asserted it. Each rule
+    # names the guild it grants in and is written by that guild's superadmin,
+    # so it speaks for the arrivals that guild's connection admits.
     stmt = select(OIDCClaimMapping).where(OIDCClaimMapping.provider_id == provider_id)
-    mappings = (await session.exec(stmt)).all()
+    rules = (await session.exec(stmt)).all()
+    admitted = await guild_connections.communities_admitting(
+        session,
+        provider_id=provider_id,
+        claims=claims,
+        guild_ids={rule.guild_id for rule in rules},
+    )
+    mappings = [rule for rule in rules if rule.guild_id in admitted]
     # No early return on an empty set. A provider whose last rule was deleted
     # grants nothing, which is not the same as having nothing to take back —
     # the sweeps below are what hand those memberships over.

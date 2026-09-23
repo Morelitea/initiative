@@ -32,7 +32,10 @@ from app.core.messages import AuthProviderMessages
 from app.db.errors import UNIQUE_VIOLATION_SQLSTATE, dbapi_sqlstate
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.models.platform.guild_provider_connection import GuildProviderConnection
+from app.models.platform.guild_provider_connection import (
+    GuildProviderConnection,
+    narrowing_admits,
+)
 from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.schemas.platform.settings import (
     ConnectableProviderRead,
@@ -570,6 +573,46 @@ async def admitting_connections(
         )
     ).all()
     return [row for row in rows if row.admits(claims)]
+
+
+async def communities_admitting(
+    session: AsyncSession,
+    *,
+    provider_id: int,
+    claims: dict,
+    guild_ids: set[int],
+) -> set[int]:
+    """Which of these communities count this arrival as one of their own.
+
+    The question the guild-access gate asks, put to each community in turn:
+    its own connection to the provider where it has one, and the deployment's
+    default for the provider where it does not. An enabled arrangement whose
+    narrowing admits the claims counts; a disabled one, or none, does not.
+    """
+    if not guild_ids:
+        return set()
+    own = {
+        row.guild_id: row
+        for row in (
+            await session.exec(
+                select(GuildProviderConnection).where(
+                    GuildProviderConnection.provider_id == provider_id,
+                    GuildProviderConnection.guild_id.in_(guild_ids),
+                )
+            )
+        ).all()
+    }
+    default = await session.get(PlatformProviderDefault, provider_id)
+    admitted: set[int] = set()
+    for guild_id in guild_ids:
+        arrangement = own.get(guild_id, default)
+        if (
+            arrangement is not None
+            and arrangement.enabled
+            and narrowing_admits(arrangement.claim, arrangement.claim_values, claims)
+        ):
+            admitted.add(guild_id)
+    return admitted
 
 
 async def join_on_arrival(
