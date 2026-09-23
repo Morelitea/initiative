@@ -101,6 +101,11 @@ class GuildRead(GuildBase):
     #: ``admin`` and the seat is it reaching ``superadmin``, asked of the
     #: ladder rather than answered again as a flag apiece.
     role: GuildRole
+    #: Whether this caller may change the configuration its rung reaches. The
+    #: membership row's administrator does; a settings grant does only beside
+    #: a ``read_write`` content grant. The same rule the settings routes refuse
+    #: a change by.
+    can_write_settings: bool = False
     position: int
     created_at: datetime
     updated_at: datetime

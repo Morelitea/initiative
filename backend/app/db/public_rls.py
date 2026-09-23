@@ -575,6 +575,14 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ),
                 using=routed_or_member("guild_id"),
             ),
+            # A settings rung routed read-only reads the community it
+            # administers.
+            Policy(
+                "guild_administration_settings_read",
+                SELECT,
+                ("app_guild_base_ro",),
+                using=routed_admin("guild_id"),
+            ),
         ),
     ),
     "guild_auth_policies": TableRls(
@@ -711,6 +719,14 @@ PUBLIC_RLS: dict[str, TableRls] = {
             ),
             Policy("guild_update", UPDATE, ("public",), using=routed_admin_write("id")),
             Policy("guilds_pam_read", SELECT, ("public",), using=pam_read("id")),
+            # A settings rung routed read-only reads the community it
+            # administers.
+            Policy(
+                "guild_settings_read",
+                SELECT,
+                ("app_guild_base_ro",),
+                using=routed_admin("id"),
+            ),
             Policy(
                 "profile_reader_reads_the_name_rule",
                 SELECT,

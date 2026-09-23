@@ -145,6 +145,7 @@ def _serialize_guild(
     member_count: int = 0,
     administration: GuildAdministration | None = None,
     images: dict[GuildImageVariant, str] | None = None,
+    writes_settings: bool | None = None,
 ) -> GuildRead:
     """Build one entry of the caller's own guild list.
 
@@ -164,6 +165,9 @@ def _serialize_guild(
     Most of the second group now arrives as ``administration`` — a separate row
     the caller may read but no request path may write. Callers serving a member
     pass ``None`` for it and never read the row at all.
+
+    ``writes_settings`` is the caller's standing, where the caller has one
+    (``GuildContext.writes_settings``); left out, the membership row answers.
     """
     # The rung decides, not the caller: passing the row for a member still
     # serves a member's payload, so this stays the one place the split is made.
@@ -177,6 +181,7 @@ def _serialize_guild(
         created_at=guild.created_at,
         updated_at=guild.updated_at,
         role=role,
+        can_write_settings=is_admin if writes_settings is None else writes_settings,
         position=position,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,
@@ -636,6 +641,33 @@ async def list_guild_invites(
     return [GuildInviteRead.model_validate(invite) for invite in invites]
 
 
+@router.get("/{guild_id}", response_model=GuildRead)
+async def read_guild(
+    guild_id: int,
+    guild_context: SettingsAdminContextDep,
+    session: SettingsRLSSessionDep,
+) -> GuildRead:
+    """The community as the caller's standing sees it — how a community
+    reached by a settings grant, which has no entry in ``GET /guilds/``, gets
+    its entry and the answer to what the caller may change there.
+
+    Without its pictures: a settings rung reads on the read-only floor, which
+    holds no grant on the image digests.
+    """
+    guild = await guilds_service.get_guild(session, guild_id=guild_id)
+    return _serialize_guild(
+        guild,
+        role=guild_context.rung,
+        writes_settings=guild_context.writes_settings,
+        position=_position_of(guild_context),
+        retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
+        member_count=await guilds_service.count_members(session, guild_id=guild_id),
+        administration=await guilds_service.get_administration(
+            session, guild_id=guild_id
+        ),
+    )
+
+
 @router.patch("/{guild_id}", response_model=GuildRead)
 async def update_guild(
     guild_id: int,
@@ -746,6 +778,7 @@ async def update_guild(
     return _serialize_guild(
         guild,
         role=guild_context.rung,
+        writes_settings=guild_context.writes_settings,
         position=_position_of(guild_context),
         retention_days=retention_days,
         member_count=member_count,
@@ -989,6 +1022,7 @@ async def _guild_payload_after_image_change(
     return _serialize_guild(
         guild,
         role=guild_context.rung,
+        writes_settings=guild_context.writes_settings,
         position=_position_of(guild_context),
         retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
