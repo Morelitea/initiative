@@ -191,6 +191,53 @@ That is where the record is kept, searched and alerted on. A filter on `event_ty
 
 **What stays on the box.** Docker holds a container's output in a file that keeps growing until you say how much to keep. The example compose file says the last 50 MB per container, in five files it rotates through. Treat that as a buffer rather than the record: if the audit stream matters to you, ship it somewhere durable and let the buffer cover the stretch when the shipper is down.
 
+## Monitoring with Prometheus
+
+If Prometheus and Grafana already keep an eye on the rest of the house (the NAS, the router, the thermostat nobody is allowed to touch), Initiative can join them.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `METRICS_TOKEN` | The token Prometheus presents to read `/api/v1/metrics`. Generate one with `openssl rand -hex 32`. | unset |
+
+Until it's set, `/api/v1/metrics` answers *not found*, so there is nothing to switch off if you never use it. Once it is, a scrape carrying the token as a bearer token gets the numbers and anything else gets turned away.
+
+```yaml
+scrape_configs:
+  - job_name: initiative
+    metrics_path: /api/v1/metrics
+    authorization:
+      credentials_file: /etc/prometheus/initiative-token  # holds the METRICS_TOKEN value
+    static_configs:
+      - targets: ["initiative.lan:8173"]
+```
+
+Point `targets` at the app's own port, or at your proxy with `scheme: https` added.
+
+**What it reports.** No label ever names a community or a person.
+
+| Metric | What it tells you |
+|---|---|
+| `initiative_http_requests_total` | Requests answered, by `method`, `route` and `status`. `route` is the pattern (`/api/v1/g/{guild_id}/initiatives/`), so every community shares one line. |
+| `initiative_http_request_duration_seconds` | How long those took, as a histogram. |
+| `initiative_http_requests_in_progress` | Requests being answered right now. |
+| `initiative_websocket_connections` | Live connections: notifications, live editing, queues and counters. One open tab holds several. |
+| `initiative_db_statement_duration_seconds` | How long database statements took, by `engine`. |
+| `initiative_db_slow_statements_total` | Statements that took longer than half a second. |
+| `initiative_db_pool_connections` | Database connections each engine holds, by `state`: `checked_out`, `idle`, `overflow`. |
+| `initiative_users`, `initiative_guilds` | Accounts and communities, by `status`. |
+| `initiative_sessions_active` | Sign-ins that haven't expired or been signed out. |
+| `initiative_build_info` | The version running, in its `version` label. |
+| `process_*`, `python_*` | Memory, CPU and garbage collection for the app's process. |
+
+**A dashboard to start from.** Download the [starter Grafana dashboard](assets/initiative-grafana-dashboard.json) and import it (**Dashboards → New → Import**), choosing your Prometheus data source. It opens with the headline counts, then traffic, errors, response times, the database and the process.
+
+**Slow statements land in the log too.** Each statement over half a second writes a warning to standard error: which engine, how long, the id of the request it served, and the SQL. It holds the query as written and never the values in it. SQL somebody wrote themselves, in a dashboard widget, is logged without its text. The request id is the same one described under [Logs](#logs), so one slow page can be followed from your proxy to the database.
+
+??? techspec "Engines, and running more than one copy"
+    `engine` is one of `request` (what people's requests run on), `system` (background jobs and start-up), `provisioning` (setting up a new community's tables; never flagged as slow) and `query` (SQL people write in dashboard widgets).
+
+    Every series is per process. With several copies of the app running, Prometheus scrapes each one: add request and statement series with `sum`, and take `initiative_users`, `initiative_guilds` and `initiative_sessions_active` with `max`, because every copy counts the same accounts.
+
 ## After changing settings
 
 Most settings are read at startup, so **restart the container** after editing them:

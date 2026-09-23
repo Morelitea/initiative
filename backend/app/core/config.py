@@ -930,6 +930,17 @@ class Settings(BaseSettings):
             )
         return level
 
+    # The bearer token a Prometheus scrape presents to read
+    # ``{API_V1_STR}/metrics``. Unset (the default), that route answers 404.
+    METRICS_TOKEN: str | None = None
+
+    @field_validator("METRICS_TOKEN", mode="before")
+    @classmethod
+    def _blank_metrics_token_is_unset(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
     # Mount the in-app MCP server at ``/api/v1/mcp/`` (route-backed). Off by
     # default; enable per-environment via env / .env. Tools ride the real auth +
     # RLS rails, so a caller only ever sees their own data, and a read-only API

@@ -13,11 +13,12 @@ from alembic.script import ScriptDirectory
 from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import event, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import audit_context, metrics
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 from app.db.guild_standing import (
@@ -67,6 +68,66 @@ query_engine = create_async_engine(
     pool_timeout=settings.QUERY_POOL_TIMEOUT_SECONDS,
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
+
+#: A statement that takes longer than this is logged with the request it served,
+#: and counted. Half a second is also a common ``log_min_duration_statement``,
+#: so this log and the database's own agree on what "slow" is.
+SLOW_STATEMENT_SECONDS = 0.5
+
+#: How much of a slow statement's text its log line keeps.
+_SLOW_STATEMENT_TEXT_LIMIT = 2000
+
+#: Where a statement's start time rides between the two cursor events.
+_STARTED_AT = "_initiative_started_at"
+
+
+def instrument_engine(
+    target: AsyncEngine, label: str, *, flag_slow: bool = True, log_text: bool = True
+) -> None:
+    """Time every statement ``target`` runs, and report its pool.
+
+    ``flag_slow`` logs and counts statements over :data:`SLOW_STATEMENT_SECONDS`;
+    ``log_text`` puts the statement's text on that line. The text is the SQL
+    as written, never the values bound into it.
+    """
+    metrics.watch_pool(label, target)
+    duration = metrics.db_statement_duration.labels(engine=label)
+    slow = metrics.db_slow_statements.labels(engine=label)
+
+    def started(_conn, _cursor, _statement, _parameters, context, _executemany):
+        setattr(context, _STARTED_AT, time.perf_counter())
+
+    def finished(_conn, _cursor, statement, _parameters, context, _executemany):
+        began = getattr(context, _STARTED_AT, None)
+        if began is None:
+            return
+        elapsed = time.perf_counter() - began
+        duration.observe(elapsed)
+        if not flag_slow or elapsed < SLOW_STATEMENT_SECONDS:
+            return
+        slow.inc()
+        request = audit_context.current()
+        written = ""
+        if log_text:
+            written = ": " + " ".join(statement.split())[:_SLOW_STATEMENT_TEXT_LIMIT]
+        logger.warning(
+            "Slow statement on the %s engine, %.0f ms (request %s)%s",
+            label,
+            elapsed * 1000,
+            request.request_id if request is not None else "none",
+            written,
+        )
+
+    event.listen(target.sync_engine, "before_cursor_execute", started)
+    event.listen(target.sync_engine, "after_cursor_execute", finished)
+
+
+instrument_engine(engine, "request")
+instrument_engine(admin_engine, "system")
+# Schema provisioning is DDL, which is expected to take its time.
+instrument_engine(provisioning_engine, "provisioning", flag_slow=False)
+# What a reader writes is theirs, so its text stays out of the log.
+instrument_engine(query_engine, "query", log_text=False)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

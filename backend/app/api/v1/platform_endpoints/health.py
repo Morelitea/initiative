@@ -1,4 +1,5 @@
-"""Liveness and readiness.
+"""Liveness, readiness, and metrics — the routes an orchestrator or a
+scraper reaches a pod by.
 
 Two questions, deliberately answered separately.
 
@@ -19,23 +20,34 @@ fleet at once, and a fleet that removes every pod from rotation over one of
 them has turned a partial outage into a total one. They show up in the body as
 ``degraded`` so an operator reading the probe sees what a dashboard would.
 
-Both routes are unauthenticated, and both are exempt from the global rate
-limit: a probe answered with a 429 reports a failure the process does not
-have.
+Both probes are unauthenticated, and all three routes are exempt from the
+global rate limit: a probe answered with a 429 reports a failure the process
+does not have.
+
+``/metrics`` answers Prometheus's text format for a scrape presenting
+``METRICS_TOKEN`` as a bearer token, and ``404`` while no token is set. What it
+reports is described in :mod:`app.core.metrics`.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from typing import Awaitable, Callable
 
 import anyio
-from fastapi import APIRouter, Response, status
-from sqlalchemy import text
+from fastapi import APIRouter, Request, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.core import metrics
+from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.models.platform.auth_session import AuthSession
+from app.models.platform.guild import Guild
+from app.models.platform.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -130,3 +142,62 @@ async def readyz(response: Response) -> dict[str, object]:
     else:
         overall = "ok"
     return {"status": overall, "checks": checks}
+
+
+def _presents_token(request: Request, token: str) -> bool:
+    scheme, _, credentials = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer":
+        return False
+    return secrets.compare_digest(credentials.strip().encode(), token.encode())
+
+
+async def _count_platform_totals() -> None:
+    """Count accounts, communities and live sign-ins for this scrape.
+
+    Read on the system engine, off the module at call time like the readiness
+    checks. A count that fails leaves the previous one standing and says why
+    in the log; the rest of the scrape is still answered.
+    """
+    from app.db import session as db_session  # noqa: PLC0415
+
+    async def count() -> None:
+        async with db_session.admin_engine.connect() as connection:
+            users = await connection.execute(
+                select(User.status, func.count()).group_by(User.status)
+            )
+            guilds = await connection.execute(
+                select(Guild.status, func.count()).group_by(Guild.status)
+            )
+            live_sessions = await connection.scalar(
+                select(func.count())
+                .select_from(AuthSession)
+                .where(
+                    AuthSession.revoked_at.is_(None),
+                    AuthSession.expires_at > func.now(),
+                )
+            )
+        metrics.record_platform_totals(
+            users_by_status={value.value: n for value, n in users},
+            guilds_by_status={value: n for value, n in guilds},
+            live_sessions=live_sessions or 0,
+        )
+
+    try:
+        await asyncio.wait_for(count(), timeout=CHECK_TIMEOUT_SECONDS)
+    except Exception:
+        logger.warning("metrics: platform totals not counted", exc_info=True)
+
+
+@router.get("/metrics", include_in_schema=False)
+@limiter.exempt
+async def prometheus_metrics(request: Request) -> Response:
+    token = settings.METRICS_TOKEN
+    if token is None:
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
+    if not _presents_token(request, token):
+        return Response(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    await _count_platform_totals()
+    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
