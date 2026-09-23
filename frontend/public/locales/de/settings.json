@@ -799,6 +799,7 @@
     "promoteSuccess": "Rolle aktualisiert",
     "promoteError": "Rolle konnte nicht aktualisiert werden",
     "deleteGuild": "Community löschen",
+    "deleteGuildThroughCommunity": "Diese Community wird über die Abrechnung verwaltet. Um sie zu löschen, öffne sie mit einer Einstellungsfreigabe und lösche sie in ihren eigenen Einstellungen.",
     "deleteGuildConfirm": "Community „{{guildName}}“ löschen? Dadurch werden alle Community-Daten dauerhaft gelöscht.",
     "deleteGuildSuccess": "Community gelöscht",
     "deleteGuildError": "Community konnte nicht gelöscht werden",
@@ -1014,6 +1015,7 @@
     "filterByName": "Communitys nach Namen filtern",
     "unlimitedPlaceholder": "Unbegrenzt",
     "helpText": "Speicherlimits sind in GB; Benutzerlimits sind eine Mitgliederzahl. Beide werden automatisch gespeichert – lass ein Feld leer für unbegrenzt.",
+    "helpTextBilling": "Die Abrechnung legt Limits, Funktionen und Status jeder Community fest. Hier kannst du eine Community sperren; wird die Sperre aufgehoben, erhält sie wieder den Status, den die Abrechnung zuletzt gesetzt hat.",
     "saved": "Speicherlimit für {{name}} aktualisiert.",
     "saveError": "Das Speicherlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
     "statusInputLabel": "Status für {{name}}",
@@ -1049,7 +1051,12 @@
       "openLabel": "Abrechnung für {{name}} öffnen",
       "openError": "Das Abrechnungsportal konnte nicht geöffnet werden.",
       "operatorLabel": "Abrechnungsvorgänge für {{name}}",
-      "operations": "Vorgänge"
+      "operations": "Vorgänge",
+      "factor": {
+        "title": "Bestätige, dass du es bist",
+        "description": "Wenn du die Abrechnung für {{name}} öffnest, erhältst du eine Abrechnungsfreigabe. Gib einen Code aus deiner Authenticator-App oder einen Wiederherstellungscode ein.",
+        "submit": "Abrechnung öffnen"
+      }
     },
     "sheet": {
       "open": "Verwalten",
@@ -1087,7 +1094,9 @@
         "agree": "Zustimmen",
         "withdraw": "Zurückziehen",
         "error": "Die Antwort konnte nicht gespeichert werden."
-      }
+      },
+      "setInBilling": "Die Abrechnung legt die Limits und Funktionen dieser Community fest.",
+      "changeInBilling": "In der Abrechnung ändern"
     },
     "unlimited": "Unbegrenzt",
     "restore": {

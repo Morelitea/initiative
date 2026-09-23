@@ -799,6 +799,7 @@
     "promoteSuccess": "Role updated",
     "promoteError": "Unable to update role",
     "deleteGuild": "Delete community",
+    "deleteGuildThroughCommunity": "Billing manages this community. To delete it, open it under a settings grant and delete it from its own settings.",
     "deleteGuildConfirm": "Delete community \"{{guildName}}\"? This will permanently delete all community data.",
     "deleteGuildSuccess": "Community deleted",
     "deleteGuildError": "Unable to delete community",
@@ -1004,6 +1005,7 @@
     "filterByName": "Filter communities by name",
     "unlimitedPlaceholder": "Unlimited",
     "helpText": "Storage limits are in GB; user limits are a member count. Both save automatically — leave a field blank for unlimited.",
+    "helpTextBilling": "Billing sets each community's limits, features and status. You can suspend a community here, and lifting the suspension returns it to the status billing last set.",
     "saved": "Updated storage limit for {{name}}.",
     "saveError": "Could not update the storage limit. Please try again.",
     "statusInputLabel": "Status for {{name}}",
@@ -1039,7 +1041,12 @@
       "openLabel": "Open billing for {{name}}",
       "openError": "Could not open the billing portal.",
       "operatorLabel": "Billing operations for {{name}}",
-      "operations": "Operations"
+      "operations": "Operations",
+      "factor": {
+        "title": "Confirm it's you",
+        "description": "Opening billing for {{name}} issues you a billing grant. Enter a code from your authenticator app or a recovery code.",
+        "submit": "Open billing"
+      }
     },
     "sheet": {
       "open": "Manage",
@@ -1077,7 +1084,9 @@
         "agree": "Agree",
         "withdraw": "Withdraw",
         "error": "Could not save that answer."
-      }
+      },
+      "setInBilling": "Billing sets this community's limits and features.",
+      "changeInBilling": "Change in billing"
     },
     "unlimited": "No limit",
     "restore": {

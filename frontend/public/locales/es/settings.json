@@ -797,6 +797,7 @@
     "promoteSuccess": "Rol actualizado",
     "promoteError": "No se pudo actualizar el rol",
     "deleteGuild": "Eliminar comunidad",
+    "deleteGuildThroughCommunity": "La facturación gestiona esta comunidad. Para eliminarla, ábrela con un permiso de ajustes y elimínala desde sus propios ajustes.",
     "deleteGuildConfirm": "¿Eliminar comunidad \"{{guildName}}\"? Esto eliminará permanentemente todos los datos de la comunidad.",
     "deleteGuildSuccess": "Comunidad eliminado",
     "deleteGuildError": "No se pudo eliminar la comunidad",
@@ -1014,6 +1015,7 @@
     "filterByName": "Filtrar comunidades por nombre",
     "unlimitedPlaceholder": "Ilimitado",
     "helpText": "Los límites de almacenamiento están en GB; los límites de usuarios son un recuento de miembros. Ambos se guardan automáticamente: deja un campo en blanco para ilimitado.",
+    "helpTextBilling": "La facturación fija los límites, funciones y estado de cada comunidad. Aquí puedes suspender una comunidad; al levantar la suspensión vuelve al estado que la facturación fijó por última vez.",
     "saved": "Límite de almacenamiento actualizado para {{name}}.",
     "saveError": "No se pudo actualizar el límite de almacenamiento. Inténtalo de nuevo.",
     "statusInputLabel": "Estado de {{name}}",
@@ -1049,7 +1051,12 @@
       "openLabel": "Abrir la facturación de {{name}}",
       "openError": "No se pudo abrir el portal de facturación.",
       "operatorLabel": "Operaciones de facturación de {{name}}",
-      "operations": "Operaciones"
+      "operations": "Operaciones",
+      "factor": {
+        "title": "Confirma que eres tú",
+        "description": "Al abrir la facturación de {{name}} recibes un permiso de facturación. Introduce un código de tu aplicación de autenticación o un código de recuperación.",
+        "submit": "Abrir facturación"
+      }
     },
     "sheet": {
       "open": "Gestionar",
@@ -1087,7 +1094,9 @@
         "agree": "Aceptar",
         "withdraw": "Retirar",
         "error": "No se pudo guardar esa respuesta."
-      }
+      },
+      "setInBilling": "La facturación fija los límites y funciones de esta comunidad.",
+      "changeInBilling": "Cambiar en facturación"
     },
     "unlimited": "Sin límite",
     "restore": {
