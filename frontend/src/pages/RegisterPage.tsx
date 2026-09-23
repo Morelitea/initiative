@@ -367,6 +367,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                     id="full-name"
                     value={fullName}
                     onChange={(event) => setFullName(event.target.value)}
+                    maxLength={255}
                   />
                 </div>
                 <UsernameField

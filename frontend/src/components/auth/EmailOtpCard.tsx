@@ -255,6 +255,7 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
                 placeholder={t("emailOtp.fullNamePlaceholder")}
+                maxLength={255}
               />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>

@@ -165,6 +165,7 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={t("guildNamePlaceholder")}
+              maxLength={255}
               required
             />
           </div>

@@ -83,6 +83,7 @@ export const SettingsGuildPage = () => {
                 id="guild-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
+                maxLength={255}
                 required
               />
             </div>

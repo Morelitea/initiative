@@ -476,6 +476,7 @@ function NoGuildState({
               placeholder={t("noGuild.guildNamePlaceholder")}
               value={guildName}
               onChange={(e) => setGuildName(e.target.value)}
+              maxLength={255}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void handleCreate();
               }}
