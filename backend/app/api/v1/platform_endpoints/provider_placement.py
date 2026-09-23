@@ -11,7 +11,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
+from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
 from app.db.session import get_admin_session
 from app.schemas.platform.settings import (
     GuildNarrowingPending,
