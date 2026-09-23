@@ -59,37 +59,52 @@ class ProjectImporter:
         )
 
     def people(self, validated: BaseModel) -> list[ManifestPerson]:
-        """Everybody this project's comments quote, most-quoted first.
+        """Everybody this project names, most-quoted first.
 
         The same inventory a backup's manifest carries, taken from one
         envelope: a handle, the name it went by, and how many comments hang
-        on getting that one row right. Assignees are deliberately absent —
-        the wizard asks so that words end up under the right face, and an
-        assignee has no words.
+        on getting that one row right. Two kinds of mention put somebody on
+        it, because both go through the answer the wizard records:
+
+        * a comment's author, whose words land under whoever the handle is
+          mapped to;
+        * an assignee, whose task lands on whoever the handle is mapped to —
+          still only if that account is in the target initiative (see
+          ``people.initiative_member_id``).
+
+        An assignee who wrote nothing is still a question worth asking. Left
+        off, a handle nobody here answers to by name was applied without the
+        step and reported afterwards as unmatched, with no way to say who it
+        was.
 
         A handle the envelope spelled two ways is one person: it is keyed
         the way it is matched, and the first spelling seen is the one shown.
         """
         envelope: ProjectExportEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
         seen: dict[str, ManifestPerson] = {}
+
+        def note(handle: str | None, name: str | None, comments: int) -> None:
+            handle = (handle or "").strip()
+            if not handle:
+                return
+            key = handle_key(handle)
+            person = seen.get(key)
+            if person is None:
+                seen[key] = ManifestPerson(
+                    handle=handle, name=name, comment_count=comments
+                )
+                return
+            person.comment_count += comments
+            # A name only where one was given: the first mention of somebody
+            # may be the one that carried no display name.
+            if person.name is None:
+                person.name = name
+
         for task in envelope.tasks:
             for comment in task.comments:
-                if not comment.author_handle:
-                    continue
-                key = handle_key(comment.author_handle)
-                person = seen.get(key)
-                if person is None:
-                    seen[key] = ManifestPerson(
-                        handle=comment.author_handle,
-                        name=comment.author_name,
-                        comment_count=1,
-                    )
-                    continue
-                person.comment_count += 1
-                # A name only where one was given: the first comment by
-                # somebody may be the one that carried no display name.
-                if person.name is None:
-                    person.name = comment.author_name
+                note(comment.author_handle, comment.author_name, 1)
+            for handle in task.assignee_handles:
+                note(handle, None, 0)
         return sorted(seen.values(), key=lambda p: (-p.comment_count, p.handle.lower()))
 
     async def apply(

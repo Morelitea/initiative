@@ -1918,6 +1918,29 @@ async def test_initiative_backup_includes_read_only_projects(
     assert {e["title"] for e in project_entries} == {"Theirs"}
 
 
+async def test_a_backup_lists_its_assignees_among_its_people(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """The restore asks who everybody is before it writes anything, and an
+    assignee is somebody it has to place — a task restored into a community
+    where that handle means nobody would otherwise arrive unassigned, with
+    nobody having been asked."""
+    from app.core.user_display import handle_of
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_task(session, a.project, title="Carry the torch", assignees=[a.user])
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+
+    assert {
+        "handle": handle_of(a.user),
+        "name": None,
+        "comment_count": 0,
+    } in manifest["people"]
+
+
 async def test_aggregate_export_hides_dac_invisible_rows(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):

@@ -823,11 +823,14 @@ class _ScopeBuilder:
             )
 
     def _record_people(self, envelope) -> None:
-        """Note everyone quoted in a project envelope, and how often.
+        """Note everyone a project envelope names, and how often they are
+        quoted.
 
         Counted per handle across the whole archive rather than per project:
         the importer answers "who is this" once, and one answer covers every
-        comment that name is on.
+        comment and every assignment that name is on. An assignee who wrote
+        nothing is listed with a count of none — the restore still has to be
+        told who they are, or their tasks arrive unassigned.
         """
         for task in envelope.tasks:
             for comment in task.comments:
@@ -836,6 +839,10 @@ class _ScopeBuilder:
                     continue
                 name, count = self._people.get(handle, (None, 0))
                 self._people[handle] = (name or comment.author_name, count + 1)
+            for raw in task.assignee_handles:
+                handle = (raw or "").strip()
+                if handle and handle not in self._people:
+                    self._people[handle] = (None, 0)
 
     def people(self) -> list:
         """The archive's people, most-quoted first — which is the order the
