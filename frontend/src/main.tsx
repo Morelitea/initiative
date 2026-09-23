@@ -12,6 +12,7 @@ import ReactDOM from "react-dom/client";
 
 import { setApiBaseUrl } from "@/api/client";
 import { TaskCompletionEffectHost } from "@/components/effects/TaskCompletionEffectHost";
+import { AppErrorBoundary } from "@/components/errors/AppErrorBoundary";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
 import { KeepScreenAwakeProvider } from "@/hooks/useKeepScreenAwake";
@@ -114,21 +115,23 @@ async function bootstrap() {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <Suspense fallback={null}>
-        <ThemeProvider>
-          <PrideProvider>
-            <KeepScreenAwakeProvider>
-              <ServerProvider>
-                {withQueryClient(
-                  <AuthProvider>
-                    <GuildProvider>
-                      <InnerApp />
-                    </GuildProvider>
-                  </AuthProvider>
-                )}
-              </ServerProvider>
-            </KeepScreenAwakeProvider>
-          </PrideProvider>
-        </ThemeProvider>
+        <AppErrorBoundary>
+          <ThemeProvider>
+            <PrideProvider>
+              <KeepScreenAwakeProvider>
+                <ServerProvider>
+                  {withQueryClient(
+                    <AuthProvider>
+                      <GuildProvider>
+                        <InnerApp />
+                      </GuildProvider>
+                    </AuthProvider>
+                  )}
+                </ServerProvider>
+              </KeepScreenAwakeProvider>
+            </PrideProvider>
+          </ThemeProvider>
+        </AppErrorBoundary>
       </Suspense>
     </React.StrictMode>
   );

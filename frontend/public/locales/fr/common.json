@@ -212,5 +212,19 @@
     "numberedList": "Liste numérotée",
     "taskList": "Liste de tâches",
     "more": "Plus de mise en forme"
+  },
+  "errorPage": {
+    "title": "Un problème est survenu",
+    "description": "Cette page a rencontré une erreur et n’a pas pu s’afficher. Réessayez ou accédez à vos tâches.",
+    "appDescription": "Initiative a rencontré une erreur et ne peut pas continuer. Recharger la relance.",
+    "details": "Détails de l’erreur",
+    "toMyTasks": "Aller à {{myTasks}}",
+    "reload": "Recharger",
+    "updatedTitle": "Initiative a été mis à jour",
+    "updatedDescription": "Une version plus récente est disponible. Rechargez pour ouvrir cette page dans celle-ci."
+  },
+  "notFoundPage": {
+    "title": "Page introuvable",
+    "description": "Il n’y a rien à cette adresse. Le lien est peut-être mal saisi, ou la page a été déplacée."
   }
 }

@@ -212,5 +212,19 @@
     "numberedList": "Numbered list",
     "taskList": "Task list",
     "more": "More formatting"
+  },
+  "errorPage": {
+    "title": "Something went wrong",
+    "description": "This page ran into an error and could not be shown. Try again, or go to your tasks.",
+    "appDescription": "Initiative ran into an error and could not continue. Reloading starts it again.",
+    "details": "Error details",
+    "toMyTasks": "Go to {{myTasks}}",
+    "reload": "Reload",
+    "updatedTitle": "Initiative has been updated",
+    "updatedDescription": "A newer version is available. Reload to open this page in it."
+  },
+  "notFoundPage": {
+    "title": "Page not found",
+    "description": "Nothing is at this address. The link may be mistyped, or the page may have moved."
   }
 }
