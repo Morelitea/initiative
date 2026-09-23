@@ -24,9 +24,11 @@ from app.core.login_methods import (
     PRIMARY_LOGIN_METHODS,
     LoginMethod,
 )
+from app.db import session as db_session
 from app.db.session import guild_context
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.tenant.guild_setting import GuildSetting
 from app.services.platform import guilds as guilds_service
@@ -122,8 +124,6 @@ def _build_default_app_settings() -> AppSetting:
     """
     _smtp_host = _normalize_optional_string(app_config.SMTP_HOST)
     _smtp_from = _normalize_optional_string(app_config.SMTP_FROM_ADDRESS)
-    _smtp_pw = _normalize_optional_string(app_config.SMTP_PASSWORD)
-    _s3_secret = _normalize_optional_string(app_config.S3_SECRET_ACCESS_KEY)
     return AppSetting(
         id=GLOBAL_SETTINGS_ID,
         light_accent_color="#2563eb",
@@ -136,9 +136,6 @@ def _build_default_app_settings() -> AppSetting:
         smtp_secure=bool(app_config.SMTP_SECURE),
         smtp_reject_unauthorized=bool(app_config.SMTP_REJECT_UNAUTHORIZED),
         smtp_username=_normalize_optional_string(app_config.SMTP_USERNAME),
-        smtp_password_encrypted=encrypt_field(_smtp_pw, SALT_SMTP_PASSWORD)
-        if _smtp_pw
-        else None,
         smtp_from_address=_smtp_from,
         smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
         storage_backend=(app_config.STORAGE_BACKEND or "local").lower(),
@@ -146,12 +143,28 @@ def _build_default_app_settings() -> AppSetting:
         s3_region=app_config.S3_REGION or "us-east-1",
         s3_endpoint_url=_normalize_optional_string(app_config.S3_ENDPOINT_URL),
         s3_access_key_id=_normalize_optional_string(app_config.S3_ACCESS_KEY_ID),
-        s3_secret_access_key_encrypted=encrypt_field(_s3_secret, SALT_S3_SECRET_KEY)
-        if _s3_secret
-        else None,
         s3_use_path_style=bool(app_config.S3_USE_PATH_STYLE),
         s3_kms_key_id=_normalize_optional_string(app_config.S3_KMS_KEY_ID),
         s3_local_fallback=bool(app_config.S3_LOCAL_FALLBACK),
+    )
+
+
+def _build_default_app_setting_secrets() -> AppSettingSecret:
+    """The env-seeded credentials row (id=1), NOT persisted.
+
+    What a settings row created on first boot carries for its credentials:
+    the ``SMTP_PASSWORD`` / ``S3_SECRET_ACCESS_KEY`` env values, encrypted.
+    """
+    smtp_password = _normalize_optional_string(app_config.SMTP_PASSWORD)
+    s3_secret = _normalize_optional_string(app_config.S3_SECRET_ACCESS_KEY)
+    return AppSettingSecret(
+        id=GLOBAL_SETTINGS_ID,
+        smtp_password_encrypted=encrypt_field(smtp_password, SALT_SMTP_PASSWORD)
+        if smtp_password
+        else None,
+        s3_secret_access_key_encrypted=encrypt_field(s3_secret, SALT_S3_SECRET_KEY)
+        if s3_secret
+        else None,
     )
 
 
@@ -175,6 +188,18 @@ async def _session_can_write_app_settings(session: AsyncSession) -> bool:
     )
 
 
+async def _session_can_write_app_setting_secrets(session: AsyncSession) -> bool:
+    """Whether the current DB role may INSERT into ``app_setting_secrets``.
+
+    The system engine can; every request-path role cannot.
+    """
+    return bool(
+        await session.scalar(
+            text("SELECT has_table_privilege('app_setting_secrets', 'INSERT')")
+        )
+    )
+
+
 async def _write_app_settings(session: AsyncSession, settings_row: AppSetting) -> None:
     session.add(settings_row)
     await session.commit()
@@ -185,6 +210,74 @@ async def _stored_app_settings(session: AsyncSession) -> AppSetting | None:
     stmt = select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
     result = await session.exec(stmt)
     return result.one_or_none()
+
+
+async def _stored_app_setting_secrets(
+    session: AsyncSession,
+) -> AppSettingSecret | None:
+    stmt = select(AppSettingSecret).where(AppSettingSecret.id == GLOBAL_SETTINGS_ID)
+    result = await session.exec(stmt)
+    return result.one_or_none()
+
+
+async def get_app_setting_secrets(session: AsyncSession) -> AppSettingSecret:
+    """The deployment's stored credentials — a read, on the system engine.
+
+    ``session`` must be a system-engine session: ``app_setting_secrets`` is
+    granted to no request-path role. With no row stored yet the env-seeded
+    values are served as a value not attached to the session, as
+    :func:`get_app_settings` serves its defaults.
+    """
+    secrets_row = await _stored_app_setting_secrets(session)
+    if secrets_row is not None:
+        return secrets_row
+    return _build_default_app_setting_secrets()
+
+
+async def load_app_setting_secrets() -> AppSettingSecret:
+    """:func:`get_app_setting_secrets` on a system-engine session of its own.
+
+    For readers that hold whatever session their caller runs on — the mailer
+    and the storage client — so the credential read never depends on it.
+    """
+    async with db_session.AdminSessionLocal() as admin_session:
+        return await get_app_setting_secrets(admin_session)
+
+
+async def _ensure_secrets_row(session: AsyncSession) -> AppSettingSecret:
+    """The stored credentials row, put in place (env-seeded) if it is missing.
+
+    System engine only. The settings row it hangs off must already be
+    committed. The INSERT joins the caller's transaction; a row another
+    connection inserted first is kept rather than overwritten.
+    """
+    secrets_row = await _stored_app_setting_secrets(session)
+    if secrets_row is not None:
+        return secrets_row
+    defaults = _build_default_app_setting_secrets()
+    await session.exec(
+        pg_insert(AppSettingSecret.__table__)
+        .values(
+            id=GLOBAL_SETTINGS_ID,
+            smtp_password_encrypted=defaults.smtp_password_encrypted,
+            s3_secret_access_key_encrypted=defaults.s3_secret_access_key_encrypted,
+        )
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    secrets_row = await _stored_app_setting_secrets(session)
+    if secrets_row is None:  # pragma: no cover - the INSERT landed or conflicted
+        raise RuntimeError("app_setting_secrets row could not be created")
+    return secrets_row
+
+
+async def _write_secret(
+    session: AsyncSession, *, column: str, encrypted: str | None
+) -> None:
+    """Store one credential column on the system engine, and commit it."""
+    secrets_row = await _ensure_secrets_row(session)
+    setattr(secrets_row, column, encrypted)
+    session.add(secrets_row)
+    await session.commit()
 
 
 async def ensure_settings_row(session: AsyncSession) -> AppSetting:
@@ -223,13 +316,20 @@ async def seed_app_settings(session: AsyncSession) -> AppSetting:
     defaults in memory and no row, which is what it had before.
     """
     settings_row = await _stored_app_settings(session)
-    if settings_row is not None:
-        return settings_row
-    if not await _session_can_write_app_settings(session):
-        return _build_default_app_settings()
-    settings_row = await ensure_settings_row(session)
-    await session.commit()
-    await session.refresh(settings_row)
+    if settings_row is None:
+        if not await _session_can_write_app_settings(session):
+            return _build_default_app_settings()
+        settings_row = await ensure_settings_row(session)
+        await session.commit()
+        await session.refresh(settings_row)
+    # The credentials row, beside it. Checked separately: a settings row made
+    # on another path leaves this one to be put in place here.
+    if (
+        await _session_can_write_app_setting_secrets(session)
+        and await _stored_app_setting_secrets(session) is None
+    ):
+        await _ensure_secrets_row(session)
+        await session.commit()
     return settings_row
 
 
@@ -302,17 +402,19 @@ EMAIL_FIELDS: tuple[str, ...] = (
     "smtp_secure",
     "smtp_reject_unauthorized",
     "smtp_username",
-    "smtp_password_encrypted",
     "smtp_from_address",
     "smtp_test_recipient",
 )
+#: The credential each of those areas keeps on ``app_setting_secrets``. Named in
+#: a record like any other field when it moves; its value never is.
+EMAIL_SECRET_FIELD = "smtp_password_encrypted"
+STORAGE_SECRET_FIELD = "s3_secret_access_key_encrypted"
 STORAGE_FIELDS: tuple[str, ...] = (
     "storage_backend",
     "s3_bucket",
     "s3_region",
     "s3_endpoint_url",
     "s3_access_key_id",
-    "s3_secret_access_key_encrypted",
     "s3_use_path_style",
     "s3_kms_key_id",
     "s3_local_fallback",
@@ -328,15 +430,19 @@ async def _record_settings_area(
     row: AppSetting,
     fields: tuple[str, ...],
     extras: dict[str, Any] | None = None,
+    secrets_after: dict[str, Any] | None = None,
 ) -> None:
     """Stage the record for one area of the settings row, if it moved.
 
     Staged in the same transaction as the write, so the two land together.
     A caller that names no actor — boot-time seeding — records nothing.
+    ``secrets_after`` carries the area's credential column as it will be
+    stored on ``app_setting_secrets``; ``before`` carries it as it was.
     """
     if actor_user_id is None:
         return
-    changed = audit_service.changed_fields(before, audit_service.snapshot(row, fields))
+    after = {**audit_service.snapshot(row, fields), **(secrets_after or {})}
+    changed = audit_service.changed_fields(before, after)
     if not changed["changed"] and not any((extras or {}).values()):
         return
     await audit_service.record(
@@ -486,6 +592,7 @@ async def update_community_settings(
 async def update_email_settings(
     session: AsyncSession,
     *,
+    admin_session: AsyncSession,
     host: str | None,
     port: int | None,
     secure: bool,
@@ -496,19 +603,33 @@ async def update_email_settings(
     from_address: str | None,
     test_recipient: str | None,
     actor_user_id: int | None = None,
-) -> AppSetting:
+) -> tuple[AppSetting, AppSettingSecret]:
+    """Save the mail settings; the password on ``admin_session``.
+
+    ``session`` writes the settings row (under the owner's tier) and
+    ``admin_session`` — the system engine — the password. The settings row and
+    its record commit first, then the password: the credentials row hangs off
+    the settings row, and a password is never stored without the save it came
+    with. Returns both rows.
+    """
     settings_row = await ensure_settings_row(session)
-    before = audit_service.snapshot(settings_row, EMAIL_FIELDS)
+    secrets_row = await get_app_setting_secrets(admin_session)
+    stored_password = secrets_row.smtp_password_encrypted
+    before = {
+        **audit_service.snapshot(settings_row, EMAIL_FIELDS),
+        EMAIL_SECRET_FIELD: stored_password,
+    }
+    new_password = stored_password
+    if password_provided:
+        normalized = _normalize_optional_string(password)
+        new_password = (
+            encrypt_field(normalized, SALT_SMTP_PASSWORD) if normalized else None
+        )
     settings_row.smtp_host = _normalize_optional_string(host)
     settings_row.smtp_port = port if port else None
     settings_row.smtp_secure = bool(secure)
     settings_row.smtp_reject_unauthorized = bool(reject_unauthorized)
     settings_row.smtp_username = _normalize_optional_string(username)
-    if password_provided:
-        normalized = _normalize_optional_string(password)
-        settings_row.smtp_password_encrypted = (
-            encrypt_field(normalized, SALT_SMTP_PASSWORD) if normalized else None
-        )
     settings_row.smtp_from_address = _normalize_optional_string(from_address)
     settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
     session.add(settings_row)
@@ -519,19 +640,23 @@ async def update_email_settings(
         before=before,
         row=settings_row,
         fields=EMAIL_FIELDS,
-        extras={
-            "password_changed": before["smtp_password_encrypted"]
-            != settings_row.smtp_password_encrypted
-        },
+        extras={"password_changed": stored_password != new_password},
+        secrets_after={EMAIL_SECRET_FIELD: new_password},
     )
     await session.commit()
     await session.refresh(settings_row)
-    return settings_row
+    if password_provided:
+        await _write_secret(
+            admin_session, column=EMAIL_SECRET_FIELD, encrypted=new_password
+        )
+        secrets_row = await get_app_setting_secrets(admin_session)
+    return settings_row, secrets_row
 
 
 async def update_storage_settings(
     session: AsyncSession,
     *,
+    admin_session: AsyncSession,
     backend: str,
     s3_bucket: str | None,
     s3_region: str | None,
@@ -543,19 +668,31 @@ async def update_storage_settings(
     s3_kms_key_id: str | None,
     s3_local_fallback: bool,
     actor_user_id: int | None = None,
-) -> AppSetting:
+) -> tuple[AppSetting, AppSettingSecret]:
+    """Save the storage settings; the secret key on ``admin_session``.
+
+    Written in the order :func:`update_email_settings` writes: the settings
+    row and its record, then the secret key on the system engine, then the
+    process-wide storage config is reloaded. Returns both rows.
+    """
     settings_row = await ensure_settings_row(session)
-    before = audit_service.snapshot(settings_row, STORAGE_FIELDS)
+    secrets_row = await get_app_setting_secrets(admin_session)
+    stored_secret = secrets_row.s3_secret_access_key_encrypted
+    before = {
+        **audit_service.snapshot(settings_row, STORAGE_FIELDS),
+        STORAGE_SECRET_FIELD: stored_secret,
+    }
+    new_secret = stored_secret
+    if secret_provided:
+        normalized = _normalize_optional_string(s3_secret_access_key)
+        new_secret = (
+            encrypt_field(normalized, SALT_S3_SECRET_KEY) if normalized else None
+        )
     settings_row.storage_backend = (backend or "local").lower()
     settings_row.s3_bucket = _normalize_optional_string(s3_bucket)
     settings_row.s3_region = (s3_region or "us-east-1").strip() or "us-east-1"
     settings_row.s3_endpoint_url = _normalize_optional_string(s3_endpoint_url)
     settings_row.s3_access_key_id = _normalize_optional_string(s3_access_key_id)
-    if secret_provided:
-        normalized = _normalize_optional_string(s3_secret_access_key)
-        settings_row.s3_secret_access_key_encrypted = (
-            encrypt_field(normalized, SALT_S3_SECRET_KEY) if normalized else None
-        )
     settings_row.s3_use_path_style = bool(s3_use_path_style)
     settings_row.s3_kms_key_id = _normalize_optional_string(s3_kms_key_id)
     settings_row.s3_local_fallback = bool(s3_local_fallback)
@@ -567,20 +704,23 @@ async def update_storage_settings(
         before=before,
         row=settings_row,
         fields=STORAGE_FIELDS,
-        extras={
-            "secret_changed": before["s3_secret_access_key_encrypted"]
-            != settings_row.s3_secret_access_key_encrypted
-        },
+        extras={"secret_changed": stored_secret != new_secret},
+        secrets_after={STORAGE_SECRET_FIELD: new_secret},
     )
     await session.commit()
     await session.refresh(settings_row)
+    if secret_provided:
+        await _write_secret(
+            admin_session, column=STORAGE_SECRET_FIELD, encrypted=new_secret
+        )
+        secrets_row = await get_app_setting_secrets(admin_session)
     # Refresh the process-wide resolved storage config so the live request path
     # picks up new creds/backend immediately (lazy import avoids a cycle: the
     # storage_config module reads get_app_settings from here).
     from app.services import storage_config
 
     await storage_config.refresh_storage_config(session)
-    return settings_row
+    return settings_row, secrets_row
 
 
 async def ensure_defaults(session: AsyncSession) -> None:

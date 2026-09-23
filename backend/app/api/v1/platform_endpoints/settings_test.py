@@ -610,17 +610,75 @@ async def test_storage_settings_round_trip_never_returns_secret(
     assert get.json()["has_secret_access_key"] is True
     assert "super-secret-value" not in get.text
 
-    # Stored encrypted, and decrypts back to the original.
+    # Stored encrypted on the credentials row, and decrypts back to the original.
     from app.core.encryption import SALT_S3_SECRET_KEY, decrypt_field
-    from app.services.platform.app_settings import get_app_settings
+    from app.services.platform.app_settings import get_app_setting_secrets
 
-    row = await get_app_settings(session)
+    row = await get_app_setting_secrets(session)
     assert row.s3_secret_access_key_encrypted
     assert row.s3_secret_access_key_encrypted != "super-secret-value"
     assert (
         decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)
         == "super-secret-value"
     )
+
+
+@pytest.mark.integration
+async def test_email_password_is_stored_apart_and_reported_as_set(
+    client: AsyncClient,
+    session: AsyncSession,
+    owner,
+) -> None:
+    """The SMTP password is written to ``app_setting_secrets`` and reported only
+    as ``has_password``; a save that omits it keeps it, and an empty one clears
+    it."""
+    from app.core.encryption import SALT_SMTP_PASSWORD, decrypt_field
+    from app.services.platform.app_settings import get_app_setting_secrets
+
+    email = {
+        "host": "smtp.example.com",
+        "port": 587,
+        "secure": False,
+        "reject_unauthorized": True,
+        "username": "mailer",
+        "from_address": "noreply@example.com",
+    }
+    put = await client.put(
+        "/api/v1/settings/email",
+        json={**email, "password": "smtp-pa55word"},
+        headers=owner.headers,
+    )
+    assert put.status_code == 200, put.text
+    assert put.json()["has_password"] is True
+    assert "smtp-pa55word" not in put.text
+
+    row = await get_app_setting_secrets(session)
+    assert row.smtp_password_encrypted
+    assert (
+        decrypt_field(row.smtp_password_encrypted, SALT_SMTP_PASSWORD)
+        == "smtp-pa55word"
+    )
+
+    kept = await client.put(
+        "/api/v1/settings/email",
+        json={**email, "host": "mail.example.com"},
+        headers=owner.headers,
+    )
+    assert kept.status_code == 200, kept.text
+    assert kept.json()["host"] == "mail.example.com"
+    assert kept.json()["has_password"] is True
+
+    get = await client.get("/api/v1/settings/email", headers=owner.headers)
+    assert get.status_code == 200
+    assert get.json()["has_password"] is True
+
+    cleared = await client.put(
+        "/api/v1/settings/email",
+        json={**email, "password": ""},
+        headers=owner.headers,
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["has_password"] is False
 
 
 @pytest.mark.integration
@@ -648,9 +706,10 @@ async def test_storage_update_keeps_secret_when_omitted(
     assert resp.json()["has_secret_access_key"] is True
 
     from app.core.encryption import SALT_S3_SECRET_KEY, decrypt_field
-    from app.services.platform.app_settings import get_app_settings
+    from app.services.platform.app_settings import get_app_setting_secrets
 
-    row = await get_app_settings(session)
+    row = await get_app_setting_secrets(session)
+    assert row.s3_secret_access_key_encrypted
     assert (
         decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)
         == "super-secret-value"

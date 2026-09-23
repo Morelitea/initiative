@@ -115,6 +115,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "identity_refs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # singleton config: seeded + updated, never deleted
     "app_settings": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    # The settings singleton's stored credentials (migration 0362): seeded at
+    # boot, written by the owner's email/storage routes, read by the mailer and
+    # the storage client, and re-keyed by the secret-key rotation — all on the
+    # system engine. A singleton like the row it belongs to, never deleted.
+    "app_setting_secrets": frozenset({"SELECT", "INSERT", "UPDATE"}),
     # Marketplace catalog: the system engine is the only writer — boot seeding of
     # the shipped listings, and later the registry refresh job. DELETE is there
     # for versions a re-seed supersedes; a withdrawn *listing* is flipped to
@@ -321,6 +326,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # before any routing.
     "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
     "app_settings": frozenset({"SELECT"}),
+    # The settings' stored credentials are the system engine's alone.
+    "app_setting_secrets": None,
     # The catalog is read under a platform tier or a guild role, never by the
     # bare pre-routing login role — browsing the marketplace requires a session.
     "marketplace_listings": None,
@@ -488,6 +495,8 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # Deployment settings are read from inside a community as from anywhere
     # (app_settings_read, TO public); writes are the owner's, under RLS.
     "app_settings": frozenset({"SELECT"}),
+    # 0362 took the schema default back: the system engine's alone.
+    "app_setting_secrets": None,
     # 0164: the catalog is browsed under a guild role or a platform tier.
     "marketplace_listings": frozenset({"SELECT"}),
     "marketplace_listing_versions": frozenset({"SELECT"}),
@@ -612,6 +621,7 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "access_grants": frozenset({"SELECT"}),
     "identity_refs": None,
     "app_settings": frozenset({"SELECT"}),
+    "app_setting_secrets": None,
     "marketplace_listings": frozenset({"SELECT"}),
     "marketplace_listing_versions": frozenset({"SELECT"}),
     "app_service_registrations": None,
@@ -697,6 +707,7 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "access_grants": None,
     "identity_refs": None,
     "app_settings": None,
+    "app_setting_secrets": None,
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
     "app_service_registrations": None,
