@@ -363,5 +363,16 @@
     "recoverable": "Todavía no se ha destruido nada. Hasta el <strong>{{date}}</strong>, quien administre este servidor puede restaurarla tal como estaba: pídeselo si esto no debía ocurrir.",
     "recoverableNoDate": "No se ha destruido nada. Quien administre este servidor puede restaurarla tal como estaba: pídeselo si esto no debía ocurrir.",
     "textBody": "La comunidad {{community}} ha sido eliminada. Sus miembros ya no la ven. Todavía no se ha destruido nada y quien administre este servidor puede restaurarla."
+  },
+  "communityOnHold": {
+    "subject": "{{community}} está en pausa",
+    "title": "{{community}} está en pausa",
+    "greeting": "Hola:",
+    "body": "<strong>{{community}}</strong> está en pausa, así que por ahora nadie puede abrirla, ni sus miembros ni sus administradores. No se ha cambiado ni eliminado nada.",
+    "contact": "Ponte en contacto con <strong>{{contact}}</strong> para resolverlo.",
+    "contactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
+    "textBody": "{{community}} está en pausa, así que por ahora nadie puede abrirla. No se ha cambiado ni eliminado nada.",
+    "textContact": "Ponte en contacto con {{contact}} para resolverlo.",
+    "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo."
   }
 }

@@ -436,6 +436,12 @@ export const notificationText = (
         : t("notifications.accountSuspended");
     case "account_unsuspended":
       return t("notifications.accountUnsuspended");
+    case "guild_on_hold": {
+      const community = typeof data.community === "string" ? data.community : "";
+      return typeof data.contact === "string" && data.contact.trim()
+        ? t("notifications.guildOnHoldWithContact", { community, contact: data.contact.trim() })
+        : t("notifications.guildOnHold", { community });
+    }
     default:
       return t("notifications.defaultNotification");
   }

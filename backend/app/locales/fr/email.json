@@ -363,5 +363,16 @@
     "recoverable": "Rien n'a encore été détruit. Jusqu'au <strong>{{date}}</strong>, la personne qui administre ce serveur peut la rétablir telle qu'elle était — demandez-lui si ce n'était pas voulu.",
     "recoverableNoDate": "Rien n'a été détruit. La personne qui administre ce serveur peut la rétablir telle qu'elle était — demandez-lui si ce n'était pas voulu.",
     "textBody": "La communauté {{community}} a été supprimée. Ses membres ne la voient plus. Rien n'a encore été détruit et la personne qui administre ce serveur peut la rétablir."
+  },
+  "communityOnHold": {
+    "subject": "{{community}} est en attente",
+    "title": "{{community}} est en attente",
+    "greeting": "Bonjour,",
+    "body": "<strong>{{community}}</strong> est en attente : personne ne peut l’ouvrir pour le moment, ni ses membres ni ses administrateurs. Rien n’y a été modifié ni supprimé.",
+    "contact": "Contactez <strong>{{contact}}</strong> pour régler la situation.",
+    "contactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
+    "textBody": "{{community}} est en attente : personne ne peut l’ouvrir pour le moment. Rien n’y a été modifié ni supprimé.",
+    "textContact": "Contactez {{contact}} pour régler la situation.",
+    "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation."
   }
 }

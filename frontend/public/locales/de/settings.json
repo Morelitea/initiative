@@ -1023,12 +1023,18 @@
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
       "suspended": "Gesperrt",
+      "on_hold": "Pausiert",
       "deleted": "Gelöscht"
     },
     "suspendConfirm": {
       "title": "{{name}} sperren?",
-      "description": "Mitglieder verlieren jeglichen Zugriff und die Community verschwindet aus ihrer Liste. Es wird nichts gelöscht und du kannst sie jederzeit reaktivieren; Betreiber behalten den Zugriff über eine Break-Glass-Berechtigung.",
+      "description": "Alle darin verlieren jeden Zugriff, auch die Administratoren, bis du die Sperre aufhebst. Mitglieder sehen sie nicht mehr; Administratoren sehen sie geschlossen. Nichts wird gelöscht, und Betreiber behalten über eine Notfallfreigabe Zugriff.",
       "confirm": "Community sperren"
+    },
+    "holdConfirm": {
+      "title": "{{name}} pausieren?",
+      "description": "Alle darin verlieren jeden Zugriff, auch die Administratoren, und sie verschwindet aus allen Listen. Nichts wird gelöscht. Ihre Superadmins erfahren einmal per E-Mail und in der App, an wen sie sich wenden können.",
+      "confirm": "Pausieren"
     },
     "columns": {
       "id": "ID",

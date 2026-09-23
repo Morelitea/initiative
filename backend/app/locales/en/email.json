@@ -363,5 +363,16 @@
     "recoverable": "Nothing has been destroyed yet. Until <strong>{{date}}</strong>, whoever runs this server can put it back exactly as it was — ask them if this was not meant to happen.",
     "recoverableNoDate": "Nothing has been destroyed. Whoever runs this server can put it back exactly as it was — ask them if this was not meant to happen.",
     "textBody": "The community {{community}} has been deleted. Its members no longer see it. Nothing has been destroyed yet, and whoever runs this server can put it back."
+  },
+  "communityOnHold": {
+    "subject": "{{community}} is on hold",
+    "title": "{{community}} is on hold",
+    "greeting": "Hello,",
+    "body": "<strong>{{community}}</strong> is on hold, so nobody can open it for now — its members and its administrators alike. Nothing in it has been changed or removed.",
+    "contact": "Contact <strong>{{contact}}</strong> to sort it out.",
+    "contactNobody": "Contact whoever runs this server to sort it out.",
+    "textBody": "{{community}} is on hold, so nobody can open it for now. Nothing in it has been changed or removed.",
+    "textContact": "Contact {{contact}} to sort it out.",
+    "textContactNobody": "Contact whoever runs this server to sort it out."
   }
 }

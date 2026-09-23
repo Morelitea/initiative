@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep
 from app.core.messages import BillingMessages
+from app.db import session as db_session
 from app.db.session import get_admin_session, set_billing_context
 from app.schemas.platform.billing import (
     BillingGuildNameRead,
@@ -33,7 +34,9 @@ from app.schemas.platform.billing import (
     BillingUsageRead,
     BillingUsageRequest,
 )
+from app.models.platform.guild import GuildStatus
 from app.services.platform import billing as billing_service
+from app.services.platform import guilds as guilds_service
 from app.services.platform import identity_refs
 from app.services.platform.billing import (
     BillingEnvelopeError,
@@ -134,6 +137,7 @@ async def apply_guild_tier(
     guild_id = await _resolve_guild(payload.guild_ref)
     await set_billing_context(session, guild_id=guild_id)
     await _burn_jti(session, claims)
+    status_before = await billing_service.guild_lifecycle_status(session, guild_id)
     try:
         result = await billing_service.apply_guild_tier(
             session, payload, guild_id=guild_id
@@ -156,6 +160,14 @@ async def apply_guild_tier(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
         ) from exc
     await session.commit()
+    if (
+        result.status is GuildStatus.on_hold
+        and status_before is not GuildStatus.on_hold
+    ):
+        # Told once, on the way in, and on the system engine: the billing
+        # role writes guild status and caps and nothing else.
+        async with db_session.AdminSessionLocal() as admin_session:
+            await guilds_service.announce_on_hold(admin_session, guild_id)
     return result
 
 

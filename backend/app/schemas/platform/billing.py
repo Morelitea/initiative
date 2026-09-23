@@ -14,7 +14,7 @@ from pydantic import Field, model_validator
 from app.core.messages import BillingMessages
 from app.models.platform.billing import BillingSource
 from app.models.platform.identity_ref import REF_MAX_LENGTH
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import BILLING_SETTABLE_STATUSES, GuildStatus
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -65,6 +65,9 @@ class BillingGuildTierApply(SanitizedBaseModel):
             forbidden = {"tier_name", "max_users", "status"}
             if forbidden & self.model_fields_set:
                 raise ValueError(BillingMessages.SUPPORT_SOURCE_RESTRICTED)
+        # Suspension is the platform operator's, and deletion is deletion's.
+        if self.status is not None and self.status not in BILLING_SETTABLE_STATUSES:
+            raise ValueError(BillingMessages.STATUS_NOT_SETTABLE)
         return self
 
 

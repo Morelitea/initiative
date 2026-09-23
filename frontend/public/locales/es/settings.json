@@ -1023,12 +1023,18 @@
       "active": "Activo",
       "read_only": "Solo lectura",
       "suspended": "Suspendido",
+      "on_hold": "En pausa",
       "deleted": "Eliminada"
     },
     "suspendConfirm": {
       "title": "¿Suspender {{name}}?",
-      "description": "Los miembros pierden todo el acceso y la comunidad desaparece de su lista. No se elimina nada y puedes reactivarla en cualquier momento; los operadores conservan el acceso mediante una concesión break-glass.",
+      "description": "Todos pierden el acceso, también sus administradores, hasta que levantes la suspensión. Los miembros dejan de verla; los administradores la ven cerrada. No se elimina nada y los operadores conservan el acceso mediante una concesión de emergencia.",
       "confirm": "Suspender comunidad"
+    },
+    "holdConfirm": {
+      "title": "¿Poner {{name}} en pausa?",
+      "description": "Todos pierden el acceso, también sus administradores, y desaparece de todas las listas. No se elimina nada. Sus superadministradores reciben un único aviso, por correo y en la app, con a quién contactar.",
+      "confirm": "Poner en pausa"
     },
     "columns": {
       "id": "ID",

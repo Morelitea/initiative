@@ -90,9 +90,9 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
 };
 
 /**
- * Lifecycle-status control for one guild. Changing to `suspended` (members
- * lose all access) is gated behind a confirm dialog; the lighter transitions
- * apply immediately. The change saves via the same platform-guilds mutation
+ * Lifecycle-status control for one guild. Changing to `suspended` or
+ * `on_hold` (everyone in it loses all access) is gated behind a confirm
+ * dialog; the lighter transitions apply immediately. The change saves via the same platform-guilds mutation
  * and the list invalidates on success, so the Select reflects the persisted
  * status.
  *
@@ -103,7 +103,9 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
  */
 const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   const { t } = useTranslation(["settings", "common"]);
-  const [pendingSuspend, setPendingSuspend] = useState(false);
+  // Suspending and putting on hold both take everyone out of the community,
+  // so each is confirmed before it is applied.
+  const [pending, setPending] = useState<GuildStatus | null>(null);
 
   const update = useUpdateGuildStorage({
     onSuccess: (row) => {
@@ -114,7 +116,7 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
     },
     // Close the confirm dialog only once the mutation settles, so its in-flight
     // state is actually observable (the dialog shows "please wait" while saving).
-    onSettled: () => setPendingSuspend(false),
+    onSettled: () => setPending(null),
   });
 
   const apply = (status: GuildStatus) => {
@@ -124,8 +126,8 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   const handleChange = (value: string) => {
     const next = value as GuildStatus;
     if (next === guild.status) return;
-    if (next === GuildStatus.suspended) {
-      setPendingSuspend(true); // confirm the soft delete first
+    if (next === GuildStatus.suspended || next === GuildStatus.on_hold) {
+      setPending(next);
       return;
     }
     apply(next);
@@ -153,15 +155,27 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
         </SelectContent>
       </Select>
       <ConfirmDialog
-        open={pendingSuspend}
-        onOpenChange={setPendingSuspend}
-        title={t("guilds.suspendConfirm.title", { name: guild.name })}
-        description={t("guilds.suspendConfirm.description")}
-        confirmLabel={t("guilds.suspendConfirm.confirm")}
+        open={pending !== null}
+        onOpenChange={(open) => !open && setPending(null)}
+        title={
+          pending === GuildStatus.on_hold
+            ? t("guilds.holdConfirm.title", { name: guild.name })
+            : t("guilds.suspendConfirm.title", { name: guild.name })
+        }
+        description={
+          pending === GuildStatus.on_hold
+            ? t("guilds.holdConfirm.description")
+            : t("guilds.suspendConfirm.description")
+        }
+        confirmLabel={
+          pending === GuildStatus.on_hold
+            ? t("guilds.holdConfirm.confirm")
+            : t("guilds.suspendConfirm.confirm")
+        }
         cancelLabel={t("common:cancel")}
         destructive
         isLoading={update.isPending}
-        onConfirm={() => apply(GuildStatus.suspended)}
+        onConfirm={() => pending && apply(pending)}
       />
     </>
   );

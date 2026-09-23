@@ -19,6 +19,7 @@ from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
     LIVE_STATUS_VALUES,
+    UNLISTED_STATUSES,
     DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
@@ -29,6 +30,7 @@ from app.models.platform.guild import (
     GuildStatus,
 )
 from app.models.platform.guild_administration import GuildAdministration
+from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User, UserStatus
 from app.services import audit as audit_service
@@ -589,9 +591,9 @@ async def list_memberships(
         # inside it until the platform lifts the suspension. The row is simply
         # absent for members.
         #
-        # A DELETED guild disappears for everyone, admins included. Only a
-        # platform operator sees it, and only to restore it.
-        if guild.status == GuildStatus.deleted.value:
+        # A guild ON HOLD or DELETED disappears for everyone, admins included.
+        # Only a platform operator sees it.
+        if GuildStatus(guild.status) in UNLISTED_STATUSES:
             continue
         if (
             guild.status not in LIVE_STATUS_VALUES
@@ -1307,6 +1309,61 @@ async def _deletion_notice(
         recipients=sorted(set(recipients)),
         purge_at=guild_purge.purge_at(deleted_at, days) if days else None,
     )
+
+
+async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
+    """Tell the community's seat holders, once, that it is on hold and whom to
+    contact.
+
+    Called after the commit that put it there, on the system engine. The people
+    told are its superadmins: the hold is about paying for it, which is the
+    seat's errand. Each gets one line in their bell — an account notice, not
+    one filed under the community, which none of them can open now — and one
+    letter at every proved address. Neither is allowed to fail the hold.
+    """
+    from app.db.session import set_rls_context
+    from app.services import email as email_service
+    from app.services.platform import intake as intake_service
+    from app.services.platform import user_notifications
+
+    await set_rls_context(session)
+    guild = (
+        await session.exec(select(Guild).where(Guild.id == guild_id))
+    ).one_or_none()
+    if guild is None or guild.status != GuildStatus.on_hold.value:
+        return
+    contact = await intake_service.contact_for(session, IntakeStream.support)
+    seat_holders = (
+        await session.exec(
+            select(GuildMembership.user_id).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
+    recipients: list[str] = []
+    for user_id in seat_holders:
+        await user_notifications.create_notification(
+            session,
+            user_id=user_id,
+            notification_type=NotificationType.guild_on_hold,
+            data={"community": guild.name, "contact": contact, "target_path": "/"},
+        )
+        recipients.extend(await addresses.proven_addresses(session, user_id=user_id))
+    await session.commit()
+    if not recipients:
+        return
+    try:
+        await email_service.send_community_on_hold_email(
+            session,
+            recipients=sorted(set(recipients)),
+            community=guild.name,
+            contact=contact,
+        )
+    except email_service.EmailNotConfiguredError:
+        logger.info("no mail configured; community hold not announced by letter")
+    except Exception:  # pragma: no cover - delivery is best-effort here
+        logger.exception("could not send the community hold notice")
 
 
 async def soft_delete_guild(

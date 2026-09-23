@@ -350,6 +350,49 @@ async def test_a_real_status_transition_is_stamped(
 
 
 @pytest.mark.integration
+async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
+    client: AsyncClient, session: AsyncSession, operator, monkeypatch
+) -> None:
+    """Every transition nudges billing to read the status; one into on_hold
+    also tells the community's seat holder, once."""
+    from app.models.platform.guild import GuildRole
+    from app.models.platform.notification import Notification, NotificationType
+    from app.services.platform import billing_ping
+    from app.testing import create_guild_membership, create_user
+
+    nudged: list[int] = []
+    monkeypatch.setattr(billing_ping, "notify_lifecycle_changed", nudged.append)
+    guild = await create_guild(session)
+    seat = await create_user(session)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    guild_id, guild_name, seat_id = guild.id, guild.name, seat.id
+
+    for status in (GuildStatus.suspended, GuildStatus.on_hold):
+        resp = await client.patch(
+            f"{GUILDS}/{guild_id}",
+            json={"status": status.value},
+            headers=operator.headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == status.value
+    assert nudged == [guild_id, guild_id]
+
+    session.expire_all()
+    notices = (
+        await session.exec(
+            select(Notification).where(
+                Notification.user_id == seat_id,
+                Notification.type == NotificationType.guild_on_hold,
+            )
+        )
+    ).all()
+    assert len(notices) == 1
+    assert notices[0].data["community"] == guild_name
+
+
+@pytest.mark.integration
 async def test_operator_grants_and_withdraws_guild_auth_options(
     client: AsyncClient, session: AsyncSession, operator
 ) -> None:

@@ -1,6 +1,7 @@
 """Fire-and-forget pings to the external billing service.
 
-Two nudges: a guild's membership changed, and a guild was deleted or restored.
+Two nudges: a guild's membership changed, and a guild's lifecycle status
+changed — deleted, restored, or moved by the operator.
 What the service does with either is its own business; this side only sends
 it. Neither carries a fact — the lifecycle one does not say which way the
 guild moved.
@@ -156,7 +157,7 @@ def notify_membership_changed(guild_id: int) -> None:
 
 
 def notify_lifecycle_changed(guild_id: int) -> None:
-    """Nudge billing that ``guild_id`` was deleted or restored.
+    """Nudge billing that ``guild_id``'s lifecycle status changed.
 
     Call **after** the commit, so the status it points at is the new one.
     """

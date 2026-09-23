@@ -1013,12 +1013,18 @@
       "active": "Active",
       "read_only": "Read-only",
       "suspended": "Suspended",
+      "on_hold": "On hold",
       "deleted": "Deleted"
     },
     "suspendConfirm": {
       "title": "Suspend {{name}}?",
-      "description": "Members lose all access and the community disappears from their list. Nothing is deleted and you can reactivate it anytime; operators keep access via a break-glass grant.",
+      "description": "Everyone in it loses all access, its administrators included, until you lift it. Members stop seeing it; administrators see it closed. Nothing is deleted, and operators keep access through a break-glass grant.",
       "confirm": "Suspend community"
+    },
+    "holdConfirm": {
+      "title": "Put {{name}} on hold?",
+      "description": "Everyone in it loses all access, its administrators included, and it leaves every list. Nothing is deleted. Its superadmins are told once, by email and in the app, whom to contact.",
+      "confirm": "Put on hold"
     },
     "columns": {
       "id": "ID",

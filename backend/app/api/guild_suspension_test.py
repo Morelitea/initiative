@@ -127,6 +127,28 @@ async def test_admin_of_suspended_guild_reaches_nothing(
     assert a.guild.id in [g["id"] for g in resp.json()], "membership is kept"
 
 
+@pytest.mark.parametrize(
+    "role", [GuildRole.member, GuildRole.admin, GuildRole.superadmin]
+)
+async def test_a_guild_on_hold_is_gone_for_everyone_in_it(
+    client: AsyncClient, session: AsyncSession, acting_user, role: GuildRole
+):
+    """On hold refuses every surface and leaves every list, admins' included."""
+    a = await acting_user(guild_role=role, initiative=True)
+    await _set_status(session, a.guild, GuildStatus.on_hold)
+
+    for resp in (
+        await client.get(a.g("/initiatives/"), headers=a.headers),
+        await client.get(f"/api/v1/guilds/{a.guild.id}/auth-policy", headers=a.headers),
+        await client.delete(f"/api/v1/guilds/{a.guild.id}/leave", headers=a.headers),
+    ):
+        assert resp.status_code == 403, (resp.request.url, resp.text)
+        assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+
+    listed = (await client.get("/api/v1/guilds/", headers=a.headers)).json()
+    assert a.guild.id not in [g["id"] for g in listed]
+
+
 async def test_suspended_guild_hidden_from_members_listed_for_admins(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

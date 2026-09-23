@@ -27,7 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class GuildStatus(str, Enum):
     """Lifecycle status of a guild.
 
-    The first three are operator-set from the platform Guilds tab (platform
+    The first four are operator-set from the platform Guilds tab (platform
     `guilds.manage`) and are freely interchangeable:
 
     - ``active``: normal operation.
@@ -36,12 +36,17 @@ class GuildStatus(str, Enum):
     - ``suspended``: the guild is in time out. Nobody in it reaches anything
       in it — content or settings, members and admins alike — and only the
       platform lifts it. It vanishes from members' guild lists; its admins
-      keep a closed entry, so they can tell a time out from a loss.
+      keep a closed entry, so they can tell a time out from a loss. Set by
+      the platform operator alone; the billing service cannot.
+    - ``on_hold``: the guild is held for a significantly late payment. Nobody
+      in it reaches it, its admins included, and it is absent from every
+      member's guild list. Its superadmins are told once, on the way in, whom
+      to contact. Set by the billing service, or by the operator.
 
     Guild admins keep the settings surface (billing / data ownership / danger
     zone) under ``active`` and ``read_only`` only.
 
-    The fourth is not:
+    The fifth is not:
 
     - ``deleted``: the guild has been deleted and is being retained for
       :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
@@ -63,6 +68,7 @@ class GuildStatus(str, Enum):
     active = "active"
     read_only = "read_only"
     suspended = "suspended"
+    on_hold = "on_hold"
     deleted = "deleted"
 
 
@@ -82,7 +88,22 @@ LIVE_STATUSES: frozenset[GuildStatus] = frozenset(
 OPERATOR_SETTABLE_STATUSES: tuple[GuildStatus, ...] = (
     GuildStatus.active,
     GuildStatus.read_only,
+    GuildStatus.on_hold,
     GuildStatus.suspended,
+)
+
+#: The statuses the billing service may write. ``suspended`` is the platform
+#: operator's time out and ``deleted`` belongs to deletion, so neither is here —
+#: and a guild already in either takes no status write from billing at all.
+BILLING_SETTABLE_STATUSES: frozenset[GuildStatus] = frozenset(
+    {GuildStatus.active, GuildStatus.read_only, GuildStatus.on_hold}
+)
+
+#: The statuses whose guild is absent from every member's guild list, its
+#: admins' included. A suspended guild is not here: its admins keep a closed
+#: entry.
+UNLISTED_STATUSES: frozenset[GuildStatus] = frozenset(
+    {GuildStatus.on_hold, GuildStatus.deleted}
 )
 
 #: :data:`LIVE_STATUSES` as the strings the column stores, so one set answers

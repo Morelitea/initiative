@@ -937,6 +937,13 @@ async def update_platform_guild_storage(
             detail={"from": status_before, "to": status_after},
         )
     await session.commit()
+    if status_after is not None:
+        # Billing reads the new status for itself: a suspended community's
+        # subscription is paused, and one that comes back is resumed.
+        billing_ping.notify_lifecycle_changed(guild_id)
+        if status_after == GuildStatus.on_hold.value:
+            await guilds_service.announce_on_hold(session, guild_id)
+            guild = await guilds_service.get_guild(session, guild_id=guild_id)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
     return PlatformGuildStorageRead(
         id=guild.id,

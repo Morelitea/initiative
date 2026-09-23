@@ -173,7 +173,7 @@ export const AccessGrantStatus = {
 /**
  * Lifecycle status of a guild.
  *
- * The first three are operator-set from the platform Guilds tab (platform
+ * The first four are operator-set from the platform Guilds tab (platform
  * `guilds.manage`) and are freely interchangeable:
  *
  * - ``active``: normal operation.
@@ -182,12 +182,17 @@ export const AccessGrantStatus = {
  * - ``suspended``: the guild is in time out. Nobody in it reaches anything
  *   in it — content or settings, members and admins alike — and only the
  *   platform lifts it. It vanishes from members' guild lists; its admins
- *   keep a closed entry, so they can tell a time out from a loss.
+ *   keep a closed entry, so they can tell a time out from a loss. Set by
+ *   the platform operator alone; the billing service cannot.
+ * - ``on_hold``: the guild is held for a significantly late payment. Nobody
+ *   in it reaches it, its admins included, and it is absent from every
+ *   member's guild list. Its superadmins are told once, on the way in, whom
+ *   to contact. Set by the billing service, or by the operator.
  *
  * Guild admins keep the settings surface (billing / data ownership / danger
  * zone) under ``active`` and ``read_only`` only.
  *
- * The fourth is not:
+ * The fifth is not:
  *
  * - ``deleted``: the guild has been deleted and is being retained for
  *   :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
@@ -211,6 +216,7 @@ export const GuildStatus = {
   active: "active",
   read_only: "read_only",
   suspended: "suspended",
+  on_hold: "on_hold",
   deleted: "deleted",
 } as const;
 
@@ -5712,6 +5718,7 @@ export const NotificationType = {
   username_changed: "username_changed",
   account_suspended: "account_suspended",
   account_unsuspended: "account_unsuspended",
+  guild_on_hold: "guild_on_hold",
   connection_requested: "connection_requested",
   connection_accepted: "connection_accepted",
   message_request_received: "message_request_received",

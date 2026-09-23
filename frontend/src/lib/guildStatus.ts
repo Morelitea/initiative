@@ -14,6 +14,7 @@ import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
 export const OPERATOR_SETTABLE_STATUSES: GuildStatus[] = [
   GuildStatus.active,
   GuildStatus.read_only,
+  GuildStatus.on_hold,
   GuildStatus.suspended,
 ];
 
