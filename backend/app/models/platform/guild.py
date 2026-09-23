@@ -33,18 +33,20 @@ class GuildStatus(str, Enum):
     - ``active``: normal operation.
     - ``read_only``: members keep read access to content but writes are denied
       at the Postgres role level (routed into ``guild_<id>_ro``).
-    - ``suspended``: members lose all content access and the guild vanishes
-      from their guild list. Guild admins keep the settings surface (billing /
-      data ownership / danger zone) under all three.
+    - ``suspended``: the guild is in time out. Nobody in it reaches anything
+      in it — content or settings, members and admins alike — and only the
+      platform lifts it. It vanishes from members' guild lists; its admins
+      keep a closed entry, so they can tell a time out from a loss.
+
+    Guild admins keep the settings surface (billing / data ownership / danger
+    zone) under ``active`` and ``read_only`` only.
 
     The fourth is not:
 
     - ``deleted``: the guild has been deleted and is being retained for
       :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
-      it is destroyed. Nobody in the guild reaches it — not even its admins,
-      whose settings carve-out is withdrawn, because a deleted guild has no
-      billing surface left to reach and its danger zone has already been used.
-      It is absent from every member's guild list.
+      it is destroyed. Nobody in the guild reaches it, its admins included,
+      and it is absent from every member's guild list.
 
       Reached only through deletion and left only through restore, both of
       which do more than move a column, so it is deliberately not offered in
@@ -64,8 +66,8 @@ class GuildStatus(str, Enum):
     deleted = "deleted"
 
 
-#: The statuses from which a request reaches guild content at all. Everything
-#: else is refused by the guild-access resolver.
+#: The statuses from which a member reaches the guild at all — its content or
+#: its settings. Everything else is refused by the guild-access resolver.
 #:
 #: Stated once, as a set, because the question is asked in a dozen places and
 #: every one of them should have the same answer.

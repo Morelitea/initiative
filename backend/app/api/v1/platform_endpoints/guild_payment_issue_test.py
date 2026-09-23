@@ -55,15 +55,23 @@ async def test_only_the_seat_may_ask(client: AsyncClient, session: AsyncSession,
     assert asked == []
 
 
-@pytest.mark.parametrize("status", [GuildStatus.read_only, GuildStatus.suspended])
-async def test_the_seat_of_a_restricted_guild_gets_the_answer(
-    client: AsyncClient, session: AsyncSession, asked, status
+async def test_the_seat_of_a_read_only_guild_gets_the_answer(
+    client: AsyncClient, session: AsyncSession, asked
 ):
-    guild, seat, _ = await _guild_with_seat(session, status)
+    guild, seat, _ = await _guild_with_seat(session, GuildStatus.read_only)
     response = await client.get(_url(guild.id), headers=get_auth_headers(seat))
     assert response.status_code == 200, response.text
     assert response.json() == {"payment_failed": True}
     assert asked == [guild.id]
+
+
+async def test_the_seat_of_a_suspended_guild_is_refused(
+    client: AsyncClient, session: AsyncSession, asked
+):
+    guild, seat, _ = await _guild_with_seat(session, GuildStatus.suspended)
+    response = await client.get(_url(guild.id), headers=get_auth_headers(seat))
+    assert response.status_code == 403, response.text
+    assert asked == []
 
 
 async def test_an_active_guild_is_never_asked_about(

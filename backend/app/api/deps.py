@@ -841,12 +841,14 @@ async def _load_guild_context(
     have no delegation token, so the shared resolver never deals with one.
 
     ``for_settings`` is the community's own configuration surface, which a
-    guild administrator reaches while its content is closed to everybody: a
-    community on hold or suspended, and one whose sign-in policy this session
-    does not answer, still has an administrator to run it. It reads the same
-    way on both branches below, membership and grant. The rung guard on those
-    routes has already refused anyone who does not administer it; what this
-    establishes is the standing the database reads.
+    guild administrator keeps while its content is frozen: a ``read_only``
+    community, and one whose sign-in policy this session does not answer, still
+    has an administrator to run it. A community outside the live statuses has
+    no settings surface for its members either — it is in time out, and only
+    the platform brings it back. It reads the same way on both branches below,
+    membership and grant. The rung guard on those routes has already refused
+    anyone who does not administer it; what this establishes is the standing
+    the database reads.
     """
     # A suspended account reaches no guild. Ahead of the branches below so it
     # holds for membership and for a grant alike, and it answers with the same
@@ -929,9 +931,10 @@ async def _load_guild_context(
         )
     membership, guild, policy, asked, age_gate_on = gate
     # Membership access respects the guild's lifecycle status: the statuses
-    # that serve members are named, and every other one is refused. Content
-    # only — running the community is what an administrator keeps.
-    if not for_settings and guild.status not in LIVE_STATUS_VALUES:
+    # that serve members are named, and every other one is refused, on every
+    # surface. A suspended community is in time out — its administrators are
+    # members like any other until the platform lifts it.
+    if guild.status not in LIVE_STATUS_VALUES:
         raise GuildAccessError()
     _enforce_guild_api_access(guild)
     # A listed community is open to anyone signed in, so the deployment's age
@@ -1031,10 +1034,10 @@ async def get_guild_membership(
     try:
         return await establish_guild_access(session, current_user, guild_id)
     except GuildAccessError as exc:
-        _raise_for_guild_access(exc)
+        raise_for_guild_access(exc)
 
 
-def _raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
+def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
     """Turn a refusal from the seam into the response it owes the caller.
 
     Three shapes: the two step-up 401s, which say what is missing and where to
@@ -1292,9 +1295,10 @@ async def get_guild_settings_context(
     :func:`get_guild_membership` for the surface an administrator keeps while
     the content is closed, and the one a settings grant may serve: the same
     lookup, routing and standing, established ``for_settings`` — so the
-    community's sign-in rule, its lifecycle status and the deployment's age
+    community's sign-in rule, a ``read_only`` freeze and the deployment's age
     question, which govern its work, do not stand between an administrator and
-    the settings that govern them.
+    the settings that govern them. A suspended community has no settings
+    surface for its members: it is in time out.
     """
     guild_id = addressed_guild_id(request, guild_id)
     key_guild = getattr(request.state, "api_key_guild_id", None)
@@ -1308,7 +1312,7 @@ async def get_guild_settings_context(
             session, current_user, guild_id, for_settings=True
         )
     except GuildAccessError as exc:
-        _raise_for_guild_access(exc)
+        raise_for_guild_access(exc)
 
 
 async def get_guild_session(
@@ -1408,7 +1412,7 @@ async def get_guild_seat_context(
             session, current_user, guild_id, for_settings=True, for_seat=True
         )
     except GuildAccessError as exc:
-        _raise_for_guild_access(exc)
+        raise_for_guild_access(exc)
     if not context.seat:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -216,11 +216,14 @@
     "description": "You’re not a member of this community. Ask a community admin for an invite link to join.",
     "backToHome": "← Back to home"
   },
+  "closed": {
+    "title": "This community is suspended",
+    "description": "Nobody can open it until the suspension is lifted. Contact whoever runs this server."
+  },
   "statusNotice": {
     "title": "Something is wrong",
     "description": "Contact your platform operator.",
     "readOnly": "Until it’s resolved, members can read everything here but can’t change anything.",
-    "suspended": "Until it’s resolved, members can’t open this community.",
     "paymentTitle": "The payment for {{name}} was declined",
     "paymentDescription": "Update your card to restore the community.",
     "updatePayment": "Update payment method",

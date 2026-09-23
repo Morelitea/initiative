@@ -26,10 +26,6 @@
       "read_only": {
         "label": "Solo lectura",
         "message": "Esta comunidad es de solo lectura. Ponte en contacto con quien gestiona este servidor para restaurar el acceso completo."
-      },
-      "suspended": {
-        "label": "Suspendido",
-        "message": "Esta comunidad está suspendida y los miembros no pueden acceder. Ponte en contacto con quien gestiona este servidor."
       }
     },
     "tabs": {

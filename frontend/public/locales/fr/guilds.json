@@ -216,11 +216,14 @@
     "description": "Vous n'êtes pas membre de cette communauté. Demandez à un administrateur un lien d'invitation pour rejoindre.",
     "backToHome": "← Retour à l'accueil"
   },
+  "closed": {
+    "title": "Cette communauté est suspendue",
+    "description": "Personne ne peut l’ouvrir tant que la suspension n’est pas levée. Contactez la personne qui gère ce serveur."
+  },
   "statusNotice": {
     "title": "Un problème est survenu",
     "description": "Contactez l'opérateur de votre plateforme.",
     "readOnly": "En attendant, les membres peuvent tout lire ici, mais ne peuvent rien modifier.",
-    "suspended": "En attendant, les membres ne peuvent pas ouvrir cette communauté.",
     "paymentTitle": "Le paiement pour {{name}} a été refusé",
     "paymentDescription": "Mettez à jour votre carte pour rétablir la communauté.",
     "updatePayment": "Mettre à jour le moyen de paiement",

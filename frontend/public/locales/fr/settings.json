@@ -26,10 +26,6 @@
       "read_only": {
         "label": "Lecture seule",
         "message": "Cette communauté est en lecture seule. Contactez la personne qui gère ce serveur pour rétablir l'accès complet."
-      },
-      "suspended": {
-        "label": "Suspendu",
-        "message": "Cette communauté est suspendue et les membres n'y ont pas accès. Contactez la personne qui gère ce serveur."
       }
     },
     "tabs": {
