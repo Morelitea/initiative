@@ -31,11 +31,6 @@ import type {
   LoginMethodsUpdate,
   NotificationSettingsResponse,
   NotificationSettingsUpdate,
-  OIDCClaimMappingCreate,
-  OIDCClaimMappingRead,
-  OIDCClaimMappingUpdate,
-  OIDCMappingOptionsResponse,
-  OIDCMappingsResponse,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
   PlatformGuildRestore,
@@ -52,16 +47,12 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut,
-  createOidcMappingApiV1SettingsOidcMappingsPost,
-  deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete,
   getEmailSettingsApiV1SettingsEmailGet,
   getFcmConfigApiV1SettingsFcmConfigGet,
   getGetEmailSettingsApiV1SettingsEmailGetQueryKey,
   getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey,
   getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey,
   getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey,
-  getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey,
-  getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
   getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey,
   getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
@@ -69,8 +60,6 @@ import {
   getInterfaceSettingsApiV1SettingsInterfaceGet,
   getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey,
   getNotificationSettingsApiV1SettingsNotificationsGet,
-  getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
-  getOidcMappingsApiV1SettingsOidcMappingsGet,
   getOidcSettingsApiV1SettingsAuthGet,
   getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
   getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey,
@@ -87,7 +76,6 @@ import {
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateLoginMethodsApiV1SettingsAuthMethodsPut,
   updateNotificationSettingsApiV1SettingsNotificationsPut,
-  updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
   updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut,
   updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut,
@@ -150,20 +138,6 @@ export const useAgreeGuildNarrowing = (
     },
     options
   );
-
-export const useOidcMappings = () => {
-  return useQuery<OIDCMappingsResponse>({
-    queryKey: getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey(),
-    queryFn: () => getOidcMappingsApiV1SettingsOidcMappingsGet(),
-  });
-};
-
-export const useOidcMappingOptions = () => {
-  return useQuery<OIDCMappingOptionsResponse>({
-    queryKey: getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey(),
-    queryFn: () => getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet(),
-  });
-};
 
 export const useEmailSettings = (options?: QueryOpts<EmailSettingsResponse>) => {
   return useQuery<EmailSettingsResponse>({
@@ -519,47 +493,6 @@ export const useUpdateGuildStorage = (
           data as Parameters<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>[1]
         ),
       invalidate: () => invalidate(q.platformGuilds()),
-    },
-    options
-  );
-
-// ── OIDC Claim Mapping Mutations ────────────────────────────────────────────
-
-export const useCreateOidcMapping = (
-  options?: MutationOpts<OIDCClaimMappingRead, OIDCClaimMappingCreate>
-) =>
-  useApiMutation<OIDCClaimMappingRead, OIDCClaimMappingCreate>(
-    {
-      mutationFn: (data) =>
-        createOidcMappingApiV1SettingsOidcMappingsPost(
-          data as Parameters<typeof createOidcMappingApiV1SettingsOidcMappingsPost>[0]
-        ),
-      invalidate: () => invalidate(q.oidcMappings()),
-    },
-    options
-  );
-
-export const useUpdateOidcMapping = (
-  options?: MutationOpts<OIDCClaimMappingRead, { mappingId: number; data: OIDCClaimMappingUpdate }>
-) =>
-  useApiMutation<OIDCClaimMappingRead, { mappingId: number; data: OIDCClaimMappingUpdate }>(
-    {
-      mutationFn: ({ mappingId, data }) =>
-        updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut(
-          mappingId,
-          data as Parameters<typeof updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut>[1]
-        ),
-      invalidate: () => invalidate(q.oidcMappings()),
-    },
-    options
-  );
-
-export const useDeleteOidcMapping = (options?: MutationOpts<void, number>) =>
-  useApiMutation<void, number>(
-    {
-      mutationFn: (mappingId) =>
-        deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete(mappingId),
-      invalidate: () => invalidate(q.oidcMappings()),
     },
     options
   );

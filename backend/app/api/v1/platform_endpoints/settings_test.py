@@ -27,7 +27,6 @@ from app.models.platform.user import UserRole
 from app.models.tenant.intake import IntakeBinding
 from app.services import email as email_service
 from app.testing import (
-    create_auth_provider,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -38,7 +37,6 @@ from app.testing import (
 from sqlmodel import select
 
 GUILDS = "/api/v1/settings/guilds"
-OIDC_MAPPINGS = "/api/v1/settings/oidc-mappings"
 
 
 @pytest.fixture
@@ -85,114 +83,6 @@ async def test_a_failed_test_email_answers_with_a_code_and_logs_the_cause(
     assert "smtp.internal.example.com" not in resp.text
     # ...preserved for the operator in the server logs only.
     assert sensitive in caplog.text
-
-
-# --- OIDC claim mappings ----------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_oidc_mapping_options_includes_guild_scoped_initiatives(
-    client: AsyncClient, acting_user
-) -> None:
-    """Regression: initiatives/roles are guild-scoped content (rows live in each
-    guild's schema). The options endpoint must route into every guild schema,
-    otherwise the form's initiative dropdown is empty."""
-    a = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
-
-    resp = await client.get(f"{OIDC_MAPPINGS}/options", headers=a.headers)
-    assert resp.status_code == 200
-    data = resp.json()
-
-    matched = next((i for i in data["initiatives"] if i["id"] == a.initiative.id), None)
-    assert matched is not None, "guild-scoped initiative missing from options"
-    assert matched["guild_id"] == a.guild.id
-
-    # Roles carry guild_id so the client can disambiguate initiative ids that
-    # collide across guild schemas.
-    roles = [
-        r
-        for r in data["initiative_roles"]
-        if r["initiative_id"] == a.initiative.id and r["guild_id"] == a.guild.id
-    ]
-    assert roles, "initiative roles missing from options"
-    assert all("guild_id" in r for r in data["initiative_roles"])
-
-
-@pytest.mark.integration
-async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
-    client: AsyncClient, session: AsyncSession, acting_user
-) -> None:
-    """Regression: creating an initiative-target mapping must validate the
-    initiative/role inside the guild schema — validating anywhere else always
-    400'd INITIATIVE_NOT_FOUND."""
-    a = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
-    provider = await create_auth_provider(session)
-
-    options = (await client.get(f"{OIDC_MAPPINGS}/options", headers=a.headers)).json()
-    role = next(
-        r
-        for r in options["initiative_roles"]
-        if r["initiative_id"] == a.initiative.id and r["guild_id"] == a.guild.id
-    )
-
-    resp = await client.post(
-        OIDC_MAPPINGS,
-        json={
-            "provider_id": provider.id,
-            "claim_value": "eng-team",
-            "target_type": "initiative",
-            "guild_id": a.guild.id,
-            "guild_role": "member",
-            "initiative_id": a.initiative.id,
-            "initiative_role_id": role["id"],
-        },
-        headers=a.headers,
-    )
-    assert resp.status_code == 201, resp.text
-    body = resp.json()
-    # Denormalized names are resolved from the guild schema for display.
-    assert body["initiative_name"] == a.initiative.name
-    assert body["initiative_role_name"] == role["name"]
-    # And whose claim it reads, named for the editor that lists rules from several.
-    assert body["provider_id"] == provider.id
-    assert body["provider_name"] == provider.display_name
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize(
-    "provider_id,expected,detail",
-    [
-        pytest.param(None, 201, None, id="a-provider-that-is-registered"),
-        pytest.param(
-            9_999_999, 400, "AUTH_PROVIDER_NOT_FOUND", id="a-provider-that-is-not-there"
-        ),
-    ],
-)
-async def test_a_guild_rule_grants_in_the_guild_it_names(
-    client: AsyncClient, session: AsyncSession, owner, provider_id, expected, detail
-) -> None:
-    """The platform's own registry has no guild of its own, so its rules grant
-    in whichever guild they name — and a provider id it does not know is
-    answered as the bad request it is. ``None`` here means the real provider
-    made below."""
-    guild = await create_guild(session)
-    provider = await create_auth_provider(session)
-
-    resp = await client.post(
-        OIDC_MAPPINGS,
-        json={
-            "provider_id": provider.id if provider_id is None else provider_id,
-            "claim_value": "staff",
-            "target_type": "guild",
-            "guild_id": guild.id,
-            "guild_role": "member",
-        },
-        headers=owner.headers,
-    )
-
-    assert resp.status_code == expected, resp.text
-    if detail is not None:
-        assert resp.json()["detail"] == detail
 
 
 # --- The Guilds tab: the operator's dials -----------------------------------
@@ -1193,21 +1083,6 @@ _GUILDS_MANAGE = "guilds.manage"  # operator and owner
 
 #: (capability, method, path — ``{guild_id}`` is filled in, json body or None)
 _ROUTES: list[tuple[str, str, str, dict | None]] = [
-    (_CONFIG_MANAGE, "get", OIDC_MAPPINGS, None),
-    (_CONFIG_MANAGE, "get", f"{OIDC_MAPPINGS}/options", None),
-    (
-        _CONFIG_MANAGE,
-        "post",
-        OIDC_MAPPINGS,
-        {
-            "claim_value": "x",
-            "target_type": "guild",
-            "guild_id": 1,
-            "guild_role": "member",
-        },
-    ),
-    (_CONFIG_MANAGE, "put", f"{OIDC_MAPPINGS}/1", {"claim_value": "x"}),
-    (_CONFIG_MANAGE, "delete", f"{OIDC_MAPPINGS}/1", None),
     (_CONFIG_MANAGE, "get", "/api/v1/settings/storage", None),
     (_CONFIG_MANAGE, "put", "/api/v1/settings/storage", {"backend": "local"}),
     (_CONFIG_MANAGE, "post", "/api/v1/settings/storage/test", {"backend": "local"}),

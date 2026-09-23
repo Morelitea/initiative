@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated, List, Sequence
+from typing import Annotated, List
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
@@ -10,14 +10,12 @@ from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import get_admin_session
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.platform.guild import Guild, GuildRole
-from app.models.tenant.initiative import Initiative, InitiativeMember
-from app.models.tenant.project import Project
+from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
-from app.schemas.platform.user import AdminUserRead, AccountDeletionResponse, UserPublic
+from app.schemas.platform.user import AdminUserRead, AccountDeletionResponse
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.admin import (
     AdminSuspensionUpdate,
@@ -25,15 +23,12 @@ from app.schemas.platform.admin import (
     PlatformRoleUpdate,
     AdminUserDeleteRequest,
     AdminDeletionEligibilityResponse,
-    AdminGuildRoleUpdate,
-    AdminInitiativeRoleUpdate,
     GuildBlockerInfo,
 )
 from app.core.messages import (
     AdminMessages,
     AuthMessages,
     GuildMessages,
-    InitiativeMessages,
     SettingsMessages,
     UserMessages,
 )
@@ -48,7 +43,6 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.auth import totp as totp_service
 from app.services.stream_authz import authority as stream_authority
-from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
 from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
@@ -691,10 +685,10 @@ async def check_user_deletion_eligibility(
 ) -> AdminDeletionEligibilityResponse:
     """Check if a user can be deleted (admin only).
 
-    Returns the blockers and, for each, the members who could be promoted to
-    resolve it. Being the last admin of a guild is the only one: owning content
-    does not stop a deletion, because ownership is released on the way out and
-    the content is left unowned for a guild admin to claim.
+    Returns the blockers: the communities the user holds the only superadmin
+    seat of. That is the only one: owning content does not stop a deletion,
+    because ownership is released on the way out and the content is left
+    unowned for a guild admin to claim.
     """
     if user_id == current_user.id:
         raise HTTPException(
@@ -732,20 +726,7 @@ async def check_user_deletion_eligibility(
         can_delete=can_delete,
         blockers=blockers,
         guild_blockers=[
-            GuildBlockerInfo(
-                guild_id=gb["guild_id"],
-                guild_name=gb["guild_name"],
-                other_members=[
-                    UserPublic(
-                        id=m.id,
-                        username=m.username,
-                        discriminator=m.discriminator,
-                        full_name=m.full_name,
-                        avatar_url=m.avatar_url,
-                    )
-                    for m in gb["other_members"]
-                ],
-            )
+            GuildBlockerInfo(guild_id=gb["guild_id"], guild_name=gb["guild_name"])
             for gb in guild_blocker_details
         ],
     )
@@ -942,297 +923,4 @@ async def admin_delete_guild(
     # guild until the purge, and is told to go and read what happened to it.
     await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
     billing_ping.notify_lifecycle_changed(guild_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.delete(
-    "/initiatives/{initiative_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_class=Response,
-)
-async def admin_delete_initiative(
-    initiative_id: int,
-    guild_id: Annotated[int, Query()],
-    session: AdminSessionDep,
-    _current_user: GuildsManageDep,
-) -> Response:
-    """Delete an initiative (``guilds.manage``).
-
-    Used by the user-deletion blocker-resolution flow when a target user is
-    the sole project manager of an initiative with no other members the
-    admin could promote in their place. Cascades to projects, members,
-    roles, role permissions, and tags via ORM relationships; projects are
-    deleted explicitly first because ``Initiative.projects`` is not set
-    up as ``delete-orphan`` and ``projects.initiative_id`` is NOT NULL.
-
-    Default initiatives are deletable here — that restriction exists for
-    guild admins (so the guild always has a default for new project
-    creation), but an operator cleaning up a soon-to-be-deleted
-    user shouldn't be blocked by it.
-
-    ``guild_id`` is REQUIRED: initiatives live in per-guild schemas with
-    independent id sequences, so ``initiative_id`` alone is ambiguous across
-    guilds. The caller (the blocker-resolution UI) has it from the blocker
-    record. We route into that guild's schema as a guild admin (full authority
-    over the guild; clears the purge guard) so the cascade reaches the rows.
-    """
-    await set_rls_context(session, guild_id=guild_id)
-
-    initiative = await session.get(Initiative, initiative_id)
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-
-    project_result = await session.exec(
-        select(Project).where(Project.initiative_id == initiative_id)
-    )
-    for project in project_result.all():
-        await session.delete(project)
-    await session.flush()
-
-    await session.delete(initiative)
-    await session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.patch(
-    "/guilds/{guild_id}/members/{user_id}/role",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_class=Response,
-)
-async def admin_update_guild_member_role(
-    guild_id: int,
-    user_id: int,
-    payload: AdminGuildRoleUpdate,
-    session: AdminSessionDep,
-    _current_user: GuildsManageDep,
-) -> Response:
-    """Update a guild member's role (``guilds.manage``).
-
-    This allows operators to change guild member roles in any guild,
-    even if they're not a member. Useful for resolving "last admin" blockers.
-
-    Restrictions:
-    - Cannot demote the last guild admin
-    """
-    # 'support' is a synthesized PAM identity, never a stored membership role
-    # (the guild_role enum has only admin/member) — reject before it hits the DB.
-    if payload.role == GuildRole.support:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
-        )
-
-    # Check guild exists
-    stmt = select(Guild).where(Guild.id == guild_id)
-    result = await session.exec(stmt)
-    guild = result.one_or_none()
-    if not guild:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
-        )
-
-    await guilds_service.lock_guild_seats(session, guild_id)
-
-    # Get target membership with lock
-    target_membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=user_id, for_update=True
-    )
-    if target_membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
-        )
-
-    # The seat cannot be emptied while the guild requires a sign-in: lifting the
-    # requirement happens on the surface the seat holds.
-    if (
-        target_membership.role == GuildRole.superadmin
-        and payload.role != GuildRole.superadmin
-        and await guilds_service.must_keep_superadmin(
-            session, guild_id=guild_id, user_id=user_id
-        )
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN,
-        )
-
-    previous_role = target_membership.role
-    target_membership.role = payload.role
-    session.add(target_membership)
-    if GuildRole.superadmin in (previous_role, payload.role):
-        # An operator seats a guild's first superadmin here; the guild's own
-        # role endpoint records the same event when the seat is passed on.
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,
-            actor_user_id=_current_user.id,
-            target_user_id=user_id,
-            guild_id=guild_id,
-            target_type="guild",
-            target_id=guild_id,
-            detail={"from": previous_role.value, "to": payload.role.value},
-        )
-    elif previous_role != payload.role:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.GUILD_MEMBER_ROLE_CHANGED,
-            actor_user_id=_current_user.id,
-            target_user_id=user_id,
-            guild_id=guild_id,
-            target_type="guild",
-            target_id=guild_id,
-            detail={"from": previous_role.value, "to": payload.role.value},
-        )
-    # Written out here, where this request's own context still applies: the
-    # reconciliation below borrows the session for the guild's schema.
-    await session.flush()
-    # A promotion changes the guild role underneath initiative rows that already
-    # exist; bring them up to the manager role an admin's row carries.
-    await guilds_service.align_admin_initiative_roles(
-        session, guild_id=guild_id, user_id=user_id, role=payload.role
-    )
-    await session.commit()
-    # Guild role change (e.g. admin → member) may reduce content access — re-check
-    # this user's live content streams immediately (matches the other paths).
-    await stream_authority.revoke_user(guild_id, user_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/initiatives/{initiative_id}/members", response_model=List[UserPublic])
-async def admin_get_initiative_members(
-    initiative_id: int,
-    guild_id: Annotated[int, Query()],
-    session: AdminSessionDep,
-    _current_user: GuildsManageDep,
-) -> Sequence[User]:
-    """List members of any initiative (``guilds.manage``).
-
-    ``guild_id`` is required: initiatives live in per-guild schemas with
-    independent id sequences. We route into that guild's schema as a guild
-    admin so the member list comes from the live data, not the frozen
-    ``public`` backup.
-    """
-    await set_rls_context(session, guild_id=guild_id)
-
-    stmt = select(Initiative).where(Initiative.id == initiative_id)
-    result = await session.exec(stmt)
-    if not result.one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-
-    # Active members only — anonymized rows are husks of departed users
-    # and deactivated rows are locked, so neither can be a valid project
-    # transfer target. The admin dialog (and the self-delete dialog
-    # via the parallel ``/users/me/initiative-members`` endpoint) rely
-    # on this filter to avoid offering an unselectable "Deleted user".
-    stmt = (
-        select(User)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            User.status == UserStatus.active,
-        )
-        .order_by(User.full_name, User.id)
-    )
-    result = await session.exec(stmt)
-    return result.all()
-
-
-@router.patch(
-    "/initiatives/{initiative_id}/members/{user_id}/role",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_class=Response,
-)
-async def admin_update_initiative_member_role(
-    initiative_id: int,
-    user_id: int,
-    payload: AdminInitiativeRoleUpdate,
-    guild_id: Annotated[int, Query()],
-    session: AdminSessionDep,
-    _current_user: GuildsManageDep,
-) -> Response:
-    """Update an initiative member's role (``guilds.manage``).
-
-    This allows operators to change initiative member roles in any initiative,
-    even if they're not a member. Useful for resolving "sole PM" blockers.
-
-    ``guild_id`` is required (per-guild schemas; ``initiative_id`` is not unique
-    across guilds). We route into that guild's schema as a guild admin.
-
-    Restrictions:
-    - Cannot demote the last project manager
-    """
-    await set_rls_context(session, guild_id=guild_id)
-
-    # Check initiative exists
-    stmt = select(Initiative).where(Initiative.id == initiative_id)
-    result = await session.exec(stmt)
-    initiative = result.one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-
-    # Get target membership with lock
-    membership_stmt = (
-        select(InitiativeMember)
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            InitiativeMember.user_id == user_id,
-        )
-        .with_for_update()
-    )
-    membership_result = await session.exec(membership_stmt)
-    target_membership = membership_result.one_or_none()
-    if target_membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdminMessages.USER_NOT_IN_INITIATIVE,
-        )
-
-    # Resolve the target role by name
-    new_role = await initiatives_service.get_role_by_name(
-        session,
-        initiative_id=initiative_id,
-        role_name=payload.role,
-    )
-    if not new_role:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.ROLE_NOT_FOUND,
-        )
-
-    # Check if demoting the last PM
-    current_role = (
-        await initiatives_service.get_role_by_id(
-            session,
-            role_id=target_membership.role_id,
-            initiative_id=initiative_id,
-        )
-        if target_membership.role_id
-        else None
-    )
-    if current_role and current_role.is_manager and not new_role.is_manager:
-        try:
-            await initiatives_service.ensure_managers_remain(
-                session,
-                initiative_id=initiative_id,
-                excluded_user_ids=[user_id],
-            )
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AdminMessages.CANNOT_DEMOTE_LAST_PM,
-            )
-
-    target_membership.role_id = new_role.id
-    session.add(target_membership)
-    await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

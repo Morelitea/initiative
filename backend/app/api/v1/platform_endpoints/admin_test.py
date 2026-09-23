@@ -6,7 +6,7 @@ import io
 import pytest
 from sqlmodel import select
 
-from app.core.messages import AdminMessages, InitiativeMessages
+from app.core.messages import AdminMessages
 from app.models.platform.guild import (
     Guild,
     GuildMembership,
@@ -279,49 +279,6 @@ async def test_admin_delete_guild_requires_blocked_user_id(
     )
 
     assert response.status_code == 422
-
-
-async def test_admin_initiative_role_update_takes_any_role_the_initiative_defines(
-    client, acting_user
-):
-    """The role switch names a role of that initiative — custom ones included;
-    a name the initiative doesn't define is a 404."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
-        initiative_role="member",
-    )
-    role_response = await client.post(
-        admin.g(f"/initiatives/{admin.initiative.id}/roles"),
-        headers=admin.headers,
-        json={"name": "leads", "display_name": "Leads", "is_manager": True},
-    )
-    assert role_response.status_code == 201, role_response.text
-
-    operator = await acting_user("operator")
-    url = (
-        f"/api/v1/admin/initiatives/{admin.initiative.id}"
-        f"/members/{member.user.id}/role?guild_id={admin.guild.id}"
-    )
-
-    resp = await client.patch(url, headers=operator.headers, json={"role": "leads"})
-    assert resp.status_code == 204, resp.text
-
-    roster = await client.get(
-        admin.g(f"/initiatives/{admin.initiative.id}"), headers=admin.headers
-    )
-    assert roster.status_code == 200, roster.text
-    row = next(m for m in roster.json()["members"] if m["user"]["id"] == member.user.id)
-    assert row["role_name"] == "leads"
-    assert row["is_manager"] is True
-
-    resp = await client.patch(
-        url, headers=operator.headers, json={"role": "no_such_role"}
-    )
-    assert resp.status_code == 404
-    assert resp.json()["detail"] == InitiativeMessages.ROLE_NOT_FOUND
 
 
 async def test_platform_roster_masks_addresses(client, acting_user):

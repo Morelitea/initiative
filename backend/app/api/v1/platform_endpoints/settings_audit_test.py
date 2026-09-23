@@ -18,7 +18,6 @@ from app.core.audit_events import AuditEventType
 from app.models.platform.user import UserRole
 from app.testing import emitted
 from app.testing.factories import (
-    create_auth_provider,
     create_guild,
     create_user,
     get_auth_headers,
@@ -190,103 +189,6 @@ async def test_a_refused_settings_write_records_nothing(
     assert refused.status_code == 403
 
     assert emitted(capfd, AuditEventType.PLATFORM_SETTINGS_CHANGED) == []
-
-
-# --- the operator's claim rules ----------------------------------------------
-
-
-async def test_an_operator_written_rule_is_recorded_through_its_life(
-    client: AsyncClient, session: AsyncSession, capfd
-):
-    owner_id, headers = await _owner(session)
-    guild = await create_guild(session)
-    guild_id = guild.id
-    provider = await create_auth_provider(session)
-    provider_id = provider.id
-    capfd.readouterr()
-
-    created = await client.post(
-        "/api/v1/settings/oidc-mappings",
-        headers=headers,
-        json={
-            "provider_id": provider_id,
-            "claim_value": "staff",
-            "target_type": "guild",
-            "guild_id": guild_id,
-            "guild_role": "member",
-        },
-    )
-    assert created.status_code == 201, created.text
-    rule_id = created.json()["id"]
-
-    raised = await client.put(
-        f"/api/v1/settings/oidc-mappings/{rule_id}",
-        headers=headers,
-        json={"guild_role": "admin"},
-    )
-    assert raised.status_code == 200, raised.text
-    gone = await client.delete(
-        f"/api/v1/settings/oidc-mappings/{rule_id}", headers=headers
-    )
-    assert gone.status_code == 204, gone.text
-
-    written = emitted(capfd)
-    for event in (
-        AuditEventType.CLAIM_RULE_CREATED,
-        AuditEventType.CLAIM_RULE_UPDATED,
-        AuditEventType.CLAIM_RULE_DELETED,
-    ):
-        rows = _of_type(written, event)
-        assert [(r["actor_user_id"], r["guild_id"], r["target"]) for r in rows] == [
-            (owner_id, guild_id, {"type": "claim_rule", "id": rule_id})
-        ], event
-        assert rows[0]["detail"]["via"] == "operator"
-
-    born = _of_type(written, AuditEventType.CLAIM_RULE_CREATED)[0]
-    assert {"provider_id", "claim_value", "target_type", "guild_role"} == set(
-        born["detail"]["changed"]
-    )
-    # Which group it reads is a claim value: named, never copied.
-    assert "claim_value" not in born["detail"]["values"]
-    assert born["detail"]["values"]["target_type"] == {
-        "from": None,
-        "to": "guild",
-    }
-    assert "staff" not in json.dumps(born)
-
-    moved = _of_type(written, AuditEventType.CLAIM_RULE_UPDATED)[0]
-    assert moved["detail"]["changed"] == ["guild_role"]
-
-
-async def test_a_rule_edit_that_changes_nothing_records_nothing(
-    client: AsyncClient, session: AsyncSession, capfd
-):
-    _, headers = await _owner(session)
-    guild = await create_guild(session)
-    provider = await create_auth_provider(session)
-
-    created = await client.post(
-        "/api/v1/settings/oidc-mappings",
-        headers=headers,
-        json={
-            "provider_id": provider.id,
-            "claim_value": "staff",
-            "target_type": "guild",
-            "guild_id": guild.id,
-            "guild_role": "member",
-        },
-    )
-    assert created.status_code == 201, created.text
-    capfd.readouterr()
-
-    same = await client.put(
-        f"/api/v1/settings/oidc-mappings/{created.json()['id']}",
-        headers=headers,
-        json={"guild_role": "member"},
-    )
-    assert same.status_code == 200, same.text
-
-    assert emitted(capfd, AuditEventType.CLAIM_RULE_UPDATED) == []
 
 
 # --- what an operator sets for one community ---------------------------------

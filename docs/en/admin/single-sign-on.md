@@ -174,20 +174,11 @@ Any standards-compliant OIDC provider works, and the wizard already knows each o
 
 ## Sorting people into communities
 
-If your provider already knows who's in which group, Initiative can read that and put people where they belong the moment they first sign in. No invite, no waiting for somebody to notice the email.
+If your provider already knows who's in which group, a community can read that and put people where they belong the moment they first sign in. No invite, no waiting for somebody to notice the email.
 
-Two parts to it. On the provider, set the **Groups claim** to wherever it keeps them — `groups` for most, `realm_access.roles` for Keycloak. Then add **mapping rules** further down the page. Each rule names:
+The work splits down the middle. **You** tell Initiative where the provider keeps its groups: set the provider's **Groups claim** — `groups` for most, `realm_access.roles` for Keycloak. **The community** says what those groups mean to it, in its own **Settings → Security → Where your people land**. That section only appears for a community you've given [its own sign-in](#letting-a-community-use-a-provider), so a community that wants its groups sorted needs that switch first.
 
-- the **provider** whose claim it reads;
-- the **claim value** to match, like `theatre-leads`;
-- whether it grants a **community**, or a community **and an initiative**;
-- and the role to give in each.
-
-So one rule can say: anyone whose `groups` claim contains `theatre-leads` becomes an **Admin** of Riverside Players.
-
-A rule belongs to one provider, because two providers can both have a group called `staff` and mean entirely different people. Signing in through one neither reads the other's rules nor undoes what they did.
-
-Every sign-in re-reads the claim and reconciles against it, so somebody dropped from a group at your provider loses what that rule gave them. Memberships you granted by hand are left alone — the rules only ever take back what they handed out.
+Each rule belongs to one community and one of its providers, because two providers can both have a group called `staff` and mean entirely different people. What a rule can say, and what happens when somebody leaves a group, lives with the community: [Where your people land](../security/community-security.md#where-your-people-land).
 
 ??? techspec "How the mapping is evaluated"
     On each sign-in Initiative reads the provider's claim path from the ID token, falling back to the userinfo response, and applies every rule belonging to that provider. The authorization flow uses PKCE. Reconciliation is idempotent and scoped to the signing-in provider on both halves: it grants what that provider's rules match, and releases only the memberships that same provider's earlier syncs created. Where a provider supplies a refresh token (`offline_access`), a background sweep re-reads group claims for every provider that asserts one about every quarter of an hour, so changes land without waiting for the person to sign in again.

@@ -6,10 +6,10 @@ the community, and in an initiative if the community says so. Both are one
 sentence a community says in one breath: *our people come in through this, and
 these of them belong here.*
 
-The rows are the same ``oidc_claim_mappings`` an operator writes, named by
-``guild_id``. A community reads and writes only the ones naming it, which is
-what makes this a community surface rather than a second engine: the sign-in
-that evaluates rules does not care who typed them.
+The rows are ``oidc_claim_mappings``, named by ``guild_id``. A community reads
+and writes only the ones naming it, and this surface is the only one that
+writes them; the sign-in that evaluates them reads every rule for the provider
+it came through.
 
 Which claim carries groups stays the operator's, per provider
 (``auth_providers.role_claim_path``) — it is a fact about the provider, not a
@@ -79,9 +79,8 @@ async def lookup_guild_initiative(
 ) -> tuple[Initiative | None, InitiativeRoleModel | None]:
     """Look up an initiative (and optional role) inside a guild's schema.
 
-    Routes the session into ``guild_<id>`` for the read, then resets it. Shared
-    with the operator's own rule editor so both resolve a rule's destination
-    the same way. ``populate_existing`` keeps a colliding id from another guild
+    Routes the session into ``guild_<id>`` for the read, then resets it.
+    ``populate_existing`` keeps a colliding id from another guild
     already in the identity map from being returned stale — ids are unique only
     within a schema.
     """

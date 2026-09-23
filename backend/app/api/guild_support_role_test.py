@@ -248,30 +248,14 @@ async def test_plain_member_still_denied_guild_settings(
 async def test_guild_admin_cannot_assign_support_role(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The member-facing role endpoint rejects ``support`` (it would otherwise
-    hit the guild_role enum, which has only admin/member)."""
+    """The member-facing role endpoint rejects ``support``: it is synthesized
+    for a grant and never stored as a membership role."""
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
     resp = await client.patch(
         f"/api/v1/guilds/{admin.guild.id}/members/{member.user.id}",
         headers=admin.headers,
-        json={"role": "support"},
-    )
-    assert resp.status_code == 400
-    assert resp.json()["detail"] == GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE
-
-
-async def test_platform_admin_cannot_assign_support_role(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The platform-admin role endpoint rejects ``support`` too."""
-    owner = await create_user(session, role=UserRole.owner)
-    target = await acting_user(guild_role=GuildRole.member)
-
-    resp = await client.patch(
-        f"/api/v1/admin/guilds/{target.guild.id}/members/{target.user.id}/role",
-        headers=get_auth_headers(owner),
         json={"role": "support"},
     )
     assert resp.status_code == 400

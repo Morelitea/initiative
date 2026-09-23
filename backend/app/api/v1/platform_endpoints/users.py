@@ -1,6 +1,6 @@
 import logging
 from datetime import date, datetime, timezone
-from typing import Annotated, List, Optional, Sequence
+from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -58,7 +58,6 @@ from app.models.platform.guild import (
     GuildRole,
 )
 from app.models.platform.guild_image import GuildImageVariant
-from app.models.tenant.initiative import InitiativeMember
 from app.core.intake import IntakeStream
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import Presence, User, UserStatus
@@ -93,7 +92,6 @@ from app.schemas.platform.user import (
     AccountDeletionRequest,
     AccountDeletionResponse,
     DeletionEligibilityResponse,
-    UserPublic,
 )
 from app.schemas.platform.api_key import (
     ApiKeyCreateRequest,
@@ -1358,51 +1356,6 @@ async def check_deletion_eligibility(
             session, current_user.id
         ),
     )
-
-
-@router.get("/me/initiative-members/{initiative_id}", response_model=List[UserPublic])
-async def get_my_initiative_members(
-    initiative_id: int,
-    guild_id: Annotated[int, Query()],
-    session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Sequence[MemberProfile]:
-    """List members of an initiative the current user belongs to.
-
-    Used by the account-deletion transfer-target picker. ``guild_id`` is
-    required: the initiative lives in that guild's schema (ids repeat across
-    guild schemas), and the caller has it from the blocker record. We route in
-    into the guild schema so the member list is read from the live data (the
-    intentional cross-guild visibility the picker needs), not the frozen
-    ``public`` backup.
-    """
-    await set_rls_context(session, guild_id=guild_id)
-
-    # Verify the current user is a member of this initiative
-    membership = await initiatives_service.get_initiative_membership(
-        session,
-        initiative_id=initiative_id,
-        user_id=current_user.id,
-    )
-    if not membership:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-    # Exclude anonymized rows — they're empty husks of departed users and
-    # must not be selectable as project-transfer targets, otherwise a
-    # self-deleting user could hand a live project to a non-person.
-    # Deactivated users are also excluded: their account is locked and
-    # they can't act as an owner until reactivated.
-    stmt = (
-        select(MemberProfile)
-        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            MemberProfile.status == UserStatus.active,
-        )
-        .order_by(MemberProfile.full_name, MemberProfile.id)
-    )
-    result = await session.exec(stmt)
-    return result.all()
 
 
 @router.post("/me/delete-account", response_model=AccountDeletionResponse)

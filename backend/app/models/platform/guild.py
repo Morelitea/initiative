@@ -422,14 +422,14 @@ class GuildRole(str, Enum):
     # it. Separated because running a community and holding the keys to who may
     # enter it are different jobs, and most guilds have nobody in this seat.
     #
-    # An operator seats the first one; from then on a superadmin may seat
-    # another. An ordinary guild admin can do neither — the hand that
+    # A superadmin seats another — one by membership, or one holding the seat
+    # through a settings grant. An ordinary guild admin cannot — the hand that
     # administers a community is not the hand that decides who may enter it.
     superadmin = "superadmin"
     # A time-bound PAM/support access grantee acting inside a guild they are
     # NOT a member of. Synthesized for the request only — never a persisted
-    # ``guild_memberships`` row (the Postgres ``guild_role`` enum has only
-    # admin/member, and the member-role endpoints reject assigning it). Unlike
+    # ``guild_memberships`` row (the member-role endpoint rejects assigning
+    # it). Unlike
     # ``admin``, ``support`` is bound by its grant's read/write level, enforced
     # at the Postgres role level — a read grant assumes ``guild_<id>_ro``. It
     # is the content axis only: what of the community's configuration a
@@ -488,9 +488,9 @@ def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
     """Which roles ``by`` may set on somebody else inside the guild.
 
     A superadmin passes the seat on; an ordinary admin cannot, and cannot
-    take it away either. The *first* one in a guild is seated by an operator
-    from platform settings — that is the only part of this a guild cannot do
-    for itself.
+    take it away either. ``by`` is the rung the request stands on, so a
+    superadmin settings grant seats somebody the same way a superadmin
+    membership does.
     """
     if by == GuildRole.superadmin:
         return GUILD_ASSIGNABLE_ROLES | {GuildRole.superadmin}

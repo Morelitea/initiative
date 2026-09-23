@@ -18,10 +18,10 @@ const targetUser: AdminUserRead = {
 
 const eligibilityWithGuildBlocker = {
   can_delete: false,
-  blockers: ["Sole admin of community Lone Community"],
+  blockers: ["Only superadmin of community Lone Community"],
   warnings: [],
   owned_projects: [],
-  guild_blockers: [{ guild_id: 77, guild_name: "Lone Community", other_members: [] }],
+  guild_blockers: [{ guild_id: 77, guild_name: "Lone Community" }],
   initiative_blockers: [],
 };
 
@@ -78,6 +78,11 @@ describe("AdminDeleteUserDialog community blocker resolution", () => {
     // Step 1 → Next runs the eligibility check and lands on resolve-blockers.
     await user.click(await screen.findByRole("button", { name: /next/i }));
     expect(await screen.findByText(/Lone Community/)).toBeInTheDocument();
+
+    // Appointing a new superadmin happens inside the community; the dialog
+    // says so rather than offering a picker.
+    expect(screen.getByText(/break glass into the community/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
 
     // Open the confirm dialog and confirm the guild deletion.
     await user.click(screen.getByRole("button", { name: /delete community/i }));

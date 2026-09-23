@@ -15,20 +15,17 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import {
   useAdminDeleteGuild,
   useAdminDeleteUser,
-  useAdminPromoteGuildMember,
   useUserDeletionEligibility,
 } from "@/hooks/useAdmin";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { DisplayableUser } from "@/lib/userDisplay";
-import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**
@@ -143,18 +140,8 @@ export function AdminDeleteUserDialog({
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
     useUserDeletionEligibility(targetUser.id);
 
-  // Mutations for resolving blockers
-  const promoteGuildMember = useAdminPromoteGuildMember({
-    onSuccess: async () => {
-      toast.success(t("adminDeleteUser.promoteSuccess"));
-      await refreshEligibility();
-    },
-    onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, "settings:adminDeleteUser.promoteError"));
-    },
-    onSettled: () => setIsResolvingBlocker(false),
-  });
-
+  // Resolving a blocker from here is deleting the community; appointing a new
+  // superadmin happens inside the community, from its own settings.
   const deleteGuild = useAdminDeleteGuild({
     onSuccess: async () => {
       toast.success(t("adminDeleteUser.deleteGuildSuccess"));
@@ -220,19 +207,14 @@ export function AdminDeleteUserDialog({
     deleteUser.mutate({ action: effectiveAction });
   };
 
-  const handlePromoteGuildMember = (guildId: number, userId: number) => {
-    setIsResolvingBlocker(true);
-    promoteGuildMember.mutate({ guildId, userId });
-  };
-
   const handleDeleteGuild = (guildId: number) => {
     setIsResolvingBlocker(true);
-    // The guild is a blocker because targetUser is its sole admin — the backend
+    // The guild is a blocker because targetUser holds its only seat — the backend
     // re-verifies that before deleting (scoped to blocker resolution).
     deleteGuild.mutate({ guildId, blockedUserId: targetUser.id });
   };
 
-  // Being the last admin of a guild is the only blocker. Owning content is not
+  // Holding the only superadmin seat of a guild is the only blocker. Owning content is not
   // one — ownership is released as the memberships go, and what they owned is
   // left for a guild admin to claim.
   const hasBlockers = (eligibility?.guild_blockers.length ?? 0) > 0;
@@ -253,15 +235,6 @@ export function AdminDeleteUserDialog({
     (effectiveAction !== "hard_delete" || agreedToConsequences);
 
   const displayName = getUserDisplayName(targetUser);
-
-  // Helper to format member for combobox display
-  const formatMemberLabel = (member: DisplayableUser) => {
-    const handle = getUserHandle(member);
-    if (member.full_name) {
-      return handle ? `${member.full_name} (${handle})` : member.full_name;
-    }
-    return handle;
-  };
 
   const description: Record<DeletionStep, string> = {
     "choose-type": t("adminDeleteUser.stepType"),
@@ -395,32 +368,6 @@ export function AdminDeleteUserDialog({
                       {t("adminDeleteUser.deleteGuildThroughCommunity")}
                     </p>
                   ) : null}
-
-                  {guildBlocker.other_members.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label className="text-sm">{t("adminDeleteUser.promoteToGuildAdmin")}</Label>
-                      <div className="flex items-center gap-2">
-                        <SearchableCombobox
-                          items={guildBlocker.other_members.map((member) => ({
-                            value: member.id.toString(),
-                            label: formatMemberLabel(member),
-                          }))}
-                          onValueChange={(value) =>
-                            handlePromoteGuildMember(guildBlocker.guild_id, parseInt(value, 10))
-                          }
-                          placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
-                          emptyMessage={t("adminDeleteUser.noUsersAvailable")}
-                          disabled={isResolvingBlocker}
-                          className="flex-1"
-                        />
-                        {isResolvingBlocker && <Loader2 className="h-5 w-5 animate-spin" />}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground text-sm italic">
-                      {t("adminDeleteUser.noUsersAvailable")}
-                    </p>
-                  )}
                 </div>
               ))}
 

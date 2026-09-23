@@ -83,9 +83,9 @@ class AuditEventType(str, Enum):
     #: apart from ``issued``, because nothing was issued — this is the one
     #: that reads as movement onto the session path.
     AUTH_DEVICE_TOKEN_EXCHANGED = "auth.device_token_exchanged"
-    #: Who holds a guild's sign-in configuration changed. An operator seats
-    #: the first one; from then on the seat is passed on by whoever holds it,
-    #: and both paths record this.
+    #: Who holds a guild's sign-in configuration changed. The seat is passed
+    #: on by whoever holds it — by membership, or through a superadmin
+    #: settings grant — from the guild's own role route.
     GUILD_SUPERADMIN_CHANGED = "guild.superadmin_changed"
     #: A privileged-access grant was asked for, decided, or self-issued. The
     #: ``access_grants`` row is the record of what was granted; these say when
@@ -160,8 +160,8 @@ class AuditEventType(str, Enum):
     #: own.
     AUTH_PROVIDER_DEFAULT_SET = "auth_provider.default_set"
     AUTH_PROVIDER_DEFAULT_CLEARED = "auth_provider.default_cleared"
-    #: A claim rule places arriving accounts; written by an operator for a
-    #: community or by the community itself, and recorded the same way.
+    #: A claim rule places arriving accounts; written by the community's
+    #: superadmin for that community.
     CLAIM_RULE_CREATED = "claim_rule.created"
     CLAIM_RULE_UPDATED = "claim_rule.updated"
     CLAIM_RULE_DELETED = "claim_rule.deleted"

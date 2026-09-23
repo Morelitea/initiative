@@ -128,10 +128,9 @@ async def sync_oidc_assignments(
     result = OIDCSyncResult()
 
     # This provider's rules. Two providers spell their groups their own way, so
-    # a claim value means nothing until you know who asserted it. A guild's own
-    # provider reads all of its own rules: every provider is the operator's, and
-    # the rules are platform-level configuration naming whichever guild each
-    # one grants.
+    # a claim value means nothing until you know who asserted it. A provider
+    # reads all of its rules; each names the guild it grants in, and is written
+    # by that guild's superadmin.
     stmt = select(OIDCClaimMapping).where(OIDCClaimMapping.provider_id == provider_id)
     mappings = (await session.exec(stmt)).all()
     # No early return on an empty set. A provider whose last rule was deleted
@@ -205,9 +204,8 @@ async def sync_oidc_assignments(
         if membership:
             # Only a row this provider manages. One somebody joined by
             # hand, or another provider's, is not this sync's to move — and
-            # neither is a superadmin: that seat is passed on by an
-            # operator or by somebody already holding it, never by a rule
-            # matching a claim value.
+            # neither is a superadmin: that seat is passed on by somebody
+            # holding it, never by a rule matching a claim value.
             if (
                 desired is not None
                 and membership.oidc_provider_id == provider_id

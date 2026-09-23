@@ -540,11 +540,7 @@ class SettingsMessages:
     # carry the SMTP host, port, or server banner) is logged server-side only
     # and never returned to the client (pentest SEC-16).
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
-    MAPPING_NOT_FOUND = "SETTINGS_MAPPING_NOT_FOUND"
-    INVALID_TARGET_TYPE = "SETTINGS_INVALID_TARGET_TYPE"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
-    INITIATIVE_ID_REQUIRED = "SETTINGS_INITIATIVE_ID_REQUIRED"
-    INITIATIVE_ROLE_ID_REQUIRED = "SETTINGS_INITIATIVE_ROLE_ID_REQUIRED"
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
     INITIATIVE_FIELDS_REQUIRED = "SETTINGS_INITIATIVE_FIELDS_REQUIRED"
     # The permitted sign-in methods.
@@ -624,8 +620,6 @@ class AdminMessages:
     # the guild must be one the named user is the SOLE admin of. Any other guild
     # is refused (operators reach a live guild only via a break-glass grant).
     GUILD_NOT_A_DELETION_BLOCKER = "ADMIN_GUILD_NOT_A_DELETION_BLOCKER"
-    USER_NOT_IN_INITIATIVE = "ADMIN_USER_NOT_IN_INITIATIVE"
-    CANNOT_DEMOTE_LAST_PM = "ADMIN_CANNOT_DEMOTE_LAST_PM"
 
 
 class AccessGrantMessages:

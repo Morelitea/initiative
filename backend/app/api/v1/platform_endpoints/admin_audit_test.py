@@ -177,38 +177,6 @@ async def test_a_refused_account_deletion_records_nothing(
 # --- communities ------------------------------------------------------------
 
 
-async def test_an_operator_changing_a_guild_role_is_recorded_with_the_guild(
-    client: AsyncClient, session: AsyncSession, capfd
-):
-    operator = await create_user(session, role=UserRole.operator)
-    operator_id = operator.id
-    owner = await create_user(session)
-    guild = await create_guild(session, creator=owner)
-    guild_id = guild.id
-    await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.superadmin
-    )
-    member = await create_user(session)
-    member_id = member.id
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
-    capfd.readouterr()
-
-    response = await client.patch(
-        f"/api/v1/admin/guilds/{guild_id}/members/{member_id}/role",
-        headers=get_auth_headers(operator),
-        json={"role": "admin"},
-    )
-    assert response.status_code == 204, response.text
-
-    rows = emitted(capfd, AuditEventType.GUILD_MEMBER_ROLE_CHANGED)
-    assert [_where(row) for row in rows] == [
-        (operator_id, member_id, guild_id, {"type": "guild", "id": guild_id})
-    ]
-    assert rows[0]["detail"] == {"from": "member", "to": "admin"}
-
-
 async def test_an_operator_deleting_a_blocking_guild_records_who_it_was_for(
     client: AsyncClient, session: AsyncSession, capfd
 ):
