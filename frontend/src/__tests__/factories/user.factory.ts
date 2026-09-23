@@ -1,4 +1,5 @@
 import type {
+  Capability,
   OwnedDecoration,
   UserEmailRead,
   UserGuildMember,
@@ -19,40 +20,46 @@ export function resetCounter(): void {
 // user built with `role: "owner"` lands the capabilities production would send.
 // The backend (`UserRead.capabilities`) remains the single source of truth at
 // runtime; this only fills the gap in synthetic fixtures.
-const ROLE_CAPABILITIES: Record<UserRole, string[]> = {
+const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
   member: [],
-  support: ["access.request", "guilds.read", "users.read"],
-  moderator: ["access.request", "content.moderate", "guilds.read", "users.manage", "users.read"],
+  support: ["access.request", "users.age_unblock", "users.read"],
+  moderator: [
+    "access.request",
+    "content.moderate",
+    "users.age_unblock",
+    "users.manage",
+    "users.read",
+  ],
   operator: [
     "access.approve",
-    "access.read",
     "access.request",
+    "announcements.manage",
     "content.moderate",
     "data.bypass",
     "guilds.manage",
-    "guilds.read",
     "roles.assign",
+    "users.age_unblock",
     "users.delete",
     "users.manage",
     "users.read",
   ],
   owner: [
     "access.approve",
-    "access.read",
+    "announcements.manage",
     "apps.manage",
     "config.manage",
     "content.moderate",
     "data.bypass",
     "guilds.manage",
-    "guilds.read",
     "roles.assign",
+    "users.age_unblock",
     "users.delete",
     "users.manage",
     "users.read",
   ],
 };
 
-export function capabilitiesForRole(role: UserRole): string[] {
+export function capabilitiesForRole(role: UserRole): Capability[] {
   return ROLE_CAPABILITIES[role] ?? [];
 }
 

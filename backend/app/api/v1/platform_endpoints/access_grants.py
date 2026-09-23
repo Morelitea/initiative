@@ -367,7 +367,7 @@ async def list_access_grants(
     """List access grants.
 
     Defaults to your own requests. ``mine=false`` returns the full queue and
-    requires ``access.read`` (approvers). Grants are ordered newest-first;
+    requires ``access.approve`` (approvers). Grants are ordered newest-first;
     ``limit``/``offset`` page the result so it can't grow unbounded, and
     ``live=true`` narrows to grants that are still within their window.
     """
@@ -381,9 +381,10 @@ async def list_access_grants(
             offset=offset,
         )
     else:
-        if not user_has_capability(current_user, Capability.ACCESS_READ):
+        if not user_has_capability(current_user, Capability.ACCESS_APPROVE):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="INSUFFICIENT_PRIVILEGES"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
             )
         grants = await service.list_grants(
             session,
@@ -408,10 +409,11 @@ async def get_access_grant(
         )
     # Owners of the request, or approvers, may view it.
     if grant.user_id != current_user.id and not user_has_capability(
-        current_user, Capability.ACCESS_READ
+        current_user, Capability.ACCESS_APPROVE
     ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="INSUFFICIENT_PRIVILEGES"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
         )
     return await _one(session, grant)
 

@@ -5,7 +5,8 @@
  * and ships it on `UserRead.capabilities`. The frontend never derives
  * capabilities from the role itself — it only reads the list — so the two
  * stay in lockstep. These string constants must match the backend
- * `Capability` enum values exactly.
+ * `Capability` enum values exactly (held by `permissions.test.ts` against the
+ * generated enum).
  */
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
@@ -16,14 +17,12 @@ export const Capability = {
   usersManage: "users.manage",
   usersDelete: "users.delete",
   rolesAssign: "roles.assign",
-  guildsRead: "guilds.read",
   guildsManage: "guilds.manage",
   announcementsManage: "announcements.manage",
   contentModerate: "content.moderate",
   dataBypass: "data.bypass",
   accessRequest: "access.request",
   accessApprove: "access.approve",
-  accessRead: "access.read",
   configManage: "config.manage",
   appsManage: "apps.manage",
 } as const;
@@ -62,7 +61,6 @@ const OPERATOR_DASHBOARD_CAPABILITIES: Capability[] = [
   Capability.contentModerate,
   Capability.accessRequest,
   Capability.accessApprove,
-  Capability.accessRead,
 ];
 
 /** True iff the user can configure the platform (Platform settings area). */

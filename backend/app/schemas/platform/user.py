@@ -589,15 +589,15 @@ class UserRead(UserBase):
         # When disabled, only platform roles that manage guilds can create them.
         return Capability.GUILDS_MANAGE in capabilities_for(self.role)
 
-    @computed_field(return_type=List[str])  # type: ignore[misc]
+    @computed_field(return_type=List[Capability])  # type: ignore[misc]
     @property
-    def capabilities(self) -> List[str]:
+    def capabilities(self) -> List[Capability]:
         """Platform capabilities granted by this user's standing role.
 
-        The frontend gates UI on these strings (single source of truth);
-        see ``app.core.capabilities``.
+        The frontend gates UI on these values (single source of truth);
+        see ``app.core.capabilities``. Sorted by value.
         """
-        return sorted(c.value for c in capabilities_for(self.role))
+        return sorted(capabilities_for(self.role), key=lambda c: c.value)
 
 
 class AdminUserRead(UserRead):

@@ -477,6 +477,30 @@ export interface UserInitiativeRole {
 }
 
 /**
+ * A discrete platform-level permission.
+ *
+ * Values are stable dotted strings shared with the frontend (exposed on
+ * ``UserRead.capabilities``); treat them as part of the API contract.
+ */
+export type Capability = (typeof Capability)[keyof typeof Capability];
+
+export const Capability = {
+  usersread: "users.read",
+  contentmoderate: "content.moderate",
+  usersage_unblock: "users.age_unblock",
+  usersmanage: "users.manage",
+  usersdelete: "users.delete",
+  guildsmanage: "guilds.manage",
+  announcementsmanage: "announcements.manage",
+  rolesassign: "roles.assign",
+  databypass: "data.bypass",
+  accessrequest: "access.request",
+  accessapprove: "access.approve",
+  configmanage: "config.manage",
+  appsmanage: "apps.manage",
+} as const;
+
+/**
  * A staff view of somebody else's account: the address masked.
  *
  * Everything staff do to an account — reset its password, rename
@@ -530,10 +554,10 @@ export interface AdminUserRead {
   /**
    * Platform capabilities granted by this user's standing role.
    *
-   * The frontend gates UI on these strings (single source of truth);
-   * see ``app.core.capabilities``.
+   * The frontend gates UI on these values (single source of truth);
+   * see ``app.core.capabilities``. Sorted by value.
    */
-  readonly capabilities: readonly string[];
+  readonly capabilities: readonly Capability[];
 }
 
 /**
@@ -8321,10 +8345,10 @@ export interface UserRead {
   /**
    * Platform capabilities granted by this user's standing role.
    *
-   * The frontend gates UI on these strings (single source of truth);
-   * see ``app.core.capabilities``.
+   * The frontend gates UI on these values (single source of truth);
+   * see ``app.core.capabilities``. Sorted by value.
    */
-  readonly capabilities: readonly string[];
+  readonly capabilities: readonly Capability[];
 }
 
 export interface UserSelfUpdate {
