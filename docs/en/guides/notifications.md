@@ -152,15 +152,15 @@ Set a window — 22:00 to 07:00, say — and email and mobile hold off inside it
 
 If push shows as **Blocked**, that's your phone rather than us. Open your device settings, find Initiative, and let it talk to you. We can ask; your phone decides.
 
-## If a channel isn't there
+## What your server and community decide
 
-Everything above is yours. Two things sit above it, and both can only make things quieter.
+Your settings pick from what's on offer. Two people decide what that is — whoever runs the server, and each community for itself — and both can only ever make things quieter.
 
-Whoever runs your server, and separately each community, can switch off **notifications to phones** or **notifications by email**, or ask that what leaves the app doesn't name what it's about — so a push reads *"You were mentioned in a comment"* and you open the app for the rest. Somewhere with a rule about what may appear on a lock screen has a reason for that.
+Either can keep notifications **inside the app**, rather than reaching phones or mailboxes. Either can also ask that what does travel says the kind of thing that happened — *"You were mentioned in a comment"* — and leaves the details for the app. Somewhere with a rule about what may appear on a lock screen has a reason for that.
 
-The **bell always says everything**. It never leaves the app, so there's nothing to hold back.
+The **bell always carries the whole thing**, wherever those two land. It stays inside the app, so it has everything.
 
-If a switch here looks decided for you, that's where it was decided. Ask whoever runs the community. Meanwhile: sign-in codes, address confirmations, password resets and anything about your own account are not notifications and turn up regardless.
+A switch that looks decided for you was decided in one of those two places, and whoever runs the community will know which. Your account's own post — sign-in codes, address confirmations, password resets — arrives regardless: that's correspondence, not notification.
 
 ## Announcements
 

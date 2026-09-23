@@ -201,6 +201,38 @@ House rule, and it produces better copy anyway. Lead with what's there.
 
 The absence is the consequence, never the headline.
 
+### Never write the changelog's framing into a page
+
+This is the one that goes wrong on every update, because updating a page
+usually starts by reading the changelog — and a changelog entry is *about the
+change*. A docs page is about **the software as it stands**. The reader has
+never seen the old behaviour and has no idea a release happened.
+
+So when you carry a fact across, drop the version scaffolding around it:
+
+> **Wrong:** "Deleting an account no longer destroys anything on the spot."
+> **Right:** "Deleting an account hides it immediately and erases it later."
+>
+> **Wrong:** "Browser default follows your browser's language, which is what it
+> always did."
+> **Right:** "Browser default takes its cue from your browser's language."
+>
+> **Wrong:** "All three start where every deployment has always had them."
+> **Right:** "All three start open."
+
+The tells, and all of them are a rewrite rather than a trim: **no longer**,
+**used to**, **still**, **now**, **as before**, **which is what it always did**,
+**has always**, **instead of**, and any sentence whose subject is the app in a
+previous release. Describe what exists; a migration state is not a state the
+software is ever in for a reader arriving today.
+
+The same goes for a tab that moved, a setting that was renamed, and a source
+that was dropped. **Delete the old context, don't narrate the move.** The page
+says where the thing is. If somebody genuinely needs to find their way from the
+old place — a rename people have muscle memory for — that is a one-line
+announcement, not a paragraph that lives on the page forever. `CLAUDE.md` has
+the rules for writing one.
+
 ---
 
 ## Security and compliance pages are excluded
@@ -323,6 +355,14 @@ PY
 - [ ] Cut anything that explains what the reader can see on screen. Keep the
       jokes; lose the narration.
 - [ ] No winking, no swipes, no brands-as-punchlines, no wacky similes.
+- [ ] Nothing describes a previous release. Grep the added lines and read
+      each hit — `still` and `now` have innocent everyday senses, the rest
+      rarely do:
+
+      ```bash
+      git diff -U0 -- docs/ | grep '^+' | grep -v '^+++' \
+        | grep -nEi "no longer|used to|\bstill\b|as before|has always|always did|instead of"
+      ```
 - [ ] Nothing describes an attack or what breaks without a guard.
 - [ ] Security and compliance pages untouched, unless that was the actual task.
 - [ ] Docs-only changes go **straight to `dev`** — no branch, no PR.

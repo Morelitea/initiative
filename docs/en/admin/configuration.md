@@ -106,7 +106,7 @@ Two things the page will stop you doing, both for the same reason: you can't req
 | **Email notifications** | Turn it off and no notification email is written, on any cadence anybody has chosen. |
 | **Hide notification details** | Turn it **on** and a push or an email reads "You were mentioned in a comment", with the app the place to find out the rest. |
 
-All three start where every deployment has always had them: notifications go out, and they say what they're about.
+All three start open: notifications go out, and they say what they're about.
 
 **Every community is held to these as a ceiling.** A community's own [Security tab](../security/community-security.md#what-notifications-carry) asks the same three questions for itself, and the stricter answer wins — so a community can be quieter than your server, never louder. Where you've switched something off, their switch says so and has nothing left to decide.
 
@@ -115,7 +115,7 @@ All three start where every deployment has always had them: notifications go out
 
 ## How long deleted things are kept
 
-Deleting an account or a community no longer destroys anything on the spot. Both windows are yours, under **Settings → Platform → Community**:
+Deleting an account or a community hides it immediately and erases it later. How much later is yours, under **Settings → Platform → Community**:
 
 | Window | Default | What happens during it |
 |---|---|---|
@@ -124,7 +124,7 @@ Deleting an account or a community no longer destroys anything on the spot. Both
 
 Leave either blank and **nothing is erased on a timer** — the right answer for a deployment required to keep records rather than shed them. Both are counted from the moment each thing was deleted, so changing the number moves the date for things already in the queue.
 
-A community's connections to installed apps are the one thing a restore doesn't bring back. The community authorised those, so the community has to authorise them again.
+A restored community reconnects its installed apps itself. It authorised those connections in the first place, so it authorises them again.
 
 ## Running behind a reverse proxy
 

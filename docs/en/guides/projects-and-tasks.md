@@ -116,7 +116,7 @@ Cards in columns, one column per status. Drag a card along as the work moves.
 
 - **Drag and drop** between columns to change status.
 - **Collapse** a column you're deliberately not thinking about.
-- **Fields** decides what a card shows. Turn off what this project doesn't use — priority, dates, tags, the checklist bar, the comment and blocker counts, any custom property — and the cards get shorter and quicker to read. It's *Fields* rather than *Columns* because on a board the columns are your statuses. Remembered per project, so a board you've never fiddled with still shows everything.
+- **Fields** decides what a card shows. Turn off what this project doesn't use — priority, dates, tags, the checklist bar, the comment and blocker counts, any custom property — and the cards get shorter and quicker to read. It's *Fields* rather than *Columns* because on a board the columns are your statuses. Remembered per project, so a board you've never fiddled with shows everything it has.
 
 ![A project in Kanban view](../images/projects/view-kanban.png)
 

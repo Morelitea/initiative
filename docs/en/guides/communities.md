@@ -160,13 +160,13 @@ This is the setting that quietly saves somebody's entire afternoon roughly twice
 
 The hard-to-undo things, chiefly **deleting the community**.
 
-It vanishes for everyone in it immediately — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, retyping `DELETE COMMUNITY <NAME>` by hand. Only a **superadmin** can do it; an ordinary admin isn't offered the tab.
+It vanishes for everyone in it immediately — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, retyping `DELETE COMMUNITY <NAME>` by hand. Only a **superadmin** can do it; the tab is theirs alone.
 
-Nothing is destroyed straight away, though. Whoever runs the server keeps deleted communities for a window — ninety days unless they've changed it — and during it a platform operator can bring the whole thing back from **Settings → Platform → Communities**, exactly as it was, handing it to a new owner if nobody's left who could run it.
+Everything in it is then held for a window — ninety days, unless whoever runs the server says otherwise — and at any point inside it a platform operator can restore the lot from **Settings → Platform → Communities**, exactly as it was, handing it to a new owner where nobody's left who could run it. So the 11pm decision is recoverable, as long as somebody notices in time.
 
-You get an email afterwards saying it's gone, that nothing has been destroyed yet, and the date the window closes. Members get no mail: it leaving their list is the part they can do anything about. So the 11pm decision is recoverable, as long as somebody notices in time.
+You get an email naming the date that window closes. Members get one less thing in their list, which is the part they can act on, so they get no mail.
 
-The one thing that doesn't come back is the community's connections to any apps it had installed. It authorised those, so it has to authorise them again.
+A restored community reconnects its installed apps itself. It gave those apps their access in the first place, so it gives it again.
 
 The friction is entirely deliberate and we're not sorry about it.
 

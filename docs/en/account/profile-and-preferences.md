@@ -90,7 +90,7 @@ How the app reads to you. Each choice saves as you make it — no Save button.
 - **Language** — for the interface.
 - **Color theme** — Light, Dark, or System.
 - **Timezone** — the clock your due dates, daily reminders and repeating tasks run on. Taken from your browser at sign-up; correct it here if it's wrong. It also appears beside the reminder time on the Notifications tab, where you need it in context.
-- **Time format** — whether a clock reads `1:30 PM` or `13:30`, everywhere one appears: calendars and their hour gutters, event times, due dates, message timestamps. **Browser default** follows your browser's language, which is what it always did. Your phone or laptop's own 12/24-hour setting isn't something a browser is told about, so if the app disagrees with the clock on your wall, this is where you settle it.
+- **Time format** — whether a clock reads `1:30 PM` or `13:30`, everywhere one appears: calendars and their hour gutters, event times, due dates, message timestamps. **Browser default** takes its cue from your browser's language. Your phone or laptop keeps its own 12/24-hour setting to itself, so when the app and the clock on your wall disagree, this is the place to settle it.
 - **Week starts on** — which day calendars and date pickers lead with.
 - **Recent items in tab bar** — how many to keep along the top (1–100).
 - **Task completion feedback** — a bit of fun when you finish something: **Confetti**, **+1 Heart**, **Natural 20**, **Gold coins**, **Random**, or **None**.
@@ -103,7 +103,7 @@ How the app reads to you. Each choice saves as you make it — no Save button.
 
 **Sign out** ends that one and leaves the rest alone. **Sign out everywhere else** closes the lot in one go and keeps you where you are, which is the button for the laptop you borrowed at your mum's and the library computer you have thought about twice since.
 
-Changing your password, resetting it, or turning off a second factor signs out everything, everywhere, including you. That's still the biggest hammer in the drawer. This is the one for when you don't need the hammer.
+Changing your password, resetting it, or turning off a second factor signs out everything, everywhere, including you. That's the biggest hammer in the drawer. This is the one for when you don't need the hammer.
 
 The same tab holds [two-factor authentication](two-factor-authentication.md), [passkeys](passkeys.md) and [API keys](api-keys-and-integrations.md).
 
