@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Initiative Import Test : Architecture Overview</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Initiative Import Test</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="Initiative-Import-Test-Home_26116204.html">Initiative Import Test Home</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="Engineering_26181633.html">Engineering</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Initiative Import Test : Architecture Overview
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                            
+        
+    
+        
+    
+        
+        
+            Created by <span class='author'> Jordan Janzen</span> on Sep 22, 2026
+                        </div>
+                    <div id="main-content" class="wiki-content group">
+                    <div class="contentLayout2"><style>[data-colorid=s3b0t7sakg]{color:#bf2600} html[data-color-mode=dark] [data-colorid=s3b0t7sakg]{color:#ff6640}</style>
+<div class="columnLayout fixed-width" data-layout="fixed-width">
+<div class="cell normal" data-type="normal">
+<div class="innerCell">
+<style type="text/css">/*<![CDATA[*/
+div.rbtoc1790200225545 {padding: 0px;}
+div.rbtoc1790200225545 ul {list-style: disc;margin-left: 0px;}
+div.rbtoc1790200225545 li {margin-left: 0px;padding-left: 0px;}
+
+/*]]>*/</style><div class="toc-macro rbtoc1790200225545">
+<ul class="toc-indentation">
+<li><a href="#ArchitectureOverview-Summary">Summary</a>
+<ul class="toc-indentation">
+<li><a href="#ArchitectureOverview-Components">Components</a></li>
+<li><a href="#ArchitectureOverview-Requestflow">Request flow</a></li>
+<li><a href="#ArchitectureOverview-Configuration">Configuration</a>
+<ul class="toc-indentation">
+<li><a href="#ArchitectureOverview-Pros">Pros</a></li>
+<li><a href="#ArchitectureOverview-Cons">Cons</a></li>
+</ul>
+</li>
+<li><a href="#ArchitectureOverview-Failuremodes">Failure modes</a></li>
+</ul>
+</li>
+</ul>
+</div><div class="confluence-information-macro confluence-information-macro-information"><span class="aui-icon aui-icon-small aui-iconfont-info confluence-information-macro-icon" /><div class="confluence-information-macro-body"><p>Owned by <a class="confluence-userlink user-mention current-user-mention" data-account-id="redacted" href="https://morels.atlassian.net/wiki/people/redacted?ref=confluence" target="_blank" data-linked-resource-id="196609" data-linked-resource-version="1" data-linked-resource-type="userinfo" data-base-url="https://morels.atlassian.net/wiki">Jordan Janzen</a>. Last reviewed <time datetime="2026-09-15" class="date-past">15 Sep 2026</time>. Status: <span class="status-macro aui-lozenge aui-lozenge-visual-refresh aui-lozenge-success">APPROVED</span></p></div></div><h1 id="ArchitectureOverview-Summary">Summary</h1><p>The system is <span class="inline-comment-marker" data-ref="c71e1480-41e4-45bc-b4c5-635dece28f67">three services behind one gateway</span>. This paragraph has <strong>bold</strong>, <em>italic</em>, <u>underline</u>, <del>strikethrough</del>, <code>inline code</code>, H<sub>2</sub>O, E=mc<sup>2</sup>, <span data-colorid="s3b0t7sakg">red text</span>, <span style="background-color: rgb(248,230,160);">a yellow highlight</span> and an emoji <img class="emoticon emoticon-rocket" data-emoji-id="1f680" data-emoji-shortname=":rocket:" data-emoji-fallback="🚀" src="https://morels.atlassian.net/wiki/s/1070292334/6452/c422e0a7d64b2428e727922b65422bb2b87839df/_/images/icons/emoticons/72/1f680.png" width="16" height="16" data-emoticon-name="rocket" alt="content.emoticon.rocket" />.<br />This line follows a hard line break.</p><p>External link: <a class="external-link" href="https://www.postgresql.org/docs/" rel="nofollow">PostgreSQL docs</a>. Parent page link: <a href="Engineering_26181633.html" data-linked-resource-id="26181633" data-linked-resource-version="1" data-linked-resource-type="page">Engineering</a>. Sibling-tree link: <a href="Product_26214401.html" data-linked-resource-id="26214401" data-linked-resource-version="1" data-linked-resource-type="page">Product</a>. Same-page anchor: <a href="#Failure-modes" rel="nofollow">jump to Failure modes</a>.</p><h2 id="ArchitectureOverview-Components">Components</h2><div class="table-wrap"><table data-layout="default" class="confluenceTable"><colgroup><col /></colgroup><tbody><tr><th class="numberingColumn confluenceTh" /><th class="confluenceTh"><p>Component</p></th><th class="confluenceTh"><p>Language</p></th><th class="confluenceTh"><p>Owner</p></th><th class="confluenceTh"><p>Status</p></th></tr><tr><td class="numberingColumn confluenceTd">1</td><td class="confluenceTd"><p>Gateway</p></td><td class="confluenceTd"><p>Go</p></td><td rowspan="2" class="confluenceTd"><p>Platform team</p></td><td class="confluenceTd"><p><span class="status-macro aui-lozenge aui-lozenge-visual-refresh aui-lozenge-success">LIVE</span></p></td></tr><tr><td class="numberingColumn confluenceTd">2</td><td class="confluenceTd"><p>Auth service</p></td><td class="confluenceTd"><p>Python</p></td><td class="confluenceTd"><p><span class="status-macro aui-lozenge aui-lozenge-visual-refresh aui-lozenge-current">MIGRATING</span></p></td></tr><tr><td class="numberingColumn confluenceTd">3</td><td class="confluenceTd"><p>Worker</p></td><td class="confluenceTd"><p>Rust</p></td><td class="confluenceTd"><p>Data team</p></td><td class="confluenceTd"><p><span class="status-macro aui-lozenge aui-lozenge-visual-refresh aui-lozenge-error">BLOCKED</span></p></td></tr><tr><td class="numberingColumn confluenceTd">4</td><td colspan="3" data-highlight-colour="#DEEBFF" class="confluenceTd"><p><strong>Total services</strong></p></td><td class="confluenceTd"><p>3</p></td></tr></tbody></table></div><h2 id="ArchitectureOverview-Requestflow">Request flow</h2><ol start="1"><li><p>Client calls the gateway</p><ul><li><p>TLS terminates here</p></li><li><p>Rate limits apply</p><ul><li><p>Third-level bullet</p></li></ul></li></ul></li><li><p>Gateway forwards to a service</p></li><li><p>Service writes to Postgres</p></li></ol><h2 id="ArchitectureOverview-Configuration">Configuration</h2><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="syntaxhighlighter-pre" data-syntaxhighlighter-params="brush: java; gutter: false; theme: Confluence" data-theme="Confluence">gateway:
+  port: 8080
+  upstreams:
+    - auth:9000
+    - worker:9100</pre>
+</div></div></div>
+</div>
+</div>
+<div class="columnLayout two-equal" data-layout="two-equal">
+<div class="cell normal" data-type="normal">
+<div class="innerCell">
+<h3 id="ArchitectureOverview-Pros">Pros</h3><ul><li><p>Simple deploys</p></li><li><p>Clear ownership</p></li></ul></div>
+</div>
+<div class="cell normal" data-type="normal">
+<div class="innerCell">
+<h3 id="ArchitectureOverview-Cons">Cons</h3><ul><li><p>Extra network hop</p></li><li><p>Three runtimes to patch</p></li></ul></div>
+</div>
+</div>
+<div class="columnLayout fixed-width" data-layout="fixed-width">
+<div class="cell normal" data-type="normal">
+<div class="innerCell">
+<h2 id="ArchitectureOverview-Failuremodes">Failure modes</h2><div class="confluence-information-macro confluence-information-macro-note"><span class="aui-icon aui-icon-small aui-iconfont-warning confluence-information-macro-icon" /><div class="confluence-information-macro-body"><p>If Postgres is unreachable, every write fails closed.</p></div></div><div class="panel" style="background-color: #EAE6FF;border-color: #998DD9;border-width: 1px;"><div class="panelContent" style="background-color: #EAE6FF;">
+<p>A note panel.</p>
+</div></div><div class="confluence-information-macro confluence-information-macro-warning"><span class="aui-icon aui-icon-small aui-iconfont-error confluence-information-macro-icon" /><div class="confluence-information-macro-body"><p>An error panel.</p></div></div><div class="confluence-information-macro confluence-information-macro-tip"><span class="aui-icon aui-icon-small aui-iconfont-approve confluence-information-macro-icon" /><div class="confluence-information-macro-body"><p>A success panel.</p></div></div><div class="panel" style="background-color: #EAE6FF;border-width: 1px;"><div class="panelContent" style="background-color: #EAE6FF;">
+<p>A custom panel with a lightbulb.</p>
+</div></div><div id="expander-2001681341" class="expand-container"><div id="expander-control-2001681341" class="expand-control"><span class="expand-control-icon"><img style="vertical-align:middle;" class="expand-control-image" src="https://morels.atlassian.net/wiki/images/icons/grey_arrow_down.png" /></span><span class="expand-control-text">Expand: incident history</span></div><div id="expander-content-2001681341" class="expand-content"><p>Two outages in 2025, both from certificate expiry.</p><div class="table-wrap"><table data-layout="default" class="confluenceTable"><tbody><tr><th class="confluenceTh"><p>Date</p></th><th class="confluenceTh"><p>Duration</p></th></tr><tr><td class="confluenceTd"><p><time datetime="2025-03-02" class="date-past">02 Mar 2025</time></p></td><td class="confluenceTd"><p>42 min</p></td></tr><tr><td class="confluenceTd"><p><time datetime="2025-11-19" class="date-past">19 Nov 2025</time></p></td><td class="confluenceTd"><p>7 min</p></td></tr></tbody></table></div></div></div><blockquote><p>Make it work, make it right, make it fast.</p></blockquote><hr /><p style="text-align: center;">Centered closing paragraph.</p></div>
+</div>
+</div>
+</div>
+                    </div>
+
+                    
+                                                      
+                </div>             </div> 
+            <div id="footer" role="contentinfo">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on Sep 23, 2026 14:50</p>
+                    <div id="footer-logo"><a href="http://www.atlassian.com/">Atlassian</a></div>
+                </section>
+            </div>
+        </div>     </body>
+</html>

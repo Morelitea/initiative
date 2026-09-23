@@ -137,6 +137,10 @@ def open_backup_zip(payload: bytes) -> zipfile.ZipFile:
     declared = 0
     for info in infos:
         name = info.filename
+        # A bare "/" is a directory entry some zip writers add for the root;
+        # it names nothing and holds nothing.
+        if name == "/" and info.is_dir():
+            continue
         if name.startswith("/") or ".." in name.split("/"):
             raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
         declared += info.file_size

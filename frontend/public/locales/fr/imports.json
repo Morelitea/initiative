@@ -4,7 +4,7 @@
     "failed": "L'import a échoué."
   },
   "wizard": {
-    "title": "Importer une sauvegarde",
+    "title": "Importer",
     "back": "Retour",
     "next": "Suivant",
     "close": "Fermer",
@@ -134,6 +134,15 @@
         "pages_one": "{{count}} page",
         "pages_other": "{{count}} pages",
         "initiativeHint": "Seules les initiatives où vous pouvez créer tout ce que vous avez coché sont proposées."
+      },
+      "export": {
+        "offer": "Vous avez plutôt un export HTML d'un espace Confluence ? Téléversez-le",
+        "prompt": "Téléversez l'export HTML d'un espace Confluence.",
+        "pick": "Choisir le .zip de l'export",
+        "where": "Dans Confluence : Paramètres de l'espace → Exporter l'espace → HTML",
+        "note": "Rien n'est écrit avant que vous ayez vérifié ce que nous avons trouvé. Les personnes sont rapprochées par les noms affichés dans l'export.",
+        "failed": "Nous n'avons pas pu commencer à lire cet export.",
+        "notExport": "Ce zip n'est pas un export HTML d'espace Confluence."
       },
       "fetch": {
         "title": "Lecture de votre site Atlassian…",
