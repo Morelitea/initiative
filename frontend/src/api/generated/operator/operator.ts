@@ -58,7 +58,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  *
  * Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
  * cross-user read is authorized by RLS (``users_platform_read``, support+) rather
- * than the system admin engine. Initiative roles are guild-scoped and
+ * than the system engine. Initiative roles are guild-scoped and
  * deliberately NOT loaded here — a platform user view exposes platform data only.
  * @summary List All Users
  */

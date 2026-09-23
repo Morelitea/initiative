@@ -194,7 +194,7 @@ export function useListGuildsApiV1GuildsGet<
 }
 
 /**
- * Create a new guild. Uses admin session because the guild doesn't exist
+ * Create a new guild. Uses the system session because the guild doesn't exist
  * yet — no guild context or membership exists for RLS to match against.
  *
  * The caller becomes the guild's admin, unless they hold ``guilds.manage``
@@ -3418,7 +3418,7 @@ export const useDeleteGuildInviteApiV1GuildsGuildIdInvitesInviteIdDelete = <
   );
 };
 /**
- * Accept a guild invite. Uses admin session because the user doesn't
+ * Accept a guild invite. Uses the system session because the user doesn't
  * belong to the guild yet — the invite code is the authorization.
  * @summary Accept Invite
  */
