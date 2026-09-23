@@ -439,6 +439,11 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
     )
     headers = get_auth_headers(support)
 
+    entry = await client.get(f"/api/v1/guilds/{guild.id}", headers=headers)
+    assert entry.status_code == 200, entry.text
+    assert entry.json()["role"] == "admin"
+    assert entry.json()["can_write_settings"] is False
+
     renamed = await client.patch(
         f"/api/v1/guilds/{guild.id}",
         headers=headers,
@@ -483,6 +488,10 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
     )
     assert renamed.status_code == 200, renamed.text
     assert renamed.json()["name"] == "Renamed By Support"
+    assert renamed.json()["can_write_settings"] is True
+
+    entry = await client.get(f"/api/v1/guilds/{guild.id}", headers=headers)
+    assert entry.json()["can_write_settings"] is True
 
     content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
     assert content.status_code == 200, content.text
@@ -626,3 +635,35 @@ async def test_the_pair_one_request_asks_for_reaches_both_axes(
         f"/api/v1/g/{guild.id}/exports/guild/status", headers=headers
     )
     assert export.status_code == 200, export.text
+
+
+async def test_a_members_guild_list_says_whether_they_change_its_settings(
+    client: AsyncClient, session: AsyncSession
+):
+    """The membership row answers for a member: its administrator changes the
+    settings, an ordinary member has none to change."""
+    admin = await create_user(session)
+    member = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=member, guild=guild)
+
+    for user, expected in ((admin, True), (member, False)):
+        listed = await client.get("/api/v1/guilds/", headers=get_auth_headers(user))
+        assert listed.status_code == 200, listed.text
+        (entry,) = [row for row in listed.json() if row["id"] == guild.id]
+        assert entry["can_write_settings"] is expected
+
+
+async def test_a_member_does_not_read_the_settings_entry(
+    client: AsyncClient, session: AsyncSession
+):
+    """The entry is served on the settings surface, so it asks for its rung."""
+    admin = await create_user(session)
+    member = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=member, guild=guild)
+
+    refused = await client.get(
+        f"/api/v1/guilds/{guild.id}", headers=get_auth_headers(member)
+    )
+    assert refused.status_code == 403, refused.text

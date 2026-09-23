@@ -48,6 +48,12 @@ router = APIRouter()
 GuildSeatContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.superadmin, settings=True))
 ]
+# Changing a connection also asks a grantee for a read_write content grant
+# beside the rung.
+GuildSeatWriteContext = Annotated[
+    GuildContext,
+    Depends(require_guild_roles(GuildRole.superadmin, settings=True, write=True)),
+]
 GuildMemberContext = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 
@@ -65,7 +71,7 @@ async def list_guild_connections(
 async def create_guild_connection(
     payload: AIConnectionCreate,
     session: SettingsRLSSessionDep,
-    ctx: GuildSeatContext,
+    ctx: GuildSeatWriteContext,
     user: CurrentUser,
 ) -> AIConnectionResponse:
     return await ai_settings_service.create_guild_connection(
@@ -78,7 +84,7 @@ async def update_guild_connection(
     connection_id: int,
     payload: AIConnectionUpdate,
     session: SettingsRLSSessionDep,
-    _ctx: GuildSeatContext,
+    _ctx: GuildSeatWriteContext,
     user: CurrentUser,
 ) -> AIConnectionResponse:
     return await ai_settings_service.update_guild_connection(
@@ -92,7 +98,7 @@ async def update_guild_connection(
 async def delete_guild_connection(
     connection_id: int,
     session: SettingsRLSSessionDep,
-    _ctx: GuildSeatContext,
+    _ctx: GuildSeatWriteContext,
     user: CurrentUser,
 ) -> None:
     await ai_settings_service.delete_guild_connection(

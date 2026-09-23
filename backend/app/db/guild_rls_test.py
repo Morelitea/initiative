@@ -33,7 +33,9 @@ from app.db.tenancy import (
     MANAGED_TABLES,
     GUILD_LEVEL_TABLES,
     INITIATIVE_SCOPED_TABLES,
+    LEDGER_TABLES,
     OWN_ROW_TABLES,
+    SEAT_TABLES,
 )
 
 _EXPECTED_POLICIES = {
@@ -280,6 +282,50 @@ async def test_own_row_tables_have_policies(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_OWN_ROW)
+
+
+@pytest.mark.database
+async def test_seat_and_ledger_tables_have_policies(engine):
+    """Every ``SEAT_TABLES`` table gets FORCE RLS + the four ``seat_*``
+    policies, and every ``LEDGER_TABLES`` table the four ``ledger_*``, in a
+    freshly provisioned schema."""
+    gid = 990_032
+    schema = guild_schema_name(gid)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT tablename, policyname FROM pg_policies "
+                    "WHERE schemaname = :s"
+                ),
+                {"s": schema},
+            )
+            policies: dict[str, set[str]] = {}
+            for tbl, pol in rows:
+                policies.setdefault(tbl, set()).add(pol)
+            rls_rows = await conn.execute(
+                text(
+                    "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity "
+                    "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    "WHERE n.nspname = :s AND c.relkind = 'r'"
+                ),
+                {"s": schema},
+            )
+            rls = {row[0]: (row[1], row[2]) for row in rls_rows}
+        expected = {t: "seat" for t in SEAT_TABLES} | {
+            t: "ledger" for t in LEDGER_TABLES
+        }
+        for tbl, prefix in sorted(expected.items()):
+            assert rls.get(tbl) == (True, True), f"{tbl} must be ENABLED+FORCED"
+            want = {f"{prefix}_{c}" for c in ("select", "insert", "update", "delete")}
+            assert policies.get(tbl, set()) == want, (
+                f"{tbl} has {sorted(policies.get(tbl, set()))}, expected {sorted(want)}"
+            )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
 
 
 @pytest.mark.database

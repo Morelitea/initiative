@@ -387,6 +387,20 @@ class GuildContext:
     def is_settings_only(self) -> bool:
         return self.grant is None and self.settings_grant is not None
 
+    @property
+    def grant_writes(self) -> bool:
+        """Whether what reaches the community here may change something: a
+        membership row, or a grant beside a live ``read_write`` content grant.
+        """
+        return not self.is_pam or self.pam_write
+
+    @property
+    def writes_settings(self) -> bool:
+        """Whether this request may change the community configuration it
+        reaches: the rung that reaches it, and a membership row or a
+        ``read_write`` content grant beside that rung."""
+        return self.reaches(GuildRole.admin, settings=True) and self.grant_writes
+
     # --- The two grant axes --------------------------------------------------
 
     @property

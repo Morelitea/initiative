@@ -391,6 +391,14 @@ SETTINGS_ADMIN = (
     " AND current_setting('app.settings_rung'::text, true) <> ''::text)"
 )
 
+#: This request holds the community's seat: the membership row's superadmin,
+#: or a live superadmin settings grant, as the standing statement read it
+#: through ``guild_superadmin()``.
+GUILD_SEAT = (
+    f"({STANDING_IS_THIS_GUILD}"
+    " AND current_setting('app.guild_seat'::text, true) = 'true'::text)"
+)
+
 #: A live grant covers this request, at whichever level the command asks for.
 #: A live content grant, read one level at a time: the level a grant confers
 #: is the one its standing value names.

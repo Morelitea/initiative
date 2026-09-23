@@ -1433,7 +1433,7 @@ def require_grant_writes(context: GuildContext) -> None:
     a ``read_write`` content grant beside the rung — the two asks together.
     The membership row's administrator is not a grantee and passes.
     """
-    if context.is_pam and not context.pam_write:
+    if not context.grant_writes:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AccessGrantMessages.WRITE_GRANT_REQUIRED,

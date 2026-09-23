@@ -21,6 +21,7 @@
     "title": "Community-Einstellungen",
     "subtitle": "Verwalte die Mitgliedschaft im Arbeitsbereich und die Community-Details.",
     "permissionDenied": "Du benötigst zusätzliche Berechtigungen, um diese Seite anzuzeigen.",
+    "viewOnly": "Du siehst diese Einstellungen über eine Zugriffsfreigabe. Um sie zu ändern, ist zusätzlich eine Lese-/Schreibfreigabe nötig.",
     "restricted": {
       "read_only": {
         "label": "Schreibgeschützt",

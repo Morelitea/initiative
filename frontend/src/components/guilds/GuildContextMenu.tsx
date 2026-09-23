@@ -26,7 +26,12 @@ import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { administersGuild, holdsGuildSeat } from "@/lib/permissions";
+import {
+  administersGuild,
+  administersGuildContent,
+  changesGuildSettings,
+  holdsGuildSeat,
+} from "@/lib/permissions";
 
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
 
@@ -142,19 +147,25 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
           {isAdmin && (
             <>
               <ContextMenuSeparator />
-              <ContextMenuItem
-                onClick={
-                  upgradeForSeats ? () => void openPortal(guild.id, "upgrade") : handleInviteMembers
-                }
-                disabled={creatingInvite || (atUserLimit && !upgradeForSeats)}
-              >
-                <UserPlus className="mr-2 h-4 w-4" />
-                {creatingInvite ? t("creatingInvite") : inviteLabel}
-              </ContextMenuItem>
-              <ContextMenuItem onClick={handleCreateInitiative}>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("createInitiative")}
-              </ContextMenuItem>
+              {changesGuildSettings(guild) && (
+                <ContextMenuItem
+                  onClick={
+                    upgradeForSeats
+                      ? () => void openPortal(guild.id, "upgrade")
+                      : handleInviteMembers
+                  }
+                  disabled={creatingInvite || (atUserLimit && !upgradeForSeats)}
+                >
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  {creatingInvite ? t("creatingInvite") : inviteLabel}
+                </ContextMenuItem>
+              )}
+              {administersGuildContent(guild) && (
+                <ContextMenuItem onClick={handleCreateInitiative}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("createInitiative")}
+                </ContextMenuItem>
+              )}
               <ContextMenuItem onClick={handleGuildSettings}>
                 <Settings className="mr-2 h-4 w-4" />
                 {t("nav:guildSettings")}

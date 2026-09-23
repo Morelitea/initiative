@@ -4596,6 +4596,7 @@ export interface GuildRead {
   description: string | null;
   id: number;
   role: GuildRole;
+  can_write_settings: boolean;
   position: number;
   created_at: string;
   updated_at: string;

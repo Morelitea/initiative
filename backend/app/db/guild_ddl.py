@@ -40,6 +40,7 @@ from app.db.initiative_rls import (
 )
 from app.db.authorization import (
     GUILD_ADMIN,
+    GUILD_SEAT,
     RETIRED_GUILD_FUNCTION_SIGNATURES,
     SETTINGS_ADMIN,
     STANDING_IS_THIS_GUILD,
@@ -59,7 +60,13 @@ from app.db.frozen import (
     render_resource_frozen_for_grant_fn,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.db.tenancy import GUILD_SCOPED_TABLES, MANAGED_TABLES, OWN_ROW_TABLES
+from app.db.tenancy import (
+    GUILD_SCOPED_TABLES,
+    LEDGER_TABLES,
+    MANAGED_TABLES,
+    OWN_ROW_TABLES,
+    SEAT_TABLES,
+)
 from app.models.tenant.initiative import InitiativeJoinPolicy
 
 
@@ -394,12 +401,36 @@ def _own_row_block(table: str, owner_col: str) -> str:
     row's owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the same
     predicate, so a member can't author rows owned by someone else either."""
     pred = _OWN_ROW_PREDICATE.format(col=owner_col)
-    lines = [
-        f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
-        f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
-    ]
-    for suffix, command, clause, _write in _COMMANDS:
-        name = f"own_row_{suffix}"
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            *_policies(table, "own_row", pred, pred),
+        ]
+    )
+
+
+_SEAT_SECTION = """\
+-- ===========================================================================
+-- Seat-held guild-level tables (app.db.tenancy.SEAT_TABLES): configuration the
+-- community's seat holds. Read within the schema — a member's AI request reads
+-- the connection it runs on. Written by the seat (app.guild_seat, from the
+-- standing), which a lent seat holds beside a read_write content grant, or by
+-- the system engine.
+-- ==========================================================================="""
+
+_SEAT_WRITE_PREDICATE = (
+    f"({SYSTEM_SESSION} OR ({GUILD_SEAT} AND ({GUILD_ADMIN} OR {_PAM_WRITE})))"
+)
+
+
+def _policies(table: str, prefix: str, read: str, write: str) -> list[str]:
+    """One PERMISSIVE policy per command: ``read`` for SELECT, ``write`` for
+    the other three."""
+    lines: list[str] = []
+    for suffix, command, clause, is_write in _COMMANDS:
+        pred = write if is_write else read
+        name = f"{prefix}_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
         lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")
         if clause == "USING-CHECK":
@@ -408,7 +439,44 @@ def _own_row_block(table: str, owner_col: str) -> str:
             lines.append(f"  WITH CHECK ({pred});")
         else:  # USING
             lines.append(f"  USING ({pred});")
-    return "\n".join(lines)
+    return lines
+
+
+def _seat_block(table: str) -> str:
+    """RLS for a seat-held guild-level table: reading open within the schema,
+    writing by the seat or the system engine."""
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            *_policies(table, "seat", "true", _SEAT_WRITE_PREDICATE),
+        ]
+    )
+
+
+_LEDGER_SECTION = """\
+-- ===========================================================================
+-- Ledger guild-level tables (app.db.tenancy.LEDGER_TABLES): bookkeeping a
+-- system job keeps about a parent row. Read through the parent — the sub-select
+-- runs the parent's own SELECT policy, so a row is visible to whoever sees its
+-- parent. Written by the system engine alone.
+-- ==========================================================================="""
+
+
+def _ledger_block(table: str, parent: str, fk: str) -> str:
+    """RLS for a ledger table: read through its parent, written by the system
+    engine."""
+    read = (
+        f"({SYSTEM_SESSION} OR EXISTS (SELECT 1 FROM {parent}"
+        f" WHERE {parent}.id = {table}.{fk}))"
+    )
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            *_policies(table, "ledger", read, SYSTEM_SESSION),
+        ]
+    )
 
 
 def _guild_level_guard_block(table: str) -> str:
@@ -516,6 +584,10 @@ def render_guild_rls_ddl() -> str:
     own_rows = [_own_row_block(t, c) for t, c in sorted(OWN_ROW_TABLES.items())]
     if own_rows:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
+    seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
+    out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
+    ledgers = [_ledger_block(t, p, fk) for t, (p, fk) in sorted(LEDGER_TABLES.items())]
+    out += "\n\n" + _LEDGER_SECTION + "\n\n" + "\n\n".join(ledgers)
     guards = [f"{frozen_guard_trigger(t)};" for t in sorted(FROZEN_TABLES)]
     guards += [
         f"{trigger};"

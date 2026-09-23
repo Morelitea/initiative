@@ -7,7 +7,12 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
-import { administersGuild, holdsGuildSeat, reachesGuildContent } from "@/lib/permissions";
+import {
+  administersGuild,
+  changesGuildSettings,
+  holdsGuildSeat,
+  reachesGuildContent,
+} from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 
 export const GuildSettingsLayout = () => {
@@ -18,6 +23,9 @@ export const GuildSettingsLayout = () => {
   // grant does not — the tabs built on content are dropped below rather than
   // rendered into refusals.
   const administers = administersGuild(activeGuild);
+  // Whether what the rung reaches may also be changed — the server's answer.
+  // Without it every control on these pages is shown disabled.
+  const changesSettings = changesGuildSettings(activeGuild);
   const reachesContent = reachesGuildContent(activeGuild);
   // The seat above admin, which holds this community's sign-in and its
   // integrations — held outright, or lent for a window by a settings grant.
@@ -188,15 +196,20 @@ export const GuildSettingsLayout = () => {
         {statusNotice && (
           <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>
         )}
+        {!changesSettings && (
+          <p className="text-muted-foreground text-sm">{t("guildLayout.viewOnly")}</p>
+        )}
       </div>
       <SettingsTabsNav
         tabs={workingTabs}
         activeTab={activeTab}
         onNavigate={(path) => router.navigate({ to: path })}
       />
-      <Suspense fallback={<SettingsPaneSkeleton />}>
-        <Outlet />
-      </Suspense>
+      <fieldset disabled={!changesSettings} className="m-0 min-w-0 border-0 p-0">
+        <Suspense fallback={<SettingsPaneSkeleton />}>
+          <Outlet />
+        </Suspense>
+      </fieldset>
     </div>
   );
 };

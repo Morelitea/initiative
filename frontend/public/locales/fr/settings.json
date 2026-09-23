@@ -21,6 +21,7 @@
     "title": "Paramètres de la communauté",
     "subtitle": "Gérez les membres de l'espace de travail et les détails de la communauté.",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
+    "viewOnly": "Vous consultez ces paramètres grâce à une autorisation d'accès. Pour les modifier, une autorisation en lecture-écriture est également requise.",
     "restricted": {
       "read_only": {
         "label": "Lecture seule",
