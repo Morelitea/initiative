@@ -423,7 +423,7 @@ async def upload_backup(
     guild storage and the job parked as ``staged`` (nothing is imported yet);
     ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
     backups expire after IMPORT_STAGED_TTL_HOURS. The community's seat only."""
-    require_seat(guild_context)
+    require_seat(guild_context, detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED)
     _require_writable(guild_context)
     guild_id = guild_context.guild_id
 
@@ -530,7 +530,9 @@ async def confirm_import(
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
     if job.source == "backup":
-        require_seat(guild_context)
+        require_seat(
+            guild_context, detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED
+        )
     elif job.created_by != current_user.id:
         # RLS lets a guild admin read the row; answering somebody else's
         # people step is a different thing from being able to see it.

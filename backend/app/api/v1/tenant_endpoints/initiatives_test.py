@@ -330,8 +330,8 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
     ("verb", "caller", "target", "status_code", "detail"),
     [
         ("create", "admin", "own", 201, None),
-        ("create", "manager", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
-        ("create", "member", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
+        ("create", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("create", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
         ("update", "admin", "own", 200, None),
         ("update", "manager", "own", 200, None),
         ("update", "member", "own", 403, InitiativeMessages.MANAGER_REQUIRED),
@@ -339,8 +339,8 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
         ("archive", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
         ("archive", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
         ("delete", "admin", "own", 204, None),
-        ("delete", "manager", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
-        ("delete", "member", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
+        ("delete", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("delete", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
         ("delete", "admin", "default", 400, InitiativeMessages.CANNOT_DELETE_DEFAULT),
     ],
 )

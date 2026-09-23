@@ -285,9 +285,7 @@ async def list_initiatives(
     They bring an initiative into it by taking the project manager role from the
     guild-settings initiative table, which is also what ``scope=guild`` feeds.
     """
-    if scope is InitiativeListScope.guild and not rls_service.is_guild_admin(
-        guild_context.role
-    ):
+    if scope is InitiativeListScope.guild and not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ADMIN_REQUIRED,

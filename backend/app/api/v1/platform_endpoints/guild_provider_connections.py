@@ -26,11 +26,12 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import SeatWriteSessionDep, SessionDep, get_current_active_user
-from app.api.v1.platform_endpoints.guilds import (
-    _ensure_guild_admin,
-    _require_guild_auth_option,
+from app.api.deps import (
+    SeatWriteSessionDep,
+    SettingsAdminContextDep,
+    get_current_active_user,
 )
+from app.api.v1.platform_endpoints.guilds import _require_guild_auth_option
 from app.core.guild_auth_options import GuildAuthOption
 from app.db.session import get_admin_session
 from app.models.platform.user import User
@@ -53,21 +54,6 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 
-async def _require_connection_reader(
-    session: AsyncSession,
-    admin_session: AsyncSession,
-    *,
-    guild_id: int,
-    user_id: int,
-) -> None:
-    """Seeing what a community signs in through: the operator's grant of the
-    option, then guild admin. Reading is admin-or-above, one rung below
-    writing — an admin who cannot see what is set cannot ask for it to be
-    changed."""
-    await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=user_id)
-
-
 async def _require_connection_option(
     admin_session: AsyncSession, guild_id: int
 ) -> None:
@@ -82,13 +68,10 @@ async def _require_connection_option(
 )
 async def list_guild_provider_connections(
     guild_id: int,
-    session: SessionDep,
+    _guild_context: SettingsAdminContextDep,
     admin_session: AdminSessionDep,
-    current_user: CurrentUserDep,
 ) -> List[GuildProviderConnectionRead]:
-    await _require_connection_reader(
-        session, admin_session, guild_id=guild_id, user_id=current_user.id
-    )
+    await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
     return await connections.list_connections(admin_session, guild_id=guild_id)
 
 
@@ -98,17 +81,14 @@ async def list_guild_provider_connections(
 )
 async def list_connectable_providers(
     guild_id: int,
-    session: SessionDep,
+    _guild_context: SettingsAdminContextDep,
     admin_session: AdminSessionDep,
-    current_user: CurrentUserDep,
 ) -> List[ConnectableProviderRead]:
     """The providers this community may choose from: the ones on offer, plus
     the ones it already connects to. Names only — a community picks a provider
     by name, and one registered for a single customer is nobody else's to
     see."""
-    await _require_connection_reader(
-        session, admin_session, guild_id=guild_id, user_id=current_user.id
-    )
+    await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
     return await connections.list_connectable(admin_session, guild_id=guild_id)
 
 
@@ -183,14 +163,11 @@ async def delete_guild_provider_connection(
 @router.get("/{guild_id}/auth/rules", response_model=GuildClaimRulesResponse)
 async def list_guild_claim_rules(
     guild_id: int,
-    session: SessionDep,
+    _guild_context: SettingsAdminContextDep,
     admin_session: AdminSessionDep,
-    current_user: CurrentUserDep,
 ) -> GuildClaimRulesResponse:
     """Where this community places the people its providers vouch for."""
-    await _require_connection_reader(
-        session, admin_session, guild_id=guild_id, user_id=current_user.id
-    )
+    await _require_guild_auth_option(admin_session, guild_id, GuildAuthOption.providers)
     return await claim_rules.list_rules(admin_session, guild_id=guild_id)
 
 

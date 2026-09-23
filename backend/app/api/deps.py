@@ -1113,6 +1113,17 @@ def require_seat(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
+def _rung_refusal(roles: tuple[GuildRole, ...]) -> str:
+    """The code a guard answers with, from the rung it names: a guard for
+    the seat says so, one for an administrator says so, and one naming
+    anything else says a permission is missing."""
+    if roles == (GuildRole.superadmin,):
+        return GuildMessages.GUILD_SUPERADMIN_REQUIRED
+    if roles == (GuildRole.admin,):
+        return GuildMessages.GUILD_ADMIN_REQUIRED
+    return GuildMessages.GUILD_PERMISSION_REQUIRED
+
+
 def require_guild_roles(
     *roles: GuildRole, settings: bool = False, write: bool = False
 ) -> Callable:
@@ -1124,17 +1135,16 @@ def require_guild_roles(
     an administrator keeps while the content is closed. ``write`` is a route
     that changes something: a grantee is then also asked for the
     ``read_write`` grant beside the rung (:func:`require_grant_writes`).
+    The refusal's code comes from the rung named (:func:`_rung_refusal`).
     """
     establish = get_guild_settings_context if settings else get_guild_membership
+    detail = _rung_refusal(roles)
 
     async def dependency(
         context: Annotated[GuildContext, Depends(establish)],
     ) -> GuildContext:
         if not holds_guild_role(context, *roles):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_PERMISSION_REQUIRED,
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
         if write:
             require_grant_writes(context)
         return context
@@ -1449,6 +1459,21 @@ async def get_guild_seat_write_session(
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
 SettingsContextDep = Annotated[GuildContext, Depends(get_guild_settings_context)]
+# The configuration surface, by rung: what an administrator keeps while the
+# content is closed and what a settings grant may serve, and — for a route
+# that changes something — asking a grantee for the read_write grant beside
+# the rung.
+SettingsAdminContextDep = Annotated[
+    GuildContext, Depends(require_guild_roles(GuildRole.admin, settings=True))
+]
+SettingsAdminWriteContextDep = Annotated[
+    GuildContext,
+    Depends(require_guild_roles(GuildRole.admin, settings=True, write=True)),
+]
+SettingsSeatWriteContextDep = Annotated[
+    GuildContext,
+    Depends(require_guild_roles(GuildRole.superadmin, settings=True, write=True)),
+]
 SettingsRLSSessionDep = Annotated[AsyncSession, Depends(get_guild_settings_session)]
 SettingsWriteSessionDep = Annotated[
     AsyncSession, Depends(get_guild_settings_write_session)

@@ -503,7 +503,7 @@ async def estimate_aggregate_export(
     from app.services.export.adapters.backup import estimate_backup
 
     if scope == "guild":
-        require_seat(guild_context)
+        require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     try:
         return await estimate_backup(
             session,
@@ -621,7 +621,7 @@ async def export_guild(
     only (held outright; the adapter re-checks at render time so a vacated
     seat fails the job closed), and once per cooldown window. Always returns
     ``202`` with a queued job to poll and download."""
-    require_seat(guild_context)
+    require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     await _require_guild_cooldown_elapsed(session)
     try:
         result = await start_export(
@@ -678,7 +678,7 @@ async def read_guild_export_status(
     Seat-only, like the export it describes. Two bounded reads: the newest
     ``guild`` job, and the cooldown the create route enforces.
     """
-    require_seat(guild_context)
+    require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     latest = (
         await session.exec(
             select(ExportJob)

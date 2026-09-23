@@ -17,13 +17,15 @@ from fastapi import (
 )
 
 from app.api.deps import (
-    SeatContextDep,
-    SeatWriteContextDep,
-    SettingsRLSSessionDep,
-    require_guild_roles,
     GuildContext,
+    SeatContextDep,
     SeatSessionDep,
+    SeatWriteContextDep,
     SeatWriteSessionDep,
+    SettingsAdminContextDep,
+    SettingsAdminWriteContextDep,
+    SettingsRLSSessionDep,
+    SettingsSeatWriteContextDep,
     UploadUserDep,
     UserSessionDep,
     establish_guild_access,
@@ -123,22 +125,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 router = APIRouter()
-
-# The community's configuration surface, by rung. Established ``for_settings``
-# — what an administrator keeps while the content is closed, and what a
-# settings grant may serve — and, for a route that changes something, asking a
-# grantee for the ``read_write`` grant beside the rung.
-GuildSettingsAdmin = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin, settings=True))
-]
-GuildSettingsAdminWrite = Annotated[
-    GuildContext,
-    Depends(require_guild_roles(GuildRole.admin, settings=True, write=True)),
-]
-GuildSettingsSeatWrite = Annotated[
-    GuildContext,
-    Depends(require_guild_roles(GuildRole.superadmin, settings=True, write=True)),
-]
 logger = logging.getLogger(__name__)
 
 
@@ -642,7 +628,7 @@ async def create_guild(
 @router.get("/{guild_id}/invites", response_model=List[GuildInviteRead])
 async def list_guild_invites(
     guild_id: int,
-    _guild_context: GuildSettingsAdmin,
+    _guild_context: SettingsAdminContextDep,
     session: SettingsRLSSessionDep,
 ) -> List[GuildInviteRead]:
     invites = await guilds_service.list_guild_invites(session, guild_id=guild_id)
@@ -652,7 +638,7 @@ async def list_guild_invites(
 @router.patch("/{guild_id}", response_model=GuildRead)
 async def update_guild(
     guild_id: int,
-    guild_context: GuildSettingsAdminWrite,
+    guild_context: SettingsAdminWriteContextDep,
     updates: GuildUpdate,
     session: SettingsRLSSessionDep,
     admin_session: AdminSessionDep,
@@ -782,7 +768,7 @@ async def update_guild(
 @router.get("/{guild_id}/entitlements", response_model=GuildEntitlementsRead)
 async def read_guild_entitlements(
     guild_id: int,
-    _guild_context: GuildSettingsAdmin,
+    _guild_context: SettingsAdminContextDep,
     session: SettingsRLSSessionDep,
 ) -> GuildEntitlementsRead:
     """What an operator has turned on for this guild, for its own admins.
@@ -886,7 +872,7 @@ async def _store_guild_images(
 @router.put("/{guild_id}/icon", response_model=GuildRead)
 async def set_guild_icon(
     guild_id: int,
-    guild_context: GuildSettingsAdminWrite,
+    guild_context: SettingsAdminWriteContextDep,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     icon: UploadFile = File(...),
@@ -907,7 +893,7 @@ async def set_guild_icon(
 @router.delete("/{guild_id}/icon", response_model=GuildRead)
 async def clear_guild_icon(
     guild_id: int,
-    guild_context: GuildSettingsAdminWrite,
+    guild_context: SettingsAdminWriteContextDep,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
@@ -924,7 +910,7 @@ async def clear_guild_icon(
 @router.put("/{guild_id}/banner", response_model=GuildRead)
 async def set_guild_banner(
     guild_id: int,
-    guild_context: GuildSettingsAdminWrite,
+    guild_context: SettingsAdminWriteContextDep,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     full: UploadFile = File(...),
@@ -960,7 +946,7 @@ async def set_guild_banner(
 @router.delete("/{guild_id}/banner", response_model=GuildRead)
 async def clear_guild_banner(
     guild_id: int,
-    guild_context: GuildSettingsAdminWrite,
+    guild_context: SettingsAdminWriteContextDep,
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
@@ -1230,7 +1216,7 @@ async def set_guild_notification_policy(
 @router.get("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
 async def get_guild_auth_policy(
     guild_id: int,
-    _guild_context: GuildSettingsAdmin,
+    _guild_context: SettingsAdminContextDep,
     admin_session: AdminSessionDep,
 ) -> GuildAuthPolicyRead:
     """The guild's sign-in requirement. Guild admin only (the settings UI);
@@ -1595,7 +1581,7 @@ async def set_guild_session_limit(
 )
 async def delete_guild(
     guild_id: int,
-    _guild_context: GuildSettingsSeatWrite,
+    _guild_context: SettingsSeatWriteContextDep,
     http_request: Request,
     request: GuildDeletionRequest,
     session: SettingsRLSSessionDep,
@@ -1681,7 +1667,7 @@ async def delete_guild(
 )
 async def create_guild_invite(
     guild_id: int,
-    _guild_context: GuildSettingsAdminWrite,
+    _guild_context: SettingsAdminWriteContextDep,
     invite_in: GuildInviteCreate,
     session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1711,7 +1697,7 @@ async def create_guild_invite(
 )
 async def delete_guild_invite(
     guild_id: int,
-    _guild_context: GuildSettingsAdminWrite,
+    _guild_context: SettingsAdminWriteContextDep,
     invite_id: int,
     session: SettingsRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -1783,7 +1769,7 @@ async def accept_invite(
 )
 async def update_guild_membership(
     guild_id: int,
-    guild_context: GuildSettingsAdminWrite,
+    guild_context: SettingsAdminWriteContextDep,
     user_id: int,
     payload: GuildMembershipUpdate,
     session: AdminSessionDep,

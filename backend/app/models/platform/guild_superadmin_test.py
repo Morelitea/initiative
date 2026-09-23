@@ -117,11 +117,14 @@ async def test_that_guard_still_turns_a_member_away():
     assert caught.value.status_code == 403
 
 
-async def test_a_guard_naming_other_roles_is_left_alone():
-    """Widening applies to the ``admin`` rung, not to every guard."""
+async def test_a_guard_naming_a_rung_admits_the_rungs_above_it():
+    """The ladder answers every guard the same way: a rung asked for is that
+    rung or above, and granted access — no membership row — reaches no rung
+    of the community's own."""
     guard = deps.require_guild_roles(GuildRole.member)
+    await guard(_context(GuildRole.superadmin))
     with pytest.raises(HTTPException):
-        await guard(_context(GuildRole.superadmin))
+        await guard(_context(GuildRole.support))
 
 
 def test_a_claim_rule_cannot_name_the_seat():
