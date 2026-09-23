@@ -6,7 +6,9 @@ blobs — so a platform operator can put the community back. This worker is what
 eventually does the destroying, and it does exactly what the delete used to do
 inline: remove the shared guild row (whose ``ON DELETE CASCADE`` clears the
 roster), forget the identities its apps knew its members by, then drop the
-schema and purge the blobs.
+schema and purge the blobs. Each pass then reclaims any ``guild_<id>`` schema
+whose row is already gone — a teardown that deleted the row but did not finish
+dropping the schema, here or where a guild's creation was rolled back.
 
 Polled by ``background_tasks._loop_worker`` once an hour on ``AdminSessionLocal``
 (the ``app_admin`` login). It works on ``public.guilds`` alone and never routes
@@ -19,6 +21,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import logging
 
+from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -80,11 +83,10 @@ async def _purge_one(session: AsyncSession, guild_id: int, *, retention: int) ->
     """Destroy one guild. Mirrors the sequence the delete endpoint used to run.
 
     The row goes first and is committed on its own: that is the reliable part,
-    and it is what makes the guild gone. The schema drop and blob purge are
-    best-effort cleanup afterwards — an orphaned schema is harmless and is
-    reclaimed on the next sweep or the next provision of that id, whereas a
-    failed cleanup that rolled back the row would leave the guild due for purge
-    forever.
+    and it is what makes the guild gone. The schema drop and blob purge follow;
+    if they fail, :func:`reclaim_orphaned_guilds` drops the schema on the next
+    pass, whereas a failed cleanup that rolled back the row would leave the
+    guild due for purge forever.
     """
     await audit_service.record(
         session,
@@ -106,7 +108,7 @@ async def _purge_one(session: AsyncSession, guild_id: int, *, retention: int) ->
     except Exception:
         logger.exception(
             "guild purge: schema/blob cleanup for guild %s failed "
-            "(row already deleted; orphan is harmless)",
+            "(row already deleted; reclaimed on the next pass)",
             guild_id,
         )
 
@@ -133,9 +135,59 @@ async def purge_due_guilds(session: AsyncSession, *, now: datetime) -> int:
     return len(guild_ids)
 
 
+async def _orphaned_guild_ids(session: AsyncSession) -> list[int]:
+    """Guild schemas with no ``public.guilds`` row behind them.
+
+    Every path that creates a guild commits its row before provisioning the
+    schema, and every path that removes one deletes the row before dropping
+    the schema, so a schema without a row is one whose teardown did not finish.
+    """
+    rows = await session.exec(
+        text(
+            "SELECT substring(n.nspname FROM 7)::int AS guild_id "
+            "FROM pg_namespace n "
+            "WHERE n.nspname ~ '^guild_[0-9]+$' "
+            "AND NOT EXISTS ("
+            "SELECT 1 FROM public.guilds g "
+            "WHERE g.id = substring(n.nspname FROM 7)::int"
+            ") "
+            "ORDER BY 1"
+        )
+    )
+    return [row[0] for row in rows]
+
+
+async def reclaim_orphaned_guilds(session: AsyncSession) -> int:
+    """Drop the schema, roles and blobs of every guild whose row is gone.
+
+    Runs whatever the retention setting says: the window governs deleted
+    communities that still have a row, and these have none. Returns how many
+    were reclaimed; one that fails again is logged and retried next pass.
+    """
+    await set_rls_context(session)
+    guild_ids = await _orphaned_guild_ids(session)
+    # End the read before the drops, which run on the provisioning engine.
+    await session.commit()
+    reclaimed = 0
+    for guild_id in guild_ids:
+        try:
+            await deprovision_guild(guild_id)
+        except Exception:
+            logger.exception(
+                "guild purge: reclaiming orphaned schema for guild %s failed",
+                guild_id,
+            )
+            continue
+        reclaimed += 1
+    if reclaimed:
+        logger.info("guild purge: reclaimed %d orphaned guild schema(s)", reclaimed)
+    return reclaimed
+
+
 async def process_guild_purges() -> None:
     """One pass of the guild-purge loop. Idempotent and safe to run on a
     schedule even when nothing is due."""
     now = datetime.now(timezone.utc)
     async with AdminSessionLocal() as session:
         await purge_due_guilds(session, now=now)
+        await reclaim_orphaned_guilds(session)
