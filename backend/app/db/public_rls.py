@@ -25,6 +25,11 @@ registers it.
 A table registered with no policy and row security forced is in the strictest
 state Postgres has: a grant on it reads nothing until a policy admits a row.
 That is stated here on purpose rather than implied by absence.
+
+A policy for the platform tiers names the capability it guards
+(``Capability.USERS_READ``), not the tiers: ``policy_roles`` spells them from
+the capability registry, so which tier holds what is decided in one place and
+the policy says what it is for.
 """
 
 from __future__ import annotations
@@ -36,6 +41,7 @@ from dataclasses import dataclass
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
 from app.db.authorization import GUILD_ADMIN, SETTINGS_ADMIN, SYSTEM_SESSION
 from app.models.platform.user import UserRole
@@ -43,12 +49,14 @@ from app.models.platform.user import UserRole
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "PLATFORM_TIER_ROLES",
     "PUBLIC_RLS",
     "Policy",
     "TableRls",
     "apply_public_rls",
     "apply_public_rls_if_changed",
     "policy_name",
+    "policy_roles",
     "ensure_public_rls",
     "public_rls_digest",
     "render_public_rls_ddl",
@@ -208,25 +216,32 @@ DELETE = "DELETE"
 ALL = "ALL"
 COMMANDS = frozenset({SELECT, INSERT, UPDATE, DELETE, ALL})
 
+
+def platform_tier(role: UserRole) -> str:
+    """The Postgres role a platform tier's request assumes, unprefixed."""
+    return f"platform_{role.value}"
+
+
+#: The platform ladder as policy roles, one per ``UserRole``.
+PLATFORM_TIER_ROLES = frozenset(platform_tier(role) for role in UserRole)
+
 #: Roles a policy may be granted to, by their unprefixed names. The platform
 #: ladder and the billing role carry ``settings.PLATFORM_ROLE_PREFIX`` when
 #: rendered; the rest are fixed names.
-KNOWN_ROLES = frozenset(
-    {
-        "public",
-        "app_user",
-        "app_guild_base",
-        "app_guild_base_ro",
-        "app_dm_reader",
-        "app_profile_reader",
-        "initiative_billing",
-        "platform_base",
-        "platform_member",
-        "platform_support",
-        "platform_moderator",
-        "platform_operator",
-        "platform_owner",
-    }
+KNOWN_ROLES = (
+    frozenset(
+        {
+            "public",
+            "app_user",
+            "app_guild_base",
+            "app_guild_base_ro",
+            "app_dm_reader",
+            "app_profile_reader",
+            "initiative_billing",
+            "platform_base",
+        }
+    )
+    | PLATFORM_TIER_ROLES
 )
 _PREFIXED = frozenset(r for r in KNOWN_ROLES if r.startswith("platform_")) | {
     "initiative_billing"
@@ -236,14 +251,17 @@ _PREFIXED = frozenset(r for r in KNOWN_ROLES if r.startswith("platform_")) | {
 @dataclass(frozen=True)
 class Policy:
     """One policy: its name in the catalog, the command it governs, the roles
-    it is granted to, and its predicate. ``using`` is the row test for
-    reading, updating and deleting; ``check`` the test on a written row. An
-    UPDATE or ALL policy given only ``using`` checks the written row with the
-    same predicate, which is how every such policy here was written."""
+    it is granted to, and its predicate. ``roles`` is either the roles
+    themselves or the capability whose holders they are, in which case the
+    render grants the policy to the platform tiers holding it. ``using`` is
+    the row test for reading, updating and deleting; ``check`` the test on a
+    written row. An UPDATE or ALL policy given only ``using`` checks the
+    written row with the same predicate, which is how every such policy here
+    was written."""
 
     name: str
     command: str
-    roles: tuple[str, ...]
+    roles: tuple[str, ...] | Capability
     using: str | None = None
     check: str | None = None
     restrictive: bool = False
@@ -260,6 +278,16 @@ class TableRls:
     forced: bool = True
 
 
+def policy_roles(policy: Policy) -> tuple[str, ...]:
+    """The roles a policy is granted to: a capability is spelled as the
+    platform tiers holding it, in name order."""
+    if isinstance(policy.roles, Capability):
+        return tuple(
+            sorted(platform_tier(role) for role in roles_with_capability(policy.roles))
+        )
+    return policy.roles
+
+
 #: Row security on, forced, no policy: only the system engine reaches the rows.
 FORCED_NO_POLICY = TableRls()
 #: No row security at all: the table is governed by grants alone.
@@ -270,15 +298,7 @@ NO_RLS = TableRls(enabled=False, forced=False)
 PUBLIC_RLS: dict[str, TableRls] = {
     "access_grants": TableRls(
         policies=(
-            Policy(
-                "access_grants_admin",
-                ALL,
-                (
-                    "platform_operator",
-                    "platform_owner",
-                ),
-                using=OPEN,
-            ),
+            Policy("access_grants_admin", ALL, Capability.ACCESS_APPROVE, using=OPEN),
             Policy("access_grants_self", ALL, ("public",), using=own_row("user_id")),
         ),
     ),
@@ -335,14 +355,14 @@ PUBLIC_RLS: dict[str, TableRls] = {
             Policy(
                 "app_service_registrations_owner_read",
                 SELECT,
-                ("platform_owner",),
+                Capability.APPS_MANAGE,
                 using=OPEN,
             ),
         ),
     ),
     "app_settings": TableRls(
         policies=(
-            Policy("app_settings_owner", ALL, ("platform_owner",), using=OPEN),
+            Policy("app_settings_owner", ALL, Capability.CONFIG_MANAGE, using=OPEN),
             Policy("app_settings_read", SELECT, ("public",), using=OPEN),
         ),
     ),
@@ -766,7 +786,10 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "platform_ai_connections": TableRls(
         policies=(
             Policy(
-                "platform_ai_connections_owner", ALL, ("platform_owner",), using=OPEN
+                "platform_ai_connections_owner",
+                ALL,
+                Capability.CONFIG_MANAGE,
+                using=OPEN,
             ),
         ),
     ),
@@ -1041,17 +1064,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
             Policy(
                 "users_no_delete", DELETE, ("public",), using=CLOSED, restrictive=True
             ),
-            Policy(
-                "users_platform_read",
-                SELECT,
-                (
-                    "platform_moderator",
-                    "platform_operator",
-                    "platform_owner",
-                    "platform_support",
-                ),
-                using=OPEN,
-            ),
+            Policy("users_platform_read", SELECT, Capability.USERS_READ, using=OPEN),
             Policy("users_platform_self", ALL, ("platform_base",), using=own_row("id")),
             Policy("users_profile_read", SELECT, ("app_profile_reader",), using=OPEN),
             Policy(
@@ -1175,7 +1188,7 @@ def render_policy(table: str, policy: Policy) -> str:
     lines = [
         f"DROP POLICY IF EXISTS {name} ON public.{table};",
         f"CREATE POLICY {name} ON public.{table} AS {kind} FOR {policy.command}",
-        f"  TO {_roles_sql(policy.roles)}",
+        f"  TO {_roles_sql(policy_roles(policy))}",
     ]
     if using is not None:
         lines.append(f"  USING ({using})")

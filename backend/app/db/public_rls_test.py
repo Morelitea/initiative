@@ -21,6 +21,7 @@ from app.db.public_rls import (
     PUBLIC_RLS,
     UPDATE,
     apply_public_rls,
+    policy_roles,
     public_rls_digest,
     render_public_rls_ddl,
     unregistered_policies,
@@ -61,8 +62,9 @@ def test_every_policy_is_well_formed():
         for p in rls.policies:
             where = f"{table}.{p.name}"
             assert p.command in COMMANDS, f"{where}: unknown command {p.command}"
-            assert p.roles, f"{where}: no roles"
-            unknown = set(p.roles) - KNOWN_ROLES
+            roles = policy_roles(p)
+            assert roles, f"{where}: no roles"
+            unknown = set(roles) - KNOWN_ROLES
             assert not unknown, f"{where}: unknown roles {sorted(unknown)}"
             if p.command == INSERT:
                 assert p.using is None and p.check, f"{where}: INSERT takes WITH CHECK"
