@@ -2897,6 +2897,59 @@ async def test_a_todoist_export_becomes_a_project(client, acting_user, session):
     assert task.due_date is not None
 
 
+async def test_a_real_sized_export_arrives_whole(
+    client, acting_user, session, monkeypatch
+):
+    """An export is not a short string. A file past the plain-text field
+    ceiling — which every real export is — used to be refused with a 422
+    before the handler ran, and markup in a task's text was stripped on the
+    way in. The file is the file: every row lands, and so does what it said.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.schemas.base import MAX_PLAIN_TEXT_LENGTH
+
+    header, *rows = TODOIST_CSV.splitlines()
+    padding = [
+        f"task,Filler task number {i} with a longish title,,4,1,,,,,,,,,,"
+        for i in range(400)
+    ]
+    content = "\n".join(
+        [header, rows[0], "task,Compare a < b & <b>c</b>,,1,1,,,,,,,,,,", *padding]
+    )
+    assert len(content) > MAX_PLAIN_TEXT_LENGTH
+    # Applied in the request, so what landed can be read straight back.
+    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 10_000)
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await client.post(
+        a.g("/imports/foreign/todoist"),
+        headers=a.headers,
+        json={
+            "initiative_id": a.initiative.id,
+            "selection": "Big Todoist",
+            "content": content,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+    project = (
+        await session.exec(select(Project).where(Project.name == "Big Todoist"))
+    ).one()
+    titles = {
+        t.title
+        for t in (
+            await session.exec(select(Task).where(Task.project_id == project.id))
+        ).all()
+    }
+    assert len(titles) == 401
+    # The characters survive; the markup is stripped by the task title's own
+    # rule, the same one a title typed in the app goes through.
+    assert "Compare a < b & c" in titles
+
+
 async def test_importing_from_a_product_needs_the_create_permission(
     client, acting_user, session
 ):
