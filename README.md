@@ -2,7 +2,7 @@
 
 [![User Guide](https://img.shields.io/badge/📖_User_Guide-Learn_how_to_use_Initiative-6f42c1?style=for-the-badge)](https://morelitea.github.io/initiative/)
 
-[![CI](https://github.com/Morelitea/initiative/actions/workflows/ci.yml/badge.svg)](https://github.com/Morelitea/initiative/actions/workflows/ci.yml)
+[![CI](https://github.com/Morelitea/initiative/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Morelitea/initiative/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
 [![Latest Release](https://img.shields.io/github/v/release/Morelitea/initiative?sort=semver)](https://github.com/Morelitea/initiative/releases)
 [![License](https://img.shields.io/github/license/Morelitea/initiative)](https://github.com/Morelitea/initiative/blob/main/LICENSE)
 [![Docker](https://img.shields.io/docker/v/morelitea/initiative?sort=semver\&label=Docker)](https://hub.docker.com/r/morelitea/initiative)
