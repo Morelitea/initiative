@@ -1069,7 +1069,6 @@ async def test_a_reference_naming_no_guild_has_no_name(client: AsyncClient):
 async def test_billing_reads_that_a_guild_was_deleted(
     client: AsyncClient, session: AsyncSession
 ):
-    """``deleted`` is an answer, not a 404: it is what billing cancels on."""
     guild = await create_guild(session, status="deleted")
     ref = await billing_guild_ref(guild.id)
 
@@ -1082,8 +1081,7 @@ async def test_billing_reads_that_a_guild_was_deleted(
 async def test_a_status_write_cannot_bring_a_deleted_guild_back(
     client: AsyncClient, session: AsyncSession
 ):
-    """A lapsed card's ``read_only`` landing on a deleted guild would restore
-    it and restart its purge clock. The caps still land."""
+    """A status write leaves a deleted guild deleted; the caps still land."""
     stamped = datetime(2026, 9, 1, tzinfo=timezone.utc)
     guild = await create_guild(session, status="deleted", status_changed_at=stamped)
 

@@ -189,10 +189,7 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
 async def guild_status(request: Request, session: SessionDep) -> BillingGuildStatusRead:
     """Signed read: one guild's lifecycle status, ``deleted`` included.
 
-    How billing learns a community it charges for was deleted here, or was
-    restored — the lifecycle ping only tells it to ask. A deleted guild answers
-    ``deleted`` rather than 404ing, because that is the answer billing acts on;
-    only a purged one 404s, with the jti unredeemed.
+    Only a purged guild 404s, with the jti unredeemed.
     """
     claims, payload = await _verify_and_parse(request, BillingGuildStatusRequest)
     guild_id = await _resolve_guild(payload.guild_ref)

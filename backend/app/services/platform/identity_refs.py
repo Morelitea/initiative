@@ -444,8 +444,8 @@ async def drop_guild_refs(
     therefore carry no ``sector_guild_id`` to find them by.
 
     ``keep_billing`` takes the first half only, for a guild that is deleted but
-    not yet purged: billing still charges it until it hears otherwise, and asks
-    about it — and about it coming back — by that reference. The purge drops it.
+    not yet purged, so its billing reference outlives the delete. The purge
+    drops it.
     """
     dropped = await drop_sector_refs(session, sector_guild_id=guild_id)
     if not keep_billing:

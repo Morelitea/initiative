@@ -261,8 +261,8 @@ async def forget_guild(*, guild_id: int, keep_billing: bool = False) -> None:
     guild, and what it leaves behind is reclaimed by
     ``identity_refs.purge_orphaned_sector_refs``.
 
-    A soft delete passes ``keep_billing``: its apps let go now, but billing
-    keeps the name it charges the guild by until the purge.
+    A soft delete passes ``keep_billing``: its apps let go now, and the
+    guild's billing reference stays until the purge.
     """
     try:
         await drop_guild_app_refs(guild_id=guild_id, keep_billing=keep_billing)
