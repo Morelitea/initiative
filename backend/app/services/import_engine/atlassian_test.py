@@ -26,6 +26,18 @@ CREDENTIAL = atlassian.AtlassianCredential(
 )
 
 
+@pytest.fixture(autouse=True)
+def waits(monkeypatch) -> list[float]:
+    """Every retry wait, recorded rather than slept."""
+    recorded: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        recorded.append(seconds)
+
+    monkeypatch.setattr(atlassian, "_sleep", fake_sleep)
+    return recorded
+
+
 def _response(status_code: int, payload=None, *, text: str | None = None):
     if text is not None:
         return httpx.Response(status_code, text=text)
@@ -256,3 +268,113 @@ async def test_a_huge_site_is_cut_rather_than_refused(monkeypatch):
     assert len([c for c in calls if "approximate-count" in c["url"]]) == (
         atlassian.MAX_COUNTED_ENTRIES
     )
+
+
+# --- being throttled ---------------------------------------------------------
+
+
+def _throttled(retry_after: str | None = None):
+    headers = {"Retry-After": retry_after} if retry_after is not None else {}
+    return httpx.Response(429, json={}, headers=headers)
+
+
+def _sequence(*responses):
+    """Answer each call with the next response, repeating the last."""
+    queue = list(responses)
+
+    def handler(m, u, j):
+        return queue.pop(0) if len(queue) > 1 else queue[0]
+
+    return handler
+
+
+async def test_a_throttled_call_waits_as_asked_and_tries_again(monkeypatch, waits):
+    """The site said when to come back; the call waits at least that long —
+    jitter only ever adds — and the retry's answer is the call's answer."""
+    calls = _stub(monkeypatch, _sequence(_throttled("2"), _response(200, {"ok": True})))
+
+    assert await atlassian.get_json(CREDENTIAL, "/rest/api/3/myself") == {"ok": True}
+    assert len(calls) == 2
+    assert len(waits) == 1
+    assert 2.0 <= waits[0] <= 2.0 * (1 + atlassian.JITTER_FRACTION)
+
+
+async def test_without_retry_after_the_waits_double(monkeypatch, waits):
+    """No header: back off exponentially, and give up after the policy's
+    attempts with the rate-limit code."""
+    calls = _stub(monkeypatch, lambda m, u, j: _throttled())
+
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_json(CREDENTIAL, "/rest/api/3/myself")
+
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED
+    assert len(calls) == atlassian.BACKGROUND.attempts
+    # One wait between each pair of attempts, none after the last.
+    assert len(waits) == atlassian.BACKGROUND.attempts - 1
+    for attempt, wait in enumerate(waits):
+        floor = atlassian.BACKOFF_BASE_SECONDS * 2**attempt
+        assert floor <= wait <= floor * (1 + atlassian.JITTER_FRACTION)
+
+
+async def test_a_wait_longer_than_the_policy_allows_is_a_block(monkeypatch, waits):
+    """Told to come back in ten minutes is not a pause worth sleeping
+    through: give up at once rather than hold the worker."""
+    calls = _stub(monkeypatch, lambda m, u, j: _throttled("600"))
+
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_json(CREDENTIAL, "/rest/api/3/myself")
+
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED
+    assert len(calls) == 1
+    assert waits == []
+
+
+async def test_retry_after_may_be_a_date(monkeypatch, waits):
+    """The header's other form. A date in the past means "now"."""
+    from datetime import datetime, timedelta, timezone
+    from email.utils import format_datetime
+
+    soon = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=3))
+    _stub(monkeypatch, _sequence(_throttled(soon), _response(200, {})))
+    await atlassian.get_json(CREDENTIAL, "/rest/api/3/myself")
+    assert 0.0 < waits[0] <= 3.0 * (1 + atlassian.JITTER_FRACTION)
+
+    waits.clear()
+    past = format_datetime(datetime.now(timezone.utc) - timedelta(minutes=5))
+    _stub(monkeypatch, _sequence(_throttled(past), _response(200, {})))
+    await atlassian.get_json(CREDENTIAL, "/rest/api/3/myself")
+    assert waits == [0.0]
+
+
+async def test_a_retry_after_that_is_nonsense_falls_back_to_backoff(monkeypatch, waits):
+    _stub(monkeypatch, _sequence(_throttled("soon-ish"), _response(200, {})))
+    await atlassian.get_json(CREDENTIAL, "/rest/api/3/myself")
+    base = atlassian.BACKOFF_BASE_SECONDS
+    assert base <= waits[0] <= base * (1 + atlassian.JITTER_FRACTION)
+
+
+async def test_only_throttling_is_retried(monkeypatch, waits):
+    """Every other failure is an answer; asking again gets the same one."""
+    calls = _stub(monkeypatch, lambda m, u, j: _response(500))
+    with pytest.raises(ImportEngineError):
+        await atlassian.get_json(CREDENTIAL, "/rest/api/3/myself")
+    assert len(calls) == 1
+    assert waits == []
+
+
+async def test_the_probe_waits_briefly_because_someone_is_watching(monkeypatch, waits):
+    """The connect step answers a person in the wizard, so it retries under
+    the short policy: fewer attempts, and a long Retry-After is not waited
+    out at all."""
+    calls = _stub(monkeypatch, lambda m, u, j: _throttled())
+    probe = await atlassian.probe_jira(CREDENTIAL)
+
+    assert probe.available is False
+    assert probe.reason == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED
+    assert len(calls) == atlassian.INTERACTIVE.attempts
+
+    calls.clear()
+    waits.clear()
+    _stub(monkeypatch, lambda m, u, j: _throttled("30"))
+    await atlassian.probe_jira(CREDENTIAL)
+    assert waits == []

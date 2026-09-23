@@ -24,7 +24,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import random
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit
 
 import httpx
@@ -66,6 +69,79 @@ MAX_PROBE_ENTRIES = 200
 #: each), and a checklist is readable long before its two-hundredth row; the
 #: rest report ``None``, which the wizard renders as "not counted".
 MAX_COUNTED_ENTRIES = 100
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """How long one call will wait out a site that says "slow down".
+
+    Atlassian answers a burst with ``429`` and, usually, a ``Retry-After``
+    saying when to come back. Honouring it is the difference between a short
+    pause and a long block, so a throttled call waits and tries again — up to
+    ``attempts`` tries in all, and never for longer than ``max_wait_seconds``
+    at a time. A site that asks for a longer wait than that is not asking for
+    a retry; the call gives up with ``IMPORT_SOURCE_RATE_LIMITED`` instead of
+    sleeping on it.
+    """
+
+    attempts: int
+    max_wait_seconds: float
+
+
+#: The worker's fetch. Nobody is watching the clock, and a fetch that fails on
+#: its first 429 would fail on every site big enough to be worth importing.
+BACKGROUND = RetryPolicy(attempts=4, max_wait_seconds=60.0)
+
+#: The connect probe. A person is sitting in the wizard waiting for a listing,
+#: so the waits are kept short enough that the request still answers.
+INTERACTIVE = RetryPolicy(attempts=2, max_wait_seconds=5.0)
+
+#: The first wait when the site gives no ``Retry-After``; each retry doubles it.
+BACKOFF_BASE_SECONDS = 1.0
+
+#: Added on top of every wait, as a fraction of it, so the probe's concurrent
+#: calls do not all come back at the same instant and get throttled again.
+#: Only ever added: a call never returns earlier than the site asked.
+JITTER_FRACTION = 0.25
+
+
+def _retry_after_seconds(response: httpx.Response) -> float | None:
+    """The wait a ``Retry-After`` header asks for, or ``None`` without one.
+
+    The header is either a number of seconds or an HTTP date. Anything that
+    parses as neither is treated as absent — the backoff takes over — rather
+    than trusted.
+    """
+    raw = response.headers.get("Retry-After")
+    if not raw:
+        return None
+    raw = raw.strip()
+    try:
+        seconds = float(raw)
+    except ValueError:
+        try:
+            when = parsedate_to_datetime(raw)
+        except (TypeError, ValueError):
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        seconds = (when - datetime.now(timezone.utc)).total_seconds()
+    if seconds != seconds:  # NaN
+        return None
+    return max(0.0, seconds)
+
+
+def _retry_delay(attempt: int, retry_after: float | None) -> float:
+    """How long to wait before retry number ``attempt`` (counting from 0),
+    before jitter."""
+    if retry_after is not None:
+        return retry_after
+    return BACKOFF_BASE_SECONDS * (2**attempt)
+
+
+async def _sleep(seconds: float) -> None:
+    """Looked up at call time, so a test can wait without waiting."""
+    await asyncio.sleep(seconds)
 
 
 @dataclass(frozen=True)
@@ -118,6 +194,7 @@ async def get_json(
     *,
     method: str = "GET",
     json: object | None = None,
+    retry: RetryPolicy = BACKGROUND,
 ) -> object:
     """One call to the site, with every way it can go wrong turned into a code.
 
@@ -125,7 +202,41 @@ async def get_json(
     The response body is returned parsed; a body that is not JSON is treated
     as the site being unreachable, because a proxy's error page is not an
     answer from Atlassian.
+
+    A ``429`` is waited out under ``retry`` (see :class:`RetryPolicy`) before
+    it becomes ``IMPORT_SOURCE_RATE_LIMITED``. Nothing else is retried: every
+    other failure is an answer, and asking again would get the same one.
     """
+    for attempt in range(retry.attempts):
+        response = await _request(credential, path, method=method, json=json)
+        if response.status_code != 429:
+            return _parse(response, path)
+        if attempt + 1 >= retry.attempts:
+            break
+        delay = _retry_delay(attempt, _retry_after_seconds(response))
+        if delay > retry.max_wait_seconds:
+            # Told to come back later than this call is willing to wait: that
+            # is a block, not a pause, and sleeping on it helps nobody.
+            break
+        delay += random.uniform(0, delay * JITTER_FRACTION)
+        logger.info(
+            "atlassian throttled path=%s attempt=%s waiting=%.1fs",
+            path,
+            attempt + 1,
+            delay,
+        )
+        await _sleep(delay)
+    raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED)
+
+
+async def _request(
+    credential: AtlassianCredential,
+    path: str,
+    *,
+    method: str,
+    json: object | None,
+) -> httpx.Response:
+    """Send one request, with the transport's failures turned into codes."""
     url = f"{credential.site_url}{path}"
     try:
         response = await request_public_target(
@@ -144,11 +255,13 @@ async def get_json(
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
     except (httpx.TimeoutException, httpx.TransportError):
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
+    return response
 
+
+def _parse(response: httpx.Response, path: str) -> object:
+    """A non-throttled answer as JSON, or the code for what went wrong."""
     if response.status_code in (401, 403):
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_AUTH)
-    if response.status_code == 429:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED)
     if response.status_code >= 400:
         # Logged by status only: the body is somebody else's server talking,
         # and it can hold anything.
@@ -190,6 +303,7 @@ async def _jira_issue_count(
             "/rest/api/3/search/approximate-count",
             method="POST",
             json={"jql": f'project = "{project_key}"'},
+            retry=INTERACTIVE,
         )
     except ImportEngineError:
         return None
@@ -212,6 +326,7 @@ async def _confluence_page_count(
         payload = await get_json(
             credential,
             f"/wiki/rest/api/search?cql=space=%22{space_key}%22+and+type=page&limit=0",
+            retry=INTERACTIVE,
         )
     except ImportEngineError:
         return None
@@ -233,7 +348,9 @@ async def probe_jira(credential: AtlassianCredential) -> AtlassianJiraProbe:
     """
     try:
         payload = await get_json(
-            credential, "/rest/api/3/project/search?maxResults=200"
+            credential,
+            "/rest/api/3/project/search?maxResults=200",
+            retry=INTERACTIVE,
         )
     except ImportEngineError as exc:
         if exc.code == ImportEngineMessages.IMPORT_SOURCE_AUTH:
@@ -271,7 +388,9 @@ async def probe_confluence(credential: AtlassianCredential) -> AtlassianConfluen
     reported rather than thrown.
     """
     try:
-        payload = await get_json(credential, "/wiki/api/v2/spaces?limit=200")
+        payload = await get_json(
+            credential, "/wiki/api/v2/spaces?limit=200", retry=INTERACTIVE
+        )
     except ImportEngineError as exc:
         if exc.code == ImportEngineMessages.IMPORT_SOURCE_AUTH:
             raise
