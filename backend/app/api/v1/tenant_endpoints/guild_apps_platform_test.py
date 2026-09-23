@@ -609,7 +609,7 @@ class TestInitiativeHandoff:
             self._path(member, a.initiative.id, app.id, "runs"), headers=member.headers
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.SURFACE_ADMIN_ONLY
+        assert response.json()["detail"] == GuildAppMessages.SURFACE_MANAGER_ONLY
 
     async def test_a_member_of_the_initiative_opens_a_member_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration

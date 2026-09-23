@@ -256,7 +256,7 @@ describe("LandingCinematic", () => {
       );
       expect(within(plans).getByRole("link", { name: /Read the self-host guide/ })).toHaveAttribute(
         "href",
-        docsUrl("admin/installation/")
+        docsUrl("running-a-server/installation/")
       );
       expect(
         screen.getByRole("link", { name: new RegExp(landing.pricing.seeAll) })

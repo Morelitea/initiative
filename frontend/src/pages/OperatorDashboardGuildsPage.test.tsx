@@ -144,7 +144,7 @@ vi.mock("@/hooks/useAccessGrants", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useAdmin", () => ({
+vi.mock("@/hooks/useOperatorUsers", () => ({
   usePlatformUsers: () => ({ data: [], isLoading: false }),
 }));
 

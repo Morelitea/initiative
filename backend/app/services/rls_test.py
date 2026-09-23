@@ -69,7 +69,7 @@ async def test_is_initiative_manager_with_member_role(session: AsyncSession):
 @pytest.mark.service
 async def test_is_initiative_manager_no_standing_bypass(session: AsyncSession):
     """Phase 3: ``data.bypass`` no longer confers standing manager authority. A
-    platform admin who isn't an initiative member (and holds no live grant) is
+    platform operator who isn't an initiative member (and holds no live grant) is
     NOT a manager — they must break-glass to reach the guild."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
@@ -78,15 +78,15 @@ async def test_is_initiative_manager_no_standing_bypass(session: AsyncSession):
     )
     await create_initiative(session, guild, admin)
 
-    # Create a platform-level admin who is NOT an initiative member
-    app_admin = await create_user(
-        session, email="appadmin@example.com", role=UserRole.operator
+    # Create a platform operator who is NOT an initiative member
+    operator_user = await create_user(
+        session, email="operator@example.com", role=UserRole.operator
     )
 
     # The seam refuses an account that reaches the community by neither a
     # membership row nor a live grant, before any question about an initiative.
     with pytest.raises(GuildAccessError):
-        await route_as(session, user_id=app_admin.id, guild_id=guild.id)
+        await route_as(session, user_id=operator_user.id, guild_id=guild.id)
 
 
 @pytest.mark.service
@@ -115,7 +115,7 @@ async def test_assert_initiative_manager_raises_for_member(session: AsyncSession
 @pytest.mark.service
 async def test_check_initiative_permission_no_standing_bypass(session: AsyncSession):
     """Phase 3: ``data.bypass`` no longer grants every initiative permission. A
-    platform admin who isn't a member (and holds no live grant) gets only the
+    platform operator who isn't a member (and holds no live grant) gets only the
     documented default for the key — here ``create_projects`` defaults False."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
@@ -124,14 +124,14 @@ async def test_check_initiative_permission_no_standing_bypass(session: AsyncSess
     )
     await create_initiative(session, guild, admin)
 
-    app_admin = await create_user(
-        session, email="appadmin@example.com", role=UserRole.operator
+    operator_user = await create_user(
+        session, email="operator@example.com", role=UserRole.operator
     )
 
     # The seam refuses an account that reaches the community by neither a
     # membership row nor a live grant, before any question about an initiative.
     with pytest.raises(GuildAccessError):
-        await route_as(session, user_id=app_admin.id, guild_id=guild.id)
+        await route_as(session, user_id=operator_user.id, guild_id=guild.id)
 
 
 @pytest.mark.service

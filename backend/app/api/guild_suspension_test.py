@@ -452,8 +452,8 @@ async def test_break_glass_reads_a_suspended_guild(
     initiative = await create_initiative(session, guild, owner, name="Frozen Wing")
     await _set_status(session, guild, GuildStatus.suspended)
 
-    platform_admin = await create_user(session, role=UserRole.operator)
-    headers = get_auth_headers(platform_admin)
+    platform_operator = await create_user(session, role=UserRole.operator)
+    headers = get_auth_headers(platform_operator)
     resp = await client.post(
         "/api/v1/access-grants/break-glass",
         json={
@@ -750,7 +750,7 @@ async def test_platform_guild_status_endpoint_requires_guilds_manage(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The operator endpoint stays capability-gated: a plain member (and the
-    guild's own admin) get 403; a platform admin flips the status."""
+    guild's own admin) get 403; a platform operator flips the status."""
     a = await acting_user(guild_role=GuildRole.admin)
 
     resp = await client.patch(
@@ -760,10 +760,10 @@ async def test_platform_guild_status_endpoint_requires_guilds_manage(
     )
     assert resp.status_code == 403
 
-    platform_admin = await create_user(session, role=UserRole.operator)
+    platform_operator = await create_user(session, role=UserRole.operator)
     resp = await client.patch(
         f"/api/v1/settings/guilds/{a.guild.id}",
-        headers=get_auth_headers(platform_admin),
+        headers=get_auth_headers(platform_operator),
         json={"status": "suspended"},
     )
     assert resp.status_code == 200, resp.text

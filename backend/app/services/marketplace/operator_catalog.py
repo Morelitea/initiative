@@ -12,7 +12,7 @@ was shipped here; a registry listing carries a signature this deployment
 verifies. One of these carries neither, and needs neither: the operator
 controls the volume, so the file being there *is* their decision to publish it.
 That is why the catalog records ``source="operator"`` and the marketplace shows
-it as added by the deployment's administrator rather than as anything endorsed
+it as added by the deployment's operator rather than as anything endorsed
 from here.
 
 Everything else is the ordinary path. Manifests go through ``upsert_listing``,

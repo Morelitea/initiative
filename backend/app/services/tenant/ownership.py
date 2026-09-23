@@ -1,4 +1,4 @@
-"""Content ownership — who administers a tool, and what happens when they leave.
+"""Content ownership — who owns a tool, and what happens when they leave.
 
 Ownership and authorship are different things, and this module only deals with
 the first:
@@ -6,11 +6,11 @@ the first:
 - **Author** — who wrote it: ``created_by``, one column on every guild table
   that records one (:class:`CreatedByMixin`). A historical fact. Nothing here
   ever changes one.
-- **Owner** — who administers it: the ``resource_grants`` row at
+- **Owner** — who owns it: the ``resource_grants`` row at
   ``level='owner'``. A live permission, and the only thing this module moves.
 
-Comments, tasks and uploads have an author and no owner at all; they are
-administered through the tool that holds them. The members of :class:`Tool` are
+Comments, tasks and uploads have an author and no owner at all; they take
+their permissions from the tool that holds them. The members of :class:`Tool` are
 exactly the things that have an owner, so :data:`OWNABLE` derives from that enum
 and ``ownership_test.py`` fails if a tool is ever missing from it.
 
@@ -100,7 +100,7 @@ def tool_for_row(row: Any) -> Optional[Tool]:
     """The :class:`Tool` this row is an instance of, or None if it is not one.
 
     Tasks, comments and uploads land here as None — they have an author and no
-    owner, and are administered through the tool that holds them.
+    owner, and take their permissions from the tool that holds them.
     """
     return TOOL_BY_MODEL.get(type(row))
 
@@ -257,7 +257,7 @@ async def set_resource_owner(
     Clears any existing owner grant, then gives the recipient one at ``owner`` —
     upgrading a lower grant they already hold rather than colliding with the
     ``resource_grants_unique_grantee`` constraint. Author columns are not
-    touched: who wrote the thing does not change when who administers it does.
+    touched: who wrote the thing does not change when who owns it does.
     """
     await _clear_owner_grants(session, tool=tool, row=row)
 

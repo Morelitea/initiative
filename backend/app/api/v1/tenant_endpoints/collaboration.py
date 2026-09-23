@@ -218,8 +218,8 @@ async def _collaborate(
 
         # Establish the guild access context through the single entry point —
         # real membership, a live PAM grant, or break-glass — so the document
-        # checks below see the *same* context (guild-admin DAC bypass, PAM scope,
-        # break-glass elevation, delegation pin) the REST path would. Hand-rolling
+        # checks below see the *same* context (the guild-admin rung, the rung a
+        # PAM or break-glass grant lends, delegation pin) the REST path would. Hand-rolling
         # this here is exactly what let a guild admin be denied on the socket
         # while allowed on the REST read.
         try:
@@ -243,8 +243,8 @@ async def _collaborate(
             return
         body = resolved.body
 
-        # Per-resource level via the shared DAC engine — guild-admin /
-        # break-glass bypass (→ owner), a live PAM grant lifted to its level, or
+        # Per-resource level via the shared DAC engine — guild admin (→ owner), a
+        # live PAM or break-glass grant lifted to its level, or
         # the resource's explicit user/role/all-members grants. The active role +
         # grant context was established above, and establish_guild_access already
         # proved guild reach, so the only open question is this level.
@@ -532,7 +532,7 @@ async def sync_document_content(
     # the REST path and the collaboration socket). The path is only a selector;
     # this validates real membership / a live PAM grant / break-glass and applies
     # the full RLS + role + grant context. Previously this endpoint did a
-    # membership-only check, so a break-glass admin or PAM grantee couldn't sync.
+    # membership-only check, so a break-glass or PAM grantee couldn't sync.
     try:
         await establish_guild_access(session, user, guild_id)
     except GuildAccessError:

@@ -23,7 +23,7 @@ class FederatedIdentity(SQLModel, table=True):
     Initiative's system of record.
 
     Own-row RLS: a user sees/manages only their own links on the request path —
-    there is **no** admin-read-all policy. Cross-user identity management (support)
+    there is **no** staff read-all policy. Cross-user identity management (support)
     runs on the system engine (``app_admin``), never a platform-tier request role,
     so a support UI must not assume request-path access here. The IdP refresh token
     (for group re-sync) lives in the companion ``federated_identity_secrets``.

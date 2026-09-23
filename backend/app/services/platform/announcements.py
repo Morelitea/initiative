@@ -3,7 +3,7 @@
 Two sources feed one list: the notices an operator wrote (``announcements``)
 and the ones compiled into this version of the app
 (``app.core.builtin_announcements``). They are merged here rather than in the
-endpoint so the read path, the admin preview and the tests all agree on what
+endpoint so the read path, the operator preview and the tests all agree on what
 "live for this person" means.
 
 Three questions, in order:
@@ -209,7 +209,7 @@ def _to_read(announcement: Announcement) -> AnnouncementRead:
     )
 
 
-def to_admin_read(announcement: Announcement) -> AnnouncementOperatorRead:
+def to_operator_read(announcement: Announcement) -> AnnouncementOperatorRead:
     """The full row, for the surface that writes them."""
     return AnnouncementOperatorRead(
         key=db_announcement_key(announcement.id or 0),
@@ -231,8 +231,8 @@ def to_admin_read(announcement: Announcement) -> AnnouncementOperatorRead:
     )
 
 
-def builtin_admin_read(builtin: BuiltinAnnouncement) -> AnnouncementOperatorRead:
-    """A compiled-in notice in the admin list's shape, marked uneditable."""
+def builtin_operator_read(builtin: BuiltinAnnouncement) -> AnnouncementOperatorRead:
+    """A compiled-in notice in the operator list's shape, marked uneditable."""
     return AnnouncementOperatorRead(
         key=builtin.key,
         id=None,
@@ -441,8 +441,8 @@ async def dismissals_required_for(session: AsyncSession, *, key: str) -> int:
 async def list_all(session: AsyncSession) -> list[AnnouncementOperatorRead]:
     """Everything an author can see: drafts, scheduled, live and expired."""
     rows = (await session.exec(select(Announcement))).all()
-    items = [to_admin_read(row) for row in rows]
-    items.extend(builtin_admin_read(b) for b in BUILTIN_ANNOUNCEMENTS)
+    items = [to_operator_read(row) for row in rows]
+    items.extend(builtin_operator_read(b) for b in BUILTIN_ANNOUNCEMENTS)
     items.sort(
         key=lambda a: (
             a.published_at or a.created_at or datetime.min.replace(tzinfo=timezone.utc)

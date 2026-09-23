@@ -271,7 +271,7 @@ class TestConfig:
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.ADMIN_REQUIRED
+        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
 
     async def test_values_are_validated_against_the_pinned_schema(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -542,7 +542,7 @@ class TestConnect:
             headers=member.headers,
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.ADMIN_REQUIRED
+        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
 
         await route_session_to_guild(session, a.guild.id)
         await session.refresh(app)
@@ -671,7 +671,7 @@ class TestConnectionVisibility:
             member.g(f"/apps/{app.id}/members"), headers=member.headers
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.ADMIN_REQUIRED
+        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
 
     async def test_a_guild_admin_sees_every_members_connection(
         self, client: AsyncClient, acting_user, session: AsyncSession

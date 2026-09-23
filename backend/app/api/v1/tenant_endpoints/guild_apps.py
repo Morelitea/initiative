@@ -389,7 +389,7 @@ async def install_guild_app(
     supplied per member installs with none present, and members connect their
     own accounts afterwards if they want what those unlock.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
 
     listing, version = await _resolve_app_listing(session, payload.listing_uid)
 
@@ -461,7 +461,7 @@ async def upgrade_guild_app(
     connections the new version dropped go the same way, and are revoked rather
     than orphaned.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     # Upgrading prunes both configuration maps to the new definition, so it
     # takes the row: an app writing a flow's result back at the same moment
     # must land on one side of the prune or the other.
@@ -542,7 +542,7 @@ async def update_guild_app(
     guild's own answer to where an app belongs rather than a permission, so it
     reads the same for everyone, admins included.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     before = audit_service.snapshot(app, _APP_SETTINGS_FIELDS)
@@ -601,7 +601,7 @@ async def uninstall_guild_app(
     An app the deployment provides to every guild is not removable here (§7.7):
     the operator's registration decides whether it exists at all.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     # Held for the rest of this transaction, so a member adding a calendar to
     # the app either lands before this read and is trashed with everything else,
     # or finds no install and is refused.
@@ -698,7 +698,7 @@ async def update_guild_app_config(
     member's to make, and the fields an app marks ``managed`` arrive on the
     app's own write-back path rather than through a form.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     # Both configuration maps are rewritten whole below, so the row is taken
     # first — an app writing a flow's result back is doing the same thing to
     # the same values.
@@ -938,7 +938,7 @@ async def connect_guild_app(
     connect_path = connection["connect_path"]
     guild_wide = connection.get("scope") == "static"
     if guild_wide:
-        require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+        require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
 
     # The vendor flow runs at the app's own URL, so it has to be wired up and
     # switched on before anyone is sent anywhere.
@@ -1126,7 +1126,7 @@ async def disconnect_guild_app(
     connection = _connection_or_404(app, connection_id)
 
     if connection.get("scope") == "static":
-        require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+        require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
         if (app.config or {}).get(connection_id) or (app.config_secrets or {}).get(
             connection_id
         ):
@@ -1351,7 +1351,7 @@ async def list_guild_app_members(
     — seeing which vendor account somebody connected as, and ending it — rather
     than looking at credentials.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     rows = await connections_service.list_app_connections(session, app_id=app.id)
@@ -1406,7 +1406,7 @@ async def revoke_member_connection(
     guild_context: GuildContextDep,
 ) -> None:
     """End one member's connection. They may connect again unless blocked."""
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1438,7 +1438,7 @@ async def block_member_connection(
     The lever for "this person should no longer reach that system through us"
     that does not mean uninstalling the app for everyone.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1466,7 +1466,7 @@ async def unblock_member_connection(
     guild_context: GuildContextDep,
 ) -> None:
     """Lift a block, so the member may connect their own account again."""
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1493,7 +1493,7 @@ async def revoke_member_delegation(
     themselves, or nobody does. Governance runs one way here, which is what
     keeps "the app acts as me" something its subject actually decided.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     await delegations_service.revoke(
@@ -1520,7 +1520,7 @@ async def revoke_all_member_delegations(
     compromise, reacting fast should not cost the guild its configuration.
     Members may authorize again once the guild is satisfied.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     await delegations_service.revoke_all(
@@ -1545,7 +1545,7 @@ async def revoke_all_member_connections(
     For a suspected app or vendor compromise: reacting fast should not cost the
     guild its configuration.
     """
-    require_seat(guild_context, detail=GuildAppMessages.ADMIN_REQUIRED)
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     await connections_service.revoke_all(session, app=app)
@@ -1560,9 +1560,9 @@ async def _count_install(listing_id: Optional[int]) -> None:
     if listing_id is None:
         return
     try:
-        async with db_session.SystemSessionLocal() as admin:
-            await catalog_service.bump_installs_count(admin, listing_id)
-            await admin.commit()
+        async with db_session.SystemSessionLocal() as system_session:
+            await catalog_service.bump_installs_count(system_session, listing_id)
+            await system_session.commit()
     except Exception:
         logger.warning(
             "marketplace: install count bump failed for listing %s",

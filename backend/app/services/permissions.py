@@ -752,7 +752,7 @@ def client_access(
 # ── Project helpers above the generic engine ────────────────────
 
 
-def can_administer_project(project: Project, *, context: GuildContext | None) -> bool:
+def can_configure_project(project: Project, *, context: GuildContext | None) -> bool:
     """Whether the request may configure the project itself.
 
     Configuring a project — pinning it, setting its default view, curating its
@@ -773,10 +773,12 @@ def can_administer_project(project: Project, *, context: GuildContext | None) ->
     return project.initiative_id in context.manager_initiatives
 
 
-def require_project_admin(project: Project, *, context: GuildContext | None) -> None:
+def require_project_configure(
+    project: Project, *, context: GuildContext | None
+) -> None:
     """Raise 403 unless the request may configure the project (see above)."""
-    if not can_administer_project(project, context=context):
+    if not can_configure_project(project, context=context):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ProjectMessages.ADMIN_REQUIRED,
+            detail=ProjectMessages.CONFIGURE_REQUIRED,
         )

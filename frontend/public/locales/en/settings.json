@@ -196,7 +196,7 @@
   "platformAI": {
     "title": "Platform AI",
     "description": "Choose how AI is configured across the platform. Like sign-in, AI is managed either by the platform or by each community — never both.",
-    "adminOnly": "Only platform owners can manage platform AI settings.",
+    "platformOnly": "Only platform owners can manage platform AI settings.",
     "modeLabel": "AI configuration mode",
     "mode_disabled": "Disabled",
     "mode_disabled_description": "AI features are turned off for everyone.",
@@ -410,7 +410,7 @@
     "disconnectDescription": "Log out and disconnect from this server. You can connect to a different server afterward.",
     "disconnectButton": "Disconnect",
     "deactivateTitle": "Deactivate Account",
-    "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. An administrator can reactivate your account later.",
+    "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. Whoever runs this server can reactivate your account later.",
     "permanentDeleteTitle": "Delete Account",
     "permanentDeleteDescriptionText": "Your account disappears for everyone else straight away. Nothing is erased for a while yet — sign back in before then and the deletion is called off, with your communities and your work exactly as you left them. After that, projects are transferred to other people, and comments and documents stay but show \"[Deleted User]\".",
     "cannotBeUndone": "Signing in is what stops it.",
@@ -430,7 +430,7 @@
     "checkBlockersDeactivateDescription": "Checking if your account can be deactivated",
     "confirmDeletionDescription": "Confirm account deletion",
     "confirmDeactivationDescription": "Confirm account deactivation",
-    "deactivateLabel": "Deactivate my account (admins can activate it for you later)",
+    "deactivateLabel": "Deactivate my account (whoever runs this server can reactivate it later)",
     "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. Whoever runs the server can reactivate your account on request. Your name, email, and content remain intact.",
     "softDeleteLabel": "Delete my account (remove my personal information)",
     "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
@@ -441,7 +441,7 @@
     "eligible": "Your account is eligible for deletion.",
     "eligibleDeactivate": "Your account is eligible for deactivation.",
     "actionSerious": "This action is serious:",
-    "deactivateConfirmDescription": "Your account will be deactivated. You will not be able to log in until an administrator reactivates your account. You will be removed from every community you belong to, and rejoining will require a fresh invite. Your name, email, and content remain intact.",
+    "deactivateConfirmDescription": "Your account will be deactivated. You will not be able to log in until whoever runs this server reactivates it. You will be removed from every community you belong to, and rejoining will require a fresh invite. Your name, email, and content remain intact.",
     "softDeleteConfirmDescription": "Your name, email, and avatar will be removed. You will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "confirmPasswordLabel": "Confirm your password",
     "enterPassword": "Enter your password",
@@ -454,7 +454,7 @@
     "softDeleteSuccess": "Your account has been anonymized."
   },
   "branding": {
-    "adminOnly": "Only the platform owner can manage branding settings.",
+    "platformOnly": "Only the platform owner can manage branding settings.",
     "colorsTitle": "Brand colors",
     "colorsDescription": "Customize the accent colors for light and dark mode.",
     "loadingInterface": "Loading interface settings…",
@@ -531,7 +531,7 @@
     }
   },
   "email": {
-    "adminOnly": "Only the platform owner can manage email settings.",
+    "platformOnly": "Only the platform owner can manage email settings.",
     "title": "SMTP email",
     "description": "Configure the SMTP server used for transactional emails.",
     "loading": "Loading email settings…",
@@ -562,7 +562,7 @@
     "saveError": "Unable to save email settings"
   },
   "auth": {
-    "adminOnly": "Only the platform owner can manage authentication settings.",
+    "platformOnly": "Only the platform owner can manage authentication settings.",
     "loading": "Loading auth settings…",
     "loadError": "Unable to load auth settings.",
     "postLoginRedirect": "Post-login redirect:",
@@ -732,7 +732,7 @@
     "restoreSuccess": "Restored {{handle}}.",
     "restoreError": "Could not restore the account. Please try again."
   },
-  "adminDeleteUser": {
+  "operatorDeleteUser": {
     "subtitle": "Delete {{email}}",
     "back": "Back",
     "next": "Next",
@@ -782,7 +782,7 @@
       "error": "Unable to break glass",
       "codeLabel": "Your authenticator code",
       "codePlaceholder": "123456, or a recovery code",
-      "codeHelp": "Somebody who administers this deployment has set up two-factor authentication, so breaking glass asks you to prove it is you. An authenticator code, a recovery code or one of your passkeys will do.",
+      "codeHelp": "Two-factor authentication is turned on for this server, so breaking glass asks you to prove it is you. An authenticator code, a recovery code or one of your passkeys will do.",
       "codeNotEnrolled": "This account has no authenticator and no passkey. Set one up under Security, then break glass.",
       "passkeySubmit": "Break glass with a passkey",
       "passkeyPresenting": "Waiting for your passkey…"
@@ -849,7 +849,7 @@
     }
   },
   "appServices": {
-    "adminOnly": "Only platform owners can manage app services.",
+    "platformOnly": "Only platform owners can manage app services.",
     "loading": "Loading app services…",
     "loadError": "Unable to load app services.",
     "title": "App services",
@@ -946,7 +946,7 @@
   "guilds": {
     "title": "Community limits",
     "description": "Set per-community caps on storage and on the number of users. Lowering a limit below current usage blocks new uploads or members, but never removes existing files or members.",
-    "adminOnly": "You need the platform owner role to manage community limits.",
+    "platformOnly": "You need the platform owner role to manage community limits.",
     "loading": "Loading communities…",
     "loadError": "Could not load communities. Please try again.",
     "filterByName": "Filter communities by name",
@@ -1071,7 +1071,7 @@
     "description": "Place the people a sign-in provider signs in — by the group or directory it reports — in a community, and in an initiative there if you name one.",
     "loading": "Loading placement rules…",
     "loadError": "Could not load placement rules. Please try again.",
-    "adminOnly": "Sign-in placement is managed by platform operators and owners.",
+    "platformOnly": "Sign-in placement is managed by platform operators and owners.",
     "everywhere": {
       "label": "Apply placement rules to every community",
       "help": "On, a rule places people in the community it names whether or not that community accepted. Every change is recorded.",
@@ -1136,7 +1136,7 @@
     }
   },
   "storage": {
-    "adminOnly": "Only platform owners can configure storage.",
+    "platformOnly": "Only platform owners can configure storage.",
     "loading": "Loading storage settings…",
     "loadError": "Failed to load storage settings.",
     "title": "Object storage",
@@ -1496,7 +1496,8 @@
     "title": "My AI",
     "description": "See every AI connection available to you across your communities. Add your own API key where allowed and pick the one you use.",
     "noneAvailable": "No AI connections are available to you yet.",
-    "managedByAdmin": "Managed by your admin — uses a shared key.",
+    "sharedKeyGuild": "Uses a shared key set by your community's admins.",
+    "sharedKeyPlatform": "Uses a shared key set by whoever runs this server.",
     "selected": "In use",
     "requiresKey": "Needs your key",
     "keySet": "Your key is set",
@@ -1523,7 +1524,7 @@
     "enabledToast": "The community directory is on.",
     "disabledToast": "The community directory is off.",
     "saveError": "Could not change the community directory. Please try again.",
-    "adminOnly": "You need the platform owner role to run a community directory.",
+    "platformOnly": "You need the platform owner role to run a community directory.",
     "ageGateLabel": "Ask members to confirm they are 16 or older",
     "ageGateHelpText": "While this is on, anyone joining a listed community from the directory is asked once to confirm their age, and the answer is kept on their account. It gates that join and nothing else — invited communities never ask. Turn it off only where you already know every account belongs to an adult.",
     "ageGateOffTitle": "Stop asking members their age?",

@@ -47,7 +47,7 @@ class UserStatus(str, Enum):
     #: every guild.
     suspended = "suspended"
     #: The holder closed their account. Memberships are dropped; the row and
-    #: its personal data remain so an administrator can reactivate it.
+    #: its personal data remain so an operator can reactivate it.
     deactivated = "deactivated"
     #: Erased. The row is a husk kept only so the work it touched still says
     #: who did it.

@@ -2,7 +2,7 @@
  * "Who is this from?", answered before installing.
  *
  * One required name, shown the same way everywhere. Not a ranking by origin:
- * every listing on a deployment is there because an administrator put it there,
+ * every listing on a deployment is there because whoever runs the server put it there,
  * so where it arrived from is not a distinction the reader needs — the one
  * exception being listings shipped in this build, which are credited to us
  * rather than to whatever their manifest claims.
@@ -33,7 +33,7 @@ describe("ListingProvenance", () => {
   });
 
   it("names the publisher of an operator listing the same way", () => {
-    // Same sentence for both, deliberately: an administrator chose the registry
+    // Same sentence for both, deliberately: the operator chose the registry
     // and dropped in the file, so neither is more theirs than the other.
     renderWithProviders(<ListingProvenance listing={listing({ source: "operator" })} />);
     expect(screen.getByText("by Acme Widgets")).toBeInTheDocument();

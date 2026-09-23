@@ -314,7 +314,7 @@
     "typeSpreadsheet": "Spreadsheet",
     "typeSmartLink": "Smart link",
     "accessRestrictedTitle": "Access Restricted",
-    "accessRestrictedDescription": "You don’t have permission to view documents in this initiative. Contact an administrator if you believe this is an error.",
+    "accessRestrictedDescription": "You don’t have permission to view documents in this initiative. Ask a community admin or an initiative manager if you believe this is an error.",
     "loading": "Loading documents…",
     "loadError": "Unable to load documents right now.",
     "noMatchingTags": "No documents match the selected tags.",

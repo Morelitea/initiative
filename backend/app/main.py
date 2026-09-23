@@ -929,7 +929,7 @@ def custom_openapi() -> dict:
         {
             "type": "http",
             "scheme": "bearer",
-            "description": "Paste an admin API key issued from Settings → API Keys.",
+            "description": "Paste a personal API key issued from Settings → API Keys.",
         },
     )
 

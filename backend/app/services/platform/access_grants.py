@@ -212,7 +212,7 @@ async def _push_and_email(
             ),
             data={
                 "type": notification_type.value,
-                "target_path": "/settings/admin/access",
+                "target_path": "/settings/operator/access",
             },
             locale=locale,
         )

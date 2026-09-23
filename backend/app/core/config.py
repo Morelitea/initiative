@@ -133,7 +133,7 @@ def _validate_strong_key(value: str, var_name: str, *, rotation_hint: bool) -> s
 #: Settings whose environment variable is only a FIRST-BOOT SEED.
 #:
 #: Each of these is stored in the database on first start and edited in
-#: Settings -> Admin from then on, so the env var is read once and the row wins
+#: Settings → Platform from then on, so the env var is read once and the row wins
 #: afterwards. ``app/services/platform/app_settings.py`` (``_seed_from_env``) is
 #: the mechanism; the credential-bearing ones are encrypted at rest under a salt
 #: registered in ``app/db/secret_key_rotation.py``, so they rotate with
@@ -690,7 +690,7 @@ class Settings(BaseSettings):
     # key out of the published JWKS while a rotation is in flight.
     APP_PLATFORM_SIGNING_KEY_ID: str | None = None
     # Path to a mounted file of app service registrations, reconciled into the
-    # database at startup so a chart can wire approved apps with no admin
+    # database at startup so a chart can wire approved apps with no owner
     # clicks. JSON (or a JSON array in a .json file):
     #   [{"public_id": "acme.shopify", "base_url": "http://shopify:9100",
     #     "embed_origin": "https://shopify.example.com",

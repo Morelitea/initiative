@@ -131,7 +131,7 @@ async def _ensure_table() -> None:
             # The schema's default privileges hand every new relation in
             # ``public`` full DML to the two request-path floors, and this
             # table is the system engine's alone. A migration adding an
-            # admin-only shared table says the same thing on its own line
+            # app_admin-only shared table says the same thing on its own line
             # (0132, 0133, 0134); this one is created at runtime, so it says
             # it here.
             await conn.execute(

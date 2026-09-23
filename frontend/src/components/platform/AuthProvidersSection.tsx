@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { ProviderRegistrySection } from "@/components/admin/ProviderRegistrySection";
+import { ProviderRegistrySection } from "@/components/platform/ProviderRegistrySection";
 import {
   useAuthProviders,
   useCreateAuthProvider,

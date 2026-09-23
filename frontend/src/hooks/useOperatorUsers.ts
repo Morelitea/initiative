@@ -38,7 +38,7 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-/** Fetch all platform users (admin only). */
+/** Fetch all platform users (operator endpoint). */
 export const usePlatformUsers = (options?: QueryOpts<OperatorUserRead[]>) => {
   return useQuery<OperatorUserRead[]>({
     queryKey: getListAllUsersApiV1OperatorUsersGetQueryKey(),
@@ -48,7 +48,7 @@ export const usePlatformUsers = (options?: QueryOpts<OperatorUserRead[]>) => {
 };
 
 /**
- * Check whether a specific user can be deleted (admin only).
+ * Check whether a specific user can be deleted (operator endpoint).
  *
  * Disabled by default -- call `refetch()` to trigger the eligibility check
  * on demand.
@@ -79,8 +79,8 @@ export const useMyDeletionEligibility = () => {
 
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
-/** Delete a user account (admin only). Closes over the target userId. */
-export const useAdminDeleteUser = (
+/** Delete a user account (operator endpoint). Closes over the target userId. */
+export const useOperatorDeleteUser = (
   userId: number,
   options?: MutationOpts<AccountDeletionResponse, OperatorUserDeleteRequest>
 ) =>
@@ -92,8 +92,8 @@ export const useAdminDeleteUser = (
     options
   );
 
-/** Trigger a password reset email for a user (admin only). */
-export const useAdminTriggerPasswordReset = (
+/** Trigger a password reset email for a user (operator endpoint). */
+export const useOperatorTriggerPasswordReset = (
   options?: MutationOpts<VerificationSendResponse, number>
 ) =>
   useApiMutation<VerificationSendResponse, number>(
@@ -103,8 +103,8 @@ export const useAdminTriggerPasswordReset = (
     options
   );
 
-/** Reactivate a deactivated user (admin only). */
-export const useAdminReactivateUser = (options?: MutationOpts<OperatorUserRead, number>) =>
+/** Reactivate a deactivated user (operator endpoint). */
+export const useOperatorReactivateUser = (options?: MutationOpts<OperatorUserRead, number>) =>
   useApiMutation<OperatorUserRead, number>(
     {
       mutationFn: (userId) => reactivateUserApiV1OperatorUsersUserIdReactivatePost(userId),
@@ -118,7 +118,7 @@ export const useAdminReactivateUser = (options?: MutationOpts<OperatorUserRead, 
  * Not the same thing as reactivating: a deleted account never lost its
  * memberships, so this puts it back exactly where it was, while reactivating a
  * deactivated one gives back an account with no communities. */
-export const useAdminRestoreUser = (options?: MutationOpts<OperatorUserRead, number>) =>
+export const useOperatorRestoreUser = (options?: MutationOpts<OperatorUserRead, number>) =>
   useApiMutation<OperatorUserRead, number>(
     {
       mutationFn: (userId) => restoreDeletedUserApiV1OperatorUsersUserIdRestorePost(userId),
@@ -131,7 +131,7 @@ type SetUsernameVars = { userId: number; username: string };
 
 /** Change someone's username (``content.moderate``). The number is not the
  *  moderator's to choose; the server keeps the one they have. */
-export const useAdminSetUsername = (options?: MutationOpts<OperatorUserRead, SetUsernameVars>) =>
+export const useOperatorSetUsername = (options?: MutationOpts<OperatorUserRead, SetUsernameVars>) =>
   useApiMutation<OperatorUserRead, SetUsernameVars>(
     {
       mutationFn: ({ userId, username }) =>
@@ -145,7 +145,7 @@ type SetSuspensionVars = { userId: number; suspended: boolean; reason?: string }
 
 /** Freeze an account, or let it go (``users.manage``). Takes nothing away —
  *  memberships, grants and content are all still there when it is lifted. */
-export const useAdminSetSuspension = (
+export const useOperatorSetSuspension = (
   options?: MutationOpts<OperatorUserRead, SetSuspensionVars>
 ) =>
   useApiMutation<OperatorUserRead, SetSuspensionVars>(
@@ -164,7 +164,7 @@ export const useAdminSetSuspension = (
  *  For the case that is nearly all of them: a mistyped year. It clears the
  *  record that the question was answered and nothing else — the date was never
  *  kept, so there is nothing else to clear. */
-export const useAdminClearAgeBlock = (options?: MutationOpts<OperatorUserRead, number>) =>
+export const useOperatorClearAgeBlock = (options?: MutationOpts<OperatorUserRead, number>) =>
   useApiMutation<OperatorUserRead, number>(
     {
       mutationFn: (userId) => clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete(userId),
@@ -175,7 +175,7 @@ export const useAdminClearAgeBlock = (options?: MutationOpts<OperatorUserRead, n
 
 /** Take down somebody's profile picture (``content.moderate``). Removal only —
  *  there is no route by which one account sets another's picture. */
-export const useAdminRemoveAvatar = (options?: MutationOpts<void, number>) =>
+export const useOperatorRemoveAvatar = (options?: MutationOpts<void, number>) =>
   useApiMutation<void, number>(
     {
       mutationFn: (userId) => removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete(userId),
@@ -205,8 +205,8 @@ export const useExportPlatformUsersCsv = (options?: MutationOpts<void, ExportPla
     options
   );
 
-/** Update a user's platform role (admin only). */
-export const useAdminUpdatePlatformRole = (
+/** Update a user's platform role (operator endpoint). */
+export const useOperatorUpdatePlatformRole = (
   options?: MutationOpts<OperatorUserRead, { userId: number; role: UserRole }>
 ) =>
   useApiMutation<OperatorUserRead, { userId: number; role: UserRole }>(

@@ -102,7 +102,7 @@ const PERSIST_ALLOWLIST = [
 
 /**
  * Paths that are never written, whatever the allowlist above says. Settings and
- * administration are configuration rather than content; search and trash are
+ * the operator surfaces are configuration rather than content; search and trash are
  * derived surfaces; none of them is "what I was reading".
  */
 const PERSIST_DENYLIST = [

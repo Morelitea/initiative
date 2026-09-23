@@ -2028,21 +2028,21 @@ async def _create_guild_settings(
 async def _apply_user_settings(
     session: AsyncSession,
     ids: IDTracker,
-    admin_user: User,
+    owner_user: User,
     **overrides,
 ) -> None:
     """Modify the superuser's settings (tracked for cleanup reset)."""
     original = {
-        "timezone": admin_user.timezone,
-        "locale": admin_user.locale,
-        "color_theme": admin_user.color_theme,
-        "week_starts_on": admin_user.week_starts_on,
+        "timezone": owner_user.timezone,
+        "locale": owner_user.locale,
+        "color_theme": owner_user.color_theme,
+        "week_starts_on": owner_user.week_starts_on,
     }
     for key, value in overrides.items():
-        setattr(admin_user, key, value)
-    session.add(admin_user)
+        setattr(owner_user, key, value)
+    session.add(owner_user)
     await session.flush()
-    ids.add("user_settings_modified", {"user_id": admin_user.id, "original": original})
+    ids.add("user_settings_modified", {"user_id": owner_user.id, "original": original})
 
 
 # ---------------------------------------------------------------------------
@@ -3430,7 +3430,7 @@ async def seed() -> None:
 
     async with SystemSessionLocal() as session:
         # -- Discover existing entities --
-        admin_user = await _find_superuser(session)
+        owner_user = await _find_superuser(session)
         primary_guild = await guilds_service.get_primary_guild(session)
 
         # ==============================================================
@@ -3577,14 +3577,14 @@ async def seed() -> None:
         await _apply_user_settings(
             session,
             ids,
-            admin_user,
+            owner_user,
             timezone="America/Los_Angeles",
             color_theme="kobold",
             week_starts_on=0,
         )
 
-        # Make the admin user available by name too
-        all_users: dict[str, User] = {"Admin User": admin_user, **new_users}
+        # Make the platform owner available by name too
+        all_users: dict[str, User] = {"Admin User": owner_user, **new_users}
 
         dm = new_users["Dungeon Master"]
         thorn = new_users["Thorn Ironforge"]
@@ -3624,7 +3624,7 @@ async def seed() -> None:
         await _set_guild_images(
             session,
             g1,
-            uploader=admin_user,
+            uploader=owner_user,
             icon=((190, 18, 60), (136, 19, 55)),
             banner=((69, 10, 30), (190, 18, 60)),
         )
@@ -3664,7 +3664,7 @@ async def seed() -> None:
         # rows. The result: guild_1.initiatives exists with zero rows, and
         # the previous code here (a SELECT followed by .one()) crashed with
         # NoResultFound.
-        g1_default_init = await seed_initiative(session, admin_user, guild_id=g1_id)
+        g1_default_init = await seed_initiative(session, owner_user, guild_id=g1_id)
         # guild_1.guild_settings has the same gap: normally one row is
         # inserted when a community is created, but a startup back-fill leaves
         # the table empty — create the row if it isn't there.
@@ -3724,7 +3724,7 @@ async def seed() -> None:
             name="Campaign: Lost Mine of Phandelver",
             description="A classic introductory adventure in the Sword Coast",
             color="#059669",
-            pm_user=admin_user,
+            pm_user=owner_user,
             member_users=[dm, thorn, elara, p_support],
             join_policy=InitiativeJoinPolicy.request,
             queues_enabled=True,
@@ -3779,7 +3779,7 @@ async def seed() -> None:
             name="Phandalin Adventures",
             icon="\u2694\ufe0f",
             description="Classic starter campaign in the Sword Coast region",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[dm, thorn, elara],
         )
 
@@ -3791,7 +3791,7 @@ async def seed() -> None:
             name="Wave Echo Cave",
             icon="\U0001f48e",
             description="The lost mine of Phandelver and the Forge of Spells",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[dm],
             read_users=[thorn, elara],
         )
@@ -3805,7 +3805,7 @@ async def seed() -> None:
             icon="\U0001f4cb",
             description="Meta-campaign logistics and session planning",
             owner=dm,
-            write_users=[admin_user],
+            write_users=[owner_user],
         )
 
         g1_homebrew = await _create_project(
@@ -3817,7 +3817,7 @@ async def seed() -> None:
             icon="\U0001f4dc",
             description="Custom house rules, variant options, and homebrew content",
             owner=dm,
-            write_users=[admin_user, thorn],
+            write_users=[owner_user, thorn],
             general_access=ResourceAccessLevel.write,
         )
 
@@ -3843,7 +3843,7 @@ async def seed() -> None:
             description="A sprawling 200-room dungeon crawl beneath Castle Ravenloft. "
             "Used to stress-test large task lists.",
             owner=dm,
-            write_users=[admin_user, thorn, elara],
+            write_users=[owner_user, thorn, elara],
             read_users=[vex, sera],
         )
 
@@ -3861,7 +3861,7 @@ async def seed() -> None:
             description="Skeleton for a single-session adventure — hook, three scenes, "
             "a set-piece fight, and a payoff.",
             owner=dm,
-            write_users=[admin_user],
+            write_users=[owner_user],
             general_access=ResourceAccessLevel.read,
             is_template=True,
         )
@@ -3902,7 +3902,7 @@ async def seed() -> None:
             icon="\U0001f480",
             description="Wrapped after 22 sessions. Kept for the recap notes and the loot ledger.",
             owner=dm,
-            write_users=[admin_user, thorn],
+            write_users=[owner_user, thorn],
             read_users=[elara, vex],
             archived_days_ago=12,
         )
@@ -3929,7 +3929,7 @@ async def seed() -> None:
             name="Rules Playtest: Old Initiative Tracker",
             icon="\U0001f570\ufe0f",
             description="Superseded by the queues feature. Archived long enough ago to sort last.",
-            owner=admin_user,
+            owner=owner_user,
             archived_days_ago=210,
         )
 
@@ -4616,7 +4616,7 @@ async def seed() -> None:
                 ),
                 (g1_barovia.id, g1_docs["NPC Roster: Curse of Strahd"].id, dm),
                 (g1_barovia.id, g1_docs["Tarokka Card Reading Results"].id, dm),
-                (g1_phandalin.id, g1_docs["NPC Compendium: Phandelver"].id, admin_user),
+                (g1_phandalin.id, g1_docs["NPC Compendium: Phandelver"].id, owner_user),
                 (g1_session_zero.id, g1_docs["Session 1 Recap: Into the Mists"].id, dm),
                 (
                     g1_session_zero.id,
@@ -4725,8 +4725,8 @@ async def seed() -> None:
                 (elara, g1_wave_echo),
                 (vex, g1_ravenloft),
                 (sera, g1_barovia),
-                (admin_user, g1_phandalin),
-                (admin_user, g1_wave_echo),
+                (owner_user, g1_phandalin),
+                (owner_user, g1_wave_echo),
                 # Community admin favoriting a project they access purely via the
                 # community-admin override (admin1 is in no G1 initiative).
                 (admin1, g1_barovia),
@@ -4745,8 +4745,8 @@ async def seed() -> None:
                 (thorn, g1_phandalin),
                 (elara, g1_barovia),
                 (elara, g1_wave_echo),
-                (admin_user, g1_phandalin),
-                (admin_user, g1_session_zero),
+                (owner_user, g1_phandalin),
+                (owner_user, g1_session_zero),
             ],
         )
 
@@ -6884,12 +6884,12 @@ async def seed() -> None:
             ids,
             name="Starforge Collective",
             description="A science fiction tabletop campaign set in the far reaches of the galaxy",
-            creator=admin_user,
+            creator=owner_user,
         )
         await _set_guild_images(
             session,
             g2,
-            uploader=admin_user,
+            uploader=owner_user,
             icon=((37, 99, 235), (30, 58, 138)),
             banner=((15, 23, 42), (37, 99, 235)),
         )
@@ -6919,7 +6919,7 @@ async def seed() -> None:
         await set_rls_context(session, guild_id=g2_id)
 
         # Default initiative for g2
-        g2_default_init = await seed_initiative(session, admin_user, guild_id=g2_id)
+        g2_default_init = await seed_initiative(session, owner_user, guild_id=g2_id)
         # Track the roles and members that seed_initiative created
         result = await session.exec(
             select(InitiativeRoleModel).where(
@@ -6976,7 +6976,7 @@ async def seed() -> None:
             name="Starfall: The Exodus Protocol",
             description="Humanity's last fleet searches for a new homeworld after Earth's collapse",
             color="#0EA5E9",
-            pm_user=admin_user,
+            pm_user=owner_user,
             member_users=[finley, kael, aurelia, vex, elara, p_member],
             queues_enabled=True,
             counter_groups_enabled=True,
@@ -7012,7 +7012,7 @@ async def seed() -> None:
             name="The Exodus Fleet",
             icon="\U0001f680",
             description="Managing the fleet's journey across the void between stars",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[finley, kael],
             read_users=[aurelia, vex, elara],
         )
@@ -7025,7 +7025,7 @@ async def seed() -> None:
             name="Colony Alpha",
             icon="\U0001f30d",
             description="Establishing the first settlement on the candidate planet",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[finley, aurelia],
             role_grants=[(g2_main_mem, ResourceAccessLevel.read)],
         )
@@ -7052,7 +7052,7 @@ async def seed() -> None:
             icon="\U0001f527",
             description="Ship upgrades, tech research, and equipment management",
             owner=kael,
-            write_users=[admin_user, elara],
+            write_users=[owner_user, elara],
             general_access=ResourceAccessLevel.write,
         )
 
@@ -7064,7 +7064,7 @@ async def seed() -> None:
             name="Campaign Planning",
             icon="\U0001f4c5",
             description="Session scheduling and campaign logistics",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[finley],
         )
 
@@ -7078,7 +7078,7 @@ async def seed() -> None:
             description="Boilerplate for every planetside excursion — landing party, hazards, "
             "extraction plan.",
             owner=finley,
-            write_users=[admin_user, kael],
+            write_users=[owner_user, kael],
             general_access=ResourceAccessLevel.read,
             is_template=True,
         )
@@ -7104,7 +7104,7 @@ async def seed() -> None:
             name="Prologue: Leaving Sol",
             icon="\U0001f31e",
             description="The first six sessions, closed out when the fleet cleared the heliopause.",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[finley],
             read_users=[kael, aurelia],
             archived_days_ago=21,
@@ -7557,18 +7557,18 @@ async def seed() -> None:
                 (
                     g2_exodus.id,
                     g2_docs["Setting Bible: The Exodus Protocol"].id,
-                    admin_user,
+                    owner_user,
                 ),
                 (
                     g2_exodus.id,
                     g2_docs["Faction Guide: Krellix Dominion"].id,
-                    admin_user,
+                    owner_user,
                 ),
                 (g2_fringe.id, g2_docs["One-Shot: Smuggler's Run Briefing"].id, finley),
                 (
                     g2_planning.id,
                     g2_docs["Session 1 Recap: Into the Void"].id,
-                    admin_user,
+                    owner_user,
                 ),
             ],
         )
@@ -7742,8 +7742,8 @@ async def seed() -> None:
             ids,
             g2,
             [
-                (admin_user, g2_exodus),
-                (admin_user, g2_colony),
+                (owner_user, g2_exodus),
+                (owner_user, g2_colony),
                 (finley, g2_fringe),
                 (finley, g2_exodus),
                 (kael, g2_engineering),
@@ -7757,9 +7757,9 @@ async def seed() -> None:
             ids,
             g2,
             [
-                (admin_user, g2_exodus),
-                (admin_user, g2_colony),
-                (admin_user, g2_planning),
+                (owner_user, g2_exodus),
+                (owner_user, g2_colony),
+                (owner_user, g2_planning),
                 (finley, g2_fringe),
                 (finley, g2_exodus),
                 (kael, g2_engineering),
@@ -8290,7 +8290,7 @@ async def seed() -> None:
             [
                 ("task", t_repair_id, kael.id),
                 ("task", t_negotiate_id, finley.id),
-                ("document", doc_setting_g2_id, admin_user.id),
+                ("document", doc_setting_g2_id, owner_user.id),
             ],
         )
 
@@ -8913,7 +8913,7 @@ async def seed() -> None:
             g3,
             [
                 admin4,
-                admin_user,
+                owner_user,
                 finley,
                 dm,
                 thorn,
@@ -8963,7 +8963,7 @@ async def seed() -> None:
         # finley must be a member here: he owns the Campaign Notes project in
         # this initiative, and a DAC owner grant is useless without passing
         # the initiative gate first.
-        for user in [admin_user, dm, finley]:
+        for user in [owner_user, dm, finley]:
             m = InitiativeMember(
                 initiative_id=g3_default_init.id,
                 user_id=user.id,
@@ -8989,7 +8989,7 @@ async def seed() -> None:
             description="A pirate crew sails the Shattered Seas in search of the Leviathan's Heart",
             color="#DC2626",
             pm_user=finley,
-            member_users=[admin_user, dm, thorn, kael, aurelia, sera, p_owner],
+            member_users=[owner_user, dm, thorn, kael, aurelia, sera, p_owner],
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
@@ -9025,7 +9025,7 @@ async def seed() -> None:
             icon="\u2693",
             description="Managing the party's ship, crew, and upgrades",
             owner=finley,
-            write_users=[admin_user, thorn],
+            write_users=[owner_user, thorn],
             read_users=[kael, aurelia, sera],
         )
 
@@ -9038,7 +9038,7 @@ async def seed() -> None:
             icon="\U0001f4b0",
             description="The legendary hoard guarded by the sea beast",
             owner=finley,
-            write_users=[admin_user, dm],
+            write_users=[owner_user, dm],
             general_access=ResourceAccessLevel.read,
         )
 
@@ -9077,7 +9077,7 @@ async def seed() -> None:
             icon="\U0001f4dd",
             description="Session recaps and campaign logistics",
             owner=finley,
-            write_users=[admin_user, dm],
+            write_users=[owner_user, dm],
         )
 
         g3_voyage_tpl = await _create_project(
@@ -9116,7 +9116,7 @@ async def seed() -> None:
             icon="\U0001f5e1\ufe0f",
             description="Resolved three sessions ago. Archived once the new quartermaster settled in.",
             owner=finley,
-            write_users=[admin_user, thorn],
+            write_users=[owner_user, thorn],
             read_users=[kael],
             archived_days_ago=8,
         )
@@ -9129,7 +9129,7 @@ async def seed() -> None:
             name="Privateer Paperwork",
             icon="\U0001f4dc",
             description="Bookkeeping experiment nobody enjoyed. Archived, not deleted.",
-            owner=admin_user,
+            owner=owner_user,
             archived_days_ago=140,
         )
 
@@ -9750,8 +9750,8 @@ async def seed() -> None:
             [
                 (finley, g3_ship),
                 (finley, g3_treasure),
-                (admin_user, g3_treasure),
-                (admin_user, g3_navy_proj),
+                (owner_user, g3_treasure),
+                (owner_user, g3_navy_proj),
                 (dm, g3_navy_proj),
                 (dm, g3_islands),
                 (thorn, g3_ship),
@@ -9769,8 +9769,8 @@ async def seed() -> None:
                 (finley, g3_ship),
                 (finley, g3_treasure),
                 (finley, g3_planning),
-                (admin_user, g3_treasure),
-                (admin_user, g3_navy_proj),
+                (owner_user, g3_treasure),
+                (owner_user, g3_navy_proj),
                 (dm, g3_navy_proj),
                 (dm, g3_islands),
                 (thorn, g3_ship),
@@ -11360,7 +11360,7 @@ async def seed() -> None:
             ids,
             [
                 {
-                    # Pending request awaiting an approver (shows in the admin queue).
+                    # Pending request awaiting an approver (shows in the operator queue).
                     "user": p_support,
                     "guild_id": g2_id,
                     "access_level": AccessLevel.read,
@@ -11378,14 +11378,15 @@ async def seed() -> None:
                     "status": AccessGrantStatus.approved,
                     "reason": "Reviewing a content report against a queue in Realm of Tides.",
                     "requested_duration_minutes": 480,
-                    "approved_by": admin_user,
+                    "approved_by": owner_user,
                     "requested_delta": -timedelta(hours=2),
                     "decided_delta": -timedelta(hours=1),
                     "expires_delta": timedelta(hours=7),
                 },
                 {
                     # Live break-glass — operator self-issued and self-approved,
-                    # read_write (acts as a full community admin for the window).
+                    # read_write: edits existing content for the window. Only the
+                    # content half of the break-glass pair is seeded here.
                     "user": p_operator,
                     "guild_id": g2_id,
                     "access_level": AccessLevel.read_write,
@@ -11417,14 +11418,14 @@ async def seed() -> None:
                     "status": AccessGrantStatus.expired,
                     "reason": "Audited invite spam originating from the primary guild.",
                     "requested_duration_minutes": 240,
-                    "approved_by": admin_user,
+                    "approved_by": owner_user,
                     "requested_delta": -timedelta(days=3),
                     "decided_delta": -timedelta(days=3) + timedelta(minutes=10),
                     "expires_delta": -timedelta(days=3) + timedelta(hours=4),
                 },
             ],
         )
-        await _apply_deferred_archives(session, admin_user)
+        await _apply_deferred_archives(session, owner_user)
         # Last, so it covers every community the run created — including the
         # directory fillers, which are seeded after communities 1-3.
         seated = await _seat_community_superadmin(session, ids, g_superadmin)

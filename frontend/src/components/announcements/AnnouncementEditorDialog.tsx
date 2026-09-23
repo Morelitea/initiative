@@ -35,7 +35,7 @@ import {
   useCreateAnnouncement,
   useUpdateAnnouncement,
   useUploadAnnouncementImage,
-} from "@/hooks/useAnnouncementsAdmin";
+} from "@/hooks/usePlatformAnnouncements";
 import { validateTriggerRoute } from "@/lib/announcementPages";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -196,11 +196,11 @@ export const AnnouncementEditorDialog = ({
       .filter((section) => section.heading || section.body || section.image_url);
 
     if (!state.title.trim() || sections.length === 0) {
-      toast.error(t("admin.needsTitleAndSection"));
+      toast.error(t("operator.needsTitleAndSection"));
       return;
     }
     if (triggerProblem) {
-      toast.error(t(`admin.triggerErrors.${triggerProblem}`));
+      toast.error(t(`operator.triggerErrors.${triggerProblem}`));
       return;
     }
 
@@ -231,10 +231,10 @@ export const AnnouncementEditorDialog = ({
       } else {
         await create.mutateAsync(body);
       }
-      toast.success(t("admin.saved"));
+      toast.success(t("operator.saved"));
       onOpenChange(false);
     } catch (error) {
-      toast.error(getErrorMessage(error, "announcements:admin.saveFailed"));
+      toast.error(getErrorMessage(error, "announcements:operator.saveFailed"));
     }
   };
 
@@ -243,8 +243,10 @@ export const AnnouncementEditorDialog = ({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 sm:max-w-3xl">
           <DialogHeader className="shrink-0">
-            <DialogTitle>{announcement ? t("admin.editTitle") : t("admin.newTitle")}</DialogTitle>
-            <DialogDescription>{t("admin.editorSubtitle")}</DialogDescription>
+            <DialogTitle>
+              {announcement ? t("operator.editTitle") : t("operator.newTitle")}
+            </DialogTitle>
+            <DialogDescription>{t("operator.editorSubtitle")}</DialogDescription>
           </DialogHeader>
 
           {/* Plain overflow rather than ScrollArea — see AnnouncementDialog:
@@ -252,12 +254,12 @@ export const AnnouncementEditorDialog = ({
           <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
             <div className="space-y-6 py-4">
               <div className="space-y-2">
-                <Label htmlFor="announcement-title">{t("admin.fields.title")}</Label>
+                <Label htmlFor="announcement-title">{t("operator.fields.title")}</Label>
                 <Input
                   id="announcement-title"
                   value={state.title}
                   maxLength={200}
-                  placeholder={t("admin.fields.titlePlaceholder")}
+                  placeholder={t("operator.fields.titlePlaceholder")}
                   onChange={(event) =>
                     setState((previous) => ({ ...previous, title: event.target.value }))
                   }
@@ -266,7 +268,7 @@ export const AnnouncementEditorDialog = ({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="announcement-category">{t("admin.fields.category")}</Label>
+                  <Label htmlFor="announcement-category">{t("operator.fields.category")}</Label>
                   <Select
                     value={state.category}
                     onValueChange={(value) =>
@@ -290,7 +292,7 @@ export const AnnouncementEditorDialog = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="announcement-min-role">{t("admin.fields.minRole")}</Label>
+                  <Label htmlFor="announcement-min-role">{t("operator.fields.minRole")}</Label>
                   <Select
                     value={state.minPlatformRole}
                     onValueChange={(value) =>
@@ -306,17 +308,19 @@ export const AnnouncementEditorDialog = ({
                     <SelectContent>
                       {PLATFORM_ROLES.map((role) => (
                         <SelectItem key={role} value={role}>
-                          {t(`admin.roles.${role}`)}
+                          {t(`operator.roles.${role}`)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-muted-foreground text-xs">{t("admin.fields.minRoleHint")}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("operator.fields.minRoleHint")}
+                  </p>
                 </div>
 
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="announcement-accounts">
-                    {t("admin.fields.audienceAccounts")}
+                    {t("operator.fields.audienceAccounts")}
                   </Label>
                   <Select
                     value={state.audienceAccounts}
@@ -333,13 +337,13 @@ export const AnnouncementEditorDialog = ({
                     <SelectContent>
                       {AUDIENCE_ACCOUNTS.map((audience) => (
                         <SelectItem key={audience} value={audience}>
-                          {t(`admin.accounts.${audience}`)}
+                          {t(`operator.accounts.${audience}`)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <p className="text-muted-foreground text-xs">
-                    {t(`admin.accountsHint.${state.audienceAccounts}`)}
+                    {t(`operator.accountsHint.${state.audienceAccounts}`)}
                   </p>
                 </div>
               </div>
@@ -347,10 +351,10 @@ export const AnnouncementEditorDialog = ({
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div className="space-y-0.5">
                   <Label htmlFor="announcement-admins-only">
-                    {t("admin.fields.guildAdminsOnly")}
+                    {t("operator.fields.guildAdminsOnly")}
                   </Label>
                   <p className="text-muted-foreground text-xs">
-                    {t("admin.fields.guildAdminsOnlyHint")}
+                    {t("operator.fields.guildAdminsOnlyHint")}
                   </p>
                 </div>
                 <Switch
@@ -365,7 +369,7 @@ export const AnnouncementEditorDialog = ({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="announcement-dismissals">
-                    {t("admin.fields.dismissalsRequired")}
+                    {t("operator.fields.dismissalsRequired")}
                   </Label>
                   <Input
                     id="announcement-dismissals"
@@ -381,12 +385,12 @@ export const AnnouncementEditorDialog = ({
                     }
                   />
                   <p className="text-muted-foreground text-xs">
-                    {t("admin.fields.dismissalsRequiredHint")}
+                    {t("operator.fields.dismissalsRequiredHint")}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="announcement-trigger">{t("admin.fields.triggerRoute")}</Label>
+                  <Label htmlFor="announcement-trigger">{t("operator.fields.triggerRoute")}</Label>
                   <Input
                     id="announcement-trigger"
                     value={state.triggerRoute}
@@ -405,8 +409,8 @@ export const AnnouncementEditorDialog = ({
                     }
                   >
                     {triggerProblem
-                      ? t(`admin.triggerErrors.${triggerProblem}`)
-                      : t("admin.fields.triggerRouteHint")}
+                      ? t(`operator.triggerErrors.${triggerProblem}`)
+                      : t("operator.fields.triggerRouteHint")}
                   </p>
                 </div>
               </div>
@@ -419,16 +423,16 @@ export const AnnouncementEditorDialog = ({
                       at each reader's. Naming the zone is the only way that is
                       obvious. */}
                   <p className="text-muted-foreground text-xs">
-                    {t("admin.fields.timezoneHint", { zone: localTimeZone() })}
+                    {t("operator.fields.timezoneHint", { zone: localTimeZone() })}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="announcement-published">{t("admin.fields.publishedAt")}</Label>
+                  <Label htmlFor="announcement-published">{t("operator.fields.publishedAt")}</Label>
                   <DateTimePicker
                     id="announcement-published"
                     includeTime
                     value={state.publishedAt}
-                    placeholder={t("admin.fields.draftPlaceholder")}
+                    placeholder={t("operator.fields.draftPlaceholder")}
                     onChange={(value) =>
                       setState((previous) => ({ ...previous, publishedAt: value }))
                     }
@@ -445,7 +449,7 @@ export const AnnouncementEditorDialog = ({
                         }))
                       }
                     >
-                      {t("admin.publishNow")}
+                      {t("operator.publishNow")}
                     </Button>
                     {state.publishedAt ? (
                       <Button
@@ -454,14 +458,14 @@ export const AnnouncementEditorDialog = ({
                         size="sm"
                         onClick={() => setState((previous) => ({ ...previous, publishedAt: "" }))}
                       >
-                        {t("admin.makeDraft")}
+                        {t("operator.makeDraft")}
                       </Button>
                     ) : null}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="announcement-expires">{t("admin.fields.expiresAt")}</Label>
+                  <Label htmlFor="announcement-expires">{t("operator.fields.expiresAt")}</Label>
                   <DateTimePicker
                     id="announcement-expires"
                     includeTime
@@ -471,13 +475,15 @@ export const AnnouncementEditorDialog = ({
                       setState((previous) => ({ ...previous, expiresAt: value }))
                     }
                   />
-                  <p className="text-muted-foreground text-xs">{t("admin.fields.expiresHint")}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("operator.fields.expiresHint")}
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label>{t("admin.fields.sections")}</Label>
+                  <Label>{t("operator.fields.sections")}</Label>
                   <Button
                     type="button"
                     variant="outline"
@@ -490,7 +496,7 @@ export const AnnouncementEditorDialog = ({
                     }
                   >
                     <Plus className="mr-1 h-4 w-4" />
-                    {t("admin.addSection")}
+                    {t("operator.addSection")}
                   </Button>
                 </div>
 
@@ -519,7 +525,7 @@ export const AnnouncementEditorDialog = ({
           <DialogFooter className="shrink-0 border-t pt-4">
             <Button type="button" variant="ghost" onClick={() => setPreviewOpen(true)}>
               <Eye className="mr-1 h-4 w-4" />
-              {t("admin.preview")}
+              {t("operator.preview")}
             </Button>
             <div className="flex-1" />
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -539,7 +545,7 @@ export const AnnouncementEditorDialog = ({
 
       <AnnouncementDialog
         open={previewOpen}
-        title={state.title || t("admin.untitled")}
+        title={state.title || t("operator.untitled")}
         category={state.category}
         sections={state.sections}
         onOpenChange={setPreviewOpen}
@@ -574,7 +580,7 @@ const SectionEditor = ({
       const result = await upload.mutateAsync(file);
       onChange({ image_url: result.url });
     } catch (error) {
-      toast.error(getErrorMessage(error, "announcements:admin.uploadFailed"));
+      toast.error(getErrorMessage(error, "announcements:operator.uploadFailed"));
     }
   };
 
@@ -587,7 +593,7 @@ const SectionEditor = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="font-medium text-muted-foreground text-xs">
-            {t("admin.sectionNumber", { number: index + 1 })}
+            {t("operator.sectionNumber", { number: index + 1 })}
           </span>
           {/* The first section always opens page one, so only the others can
               break. Breaking here is what makes the notice a wizard. */}
@@ -602,7 +608,7 @@ const SectionEditor = ({
                 htmlFor={`announcement-section-${index}-page`}
                 className="text-muted-foreground text-xs"
               >
-                {t("admin.startsPage")}
+                {t("operator.startsPage")}
               </Label>
             </div>
           ) : null}
@@ -613,7 +619,7 @@ const SectionEditor = ({
             variant="ghost"
             size="icon"
             disabled={index === 0}
-            aria-label={t("admin.moveUp")}
+            aria-label={t("operator.moveUp")}
             onClick={() => onMove(-1)}
           >
             <ArrowUp className="h-4 w-4" />
@@ -623,7 +629,7 @@ const SectionEditor = ({
             variant="ghost"
             size="icon"
             disabled={index === total - 1}
-            aria-label={t("admin.moveDown")}
+            aria-label={t("operator.moveDown")}
             onClick={() => onMove(1)}
           >
             <ArrowDown className="h-4 w-4" />
@@ -632,7 +638,7 @@ const SectionEditor = ({
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={t("admin.removeSection")}
+            aria-label={t("operator.removeSection")}
             onClick={onRemove}
           >
             <Trash2 className="h-4 w-4" />
@@ -643,14 +649,14 @@ const SectionEditor = ({
       <Input
         value={section.heading ?? ""}
         maxLength={160}
-        placeholder={t("admin.fields.headingPlaceholder")}
+        placeholder={t("operator.fields.headingPlaceholder")}
         onChange={(event) => onChange({ heading: event.target.value })}
       />
       <Textarea
         value={section.body ?? ""}
         rows={4}
         maxLength={4000}
-        placeholder={t("admin.fields.bodyPlaceholder")}
+        placeholder={t("operator.fields.bodyPlaceholder")}
         onChange={(event) => onChange({ body: event.target.value })}
       />
 
@@ -668,7 +674,7 @@ const SectionEditor = ({
             ) : (
               <ImagePlus className="mr-1 h-4 w-4" />
             )}
-            {section.image_url ? t("admin.replaceImage") : t("admin.addImage")}
+            {section.image_url ? t("operator.replaceImage") : t("operator.addImage")}
           </ImagePicker>
           {section.image_url ? (
             <Button
@@ -677,7 +683,7 @@ const SectionEditor = ({
               size="sm"
               onClick={() => onChange({ image_url: null })}
             >
-              {t("admin.removeImage")}
+              {t("operator.removeImage")}
             </Button>
           ) : null}
         </div>
@@ -692,7 +698,7 @@ const SectionEditor = ({
             <Input
               value={section.image_alt ?? ""}
               maxLength={200}
-              placeholder={t("admin.fields.altPlaceholder")}
+              placeholder={t("operator.fields.altPlaceholder")}
               onChange={(event) => onChange({ image_alt: event.target.value })}
             />
           </>

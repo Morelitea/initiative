@@ -35,8 +35,8 @@ const DEFAULT_STATE = {
 export const SettingsEmailPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const emailQuery = useEmailSettings({ enabled: isPlatformAdmin });
+  const canManagePlatformConfig = hasCapability(user, Capability.configManage);
+  const emailQuery = useEmailSettings({ enabled: canManagePlatformConfig });
   // A server's address and credentials are typed in a few fields at a time and
   // saved at the end, so a refetch mid-way must leave them where they are.
   const form = useServerForm(
@@ -69,8 +69,8 @@ export const SettingsEmailPage = () => {
     onError: () => toast.error(t("email.testError")),
   });
 
-  if (!isPlatformAdmin) {
-    return <p className="text-muted-foreground text-sm">{t("email.adminOnly")}</p>;
+  if (!canManagePlatformConfig) {
+    return <p className="text-muted-foreground text-sm">{t("email.platformOnly")}</p>;
   }
 
   if (emailQuery.isLoading) {

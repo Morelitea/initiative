@@ -14,7 +14,7 @@ import {
 import { matchActiveTab } from "@/lib/tabs";
 
 /**
- * Operational admin area: platform users and time-bound access grants.
+ * Operator dashboard: platform users and time-bound access grants.
  * Reachable by support/moderator/operator/owner depending on capability.
  * App-wide *configuration* lives in the separate Platform settings area.
  */

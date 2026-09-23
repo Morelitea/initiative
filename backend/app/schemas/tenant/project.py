@@ -83,7 +83,7 @@ class ProjectRead(ProjectBase, ArchiveState):
     )
 
     id: int
-    # Who administers the project: the holder of its owner-level grant, or None
+    # Who owns the project: the holder of its owner-level grant, or None
     # when nobody does. ``owner`` carries the same fact with the user attached;
     # its ``validation_alias`` (an attribute the ORM row never has) keeps
     # ``model_validate(project)`` from reaching for a relationship that may not

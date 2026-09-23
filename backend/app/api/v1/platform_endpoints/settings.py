@@ -188,7 +188,7 @@ def _platform_oidc_response(provider) -> OIDCSettingsResponse:
 @router.get("/auth", response_model=OIDCSettingsResponse)
 async def get_oidc_settings(
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> OIDCSettingsResponse:
     """The install's redirect addresses. System engine: ``auth_providers``
     carries no request-path grant; the capability gate stays
@@ -238,7 +238,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
 @router.get("/auth/platform", response_model=PlatformAuthSettingsResponse)
 async def get_platform_auth_settings(
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Which ways in are permitted. System engine: the guard counts read
     ``auth_providers`` and ``federated_identities``, neither of which carries a
@@ -250,7 +250,7 @@ async def get_platform_auth_settings(
 async def update_login_methods(
     payload: LoginMethodsUpdate,
     session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set which ways in this deployment permits — at least one.
 
@@ -262,7 +262,7 @@ async def update_login_methods(
         session,
         methods=payload.methods,
         acknowledge_stranded=payload.acknowledge_stranded,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return await _platform_auth_payload(session)
 
@@ -273,7 +273,7 @@ async def update_login_methods(
 async def update_second_factor_requirement(
     payload: SecondFactorRequirementUpdate,
     session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set who this deployment asks to hold a second factor.
 
@@ -289,7 +289,7 @@ async def update_second_factor_requirement(
     its owner holds a factor.
     """
     await auth_posture.set_second_factor_requirement(
-        session, level=payload.level, actor=admin
+        session, level=payload.level, actor=owner
     )
     return await _platform_auth_payload(session)
 
@@ -298,7 +298,7 @@ async def update_second_factor_requirement(
 async def update_session_lifetime(
     payload: SessionLifetimeUpdate,
     session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set how long somebody may stay signed in before signing in again.
 
@@ -325,7 +325,7 @@ async def update_session_lifetime(
         await audit_service.record(
             session,
             event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
-            actor_user_id=admin.id,
+            actor_user_id=owner.id,
             detail={"area": "session_lifetime", **changed},
         )
     await session.commit()
@@ -344,7 +344,7 @@ async def _notification_payload(session) -> NotificationSettingsResponse:
 @router.get("/notifications", response_model=NotificationSettingsResponse)
 async def get_notification_settings(
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> NotificationSettingsResponse:
     """What this deployment permits a notification to leave the app carrying."""
     return await _notification_payload(session)
@@ -354,7 +354,7 @@ async def get_notification_settings(
 async def update_notification_settings(
     payload: NotificationSettingsUpdate,
     session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> NotificationSettingsResponse:
     """Decide what this deployment permits a notification to leave the app with.
 
@@ -392,7 +392,7 @@ async def update_notification_settings(
         await audit_service.record(
             session,
             event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
-            actor_user_id=admin.id,
+            actor_user_id=owner.id,
             detail={"area": "notifications", **changed},
         )
     await session.commit()
@@ -415,14 +415,14 @@ async def get_interface_settings(
 async def update_interface_settings(
     payload: InterfaceSettingsUpdate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> InterfaceSettingsResponse:
     settings_obj = await app_settings_service.update_interface_settings(
         session,
         light_accent_color=payload.light_accent_color,
         dark_accent_color=payload.dark_accent_color,
         cookie_consent_enabled=payload.cookie_consent_enabled,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
@@ -434,7 +434,7 @@ async def update_interface_settings(
 @router.get("/community", response_model=CommunitySettingsResponse)
 async def read_community_settings(
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> CommunitySettingsResponse:
     """The four community-wide decisions, for the owner's settings page.
 
@@ -459,7 +459,7 @@ async def read_community_settings(
 async def update_community_settings(
     payload: CommunitySettingsUpdate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> CommunitySettingsResponse:
     """Turn the community directory on or off for the whole deployment.
 
@@ -507,7 +507,7 @@ async def update_community_settings(
         deleted_account_retention_days=payload.deleted_account_retention_days,
         account_retention_provided="deleted_account_retention_days"
         in payload.model_fields_set,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return CommunitySettingsResponse(
         community_directory_enabled=settings_obj.community_directory_enabled,
@@ -523,7 +523,7 @@ async def update_community_settings(
 async def get_email_settings(
     session: UserSessionDep,
     system_session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> EmailSettingsResponse:
     # Whether a password is stored is read on the system engine, which alone
     # holds app_setting_secrets.
@@ -537,7 +537,7 @@ async def update_email_settings(
     payload: EmailSettingsUpdate,
     session: UserSessionDep,
     system_session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> EmailSettingsResponse:
     # The settings row is written under the owner's tier; the password, when
     # one is sent, on the system engine.
@@ -555,7 +555,7 @@ async def update_email_settings(
         password_provided=password_provided,
         from_address=payload.from_address,
         test_recipient=payload.test_recipient,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _email_settings_payload(updated, secrets)
 
@@ -564,7 +564,7 @@ async def update_email_settings(
 async def send_test_email(
     payload: EmailTestRequest,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> EmailTestResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     recipient = payload.recipient or settings_obj.smtp_test_recipient
@@ -616,7 +616,7 @@ def _storage_settings_payload(
 async def get_storage_settings(
     session: UserSessionDep,
     system_session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> StorageSettingsResponse:
     # Whether a secret key is stored is read on the system engine, which alone
     # holds app_setting_secrets.
@@ -630,7 +630,7 @@ async def update_storage_settings(
     payload: StorageSettingsUpdate,
     session: UserSessionDep,
     system_session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> StorageSettingsResponse:
     # The settings row is written under the owner's tier; the secret key, when
     # one is sent, on the system engine.
@@ -649,7 +649,7 @@ async def update_storage_settings(
         s3_use_path_style=payload.s3_use_path_style,
         s3_kms_key_id=payload.s3_kms_key_id,
         s3_local_fallback=payload.s3_local_fallback,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _storage_settings_payload(updated, secrets)
 
@@ -657,9 +657,9 @@ async def update_storage_settings(
 @router.post("/storage/test", response_model=StorageTestResponse)
 async def test_storage_connection(
     payload: StorageSettingsUpdate,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> StorageTestResponse:
-    # Test the submitted (possibly unsaved) config. If the admin left the secret
+    # Test the submitted (possibly unsaved) config. If the owner left the secret
     # blank, fall back to the saved one so they can re-test without re-typing it
     # (read on the system engine, which alone holds app_setting_secrets).
     data = payload.model_dump(exclude_unset=True)
@@ -700,7 +700,7 @@ def _backfill_payload(row: dict) -> StorageBackfillStatusResponse:
 @router.post("/storage/backfill", response_model=StorageBackfillStatusResponse)
 async def start_storage_backfill(
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> StorageBackfillStatusResponse:
     # The backfill writes to S3 via the saved credentials, so they must be set
     # (the documented flow runs it while still serving on "local").
@@ -725,7 +725,7 @@ async def start_storage_backfill(
 @router.get("/storage/backfill", response_model=StorageBackfillStatusResponse)
 async def get_storage_backfill_status(
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> StorageBackfillStatusResponse:
     return _backfill_payload(await storage_backfill.get_status(session))
 
@@ -759,7 +759,7 @@ def _captcha_payload(
 async def get_captcha_settings(
     session: UserSessionDep,
     system_session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> CaptchaSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     secrets = await app_settings_service.get_app_setting_secrets(system_session)
@@ -771,7 +771,7 @@ async def update_captcha_settings(
     payload: CaptchaSettingsUpdate,
     session: UserSessionDep,
     system_session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> CaptchaSettingsResponse:
     # An absent secret_key keeps the stored one; an explicit null or "" clears
     # it. Same contract as the storage page, so an owner can edit the site key
@@ -784,7 +784,7 @@ async def update_captcha_settings(
         site_key=payload.site_key,
         secret_key=payload.secret_key,
         secret_provided="secret_key" in data,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _captcha_payload(updated, secrets)
 
@@ -809,7 +809,7 @@ def _push_payload(
 async def get_push_settings(
     session: UserSessionDep,
     system_session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> PushSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     secrets = await app_settings_service.get_app_setting_secrets(system_session)
@@ -821,7 +821,7 @@ async def update_push_settings(
     payload: PushSettingsUpdate,
     session: UserSessionDep,
     system_session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> PushSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
     updated, secrets = await app_settings_service.update_push_settings(
@@ -834,7 +834,7 @@ async def update_push_settings(
         sender_id=payload.sender_id,
         service_account_json=payload.service_account_json,
         secret_provided="service_account_json" in data,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _push_payload(updated, secrets)
 
@@ -961,11 +961,11 @@ async def _member_tallies() -> tuple[dict[int, int], set[int]]:
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
 async def list_platform_guild_storage(
     session: UserSessionDep,
-    _admin: GuildsManageDep,
+    _operator: GuildsManageDep,
 ) -> list[PlatformGuildStorageRead]:
     """List every guild with its storage cap, for the Operator dashboard Guilds tab.
 
-    Admin/owner (``guilds.manage``). Reads only shared ``public`` tables. The
+    Operator/owner (``guilds.manage``). Reads only shared ``public`` tables. The
     guilds and their administration rows are read on the caller's platform
     tier, under the ``guilds.manage`` policies on both; the caps join in a
     single pass. Member counts and seats are totals read on the system engine
@@ -1002,9 +1002,9 @@ async def update_platform_guild_storage(
     guild_id: int,
     payload: PlatformGuildStorageUpdate,
     session: SystemSessionDep,
-    admin: GuildsManageDep,
+    operator: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
-    """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
+    """Set a guild's storage/member caps and/or lifecycle status. Operator/owner.
 
     Writes only shared ``public`` columns — the caps and the sign-in entitlement
     on ``guild_administration``, the lifecycle ``status`` on ``guilds`` — so no
@@ -1077,7 +1077,7 @@ async def update_platform_guild_storage(
                 guild_id,
                 guild.status,
                 payload.status.value,
-                admin.id,
+                operator.id,
             )
             status_before, status_after = guild.status, payload.status.value
             guild = await guilds_service.set_guild_status(
@@ -1109,7 +1109,7 @@ async def update_platform_guild_storage(
         await audit_service.record(
             session,
             event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
-            actor_user_id=admin.id,
+            actor_user_id=operator.id,
             guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
@@ -1119,7 +1119,7 @@ async def update_platform_guild_storage(
         await audit_service.record(
             session,
             event_type=AuditEventType.GUILD_STATUS_CHANGED,
-            actor_user_id=admin.id,
+            actor_user_id=operator.id,
             guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
@@ -1146,12 +1146,12 @@ async def update_platform_guild_storage(
 async def read_guild_narrowings(
     guild_id: int,
     session: SystemSessionDep,
-    admin: GuildsManageDep,
+    operator: GuildsManageDep,
 ) -> list[GuildNarrowingPending]:
     """What this community says its own arrivals look like, and whether
     anybody has agreed.
 
-    Admin/owner (``guilds.manage``). The community writes these values itself
+    Operator/owner (``guilds.manage``). The community writes these values itself
     and nothing here can tell whether it holds the domain or tenant they name,
     so the answer is the deployment's. Support answers through the case raised
     when they are written; this is the same question where a deployment runs
@@ -1169,7 +1169,7 @@ async def agree_guild_narrowing(
     connection_id: int,
     payload: GuildNarrowingAgreement,
     session: SystemSessionDep,
-    admin: GuildsManageDep,
+    operator: GuildsManageDep,
 ) -> GuildNarrowingPending:
     """Agree that these values are this community's, or withdraw that.
 
@@ -1182,7 +1182,7 @@ async def agree_guild_narrowing(
         guild_id=guild_id,
         connection_id=connection_id,
         agreed=payload.agreed,
-        actor_user_id=admin.id,
+        actor_user_id=operator.id,
     )
 
 
@@ -1191,11 +1191,11 @@ async def restore_platform_guild(
     guild_id: int,
     payload: PlatformGuildRestore,
     session: SystemSessionDep,
-    admin: GuildsManageDep,
+    operator: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
     """Bring a deleted guild back before its retention window runs out.
 
-    Admin/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+    Operator/owner (``guilds.manage``). Deleting a guild keeps it — the shared
     rows, the ``guild_<id>`` schema and the stored blobs all stay until
     ``guild_purge`` destroys them — so restoring is a status write plus, where
     the roster was emptied, seating somebody who can run the community again.
@@ -1203,8 +1203,8 @@ async def restore_platform_guild(
     The operator names the status it returns at, and must name a seat when the
     guild holds none. Both are re-checked in the service rather than trusted
     from the payload. What does *not* come back is the guild's app
-    connections: those were revoked when it was deleted, and an admin
-    reconnects them.
+    connections: those were revoked when it was deleted, and the community's
+    superadmin reconnects them.
 
     Writes only shared ``public`` columns (``guilds.status`` and, for the seat,
     ``guild_memberships``), so no guild-schema routing is needed.
@@ -1215,7 +1215,7 @@ async def restore_platform_guild(
             guild_id=guild_id,
             status=payload.status,
             seat_user_id=payload.seat_user_id,
-            actor_user_id=admin.id,
+            actor_user_id=operator.id,
         )
     except ValueError as exc:
         code = str(exc)
@@ -1230,7 +1230,9 @@ async def restore_platform_guild(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=code
         ) from exc
-    logger.info("guild %s restored as %s by user %s", guild_id, guild.status, admin.id)
+    logger.info(
+        "guild %s restored as %s by user %s", guild_id, guild.status, operator.id
+    )
     await session.commit()
     billing_ping.notify_lifecycle_changed(guild_id)
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
@@ -1250,13 +1252,13 @@ async def restore_platform_guild(
 async def create_platform_guild_billing_service_handoff(
     guild_id: int,
     session: SystemSessionDep,
-    admin: GuildsManageDep,
+    operator: GuildsManageDep,
     console: Literal["support", "operator"] = "support",
     answer: SecondFactorAnswer | None = None,
 ) -> BillingPortalHandoffResponse:
     """Mint the operator handoff into the billing portal for one guild.
 
-    Backs the Guilds tab's billing buttons. Admin/owner (``guilds.manage``).
+    Backs the Guilds tab's billing buttons. Operator/owner (``guilds.manage``).
     The token names the ``access_grants`` row that authorises the visit: a
     live billing grant is reused, otherwise one is self-issued — after the
     account's second factor, as breaking glass takes it — so the visit is
@@ -1281,21 +1283,21 @@ async def create_platform_guild_billing_service_handoff(
 
     grant = await access_grants_service.get_live_grant(
         session,
-        user_id=admin.id,
+        user_id=operator.id,
         guild_id=guild_id,
         purpose=AccessGrantPurpose.billing,
     )
     if grant is None:
         await check_second_factor(
             session,
-            actor=admin,
+            actor=operator,
             answer=answer or SecondFactorAnswer(),
             during="billing_handoff",
         )
         try:
             grant = await access_grants_service.break_glass(
                 session,
-                actor=admin,
+                actor=operator,
                 # A visit to the portal, and nothing in the guild.
                 level=AccessLevel.read.value,
                 payload=BreakGlassCreate(
@@ -1314,7 +1316,7 @@ async def create_platform_guild_billing_service_handoff(
             ) from exc
 
     try:
-        user_ref, guild_ref = await billing_refs(user_id=admin.id, guild_id=guild_id)
+        user_ref, guild_ref = await billing_refs(user_id=operator.id, guild_id=guild_id)
         token, expires_in_seconds = create_billing_support_handoff_token(
             grant_id=grant.id,
             user_ref=user_ref,
@@ -1336,8 +1338,8 @@ async def create_platform_guild_billing_service_handoff(
     await session.commit()
     logger.info(
         "billing portal: operator %s (%s) opened guild %s under grant %s",
-        admin.id,
-        admin.role.value,
+        operator.id,
+        operator.role.value,
         guild_id,
         grant.id,
     )

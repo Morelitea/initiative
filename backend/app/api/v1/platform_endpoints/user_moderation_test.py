@@ -277,7 +277,7 @@ class TestSuspension:
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "ADMIN_CANNOT_SUSPEND_SELF"
+        assert response.json()["detail"] == "OPERATOR_CANNOT_SUSPEND_SELF"
 
     async def test_a_closed_account_is_not_frozen(self, client, session):
         """Thawing it later would quietly reopen an account its owner closed."""
@@ -291,7 +291,7 @@ class TestSuspension:
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "ADMIN_CANNOT_SUSPEND_INACTIVE"
+        assert response.json()["detail"] == "OPERATOR_CANNOT_SUSPEND_INACTIVE"
 
     @pytest.mark.parametrize("role", [UserRole.member, UserRole.support])
     async def test_below_moderator_is_refused(self, client, session, role):
@@ -307,11 +307,11 @@ class TestSuspension:
 
 
 class TestNothingElse:
-    """The admin surface writes a fixed set of things about an account, and
+    """The operator surface writes a fixed set of things about an account, and
     each one is gated deliberately. One more appearing here is a decision, not
     an accident — this is what makes it one."""
 
-    def test_the_admin_router_writes_only_what_it_should(self):
+    def test_the_operator_router_writes_only_what_it_should(self):
         writes = {
             (route.path, verb)
             for route in app.routes

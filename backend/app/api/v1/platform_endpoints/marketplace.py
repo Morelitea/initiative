@@ -56,7 +56,7 @@ _HEX_DIGITS = frozenset("0123456789abcdef")
 @router.post("/operator-catalog/rescan", response_model=OperatorCatalogScanResult)
 async def rescan_operator_catalog(
     session: SystemSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> OperatorCatalogScanResult:
     """Re-read the deployment's own catalog directory (``config.manage``).
 
@@ -85,7 +85,7 @@ async def rescan_operator_catalog(
     await audit_service.record(
         session,
         event_type=AuditEventType.MARKETPLACE_CATALOG_REFRESHED,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
         detail={
             "source": "operator_catalog",
             "published": scan.published,

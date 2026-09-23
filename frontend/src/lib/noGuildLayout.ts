@@ -12,7 +12,7 @@
  *                 sidebar layout.
  * - ``"shell"`` — no guilds, but the current path is one that works
  *                 without guild context: a user-scoped settings route,
- *                 a platform-admin settings route for an admin, or the
+ *                 a platform route for someone who can reach it, or the
  *                 community directory. Render the chromeless
  *                 ``NoGuildSettingsShell`` so the user can still reach
  *                 Danger Zone / platform configuration — or join a guild
@@ -21,7 +21,7 @@
  *                 ``NoGuildState`` (the create / join / logout
  *                 landing page).
  *
- * The ``isPlatformAdmin`` flag matches the coarse ``canAccessPlatformAdmin``
+ * The ``canAccessPlatformAreas`` flag is the coarse ``canAccessPlatformAreas``
  * predicate (can reach *either* the Operator dashboard or Platform settings).
  * Keeping the checks aligned guarantees the no-guild shell never admits
  * anyone who couldn't already reach the page in the normal sidebar layout.
@@ -31,7 +31,7 @@ export type NoGuildLayoutChoice = "main" | "shell" | "empty";
 export interface NoGuildLayoutInputs {
   hasGuilds: boolean;
   pathname: string;
-  isPlatformAdmin: boolean;
+  canAccessPlatformAreas: boolean;
 }
 
 const isUserSettingsPath = (path: string): boolean =>
@@ -46,7 +46,7 @@ const isCommunityPath = (path: string): boolean =>
 // Both platform areas: the Operator dashboard (/settings/operator) and Platform
 // settings (/settings/platform). A guild-less platform user must still reach
 // either via the chromeless shell.
-const isAdminSettingsPath = (path: string): boolean =>
+const isPlatformSettingsPath = (path: string): boolean =>
   path === "/settings/operator" ||
   path.startsWith("/settings/operator/") ||
   path === "/settings/platform" ||
@@ -55,11 +55,11 @@ const isAdminSettingsPath = (path: string): boolean =>
 export function chooseNoGuildLayout({
   hasGuilds,
   pathname,
-  isPlatformAdmin,
+  canAccessPlatformAreas,
 }: NoGuildLayoutInputs): NoGuildLayoutChoice {
   if (hasGuilds) return "main";
   if (isUserSettingsPath(pathname)) return "shell";
   if (isCommunityPath(pathname)) return "shell";
-  if (isAdminSettingsPath(pathname) && isPlatformAdmin) return "shell";
+  if (isPlatformSettingsPath(pathname) && canAccessPlatformAreas) return "shell";
   return "empty";
 }

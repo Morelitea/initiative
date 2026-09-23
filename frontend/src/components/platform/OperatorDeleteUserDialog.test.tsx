@@ -8,7 +8,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { OperatorUserRead } from "@/api/generated/initiativeAPI.schemas";
 
-import { AdminDeleteUserDialog } from "./AdminDeleteUserDialog";
+import { OperatorDeleteUserDialog } from "./OperatorDeleteUserDialog";
 
 const targetUser: OperatorUserRead = {
   ...buildUser({ id: 42, status: "active" }),
@@ -34,7 +34,7 @@ const eligibilityClear = {
   initiative_blockers: [],
 };
 
-describe("AdminDeleteUserDialog community blocker resolution", () => {
+describe("OperatorDeleteUserDialog community blocker resolution", () => {
   beforeEach(() => {
     let eligibilityCalls = 0;
     server.use(
@@ -52,7 +52,7 @@ describe("AdminDeleteUserDialog community blocker resolution", () => {
   it("sends the operator into the community and checks again", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <AdminDeleteUserDialog
+      <OperatorDeleteUserDialog
         open={true}
         onOpenChange={vi.fn()}
         onSuccess={vi.fn()}

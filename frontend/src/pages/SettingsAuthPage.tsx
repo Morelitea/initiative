@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
 
-import { AuthProvidersSection } from "@/components/admin/AuthProvidersSection";
-import { PlatformAuthSection } from "@/components/admin/PlatformAuthSection";
-import { ProviderDefaultsSection } from "@/components/admin/ProviderDefaultsSection";
+import { AuthProvidersSection } from "@/components/platform/AuthProvidersSection";
+import { PlatformAuthSection } from "@/components/platform/PlatformAuthSection";
+import { ProviderDefaultsSection } from "@/components/platform/ProviderDefaultsSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,11 +22,11 @@ import { Capability, hasCapability } from "@/lib/permissions";
 export const SettingsAuthPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const oidcQuery = useOidcSettings({ enabled: isPlatformAdmin });
+  const canManagePlatformConfig = hasCapability(user, Capability.configManage);
+  const oidcQuery = useOidcSettings({ enabled: canManagePlatformConfig });
 
-  if (!isPlatformAdmin) {
-    return <p className="text-muted-foreground text-sm">{t("auth.adminOnly")}</p>;
+  if (!canManagePlatformConfig) {
+    return <p className="text-muted-foreground text-sm">{t("auth.platformOnly")}</p>;
   }
 
   if (oidcQuery.isLoading) {

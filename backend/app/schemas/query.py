@@ -65,7 +65,7 @@ class FilterGroup(SanitizedBaseModel):
 
     Groups can be nested::
 
-        # is_active = true AND (role = 'admin' OR role = 'owner')
+        # is_active = true AND (role = 'operator' OR role = 'owner')
         FilterGroup(
             logic="and",
             conditions=[
@@ -73,7 +73,7 @@ class FilterGroup(SanitizedBaseModel):
                 FilterGroup(
                     logic="or",
                     conditions=[
-                        FilterCondition(field="role", value="admin"),
+                        FilterCondition(field="role", value="operator"),
                         FilterCondition(field="role", value="owner"),
                     ],
                 ),

@@ -308,7 +308,7 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
 ):
     """A grantee holds no membership in the guild — the grant is what they
     navigate by, so the default listing stays the whole guild for its window.
-    Break-glass reads it the same way, as a full guild admin for that window.
+    Break-glass reads it the same way: its content grant is one of these.
     """
     owner = await acting_user(guild_role=GuildRole.admin)
     await create_initiative(session, owner.guild, owner.user, name="Apollo")

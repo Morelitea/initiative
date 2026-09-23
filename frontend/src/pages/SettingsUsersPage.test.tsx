@@ -51,10 +51,12 @@ describe("SettingsUsersPage seat cap", () => {
     mintHandoff.mockReset();
   });
 
-  it("points a self-hosted admin at the operator who can raise the cap", async () => {
+  it("points a self-hosted community admin at whoever runs the server", async () => {
     setup({ max_users: 2, member_count: 2 });
 
-    expect(await screen.findByText(/ask a platform admin to raise the limit/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/ask whoever runs this server to raise the limit/i)
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Upgrade" })).not.toBeInTheDocument();
   });
 
@@ -68,7 +70,7 @@ describe("SettingsUsersPage seat cap", () => {
     expect(
       await screen.findByText(/The starter plan includes a single seat, and it's taken/i)
     ).toBeInTheDocument();
-    expect(screen.queryByText(/ask a platform admin/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ask whoever runs this server/i)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Upgrade" }));
 

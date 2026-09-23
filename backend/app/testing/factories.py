@@ -658,7 +658,7 @@ async def create_project(
         "initiative_id": initiative.id,
         # Author and owner are different facts that happen to be the same person
         # for a freshly made project: the column below records who made it, the
-        # grant further down records who administers it.
+        # grant further down records who owns it.
         "created_by": owner.id,
     }
 

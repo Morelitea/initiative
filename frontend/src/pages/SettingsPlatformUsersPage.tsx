@@ -4,11 +4,11 @@ import { useTranslation } from "react-i18next";
 
 import type { OperatorUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
+import { OperatorDeleteUserDialog } from "@/components/platform/OperatorDeleteUserDialog";
 import {
   canManageUser,
   UserOperatorSettingsSheet,
-} from "@/components/admin/UserOperatorSettingsSheet";
+} from "@/components/platform/UserOperatorSettingsSheet";
 import { SortIcon } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { UserHandle } from "@/components/UserHandle";
@@ -19,15 +19,15 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import {
-  useAdminClearAgeBlock,
-  useAdminReactivateUser,
-  useAdminRestoreUser,
-  useAdminTriggerPasswordReset,
-  useExportPlatformUsersCsv,
-  usePlatformUsers,
-} from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  useExportPlatformUsersCsv,
+  useOperatorClearAgeBlock,
+  useOperatorReactivateUser,
+  useOperatorRestoreUser,
+  useOperatorTriggerPasswordReset,
+  usePlatformUsers,
+} from "@/hooks/useOperatorUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -102,7 +102,7 @@ export const SettingsPlatformUsersPage = () => {
   // what was actually persisted.
   const managing = usersQuery.data?.find((row) => row.id === managingId) ?? null;
 
-  const resetPassword = useAdminTriggerPasswordReset({
+  const resetPassword = useOperatorTriggerPasswordReset({
     onSuccess: (_data, userId) => {
       const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.resetSuccess", { handle }));
@@ -114,12 +114,12 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const clearAgeBlock = useAdminClearAgeBlock({
+  const clearAgeBlock = useOperatorClearAgeBlock({
     onSuccess: () => toast.success(t("settings:platformUsers.ageBlockCleared")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
-  const reactivateUser = useAdminReactivateUser({
+  const reactivateUser = useOperatorReactivateUser({
     onSuccess: (_data, userId) => {
       const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.reactivateSuccess", { handle }));
@@ -129,7 +129,7 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const restoreUser = useAdminRestoreUser({
+  const restoreUser = useOperatorRestoreUser({
     onSuccess: (_data, userId) => {
       const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.restoreSuccess", { handle }));
@@ -295,7 +295,7 @@ export const SettingsPlatformUsersPage = () => {
         const isResetting = resettingUserId === platformUser.id;
         const isSelf = platformUser.id === user?.id;
         // Reset password is a no-op on non-active accounts (the backend
-        // rejects it with ADMIN_CANNOT_RESET_INACTIVE), so hide it here too.
+        // rejects it with OPERATOR_CANNOT_RESET_INACTIVE), so hide it here too.
 
         return (
           <RowActionsMenu subject={getUserHandle(platformUser)}>
@@ -417,7 +417,7 @@ export const SettingsPlatformUsersPage = () => {
       />
 
       {deleteUserTarget && (
-        <AdminDeleteUserDialog
+        <OperatorDeleteUserDialog
           open={deleteUserTarget !== null}
           onOpenChange={(open) => !open && setDeleteUserTarget(null)}
           onSuccess={() => {

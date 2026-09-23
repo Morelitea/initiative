@@ -72,7 +72,7 @@ class TestMembership:
         assert row["detail"] == {
             "role_id": member_role.id,
             "role": "member",
-            "via": "admin",
+            "via": "manager",
         }
 
     async def test_adding_somebody_already_on_that_role_records_nothing(
@@ -175,7 +175,7 @@ class TestMembership:
         assert row["actor_user_id"] == manager.user.id
         assert row["target_user_id"] == member.user.id
         assert row["guild_id"] == manager.guild.id
-        assert row["detail"] == {"role": "member", "via": "admin"}
+        assert row["detail"] == {"role": "member", "via": "manager"}
 
     async def test_creating_an_initiative_records_its_creators_membership(
         self, client: AsyncClient, acting_user, capfd

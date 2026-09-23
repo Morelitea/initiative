@@ -13,7 +13,7 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
 class AuthProviderOwnerRead(SanitizedBaseModel):
-    """One registry provider for the operator admin — never the secret."""
+    """One registry provider as the owner's settings read it — never the secret."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

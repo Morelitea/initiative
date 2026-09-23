@@ -1924,7 +1924,7 @@ async def test_plain_write_cannot_set_the_default_view(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "PROJECT_ADMIN_REQUIRED"
+    assert response.json()["detail"] == "PROJECT_CONFIGURE_REQUIRED"
 
 
 @pytest.mark.integration

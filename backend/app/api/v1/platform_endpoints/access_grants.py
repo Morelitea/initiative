@@ -56,7 +56,7 @@ AccessApproveDep = Annotated[
     User, Depends(require_capability(Capability.ACCESS_APPROVE))
 ]
 # Break-glass is gated on data.bypass — the repurposed capability that lets an
-# admin/owner self-issue an audited, time-bound grant instead of holding a
+# operator/owner self-issue an audited, time-bound grant instead of holding a
 # standing all-guild bypass.
 BreakGlassDep = Annotated[User, Depends(require_capability(Capability.DATA_BYPASS))]
 

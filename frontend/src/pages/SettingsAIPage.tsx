@@ -65,7 +65,7 @@ export const SettingsAIPage = () => {
   };
 
   if (!isPlatformOwner) {
-    return <p className="text-muted-foreground text-sm">{t("platformAI.adminOnly")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("platformAI.platformOnly")}</p>;
   }
 
   if (modeQuery.isLoading) {

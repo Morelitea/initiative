@@ -408,7 +408,7 @@ async def _register_account(
             user_role = UserRole.owner if is_first_user else UserRole.member
 
         # Validate the optional browser-supplied IANA timezone via the
-        # same helper used by self-update / admin-update. Returns
+        # same helper used by self-update / operator-update. Returns
         # ``None`` when the field is omitted or blank, in which case
         # we simply don't pass ``timezone`` to the model and the
         # column default ``"UTC"`` applies.
@@ -1150,7 +1150,7 @@ async def logout(
     and the cookies that carried it are cleared, so a phone signing out does
     not close the laptop. What signs an account out everywhere is a credential
     change — a password change or reset, a second factor disabled, an account
-    action taken by a platform admin — each of which bumps
+    action taken by an operator — each of which bumps
     ``users.token_version`` on its own path.
 
     What is revoked here is the refresh side — the rotation chain behind this
@@ -1848,8 +1848,8 @@ async def _complete_provider_login(
         return _error_redirect(is_mobile, OidcMessages.REGISTRATION_DISABLED)
     user = resolution.user
 
-    # Refuse to silently reactivate an admin- or self-deactivated account via
-    # SSO — deactivation is reversed by an admin, not by a login. Checked
+    # Refuse to silently reactivate an operator- or self-deactivated account via
+    # SSO — deactivation is reversed by an operator, not by a login. Checked
     # before any link is written.
     #
     # An account waiting out its erasure window is the deliberate exception

@@ -579,7 +579,7 @@ async def test_storage_update_keeps_secret_when_omitted(
     reset_storage_cache: None,
 ) -> None:
     """Re-saving without ``s3_secret_access_key`` keeps the stored key (the SMTP
-    password pattern), so an admin can tweak the bucket without re-typing it."""
+    password pattern), so an owner can tweak the bucket without re-typing it."""
     assert (
         await client.put(
             "/api/v1/settings/storage", json=_S3_PAYLOAD, headers=owner.headers
@@ -1166,7 +1166,7 @@ async def test_every_route_needs_an_account(
     client: AsyncClient, method, path, body
 ) -> None:
     """Unauthenticated callers are rejected outright (401), never reaching the
-    admin-engine handlers."""
+    system-engine handlers."""
     resp = await getattr(client, method)(
         path.format(guild_id=1), **({"json": body} if body is not None else {})
     )

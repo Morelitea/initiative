@@ -9,7 +9,7 @@
   "noMatchingProjects": "Aucun projet ne correspond à vos filtres.",
   "onlyPinnedMatch": "Seuls les projets épinglés correspondent à vos filtres.",
   "accessRestricted": "Accès restreint",
-  "accessRestrictedDescription": "Vous n'avez pas la permission de voir les projets dans cette initiative. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
+  "accessRestrictedDescription": "Vous n'avez pas la permission de voir les projets dans cette initiative. Demandez à l'administration de la communauté ou à un gestionnaire d'initiative si vous pensez qu'il s'agit d'une erreur.",
   "view": {
     "grid": "Grille",
     "list": "Liste"

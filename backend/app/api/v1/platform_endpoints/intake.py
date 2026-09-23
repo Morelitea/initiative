@@ -4,7 +4,7 @@ Every route is ``config.manage``. Binding a stream is deployment configuration
 of the same class as OIDC, SMTP and branding, and sits at the same capability.
 
 The session is the system engine, which is what reaches both the shared
-singleton and — routed, as a guild admin — the guild's own schema. That is the
+singleton and — routed by the guild alone — the guild's own schema. That is the
 pattern the OIDC-mapping routes beside this already use.
 """
 
@@ -91,7 +91,7 @@ async def _settings(session: AsyncSession) -> IntakeSettingsRead:
 @router.get("/intake", response_model=IntakeSettingsRead)
 async def read_intake_settings(
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> IntakeSettingsRead:
     """Where each stream lands, and when it last opened a case.
 
@@ -104,7 +104,7 @@ async def read_intake_settings(
 @router.get("/intake/options", response_model=IntakeOptionsRead)
 async def read_intake_options(
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> IntakeOptionsRead:
     """What the settings page can bind a stream to.
 
@@ -121,7 +121,7 @@ async def read_intake_options(
 async def update_operations_guild(
     payload: OperationsGuildUpdate,
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> IntakeSettingsRead:
     """Name the guild that receives this deployment's operations work.
 
@@ -136,7 +136,7 @@ async def update_operations_guild(
 async def update_general_contact(
     payload: IntakeContactUpdate,
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> IntakeSettingsRead:
     """Set the deployment's catch-all contact address, or clear it.
 
@@ -152,7 +152,7 @@ async def update_stream_contact(
     stream: str,
     payload: IntakeContactUpdate,
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> IntakeSettingsRead:
     """Set one stream's contact address, or clear it back to the general one."""
     await intake_setup.set_stream_contact(
@@ -166,7 +166,7 @@ async def upsert_binding(
     stream: str,
     payload: IntakeBindingUpsert,
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> IntakeBindingRead:
     """Route one stream into a project of the operations guild."""
     view = await intake_setup.bind(
@@ -185,7 +185,7 @@ async def import_blueprint(
     payload: IntakeBlueprintImport,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> IntakeBindingRead:
     """Set a stream up from its blueprint, and bind it to what that produced.
 
@@ -205,7 +205,7 @@ async def import_blueprint(
 async def delete_binding(
     stream: str,
     session: SystemSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> None:
     """Stop routing a stream. The project and every case in it stay."""
     await intake_setup.unbind(session, _stream_or_404(stream))

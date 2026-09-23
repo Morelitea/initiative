@@ -314,7 +314,7 @@
     "typeSpreadsheet": "Tabelle",
     "typeSmartLink": "Smart-Link",
     "accessRestrictedTitle": "Zugriff eingeschränkt",
-    "accessRestrictedDescription": "Du hast keine Berechtigung, Dokumente in dieser Initiative anzusehen. Wende dich an einen Administrator, wenn du glaubst, dass dies ein Fehler ist.",
+    "accessRestrictedDescription": "Du hast keine Berechtigung, Dokumente in dieser Initiative anzusehen. Wende dich an die Community-Administration oder an einen Initiativenmanager, wenn du glaubst, dass dies ein Fehler ist.",
     "loading": "Dokumente werden geladen…",
     "loadError": "Dokumente können derzeit nicht geladen werden.",
     "noMatchingTags": "Keine Dokumente entsprechen den ausgewählten Tags.",

@@ -9,10 +9,10 @@
 
 import { useTranslation } from "react-i18next";
 
-import { NotificationDeliverySection } from "@/components/admin/NotificationDeliverySection";
-import { SecondFactorMethodSection } from "@/components/admin/SecondFactorMethodSection";
-import { SecondFactorRequirementSection } from "@/components/admin/SecondFactorRequirementSection";
-import { SessionLifetimeSection } from "@/components/admin/SessionLifetimeSection";
+import { NotificationDeliverySection } from "@/components/platform/NotificationDeliverySection";
+import { SecondFactorMethodSection } from "@/components/platform/SecondFactorMethodSection";
+import { SecondFactorRequirementSection } from "@/components/platform/SecondFactorRequirementSection";
+import { SessionLifetimeSection } from "@/components/platform/SessionLifetimeSection";
 import { useAuth } from "@/hooks/useAuth";
 import { Capability, hasCapability } from "@/lib/permissions";
 
@@ -21,7 +21,7 @@ export const SettingsPlatformSecurityPage = () => {
   const { user } = useAuth();
 
   if (!hasCapability(user, Capability.configManage)) {
-    return <p className="text-muted-foreground text-sm">{t("auth.adminOnly")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("auth.platformOnly")}</p>;
   }
 
   return (

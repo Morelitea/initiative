@@ -110,8 +110,8 @@
     "guidesBody": "Des guides pas à pas pour chaque outil.",
     "faqTitle": "FAQ",
     "faqBody": "Des réponses rapides aux questions les plus fréquentes.",
-    "adminTitle": "Pour les administrateurs",
-    "adminBody": "Installer, configurer et entretenir son propre serveur.",
+    "serverTitle": "Gérer un serveur",
+    "serverBody": "Installer, configurer et entretenir son propre serveur.",
     "securityTitle": "Sécurité et confidentialité",
     "securityBody": "Ce que « sécurisé » veut dire pour vous, et comment les affaires de votre groupe restent les vôtres."
   },

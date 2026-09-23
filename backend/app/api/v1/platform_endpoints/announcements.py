@@ -195,7 +195,7 @@ async def create_announcement(
     await announcements_service.prune_unreferenced_images(session)
     await session.commit()
     await session.refresh(announcement)
-    return announcements_service.to_admin_read(announcement)
+    return announcements_service.to_operator_read(announcement)
 
 
 @router.patch("/operator/{announcement_id}", response_model=AnnouncementOperatorRead)
@@ -212,7 +212,7 @@ async def update_announcement(
     await announcements_service.prune_unreferenced_images(session)
     await session.commit()
     await session.refresh(announcement)
-    return announcements_service.to_admin_read(announcement)
+    return announcements_service.to_operator_read(announcement)
 
 
 @router.delete("/operator/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)

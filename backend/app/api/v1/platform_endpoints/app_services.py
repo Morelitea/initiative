@@ -65,7 +65,7 @@ def _to_read(row: AppServiceRegistration) -> AppServiceRegistrationRead:
 @router.get("/", response_model=List[AppServiceRegistrationRead])
 async def list_app_services(
     session: SystemSessionDep,
-    _admin: AppsManageDep,
+    _owner: AppsManageDep,
 ) -> List[AppServiceRegistrationRead]:
     """Every app service this deployment has wired up (``apps.manage``)."""
     rows = await registrations_service.list_registrations(session)
@@ -80,7 +80,7 @@ async def list_app_services(
 async def create_app_service(
     payload: AppServiceRegistrationCreate,
     session: SystemSessionDep,
-    admin: AppsManageDep,
+    owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Register an app service, running the handshake on the way in.
 
@@ -99,7 +99,7 @@ async def create_app_service(
         delegation_jwks=payload.delegation_jwks,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _to_read(row)
 
@@ -108,7 +108,7 @@ async def create_app_service(
 async def read_app_service(
     registration_id: int,
     session: SystemSessionDep,
-    _admin: AppsManageDep,
+    _owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     row = await registrations_service.get_registration(session, registration_id)
     return _to_read(row)
@@ -119,7 +119,7 @@ async def update_app_service(
     registration_id: int,
     payload: AppServiceRegistrationUpdate,
     session: SystemSessionDep,
-    admin: AppsManageDep,
+    owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Enable/disable, rotate the secret, repoint either address, or change the
     powers conferred. Rotating the secret or repointing ``base_url`` clears the
@@ -135,7 +135,7 @@ async def update_app_service(
         delegation_jwks=payload.delegation_jwks,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _to_read(row)
 
@@ -144,11 +144,11 @@ async def update_app_service(
 async def delete_app_service(
     registration_id: int,
     session: SystemSessionDep,
-    admin: AppsManageDep,
+    owner: AppsManageDep,
 ) -> None:
     """Remove the registration. Every channel it backed stops with the row."""
     await registrations_service.delete_registration(
-        session, registration_id, actor_user_id=admin.id
+        session, registration_id, actor_user_id=owner.id
     )
 
 
@@ -156,7 +156,7 @@ async def delete_app_service(
 async def verify_app_service(
     registration_id: int,
     session: SystemSessionDep,
-    admin: AppsManageDep,
+    owner: AppsManageDep,
     payload: AppServiceVerifyRequest | None = None,
 ) -> AppServiceRegistrationRead:
     """Re-run the handshake and record the outcome on the row."""
@@ -164,6 +164,6 @@ async def verify_app_service(
         session,
         registration_id,
         accept_manifest_change=bool(payload and payload.accept_manifest_change),
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _to_read(row)

@@ -3026,7 +3026,7 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
 /**
  * List every guild with its storage cap, for the Operator dashboard Guilds tab.
  *
- * Admin/owner (``guilds.manage``). Reads only shared ``public`` tables. The
+ * Operator/owner (``guilds.manage``). Reads only shared ``public`` tables. The
  * guilds and their administration rows are read on the caller's platform
  * tier, under the ``guilds.manage`` policies on both; the caps join in a
  * single pass. Member counts and seats are totals read on the system engine
@@ -3176,7 +3176,7 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
 }
 
 /**
- * Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
+ * Set a guild's storage/member caps and/or lifecycle status. Operator/owner.
  *
  * Writes only shared ``public`` columns — the caps and the sign-in entitlement
  * on ``guild_administration``, the lifecycle ``status`` on ``guilds`` — so no
@@ -3296,7 +3296,7 @@ export const useUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = <
  * What this community says its own arrivals look like, and whether
  * anybody has agreed.
  *
- * Admin/owner (``guilds.manage``). The community writes these values itself
+ * Operator/owner (``guilds.manage``). The community writes these values itself
  * and nothing here can tell whether it holds the domain or tenant they name,
  * so the answer is the deployment's. Support answers through the case raised
  * when they are written; this is the same question where a deployment runs
@@ -3591,7 +3591,7 @@ export const useAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectio
 /**
  * Bring a deleted guild back before its retention window runs out.
  *
- * Admin/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+ * Operator/owner (``guilds.manage``). Deleting a guild keeps it — the shared
  * rows, the ``guild_<id>`` schema and the stored blobs all stay until
  * ``guild_purge`` destroys them — so restoring is a status write plus, where
  * the roster was emptied, seating somebody who can run the community again.
@@ -3599,8 +3599,8 @@ export const useAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectio
  * The operator names the status it returns at, and must name a seat when the
  * guild holds none. Both are re-checked in the service rather than trusted
  * from the payload. What does *not* come back is the guild's app
- * connections: those were revoked when it was deleted, and an admin
- * reconnects them.
+ * connections: those were revoked when it was deleted, and the community's
+ * superadmin reconnects them.
  *
  * Writes only shared ``public`` columns (``guilds.status`` and, for the seat,
  * ``guild_memberships``), so no guild-schema routing is needed.
@@ -3706,7 +3706,7 @@ export const useRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = <
 /**
  * Mint the operator handoff into the billing portal for one guild.
  *
- * Backs the Guilds tab's billing buttons. Admin/owner (``guilds.manage``).
+ * Backs the Guilds tab's billing buttons. Operator/owner (``guilds.manage``).
  * The token names the ``access_grants`` row that authorises the visit: a
  * live billing grant is reused, otherwise one is self-issued — after the
  * account's second factor, as breaking glass takes it — so the visit is

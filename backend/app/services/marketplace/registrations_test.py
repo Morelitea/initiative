@@ -122,7 +122,7 @@ def test_delegation_jwks_refuses_two_keys_sharing_a_kid():
 
 
 def test_delegation_jwks_refuses_a_private_key():
-    """The column is served in full to the admin surface, so it holds the half
+    """The column is served in full to the owner's settings, so it holds the half
     that is meant to be read."""
     from cryptography.hazmat.primitives.asymmetric import rsa
     from jwt.algorithms import RSAAlgorithm
@@ -526,7 +526,7 @@ async def test_reconcile_reads_the_browser_address_from_the_file(
     session, tmp_path, monkeypatch
 ):
     """A chart states both addresses, so the two-address case is wired with no
-    admin clicks — and adding one later is an update, not a re-verification."""
+    owner clicks — and adding one later is an update, not a re-verification."""
     monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
     entry = {
         "public_id": "acme.two-addresses",

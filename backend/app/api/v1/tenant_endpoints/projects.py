@@ -634,7 +634,7 @@ def _slim_project_reads(
                 pinned_at=project.pinned_at,
                 guild_id=context.guild_id,
                 **permissions_service.client_access(project, user_id, context=context),
-                can_configure=permissions_service.can_administer_project(
+                can_configure=permissions_service.can_configure_project(
                     project, context=context
                 ),
             )
@@ -818,7 +818,7 @@ def _build_project_payload(
             "tags": annotated_tags(project),
             "grants": permissions_service.serialize_grants(project),
             **permissions_service.client_access(project, user_id, context=context),
-            "can_configure": permissions_service.can_administer_project(
+            "can_configure": permissions_service.can_configure_project(
                 project, context=context
             ),
             "owner_id": ownership_service.owner_id_of(project),
@@ -1528,16 +1528,16 @@ async def update_project(
     pinned_value = update_data.pop("pinned", sentinel)
     view_mode_value = update_data.pop("default_view_mode", sentinel)
     if pinned_value is not sentinel or view_mode_value is not sentinel:
-        can_administer = permissions_service.can_administer_project(
+        can_configure = permissions_service.can_configure_project(
             project, context=guild_context
         )
-        if not can_administer:
+        if not can_configure:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
                     ProjectMessages.PIN_PERMISSION_REQUIRED
                     if view_mode_value is sentinel
-                    else ProjectMessages.ADMIN_REQUIRED
+                    else ProjectMessages.CONFIGURE_REQUIRED
                 ),
             )
     if pinned_value is not sentinel:

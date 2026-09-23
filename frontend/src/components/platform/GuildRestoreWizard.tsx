@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { usePlatformUsers } from "@/hooks/useAdmin";
+import { usePlatformUsers } from "@/hooks/useOperatorUsers";
 import { useRestoreGuild } from "@/hooks/useSettings";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
