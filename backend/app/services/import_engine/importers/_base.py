@@ -30,6 +30,7 @@ from app.services.import_engine.contract import ImportEngineError
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.schemas.tenant.backup_export import ManifestPerson
+    from app.services.import_engine.people import PeopleMap
 
 
 class QuotesNobody:
@@ -45,6 +46,27 @@ class QuotesNobody:
 
     def people(self, validated: BaseModel) -> list["ManifestPerson"]:
         return []
+
+
+class NamesPeopleInItsProperties:
+    """An envelope that names people only through user-type property values.
+
+    A document's properties and a calendar event's can say who somebody is —
+    an owner, a reviewer — and that value is placed through the people step's
+    answer like an assignee is. So these envelopes are a question whenever
+    they carry one: the wizard asks, rather than the value landing on
+    whoever happens to share the name, or on nobody.
+    """
+
+    def people(self, validated: BaseModel) -> list["ManifestPerson"]:
+        from app.schemas.tenant.backup_export import ManifestPerson
+        from app.services.import_engine.people import user_reference_handles
+
+        handles = user_reference_handles(validated.model_dump(mode="json"))
+        return [
+            ManifestPerson(handle=handle, name=None, comment_count=0)
+            for handle in sorted(handles, key=str.lower)
+        ]
 
 
 def parse_envelope(model: Type[BaseModel], envelope: dict[str, Any]) -> BaseModel:
@@ -117,6 +139,7 @@ async def resolve_property_values(
     initiative_id: int,
     values: list[EnvelopePropertyValue],
     member_handles: dict[str, int],
+    people: "PeopleMap | None" = None,
 ) -> AttachedProperties:
     """Resolve flat by-name property values against the target initiative's
     definitions: match by (name, type); a missing definition is recreated
@@ -153,7 +176,7 @@ async def resolve_property_values(
             attached.created += 1
         else:
             attached.matched += 1
-        column_kwargs = decode_property_value(pv, member_handles)
+        column_kwargs = decode_property_value(pv, member_handles, people=people)
         if column_kwargs is None:
             continue
         attached.column_kwargs_by_id[definition.id] = column_kwargs  # ty: ignore[invalid-assignment] — persisted row, id is set

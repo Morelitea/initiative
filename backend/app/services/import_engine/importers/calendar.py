@@ -44,7 +44,7 @@ from app.services.import_engine.common import (
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInItsProperties,
     grant_ownership,
     parse_envelope,
     resolve_property_values,
@@ -52,7 +52,7 @@ from app.services.import_engine.importers._base import (
 from app.services.tenant import tags as tags_service
 
 
-class CalendarImporter(QuotesNobody):
+class CalendarImporter(NamesPeopleInItsProperties):
     envelope_type = "initiative-calendar"
     permission = PermissionKey.create_calendars
 
@@ -248,6 +248,7 @@ class CalendarImporter(QuotesNobody):
             initiative_id=initiative_id,
             values=item.properties,
             member_handles=member_handles,
+            people=context.people if context is not None else None,
         )
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(

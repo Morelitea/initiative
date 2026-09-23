@@ -2017,6 +2017,90 @@ async def test_the_people_step_decides_who_an_imported_task_is_assigned_to(
     assert [row.user_id for row in assignees] == [a.user.id]
 
 
+async def test_a_user_property_is_placed_by_the_people_step(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A user-type property — a Reporter — names a person the way an assignee
+    does, so it is asked about the same way, and the answer is what lands."""
+    from sqlmodel import select
+
+    from app.models.tenant.property import TaskPropertyValue
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["comments"] = []
+    envelope["property_definitions"] = [
+        {"name": "Reporter", "type": "user_reference", "position": 0}
+    ]
+    envelope["tasks"][0]["property_values"] = [
+        {
+            "property_name": "Reporter",
+            "property_type": "user_reference",
+            "value_handle": "Robin",
+        }
+    ]
+
+    job = (await _import_envelope(client, a, envelope, a.initiative.id)).json()
+    assert job["status"] == "staged", job
+    assert [p["handle"] for p in job["plan"]["people"]] == ["Robin"]
+
+    await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin": a.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert done["status"] == "done", done.get("error")
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
+    values = (
+        await session.exec(
+            select(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
+        )
+    ).all()
+    assert [v.value_user_id for v in values] == [a.user.id]
+
+
+async def test_a_document_naming_somebody_in_a_property_asks_first(
+    client, acting_user, session
+):
+    """Documents used to be an envelope that names nobody. A user-type
+    property on one names somebody, so it stops to ask."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = {
+        "type": "initiative-document",
+        "schema_version": 1,
+        "document_type": "smart_link",
+        "name": "Spec",
+        "content": {"url": "https://example.com"},
+        "tags": [],
+        "properties": [
+            {
+                "property_name": "Owner",
+                "property_type": "user_reference",
+                "value_handle": "Robin",
+            }
+        ],
+    }
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == "staged"
+    assert job["plan"]["people"] == [
+        {
+            "handle": "Robin",
+            "name": None,
+            "comment_count": 0,
+            "suggested_user_id": None,
+        }
+    ]
+
+
 async def test_an_envelope_whose_people_all_match_is_not_a_second_step(
     client, acting_user, session
 ):

@@ -517,7 +517,7 @@ async def _apply_entry(
         return EntryResult(**base, status="skipped")
     if entry.type == "file":
         outcome = await _apply_file_entry(
-            session, entry, initiative, user, assets_by_key, base
+            session, entry, initiative, user, assets_by_key, base, context=context
         )
         _record_entry(context, entry, outcome)
         return outcome
@@ -771,6 +771,8 @@ async def _apply_file_entry(
     user: User,
     assets_by_key: dict[str, Any],
     base: dict,
+    *,
+    context: ImportContext | None = None,
 ) -> EntryResult:
     """A file document: its content is the restored ``assets/`` blob."""
     from app.models.tenant.document import Document, DocumentType
@@ -850,6 +852,7 @@ async def _apply_file_entry(
                     initiative_id=initiative.id,
                     values=values,
                     member_handles=member_handles,
+                    people=context.people if context is not None else None,
                 )
                 for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
                     session.add(
