@@ -1,0 +1,8 @@
+<h2>Date</h2><p><time datetime="2026-09-15" /></p><h2>Demo</h2><p>Jira sprints now import. <ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="6fcd669f-002b-4601-960b-1fe137a3e12d"><ac:parameter ac:name="key">SCRUM-2</ac:parameter><ac:parameter ac:name="serverId">4d0cadc2-fd4d-33ec-a7b0-dbc6d72e059e</ac:parameter><ac:parameter ac:name="server">System Jira</ac:parameter></ac:structured-macro></p><h2>Action items</h2><ac:task-list ac:task-list-id="ad4a7a474d36">
+<ac:task>
+<ac:task-id>1</ac:task-id>
+<ac:task-uuid>770cec580963</ac:task-uuid>
+<ac:task-status>incomplete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Test the Confluence import against IMPTEST</span></ac:task-body>
+</ac:task>
+</ac:task-list><p>Previous: <ac:link><ri:page ri:space-key="IMPTEST" ri:content-title="Meeting Notes" ri:version-at-save="1" /><ac:link-body>Meeting Notes index</ac:link-body></ac:link></p>

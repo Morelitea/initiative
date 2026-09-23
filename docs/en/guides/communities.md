@@ -160,7 +160,7 @@ Jira and Confluence have no file to drop in. Pick **Jira & Confluence** in the s
 
 Each **Jira project** becomes a new project here: its columns, fields, links between issues, sub-tasks under their parents, and each sprint as an event on a calendar named after its board. Sprints need calendars, so an initiative without them gets everything except the sprints, and the review says so first.
 
-Each **Confluence space** becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank. Links from one page to another point at the imported page, and status lozenges come across as statuses in their own colours.
+Each **Confluence space** becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank. Links from one page to another point at the imported page. Panels become [callouts](documents.md#writing-a-text-document), status lozenges statuses in their own colours, a decision log a checklist ticked where it was decided, and a Mermaid code block a drawn diagram.
 
 Bring a project and its space over together and they arrive joined up, whichever way they pointed:
 

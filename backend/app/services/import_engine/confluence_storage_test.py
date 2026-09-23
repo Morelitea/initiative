@@ -12,6 +12,7 @@ from app.services.import_engine.confluence_storage import (
     CODE,
     ITALIC,
     PageTarget,
+    StorageResult,
     storage_to_lexical,
 )
 
@@ -331,13 +332,23 @@ def test_a_layout_becomes_the_editors_columns():
     assert full["type"] == "paragraph" and texts(full) == "full"
 
 
-def test_an_adf_extension_falls_back_to_its_rendering():
+def test_an_adf_extension_it_does_not_know_falls_back_to_its_rendering():
     out = blocks(
-        '<ac:adf-extension><ac:adf-node type="panel"><ac:adf-content><p>new</p>'
-        "</ac:adf-content></ac:adf-node><ac:adf-fallback><p>fallback</p>"
-        "</ac:adf-fallback></ac:adf-extension>"
+        '<ac:adf-extension><ac:adf-node type="something-new">'
+        '<ac:adf-attribute key="setting">not words</ac:adf-attribute>'
+        "<ac:adf-content><p>new</p></ac:adf-content></ac:adf-node><ac:adf-fallback>"
+        "<p>fallback</p></ac:adf-fallback></ac:adf-extension>"
     )
     assert [texts(b) for b in out] == ["fallback"]
+
+
+def test_an_adf_extension_with_no_fallback_keeps_its_words_not_its_settings():
+    out = blocks(
+        '<ac:adf-extension><ac:adf-node type="something-new">'
+        '<ac:adf-attribute key="setting">not words</ac:adf-attribute>'
+        "<ac:adf-content><p>kept</p></ac:adf-content></ac:adf-node></ac:adf-extension>"
+    )
+    assert [texts(b) for b in out] == ["kept"]
 
 
 # --- links, people, pictures ---------------------------------------------------
@@ -493,6 +504,7 @@ _BLOCK = {
     "horizontalrule",
     "layout-container",
     "callout",
+    "youtube",
 }
 _CHILDREN: dict[str, set[str]] = {
     "root": _BLOCK,
@@ -575,3 +587,128 @@ def test_everything_above_together_is_a_state_the_editor_can_load():
         image=lambda name: f"/uploads/1/{name}",
     )
     assert_loadable(result.content["root"])
+
+
+# --- what the real pages turned up -------------------------------------------------
+
+
+def real(stem: str) -> StorageResult:
+    (path,) = FIXTURES.glob(f"{stem}-*.xml")
+    return storage_to_lexical(
+        path.read_text(encoding="utf-8"),
+        page=lambda title, space: PageTarget(slug=title.lower().replace(" ", "-")),
+        user=lambda account: "Somebody",
+        image=lambda name: f"/uploads/1/{name}",
+        attachment=lambda name: f"/documents/{name}",
+        site_url="https://morels.atlassian.net",
+        children=lambda: {"type": "list", "listType": "bullet", "children": []},
+    )
+
+
+def outline(result: StorageResult) -> list[tuple[str, str]]:
+    return [
+        (block["type"], texts(block)) for block in result.content["root"]["children"]
+    ]
+
+
+@pytest.mark.skipif(not FIXTURES.exists(), reason="no pages captured")
+def test_a_new_editor_panel_is_a_callout_of_its_kind():
+    result = real("26247169")
+    callouts = [b for b in result.content["root"]["children"] if b["type"] == "callout"]
+    assert ("note", "A note panel.") in [(c["variant"], texts(c)) for c in callouts]
+
+
+@pytest.mark.skipif(not FIXTURES.exists(), reason="no pages captured")
+def test_a_decision_log_is_a_checklist_ticked_where_decided():
+    result = real("26279956")
+    decisions = [
+        b
+        for b in result.content["root"]["children"]
+        if b["type"] == "list" and "prod read access" in texts(b)
+    ]
+    (listed,) = decisions
+    assert listed["listType"] == "check"
+    assert [item["checked"] for item in listed["children"]] == [True, False]
+
+
+@pytest.mark.skipif(not FIXTURES.exists(), reason="no pages captured")
+def test_tabs_are_a_heading_over_each_body_and_carry_no_settings():
+    result = real("26509330")
+    pairs = outline(result)
+    assert ("heading", "macOS") in pairs and ("heading", "Linux") in pairs
+    assert ("paragraph", "brew install thing") in pairs
+    assert not any("native-tabs" in text for _type, text in pairs)
+
+
+@pytest.mark.skipif(not FIXTURES.exists(), reason="no pages captured")
+def test_an_embedded_video_is_the_editors_embed_and_mermaid_stays_mermaid():
+    result = real("26509330")
+    roots = result.content["root"]["children"]
+    (video,) = [b for b in roots if b["type"] == "youtube"]
+    assert video["videoID"] == "dQw4w9WgXcQ"
+    (mermaid,) = [b for b in roots if b["type"] == "code" and "flowchart" in texts(b)]
+    assert mermaid["language"] == "mermaid"
+
+
+@pytest.mark.skipif(not FIXTURES.exists(), reason="no pages captured")
+def test_an_included_page_is_a_link_to_it():
+    result = real("26509330")
+    mentions = [
+        node
+        for block in result.content["root"]["children"]
+        for node in block.get("children") or []
+        if node.get("type") == "entity-mention"
+    ]
+    assert "Database Design" in [m["text"] for m in mentions]
+    assert "include" not in result.dropped
+
+
+@pytest.mark.skipif(not FIXTURES.exists(), reason="no pages captured")
+def test_the_children_macro_is_the_list_of_pages_beneath():
+    result = real("26116204")
+    assert "children" not in result.dropped
+    assert any(b["type"] == "list" for b in result.content["root"]["children"])
+
+
+@pytest.mark.skipif(not FIXTURES.exists(), reason="no pages captured")
+def test_an_emoticon_stored_by_name_is_its_glyph():
+    result = real("26476563")
+    line = [t for kind, t in outline(result) if t.startswith("Emoji nodes")][0]
+    assert ":warning:" not in line and "\u26a0" in line
+
+
+@pytest.mark.skipif(not FIXTURES.exists(), reason="no pages captured")
+def test_file_cards_and_captions_on_the_attachments_page():
+    result = real("26378256")
+    assert "view-file" not in result.dropped and "viewpdf" not in result.dropped
+    assert {"design-spec.pdf", "roadmap-export.csv"} <= set(result.attachments)
+    captioned = [
+        block
+        for block in result.content["root"]["children"]
+        if any(n.get("type") == "image" for n in block.get("children") or [])
+        and "Architecture diagram (a blue rectangle)" in texts(block)
+    ]
+    assert captioned, "the caption reads under its picture"
+
+
+def test_a_jira_issue_list_is_a_link_to_the_same_search():
+    (p,) = blocks(
+        '<p><ac:structured-macro ac:name="jira">'
+        '<ac:parameter ac:name="jqlQuery">project = SCRUM AND status = Done</ac:parameter>'
+        "</ac:structured-macro></p>",
+        site_url="https://acme.atlassian.net",
+    )
+    (link,) = p["children"]
+    assert link["type"] == "link"
+    assert link["url"] == (
+        "https://acme.atlassian.net/issues/?jql=project%20%3D%20SCRUM%20AND%20status%20%3D%20Done"
+    )
+
+
+def test_an_emoticon_is_its_glyph_however_it_was_stored():
+    (p,) = blocks(
+        '<p><ac:emoticon ac:name="tada" ac:emoji-id="1f389" ac:emoji-fallback=":tada:"/>'
+        '<ac:emoticon ac:name="warning" ac:emoji-id="atlassian-warning" '
+        'ac:emoji-fallback=":warning:"/><ac:emoticon ac:name="thumbs-up"/></p>'
+    )
+    assert texts(p) == "\U0001f389⚠️\U0001f44d"

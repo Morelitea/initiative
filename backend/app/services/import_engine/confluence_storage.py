@@ -25,7 +25,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Any, Callable, Optional, Union
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 # --- Lexical text format bits, as the editor defines them ---------------------
 
@@ -168,6 +168,52 @@ _STATUS_COLOURS: dict[str, str] = {
     "purple": "purple",
 }
 
+#: Confluence's own emoticons, for the ones it stores by name alone.
+_EMOTICONS: dict[str, str] = {
+    "smile": "\U0001f642",
+    "sad": "\U0001f641",
+    "cheeky": "\U0001f61b",
+    "laugh": "\U0001f604",
+    "wink": "\U0001f609",
+    "thumbs-up": "\U0001f44d",
+    "thumbs-down": "\U0001f44e",
+    "information": "\u2139\ufe0f",
+    "tick": "\u2705",
+    "cross": "\u274c",
+    "warning": "\u26a0\ufe0f",
+    "plus": "\u2795",
+    "minus": "\u2796",
+    "question": "\u2753",
+    "light-on": "\U0001f4a1",
+    "light-off": "\U0001f4a1",
+    "yellow-star": "\u2b50",
+    "red-star": "\u2b50",
+    "green-star": "\u2b50",
+    "blue-star": "\u2b50",
+    "heart": "\u2764\ufe0f",
+    "broken-heart": "\U0001f494",
+}
+
+#: Macros that show one attached file.
+_FILE_MACROS = frozenset({"view-file", "viewpdf", "view-doc", "view-ppt", "view-xls"})
+
+#: The newer editor's panel types, as callout kinds.
+_ADF_PANELS: dict[str, str] = {
+    "info": "info",
+    "note": "note",
+    "tip": "tip",
+    "success": "success",
+    "warning": "warning",
+    "error": "error",
+    "custom": "note",
+}
+
+#: A YouTube video's id, from any of the addresses YouTube hands out.
+_YOUTUBE = re.compile(
+    r"^https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/)|youtu\.be/)"
+    r"([A-Za-z0-9_-]{11})"
+)
+
 #: A Jira issue key, as it appears in a link to the issue.
 _JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
 
@@ -198,6 +244,8 @@ PageResolver = Callable[[str, Optional[str]], Optional[PageTarget]]
 UserResolver = Callable[[str], Optional[str]]
 #: ``filename`` → the URL it is served from here, or ``None``.
 FileResolver = Callable[[str], Optional[str]]
+#: The block listing the pages beneath this one, or ``None`` when it has none.
+ChildrenResolver = Callable[[], Optional[dict[str, Any]]]
 
 
 @dataclass
@@ -398,7 +446,9 @@ class _Walker:
         image: Optional[FileResolver],
         attachment: Optional[FileResolver],
         site_url: Optional[str],
+        children: Optional[ChildrenResolver] = None,
     ) -> None:
+        self.children = children
         self.page = page
         self.user = user
         self.image = image
@@ -447,6 +497,8 @@ class _Walker:
             return True
         if element.tag == "ac:structured-macro":
             return element.attr("ac:name") not in _INLINE_MACROS
+        if element.tag == "a" and element.attr("data-card-appearance") == "embed":
+            return _YOUTUBE.match(element.attr("href")) is not None
         return False
 
     def block(self, element: _Element, *, fmt: int = 0) -> list[dict]:
@@ -483,12 +535,101 @@ class _Walker:
         if tag == "ac:structured-macro":
             return self.macro(element)
         if tag == "ac:adf-extension":
-            # A node the newer editor stores natively, carried with a
-            # fallback rendering for readers that do not know it.
-            fallback = element.first("ac:adf-fallback")
-            return self.blocks((fallback or element).children, fmt=fmt)
+            return self.adf_extension(element, fmt=fmt)
+        if tag == "a":
+            # A video Confluence embeds, as the editor's own embed.
+            match = _YOUTUBE.match(element.attr("href"))
+            if match:
+                return [
+                    {
+                        "type": "youtube",
+                        "version": 1,
+                        "format": "",
+                        "videoID": match.group(1),
+                    }
+                ]
         # div, section, a layout cell met out of place: its content counts.
         return self.blocks(element.children, fmt=fmt)
+
+    def file_card(self, macro: _Element, *, in_link: bool) -> Optional[list[dict]]:
+        """A file Confluence shows as a card or a viewer: a link to where the
+        file went, or its name. Counted among the page's attachments rather
+        than as a loss. ``None`` for a macro that is not one."""
+        if macro.attr("ac:name") not in _FILE_MACROS:
+            return None
+        attachment = next(
+            (e for e in _descendants(macro) if e.tag == "ri:attachment"), None
+        )
+        filename = attachment.attr("ri:filename") if attachment is not None else ""
+        if not filename:
+            return None
+        self.note_attachment(filename)
+        url = self.attachment(filename) if self.attachment else None
+        words = [_text(filename)]
+        return self.link(url, words, in_link) if url else words
+
+    def adf_extension(self, element: _Element, *, fmt: int) -> list[dict]:
+        """A node the newer editor stores natively, carried with a fallback
+        rendering for readers that do not know it.
+
+        The ones worth reading natively are: a panel, which is a callout; a
+        decision log, which is a checklist ticked where decided; and tabs,
+        each a heading over its body. Anything else takes its fallback, or
+        failing that its content — never its attributes, which are settings
+        and not words.
+        """
+        node = element.first("ac:adf-node")
+        kind = node.attr("type") if node is not None else ""
+        attrs = _adf_attributes(node) if node is not None else {}
+        content = node.first("ac:adf-content") if node is not None else None
+        if node is not None and kind == "panel":
+            body = self.blocks(content.children, fmt=fmt) if content else []
+            return [
+                _element(
+                    "callout",
+                    [b for b in body if b.get("type") != "layout-container"]
+                    or [_paragraph([])],
+                    variant=_ADF_PANELS.get(attrs.get("panel-type", ""), "note"),
+                )
+            ]
+        if node is not None and kind == "decision-list":
+            items = [
+                child
+                for child in node.elements()
+                if child.tag == "ac:adf-node" and child.attr("type") == "decision-item"
+            ]
+            listed: list[dict] = []
+            for index, item in enumerate(items, start=1):
+                body = item.first("ac:adf-content")
+                listed.extend(
+                    self.list_items(
+                        body.children if body else [],
+                        [],
+                        index,
+                        checked=_adf_attributes(item).get("state") == "DECIDED",
+                    )
+                )
+            return [self.list_wrapper("check", listed)] if listed else []
+        if (
+            node is not None
+            and kind == "multi-bodied-extension"
+            and content is not None
+        ):
+            titles = _adf_tab_titles(node)
+            out: list[dict] = []
+            frames = [
+                f for f in content.elements() if f.tag == "ac:adf-extension-frame"
+            ]
+            for index, frame in enumerate(frames):
+                title = titles[index] if index < len(titles) else ""
+                if title:
+                    out.append(_element("heading", [_text(title)], tag="h3"))
+                out.extend(self.blocks(frame.children, fmt=fmt))
+            return out
+        fallback = element.first("ac:adf-fallback")
+        if fallback is not None:
+            return self.blocks(fallback.children, fmt=fmt)
+        return self.blocks(content.children, fmt=fmt) if content is not None else []
 
     def list_node(self, element: _Element, list_type: str) -> Optional[dict]:
         items: list[dict] = []
@@ -743,6 +884,21 @@ class _Walker:
             title = params.get("title", "")
             heading = [_element("heading", [_text(title)], tag="h3")] if title else []
             return heading + body
+        if name == "children":
+            # The list of the pages beneath this one, which is what the macro
+            # draws — when the page has any here.
+            listed = self.children() if self.children else None
+            if listed is not None:
+                return [listed]
+        if name in ("include", "excerpt-include"):
+            # Another page's words, drawn in: kept as a link to that page.
+            link = next((e for e in _descendants(macro) if e.tag == "ac:link"), None)
+            line = self.ac_link(link, fmt=0, in_link=False) if link is not None else []
+            if line:
+                return [_paragraph(line)]
+        card = self.file_card(macro, in_link=False)
+        if card is not None:
+            return [_paragraph(card)]
         if name in _GENERATED_MACROS or name in _EMBED_MACROS:
             self.drop(name)
             return []
@@ -790,10 +946,8 @@ class _Walker:
         if tag in ("ac:image", "img"):
             return self.image_node(element)
         if tag == "ac:emoticon":
-            fallback = element.attr("ac:emoji-fallback") or (
-                f":{element.attr('ac:name')}:" if element.attr("ac:name") else ""
-            )
-            return [_text(fallback, fmt)] if fallback else []
+            glyph = _emoticon(element)
+            return [_text(glyph, fmt)] if glyph else []
         if tag == "time":
             stamp = element.attr("datetime") or _text_of(element).strip()
             return [_text(stamp, fmt)] if stamp else []
@@ -939,9 +1093,17 @@ class _Walker:
                 src = self.image(filename) if (self.image and filename) else None
             elif remote is not None:
                 src = _safe_url(remote.attr("ri:value"))
+        caption_element = element.first("ac:caption")
+        caption = (
+            _WHITESPACE.sub(" ", _text_of(caption_element)).strip()
+            if caption_element
+            else ""
+        )
         if not src:
             self.drop("image")
             return [_text(f"[{alt}]")] if alt else []
+        # A caption reads under its picture, in italics.
+        after = [_linebreak(), _text(caption, ITALIC)] if caption else []
         return [
             {
                 "type": "image",
@@ -954,7 +1116,8 @@ class _Walker:
                 ),
                 "maxWidth": 800,
                 "showCaption": False,
-            }
+            },
+            *after,
         ]
 
     def inline_macro(self, macro: _Element, *, fmt: int, in_link: bool) -> list[dict]:
@@ -976,6 +1139,15 @@ class _Walker:
             ]
         if name == "jira":
             key = params.get("key", "").strip()
+            query = params.get("jqlQuery", "").strip()
+            if not key and query and self.site_url:
+                # A list of issues, drawn live in Confluence: kept as a link
+                # to the same search.
+                return self.link(
+                    f"{self.site_url}/issues/?jql={quote(query)}",
+                    [_text(query, fmt)],
+                    in_link,
+                )
             if not key:
                 self.drop("jira")
                 return []
@@ -1011,11 +1183,57 @@ class _Walker:
             ]
         if name == "anchor":
             return []
+        card = self.file_card(macro, in_link=in_link)
+        if card is not None:
+            return card
         rich = macro.first("ac:rich-text-body")
         if rich is not None:
             return self.inline(rich.children, fmt=fmt, in_link=in_link)
         self.drop(name or "macro")
         return []
+
+
+def _descendants(element: _Element):
+    for child in element.elements():
+        yield child
+        yield from _descendants(child)
+
+
+def _adf_attributes(node: _Element) -> dict[str, str]:
+    return {
+        child.attr("key"): _text_of(child).strip()
+        for child in node.elements()
+        if child.tag == "ac:adf-attribute" and child.attr("key")
+    }
+
+
+def _adf_tab_titles(node: _Element) -> list[str]:
+    """The tabs' titles, in order, from a tabs node's parameters."""
+    titles: list[str] = []
+    for value in _descendants(node):
+        if value.tag != "ac:adf-parameter-value":
+            continue
+        for parameter in value.elements():
+            if parameter.tag == "ac:adf-parameter" and parameter.attr("key") == "title":
+                titles.append(_text_of(parameter).strip())
+    return titles
+
+
+def _emoticon(element: _Element) -> str:
+    """An emoticon's glyph: the one Confluence stored with it, else the
+    character its id names, else Confluence's own for its name."""
+    fallback = element.attr("ac:emoji-fallback")
+    if fallback and not (fallback.startswith(":") and fallback.endswith(":")):
+        return fallback
+    emoji_id = element.attr("ac:emoji-id")
+    try:
+        glyph = "".join(chr(int(part, 16)) for part in emoji_id.split("-") if part)
+    except ValueError:
+        glyph = ""
+    if glyph:
+        return glyph
+    name = element.attr("ac:name")
+    return _EMOTICONS.get(name, fallback or (f":{name}:" if name else ""))
 
 
 def _span(raw: str) -> int:
@@ -1030,6 +1248,7 @@ def storage_to_lexical(
     image: Optional[FileResolver] = None,
     attachment: Optional[FileResolver] = None,
     site_url: Optional[str] = None,
+    children: Optional[ChildrenResolver] = None,
 ) -> StorageResult:
     """Convert one page body.
 
@@ -1045,10 +1264,15 @@ def storage_to_lexical(
     that page did not arrive.
     """
     walker = _Walker(
-        page=page, user=user, image=image, attachment=attachment, site_url=site_url
+        page=page,
+        user=user,
+        image=image,
+        attachment=attachment,
+        site_url=site_url,
+        children=children,
     )
     tree = _parse(xhtml if isinstance(xhtml, str) else "")
-    children = walker.blocks(tree.children)
+    body = walker.blocks(tree.children)
     walker.result.content = {
         "root": {
             "type": "root",
@@ -1056,7 +1280,7 @@ def storage_to_lexical(
             "direction": "ltr",
             "format": "",
             "indent": 0,
-            "children": children or [_paragraph([])],
+            "children": body or [_paragraph([])],
         }
     }
     return walker.result
