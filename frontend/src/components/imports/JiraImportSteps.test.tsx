@@ -213,6 +213,8 @@ describe("JiraReviewSummary", () => {
             },
           }) as never
         }
+        excluded={new Set()}
+        onExcludedChange={() => {}}
       />
     );
 
@@ -228,5 +230,42 @@ describe("JiraReviewSummary", () => {
     expect(screen.getByText(/1 comment only some people/i)).toBeInTheDocument();
     expect(screen.getByText(/4 sprints:/i)).toBeInTheDocument();
     expect(screen.getByText(/Watchers too/)).toBeInTheDocument();
+  });
+
+  it("lets a property be unticked, and ticked again", async () => {
+    const onExcludedChange = vi.fn();
+    const staged = job({
+      status: "staged",
+      plan: {
+        atlassian: {
+          tasks: 3,
+          projects: 1,
+          properties: [
+            { name: "Story points", type: "number", issue_count: 3 },
+            { name: "Team", type: "select", issue_count: 1 },
+          ],
+        },
+      },
+    }) as never;
+
+    const { rerender } = renderWithProviders(
+      <JiraReviewSummary job={staged} excluded={new Set()} onExcludedChange={onExcludedChange} />
+    );
+    const storyPoints = screen.getByRole("checkbox", { name: /story points/i });
+    expect(storyPoints).toBeChecked();
+    await userEvent.click(storyPoints);
+    expect([...onExcludedChange.mock.calls[0][0]]).toEqual(["Story points"]);
+
+    rerender(
+      <JiraReviewSummary
+        job={staged}
+        excluded={new Set(["Story points"])}
+        onExcludedChange={onExcludedChange}
+      />
+    );
+    const unticked = screen.getByRole("checkbox", { name: /story points/i });
+    expect(unticked).not.toBeChecked();
+    await userEvent.click(unticked);
+    expect([...onExcludedChange.mock.calls[1][0]]).toEqual([]);
   });
 });

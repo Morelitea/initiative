@@ -350,6 +350,7 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
                 payload=payload,
                 include=(job.params or {}).get("include"),
                 people_map=(job.params or {}).get("people_map"),
+                exclude_properties=(job.params or {}).get("exclude_properties"),
             )
         return backup_result.model_dump(mode="json")
 
@@ -379,6 +380,7 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
             target_initiative=initiative,
             user=user,
             people_map=(job.params or {}).get("people_map"),
+            exclude_properties=(job.params or {}).get("exclude_properties"),
         )
         await user_session.commit()
     return result.model_dump(mode="json")

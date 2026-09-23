@@ -193,4 +193,39 @@ describe("ImportWizard", () => {
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
     expect(await screen.findByText(/9 tasks from 1 project/i)).toBeInTheDocument();
   });
+
+  it("sends the properties unticked on the review with the confirm", async () => {
+    localStorage.setItem("imports:jira-job:1", "77");
+    let confirmBody: Record<string, unknown> | null = null;
+    const staged = {
+      ...STAGED_JOB,
+      id: 77,
+      source: "atlassian",
+      plan: {
+        atlassian: {
+          projects: 1,
+          tasks: 9,
+          properties: [
+            { name: "Priority", type: "select", issue_count: 9 },
+            { name: "Jira key", type: "text", issue_count: 9 },
+          ],
+        },
+        people: [],
+      },
+    };
+    server.use(
+      guildHttp.get("/imports/jobs/:jobId", () => HttpResponse.json(staged)),
+      guildHttp.post("/imports/jobs/:jobId/confirm", async ({ request }) => {
+        confirmBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...staged, status: "queued" });
+      })
+    );
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: /priority/i }));
+    await userEvent.click(screen.getByRole("button", { name: /start import/i }));
+
+    await waitFor(() => expect(confirmBody).not.toBeNull());
+    expect(confirmBody).toEqual({ exclude_properties: ["Priority"] });
+  });
 });

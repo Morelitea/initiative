@@ -1168,7 +1168,9 @@ export const useUploadBackupApiV1GGuildIdImportsBackupPost = <
  * Optional body ``{"include": {tool: bool}}`` narrows which tools apply
  * (backup only; omitted tools default to included), and ``{"people_map":
  * {handle: user id}}`` says who each name the archive quotes is here — the
- * answers to the wizard's people step. Both are recorded on the job and read
+ * answers to the wizard's people step. ``{"exclude_properties": [name]}``
+ * names properties unticked on the review, which are then not created, and
+ * whose values are left out with them. All are recorded on the job and read
  * at apply time; the mapping is re-checked against real membership there,
  * because this confirm may be hours old by then.
  *

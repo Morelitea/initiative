@@ -418,9 +418,18 @@ export function JiraFetchingStep({ jobId, onStaged, onStopped }: JiraFetchingSte
 // Review
 // ---------------------------------------------------------------------------
 
+export interface JiraReviewSummaryProps {
+  job: ImportJobRead;
+  /** Property names unticked so far. */
+  excluded: Set<string>;
+  onExcludedChange: (next: Set<string>) => void;
+}
+
 /** What the fetch found, before anything is written: what will arrive, and —
- * said as plainly — what will not. */
-export function JiraReviewSummary({ job }: { job: ImportJobRead }) {
+ * said as plainly — what will not. Each property the import would add to the
+ * initiative can be unticked here; an unticked one is not created, and no
+ * task carries its values. */
+export function JiraReviewSummary({ job, excluded, onExcludedChange }: JiraReviewSummaryProps) {
   const { t } = useTranslation("imports");
   const summary = atlassianSummary(job);
   const properties = summary.properties ?? [];
@@ -495,15 +504,34 @@ export function JiraReviewSummary({ job }: { job: ImportJobRead }) {
       {properties.length > 0 && (
         <div className="space-y-1">
           <p className="font-medium text-sm">{t("wizard.jira.review.propertiesTitle")}</p>
-          <ul className="max-h-40 space-y-0.5 overflow-y-auto rounded-lg border p-2 text-xs">
-            {properties.map((property) => (
-              <li key={property.name} className="flex justify-between gap-2">
-                <span>{property.name}</span>
-                <span className="text-muted-foreground">
-                  {t("wizard.jira.review.propertyCount", { count: property.issue_count })}
-                </span>
-              </li>
-            ))}
+          <p className="text-muted-foreground text-xs">{t("wizard.jira.review.propertiesHint")}</p>
+          <ul className="max-h-48 space-y-0.5 overflow-y-auto rounded-lg border p-2 text-xs">
+            {properties.map((property) => {
+              const id = `jira-property-${property.name}`;
+              return (
+                <li key={property.name} className="flex items-center gap-2 rounded px-1 py-1">
+                  <Checkbox
+                    id={id}
+                    checked={!excluded.has(property.name)}
+                    onCheckedChange={(checked) => {
+                      const next = new Set(excluded);
+                      if (checked === true) {
+                        next.delete(property.name);
+                      } else {
+                        next.add(property.name);
+                      }
+                      onExcludedChange(next);
+                    }}
+                  />
+                  <Label htmlFor={id} className="flex flex-1 justify-between gap-2 font-normal">
+                    <span className="text-xs">{property.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {t("wizard.jira.review.propertyCount", { count: property.issue_count })}
+                    </span>
+                  </Label>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

@@ -83,7 +83,7 @@
     },
     "people": {
       "prompt": "¿Quiénes son estas personas aquí?",
-      "note": "La exportación nombra a las personas con el identificador que tenían en su origen. Hemos rellenado aquellos cuyo identificador coincide exactamente con un miembro: revísalos e indica quiénes son los demás. Si dejas una fila en blanco, esos comentarios conservan el nombre con el que llegaron y no se atribuyen a ninguna cuenta.",
+      "note": "Elige quién es cada persona aquí. Las coincidencias exactas de identificador ya están rellenadas; si dejas una en blanco, solo se conserva su nombre.",
       "comments_one": "{{count}} comentario",
       "comments_other": "{{count}} comentarios",
       "unmapped": "Nadie aquí",
@@ -154,6 +154,7 @@
         "sprints_one": "{{count}} sprint en {{calendars}} calendario(s)",
         "sprints_other": "{{count}} sprints en {{calendars}} calendario(s)",
         "propertiesTitle": "Campos que se convierten en propiedades",
+        "propertiesHint": "Desmarca los que no quieras añadir a esta iniciativa.",
         "propertyCount_one": "{{count}} tarea",
         "propertyCount_other": "{{count}} tareas",
         "leftBehindTitle": "No se traerá",

@@ -78,6 +78,9 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 _LIST_LIMIT = 50
 
+#: The most property names one confirm may untick.
+_MAX_EXCLUDED_PROPERTIES = 500
+
 
 def _require_writable(guild_context: GuildContext) -> None:
     """Imports are writes, always — no inline carve-out for read-only actors
@@ -513,7 +516,9 @@ async def confirm_import(
     Optional body ``{"include": {tool: bool}}`` narrows which tools apply
     (backup only; omitted tools default to included), and ``{"people_map":
     {handle: user id}}`` says who each name the archive quotes is here — the
-    answers to the wizard's people step. Both are recorded on the job and read
+    answers to the wizard's people step. ``{"exclude_properties": [name]}``
+    names properties unticked on the review, which are then not created, and
+    whose values are left out with them. All are recorded on the job and read
     at apply time; the mapping is re-checked against real membership there,
     because this confirm may be hours old by then.
 
@@ -585,6 +590,24 @@ async def confirm_import(
         # Stored as given; the ids are proved to be members of this guild at
         # apply time, on the session that will actually write the rows.
         job.params = {**(job.params or {}), "people_map": people_map}
+    exclude_properties = (body or {}).get("exclude_properties")
+    if exclude_properties is not None:
+        # The review's unticked properties, by the names the plan listed.
+        # Bounded like any list a request supplies: a few hundred short names
+        # is more than any plan carries.
+        if (
+            not isinstance(exclude_properties, list)
+            or len(exclude_properties) > _MAX_EXCLUDED_PROPERTIES
+            or not all(
+                isinstance(name, str) and 0 < len(name) <= 255
+                for name in exclude_properties
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ImportEngineMessages.IMPORT_INVALID_PARAMS,
+            )
+        job.params = {**(job.params or {}), "exclude_properties": exclude_properties}
     job.status = ImportJobStatus.queued
     # Fresh TTL window: the confirmed job now waits on the worker, and a
     # nearly-elapsed staging TTL must not let GC sweep it out of the queue.

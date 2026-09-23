@@ -83,7 +83,7 @@
     },
     "people": {
       "prompt": "Who are these people here?",
-      "note": "The export names people by the handle they had where it came from. We've filled in the ones whose handle matches a member exactly — check them, and say who the rest are. Leave a row blank and those comments keep the name they arrived with, credited to no account.",
+      "note": "Pick who each person is here. Exact handle matches are filled in; leave one blank to keep just their name.",
       "comments_one": "{{count}} comment",
       "comments_other": "{{count}} comments",
       "unmapped": "Nobody here",
@@ -154,6 +154,7 @@
         "sprints_one": "{{count}} sprint on {{calendars}} calendar(s)",
         "sprints_other": "{{count}} sprints on {{calendars}} calendar(s)",
         "propertiesTitle": "Fields that become properties",
+        "propertiesHint": "Untick any you don't want added to this initiative.",
         "propertyCount_one": "{{count}} task",
         "propertyCount_other": "{{count}} tasks",
         "leftBehindTitle": "Not coming across",

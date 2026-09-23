@@ -62,7 +62,7 @@ from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
 )
-from app.services.import_engine.context import ImportContext
+from app.services.import_engine.context import ImportContext, excluded_property_names
 from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
@@ -289,6 +289,7 @@ async def apply_backup(
     payload: bytes,
     include: dict[str, bool] | None,
     people_map: Any = None,
+    exclude_properties: Any = None,
 ) -> BackupImportResult:
     """Restore a backup zip into new initiatives, as ``user``, on the
     worker's creator-routed session. Flushes and COMMITS per chunk (the
@@ -341,7 +342,8 @@ async def apply_backup(
     from app.services.import_engine.people import resolve_people_map
 
     context = ImportContext(
-        people=await resolve_people_map(session, guild_id=guild_id, raw=people_map)
+        people=await resolve_people_map(session, guild_id=guild_id, raw=people_map),
+        excluded_properties=excluded_property_names(exclude_properties),
     )
 
     for mi in manifest.initiatives:
