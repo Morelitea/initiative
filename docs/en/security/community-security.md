@@ -35,6 +35,7 @@ It is both halves or neither, and any one value is enough to count. You never ha
 If your provider reports which groups somebody is in, **rules** say what those groups mean here. A rule names one group and gives it a standing: member or admin of the community, and optionally a place in one initiative with a role there. So `eng-platform` arrives in the Platform initiative and `ops-leads` arrives as community admins, without anybody clicking anything.
 
 - Rules match the group **exactly** as your provider spells it, give or take capitals.
+- Rules apply only to people your connection counts as yours — the accounts it narrows the provider to. Somebody from another workspace on the same provider, in a group with the same name, is not placed here. Leave your workspace and the next sign-in releases what the rules gave you.
 - A rule grants **member or admin** — never the superadmin seat.
 - Standing is reconciled at **each sign-in** through that provider. Take a group away and the next sign-in takes the standing with it.
 - Memberships given by hand are never touched, and deleting a rule revokes nothing by itself — the next sign-in does.

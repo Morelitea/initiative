@@ -137,6 +137,11 @@ async def _refresh_and_sync_identity(
                 )
 
     claim_values = extract_claim_values(profile, id_token_claims, claim_path)
+    # The id_token came straight from the token endpoint; userinfo fills in
+    # what it does not carry, as it does at sign-in.
+    claims = dict(id_token_claims or {})
+    for key, value in profile.items():
+        claims.setdefault(key, value)
     sync_result = await sync_oidc_assignments(
         session,
         user_id=user.id,
@@ -144,6 +149,7 @@ async def _refresh_and_sync_identity(
         # reconciliation reaches only what that provider granted.
         provider_id=identity.provider_id,
         claim_values=claim_values,
+        claims=claims,
     )
     logger.info(
         "OIDC refresh sync for %s: +%d/~%d/-%d guilds, +%d/~%d/-%d initiatives",
