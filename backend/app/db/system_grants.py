@@ -28,6 +28,13 @@ Five roles are recorded here, one matrix each:
 The read-only guild floor, ``app_guild_base_ro``, is derived from
 ``app_guild_base`` (``guild_base_ro_parity_test``) rather than listed.
 
+Beside the five floors, a few tables are granted to the platform tiers
+directly — to ``platform_<tier>`` itself rather than the ``platform_base``
+floor every tier inherits. ``SHARED_TABLE_TIER_GRANTS`` records those by the
+capability that earns them, as a policy in ``app.db.public_rls`` names its
+capability rather than its tiers; ``tier_table_grants`` spells the tiers
+holding each capability, and that render is what the catalog is held to.
+
 Historically the first two matrices were the audited product of migrations
 20260702_0129 (``app_admin``) and _0130 (``app_user``), folded into the
 post-squash reconciler 20260702_0126. **Migrations remain the immutable record
@@ -47,6 +54,8 @@ This is the same registry-vs-rendered split as ``INITIATIVE_PATHS`` (in
 
 from __future__ import annotations
 
+from app.core.capabilities import Capability, roles_with_capability
+from app.db.public_rls import PLATFORM_TIER_ROLES, platform_tier
 from app.db.tenancy import SHARED_TABLES
 
 __all__ = [
@@ -55,10 +64,12 @@ __all__ = [
     "SHARED_TABLE_APP_GUILD_BASE_GRANTS",
     "SHARED_TABLE_PLATFORM_BASE_GRANTS",
     "SHARED_TABLE_APP_SUPERADMIN_GRANTS",
+    "SHARED_TABLE_TIER_GRANTS",
     "NON_MODEL_SHARED_TABLES",
     "GRANTABLE_SHARED_TABLES",
     "VALID_GRANT_VERBS",
     "grant_sql",
+    "tier_table_grants",
 ]
 
 # Public tables that carry no SQLModel (so they're absent from ``SHARED_TABLES``,
@@ -111,11 +122,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "marketplace_listing_versions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # App service registrations: full DML on the system engine, which is the
-    # only writer — the owner-gated CRUD endpoints run on AdminSessionDep (as
-    # access_grants and auth_providers do), boot reconciliation upserts from
-    # APP_SERVICES_CONFIG, and the verify path stamps status/manifest_hash.
-    # The row holds the shared-secret ciphertext, so it stays off the bare
-    # login role entirely (below).
+    # only reader and writer — the owner-gated CRUD endpoints run on
+    # AdminSessionDep (as access_grants and auth_providers do), boot
+    # reconciliation upserts from APP_SERVICES_CONFIG, the verify path stamps
+    # status/manifest_hash, and the signed-caller and delegation-key lookups
+    # read it. No request-path role holds anything on it.
     "app_service_registrations": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # Replay guard for the app-service channel: the verifier reads and inserts,
     # and the shared jti janitor prunes rows whose freshness window has passed
@@ -193,8 +204,8 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
-    # the system engine (UPDATE). CRUD writes run owner-scoped as platform_owner
-    # via RLS, not the system engine.
+    # the system engine (UPDATE). CRUD writes run under the tiers holding
+    # config.manage (SHARED_TABLE_TIER_GRANTS), not the system engine.
     "platform_ai_connections": frozenset({"SELECT", "UPDATE"}),
     # OIDC sync reads mappings; the settings endpoints manage them
     "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -306,15 +317,16 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # system-engine-only credential store; the request path never touches it
     # (auth lookup + management endpoints run on app_admin), like auth_sessions
     "user_api_keys": None,
+    # Redemption reads and records a jti while authenticating the request,
+    # before any routing.
     "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
     "app_settings": frozenset({"SELECT"}),
     # The catalog is read under a platform tier or a guild role, never by the
     # bare pre-routing login role — browsing the marketplace requires a session.
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
-    # Deployment wiring, holding the app's shared-secret ciphertext: managed on
-    # the system engine and readable by the platform owner under RLS. The bare
-    # pre-routing login role has no reason to see it, so it holds nothing.
+    # Deployment wiring, holding the app's shared-secret ciphertext: read and
+    # written on the system engine alone.
     "app_service_registrations": None,
     # The app-service replay guard is spent entirely on the system engine, like
     # the billing blocklist; no request-path role reads or writes it.
@@ -327,9 +339,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # before a session is routed. Bytes only, addressed by their own hash.
     "marketplace_media": frozenset({"SELECT"}),
     # A name and a face are public information here: any role may read any
-    # avatar, and the row policies narrow writes to the caller's own. The bare
-    # login role reads because the serve endpoint answers before routing.
-    "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # avatar. The bare login role reads because the serve endpoint answers
+    # before routing; a picture is changed under a platform tier or on the
+    # system engine.
+    "user_avatars": frozenset({"SELECT"}),
     # A library belongs to a signed-in account, and the bare pre-routing login
     # role serves nobody in particular.
     "user_decorations": None,
@@ -376,7 +389,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # writes a guild's caps or its sign-in entitlement. RLS narrows the rows to
     # the caller's own guilds (plus a live PAM grant).
     "guild_administration": frozenset({"SELECT"}),
-    "guild_invites": frozenset({"SELECT"}),
+    # Previewed and redeemed by code on the system engine; listed, issued and
+    # withdrawn on a routed request (SHARED_TABLE_APP_GUILD_BASE_GRANTS).
+    "guild_invites": None,
     "guild_memberships": frozenset({"SELECT"}),
     "access_grants": frozenset({"SELECT"}),
     # provider reads for the login page go via the system engine (AdminSessionDep),
@@ -443,9 +458,10 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # column grants on the identity columns a community's admin edits (name,
     # description, banner, categories, is_community, has_adult_content,
     # show_member_names, updated_at — 0138, 0196, 0200, 0203). guild_select
-    # narrows SELECT to the routed community and the reader's own; guild_delete
-    # admits the routed admin.
-    "guilds": frozenset({"SELECT", "DELETE"}),
+    # narrows SELECT to the routed community and the reader's own. 0357 took
+    # DELETE back: creating, deleting and purging a community run on the
+    # system engine.
+    "guilds": frozenset({"SELECT"}),
     # 0179: read-only for every request-path role; a community reads its own
     # caps and plan label (guild_administration_select).
     "guild_administration": frozenset({"SELECT"}),
@@ -455,10 +471,12 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # join, sign-in sync). What remains at the table level is leaving (DELETE
     # of the reader's own row) and reading the routed community's roster.
     "guild_memberships": frozenset({"SELECT", "DELETE"}),
-    # The schema default, never narrowed. The four guild_* policies admit an
-    # administrator of the invite's community — by the membership row, or by a
-    # live settings grant at either rung.
-    "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Listed, issued and withdrawn on a routed request. The three guild_*
+    # policies admit an administrator of the invite's community — by the
+    # membership row, or by a live settings grant at either rung. 0357 took
+    # UPDATE back: an invite is changed only by redemption and erasure, on the
+    # system engine.
+    "guild_invites": frozenset({"SELECT", "INSERT", "DELETE"}),
     # 0146 moved every write to the system engine for all request-path roles
     # (test_access_grants_are_writable_only_by_the_system_engine). SELECT is
     # narrowed to the reader's own grants by access_grants_self.
@@ -481,7 +499,7 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # (guild_id, variant, sha256), asserted in security_invariants_test.
     "guild_images": None,
     # 0201: any role reads any avatar; the self_* policies narrow the three
-    # writes to the caller's own row, granted to all three floors alike.
+    # writes to the caller's own row, on this floor and the platform one.
     "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # 0213: a member reads their own library from inside a community
     # (user_decoration_self_read); grants are issued on the system engine.
@@ -559,18 +577,17 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "announcement_images": frozenset({"SELECT"}),
     # 0156: system-engine-only, no request-path grant.
     "user_api_keys": None,
-    # The next three carry the schema default, which no migration has
-    # narrowed, and no policy. A token is resolved on the bare login role
-    # before a request is routed (SHARED_TABLE_APP_USER_GRANTS), device
-    # registration runs under a platform tier (platform_endpoints/push.py),
-    # and the redemption path and its janitor run on the bare login role and
-    # the system engine. Recorded as the catalog stands; each narrowing is a
-    # migration's decision with its own test.
+    # The next two carry the schema default, which no migration has narrowed,
+    # and no policy. A token is resolved on the bare login role before a
+    # request is routed (SHARED_TABLE_APP_USER_GRANTS), and device registration
+    # runs under a platform tier (platform_endpoints/push.py). Recorded as the
+    # catalog stands; each narrowing is a migration's decision with its own
+    # test.
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    "auto_delegation_jti_blocklist": frozenset(
-        {"SELECT", "INSERT", "UPDATE", "DELETE"}
-    ),
+    # 0357: redemption runs on the bare login role and its janitor on the
+    # system engine; neither floor reaches the table.
+    "auto_delegation_jti_blocklist": None,
     # 0134: the billing boundary took both floors back; only the SET ROLE
     # initiative_billing role reaches these.
     "billing_event_log": None,
@@ -593,8 +610,12 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "users": frozenset({"SELECT"}),
     "guilds": frozenset({"SELECT"}),
     "guild_administration": frozenset({"SELECT"}),
-    "guild_memberships": frozenset({"SELECT", "DELETE"}),
-    "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0357 took DELETE back: leaving routes into the community first, so the
+    # row goes on the guild floor.
+    "guild_memberships": frozenset({"SELECT"}),
+    # 0357: an invite is the community's, reached on a routed request or the
+    # system engine.
+    "guild_invites": None,
     "access_grants": frozenset({"SELECT"}),
     "identity_refs": None,
     "app_settings": frozenset({"SELECT"}),
@@ -639,16 +660,17 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "mfa_recovery_codes": None,
     "auth_challenges": None,
     "user_view_preferences": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    "notifications": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # The reader's own bell: listed, marked read and dismissed. 0357 took
+    # INSERT back; a notification is written on a routed request or the system
+    # engine.
+    "notifications": frozenset({"SELECT", "UPDATE", "DELETE"}),
     "announcements": frozenset({"SELECT"}),
     "announcement_reads": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "announcement_images": frozenset({"SELECT"}),
     "user_api_keys": None,
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    "auto_delegation_jti_blocklist": frozenset(
-        {"SELECT", "INSERT", "UPDATE", "DELETE"}
-    ),
+    "auto_delegation_jti_blocklist": None,
     "billing_event_log": None,
     "billing_jti_blocklist": None,
     "alembic_version": None,
@@ -731,6 +753,39 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "alembic_version": None,
     "storage_backfill_state": None,
 }
+
+
+# table -> {capability: verbs} granted to the ``platform_<tier>`` roles holding
+# that capability, directly rather than through ``platform_base``. A table not
+# named here grants no tier anything of its own; what a tier reads beyond this
+# comes from the platform floor above.
+SHARED_TABLE_TIER_GRANTS: dict[str, dict[Capability, frozenset[str]]] = {
+    # Deployment configuration is written under the tier that manages it
+    # (app_settings_owner); every request role reads it through its floor.
+    "app_settings": {
+        Capability.CONFIG_MANAGE: frozenset({"INSERT", "UPDATE", "DELETE"}),
+    },
+    # The operator's AI connections, managed under the same tier
+    # (platform_ai_connections_owner, migration 0155).
+    "platform_ai_connections": {
+        Capability.CONFIG_MANAGE: frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    },
+}
+
+
+def tier_table_grants() -> dict[str, dict[str, frozenset[str]]]:
+    """``SHARED_TABLE_TIER_GRANTS`` spelled as tiers: every ``platform_<tier>``
+    role, unprefixed, with the verbs it holds per table. A tier holding no
+    capability named there maps to an empty dict."""
+    rendered: dict[str, dict[str, frozenset[str]]] = {
+        role: {} for role in PLATFORM_TIER_ROLES
+    }
+    for table, by_capability in SHARED_TABLE_TIER_GRANTS.items():
+        for capability, verbs in by_capability.items():
+            for role in roles_with_capability(capability):
+                tables = rendered[platform_tier(role)]
+                tables[table] = tables.get(table, frozenset()) | verbs
+    return rendered
 
 
 def grant_sql(verbs: frozenset[str] | None) -> str | None:

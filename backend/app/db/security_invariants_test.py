@@ -12,6 +12,8 @@ table placement:
 * ``app_admin`` (and ``app_user``) per-table grants equal the audited registry
   in ``app.db.system_grants`` — new shared tables give the system engine (and
   the bare login role) nothing until the registry (and a migration) says so;
+* each ``platform_<tier>`` role's direct table grants equal the tier registry
+  rendered through the capabilities;
 * every RLS-enabled shared table is FORCEd (even table owners obey policies);
 * the retired ``is_superadmin`` GUC appears in no policy anywhere;
 * no app role may CREATE objects in ``public`` (search_path hijack guard);
@@ -37,6 +39,7 @@ from app.db.system_grants import (
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_PLATFORM_BASE_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
+    tier_table_grants,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
@@ -178,6 +181,70 @@ async def test_app_superadmin_grants_match_audited_matrix(engine):
     registry does not name arrived by a hand-written grant."""
     live = await _table_grants_for(engine, "app_superadmin")
     _assert_matrix("app_superadmin", live, SHARED_TABLE_APP_SUPERADMIN_GRANTS)
+
+
+async def test_platform_tier_grants_match_the_tier_registry(engine):
+    """Each tier holds, of its own, what the tier registry renders and nothing
+    more.
+
+    Only the grants naming the tier role itself are read: what it inherits
+    from ``platform_base`` is the platform floor's matrix, checked above. A
+    tier the registry gives nothing holds no table grant at all."""
+    for tier, tables in sorted(tier_table_grants().items()):
+        role = f"{settings.PLATFORM_ROLE_PREFIX}{tier}"
+        live = await _table_grants_for(engine, role)
+        _assert_matrix(role, live, tables)
+
+
+async def test_the_guild_floor_does_not_delete_a_community(engine):
+    """A community is created, deleted and purged on the system engine; the
+    guild floor reads it and writes only the columns its admin edits."""
+    async with engine.connect() as conn:
+        for role in ("app_guild_base", "app_guild_base_ro"):
+            for verb in ("INSERT", "DELETE"):
+                held = await conn.scalar(
+                    text("SELECT has_table_privilege(:role, 'public.guilds', :verb)"),
+                    {"role": role, "verb": verb},
+                )
+                assert not held, f"{role} must not hold {verb} on guilds"
+
+
+async def test_an_invite_is_reached_only_from_its_community(engine):
+    """The platform floor and the bare login hold nothing on ``guild_invites``,
+    and the guild floor holds no UPDATE. Its policies name the guild floors
+    alone."""
+    async with engine.connect() as conn:
+        for role in (f"{settings.PLATFORM_ROLE_PREFIX}platform_base", "app_user"):
+            for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                held = await conn.scalar(
+                    text(
+                        "SELECT has_table_privilege(:role,"
+                        " 'public.guild_invites', :verb)"
+                    ),
+                    {"role": role, "verb": verb},
+                )
+                assert not held, f"{role} must not hold {verb} on guild_invites"
+        held = await conn.scalar(
+            text(
+                "SELECT has_table_privilege('app_guild_base',"
+                " 'public.guild_invites', 'UPDATE')"
+            )
+        )
+        assert not held, "app_guild_base must not hold UPDATE on guild_invites"
+        roles = {
+            tuple(sorted(row[0]))
+            for row in (
+                await conn.execute(
+                    text(
+                        "SELECT roles FROM pg_policies WHERE schemaname = 'public'"
+                        " AND tablename = 'guild_invites'"
+                    )
+                )
+            ).all()
+        }
+    assert roles <= {("app_guild_base",), ("app_guild_base", "app_guild_base_ro")}, (
+        f"guild_invites policies name roles beyond the guild floors: {roles}"
+    )
 
 
 async def test_the_seat_floor_alone_writes_the_sign_in_rule(engine):
