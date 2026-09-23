@@ -207,10 +207,62 @@ async def get_json(
     it becomes ``IMPORT_SOURCE_RATE_LIMITED``. Nothing else is retried: every
     other failure is an answer, and asking again would get the same one.
     """
+    response = await _send(credential, path, method=method, json=json, retry=retry)
+    return _parse(response, path)
+
+
+async def get_bytes(
+    credential: AtlassianCredential,
+    path: str,
+    *,
+    max_bytes: int,
+    retry: RetryPolicy = BACKGROUND,
+) -> bytes:
+    """A file from the site — an attachment's content — as raw bytes.
+
+    Throttling is waited out exactly as for :func:`get_json`. A body over
+    ``max_bytes`` raises ``IMPORT_TOO_LARGE``: the caller checked the size the
+    site declared before asking, and this is the same bound held against what
+    actually arrived, since a declaration is somebody else's to get wrong.
+    """
+    response = await _send(
+        credential, path, method="GET", json=None, retry=retry, accept="*/*"
+    )
+    if response.status_code in (401, 403):
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_AUTH)
+    if response.status_code >= 300:
+        # A redirect is not followed: the attachment endpoint is asked for its
+        # content directly, and anything else is not an answer.
+        logger.info(
+            "atlassian download failed status=%s path=%s", response.status_code, path
+        )
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
+    data = response.content
+    if len(data) > max_bytes:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
+    return data
+
+
+async def _send(
+    credential: AtlassianCredential,
+    path: str,
+    *,
+    method: str,
+    json: object | None,
+    retry: RetryPolicy,
+    accept: str = "application/json",
+) -> httpx.Response:
+    """One call, with a ``429`` waited out under ``retry``.
+
+    Returns whatever the site answered other than "slow down"; the caller
+    decides what that answer means.
+    """
     for attempt in range(retry.attempts):
-        response = await _request(credential, path, method=method, json=json)
+        response = await _request(
+            credential, path, method=method, json=json, accept=accept
+        )
         if response.status_code != 429:
-            return _parse(response, path)
+            return response
         if attempt + 1 >= retry.attempts:
             break
         delay = _retry_delay(attempt, _retry_after_seconds(response))
@@ -235,6 +287,7 @@ async def _request(
     *,
     method: str,
     json: object | None,
+    accept: str = "application/json",
 ) -> httpx.Response:
     """Send one request, with the transport's failures turned into codes."""
     url = f"{credential.site_url}{path}"
@@ -244,7 +297,7 @@ async def _request(
             url,
             headers={
                 "Authorization": credential.auth_header,
-                "Accept": "application/json",
+                "Accept": accept,
             },
             json=json,
             timeout=REQUEST_TIMEOUT_SECONDS,

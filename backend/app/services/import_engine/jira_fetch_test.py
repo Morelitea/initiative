@@ -824,3 +824,68 @@ async def test_comments_spend_the_row_budget(monkeypatch):
     monkeypatch.setattr(settings, "IMPORT_MAX_ROWS", 3)
     _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OTHER"])
     assert report.projects == 1
+
+
+# --- images --------------------------------------------------------------------
+
+
+def _image_site(monkeypatch, issues, content=b"\x89PNG-bytes"):
+    calls: list[dict] = []
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        calls.append({"url": url, "json": json})
+        if "/attachment/content/" in url:
+            return httpx.Response(200, content=content)
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            return httpx.Response(200, json={"key": "ACME", "name": "ACME"})
+        if "search/jql" in url:
+            return httpx.Response(200, json={"issues": issues})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    return calls
+
+
+def _with_image(key, filename="door.png", att_id="10"):
+    return _issue(
+        key,
+        key,
+        attachment=[
+            {"id": att_id, "filename": filename, "mimeType": "image/png", "size": 11}
+        ],
+    )
+
+
+async def test_images_ride_in_the_bundle_as_assets_the_task_points_at(monkeypatch):
+    """Restored by the ordinary backup apply under a key made here: the
+    manifest lists it, the zip holds it, and the task shows it."""
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    calls = _image_site(monkeypatch, [_with_image("ACME-1")])
+    payload, report = await _bundle(monkeypatch)
+
+    search = next(c for c in calls if "search/jql" in c["url"])
+    assert "attachment" in search["json"]["fields"]
+    download = next(c for c in calls if "/attachment/content/" in c["url"])
+    assert download["url"].endswith("/attachment/content/10?redirect=false")
+    assert (report.images, report.image_bytes) == (1, len(b"\x89PNG-bytes"))
+
+    archive = open_backup_zip(payload)
+    manifest = read_manifest(archive)
+    (asset,) = manifest.assets
+    assert asset.original_filename == "door.png"
+    assert archive.read(asset.path) == b"\x89PNG-bytes"
+    envelope = json.loads(archive.read(manifest.entries[0].path))
+    assert f"/uploads/1/{asset.storage_key}" in envelope["tasks"][0]["description"]
+
+
+async def test_images_can_be_left_behind(monkeypatch):
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    calls = _image_site(monkeypatch, [_with_image("ACME-1")])
+    payload, report = await _bundle(monkeypatch, include_attachments=False)
+    assert not [c for c in calls if "/attachment/content/" in c["url"]]
+    assert report.images == 0
+    assert read_manifest(open_backup_zip(payload)).assets == []

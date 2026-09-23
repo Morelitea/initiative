@@ -28,6 +28,11 @@ from typing import Any, Iterable, Optional
 from app.core.relationships import RelationshipType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.services.import_engine.adf import adf_to_markdown
+from app.services.import_engine.jira_attachments import (
+    StoredImage,
+    media_urls,
+    unreferenced_section,
+)
 from app.services.import_engine.jira_fields import map_fields
 from app.services.import_engine.mapping import (
     DEFAULT_TAG_COLOR,
@@ -198,6 +203,8 @@ def map_issue(
     status_names: set[str],
     default_status_name: str,
     include_comments: bool = False,
+    images: Optional[list[StoredImage]] = None,
+    guild_id: Optional[int] = None,
 ) -> Optional[tuple[dict[str, Any], int]]:
     """One Jira issue as a task in the envelope.
 
@@ -228,7 +235,21 @@ def map_issue(
     if status_name not in status_names:
         status_name = default_status_name
 
-    rendered = adf_to_markdown(fields.get("description"), lift_tasks=True)
+    # An image embedded in the description or a comment renders from its
+    # upload here, found by the filename Jira puts on the media node.
+    urls = media_urls(images or [], guild_id=guild_id) if guild_id is not None else {}
+    referenced: set[str] = set()
+
+    def media(identifier: str, alt: Optional[str]) -> Optional[str]:
+        for name in (alt, identifier):
+            if name and name in urls:
+                referenced.add(name)
+                return urls[name]
+        return None
+
+    rendered = adf_to_markdown(
+        fields.get("description"), lift_tasks=True, media=media if urls else None
+    )
 
     task: dict[str, Any] = {
         "title": summary,
@@ -251,9 +272,20 @@ def map_issue(
 
     lost = rendered.dropped_nodes
     if include_comments:
-        mapped_comments = map_comments(fields)
+        mapped_comments = map_comments(fields, media=media if urls else None)
         task["comments"] = mapped_comments.comments
         lost += mapped_comments.dropped_nodes
+
+    if images and guild_id is not None:
+        # Attached but never embedded: still on the task, at the foot of its
+        # description, rather than silently in storage.
+        section = unreferenced_section(images, referenced, guild_id=guild_id)
+        if section:
+            task["description"] = (
+                f"{task['description']}\n\n{section}"
+                if task["description"]
+                else section
+            )
 
     assignee = _display_name(fields.get("assignee"))
     if assignee:
@@ -296,7 +328,7 @@ def restricted_comment_count(fields: Any) -> int:
     return sum(1 for c in raw if isinstance(c, dict) and c.get("visibility"))
 
 
-def map_comments(fields: dict) -> MappedComments:
+def map_comments(fields: dict, *, media: Any = None) -> MappedComments:
     """The comments on one issue, as envelope comments, oldest first.
 
     A comment's author travels as a display name: who that is *here* is the
@@ -317,7 +349,7 @@ def map_comments(fields: dict) -> MappedComments:
         if comment.get("visibility"):
             result.restricted += 1
             continue
-        rendered = adf_to_markdown(comment.get("body"))
+        rendered = adf_to_markdown(comment.get("body"), media=media)
         result.dropped_nodes += rendered.dropped_nodes
         body = rendered.markdown.strip()
         if not body and isinstance(comment.get("body"), str):
@@ -508,6 +540,8 @@ def build_project_envelope(
     site_url: str | None = None,
     field_catalog: Any = None,
     include_comments: bool = False,
+    images_by_issue: Optional[dict[str, list[StoredImage]]] = None,
+    guild_id: Optional[int] = None,
 ) -> MappedProject:
     """A whole Jira project as the envelope an ordinary import applies.
 
@@ -544,6 +578,10 @@ def build_project_envelope(
             status_names=status_names,
             default_status_name=default_status_name,
             include_comments=include_comments,
+            images=(images_by_issue or {}).get(
+                str(issue.get("key") or "") if isinstance(issue, dict) else ""
+            ),
+            guild_id=guild_id,
         )
         if mapped is None:
             skipped_issues += 1

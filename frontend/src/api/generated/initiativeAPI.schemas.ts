@@ -1187,6 +1187,7 @@ export interface AtlassianJiraImportRequest {
    */
   project_keys: string[];
   include_comments?: boolean;
+  include_attachments?: boolean;
 }
 
 export interface AttachmentUploadResponse {

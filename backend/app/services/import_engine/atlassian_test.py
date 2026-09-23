@@ -378,3 +378,47 @@ async def test_the_probe_waits_briefly_because_someone_is_watching(monkeypatch, 
     _stub(monkeypatch, lambda m, u, j: _throttled("30"))
     await atlassian.probe_jira(CREDENTIAL)
     assert waits == []
+
+
+# --- downloading a file ------------------------------------------------------
+
+
+async def test_a_file_arrives_as_bytes_with_the_retry_a_json_call_gets(
+    monkeypatch, waits
+):
+    calls = _stub(
+        monkeypatch,
+        _sequence(_throttled("1"), httpx.Response(200, content=b"\x89PNG")),
+    )
+    data = await atlassian.get_bytes(
+        CREDENTIAL, "/rest/api/3/attachment/content/10", max_bytes=100
+    )
+    assert data == b"\x89PNG"
+    assert len(calls) == 2 and len(waits) == 1
+    assert calls[0]["headers"]["Accept"] == "*/*"
+
+
+async def test_a_file_bigger_than_its_bound_is_refused(monkeypatch):
+    _stub(monkeypatch, lambda m, u, j: httpx.Response(200, content=b"x" * 101))
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_bytes(CREDENTIAL, "/f", max_bytes=100)
+    assert exc.value.code == ImportEngineMessages.IMPORT_TOO_LARGE
+
+
+@pytest.mark.parametrize(
+    "status_code,code",
+    [
+        (303, ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE),
+        (404, ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE),
+        (403, ImportEngineMessages.IMPORT_SOURCE_AUTH),
+    ],
+)
+async def test_a_file_the_site_will_not_hand_over_is_a_code(
+    monkeypatch, status_code, code
+):
+    """A redirect is not followed: the content endpoint is asked for the
+    bytes directly, and a hop elsewhere is not an answer."""
+    _stub(monkeypatch, lambda m, u, j: httpx.Response(status_code, content=b""))
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_bytes(CREDENTIAL, "/f", max_bytes=100)
+    assert exc.value.code == code
