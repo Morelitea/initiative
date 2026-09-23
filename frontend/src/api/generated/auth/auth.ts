@@ -5058,10 +5058,8 @@ export const useRevokeMySessionApiV1AuthSessionsSessionIdDelete = <
  * session spares its own row and takes every device token, a native client
  * spares its own token and takes every session.
  *
- * Two sessions by necessity rather than by choice — the device tokens are on
- * a table the system engine cannot write — so the device half commits first.
- * That is the order that fails safely: a failure after it leaves the account
- * with fewer credentials than it started with, never more.
+ * Both tables are the system engine's, so the two halves and the record
+ * commit together.
  * @summary Revoke My Other Sessions
  */
 export const revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost = (

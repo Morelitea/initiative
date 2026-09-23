@@ -131,12 +131,16 @@ async def test_no_request_floor_holds_a_verb_on_user_tokens(session):
         "app_user",
         "app_guild_base",
         "app_guild_base_ro",
-        platform_role_name(UserRole.member.value),
-        platform_role_name(UserRole.owner.value),
+        UserRole.member,
+        UserRole.owner,
     ],
 )
 async def test_user_tokens_are_unreadable_on_the_request_path(session, role):
     """The token's own account included: every request floor is refused."""
+    # The tier roles carry a per-run prefix, so they are named here rather than
+    # in the ids, which every worker must collect alike.
+    if isinstance(role, UserRole):
+        role = platform_role_name(role.value)
     owner = await create_user(session)
     await _user_token(session, owner.id)
     seen = (await session.exec(text("SELECT count(*) FROM user_tokens"))).scalar_one()
