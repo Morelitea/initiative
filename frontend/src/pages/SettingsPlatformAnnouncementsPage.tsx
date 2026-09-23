@@ -2,7 +2,7 @@ import { Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AnnouncementAdminRead } from "@/api/generated/initiativeAPI.schemas";
+import type { AnnouncementOperatorRead } from "@/api/generated/initiativeAPI.schemas";
 import { AnnouncementEditorDialog } from "@/components/announcements/AnnouncementEditorDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { formatDateTime } from "@/lib/formatDate";
 
 type Status = "draft" | "scheduled" | "live" | "expired";
 
-const statusOf = (announcement: AnnouncementAdminRead, now: number): Status => {
+const statusOf = (announcement: AnnouncementOperatorRead, now: number): Status => {
   if (!announcement.published_at) return "draft";
   if (new Date(announcement.published_at).getTime() > now) return "scheduled";
   if (announcement.expires_at && new Date(announcement.expires_at).getTime() <= now) {
@@ -43,9 +43,9 @@ export const SettingsPlatformAnnouncementsPage = () => {
   const { data, isLoading } = usePlatformAnnouncements();
   const remove = useDeleteAnnouncement();
 
-  const [editing, setEditing] = useState<AnnouncementAdminRead | null>(null);
+  const [editing, setEditing] = useState<AnnouncementOperatorRead | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<AnnouncementAdminRead | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AnnouncementOperatorRead | null>(null);
 
   const items = data?.items ?? [];
   const now = Date.now();

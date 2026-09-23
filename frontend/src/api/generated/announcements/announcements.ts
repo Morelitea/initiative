@@ -21,13 +21,13 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AnnouncementAdminListResponse,
-  AnnouncementAdminRead,
   AnnouncementImageRead,
   AnnouncementListResponse,
+  AnnouncementOperatorListResponse,
+  AnnouncementOperatorRead,
   AnnouncementUpdate,
   AnnouncementWrite,
-  BodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost,
+  BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost,
   HTTPValidationError,
   ListAnnouncementsApiV1AnnouncementsGetParams,
 } from "../initiativeAPI.schemas";
@@ -389,27 +389,27 @@ export const useDismissApiV1AnnouncementsKeyDismissPost = <
  * Every announcement, drafts and compiled-in notices included.
  * @summary List All Announcements
  */
-export const listAllAnnouncementsApiV1AnnouncementsAdminGet = (
+export const listAllAnnouncementsApiV1AnnouncementsOperatorGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AnnouncementAdminListResponse>(
-    { url: `/api/v1/announcements/admin`, method: "GET", signal },
+  return apiMutator<AnnouncementOperatorListResponse>(
+    { url: `/api/v1/announcements/operator`, method: "GET", signal },
     options
   );
 };
 
-export const getListAllAnnouncementsApiV1AnnouncementsAdminGetQueryKey = () => {
-  return [`/api/v1/announcements/admin`] as const;
+export const getListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryKey = () => {
+  return [`/api/v1/announcements/operator`] as const;
 };
 
-export const getListAllAnnouncementsApiV1AnnouncementsAdminGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+export const getListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
     UseQueryOptions<
-      Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+      Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
       TError,
       TData
     >
@@ -419,42 +419,42 @@ export const getListAllAnnouncementsApiV1AnnouncementsAdminGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListAllAnnouncementsApiV1AnnouncementsAdminGetQueryKey();
+    queryOptions?.queryKey ?? getListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>
-  > = ({ signal }) => listAllAnnouncementsApiV1AnnouncementsAdminGet(requestOptions, signal);
+    Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>
+  > = ({ signal }) => listAllAnnouncementsApiV1AnnouncementsOperatorGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+    Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListAllAnnouncementsApiV1AnnouncementsAdminGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>
+export type ListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>
 >;
-export type ListAllAnnouncementsApiV1AnnouncementsAdminGetQueryError =
+export type ListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
-  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+export function useListAllAnnouncementsApiV1AnnouncementsOperatorGet<
+  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+        Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+          Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
           TError,
-          Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>
+          Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>
         >,
         "initialData"
       >;
@@ -462,23 +462,23 @@ export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
-  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+export function useListAllAnnouncementsApiV1AnnouncementsOperatorGet<
+  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+        Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+          Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
           TError,
-          Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>
+          Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>
         >,
         "initialData"
       >;
@@ -486,14 +486,14 @@ export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
-  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+export function useListAllAnnouncementsApiV1AnnouncementsOperatorGet<
+  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+        Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
         TError,
         TData
       >
@@ -506,14 +506,14 @@ export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
  * @summary List All Announcements
  */
 
-export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
-  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+export function useListAllAnnouncementsApiV1AnnouncementsOperatorGet<
+  TData = Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsAdminGet>>,
+        Awaited<ReturnType<typeof listAllAnnouncementsApiV1AnnouncementsOperatorGet>>,
         TError,
         TData
       >
@@ -522,7 +522,7 @@ export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAllAnnouncementsApiV1AnnouncementsAdminGetQueryOptions(options);
+  const queryOptions = getListAllAnnouncementsApiV1AnnouncementsOperatorGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -534,14 +534,14 @@ export function useListAllAnnouncementsApiV1AnnouncementsAdminGet<
 /**
  * @summary Create Announcement
  */
-export const createAnnouncementApiV1AnnouncementsAdminPost = (
+export const createAnnouncementApiV1AnnouncementsOperatorPost = (
   announcementWrite: BodyType<AnnouncementWrite>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AnnouncementAdminRead>(
+  return apiMutator<AnnouncementOperatorRead>(
     {
-      url: `/api/v1/announcements/admin`,
+      url: `/api/v1/announcements/operator`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: announcementWrite,
@@ -551,27 +551,27 @@ export const createAnnouncementApiV1AnnouncementsAdminPost = (
   );
 };
 
-export const getCreateAnnouncementApiV1AnnouncementsAdminPostMutationKey = () =>
-  ["createAnnouncementApiV1AnnouncementsAdminPost"] as const;
+export const getCreateAnnouncementApiV1AnnouncementsOperatorPostMutationKey = () =>
+  ["createAnnouncementApiV1AnnouncementsOperatorPost"] as const;
 
-export const getCreateAnnouncementApiV1AnnouncementsAdminPostMutationOptions = <
+export const getCreateAnnouncementApiV1AnnouncementsOperatorPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsAdminPost>>,
+    Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsOperatorPost>>,
     TError,
-    CreateAnnouncementApiV1AnnouncementsAdminPostMutationVariables,
+    CreateAnnouncementApiV1AnnouncementsOperatorPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsAdminPost>>,
+  Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsOperatorPost>>,
   TError,
-  CreateAnnouncementApiV1AnnouncementsAdminPostMutationVariables,
+  CreateAnnouncementApiV1AnnouncementsOperatorPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateAnnouncementApiV1AnnouncementsAdminPostMutationKey();
+  const mutationKey = getCreateAnnouncementApiV1AnnouncementsOperatorPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -579,67 +579,68 @@ export const getCreateAnnouncementApiV1AnnouncementsAdminPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsAdminPost>>,
-    CreateAnnouncementApiV1AnnouncementsAdminPostMutationVariables
+    Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsOperatorPost>>,
+    CreateAnnouncementApiV1AnnouncementsOperatorPostMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return createAnnouncementApiV1AnnouncementsAdminPost(data, requestOptions);
+    return createAnnouncementApiV1AnnouncementsOperatorPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateAnnouncementApiV1AnnouncementsAdminPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsAdminPost>>
+export type CreateAnnouncementApiV1AnnouncementsOperatorPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsOperatorPost>>
 >;
-export type CreateAnnouncementApiV1AnnouncementsAdminPostMutationBody = BodyType<AnnouncementWrite>;
-export type CreateAnnouncementApiV1AnnouncementsAdminPostMutationError =
+export type CreateAnnouncementApiV1AnnouncementsOperatorPostMutationBody =
+  BodyType<AnnouncementWrite>;
+export type CreateAnnouncementApiV1AnnouncementsOperatorPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CreateAnnouncementApiV1AnnouncementsAdminPostMutationVariables = {
+export type CreateAnnouncementApiV1AnnouncementsOperatorPostMutationVariables = {
   data: BodyType<AnnouncementWrite>;
 };
 
 /**
  * @summary Create Announcement
  */
-export const useCreateAnnouncementApiV1AnnouncementsAdminPost = <
+export const useCreateAnnouncementApiV1AnnouncementsOperatorPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsAdminPost>>,
+      Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsOperatorPost>>,
       TError,
-      CreateAnnouncementApiV1AnnouncementsAdminPostMutationVariables,
+      CreateAnnouncementApiV1AnnouncementsOperatorPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsAdminPost>>,
+  Awaited<ReturnType<typeof createAnnouncementApiV1AnnouncementsOperatorPost>>,
   TError,
-  CreateAnnouncementApiV1AnnouncementsAdminPostMutationVariables,
+  CreateAnnouncementApiV1AnnouncementsOperatorPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateAnnouncementApiV1AnnouncementsAdminPostMutationOptions(options),
+    getCreateAnnouncementApiV1AnnouncementsOperatorPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Update Announcement
  */
-export const updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch = (
+export const updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch = (
   announcementId: number,
   announcementUpdate: BodyType<AnnouncementUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AnnouncementAdminRead>(
+  return apiMutator<AnnouncementOperatorRead>(
     {
-      url: `/api/v1/announcements/admin/${announcementId}`,
+      url: `/api/v1/announcements/operator/${announcementId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: announcementUpdate,
@@ -649,27 +650,28 @@ export const updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch = (
   );
 };
 
-export const getUpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationKey = () =>
-  ["updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch"] as const;
+export const getUpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationKey = () =>
+  ["updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch"] as const;
 
-export const getUpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationOptions = <
+export const getUpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch>>,
+    Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch>>,
     TError,
-    UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationVariables,
+    UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch>>,
+  Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch>>,
   TError,
-  UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationVariables,
+  UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationKey();
+  const mutationKey =
+    getUpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -677,12 +679,12 @@ export const getUpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMuta
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch>>,
-    UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch>>,
+    UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationVariables
   > = (props) => {
     const { announcementId, data } = props ?? {};
 
-    return updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch(
+    return updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch(
       announcementId,
       data,
       requestOptions
@@ -692,15 +694,15 @@ export const getUpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMuta
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationResult =
+export type UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch>>
+    Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch>>
   >;
-export type UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationBody =
+export type UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationBody =
   BodyType<AnnouncementUpdate>;
-export type UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationError =
+export type UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationVariables = {
+export type UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationVariables = {
   announcementId: number;
   data: BodyType<AnnouncementUpdate>;
 };
@@ -708,66 +710,67 @@ export type UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutation
 /**
  * @summary Update Announcement
  */
-export const useUpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch = <
+export const useUpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch>>,
+      Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch>>,
       TError,
-      UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationVariables,
+      UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatch>>,
+  Awaited<ReturnType<typeof updateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatch>>,
   TError,
-  UpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationVariables,
+  UpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateAnnouncementApiV1AnnouncementsAdminAnnouncementIdPatchMutationOptions(options),
+    getUpdateAnnouncementApiV1AnnouncementsOperatorAnnouncementIdPatchMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Delete Announcement
  */
-export const deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete = (
+export const deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete = (
   announcementId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/announcements/admin/${announcementId}`, method: "DELETE", signal },
+    { url: `/api/v1/announcements/operator/${announcementId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationKey = () =>
-  ["deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete"] as const;
+export const getDeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationKey = () =>
+  ["deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete"] as const;
 
-export const getDeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationOptions = <
+export const getDeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete>>,
+    Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete>>,
     TError,
-    DeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationVariables,
+    DeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete>>,
+  Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete>>,
   TError,
-  DeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationVariables,
+  DeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationKey();
+  const mutationKey =
+    getDeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -775,12 +778,12 @@ export const getDeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMut
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete>>,
-    DeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete>>,
+    DeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationVariables
   > = (props) => {
     const { announcementId } = props ?? {};
 
-    return deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete(
+    return deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete(
       announcementId,
       requestOptions
     );
@@ -789,42 +792,42 @@ export const getDeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMut
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationResult =
+export type DeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete>>
+    Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete>>
   >;
 
-export type DeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationError =
+export type DeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationVariables = {
+export type DeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationVariables = {
   announcementId: number;
 };
 
 /**
  * @summary Delete Announcement
  */
-export const useDeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete = <
+export const useDeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete>>,
+      Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete>>,
       TError,
-      DeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationVariables,
+      DeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete>>,
+  Awaited<ReturnType<typeof deleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDelete>>,
   TError,
-  DeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationVariables,
+  DeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDeleteMutationOptions(options),
+    getDeleteAnnouncementApiV1AnnouncementsOperatorAnnouncementIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -832,17 +835,17 @@ export const useDeleteAnnouncementApiV1AnnouncementsAdminAnnouncementIdDelete = 
  * Store one picture and return the URL a section should point at.
  * @summary Upload Announcement Image
  */
-export const uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost = (
-  bodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost: BodyType<BodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>,
+export const uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost = (
+  bodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost: BodyType<BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`file`, bodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost.file);
+  formData.append(`file`, bodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost.file);
 
   return apiMutator<AnnouncementImageRead>(
     {
-      url: `/api/v1/announcements/admin/images`,
+      url: `/api/v1/announcements/operator/images`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -852,27 +855,27 @@ export const uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost = (
   );
 };
 
-export const getUploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationKey = () =>
-  ["uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost"] as const;
+export const getUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationKey = () =>
+  ["uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost"] as const;
 
-export const getUploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationOptions = <
+export const getUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>>,
+    Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>>,
     TError,
-    UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationVariables,
+    UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>>,
+  Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>>,
   TError,
-  UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationVariables,
+  UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getUploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationKey();
+  const mutationKey = getUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -880,53 +883,53 @@ export const getUploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>>,
-    UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationVariables
+    Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>>,
+    UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost(data, requestOptions);
+    return uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>>
+export type UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>>
 >;
-export type UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationBody =
-  BodyType<BodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>;
-export type UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationError =
+export type UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationBody =
+  BodyType<BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>;
+export type UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationVariables = {
-  data: BodyType<BodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>;
+export type UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationVariables = {
+  data: BodyType<BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>;
 };
 
 /**
  * @summary Upload Announcement Image
  */
-export const useUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost = <
+export const useUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>>,
+      Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>>,
       TError,
-      UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationVariables,
+      UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsAdminImagesPost>>,
+  Awaited<ReturnType<typeof uploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost>>,
   TError,
-  UploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationVariables,
+  UploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUploadAnnouncementImageApiV1AnnouncementsAdminImagesPostMutationOptions(options),
+    getUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPostMutationOptions(options),
     queryClient
   );
 };

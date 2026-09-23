@@ -9,7 +9,7 @@ reads their own grants, and an ``access.approve`` holder reads the queue, each
 through its own policy on ``access_grants``. Every write — requesting, breaking
 glass, deciding, revoking, withdrawing — runs on the system engine, which alone
 writes the table; authorization for those is enforced here via capabilities +
-ownership, mirroring the ``/admin/*`` endpoints.
+ownership, mirroring the ``/operator/*`` endpoints.
 """
 
 from typing import Annotated, List, Optional

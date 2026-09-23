@@ -14,14 +14,14 @@ from app.db.session import get_admin_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
-from app.schemas.platform.user import AdminUserRead, AccountDeletionResponse
+from app.schemas.platform.user import OperatorUserRead, AccountDeletionResponse
 from app.schemas.platform.auth import VerificationSendResponse
-from app.schemas.platform.admin import (
-    AdminSuspensionUpdate,
-    AdminUsernameUpdate,
+from app.schemas.platform.operator import (
+    OperatorSuspensionUpdate,
+    OperatorUsernameUpdate,
     PlatformRoleUpdate,
-    AdminUserDeleteRequest,
-    AdminDeletionEligibilityResponse,
+    OperatorUserDeleteRequest,
+    OperatorDeletionEligibilityResponse,
     GuildBlockerInfo,
 )
 from app.core.messages import (
@@ -69,11 +69,11 @@ ConfigManageDep = Annotated[User, Depends(require_capability(Capability.CONFIG_M
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 
-@router.get("/users", response_model=List[AdminUserRead])
+@router.get("/users", response_model=List[OperatorUserRead])
 async def list_all_users(
     session: UserSessionDep,
     _current_user: UsersReadDep,
-) -> List[AdminUserRead]:
+) -> List[OperatorUserRead]:
     """List all users in the platform (``users.read``).
 
     Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
@@ -260,12 +260,12 @@ async def trigger_password_reset(
     return VerificationSendResponse(status="sent")
 
 
-@router.post("/users/{user_id}/reactivate", response_model=AdminUserRead)
+@router.post("/users/{user_id}/reactivate", response_model=OperatorUserRead)
 async def reactivate_user(
     user_id: int,
     session: AdminSessionDep,
     _current_user: UsersManageDep,
-) -> AdminUserRead:
+) -> OperatorUserRead:
     """Reactivate a deactivated user account (admin only)."""
     stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
@@ -297,12 +297,12 @@ async def reactivate_user(
     return await users_service.to_admin_read_one(user)
 
 
-@router.post("/users/{user_id}/restore", response_model=AdminUserRead)
+@router.post("/users/{user_id}/restore", response_model=OperatorUserRead)
 async def restore_deleted_user(
     user_id: int,
     session: AdminSessionDep,
     current_user: UsersManageDep,
-) -> AdminUserRead:
+) -> OperatorUserRead:
     """Call off a pending erasure from the users table (``users.manage``).
 
     The account's holder can do this themselves simply by signing in, which is
@@ -392,13 +392,13 @@ async def remove_user_avatar(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch("/users/{user_id}/username", response_model=AdminUserRead)
+@router.patch("/users/{user_id}/username", response_model=OperatorUserRead)
 async def set_user_username(
     user_id: int,
-    payload: AdminUsernameUpdate,
+    payload: OperatorUsernameUpdate,
     session: AdminSessionDep,
     current_user: ContentModerateDep,
-) -> AdminUserRead:
+) -> OperatorUserRead:
     """Change someone's username.
 
     People occasionally pick a handle that breaches the terms of use, and it is
@@ -448,13 +448,13 @@ async def set_user_username(
     return await users_service.to_admin_read_one(user)
 
 
-@router.post("/users/{user_id}/suspension", response_model=AdminUserRead)
+@router.post("/users/{user_id}/suspension", response_model=OperatorUserRead)
 async def set_user_suspension(
     user_id: int,
-    payload: AdminSuspensionUpdate,
+    payload: OperatorSuspensionUpdate,
     session: AdminSessionDep,
     current_user: UsersManageDep,
-) -> AdminUserRead:
+) -> OperatorUserRead:
     """Freeze an account, or let it go.
 
     Suspension takes nothing away: memberships, grants, assignments and
@@ -531,12 +531,12 @@ async def set_user_suspension(
     return await users_service.to_admin_read_one(user)
 
 
-@router.delete("/users/{user_id}/age-block", response_model=AdminUserRead)
+@router.delete("/users/{user_id}/age-block", response_model=OperatorUserRead)
 async def clear_age_block(
     user_id: int,
     session: AdminSessionDep,
     current_user: UsersAgeUnblockDep,
-) -> AdminUserRead:
+) -> OperatorUserRead:
     """Let an account answer the age question again.
 
     An account that answered as under age keeps that answer, and the question
@@ -583,13 +583,13 @@ async def clear_age_block(
     return await users_service.to_admin_read_one(user)
 
 
-@router.patch("/users/{user_id}/platform-role", response_model=AdminUserRead)
+@router.patch("/users/{user_id}/platform-role", response_model=OperatorUserRead)
 async def update_platform_role(
     user_id: int,
     payload: PlatformRoleUpdate,
     session: AdminSessionDep,
     current_user: RolesAssignDep,
-) -> AdminUserRead:
+) -> OperatorUserRead:
     """Update a user's platform role (``roles.assign``).
 
     Restrictions:
@@ -670,13 +670,13 @@ async def update_platform_role(
 
 @router.get(
     "/users/{user_id}/deletion-eligibility",
-    response_model=AdminDeletionEligibilityResponse,
+    response_model=OperatorDeletionEligibilityResponse,
 )
 async def check_user_deletion_eligibility(
     user_id: int,
     session: AdminSessionDep,
     current_user: UsersDeleteDep,
-) -> AdminDeletionEligibilityResponse:
+) -> OperatorDeletionEligibilityResponse:
     """Check if a user can be deleted (admin only).
 
     Returns the blockers: the communities the user holds the only superadmin
@@ -716,7 +716,7 @@ async def check_user_deletion_eligibility(
         session, user_id
     )
 
-    return AdminDeletionEligibilityResponse(
+    return OperatorDeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
         guild_blockers=[
@@ -729,7 +729,7 @@ async def check_user_deletion_eligibility(
 @router.delete("/users/{user_id}", response_model=AccountDeletionResponse)
 async def delete_user(
     user_id: int,
-    payload: AdminUserDeleteRequest,
+    payload: OperatorUserDeleteRequest,
     session: AdminSessionDep,
     current_user: UsersDeleteDep,
 ) -> AccountDeletionResponse:

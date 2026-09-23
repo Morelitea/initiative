@@ -304,50 +304,98 @@ export interface AccountsWithoutFactor {
 }
 
 /**
- * Info about a guild blocking user deletion.
- */
-export interface GuildBlockerInfo {
-  guild_id: number;
-  guild_name: string;
-}
-
-/**
- * Enhanced eligibility response with actionable blocker details.
- */
-export interface AdminDeletionEligibilityResponse {
-  can_delete: boolean;
-  blockers: string[];
-  guild_blockers: GuildBlockerInfo[];
-}
-
-/**
- * Freeze an account, or let it go.
+ * Someone saying when they were born, once.
  *
- * ``reason`` is shown to the person it is about, so it is written for them
- * rather than as an internal note.
+ * The date answers one question — are they old enough — and is then gone. It
+ * is never written to a column, never logged, and never put in an audit
+ * record; there is nowhere in the schema it could be kept. What the account
+ * keeps is that the question was answered and when
+ * (``users.age_confirmed_at``), which is what a deployment needs to show it
+ * asked.
+ *
+ * Asking for a date rather than offering a box to tick is the difference
+ * between a question and a formality: a box says what the answer should be
+ * before it is given.
  */
-export interface AdminSuspensionUpdate {
-  suspended: boolean;
-  reason?: string | null;
+export interface AgeConfirmation {
+  birthdate: string;
 }
 
-export type AdminUserDeleteRequestAction =
-  (typeof AdminUserDeleteRequestAction)[keyof typeof AdminUserDeleteRequestAction];
+/**
+ * Which accounts a notice is for, measured against its publication.
+ *
+ * A breaking change is about a *transition*: somebody who signed up
+ * afterwards never lived on the old behaviour and has nothing to act on.
+ * The inverse is just as useful — an onboarding tip is for the people who
+ * have just arrived, and stale for everyone else.
+ */
+export type AnnouncementAudienceAccounts =
+  (typeof AnnouncementAudienceAccounts)[keyof typeof AnnouncementAudienceAccounts];
 
-export const AdminUserDeleteRequestAction = {
-  deactivate: "deactivate",
-  soft_delete: "soft_delete",
-  hard_delete: "hard_delete",
+export const AnnouncementAudienceAccounts = {
+  everyone: "everyone",
+  existing: "existing",
+  new: "new",
 } as const;
 
-export type AdminUserDeleteRequestProjectTransfers = { [key: string]: number } | null;
+/**
+ * What kind of news this is — drives the icon and accent, nothing else.
+ */
+export type AnnouncementCategory = (typeof AnnouncementCategory)[keyof typeof AnnouncementCategory];
+
+export const AnnouncementCategory = {
+  release: "release",
+  feature: "feature",
+  breaking: "breaking",
+  maintenance: "maintenance",
+  security: "security",
+  info: "info",
+} as const;
 
 /**
- * Request to deactivate, anonymize (soft delete), or hard delete another account.
+ * Where an uploaded picture now lives, and how big it is.
  */
-export interface AdminUserDeleteRequest {
-  action: AdminUserDeleteRequestAction;
-  project_transfers?: AdminUserDeleteRequestProjectTransfers;
+export interface AnnouncementImageRead {
+  url: string;
+  sha256: string;
+  content_type: string;
+  byte_size: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * One beat of an announcement: a heading, some prose, and a picture.
+ *
+ * Every part is optional on its own, but a section with none of them is
+ * nothing, so at least one must be present.
+ */
+export interface AnnouncementSection {
+  heading?: string | null;
+  starts_page?: boolean;
+  body?: string | null;
+  image_url?: string | null;
+  image_alt?: string | null;
+}
+
+/**
+ * An announcement as a reader receives it.
+ */
+export interface AnnouncementRead {
+  key: string;
+  title: string;
+  category: AnnouncementCategory;
+  sections?: AnnouncementSection[];
+  published_at?: string | null;
+  is_builtin?: boolean;
+  dismissed_at?: string | null;
+  dismissals_required?: number;
+  dismiss_count?: number;
+  trigger_route?: string | null;
+}
+
+export interface AnnouncementListResponse {
+  items?: AnnouncementRead[];
 }
 
 /**
@@ -369,258 +417,9 @@ export const UserRole = {
 } as const;
 
 /**
- * What an account allows to be kept in a browser, and when it said so.
- */
-export interface CookieConsentRead {
-  granted: string[];
-  version: number;
-  decided_at: string;
-}
-
-export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
-
-export const UserStatus = {
-  active: "active",
-  suspended: "suspended",
-  deactivated: "deactivated",
-  anonymized: "anonymized",
-  deleted: "deleted",
-} as const;
-
-/**
- * What a person is up to, in their own words.
- *
- * One object, stored in one column, because it is one thing a person sets
- * and one thing every surface that names them renders: splitting it in two
- * would mean two reads and two writes for a single line of text.
- *
- * Not to be confused with ``UserStatus`` (``users.status``), which is the
- * account's standing — suspended, deactivated — and is not the person's to
- * write.
- */
-export interface CustomStatusOutput {
-  emoji: string | null;
-  text: string | null;
-}
-
-/**
- * How a person appears to everyone else.
- *
- * Both halves of one idea, which is why it is one enum: what a person picks
- * for themselves, and what a reader of their name is shown. The picked value
- * is a standing preference on the account; the shown value is that preference
- * narrowed by what the process can see — whether they have Initiative open at
- * all, and whether anyone has touched it lately — which is decided in one
- * place (``app.services.platform.presence``).
- *
- * ``idle`` is the one a person may either pick or be given: left on
- * ``online``, an account that goes quiet is shown it anyway, and picking it
- * outright is how someone says they would rather look that way regardless.
- *
- * Not to be confused with ``UserStatus`` (the account's standing, which is not
- * the account holder's to write) or ``custom_status`` (the line they wrote).
- */
-export type Presence = (typeof Presence)[keyof typeof Presence];
-
-export const Presence = {
-  online: "online",
-  idle: "idle",
-  busy: "busy",
-  offline: "offline",
-} as const;
-
-/**
- * How a profile is dressed: a banner, a frame, trophies under it.
- *
- * Every value is an **id naming a catalog entry**, never an image. The client
- * resolves an id to artwork it already ships, so a decorated profile takes up
- * none of a guild's upload allowance. An id this deployment's catalog doesn't
- * know simply renders nothing, which is what lets a profile keep wearing
- * something the store stopped offering.
- *
- * ``extra="forbid"``: the set of things a profile can wear is this list, and
- * a client sending a key that isn't here is told so rather than having it
- * quietly stored and never rendered.
- */
-export interface ProfileDecorationsOutput {
-  banner: string | null;
-  frame: string | null;
-  /** @maxItems 2 */
-  frame_tint: string[];
-  /** @maxItems 6 */
-  trophies: string[];
-  grad_year: number | null;
-}
-
-export interface UserInitiativeRole {
-  initiative_id: number;
-  initiative_name: string;
-  role?: string | null;
-}
-
-/**
- * A discrete platform-level permission.
- *
- * Values are stable dotted strings shared with the frontend (exposed on
- * ``UserRead.capabilities``); treat them as part of the API contract.
- */
-export type Capability = (typeof Capability)[keyof typeof Capability];
-
-export const Capability = {
-  usersread: "users.read",
-  contentmoderate: "content.moderate",
-  usersage_unblock: "users.age_unblock",
-  usersmanage: "users.manage",
-  usersdelete: "users.delete",
-  guildsmanage: "guilds.manage",
-  announcementsmanage: "announcements.manage",
-  rolesassign: "roles.assign",
-  databypass: "data.bypass",
-  accessrequest: "access.request",
-  accessapprove: "access.approve",
-  configmanage: "config.manage",
-  appsmanage: "apps.manage",
-} as const;
-
-/**
- * A staff view of somebody else's account: the address masked.
- *
- * Everything staff do to an account — reset its password, rename
- * it, change its tier, suspend it, delete it — is addressed by id, and the
- * roster is read and searched by handle, so none of it needs the address
- * itself. What the mask leaves is enough to match a row against an address
- * somebody has quoted at you, which is what the column is read for.
- *
- * Masking lives on the shape rather than in each admin route: subclassing
- * keeps ``/users/me`` — where the reader is the address's owner — on plain
- * ``UserRead``, while every admin route that returns an account gets the
- * masked form without opting in.
- */
-export interface AdminUserRead {
-  email: string;
-  full_name: string | null;
-  role: UserRole;
-  id: number;
-  username: string;
-  discriminator: number;
-  username_chosen: boolean;
-  age_confirmed_at: string | null;
-  age_below_minimum_at: string | null;
-  legal_acceptance_required: boolean;
-  cookie_consent: CookieConsentRead | null;
-  status: UserStatus;
-  email_verified: boolean;
-  created_at: string;
-  updated_at: string;
-  avatar_url: string | null;
-  custom_status: CustomStatusOutput;
-  presence: Presence;
-  profile_decorations: ProfileDecorationsOutput;
-  week_starts_on: number;
-  time_format: string;
-  recent_tabs_limit: number;
-  timezone: string;
-  event_reminder_minutes_before: number | null;
-  last_overdue_notification_at: string | null;
-  last_task_assignment_digest_at: string | null;
-  color_theme: string;
-  task_completion_visual_feedback: string;
-  task_completion_audio_feedback: boolean;
-  task_completion_haptic_feedback: boolean;
-  locale: string;
-  has_federated_identity: boolean;
-  has_password: boolean;
-  initiative_roles: UserInitiativeRole[];
-  purge_at: string | null;
-  readonly can_create_guilds: boolean;
-  /**
-   * Platform capabilities granted by this user's standing role — none
-   * while the account is suspended.
-   *
-   * The frontend gates UI on these values (single source of truth);
-   * see ``app.core.capabilities``. Sorted by value.
-   */
-  readonly capabilities: readonly Capability[];
-}
-
-/**
- * The name part a moderator sets on someone else's account.
- *
- * The number is not here and never will be: it is drawn, not chosen, by
- * anyone. It is re-drawn only if the new pair is already held.
- */
-export interface AdminUsernameUpdate {
-  /** @maxLength 64 */
-  username: string;
-}
-
-/**
- * Someone saying when they were born, once.
- *
- * The date answers one question — are they old enough — and is then gone. It
- * is never written to a column, never logged, and never put in an audit
- * record; there is nowhere in the schema it could be kept. What the account
- * keeps is that the question was answered and when
- * (``users.age_confirmed_at``), which is what a deployment needs to show it
- * asked.
- *
- * Asking for a date rather than offering a box to tick is the difference
- * between a question and a formality: a box says what the answer should be
- * before it is given.
- */
-export interface AgeConfirmation {
-  birthdate: string;
-}
-
-/**
- * What kind of news this is — drives the icon and accent, nothing else.
- */
-export type AnnouncementCategory = (typeof AnnouncementCategory)[keyof typeof AnnouncementCategory];
-
-export const AnnouncementCategory = {
-  release: "release",
-  feature: "feature",
-  breaking: "breaking",
-  maintenance: "maintenance",
-  security: "security",
-  info: "info",
-} as const;
-
-/**
- * One beat of an announcement: a heading, some prose, and a picture.
- *
- * Every part is optional on its own, but a section with none of them is
- * nothing, so at least one must be present.
- */
-export interface AnnouncementSection {
-  heading?: string | null;
-  starts_page?: boolean;
-  body?: string | null;
-  image_url?: string | null;
-  image_alt?: string | null;
-}
-
-/**
- * Which accounts a notice is for, measured against its publication.
- *
- * A breaking change is about a *transition*: somebody who signed up
- * afterwards never lived on the old behaviour and has nothing to act on.
- * The inverse is just as useful — an onboarding tip is for the people who
- * have just arrived, and stale for everyone else.
- */
-export type AnnouncementAudienceAccounts =
-  (typeof AnnouncementAudienceAccounts)[keyof typeof AnnouncementAudienceAccounts];
-
-export const AnnouncementAudienceAccounts = {
-  everyone: "everyone",
-  existing: "existing",
-  new: "new",
-} as const;
-
-/**
  * Everything about an announcement, for the people who write them.
  */
-export interface AnnouncementAdminRead {
+export interface AnnouncementOperatorRead {
   key: string;
   title: string;
   category: AnnouncementCategory;
@@ -641,40 +440,8 @@ export interface AnnouncementAdminRead {
   updated_at?: string | null;
 }
 
-export interface AnnouncementAdminListResponse {
-  items?: AnnouncementAdminRead[];
-}
-
-/**
- * Where an uploaded picture now lives, and how big it is.
- */
-export interface AnnouncementImageRead {
-  url: string;
-  sha256: string;
-  content_type: string;
-  byte_size: number;
-  width: number;
-  height: number;
-}
-
-/**
- * An announcement as a reader receives it.
- */
-export interface AnnouncementRead {
-  key: string;
-  title: string;
-  category: AnnouncementCategory;
-  sections?: AnnouncementSection[];
-  published_at?: string | null;
-  is_builtin?: boolean;
-  dismissed_at?: string | null;
-  dismissals_required?: number;
-  dismiss_count?: number;
-  trigger_route?: string | null;
-}
-
-export interface AnnouncementListResponse {
-  items?: AnnouncementRead[];
+export interface AnnouncementOperatorListResponse {
+  items?: AnnouncementOperatorRead[];
 }
 
 /**
@@ -1214,27 +981,6 @@ export interface AttachmentUploadResponse {
 }
 
 /**
- * One registry provider for the operator admin — never the secret.
- */
-export interface AuthProviderAdminRead {
-  id: number;
-  slug: string;
-  display_name: string;
-  kind: string;
-  enabled: boolean;
-  issuer: string | null;
-  client_id: string | null;
-  scopes: string | null;
-  role_claim_path: string | null;
-  allow_jit: boolean;
-  asserts_second_factor: boolean;
-  icon: string | null;
-  button_style: string | null;
-  secret_set: boolean;
-  callback_url: string;
-}
-
-/**
  * A new operator-global login provider. Complete rows only — the login
  * flow refuses config-incomplete providers, so the CRUD does too.
  */
@@ -1265,6 +1011,27 @@ export interface AuthProviderCreate {
  */
 export interface AuthProviderDiscoverRequest {
   issuer: string;
+}
+
+/**
+ * One registry provider for the operator admin — never the secret.
+ */
+export interface AuthProviderOwnerRead {
+  id: number;
+  slug: string;
+  display_name: string;
+  kind: string;
+  enabled: boolean;
+  issuer: string | null;
+  client_id: string | null;
+  scopes: string | null;
+  role_claim_path: string | null;
+  allow_jit: boolean;
+  asserts_second_factor: boolean;
+  icon: string | null;
+  button_style: string | null;
+  secret_set: boolean;
+  callback_url: string;
 }
 
 /**
@@ -1404,7 +1171,7 @@ export interface BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExp
   include_attachments?: boolean;
 }
 
-export interface BodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost {
+export interface BodyUploadAnnouncementImageApiV1AnnouncementsOperatorImagesPost {
   file: Blob;
 }
 
@@ -1783,6 +1550,16 @@ export interface TaskStatusRead {
   project_id: number;
 }
 
+export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
+
+export const UserStatus = {
+  active: "active",
+  suspended: "suspended",
+  deactivated: "deactivated",
+  anonymized: "anonymized",
+  deleted: "deleted",
+} as const;
+
 /**
  * Minimal assignee data for task lists.
  *
@@ -2011,6 +1788,30 @@ export interface CalendarUpdate {
   color?: string | null;
 }
 
+/**
+ * A discrete platform-level permission.
+ *
+ * Values are stable dotted strings shared with the frontend (exposed on
+ * ``UserRead.capabilities``); treat them as part of the API contract.
+ */
+export type Capability = (typeof Capability)[keyof typeof Capability];
+
+export const Capability = {
+  usersread: "users.read",
+  contentmoderate: "content.moderate",
+  usersage_unblock: "users.age_unblock",
+  usersmanage: "users.manage",
+  usersdelete: "users.delete",
+  guildsmanage: "guilds.manage",
+  announcementsmanage: "announcements.manage",
+  rolesassign: "roles.assign",
+  databypass: "data.bypass",
+  accessrequest: "access.request",
+  accessapprove: "access.approve",
+  configmanage: "config.manage",
+  appsmanage: "apps.manage",
+} as const;
+
 export type CategoryGroup = (typeof CategoryGroup)[keyof typeof CategoryGroup];
 
 export const CategoryGroup = {
@@ -2091,6 +1892,55 @@ export const ClientKind = {
   mobile: "mobile",
   desktop: "desktop",
   unknown: "unknown",
+} as const;
+
+/**
+ * How a profile is dressed: a banner, a frame, trophies under it.
+ *
+ * Every value is an **id naming a catalog entry**, never an image. The client
+ * resolves an id to artwork it already ships, so a decorated profile takes up
+ * none of a guild's upload allowance. An id this deployment's catalog doesn't
+ * know simply renders nothing, which is what lets a profile keep wearing
+ * something the store stopped offering.
+ *
+ * ``extra="forbid"``: the set of things a profile can wear is this list, and
+ * a client sending a key that isn't here is told so rather than having it
+ * quietly stored and never rendered.
+ */
+export interface ProfileDecorationsOutput {
+  banner: string | null;
+  frame: string | null;
+  /** @maxItems 2 */
+  frame_tint: string[];
+  /** @maxItems 6 */
+  trophies: string[];
+  grad_year: number | null;
+}
+
+/**
+ * How a person appears to everyone else.
+ *
+ * Both halves of one idea, which is why it is one enum: what a person picks
+ * for themselves, and what a reader of their name is shown. The picked value
+ * is a standing preference on the account; the shown value is that preference
+ * narrowed by what the process can see — whether they have Initiative open at
+ * all, and whether anyone has touched it lately — which is decided in one
+ * place (``app.services.platform.presence``).
+ *
+ * ``idle`` is the one a person may either pick or be given: left on
+ * ``online``, an account that goes quiet is shown it anyway, and picking it
+ * outright is how someone says they would rather look that way regardless.
+ *
+ * Not to be confused with ``UserStatus`` (the account's standing, which is not
+ * the account holder's to write) or ``custom_status`` (the line they wrote).
+ */
+export type Presence = (typeof Presence)[keyof typeof Presence];
+
+export const Presence = {
+  online: "online",
+  idle: "idle",
+  busy: "busy",
+  offline: "offline",
 } as const;
 
 /**
@@ -2469,6 +2319,15 @@ export const CookieCategory = {
 } as const;
 
 /**
+ * What an account allows to be kept in a browser, and when it said so.
+ */
+export interface CookieConsentRead {
+  granted: string[];
+  version: number;
+  decided_at: string;
+}
+
+/**
  * An answer given in one browser, for the account to carry to the rest.
  */
 export interface CookieConsentUpdate {
@@ -2644,6 +2503,22 @@ export interface CounterUpdate {
 export interface CustomStatusInput {
   emoji?: string | null;
   text?: string | null;
+}
+
+/**
+ * What a person is up to, in their own words.
+ *
+ * One object, stored in one column, because it is one thing a person sets
+ * and one thing every surface that names them renders: splitting it in two
+ * would mean two reads and two writes for a single line of text.
+ *
+ * Not to be confused with ``UserStatus`` (``users.status``), which is the
+ * account's standing — suspended, deactivated — and is not the person's to
+ * write.
+ */
+export interface CustomStatusOutput {
+  emoji: string | null;
+  text: string | null;
 }
 
 export type DashboardCreateDefinition = { [key: string]: unknown };
@@ -4342,6 +4217,14 @@ export interface GuildBannerWrite {
 }
 
 /**
+ * Info about a guild blocking user deletion.
+ */
+export interface GuildBlockerInfo {
+  guild_id: number;
+  guild_name: string;
+}
+
+/**
  * Place the people carrying one group.
  *
  * Naming an initiative places them there as well as in the community, since
@@ -5890,6 +5773,123 @@ export interface OperatorCatalogScanResult {
   withdrawn: number;
   skipped: number;
   problems: OperatorCatalogProblem[];
+}
+
+/**
+ * Enhanced eligibility response with actionable blocker details.
+ */
+export interface OperatorDeletionEligibilityResponse {
+  can_delete: boolean;
+  blockers: string[];
+  guild_blockers: GuildBlockerInfo[];
+}
+
+/**
+ * Freeze an account, or let it go.
+ *
+ * ``reason`` is shown to the person it is about, so it is written for them
+ * rather than as an internal note.
+ */
+export interface OperatorSuspensionUpdate {
+  suspended: boolean;
+  reason?: string | null;
+}
+
+export type OperatorUserDeleteRequestAction =
+  (typeof OperatorUserDeleteRequestAction)[keyof typeof OperatorUserDeleteRequestAction];
+
+export const OperatorUserDeleteRequestAction = {
+  deactivate: "deactivate",
+  soft_delete: "soft_delete",
+  hard_delete: "hard_delete",
+} as const;
+
+export type OperatorUserDeleteRequestProjectTransfers = { [key: string]: number } | null;
+
+/**
+ * Request to deactivate, anonymize (soft delete), or hard delete another account.
+ */
+export interface OperatorUserDeleteRequest {
+  action: OperatorUserDeleteRequestAction;
+  project_transfers?: OperatorUserDeleteRequestProjectTransfers;
+}
+
+export interface UserInitiativeRole {
+  initiative_id: number;
+  initiative_name: string;
+  role?: string | null;
+}
+
+/**
+ * A staff view of somebody else's account: the address masked.
+ *
+ * Everything staff do to an account — reset its password, rename
+ * it, change its tier, suspend it, delete it — is addressed by id, and the
+ * roster is read and searched by handle, so none of it needs the address
+ * itself. What the mask leaves is enough to match a row against an address
+ * somebody has quoted at you, which is what the column is read for.
+ *
+ * Masking lives on the shape rather than in each admin route: subclassing
+ * keeps ``/users/me`` — where the reader is the address's owner — on plain
+ * ``UserRead``, while every admin route that returns an account gets the
+ * masked form without opting in.
+ */
+export interface OperatorUserRead {
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  id: number;
+  username: string;
+  discriminator: number;
+  username_chosen: boolean;
+  age_confirmed_at: string | null;
+  age_below_minimum_at: string | null;
+  legal_acceptance_required: boolean;
+  cookie_consent: CookieConsentRead | null;
+  status: UserStatus;
+  email_verified: boolean;
+  created_at: string;
+  updated_at: string;
+  avatar_url: string | null;
+  custom_status: CustomStatusOutput;
+  presence: Presence;
+  profile_decorations: ProfileDecorationsOutput;
+  week_starts_on: number;
+  time_format: string;
+  recent_tabs_limit: number;
+  timezone: string;
+  event_reminder_minutes_before: number | null;
+  last_overdue_notification_at: string | null;
+  last_task_assignment_digest_at: string | null;
+  color_theme: string;
+  task_completion_visual_feedback: string;
+  task_completion_audio_feedback: boolean;
+  task_completion_haptic_feedback: boolean;
+  locale: string;
+  has_federated_identity: boolean;
+  has_password: boolean;
+  initiative_roles: UserInitiativeRole[];
+  purge_at: string | null;
+  readonly can_create_guilds: boolean;
+  /**
+   * Platform capabilities granted by this user's standing role — none
+   * while the account is suspended.
+   *
+   * The frontend gates UI on these values (single source of truth);
+   * see ``app.core.capabilities``. Sorted by value.
+   */
+  readonly capabilities: readonly Capability[];
+}
+
+/**
+ * The name part a moderator sets on someone else's account.
+ *
+ * The number is not here and never will be: it is drawn, not chosen, by
+ * anyone. It is re-drawn only if the new pair is already held.
+ */
+export interface OperatorUsernameUpdate {
+  /** @maxLength 64 */
+  username: string;
 }
 
 /**
@@ -9111,7 +9111,7 @@ export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
   state?: string | null;
 };
 
-export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams = {
+export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams = {
   user_id?: number[] | null;
 };
 

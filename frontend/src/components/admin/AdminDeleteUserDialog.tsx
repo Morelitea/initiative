@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  AdminDeletionEligibilityResponse,
-  AdminUserRead,
+  OperatorDeletionEligibilityResponse,
+  OperatorUserRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -87,7 +87,7 @@ const ACTION_META = {
 } as const satisfies Record<AdminAction, unknown>;
 
 interface AdminDeleteUserDialogProps extends DialogWithSuccessProps {
-  targetUser: AdminUserRead;
+  targetUser: OperatorUserRead;
 }
 
 export function AdminDeleteUserDialog({
@@ -100,7 +100,7 @@ export function AdminDeleteUserDialog({
   const validActions = validActionsFor(targetUser.status);
   const { step, go, back, canGoBack, reset } = useWizard<DeletionStep>("choose-type");
   const [action, setAction] = useState<AdminAction>(validActions[0]);
-  const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
+  const [eligibility, setEligibility] = useState<OperatorDeletionEligibilityResponse | null>(null);
   const [confirmationText, setConfirmationText] = useState("");
   const [agreedToConsequences, setAgreedToConsequences] = useState(false);
   // Ticked on the consent screen to take the windowed deletion instead of the

@@ -1,4 +1,4 @@
-"""Integration tests for platform-admin endpoints at /api/v1/admin."""
+"""Integration tests for platform operator endpoints at /api/v1/operator."""
 
 import csv
 import io
@@ -48,7 +48,9 @@ async def test_export_platform_users_csv_as_admin(client, platform_people):
     the addresses masked the way the roster it exports masks them."""
     admin = platform_people["admin"]
 
-    response = await client.get("/api/v1/admin/users/export.csv", headers=admin.headers)
+    response = await client.get(
+        "/api/v1/operator/users/export.csv", headers=admin.headers
+    )
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
@@ -95,7 +97,7 @@ async def test_export_platform_users_csv_returns_the_accounts_asked_for(
     query = "&".join(f"user_id={_export_id(platform_people, name)}" for name in ask)
 
     response = await client.get(
-        f"/api/v1/admin/users/export.csv?{query}", headers=admin.headers
+        f"/api/v1/operator/users/export.csv?{query}", headers=admin.headers
     )
 
     if not expect:
@@ -139,7 +141,7 @@ async def test_the_only_follow_up_to_anonymizing_is_a_hard_delete(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/admin/users/{target.id}",
+        f"/api/v1/operator/users/{target.id}",
         headers=admin.headers,
         json={"action": action},
     )
@@ -178,7 +180,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
         await session.commit()
 
     response = await client.patch(
-        f"/api/v1/admin/users/{target.id}/platform-role",
+        f"/api/v1/operator/users/{target.id}/platform-role",
         headers=admin.headers,
         json={"role": requested},
     )
@@ -196,7 +198,7 @@ async def test_demoting_an_active_admin_completes(client, session, acting_user):
     target = await create_user(session, role=UserRole.operator)
 
     response = await client.patch(
-        f"/api/v1/admin/users/{target.id}/platform-role",
+        f"/api/v1/operator/users/{target.id}/platform-role",
         headers=deleter.headers,
         json={"role": "member"},
     )
@@ -215,7 +217,7 @@ async def test_platform_roster_masks_addresses(client, acting_user):
     owner = await acting_user("owner", email="owner@example.com")
     await acting_user("member", email="user1@example.com")
 
-    response = await client.get("/api/v1/admin/users", headers=owner.headers)
+    response = await client.get("/api/v1/operator/users", headers=owner.headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -233,7 +235,7 @@ async def test_admin_mutations_return_masked_addresses(client, acting_user):
     target = await acting_user("member", email="target@example.com")
 
     role_change = await client.patch(
-        f"/api/v1/admin/users/{target.user.id}/platform-role",
+        f"/api/v1/operator/users/{target.user.id}/platform-role",
         headers=owner.headers,
         json={"role": "support"},
     )
@@ -241,7 +243,7 @@ async def test_admin_mutations_return_masked_addresses(client, acting_user):
     assert role_change.json()["email"] == "t***t@e***m"
 
     suspend = await client.post(
-        f"/api/v1/admin/users/{target.user.id}/suspension",
+        f"/api/v1/operator/users/{target.user.id}/suspension",
         headers=owner.headers,
         json={"suspended": True},
     )
@@ -267,8 +269,8 @@ async def test_own_account_still_reads_its_whole_address(client, acting_user):
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        pytest.param("GET", "/api/v1/admin/users/export.csv", id="the-export"),
-        pytest.param("GET", "/api/v1/admin/users", id="the-roster"),
+        pytest.param("GET", "/api/v1/operator/users/export.csv", id="the-export"),
+        pytest.param("GET", "/api/v1/operator/users", id="the-roster"),
     ],
 )
 async def test_the_admin_router_turns_away_an_ordinary_account(

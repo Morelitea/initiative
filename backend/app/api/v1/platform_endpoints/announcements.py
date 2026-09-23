@@ -6,7 +6,7 @@ Two audiences on one router, deliberately kept apart by path and by session:
   run on ``UserSessionDep``, so a draft is invisible to them at the database
   rather than by a filter someone could forget. What they may record is their
   own receipt, and RLS confines that to their own rows.
-* **Authors** (``/announcements/admin/…``) hold ``announcements.manage`` and
+* **Authors** (``/announcements/operator/…``) hold ``announcements.manage`` and
   also run on ``UserSessionDep``: the tiers holding that capability read and
   write every announcement and picture through their own policies
   (``announcements_manage``, ``announcement_images_manage``), drafts included.
@@ -47,8 +47,8 @@ from app.models.platform.announcement import (
 )
 from app.models.platform.user import User
 from app.schemas.platform.announcement import (
-    AnnouncementAdminListResponse,
-    AnnouncementAdminRead,
+    AnnouncementOperatorListResponse,
+    AnnouncementOperatorRead,
     AnnouncementImageRead,
     AnnouncementListResponse,
     AnnouncementUpdate,
@@ -168,25 +168,27 @@ async def read_announcement_image(
 # --- authoring ---------------------------------------------------------------
 
 
-@router.get("/admin", response_model=AnnouncementAdminListResponse)
+@router.get("/operator", response_model=AnnouncementOperatorListResponse)
 async def list_all_announcements(
     session: UserSessionDep,
     _author: AuthorDep,
-) -> AnnouncementAdminListResponse:
+) -> AnnouncementOperatorListResponse:
     """Every announcement, drafts and compiled-in notices included."""
-    return AnnouncementAdminListResponse(
+    return AnnouncementOperatorListResponse(
         items=await announcements_service.list_all(session)
     )
 
 
 @router.post(
-    "/admin", response_model=AnnouncementAdminRead, status_code=status.HTTP_201_CREATED
+    "/operator",
+    response_model=AnnouncementOperatorRead,
+    status_code=status.HTTP_201_CREATED,
 )
 async def create_announcement(
     payload: AnnouncementWrite,
     session: UserSessionDep,
     author: AuthorDep,
-) -> AnnouncementAdminRead:
+) -> AnnouncementOperatorRead:
     announcement = await announcements_service.create(
         session, payload=payload, author_id=author.id
     )
@@ -196,13 +198,13 @@ async def create_announcement(
     return announcements_service.to_admin_read(announcement)
 
 
-@router.patch("/admin/{announcement_id}", response_model=AnnouncementAdminRead)
+@router.patch("/operator/{announcement_id}", response_model=AnnouncementOperatorRead)
 async def update_announcement(
     announcement_id: int,
     payload: AnnouncementUpdate,
     session: UserSessionDep,
     _author: AuthorDep,
-) -> AnnouncementAdminRead:
+) -> AnnouncementOperatorRead:
     announcement = await _load(session, announcement_id)
     await announcements_service.update(
         session, announcement=announcement, payload=payload
@@ -213,7 +215,7 @@ async def update_announcement(
     return announcements_service.to_admin_read(announcement)
 
 
-@router.delete("/admin/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/operator/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_announcement(
     announcement_id: int,
     session: UserSessionDep,
@@ -236,7 +238,7 @@ async def delete_announcement(
 
 
 @router.post(
-    "/admin/images",
+    "/operator/images",
     response_model=AnnouncementImageRead,
     status_code=status.HTTP_201_CREATED,
 )

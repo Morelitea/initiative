@@ -54,7 +54,7 @@ from app.models.platform.user import User, UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.schemas.platform.announcement import (
     IMAGE_PATH_PREFIX,
-    AnnouncementAdminRead,
+    AnnouncementOperatorRead,
     AnnouncementRead,
     AnnouncementSection,
     AnnouncementUpdate,
@@ -209,9 +209,9 @@ def _to_read(announcement: Announcement) -> AnnouncementRead:
     )
 
 
-def to_admin_read(announcement: Announcement) -> AnnouncementAdminRead:
+def to_admin_read(announcement: Announcement) -> AnnouncementOperatorRead:
     """The full row, for the surface that writes them."""
-    return AnnouncementAdminRead(
+    return AnnouncementOperatorRead(
         key=db_announcement_key(announcement.id or 0),
         id=announcement.id,
         title=announcement.title,
@@ -231,9 +231,9 @@ def to_admin_read(announcement: Announcement) -> AnnouncementAdminRead:
     )
 
 
-def builtin_admin_read(builtin: BuiltinAnnouncement) -> AnnouncementAdminRead:
+def builtin_admin_read(builtin: BuiltinAnnouncement) -> AnnouncementOperatorRead:
     """A compiled-in notice in the admin list's shape, marked uneditable."""
-    return AnnouncementAdminRead(
+    return AnnouncementOperatorRead(
         key=builtin.key,
         id=None,
         title=builtin.title,
@@ -438,7 +438,7 @@ async def dismissals_required_for(session: AsyncSession, *, key: str) -> int:
 # --- authoring ---------------------------------------------------------------
 
 
-async def list_all(session: AsyncSession) -> list[AnnouncementAdminRead]:
+async def list_all(session: AsyncSession) -> list[AnnouncementOperatorRead]:
     """Everything an author can see: drafts, scheduled, live and expired."""
     rows = (await session.exec(select(Announcement))).all()
     items = [to_admin_read(row) for row in rows]

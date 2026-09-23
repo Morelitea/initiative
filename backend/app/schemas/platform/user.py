@@ -48,7 +48,7 @@ from app.core.config import settings
 #   guild-scoped shape — roster, picker and member management alike — and kept
 #   in full only on ``UserRead``, which is served for your own account.
 # * An address is read back in full only by its owner. Staff reads use
-#   ``AdminUserRead``, which is ``UserRead`` with the address
+#   ``OperatorUserRead``, which is ``UserRead`` with the address
 #   shortened (``app.core.email_masking``) — enough to recognise one you
 #   already have.
 # * A real name is shown only where a guild has asked for it.
@@ -76,7 +76,7 @@ class UserCreate(SanitizedBaseModel):
     # platform role from the request body. Registration computes the role
     # itself (first user = owner, everyone else = member) and the admin
     # endpoint forces ``member``; standing platform roles change only via
-    # ``/admin/users/{id}/platform-role`` (capability-gated, bounded
+    # ``/operator/users/{id}/platform-role`` (capability-gated, bounded
     # delegation). See SEC-1.
     email: EmailStr
     # The name part of the handle. The number behind it is drawn server-side —
@@ -617,7 +617,7 @@ class UserRead(UserBase):
         )
 
 
-class AdminUserRead(UserRead):
+class OperatorUserRead(UserRead):
     """A staff view of somebody else's account: the address masked.
 
     Everything staff do to an account — reset its password, rename

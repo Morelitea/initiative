@@ -58,7 +58,7 @@ describe("isPersistablePath", () => {
       "/api/v1/auth/providers",
       "/api/v1/config",
       "/api/v1/settings/branding",
-      "/api/v1/admin/users",
+      "/api/v1/operator/users",
       "/api/v1/access-grants/",
       "/api/v1/ai-settings",
       "/api/v1/webhooks",

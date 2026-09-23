@@ -16,11 +16,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { AdminUserRead, UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import type { OperatorUserRead, UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 
 // The roster the mocked hook serves. Each test sets it, so no test depends on
 // what another left behind.
-const state = vi.hoisted(() => ({ roster: [] as AdminUserRead[] }));
+const state = vi.hoisted(() => ({ roster: [] as OperatorUserRead[] }));
 
 vi.mock("@/hooks/useAdmin", () => ({
   usePlatformUsers: () => ({ data: state.roster, isLoading: false, isError: false }),
@@ -42,9 +42,12 @@ const masked = () =>
   [
     { ...buildUser({ role: "owner" }), email: "o***r@e***m", username: "owner" },
     { ...buildUser({ role: "member" }), email: "u***1@e***m", username: "member-one" },
-  ] as unknown as AdminUserRead[];
+  ] as unknown as OperatorUserRead[];
 
-const renderRoster = (roster: AdminUserRead[], viewer: UserRead = buildUser({ role: "owner" })) => {
+const renderRoster = (
+  roster: OperatorUserRead[],
+  viewer: UserRead = buildUser({ role: "owner" })
+) => {
   state.roster = roster;
   return renderPage(() => <SettingsPlatformUsersPage />, { auth: { user: viewer } });
 };
@@ -183,7 +186,7 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
 });
 
 describe("an account on its way out", () => {
-  const deleted = (purgeAt: string | null): AdminUserRead[] => {
+  const deleted = (purgeAt: string | null): OperatorUserRead[] => {
     const rows = masked();
     rows[1] = { ...rows[1], status: "deleted", purge_at: purgeAt };
     return rows;

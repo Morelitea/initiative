@@ -10,7 +10,7 @@ connections and the member surface live in ``tenant_endpoints/ai_settings.py``.
 from fastapi import APIRouter, status
 
 from app.api.deps import UserSessionDep
-from app.api.v1.platform_endpoints.admin import ConfigManageDep
+from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.schemas.ai_settings import (
     AIConnectionCreate,
     AIConnectionResponse,

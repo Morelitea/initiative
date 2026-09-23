@@ -3,7 +3,7 @@
 Two shapes carry a stored address in full: ``UserRead`` on the ``/users/me``
 routes, and ``UserEmailRead`` on the routes listing the addresses an account
 holds. Both are served only to the address's owner. Every other route that
-returns an account returns ``AdminUserRead``, which masks it, and the shapes
+returns an account returns ``OperatorUserRead``, which masks it, and the shapes
 that carry an address field alongside other data — the guild invite, the
 access grant — mask it too.
 
@@ -41,7 +41,7 @@ SELF_SHAPES = {
 #: Shapes that carry an address field and mask it. Each has a validator
 #: applying ``app.core.email_masking.mask_email``; adding a name here means
 #: having added that validator.
-MASKED_SHAPES = {"AdminUserRead", "AccessGrantRead", "GuildInviteRead"}
+MASKED_SHAPES = {"OperatorUserRead", "AccessGrantRead", "GuildInviteRead"}
 
 
 def _operations() -> Iterable[tuple[str, str, dict]]:
@@ -126,7 +126,7 @@ def test_the_walk_reaches_a_nested_shape() -> None:
 def test_the_unmasked_shapes_are_served_only_on_their_own_routes() -> None:
     """An unmasked shape reaches a response only where the caller owns it.
 
-    A route serving somebody else's account uses ``AdminUserRead`` instead; one
+    A route serving somebody else's account uses ``OperatorUserRead`` instead; one
     that genuinely belongs on a list is added to it explicitly.
     """
     spec = app.openapi()
@@ -141,7 +141,7 @@ def test_the_unmasked_shapes_are_served_only_on_their_own_routes() -> None:
     }
     assert not leaked, (
         f"{sorted(leaked)} — these routes return a shape carrying the stored "
-        "address. Serve somebody else's account as AdminUserRead."
+        "address. Serve somebody else's account as OperatorUserRead."
     )
 
 

@@ -1,31 +1,31 @@
 import { useQuery } from "@tanstack/react-query";
 
-import {
-  checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet,
-  clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete,
-  deleteUserApiV1AdminUsersUserIdDelete,
-  exportPlatformUsersCsvApiV1AdminUsersExportCsvGet,
-  getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
-  getListAllUsersApiV1AdminUsersGetQueryKey,
-  listAllUsersApiV1AdminUsersGet,
-  reactivateUserApiV1AdminUsersUserIdReactivatePost,
-  removeUserAvatarApiV1AdminUsersUserIdAvatarDelete,
-  restoreDeletedUserApiV1AdminUsersUserIdRestorePost,
-  setUserSuspensionApiV1AdminUsersUserIdSuspensionPost,
-  setUserUsernameApiV1AdminUsersUserIdUsernamePatch,
-  triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
-  updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch,
-} from "@/api/generated/admin/admin";
 import type {
   AccountDeletionResponse,
-  AdminDeletionEligibilityResponse,
-  AdminUserDeleteRequest,
-  AdminUserRead,
   DeletionEligibilityResponse,
-  ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
+  OperatorDeletionEligibilityResponse,
+  OperatorUserDeleteRequest,
+  OperatorUserRead,
   UserRole,
   VerificationSendResponse,
 } from "@/api/generated/initiativeAPI.schemas";
+import {
+  checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet,
+  clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete,
+  deleteUserApiV1OperatorUsersUserIdDelete,
+  exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet,
+  getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey,
+  getListAllUsersApiV1OperatorUsersGetQueryKey,
+  listAllUsersApiV1OperatorUsersGet,
+  reactivateUserApiV1OperatorUsersUserIdReactivatePost,
+  removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete,
+  restoreDeletedUserApiV1OperatorUsersUserIdRestorePost,
+  setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost,
+  setUserUsernameApiV1OperatorUsersUserIdUsernamePatch,
+  triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost,
+  updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch,
+} from "@/api/generated/operator/operator";
 import {
   checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet,
   getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey,
@@ -39,10 +39,10 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /** Fetch all platform users (admin only). */
-export const usePlatformUsers = (options?: QueryOpts<AdminUserRead[]>) => {
-  return useQuery<AdminUserRead[]>({
-    queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
-    queryFn: () => listAllUsersApiV1AdminUsersGet(),
+export const usePlatformUsers = (options?: QueryOpts<OperatorUserRead[]>) => {
+  return useQuery<OperatorUserRead[]>({
+    queryKey: getListAllUsersApiV1OperatorUsersGetQueryKey(),
+    queryFn: () => listAllUsersApiV1OperatorUsersGet(),
     ...options,
   });
 };
@@ -54,10 +54,11 @@ export const usePlatformUsers = (options?: QueryOpts<AdminUserRead[]>) => {
  * on demand.
  */
 export const useUserDeletionEligibility = (userId: number) => {
-  return useQuery<AdminDeletionEligibilityResponse>({
+  return useQuery<OperatorDeletionEligibilityResponse>({
     queryKey:
-      getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey(userId),
-    queryFn: () => checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet(userId),
+      getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey(userId),
+    queryFn: () =>
+      checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet(userId),
     enabled: false,
   });
 };
@@ -81,12 +82,12 @@ export const useMyDeletionEligibility = () => {
 /** Delete a user account (admin only). Closes over the target userId. */
 export const useAdminDeleteUser = (
   userId: number,
-  options?: MutationOpts<AccountDeletionResponse, AdminUserDeleteRequest>
+  options?: MutationOpts<AccountDeletionResponse, OperatorUserDeleteRequest>
 ) =>
-  useApiMutation<AccountDeletionResponse, AdminUserDeleteRequest>(
+  useApiMutation<AccountDeletionResponse, OperatorUserDeleteRequest>(
     {
-      mutationFn: (request) => deleteUserApiV1AdminUsersUserIdDelete(userId, request),
-      invalidate: () => invalidate(q.adminUsers()),
+      mutationFn: (request) => deleteUserApiV1OperatorUsersUserIdDelete(userId, request),
+      invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );
@@ -97,17 +98,17 @@ export const useAdminTriggerPasswordReset = (
 ) =>
   useApiMutation<VerificationSendResponse, number>(
     {
-      mutationFn: (userId) => triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost(userId),
+      mutationFn: (userId) => triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost(userId),
     },
     options
   );
 
 /** Reactivate a deactivated user (admin only). */
-export const useAdminReactivateUser = (options?: MutationOpts<AdminUserRead, number>) =>
-  useApiMutation<AdminUserRead, number>(
+export const useAdminReactivateUser = (options?: MutationOpts<OperatorUserRead, number>) =>
+  useApiMutation<OperatorUserRead, number>(
     {
-      mutationFn: (userId) => reactivateUserApiV1AdminUsersUserIdReactivatePost(userId),
-      invalidate: () => invalidate(q.adminUsers()),
+      mutationFn: (userId) => reactivateUserApiV1OperatorUsersUserIdReactivatePost(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );
@@ -117,11 +118,11 @@ export const useAdminReactivateUser = (options?: MutationOpts<AdminUserRead, num
  * Not the same thing as reactivating: a deleted account never lost its
  * memberships, so this puts it back exactly where it was, while reactivating a
  * deactivated one gives back an account with no communities. */
-export const useAdminRestoreUser = (options?: MutationOpts<AdminUserRead, number>) =>
-  useApiMutation<AdminUserRead, number>(
+export const useAdminRestoreUser = (options?: MutationOpts<OperatorUserRead, number>) =>
+  useApiMutation<OperatorUserRead, number>(
     {
-      mutationFn: (userId) => restoreDeletedUserApiV1AdminUsersUserIdRestorePost(userId),
-      invalidate: () => invalidate(q.adminUsers()),
+      mutationFn: (userId) => restoreDeletedUserApiV1OperatorUsersUserIdRestorePost(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );
@@ -130,12 +131,12 @@ type SetUsernameVars = { userId: number; username: string };
 
 /** Change someone's username (``content.moderate``). The number is not the
  *  moderator's to choose; the server keeps the one they have. */
-export const useAdminSetUsername = (options?: MutationOpts<AdminUserRead, SetUsernameVars>) =>
-  useApiMutation<AdminUserRead, SetUsernameVars>(
+export const useAdminSetUsername = (options?: MutationOpts<OperatorUserRead, SetUsernameVars>) =>
+  useApiMutation<OperatorUserRead, SetUsernameVars>(
     {
       mutationFn: ({ userId, username }) =>
-        setUserUsernameApiV1AdminUsersUserIdUsernamePatch(userId, { username }),
-      invalidate: () => invalidate(q.adminUsers()),
+        setUserUsernameApiV1OperatorUsersUserIdUsernamePatch(userId, { username }),
+      invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );
@@ -144,15 +145,17 @@ type SetSuspensionVars = { userId: number; suspended: boolean; reason?: string }
 
 /** Freeze an account, or let it go (``users.manage``). Takes nothing away —
  *  memberships, grants and content are all still there when it is lifted. */
-export const useAdminSetSuspension = (options?: MutationOpts<AdminUserRead, SetSuspensionVars>) =>
-  useApiMutation<AdminUserRead, SetSuspensionVars>(
+export const useAdminSetSuspension = (
+  options?: MutationOpts<OperatorUserRead, SetSuspensionVars>
+) =>
+  useApiMutation<OperatorUserRead, SetSuspensionVars>(
     {
       mutationFn: ({ userId, suspended, reason }) =>
-        setUserSuspensionApiV1AdminUsersUserIdSuspensionPost(userId, {
+        setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost(userId, {
           suspended,
           reason: reason || null,
         }),
-      invalidate: () => invalidate(q.adminUsers()),
+      invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );
@@ -161,11 +164,11 @@ export const useAdminSetSuspension = (options?: MutationOpts<AdminUserRead, SetS
  *  For the case that is nearly all of them: a mistyped year. It clears the
  *  record that the question was answered and nothing else — the date was never
  *  kept, so there is nothing else to clear. */
-export const useAdminClearAgeBlock = (options?: MutationOpts<AdminUserRead, number>) =>
-  useApiMutation<AdminUserRead, number>(
+export const useAdminClearAgeBlock = (options?: MutationOpts<OperatorUserRead, number>) =>
+  useApiMutation<OperatorUserRead, number>(
     {
-      mutationFn: (userId) => clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete(userId),
-      invalidate: () => invalidate(q.adminUsers()),
+      mutationFn: (userId) => clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );
@@ -175,14 +178,14 @@ export const useAdminClearAgeBlock = (options?: MutationOpts<AdminUserRead, numb
 export const useAdminRemoveAvatar = (options?: MutationOpts<void, number>) =>
   useApiMutation<void, number>(
     {
-      mutationFn: (userId) => removeUserAvatarApiV1AdminUsersUserIdAvatarDelete(userId),
-      invalidate: () => invalidate(q.adminUsers()),
+      mutationFn: (userId) => removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );
 
 type ExportPlatformUsersVars = {
-  params: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams;
+  params: ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams;
   filename: string;
 };
 
@@ -191,7 +194,7 @@ export const useExportPlatformUsersCsv = (options?: MutationOpts<void, ExportPla
   useApiMutation<void, ExportPlatformUsersVars>(
     {
       mutationFn: async ({ params, filename }) => {
-        const blob = (await exportPlatformUsersCsvApiV1AdminUsersExportCsvGet(params, {
+        const blob = (await exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet(params, {
           responseType: "blob",
           // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
           paramsSerializer: { indexes: null },
@@ -204,15 +207,15 @@ export const useExportPlatformUsersCsv = (options?: MutationOpts<void, ExportPla
 
 /** Update a user's platform role (admin only). */
 export const useAdminUpdatePlatformRole = (
-  options?: MutationOpts<AdminUserRead, { userId: number; role: UserRole }>
+  options?: MutationOpts<OperatorUserRead, { userId: number; role: UserRole }>
 ) =>
-  useApiMutation<AdminUserRead, { userId: number; role: UserRole }>(
+  useApiMutation<OperatorUserRead, { userId: number; role: UserRole }>(
     {
       mutationFn: ({ userId, role }) =>
-        updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch(userId, {
+        updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch(userId, {
           role,
-        } as Parameters<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>[1]),
-      invalidate: () => invalidate(q.adminUsers()),
+        } as Parameters<typeof updatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch>[1]),
+      invalidate: () => invalidate(q.operatorUsers()),
     },
     options
   );

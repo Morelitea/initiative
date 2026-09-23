@@ -15,7 +15,7 @@ class PlatformRoleUpdate(SanitizedBaseModel):
     role: UserRole
 
 
-class AdminUserDeleteRequest(SanitizedBaseModel):
+class OperatorUserDeleteRequest(SanitizedBaseModel):
     """Request to deactivate, anonymize (soft delete), or hard delete another account."""
 
     action: Literal["deactivate", "soft_delete", "hard_delete"]
@@ -33,7 +33,7 @@ class GuildBlockerInfo(SanitizedBaseModel):
     guild_name: str
 
 
-class AdminDeletionEligibilityResponse(SanitizedBaseModel):
+class OperatorDeletionEligibilityResponse(SanitizedBaseModel):
     """Enhanced eligibility response with actionable blocker details."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -43,7 +43,7 @@ class AdminDeletionEligibilityResponse(SanitizedBaseModel):
     guild_blockers: List[GuildBlockerInfo] = Field(default_factory=list)
 
 
-class AdminUsernameUpdate(SanitizedBaseModel):
+class OperatorUsernameUpdate(SanitizedBaseModel):
     """The name part a moderator sets on someone else's account.
 
     The number is not here and never will be: it is drawn, not chosen, by
@@ -53,7 +53,7 @@ class AdminUsernameUpdate(SanitizedBaseModel):
     username: str = Field(max_length=64)
 
 
-class AdminSuspensionUpdate(SanitizedBaseModel):
+class OperatorSuspensionUpdate(SanitizedBaseModel):
     """Freeze an account, or let it go.
 
     ``reason`` is shown to the person it is about, so it is written for them

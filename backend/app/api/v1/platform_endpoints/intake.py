@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.platform_endpoints.admin import ConfigManageDep
+from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.intake import IntakeStream
 from app.core.messages import IntakeMessages
 from app.db.session import get_admin_session, set_rls_context

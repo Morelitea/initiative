@@ -219,10 +219,10 @@ async def test_app_settings_readable_by_every_tier(session):
 
 
 async def test_support_can_list_users_role_scoped(client, acting_user):
-    """The moved ``GET /admin/users`` runs as ``platform_support`` (off the
+    """The moved ``GET /operator/users`` runs as ``platform_support`` (off the
     engine) and the cross-user read is authorized by ``users_platform_read``."""
     a = await acting_user("support")
-    resp = await client.get("/api/v1/admin/users", headers=a.headers)
+    resp = await client.get("/api/v1/operator/users", headers=a.headers)
     assert resp.status_code == 200
     assert any(u["id"] == a.user.id for u in resp.json())
 
@@ -230,7 +230,7 @@ async def test_support_can_list_users_role_scoped(client, acting_user):
 async def test_member_cannot_list_users(client, acting_user):
     """The capability gate still holds above RLS: a member lacks ``users.read``."""
     a = await acting_user("member")
-    resp = await client.get("/api/v1/admin/users", headers=a.headers)
+    resp = await client.get("/api/v1/operator/users", headers=a.headers)
     assert resp.status_code == 403
 
 

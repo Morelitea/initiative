@@ -3,9 +3,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  AnnouncementAdminRead,
   AnnouncementAudienceAccounts,
   AnnouncementCategory,
+  AnnouncementOperatorRead,
   AnnouncementSection,
 } from "@/api/generated/initiativeAPI.schemas";
 import { AnnouncementDialog } from "@/components/announcements/AnnouncementDialog";
@@ -107,7 +107,7 @@ const emptySection = (): AnnouncementSection => ({
   starts_page: false,
 });
 
-const initialState = (announcement: AnnouncementAdminRead | null): EditorState => ({
+const initialState = (announcement: AnnouncementOperatorRead | null): EditorState => ({
   title: announcement?.title ?? "",
   category: announcement?.category ?? "feature",
   minPlatformRole: (announcement?.min_platform_role ?? "member") as PlatformRole,
@@ -126,7 +126,7 @@ const initialState = (announcement: AnnouncementAdminRead | null): EditorState =
 interface AnnouncementEditorDialogProps {
   open: boolean;
   /** The announcement being edited, or null to write a new one. */
-  announcement: AnnouncementAdminRead | null;
+  announcement: AnnouncementOperatorRead | null;
   onOpenChange: (open: boolean) => void;
 }
 
