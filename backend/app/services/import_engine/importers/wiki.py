@@ -44,6 +44,7 @@ from app.services.import_engine.importers._base import (
     grant_ownership,
     parse_envelope,
 )
+from app.services.import_engine.links import links_to_pages, wiki_page_slug_ref
 from app.services.import_engine.people import PeopleMap, quoted_account
 from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
@@ -67,11 +68,18 @@ class WikiImporter:
         envelope: WikiEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
         seen: dict[str, ManifestPerson] = {}
         counts: dict[str, int] = {}
+        comments: dict[str, int] = {}
         for page in envelope.pages:
             named = [
                 (page.author_handle, page.author_name),
                 *((handle, None) for handle in page.mention_handles),
             ]
+            for comment in page.comments:
+                named.append((comment.author_handle, comment.author_name))
+                named.extend((handle, None) for handle in comment.mention_handles)
+                if comment.author_handle and comment.author_handle.strip():
+                    key = handle_key(comment.author_handle.strip())
+                    comments[key] = comments.get(key, 0) + 1
             for handle, name in named:
                 handle = (handle or "").strip()
                 if not handle:
@@ -83,6 +91,8 @@ class WikiImporter:
                 )
                 if person.name is None:
                     person.name = name
+        for key, person in seen.items():
+            person.comment_count = comments.get(key, 0)
         return sorted(
             seen.values(),
             key=lambda p: (-counts[handle_key(p.handle)], p.handle.lower()),
@@ -90,8 +100,11 @@ class WikiImporter:
 
     def count(self, validated: BaseModel) -> int:
         envelope: WikiEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
-        # A wiki's size is what is written in it, plus the row naming it.
-        return len(envelope.pages) + 1
+        # A wiki's size is what is written in it, plus the row naming it. A
+        # comment is a row like a page is.
+        return (
+            len(envelope.pages) + sum(len(page.comments) for page in envelope.pages) + 1
+        )
 
     async def apply(
         self,
@@ -154,7 +167,9 @@ class WikiImporter:
             await load_initiative_member_handles(
                 session, initiative_id=target_initiative.id
             )
-            if any(p.author_handle or p.mention_handles for p in env.pages)
+            if any(
+                p.author_handle or p.mention_handles or p.comments for p in env.pages
+            )
             else {}
         )
 
@@ -187,6 +202,11 @@ class WikiImporter:
                 context.links.register(
                     page_env.external_ref, SearchEntityType.wiki_page, row.id
                 )
+                context.links.register(
+                    wiki_page_slug_ref(wiki.id, page_env.slug.strip()),
+                    SearchEntityType.wiki_page,
+                    row.id,
+                )
             await attach_tags("wiki_page", row.id, page_env.tags)
 
         # Pass two: file each page under its parent, by slug.
@@ -205,7 +225,12 @@ class WikiImporter:
             warnings.append(f"missing_parent_pages:{unknown}")
 
         # Pass three: what a page names, now that every page has an id.
-        wanted = {key for page in env.pages for key in _jira_keys(page.content)}
+        bodies = [
+            body
+            for page in env.pages
+            for body in (page.content, *(c.content for c in page.comments))
+        ]
+        wanted = {key for body in bodies for key in _jira_keys(body)}
         # An issue that came over in this same import is already known by the
         # ref its task was registered under; anything else is looked up by
         # the key an earlier Jira import recorded.
@@ -220,17 +245,21 @@ class WikiImporter:
         # document of its own.
         documents: dict[str, int] = {}
         if context is not None:
-            for ref in {
-                r for page in env.pages for r in _marks(page.content, "importRef")
-            }:
+            for ref in {r for body in bodies for r in _marks(body, "importRef")}:
                 endpoint = context.links.lookup(ref)
                 if endpoint is not None and endpoint.kind == SearchEntityType.document:
                     documents[ref] = endpoint.id
         by_original = {page.slug.strip(): slug for page, slug in zip(env.pages, slugs)}
-        for page_env, row in zip(env.pages, rows):
+        pages_by_slug = {
+            original: page_ids[assigned]
+            for original, assigned in by_original.items()
+            if assigned in page_ids
+        }
+
+        def placed(content: Any, handles: list[str]) -> Any:
             mentioned = {
                 handle: account
-                for handle in page_env.mention_handles
+                for handle in handles
                 if (
                     account := quoted_account(
                         handle, people=people, member_handles=member_handles
@@ -238,20 +267,30 @@ class WikiImporter:
                 )
                 is not None
             }
-            linked = _place_references(
-                row.content,
-                page_ids={
-                    original: page_ids[assigned]
-                    for original, assigned in by_original.items()
-                    if assigned in page_ids
-                },
+            return _place_references(
+                content,
+                page_ids=pages_by_slug,
                 mentioned=mentioned,
                 jira_tasks=jira_tasks,
                 documents=documents,
             )
+
+        comment_count = 0
+        for page_env, row in zip(env.pages, rows):
+            linked = placed(row.content, page_env.mention_handles)
             if linked is not None:
                 row.content = linked
                 session.add(row)
+            comment_count += await _write_comments(
+                session,
+                page_env,
+                row,
+                place=placed,
+                people=people,
+                member_handles=member_handles,
+                importer=importer,
+                context=context,
+            )
 
         if env.home_page and env.home_page in page_ids:
             wiki.home_page_id = page_ids[env.home_page]
@@ -263,10 +302,76 @@ class WikiImporter:
         return EnvelopeImportResult(
             entity_id=wiki.id,
             entity_title=wiki.name,
-            created={"wikis": 1, "pages": len(env.pages), "tags": tags_created},
+            created={
+                "wikis": 1,
+                "pages": len(env.pages),
+                "comments": comment_count,
+                "tags": tags_created,
+            },
             matched={"tags": tags_matched},
             warnings=warnings,
         )
+
+
+async def _write_comments(
+    session: AsyncSession,
+    page_env: WikiPageEnvelope,
+    row: WikiPage,
+    *,
+    place: Any,
+    people: PeopleMap,
+    member_handles: dict[str, int],
+    importer: User,
+    context: ImportContext | None,
+) -> int:
+    """Write what was said on one page, as its comment thread.
+
+    Each body's references are placed the way the page's own are, and then
+    written as comment text. A comment belongs to the account the people step
+    placed its author on; anybody else's is written by the importer with the
+    source's name beside it, never under somebody else's face. A reply whose
+    parent did not come stands on its own.
+    """
+    from datetime import timezone
+
+    from app.models.tenant.comment import Comment
+    from app.services.import_engine.comment_markdown import comment_markdown
+
+    written: dict[str, int] = {}
+    count = 0
+    for comment_env in page_env.comments:
+        content = comment_env.content
+        body = comment_markdown(place(content, comment_env.mention_handles) or content)
+        if not body:
+            continue
+        author = quoted_account(
+            comment_env.author_handle, people=people, member_handles=member_handles
+        )
+        source_name = (
+            comment_env.author_name or comment_env.author_handle or ""
+        ).strip()
+        created = parse_datetime(comment_env.created_at)
+        comment = Comment(
+            wiki_page_id=row.id,
+            content=body,
+            created_by=author if author is not None else importer.id,
+            imported_author_name=None
+            if author is not None
+            else (source_name[:200] or None),
+            parent_comment_id=written.get(comment_env.reply_to_ref or ""),
+            created_at=created or datetime.now(timezone.utc),
+        )
+        session.add(comment)
+        if context is not None and links_to_pages(body):
+            # A link to a page in another space of this job is joined once
+            # every wiki is in.
+            await session.flush()
+            context.links.note_body(SearchEntityType.comment, comment.id)
+        if comment_env.external_ref:
+            await session.flush()
+            written[comment_env.external_ref] = comment.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+        count += 1
+    return count
 
 
 def _text_node(text: str) -> dict[str, Any]:

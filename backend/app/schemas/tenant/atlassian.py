@@ -126,13 +126,14 @@ class AtlassianImportRequest(SanitizedBaseModel):
             Field(min_length=1, max_length=255, pattern=CONFLUENCE_SPACE_KEY_PATTERN),
         ]
     ] = Field(default=[], max_length=200)
-    #: Bring each issue's comments across. On unless somebody turns it off:
-    #: it costs a call per issue whose comments run past the first page, which
-    #: a large project with long threads will feel.
+    #: Bring comments across: an issue's, and a page's footer and inline ones.
+    #: On unless somebody turns it off: it costs a call per issue whose
+    #: comments run past the first page and a few per page, which a large site
+    #: with long threads will feel.
     include_comments: bool = True
-    #: Bring each issue's images across as uploads, shown where the
-    #: description or a comment embedded them. On unless turned off: each is a
-    #: download, and they count against the community's storage.
+    #: Bring attachments across: an issue's images, and a page's pictures and
+    #: files. On unless turned off: each is a download, and they count against
+    #: the community's storage.
     include_attachments: bool = True
 
 

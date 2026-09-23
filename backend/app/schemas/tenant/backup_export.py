@@ -35,6 +35,9 @@ class ManifestAttachTo(SanitizedBaseModel):
 
     kind: str  # "wiki"
     ref: str  # the far end's manifest entry path
+    #: The page it is filed under in that wiki, by the page's slug in the
+    #: wiki's envelope. Absent is the top of the wiki.
+    page: Optional[str] = None
 
 
 class ManifestEntry(SanitizedBaseModel):

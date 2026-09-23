@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Optional
 
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine.contract import ImportEngineError
@@ -116,6 +116,15 @@ class PageMedia:
         """The pictures the page shows, which travel as uploads."""
         seen = set(shown)
         return [stored for name, stored in self.stored_images.items() if name in seen]
+
+
+@dataclass(frozen=True)
+class PageFile:
+    """A file document, and the page it was attached to — which it is filed
+    under in the wiki — by that page's slug."""
+
+    stored: StoredImage
+    page_slug: Optional[str] = None
 
 
 @dataclass

@@ -2893,3 +2893,55 @@ async def test_download_stays_proxied_unless_the_operator_turns_it_on(
     )
     assert dl.status_code == 200
     assert dl.headers["content-type"] == "application/zip"
+
+
+async def test_a_backup_says_which_wiki_page_a_file_is_filed_under(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A file document in a wiki crosses as ``attach_to`` naming the wiki's
+    entry — and, when it sits under one of the wiki's pages, that page's slug,
+    so a restore files it there again."""
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant.wikis import file_document
+    from app.testing.factories import create_wiki, create_wiki_page
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a.initiative.wikis_enabled = True
+    session.add(a.initiative)
+    await session.commit()
+    file_doc = await _file_document(
+        session,
+        a,
+        name="Rulebook",
+        key="rulebook-abc.pdf",
+        filename="Rulebook.pdf",
+        payload=b"%PDF-rules",
+        content_type="application/pdf",
+    )
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    page = await create_wiki_page(session, wiki, a.user, title="Rules")
+    await relationships_service.create(
+        session,
+        source=relationships_service.Endpoint(SearchEntityType.document, file_doc.id),
+        relationship_type=RelationshipType.part_of,
+        target=relationships_service.Endpoint(SearchEntityType.wiki, wiki.id),
+        created_by=a.user.id,
+    )
+    file_document(wiki, file_doc.id, parent_page_id=page.id)
+    session.add(wiki)
+    await session.commit()
+
+    resp = await _export(
+        client, a, "initiative", initiative_id=a.initiative.id, include_uploads=True
+    )
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    wiki_entry = next(e for e in manifest["entries"] if e["type"] == "initiative-wiki")
+    (entry,) = [e for e in manifest["entries"] if e["type"] == "file"]
+    assert entry["attach_to"] == {
+        "kind": "wiki",
+        "ref": wiki_entry["path"],
+        "page": page.slug,
+    }

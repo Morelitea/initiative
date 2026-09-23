@@ -311,7 +311,9 @@ def test_a_page_shows_its_pictures_and_mentions_its_files():
     assert mention["importRef"] == "entry:assets/key-spec.pdf"
     assert [s.filename for s in mapped.uploads] == ["chart.png"]
     # The picture the page never shows comes over as a document with the file.
-    assert [s.filename for s in mapped.documents] == ["spec.pdf", "hidden.png"]
+    assert [f.stored.filename for f in mapped.documents] == ["spec.pdf", "hidden.png"]
+    # Each is filed under the page it was attached to.
+    assert {f.page_slug for f in mapped.documents} == {"home"}
 
 
 def test_without_documents_a_picture_nobody_shows_is_counted():
@@ -333,3 +335,91 @@ def test_a_page_left_out_for_size_leaves_its_attachments_too():
     )
     assert mapped.over_limit == 1
     assert mapped.documents == []
+
+
+def comment(
+    comment_id, body, parent=None, author="a1", at="2024-05-01T10:00:00Z", **kw
+):
+    return cm.SourceComment(
+        id=str(comment_id),
+        body=body,
+        parent_id=str(parent) if parent else None,
+        author_id=author,
+        created_at=at,
+        **kw,
+    )
+
+
+def test_what_was_said_on_a_page_arrives_on_it_as_a_thread():
+    users = {"a1": "Robin Ade", "b2": "Sam Bee"}
+    mapped = build(
+        [page(1, "Home"), page(2, "Guide", parent=1)],
+        users=users,
+        comments={
+            "1": [
+                # Out of order, as the site may send them: a reply first.
+                comment(
+                    12,
+                    "<p>Agreed</p>",
+                    parent=11,
+                    author="b2",
+                    at="2024-05-02T00:00:00Z",
+                ),
+                comment(
+                    11,
+                    '<p>See <ac:link><ri:page ri:content-title="Guide"/></ac:link>, '
+                    '<ac:link><ri:user ri:account-id="b2"/></ac:link></p>',
+                ),
+                comment(
+                    13,
+                    "<p>Typo here</p>",
+                    at="2024-05-03T00:00:00Z",
+                    selection="teh word",
+                ),
+            ]
+        },
+    )
+    home = by_title(mapped)["Home"]
+    first, reply, inline = home["comments"]
+    assert first["external_ref"] == "confluence-comment:11"
+    assert first["author_handle"] == "Robin Ade"
+    assert first["mention_handles"] == ["Sam Bee"]
+    (paragraph,) = first["content"]["root"]["children"]
+    assert paragraph["children"][1]["importSlug"] == "guide"
+    # The reply follows what it answers.
+    assert reply["reply_to_ref"] == "confluence-comment:11"
+    # An inline comment quotes what it was anchored to.
+    quote = inline["content"]["root"]["children"][0]
+    assert quote["type"] == "quote" and quote["children"][0]["text"] == "teh word"
+    assert mapped.comments == 3
+    assert mapped.people == {"Robin Ade": 2, "Sam Bee": 2}
+    WikiEnvelope.model_validate(mapped.envelope)
+
+
+def test_a_comment_is_read_from_the_sites_answer():
+    read = cm.read_comment(
+        {
+            "id": "501",
+            "parentCommentId": "500",
+            "version": {"authorId": "a1", "createdAt": "2024-05-01T10:00:00.000Z"},
+            "properties": {"inlineOriginalSelection": "the words"},
+            "body": {"storage": {"value": "<p>hello</p>"}},
+        }
+    )
+    assert read == cm.SourceComment(
+        id="501",
+        body="<p>hello</p>",
+        parent_id="500",
+        author_id="a1",
+        created_at="2024-05-01T10:00:00.000Z",
+        selection="the words",
+    )
+    # A reply read under its parent names that parent.
+    assert (
+        cm.read_comment(
+            {"id": "7", "body": {"storage": {"value": "<p>x</p>"}}}, parent_id="3"
+        ).parent_id
+        == "3"
+    )
+    assert cm.read_comment({"id": "8", "body": {"storage": {"value": "  "}}}) is None
+    assert cm.read_comment({"id": "abc"}) is None
