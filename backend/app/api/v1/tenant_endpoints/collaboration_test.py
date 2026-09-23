@@ -205,25 +205,28 @@ async def _approved_grant(session, *, user, guild, owner, level: str) -> AccessG
 
 
 @pytest.mark.integration
-async def test_sync_content_break_glass_admin_can_write(
+async def test_sync_content_break_glass_grantee_can_write(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    """A platform admin (``data.bypass``) who is NOT a guild member but holds a
-    live ``read_write`` break-glass grant can sync — ``establish_guild_access``
-    elevates them to a full guild admin for the grant's window. The
-    pre-consolidation handler did a membership-only check and would have rejected
-    this; routing through the single entry point gains break-glass for free."""
+    """A platform operator (``data.bypass``) who is NOT a guild member but holds
+    a live ``read_write`` break-glass grant can sync — ``establish_guild_access``
+    routes them as a ``support`` grantee whose content grant edits existing
+    content for the grant's window."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
 
-    # data.bypass platform admin, deliberately NOT a member of this guild —
+    # data.bypass platform operator, deliberately NOT a member of this guild —
     # reaches it only through the break-glass grant.
-    bg_admin = await create_user(session, role=UserRole.operator)
+    bg_grantee = await create_user(session, role=UserRole.operator)
     await _approved_grant(
-        session, user=bg_admin, guild=owner.guild, owner=owner.user, level="read_write"
+        session,
+        user=bg_grantee,
+        guild=owner.guild,
+        owner=owner.user,
+        level="read_write",
     )
 
-    token, _ = create_upload_token(user_id=bg_admin.id)
+    token, _ = create_upload_token(user_id=bg_grantee.id)
     new_content = {"root": {"children": [{"type": "paragraph"}]}}
     response = await client.post(
         f"{_sync_url(owner.guild.id, doc.id)}?token={token}",

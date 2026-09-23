@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
-import { BillingConsoleButton } from "@/components/admin/BillingConsoleButton";
-import { GuildOperatorSettingsSheet } from "@/components/admin/GuildOperatorSettingsSheet";
+import { BillingConsoleButton } from "@/components/platform/BillingConsoleButton";
+import { GuildOperatorSettingsSheet } from "@/components/platform/GuildOperatorSettingsSheet";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -242,7 +242,7 @@ export const OperatorDashboardGuildsPage = () => {
   ];
 
   if (!canManageGuilds) {
-    return <p className="text-muted-foreground text-sm">{t("guilds.adminOnly")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("guilds.platformOnly")}</p>;
   }
 
   if (guildsQuery.isLoading) {

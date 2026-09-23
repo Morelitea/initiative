@@ -47,8 +47,8 @@
       "estimateFailed": "No se pudo cargar la estimación de tamaño.",
       "overRowLimit": "Esta exportación supera el límite de tamaño — excluye algunas herramientas para continuar.",
       "overUploadLimit": "Los archivos subidos superan el límite de {{limit}} — excluye los archivos para continuar.",
-      "willBeDelivered": "Esta exportación supera {{limit}}, así que se escribirá en la carpeta de exportación del servidor en lugar de descargarse. La administración del servidor puede darte el archivo.",
-      "noDestination": "Esta exportación supera {{limit}} y este servidor no tiene una carpeta de exportación configurada, así que no se puede descargar. Pide a la administración del servidor que configure una."
+      "willBeDelivered": "Esta exportación supera {{limit}}, así que se escribirá en la carpeta de exportación del servidor en lugar de descargarse. Quien gestiona este servidor puede darte el archivo.",
+      "noDestination": "Esta exportación supera {{limit}} y este servidor no tiene una carpeta de exportación configurada, así que no se puede descargar. Pide a quien gestiona este servidor que configure una."
     },
     "report": {
       "documentNative": "Documentos de texto",
@@ -90,7 +90,7 @@
     "startedByUnknown": "Iniciada por un antiguo miembro",
     "preparing": "Todavía se está preparando: recibirás una notificación cuando esté lista.",
     "expires": "La descarga caduca",
-    "delivered": "Escrita en la carpeta de exportación del servidor: pide el archivo a la administración del servidor.",
+    "delivered": "Escrita en la carpeta de exportación del servidor: pide el archivo a quien gestiona este servidor.",
     "expiredNote": "El archivo ya se ha eliminado.",
     "failedNote": "No se exportó nada.",
     "nextAvailable": "Próxima exportación disponible"

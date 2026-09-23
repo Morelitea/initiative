@@ -23,7 +23,7 @@ export const SettingsPlatformIntegrationsPage = () => {
   const canManageApps = hasCapability(user, Capability.appsManage);
 
   if (!canManageConfig && !canManageApps) {
-    return <p className="text-muted-foreground text-sm">{t("platformAI.adminOnly")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("platformAI.platformOnly")}</p>;
   }
 
   return (

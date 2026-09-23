@@ -18,7 +18,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OperatorUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
-import { Section, SettingRow } from "@/components/admin/SettingRow";
+import { Section, SettingRow } from "@/components/platform/SettingRow";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
@@ -35,11 +35,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import {
-  useAdminRemoveAvatar,
-  useAdminSetSuspension,
-  useAdminSetUsername,
-  useAdminUpdatePlatformRole,
-} from "@/hooks/useAdmin";
+  useOperatorRemoveAvatar,
+  useOperatorSetSuspension,
+  useOperatorSetUsername,
+  useOperatorUpdatePlatformRole,
+} from "@/hooks/useOperatorUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getUserHandle } from "@/lib/userDisplay";
@@ -122,7 +122,7 @@ export const UserOperatorSettingsSheet = ({
   const [roleConfirm, setRoleConfirm] = useState<UserRole | null>(null);
   const [avatarConfirm, setAvatarConfirm] = useState(false);
 
-  const setUsername = useAdminSetUsername({
+  const setUsername = useOperatorSetUsername({
     onSuccess: () => toast.success(t("platformUsers.usernameChanged")),
     onError: (err) => {
       if (user) setUsernameDraft(user.username);
@@ -130,7 +130,7 @@ export const UserOperatorSettingsSheet = ({
     },
   });
 
-  const setSuspension = useAdminSetSuspension({
+  const setSuspension = useOperatorSetSuspension({
     onSuccess: () => {
       setSuspendOpen(false);
       setSuspendReason("");
@@ -138,7 +138,7 @@ export const UserOperatorSettingsSheet = ({
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
-  const updateRole = useAdminUpdatePlatformRole({
+  const updateRole = useOperatorUpdatePlatformRole({
     onSuccess: (_data, variables) => {
       toast.success(
         t("platformUsers.roleChangeSuccess", {
@@ -153,7 +153,7 @@ export const UserOperatorSettingsSheet = ({
     },
   });
 
-  const removeAvatar = useAdminRemoveAvatar({
+  const removeAvatar = useOperatorRemoveAvatar({
     onSuccess: () => {
       toast.success(t("platformUsers.sheet.avatarRemoved"));
       setAvatarConfirm(false);

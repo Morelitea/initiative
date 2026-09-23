@@ -52,10 +52,10 @@ class BillingConfig(BaseModel):
     """
 
     url: str
-    # Whether the operator route into the portal is wired up. The admin Guilds
-    # tab hides its billing control when false rather than offering one whose
-    # every click fails. Independent of ``url`` — the guild-admin link-out
-    # works without it.
+    # Whether the operator route into the portal is wired up. The operator
+    # dashboard's Communities tab hides its billing control when false rather
+    # than offering one whose every click fails. Independent of ``url`` — the
+    # guild-admin link-out works without it.
     operator_handoff: bool = False
     # Whether the billing service sets each community's caps and
     # entitlements. The Guilds tab then shows them read-only and offers only

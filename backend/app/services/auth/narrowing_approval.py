@@ -63,7 +63,7 @@ async def ask_for_agreement(
             f"arrival. Agreeing places those accounts in this community when "
             f"they sign in; declining leaves the connection working for the "
             f"people already in it.\n\n"
-            f"Settings › Admin › Communities › {name} › Manage holds the "
+            f"Operator dashboard › Communities › {name} › Manage holds the "
             f"answer."
         ),
         refs=CaseRefs(

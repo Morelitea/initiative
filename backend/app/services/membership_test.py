@@ -117,7 +117,7 @@ async def test_initiative_scope_clause_legs(session: AsyncSession, reading_as):
     from app.models.platform.user import UserRole
 
     admin, member, outsider, guild, initiative = await _setup(session)
-    platform_admin = await create_user(
+    platform_operator = await create_user(
         session, email="platform@example.com", role=UserRole.operator
     )
 
@@ -137,9 +137,9 @@ async def test_initiative_scope_clause_legs(session: AsyncSession, reading_as):
     assert await scoped_ids(member) == [initiative.id]  # member leg
     assert await scoped_ids(admin) == [initiative.id]  # guild-admin leg
     assert await scoped_ids(outsider) == []  # no leg
-    # ``data.bypass`` is NOT a standing leg — a platform admin with no
+    # ``data.bypass`` is NOT a standing leg — a platform operator with no
     # membership and no live grant sees nothing (they must break-glass).
-    assert await scoped_ids(platform_admin) == []
+    assert await scoped_ids(platform_operator) == []
 
 
 @pytest.mark.integration

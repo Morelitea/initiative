@@ -6,8 +6,8 @@ module is what the owner's settings page calls to read and change both.
 
 Every write here is the platform owner's (``config.manage``): binding a stream
 is deployment configuration of the same class as OIDC, SMTP and branding.
-Reaching the guild's own schema is the system engine routed into it as a guild
-admin, the same way every other platform surface that reads guild rows does.
+Reaching the guild's own schema is the system engine routed into it by the
+guild alone, the same way every other platform surface that reads guild rows does.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class BindingView:
 
 
 async def _route(session: AsyncSession, guild_id: int) -> None:
-    """Route the system session into a guild's schema as its admin.
+    """Route the system session into a guild's schema.
 
     ``expunge_all`` first: ids are unique only within a schema, so nothing
     cached from ``public`` (or from another guild) may be handed back here.

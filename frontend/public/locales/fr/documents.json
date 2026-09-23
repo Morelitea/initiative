@@ -314,7 +314,7 @@
     "typeSpreadsheet": "Feuille de calcul",
     "typeSmartLink": "Lien intelligent",
     "accessRestrictedTitle": "Accès restreint",
-    "accessRestrictedDescription": "Vous n'avez pas la permission de voir les documents dans cette initiative. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
+    "accessRestrictedDescription": "Vous n'avez pas la permission de voir les documents dans cette initiative. Demandez à l'administration de la communauté ou à un gestionnaire d'initiative si vous pensez qu'il s'agit d'une erreur.",
     "loading": "Chargement des documents…",
     "loadError": "Impossible de charger les documents pour l'instant.",
     "noMatchingTags": "Aucun document ne correspond aux étiquettes sélectionnées.",

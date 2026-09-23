@@ -8,8 +8,8 @@ import type {
   AuthProviderProbeResult,
   AuthProviderUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import { ConnectProviderWizard, ProbeReport } from "@/components/admin/ConnectProviderWizard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
+import { ConnectProviderWizard, ProbeReport } from "@/components/platform/ConnectProviderWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1561,7 +1561,7 @@ async def add_initiative_member(
             detail={
                 "role_id": role_id,
                 "role": resolved_role.name,
-                "via": "admin",
+                "via": "manager",
             },
         )
 
@@ -1626,7 +1626,7 @@ async def remove_initiative_member(
             member_user_id=user_id,
             initiative_id=initiative_id,
             guild_id=guild_context.guild_id,
-            detail={"role": role_name, "via": "admin"},
+            detail={"role": role_name, "via": "manager"},
         )
 
         project_ids_result = await session.exec(

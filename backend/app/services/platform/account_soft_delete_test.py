@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import AdminMessages
+from app.core.messages import OperatorMessages
 from app.models.platform.app_setting import DEFAULT_ACCOUNT_RETENTION_DAYS
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import (
@@ -64,7 +64,7 @@ def test_deleted_is_absent_but_may_still_sign_in():
     assert UserStatus.suspended in ABSENT_STATUSES
     assert UserStatus.suspended in SIGN_IN_STATUSES
     # Somebody taking a break is neither: they are not erased by a timer, and
-    # an admin is what brings them back.
+    # an operator is what brings them back.
     assert UserStatus.deactivated not in ABSENT_STATUSES
     assert UserStatus.deactivated not in SIGN_IN_STATUSES
 
@@ -206,7 +206,7 @@ async def test_restore_refuses_an_account_that_is_not_deleted(
         f"/api/v1/operator/users/{user.id}/restore", headers=operator.headers
     )
     assert response.status_code == 409
-    assert response.json()["detail"] == AdminMessages.USER_NOT_DELETED
+    assert response.json()["detail"] == OperatorMessages.USER_NOT_DELETED
 
 
 async def test_restore_needs_a_capability(

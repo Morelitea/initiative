@@ -24,7 +24,7 @@ export interface SettingsTabsNavProps {
 }
 
 /**
- * Presentational tab bar shared by the settings/admin tabbed layouts: the
+ * Presentational tab bar shared by the settings and operator tabbed layouts: the
  * `<Tabs>` shell, a full-width `<TabsBar>`, and a `<TabsTrigger>` per tab.
  * Each layout keeps its own guards, header, and active-tab derivation.
  */

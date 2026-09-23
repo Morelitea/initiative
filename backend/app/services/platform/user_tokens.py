@@ -466,7 +466,7 @@ async def revoke_user_sessions(
     not survive a compromise response), and revokes their rotating **refresh
     sessions** — without which a captured refresh token would keep minting valid
     access tokens *at the new ``token_version``* right past the reset. Shared by
-    the self-service password change, the forgot-password reset, and the admin
+    the self-service password change, the forgot-password reset, and the operator
     password reset so the three paths can't drift.
 
     Every table this writes is the system engine's, so the revocations share

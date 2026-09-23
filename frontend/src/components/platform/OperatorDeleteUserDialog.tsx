@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useAdminDeleteUser, useUserDeletionEligibility } from "@/hooks/useAdmin";
+import { useOperatorDeleteUser, useUserDeletionEligibility } from "@/hooks/useOperatorUsers";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -22,7 +22,7 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**
- * Three actions are exposed in the admin dialog:
+ * Three actions are exposed in the operator dialog:
  *   - ``deactivate`` — reversible; flips status, drops memberships, PII intact.
  *   - ``soft_delete`` — delete with the deployment's recovery window. The
  *     account keeps everything, is gone for everybody else, and is erased when
@@ -38,7 +38,7 @@ import type { DialogWithSuccessProps } from "@/types/dialog";
  * one checkbox away. The dangerous action stays available and stops being the
  * easy mis-click.
  */
-type AdminAction = "deactivate" | "soft_delete" | "hard_delete";
+type OperatorAction = "deactivate" | "soft_delete" | "hard_delete";
 type DeletionStep = "choose-type" | "check-blockers" | "resolve-blockers" | "confirm";
 
 /**
@@ -49,7 +49,7 @@ type DeletionStep = "choose-type" | "check-blockers" | "resolve-blockers" | "con
  *                  are explicitly rejected by the backend with ALREADY_ANONYMIZED)
  * Default selection is the first entry of the list.
  */
-const ACTIONS_BY_STATUS: Record<string, readonly AdminAction[]> = {
+const ACTIONS_BY_STATUS: Record<string, readonly OperatorAction[]> = {
   active: ["deactivate", "soft_delete", "hard_delete"],
   deactivated: ["soft_delete", "hard_delete"],
   anonymized: ["hard_delete"],
@@ -58,48 +58,48 @@ const ACTIONS_BY_STATUS: Record<string, readonly AdminAction[]> = {
   // restoring it is a control on the row rather than an action in here.
   deleted: ["hard_delete"],
 };
-const validActionsFor = (status: string | undefined): readonly AdminAction[] =>
+const validActionsFor = (status: string | undefined): readonly OperatorAction[] =>
   ACTIONS_BY_STATUS[status ?? "active"] ?? ACTIONS_BY_STATUS.active;
 
-/** Per-action labels and styling, indexed by AdminAction. Pulled out of
+/** Per-action labels and styling, indexed by OperatorAction. Pulled out of
  *  the JSX so the radio-group render is a simple map over validActions.
  *  ``as const`` preserves the literal type of the translation keys, which
  *  i18next-typed needs to validate them against the Resources union. */
 const ACTION_META = {
   deactivate: {
-    titleKey: "adminDeleteUser.deactivateTitle",
-    descriptionKey: "adminDeleteUser.deactivateDescription",
+    titleKey: "operatorDeleteUser.deactivateTitle",
+    descriptionKey: "operatorDeleteUser.deactivateDescription",
     borderClass: "",
     labelClass: "",
   },
   soft_delete: {
-    titleKey: "adminDeleteUser.softDeleteTitle",
-    descriptionKey: "adminDeleteUser.softDeleteDescription",
+    titleKey: "operatorDeleteUser.softDeleteTitle",
+    descriptionKey: "operatorDeleteUser.softDeleteDescription",
     borderClass: "",
     labelClass: "",
   },
   hard_delete: {
-    titleKey: "adminDeleteUser.hardDeleteTitle",
-    descriptionKey: "adminDeleteUser.hardDeleteDescription",
+    titleKey: "operatorDeleteUser.hardDeleteTitle",
+    descriptionKey: "operatorDeleteUser.hardDeleteDescription",
     borderClass: "border-destructive/50",
     labelClass: "text-destructive",
   },
-} as const satisfies Record<AdminAction, unknown>;
+} as const satisfies Record<OperatorAction, unknown>;
 
-interface AdminDeleteUserDialogProps extends DialogWithSuccessProps {
+interface OperatorDeleteUserDialogProps extends DialogWithSuccessProps {
   targetUser: OperatorUserRead;
 }
 
-export function AdminDeleteUserDialog({
+export function OperatorDeleteUserDialog({
   open,
   onOpenChange,
   onSuccess,
   targetUser,
-}: AdminDeleteUserDialogProps) {
+}: OperatorDeleteUserDialogProps) {
   const { t } = useTranslation("settings");
   const validActions = validActionsFor(targetUser.status);
   const { step, go, back, canGoBack, reset } = useWizard<DeletionStep>("choose-type");
-  const [action, setAction] = useState<AdminAction>(validActions[0]);
+  const [action, setAction] = useState<OperatorAction>(validActions[0]);
   const [eligibility, setEligibility] = useState<OperatorDeletionEligibilityResponse | null>(null);
   const [confirmationText, setConfirmationText] = useState("");
   const [agreedToConsequences, setAgreedToConsequences] = useState(false);
@@ -127,14 +127,14 @@ export function AdminDeleteUserDialog({
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
     useUserDeletionEligibility(targetUser.id);
 
-  const deleteUser = useAdminDeleteUser(targetUser.id, {
+  const deleteUser = useOperatorDeleteUser(targetUser.id, {
     onSuccess: (data) => {
       toast.success(data.message);
       onSuccess();
       onOpenChange(false);
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, "settings:adminDeleteUser.deleteError"));
+      toast.error(getErrorMessage(error, "settings:operatorDeleteUser.deleteError"));
     },
   });
 
@@ -173,7 +173,7 @@ export function AdminDeleteUserDialog({
   // What is actually submitted. An operator who ticked the offer on the
   // consent screen is asking for the windowed deletion, whatever they picked
   // on the first step.
-  const effectiveAction: AdminAction =
+  const effectiveAction: OperatorAction =
     action === "hard_delete" && preferWindow ? "soft_delete" : action;
 
   const handleDelete = () => {
@@ -188,7 +188,7 @@ export function AdminDeleteUserDialog({
   // Validation
   const canProceedFromChooseType = action !== null;
   const canProceedFromBlockers = eligibility?.can_delete === true;
-  // Typed back to confirm. The handle, not the address: an admin is never
+  // Typed back to confirm. The handle, not the address: an operator is never
   // served the whole address any more, and the masked form is full of
   // asterisks — an unusable thing to ask somebody to copy out. The handle is
   // also what the row and this dialog's own title identify the account by.
@@ -203,15 +203,15 @@ export function AdminDeleteUserDialog({
   const displayName = getUserDisplayName(targetUser);
 
   const description: Record<DeletionStep, string> = {
-    "choose-type": t("adminDeleteUser.stepType"),
-    "check-blockers": t("adminDeleteUser.checkingEligibility"),
-    "resolve-blockers": t("adminDeleteUser.stepBlockers"),
+    "choose-type": t("operatorDeleteUser.stepType"),
+    "check-blockers": t("operatorDeleteUser.checkingEligibility"),
+    "resolve-blockers": t("operatorDeleteUser.stepBlockers"),
     confirm: t(
       action === "deactivate"
-        ? "adminDeleteUser.confirmDeactivateTitle"
+        ? "operatorDeleteUser.confirmDeactivateTitle"
         : action === "soft_delete"
-          ? "adminDeleteUser.confirmAnonymizeTitle"
-          : "adminDeleteUser.confirmTitle"
+          ? "operatorDeleteUser.confirmAnonymizeTitle"
+          : "operatorDeleteUser.confirmTitle"
     ),
   };
   const walked: DeletionStep[] = hasBlockers
@@ -224,7 +224,7 @@ export function AdminDeleteUserDialog({
         open={open}
         onOpenChange={onOpenChange}
         className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
-        title={t("adminDeleteUser.subtitle", { email: displayName })}
+        title={t("operatorDeleteUser.subtitle", { email: displayName })}
         description={description[step]}
         // Resolving blockers only happens to somebody who has them, so it is
         // not counted until they are actually sent there.
@@ -233,7 +233,10 @@ export function AdminDeleteUserDialog({
         <div className="space-y-6 py-4">
           {/* Step 1: Choose Type */}
           {step === "choose-type" && (
-            <RadioGroup value={action} onValueChange={(value) => setAction(value as AdminAction)}>
+            <RadioGroup
+              value={action}
+              onValueChange={(value) => setAction(value as OperatorAction)}
+            >
               <div className="space-y-4">
                 {validActions.map((option) => {
                   const meta = ACTION_META[option];
@@ -272,13 +275,15 @@ export function AdminDeleteUserDialog({
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <div className="mb-2 font-semibold">{t("adminDeleteUser.blockersTitle")}</div>
+                    <div className="mb-2 font-semibold">
+                      {t("operatorDeleteUser.blockersTitle")}
+                    </div>
                     <ul className="list-inside list-disc space-y-1">
                       {eligibility.blockers.map((blocker) => (
                         <li key={blocker}>{blocker}</li>
                       ))}
                     </ul>
-                    <p className="mt-2 text-sm">{t("adminDeleteUser.blockersDescription")}</p>
+                    <p className="mt-2 text-sm">{t("operatorDeleteUser.blockersDescription")}</p>
                   </AlertDescription>
                 </Alert>
               )}
@@ -286,7 +291,9 @@ export function AdminDeleteUserDialog({
               {eligibility?.can_delete && (
                 <>
                   <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
-                    <AlertDescription>{t("adminDeleteUser.confirmDescription")}</AlertDescription>
+                    <AlertDescription>
+                      {t("operatorDeleteUser.confirmDescription")}
+                    </AlertDescription>
                   </Alert>
                 </>
               )}
@@ -298,7 +305,7 @@ export function AdminDeleteUserDialog({
             <div className="space-y-6">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{t("adminDeleteUser.blockersDescription")}</AlertDescription>
+                <AlertDescription>{t("operatorDeleteUser.blockersDescription")}</AlertDescription>
               </Alert>
 
               {eligibility.guild_blockers.map((guildBlocker) => (
@@ -306,12 +313,12 @@ export function AdminDeleteUserDialog({
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-medium">
-                        {t("adminDeleteUser.guildBlockerTitle", {
+                        {t("operatorDeleteUser.guildBlockerTitle", {
                           guildName: guildBlocker.guild_name,
                         })}
                       </h4>
                       <p className="text-muted-foreground text-sm">
-                        {t("adminDeleteUser.guildBlockerDescription")}
+                        {t("operatorDeleteUser.guildBlockerDescription")}
                       </p>
                     </div>
                   </div>
@@ -325,12 +332,12 @@ export function AdminDeleteUserDialog({
                 disabled={isCheckingEligibility}
               >
                 <RefreshCw className="h-4 w-4" />
-                {t("adminDeleteUser.checkAgain")}
+                {t("operatorDeleteUser.checkAgain")}
               </Button>
 
               {eligibility.can_delete && (
                 <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
-                  <AlertDescription>{t("adminDeleteUser.confirmDescription")}</AlertDescription>
+                  <AlertDescription>{t("operatorDeleteUser.confirmDescription")}</AlertDescription>
                 </Alert>
               )}
             </div>
@@ -345,19 +352,19 @@ export function AdminDeleteUserDialog({
                   <div className="mb-2 font-semibold">
                     {t(
                       action === "deactivate"
-                        ? "adminDeleteUser.confirmDeactivateTitle"
+                        ? "operatorDeleteUser.confirmDeactivateTitle"
                         : action === "soft_delete"
-                          ? "adminDeleteUser.confirmAnonymizeTitle"
-                          : "adminDeleteUser.confirmTitle"
+                          ? "operatorDeleteUser.confirmAnonymizeTitle"
+                          : "operatorDeleteUser.confirmTitle"
                     )}
                   </div>
                   <p className="text-sm">
                     {t(
                       action === "deactivate"
-                        ? "adminDeleteUser.confirmDeactivate"
+                        ? "operatorDeleteUser.confirmDeactivate"
                         : action === "soft_delete"
-                          ? "adminDeleteUser.confirmSoftDelete"
-                          : "adminDeleteUser.confirmHardDelete",
+                          ? "operatorDeleteUser.confirmSoftDelete"
+                          : "operatorDeleteUser.confirmHardDelete",
                       { email: displayName }
                     )}
                   </p>
@@ -365,7 +372,7 @@ export function AdminDeleteUserDialog({
               </Alert>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmation">{t("adminDeleteUser.confirmDescription")}</Label>
+                <Label htmlFor="confirmation">{t("operatorDeleteUser.confirmDescription")}</Label>
                 <Input
                   id="confirmation"
                   value={confirmationText}
@@ -384,9 +391,11 @@ export function AdminDeleteUserDialog({
                       onCheckedChange={(checked) => setPreferWindow(checked === true)}
                     />
                     <Label htmlFor="prefer-window" className="cursor-pointer font-normal text-sm">
-                      <span className="font-medium">{t("adminDeleteUser.preferWindowLabel")}</span>
+                      <span className="font-medium">
+                        {t("operatorDeleteUser.preferWindowLabel")}
+                      </span>
                       <span className="block text-muted-foreground text-xs">
-                        {t("adminDeleteUser.preferWindowHelp")}
+                        {t("operatorDeleteUser.preferWindowHelp")}
                       </span>
                     </Label>
                   </div>
@@ -399,7 +408,7 @@ export function AdminDeleteUserDialog({
                         onCheckedChange={(checked) => setAgreedToConsequences(checked === true)}
                       />
                       <Label htmlFor="agree" className="cursor-pointer text-sm">
-                        {t("adminDeleteUser.confirmDescription")}
+                        {t("operatorDeleteUser.confirmDescription")}
                       </Label>
                     </div>
                   )}
@@ -413,7 +422,7 @@ export function AdminDeleteUserDialog({
           <div className="flex w-full justify-between">
             <Button variant="outline" onClick={back} disabled={!canGoBack || deleteUser.isPending}>
               <ChevronLeft className="h-4 w-4" />
-              {t("adminDeleteUser.back")}
+              {t("operatorDeleteUser.back")}
             </Button>
 
             <div className="flex gap-2">
@@ -422,7 +431,7 @@ export function AdminDeleteUserDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={deleteUser.isPending}
               >
-                {t("adminDeleteUser.cancel")}
+                {t("operatorDeleteUser.cancel")}
               </Button>
 
               {step !== "confirm" ? (
@@ -438,10 +447,10 @@ export function AdminDeleteUserDialog({
                   {isCheckingEligibility ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      {t("adminDeleteUser.loading")}
+                      {t("operatorDeleteUser.loading")}
                     </>
                   ) : (
-                    t("adminDeleteUser.next")
+                    t("operatorDeleteUser.next")
                   )}
                 </Button>
               ) : (
@@ -454,15 +463,15 @@ export function AdminDeleteUserDialog({
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       {action === "deactivate"
-                        ? t("adminDeleteUser.deactivating")
-                        : t("adminDeleteUser.deleting")}
+                        ? t("operatorDeleteUser.deactivating")
+                        : t("operatorDeleteUser.deleting")}
                     </>
                   ) : action === "deactivate" ? (
-                    t("adminDeleteUser.deactivateButton")
+                    t("operatorDeleteUser.deactivateButton")
                   ) : action === "soft_delete" ? (
-                    t("adminDeleteUser.anonymizeButton")
+                    t("operatorDeleteUser.anonymizeButton")
                   ) : (
-                    t("adminDeleteUser.deleteButton")
+                    t("operatorDeleteUser.deleteButton")
                   )}
                 </Button>
               )}

@@ -86,14 +86,14 @@ const PRINCIPLES: { icon: LucideIcon; key: "openSource" | "sameApp" | "oneLogin"
 
 const DOC_LINKS: {
   icon: LucideIcon;
-  key: "gettingStarted" | "tour" | "guides" | "faq" | "admin" | "security";
+  key: "gettingStarted" | "tour" | "guides" | "faq" | "server" | "security";
   path: string;
 }[] = [
   { icon: Compass, key: "gettingStarted", path: "getting-started/" },
   { icon: Sparkles, key: "tour", path: "getting-started/a-quick-tour/" },
   { icon: BookOpen, key: "guides", path: "guides/" },
   { icon: HelpCircle, key: "faq", path: "faq/" },
-  { icon: Wrench, key: "admin", path: "admin/" },
+  { icon: Wrench, key: "server", path: "running-a-server/" },
   { icon: ShieldCheck, key: "security", path: "security/" },
 ];
 

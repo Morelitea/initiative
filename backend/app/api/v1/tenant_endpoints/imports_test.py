@@ -3817,7 +3817,7 @@ async def test_importing_from_a_product_needs_the_create_permission(
     """Nothing about arriving from another product widens who may create a
     project here — it is the same gate the envelope route applies."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    other = await _second_initiative(session, a, create_projects_role="admin")
+    other = await _second_initiative(session, a)
     b = await acting_user(
         guild_role=GuildRole.member,
         guild=a.guild,

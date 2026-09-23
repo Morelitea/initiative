@@ -9,7 +9,7 @@
   "noMatchingProjects": "Ningún proyecto coincide con tus filtros.",
   "onlyPinnedMatch": "Solo los proyectos fijados coinciden con tus filtros.",
   "accessRestricted": "Acceso restringido",
-  "accessRestrictedDescription": "No tienes permiso para ver proyectos en esta iniciativa. Contacta a un administrador si crees que esto es un error.",
+  "accessRestrictedDescription": "No tienes permiso para ver proyectos en esta iniciativa. Consulta a un administrador de la comunidad o a un gerente de iniciativa si crees que esto es un error.",
   "view": {
     "grid": "Cuadrícula",
     "list": "Lista"

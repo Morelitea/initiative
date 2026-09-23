@@ -185,7 +185,7 @@ export function useListAllUsersApiV1OperatorUsersGet<
 /**
  * Export platform users as a CSV file. Pass `user_id` one or more times to
  * restrict the export to a subset. Without `user_id`, every user is included.
- * Platform-admin only.
+ * Support and above (``users.read``).
  * @summary Export Platform Users Csv
  */
 export const exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet = (
@@ -446,7 +446,7 @@ export const useClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete = <
   );
 };
 /**
- * Trigger a password reset email for a user (admin only).
+ * Trigger a password reset email for a user (``users.manage``).
  * @summary Trigger Password Reset
  */
 export const triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost = (
@@ -539,7 +539,7 @@ export const useTriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost = 
   );
 };
 /**
- * Reactivate a deactivated user account (admin only).
+ * Reactivate a deactivated user account (``users.manage``).
  * @summary Reactivate User
  */
 export const reactivateUserApiV1OperatorUsersUserIdReactivatePost = (
@@ -1278,7 +1278,7 @@ export const useUpdatePlatformRoleApiV1OperatorUsersUserIdPlatformRolePatch = <
   );
 };
 /**
- * Check if a user can be deleted (admin only).
+ * Check if a user can be deleted (``users.delete``).
  *
  * Returns the blockers: the communities the user holds the only superadmin
  * seat of. That is the only one: owning content does not stop a deletion,
@@ -1511,7 +1511,7 @@ export function useCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionE
 }
 
 /**
- * Delete, anonymize, or deactivate a user account (admin only).
+ * Delete, anonymize, or deactivate a user account (``users.delete``).
  *
  * `action` selects the path:
  *   - `deactivate` — reversible; flips status to deactivated, drops memberships.

@@ -110,8 +110,8 @@
     "guidesBody": "How-to guides for every tool.",
     "faqTitle": "FAQ",
     "faqBody": "Quick answers to the things people ask most.",
-    "adminTitle": "For administrators",
-    "adminBody": "Installing, configuring and looking after your own server.",
+    "serverTitle": "Running a server",
+    "serverBody": "Installing, configuring and looking after your own server.",
     "securityTitle": "Security & privacy",
     "securityBody": "What secure means for you, and how your group's stuff stays yours."
   },

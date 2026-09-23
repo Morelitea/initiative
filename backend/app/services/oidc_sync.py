@@ -216,7 +216,7 @@ async def sync_oidc_assignments(
     # guild-scoped (per-guild schemas). Every guild-scoped read/write below is
     # therefore routed into the relevant guild's schema as its guild role.
 
-    # --- Guild memberships (shared table — public/admin context) ---
+    # --- Guild memberships (shared table — public/system context) ---
     # Apply matched guild roles, and ensure a membership exists for every guild
     # that has a matched initiative so the initiative member can be added below.
     ensure_member_guilds = set(guild_roles) | set(initiative_guild.values())

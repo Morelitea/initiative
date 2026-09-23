@@ -6,14 +6,14 @@ import type {
   PlacementProviderRead,
   ProviderPlacementRuleRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { ProviderPlacementRuleDialog } from "@/components/admin/ProviderPlacementRuleDialog";
-import { SettingRow } from "@/components/admin/SettingRow";
 import { ProviderMark } from "@/components/auth/ProviderMark";
 import {
   describePlacementMatch,
   NotApplyingBadge,
   placementRoleLabel,
 } from "@/components/auth/ProviderPlacementRuleSummary";
+import { ProviderPlacementRuleDialog } from "@/components/platform/ProviderPlacementRuleDialog";
+import { SettingRow } from "@/components/platform/SettingRow";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,7 +82,7 @@ export const OperatorDashboardPlacementPage = () => {
     });
 
   if (!canManageGuilds) {
-    return <p className="text-muted-foreground text-sm">{t("providerPlacement.adminOnly")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("providerPlacement.platformOnly")}</p>;
   }
 
   if (placementQuery.isLoading) {

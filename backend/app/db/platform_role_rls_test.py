@@ -13,7 +13,7 @@ Two complementary styles:
   way.
 * **End-to-end (real-role ``client``).** An authenticated request assumes
   ``platform_<tier>`` on a real ``app_user`` connection, so the moved endpoints
-  (admin user reads, owner config writes) run role-scoped, RLS-enforced.
+  (operator user reads, owner config writes) run role-scoped, RLS-enforced.
 """
 
 import pytest
@@ -105,7 +105,7 @@ async def test_every_tier_updates_its_own_account(session, tier):
 
 async def test_no_tier_can_delete_users(session):
     """DELETE on ``public.users`` is revoked from every request-path floor
-    (migration 0144); user rows are removed only on the admin/system engine.
+    (migration 0144); user rows are removed only on the system engine.
     An owner-tier request-path DELETE is therefore denied at the grant level
     (insufficient-privilege), not merely filtered to 0 rows."""
     actor = await create_user(session)
@@ -133,9 +133,10 @@ async def _insert_grant(session, user_id: int, guild_id: int) -> None:
     )
 
 
-async def test_access_grants_self_vs_admin(session):
-    """A grantee sees only their own grant (``access_grants_self``); an admin sees
-    the whole queue (``access_grants_admin``). There is no superadmin bypass."""
+async def test_access_grants_self_vs_approver(session):
+    """A grantee sees only their own grant (``access_grants_self``); an
+    ``access.approve`` holder sees the whole queue (``access_grants_admin``).
+    There is no standing bypass."""
     guild = await create_guild(session)
     u1 = await create_user(session)
     u2 = await create_user(session)

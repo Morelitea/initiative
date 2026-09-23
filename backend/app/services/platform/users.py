@@ -177,7 +177,7 @@ async def check_deletion_eligibility(
     session: AsyncSession,
     user_id: int,
     *,
-    admin_context: bool = False,
+    operator_context: bool = False,
 ) -> tuple[bool, List[str]]:
     """
     Check if user can be deleted.
@@ -195,12 +195,12 @@ async def check_deletion_eligibility(
     Args:
         session: Database session
         user_id: ID of the user to check
-        admin_context: If True, adjust message wording for admin perspective
+        operator_context: If True, word the blockers for an operator reading another account
     """
     blockers = []
 
     for guild_name in await is_last_guild_superadmin(session, user_id):
-        if admin_context:
+        if operator_context:
             blockers.append(
                 f"User is the only superadmin of community '{guild_name}'. "
                 f"They can make another member superadmin, or somebody holding "
@@ -357,7 +357,7 @@ async def deactivate_user(
     Sets ``status = deactivated``, drops the user from every guild and
     initiative they belong to, and bumps ``token_version`` so any
     outstanding JWTs stop authenticating. PII (name, email, avatar) is
-    left intact so the user can be reactivated by an admin later.
+    left intact so the user can be reactivated by an operator later.
 
     ``actor_user_id`` is who asked for it — the account holder, or somebody
     acting on the account.
@@ -590,14 +590,14 @@ async def soft_delete_user(
         user.username = usernames.random_name()
         user.discriminator = usernames.random_discriminator()
     # Drop any platform role back to member. The row is now an empty husk
-    # that can't act on anything; leaving the admin role on it would be
+    # that can't act on anything; leaving a staff role on it would be
     # misleading in audit views and would inflate any role-only count
     # that doesn't also filter by status.
     user.role = UserRole.member
 
     # Every address the account held is replaced with one sentinel. It reads as
     # obvious nonsense if it is ever decrypted, and its domain is RFC 2606
-    # example.com so EmailStr serialization on user-facing endpoints (the admin
+    # example.com so EmailStr serialization on user-facing endpoints (the operator
     # user list, and so on) does not reject the row.
     sentinel_email = (
         f"anonymized-{user_id}-{secrets.token_hex(8)}@anonymized.example.com"
@@ -1069,7 +1069,7 @@ async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
     Private, and deliberately so. It returns addresses in the clear for
     whatever ids it is handed, and decides nothing about who may see them —
     that belongs to the two shapes below, which is the only thing that calls
-    it: ``to_self_read`` for the address's own holder, ``to_admin_read`` for
+    it: ``to_self_read`` for the address's own holder, ``to_operator_read`` for
     everybody else, masked.
     """
     from app.db.session import SystemSessionLocal
@@ -1087,7 +1087,7 @@ async def to_self_read(user: User) -> "UserRead":
     """An account's own record, with the address it is reached at, in full.
 
     For handing somebody their *own* account and nothing else — the address is
-    unmasked. Reading somebody else's account gets ``to_admin_read``.
+    unmasked. Reading somebody else's account gets ``to_operator_read``.
 
     The address and whether one has been proved both live in ``user_emails``,
     so the ``users`` row cannot answer either on its own. This is where the two
@@ -1103,7 +1103,7 @@ async def to_self_read(user: User) -> "UserRead":
     return payload
 
 
-async def to_admin_read(users: List[User]) -> List["OperatorUserRead"]:
+async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     """The same, for staff reading other people's accounts.
 
     The shape masks the address itself.
@@ -1158,6 +1158,6 @@ def _erase_at(user: User, retention: int | None) -> datetime | None:
     return erase_at(user.status_changed_at, retention)
 
 
-async def to_admin_read_one(user: User) -> "OperatorUserRead":
-    """``to_admin_read`` for the routes that return one account."""
-    return (await to_admin_read([user]))[0]
+async def to_operator_read_one(user: User) -> "OperatorUserRead":
+    """``to_operator_read`` for the routes that return one account."""
+    return (await to_operator_read([user]))[0]

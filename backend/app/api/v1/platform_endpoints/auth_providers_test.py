@@ -1,4 +1,4 @@
-"""CRUD tests for the login provider registry admin endpoints."""
+"""CRUD tests for the login provider registry owner endpoints."""
 
 import pytest
 from httpx import AsyncClient

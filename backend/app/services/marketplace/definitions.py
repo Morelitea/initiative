@@ -107,7 +107,7 @@ def kinds_for_audience(audience: str) -> frozenset[str]:
 
 
 #: How a listing reached this deployment. Not a trust ranking shown to a reader
-#: — every listing is here because an administrator put it here — but the reason
+#: — every listing is here because whoever runs this server put it here — but the reason
 #: a listing shipped in this build is credited to us rather than to whatever its
 #: manifest claims.
 #:

@@ -113,6 +113,7 @@ def _require_visibility(
     embed: dict[str, Any],
     *,
     is_guild_admin: bool,
+    in_initiative: bool = False,
     is_initiative_manager: bool = False,
 ) -> None:
     """A surface is opened by the audience the app declared for it.
@@ -121,15 +122,25 @@ def _require_visibility(
     says nothing is open to every member of the installing guild. The ordering
     lives with the vocabulary that defines it, so this cannot drift from what a
     manifest is allowed to say.
+
+    The refusal names the audience the caller missed: an initiative's managers
+    when the surface was opened in an initiative and declared for them, the
+    guild's admins otherwise — guild-wide, a manager floor admits only admins.
     """
+    visibility = embed.get("visibility")
     if not clears_visibility(
-        embed.get("visibility"),
+        visibility,
         is_guild_admin=is_guild_admin,
         is_initiative_manager=is_initiative_manager,
     ):
+        manager_floor = in_initiative and visibility == "initiative_manager"
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildAppMessages.SURFACE_ADMIN_ONLY,
+            detail=(
+                GuildAppMessages.SURFACE_MANAGER_ONLY
+                if manager_floor
+                else GuildAppMessages.SURFACE_ADMIN_ONLY
+            ),
         )
 
 
@@ -191,6 +202,7 @@ async def mint_embed_handoff(
     _require_visibility(
         embed,
         is_guild_admin=is_guild_admin,
+        in_initiative=initiative_id is not None,
         is_initiative_manager=is_initiative_manager,
     )
 

@@ -31,7 +31,7 @@ class Capability(str, Enum):
     ``UserRead.capabilities``); treat them as part of the API contract.
     """
 
-    # Read-only visibility of the platform's user list (served via admin
+    # Read-only visibility of the platform's user list (served via operator
     # endpoints, gated purely by capability).
     USERS_READ = "users.read"
 
@@ -57,8 +57,8 @@ class Capability(str, Enum):
     ROLES_ASSIGN = "roles.assign"
 
     # The right to self-issue a break-glass PAM grant (operator+owner only). This is
-    # NOT a standing all-guild bypass: instead of an ambient superadmin flag
-    # god-mode, the holder records a scoped, time-bound, audited grant in one step
+    # NOT a standing all-guild bypass: instead of an ambient all-guild flag,
+    # the holder records a scoped, time-bound, audited grant in one step
     # (created + self-approved) to reach one guild's data, then routes through the
     # normal PAM path until it expires. Lower tiers reach a guild via the
     # request→approve flow instead.

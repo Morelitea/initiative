@@ -52,7 +52,7 @@ async def _require_manageable_project(
     Deliberately loaded at ``read`` rather than ``write``: a project manager's
     authority comes from their initiative role, not from a per-project share,
     so checking the sharing level first would refuse a manager who happens to
-    hold only read on this project. ``require_project_admin`` is the gate —
+    hold only read on this project. ``require_project_configure`` is the gate —
     manager, project owner, or guild admin — and an owner holds write anyway.
     """
     project = await _get_project_with_access(
@@ -67,7 +67,7 @@ async def _require_manageable_project(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ProjectMessages.IS_ARCHIVED,
         )
-    permissions_service.require_project_admin(project, context=guild_context)
+    permissions_service.require_project_configure(project, context=guild_context)
     return project
 
 
@@ -103,7 +103,7 @@ async def list_filter_presets(
         access="read",
     )
     presets = await filter_presets_service.list_presets(session, project_id)
-    can_manage = permissions_service.can_administer_project(
+    can_manage = permissions_service.can_configure_project(
         project, context=guild_context
     )
     return FilterPresetListResponse(

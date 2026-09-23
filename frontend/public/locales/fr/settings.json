@@ -196,7 +196,7 @@
   "platformAI": {
     "title": "IA de la plateforme",
     "description": "Choisissez comment l'IA est configurée sur l'ensemble de la plateforme. Comme pour la connexion, l'IA est gérée soit par la plateforme, soit par chaque communauté, jamais les deux.",
-    "adminOnly": "Seuls les propriétaires de la plateforme peuvent gérer les paramètres d'IA de la plateforme.",
+    "platformOnly": "Seuls les propriétaires de la plateforme peuvent gérer les paramètres d'IA de la plateforme.",
     "modeLabel": "Mode de configuration de l'IA",
     "mode_disabled": "Désactivé",
     "mode_disabled_description": "Les fonctionnalités d'IA sont désactivées pour tout le monde.",
@@ -410,7 +410,7 @@
     "disconnectDescription": "Se déconnecter du compte et du serveur. Vous pouvez vous connecter à un autre serveur ensuite.",
     "disconnectButton": "Se déconnecter",
     "deactivateTitle": "Désactiver le compte",
-    "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte ultérieurement.",
+    "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. La personne qui gère ce serveur peut réactiver votre compte ultérieurement.",
     "permanentDeleteTitle": "Supprimer le compte",
     "permanentDeleteDescriptionText": "Votre compte disparaît immédiatement pour les autres. Rien n'est effacé dans l'immédiat : reconnectez-vous avant la fin du délai et la suppression est annulée, avec vos communautés et votre travail tels que vous les avez laissés. Ensuite, les projets sont transférés à d'autres, et les commentaires et documents restent mais affichent « [Utilisateur supprimé] ».",
     "cannotBeUndone": "Se reconnecter est ce qui l'arrête.",
@@ -447,14 +447,14 @@
     "deleteAccountButton": "Supprimer le compte",
     "checking": "Vérification…",
     "deactivateSuccess": "Compte désactivé avec succès",
-    "deactivateLabel": "Désactiver mon compte (les administrateurs pourront le réactiver plus tard)",
+    "deactivateLabel": "Désactiver mon compte (la personne qui gère ce serveur pourra le réactiver plus tard)",
     "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. La personne qui gère le serveur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
-    "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant qu'un administrateur ne l'aura pas réactivé. Vous serez retiré de toutes les communautés auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
+    "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant que la personne qui gère ce serveur ne l'aura pas réactivé. Vous serez retiré de toutes les communautés auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
     "softDeleteConfirmDescription": "Votre nom, e-mail et avatar seront supprimés. Vous ne pourrez pas vous connecter. Les commentaires, tâches et autres contenus dont vous êtes l'auteur resteront visibles sous \"Utilisateur supprimé\". Cette action est irréversible.",
     "softDeleteSuccess": "Votre compte a été anonymisé."
   },
   "branding": {
-    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'image de marque.",
+    "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'image de marque.",
     "colorsTitle": "Couleurs de marque",
     "colorsDescription": "Personnalisez les couleurs d'accent pour le mode clair et sombre.",
     "loadingInterface": "Chargement des paramètres d'interface…",
@@ -531,7 +531,7 @@
     }
   },
   "email": {
-    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres e-mail.",
+    "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres e-mail.",
     "title": "E-mail SMTP",
     "description": "Configurez le serveur SMTP utilisé pour les e-mails transactionnels.",
     "loading": "Chargement des paramètres e-mail…",
@@ -562,7 +562,7 @@
     "saveError": "Impossible d'enregistrer les paramètres e-mail"
   },
   "auth": {
-    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'authentification.",
+    "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'authentification.",
     "loading": "Chargement des paramètres d'authentification…",
     "loadError": "Impossible de charger les paramètres d'authentification.",
     "postLoginRedirect": "Redirection post-connexion :",
@@ -732,7 +732,7 @@
     "restoreSuccess": "{{handle}} restauré.",
     "restoreError": "Impossible de restaurer le compte. Veuillez réessayer."
   },
-  "adminDeleteUser": {
+  "operatorDeleteUser": {
     "subtitle": "Supprimer {{email}}",
     "back": "Retour",
     "next": "Suivant",
@@ -782,7 +782,7 @@
       "error": "Impossible d'activer l'accès d'urgence",
       "codeLabel": "Votre code d'authentification",
       "codePlaceholder": "123456, ou un code de récupération",
-      "codeHelp": "Une personne qui administre ce déploiement a activé l'authentification à deux facteurs : l'accès d'urgence vous demande donc de prouver votre identité. Un code d'authentification, un code de récupération ou l'une de vos clés d'accès convient.",
+      "codeHelp": "L'authentification à deux facteurs est activée sur ce serveur : l'accès d'urgence vous demande donc de prouver votre identité. Un code d'authentification, un code de récupération ou l'une de vos clés d'accès convient.",
       "codeNotEnrolled": "Ce compte n'a ni application d'authentification ni clé d'accès. Configurez-en une dans Sécurité, puis utilisez l'accès d'urgence.",
       "passkeySubmit": "Accès d'urgence avec une clé d'accès",
       "passkeyPresenting": "En attente de votre clé d'accès…"
@@ -849,7 +849,7 @@
     }
   },
   "appServices": {
-    "adminOnly": "Seuls les propriétaires de la plateforme peuvent gérer les services applicatifs.",
+    "platformOnly": "Seuls les propriétaires de la plateforme peuvent gérer les services applicatifs.",
     "loading": "Chargement des services applicatifs…",
     "loadError": "Impossible de charger les services applicatifs.",
     "title": "Services applicatifs",
@@ -959,7 +959,7 @@
     "description": "Affectez les personnes qu'un fournisseur de connexion connecte — selon le groupe ou l'annuaire qu'il indique — à une communauté, et à une initiative de celle-ci si vous en nommez une.",
     "loading": "Chargement des règles d'affectation…",
     "loadError": "Impossible de charger les règles d'affectation. Veuillez réessayer.",
-    "adminOnly": "L'affectation à la connexion est gérée par les opérateurs et propriétaires de la plateforme.",
+    "platformOnly": "L'affectation à la connexion est gérée par les opérateurs et propriétaires de la plateforme.",
     "everywhere": {
       "label": "Appliquer les règles d'affectation à toutes les communautés",
       "help": "Activé, une règle affecte les personnes à la communauté qu'elle nomme, que cette communauté ait accepté ou non. Chaque changement est enregistré.",
@@ -1026,7 +1026,7 @@
   "guilds": {
     "title": "Limites par communauté",
     "description": "Définissez des limites par communauté pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des communautés.",
+    "platformOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des communautés.",
     "loading": "Chargement des communautés…",
     "loadError": "Impossible de charger les communautés. Veuillez réessayer.",
     "filterByName": "Filtrer les communautés par nom",
@@ -1136,7 +1136,7 @@
     }
   },
   "storage": {
-    "adminOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
+    "platformOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
     "loading": "Chargement des paramètres de stockage…",
     "loadError": "Échec du chargement des paramètres de stockage.",
     "title": "Stockage d'objets",
@@ -1496,7 +1496,8 @@
     "title": "Mon IA",
     "description": "Consultez toutes les connexions d'IA à votre disposition dans vos communautés. Ajoutez votre propre clé d'API là où c'est autorisé et choisissez celle que vous utilisez.",
     "noneAvailable": "Aucune connexion d'IA n'est encore à votre disposition.",
-    "managedByAdmin": "Gérée par votre administrateur — utilise une clé partagée.",
+    "sharedKeyGuild": "Utilise une clé partagée définie par l'administration de votre communauté.",
+    "sharedKeyPlatform": "Utilise une clé partagée définie par la personne qui gère ce serveur.",
     "selected": "Utilisée",
     "requiresKey": "Nécessite votre clé",
     "keySet": "Votre clé est définie",
@@ -1523,7 +1524,7 @@
     "enabledToast": "L'annuaire des communautés est activé.",
     "disabledToast": "L'annuaire des communautés est désactivé.",
     "saveError": "Impossible de modifier l'annuaire des communautés. Veuillez réessayer.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés.",
+    "platformOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés.",
     "ageGateLabel": "Demander aux membres de confirmer qu'ils ont 16 ans ou plus",
     "ageGateHelpText": "Tant que ceci est actif, toute personne qui rejoint une communauté référencée depuis l'annuaire doit confirmer son âge une fois, et la réponse reste attachée à son compte. Cela ne concerne que cette adhésion : les communautés sur invitation ne le demandent jamais. Ne le désactivez que là où vous savez déjà que chaque compte appartient à une personne adulte.",
     "ageGateOffTitle": "Ne plus demander l'âge des membres ?",

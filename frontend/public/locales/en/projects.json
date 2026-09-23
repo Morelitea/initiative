@@ -9,7 +9,7 @@
   "noMatchingProjects": "No projects match your filters.",
   "onlyPinnedMatch": "Only pinned projects match your filters.",
   "accessRestricted": "Access Restricted",
-  "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Contact an administrator if you believe this is an error.",
+  "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Ask a community admin or an initiative manager if you believe this is an error.",
   "view": {
     "grid": "Grid",
     "list": "List"

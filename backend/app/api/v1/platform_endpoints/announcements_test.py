@@ -281,7 +281,7 @@ async def test_writing_an_announcement_needs_the_capability(
 
 
 @pytest.mark.integration
-async def test_an_author_sees_drafts_in_the_admin_list(
+async def test_an_author_sees_drafts_in_the_operator_list(
     client: AsyncClient, session: AsyncSession
 ):
     _, author_headers = await _author(session)
@@ -369,7 +369,7 @@ async def test_an_author_on_their_own_tier_writes_drafts_and_deletes_receipts(
     client: AsyncClient, session: AsyncSession, tier
 ):
     """Authoring runs on the author's platform tier: a draft is written, read
-    back in the admin list and edited there, and deleting a notice takes every
+    back in the operator list and edited there, and deleting a notice takes every
     reader's receipt for it along."""
     author = await create_user(session, role=tier)
     author_headers = get_auth_headers(author)

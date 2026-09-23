@@ -266,7 +266,7 @@ export const AccountDeletionRequestAction = {
  * Request from a user to deactivate or anonymize (soft-delete) their own account.
  *
  * `hard_delete` is intentionally not allowed from this self-service endpoint;
- * only an operator can purge a row, and they do so via the admin endpoint.
+ * only an operator can purge a row, and they do so via the operator endpoint.
  */
 export interface AccountDeletionRequest {
   action: AccountDeletionRequestAction;
@@ -733,7 +733,7 @@ export interface AppServiceRegistrationCreate {
 export type AppServiceRegistrationReadDelegationJwks = { [key: string]: unknown } | null;
 
 /**
- * A registration as the admin surface sees it.
+ * A registration as the owner's settings see it.
  */
 export interface AppServiceRegistrationRead {
   id: number;
@@ -1014,7 +1014,7 @@ export interface AuthProviderDiscoverRequest {
 }
 
 /**
- * One registry provider for the operator admin — never the secret.
+ * One registry provider as the owner's settings read it — never the secret.
  */
 export interface AuthProviderOwnerRead {
   id: number;
@@ -5867,9 +5867,9 @@ export interface UserInitiativeRole {
  * itself. What the mask leaves is enough to match a row against an address
  * somebody has quoted at you, which is what the column is read for.
  *
- * Masking lives on the shape rather than in each admin route: subclassing
+ * Masking lives on the shape rather than in each operator route: subclassing
  * keeps ``/users/me`` — where the reader is the address's owner — on plain
- * ``UserRead``, while every admin route that returns an account gets the
+ * ``UserRead``, while every operator route that returns an account gets the
  * masked form without opting in.
  */
 export interface OperatorUserRead {
@@ -9093,7 +9093,7 @@ export const FilterGroupLogic = {
  *
  * Groups can be nested::
  *
- *     # is_active = true AND (role = 'admin' OR role = 'owner')
+ *     # is_active = true AND (role = 'operator' OR role = 'owner')
  *     FilterGroup(
  *         logic="and",
  *         conditions=[
@@ -9101,7 +9101,7 @@ export const FilterGroupLogic = {
  *             FilterGroup(
  *                 logic="or",
  *                 conditions=[
- *                     FilterCondition(field="role", value="admin"),
+ *                     FilterCondition(field="role", value="operator"),
  *                     FilterCondition(field="role", value="owner"),
  *                 ],
  *             ),

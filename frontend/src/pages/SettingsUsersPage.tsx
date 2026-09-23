@@ -181,7 +181,7 @@ export const SettingsUsersPage = () => {
   };
 
   const handleDeleteUser = (userId: number, email: string) => {
-    // Backend handles validation (e.g., cannot delete last platform admin)
+    // Backend handles validation (e.g., cannot delete the last platform owner)
     setDeleteUserConfirm({ userId, email });
   };
 

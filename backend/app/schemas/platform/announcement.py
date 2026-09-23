@@ -3,7 +3,7 @@
 One output shape, :class:`AnnouncementRead`, serves both the notices an
 operator wrote and the ones compiled into the app — the client renders them
 identically and only ever needs the ``key`` to say "I have read this". The
-admin surface adds the fields a reader has no business with (draft state,
+operator surface adds the fields a reader has no business with (draft state,
 audience, authorship) in :class:`AnnouncementOperatorRead`.
 """
 
@@ -110,7 +110,7 @@ class AnnouncementRead(SanitizedBaseModel):
     sections: list[AnnouncementSection] = Field(default_factory=list)
     published_at: Optional[datetime] = None
     #: True for notices shipped in the app's own source rather than authored
-    #: in the admin surface; they cannot be edited from the UI.
+    #: in the operator surface; they cannot be edited from the UI.
     is_builtin: bool = False
     #: When this reader last acknowledged it, if they have.
     dismissed_at: Optional[datetime] = None

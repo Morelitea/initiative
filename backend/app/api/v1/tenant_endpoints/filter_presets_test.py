@@ -188,7 +188,7 @@ async def test_plain_write_access_is_not_enough(
     )
 
     assert create.status_code == 403
-    assert create.json()["detail"] == "PROJECT_ADMIN_REQUIRED"
+    assert create.json()["detail"] == "PROJECT_CONFIGURE_REQUIRED"
     assert patch.status_code == 403
     assert remove.status_code == 403
     # …but they can still read them.

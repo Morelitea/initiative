@@ -1408,9 +1408,9 @@ async def delete_own_account(
             detail=UserMessages.CONFIRMATION_MISMATCH,
         )
 
-    # Being the last admin of a guild is the only blocker. Content the user owns
-    # is released on the way out and left unowned for a guild admin to claim, so
-    # there is nothing to hand over first.
+    # Holding a guild's only superadmin seat is the only blocker. Content the
+    # user owns is released on the way out and left unowned for a guild admin to
+    # claim, so there is nothing to hand over first.
     can_delete, blockers = await users_service.check_deletion_eligibility(
         session, current_user.id
     )
@@ -1428,7 +1428,10 @@ async def delete_own_account(
         return AccountDeletionResponse(
             success=True,
             action="deactivate",
-            message="Your account has been deactivated. Contact an administrator to reactivate.",
+            message=(
+                "Your account has been deactivated. Contact whoever runs this "
+                "server to reactivate it."
+            ),
         )
 
     # action == "soft_delete"

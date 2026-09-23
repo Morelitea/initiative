@@ -182,7 +182,7 @@
     "noActiveInvites": "Keine aktiven Einladungen.",
     "unableToLoadInvites": "Einladungen konnten nicht geladen werden.",
     "unableToCreateInvite": "Einladung konnte nicht erstellt werden.",
-    "inviteSeatsFull": "Alle {{max}} Plätze sind belegt. Entferne ein Mitglied oder bitte einen Plattform-Administrator, das Limit zu erhöhen, bevor du eine weitere Einladung erstellst.",
+    "inviteSeatsFull": "Alle {{max}} Plätze sind belegt. Entferne ein Mitglied oder bitte die Person, die diesen Server betreibt, das Limit zu erhöhen, bevor du eine weitere Einladung erstellst.",
     "inviteSeatsFullPlan_one": "Der Tarif {{plan}} umfasst nur einen Platz, und der ist belegt. Mach ein Upgrade, um Leute in diese Community einzuladen.",
     "inviteSeatsFullPlan_other": "Alle {{count}} Plätze im Tarif {{plan}} sind belegt. Mach ein Upgrade, um weitere Leute einzuladen.",
     "inviteSeatsFullUpgrade_one": "Dein Tarif umfasst nur einen Platz, und der ist belegt. Mach ein Upgrade, um Leute in diese Community einzuladen.",

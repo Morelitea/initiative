@@ -9,7 +9,7 @@
   "noMatchingProjects": "Keine Projekte entsprechen deinen Filtern.",
   "onlyPinnedMatch": "Nur angeheftete Projekte entsprechen deinen Filtern.",
   "accessRestricted": "Zugriff eingeschränkt",
-  "accessRestrictedDescription": "Du hast keine Berechtigung, Projekte in dieser Initiative anzuzeigen. Wende dich an einen Administrator, wenn du glaubst, dass dies ein Fehler ist.",
+  "accessRestrictedDescription": "Du hast keine Berechtigung, Projekte in dieser Initiative anzuzeigen. Wende dich an die Community-Administration oder an einen Initiativenmanager, wenn du glaubst, dass dies ein Fehler ist.",
   "view": {
     "grid": "Raster",
     "list": "Liste"

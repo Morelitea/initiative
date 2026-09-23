@@ -1056,7 +1056,7 @@ export function useCheckUsernameAvailableApiV1AuthUsernameAvailableGet<
  * and the cookies that carried it are cleared, so a phone signing out does
  * not close the laptop. What signs an account out everywhere is a credential
  * change — a password change or reset, a second factor disabled, an account
- * action taken by a platform admin — each of which bumps
+ * action taken by an operator — each of which bumps
  * ``users.token_version`` on its own path.
  *
  * What is revoked here is the refresh side — the rotation chain behind this

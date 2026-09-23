@@ -44,8 +44,8 @@ const DEFAULT_STATE = {
 export const SettingsStoragePage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const storageQuery = useStorageSettings({ enabled: isPlatformAdmin });
+  const canManagePlatformConfig = hasCapability(user, Capability.configManage);
+  const storageQuery = useStorageSettings({ enabled: canManagePlatformConfig });
   // A bucket, a region, an endpoint and a key are typed in one at a time and
   // saved together, so a refetch part-way through must leave them alone.
   const form = useServerForm(
@@ -67,7 +67,7 @@ export const SettingsStoragePage = () => {
   const hasSecret = storageQuery.data?.has_secret_access_key ?? false;
 
   const backfillStatus = useStorageBackfillStatus({
-    enabled: isPlatformAdmin,
+    enabled: canManagePlatformConfig,
     // Poll while a run is in flight; idle otherwise.
     refetchInterval: (query) => (query.state.data?.status === "running" ? 2000 : false),
   });
@@ -84,7 +84,7 @@ export const SettingsStoragePage = () => {
       s3_kms_key_id: form.values.s3_kms_key_id || null,
       s3_local_fallback: form.values.s3_local_fallback,
     };
-    // Only send the secret when the admin typed one, so an empty field keeps the
+    // Only send the secret when the owner typed one, so an empty field keeps the
     // stored key (the backend treats "field absent" as "unchanged").
     if (secret) {
       payload.s3_secret_access_key = secret;
@@ -119,8 +119,8 @@ export const SettingsStoragePage = () => {
     onError: () => toast.error(t("storage.backfillError")),
   });
 
-  if (!isPlatformAdmin) {
-    return <p className="text-muted-foreground text-sm">{t("storage.adminOnly")}</p>;
+  if (!canManagePlatformConfig) {
+    return <p className="text-muted-foreground text-sm">{t("storage.platformOnly")}</p>;
   }
 
   if (storageQuery.isLoading) {

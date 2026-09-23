@@ -161,9 +161,9 @@ export function guildMayWriteContent(
  * derived from the tool registry — a new tool gets its access flags without
  * touching this hook.
  *
- * `data.bypass` (platform admin/owner) is deliberately NOT a standing access
+ * `data.bypass` (platform operator/owner) is deliberately NOT a standing access
  * shortcut here: the backend no longer grants ambient cross-guild reach for it
- * (it's the right to break-glass). A platform admin reaches a guild only via a
+ * (it's the right to break-glass). An operator reaches a guild only via a
  * real membership or an active grant — the latter surfaces as
  * `activeGuild.accessType === "grant"` below — so the UI must reflect that and
  * not show create/edit affordances the backend would reject.

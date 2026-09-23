@@ -139,7 +139,7 @@
     "notFound": "App nicht gefunden",
     "disabled": "{{name}} ist deaktiviert",
     "unavailable": "{{name}} ist auf diesem Server nicht eingerichtet",
-    "unavailableDescription": "Eine Administratorin oder ein Administrator muss den Dienst dieser App verbinden, bevor sie geöffnet werden kann.",
+    "unavailableDescription": "Die Person, die diesen Server betreibt, muss den Dienst dieser App verbinden, bevor sie geöffnet werden kann.",
     "noSurface": "{{name}} hat keine eigene Seite"
   },
   "browse": "App-Store durchsuchen",

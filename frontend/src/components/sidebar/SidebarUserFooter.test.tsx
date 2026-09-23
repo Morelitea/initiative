@@ -203,13 +203,13 @@ describe("SidebarUserFooter", () => {
     const menu = await openMenu(user);
     const rows = within(menu).getAllByRole("menuitem");
     const labels = rows.map((row) => row.textContent?.trim());
-    const admin = labels.indexOf("Operator Dashboard");
+    const operator = labels.indexOf("Operator Dashboard");
 
-    expect(admin).toBeGreaterThan(-1);
-    expect(labels[admin + 1]).toBe("Platform Settings");
+    expect(operator).toBeGreaterThan(-1);
+    expect(labels[operator + 1]).toBe("Platform Settings");
     // A rule of its own above the pair, not just the one before Sign out.
     const separators = within(menu).getAllByRole("separator");
-    expect(separators.some((rule) => rule.nextElementSibling === rows[admin])).toBe(true);
+    expect(separators.some((rule) => rule.nextElementSibling === rows[operator])).toBe(true);
   });
 
   it("leaves community settings and stats to the places that own them", async () => {

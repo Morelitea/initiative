@@ -34,7 +34,7 @@
  *    guild, and never a non-guild key. This is the tenancy boundary: a mutation
  *    in one guild can't touch another guild's (or a personal) cached data.
  *  - PERSONAL / platform keys are everything else (`/api/v1/me/*`, `/settings`,
- *    `/users`, `/guilds`, `/admin`, `/notifications`, `/version`, `/recents`).
+ *    `/users`, `/guilds`, `/operator`, `/notifications`, `/version`, `/recents`).
  *    `personalExact` and `personalPrefix` reach these and ONLY these.
  *
  * A few resources genuinely span both (a guild list plus its cross-guild `/me`

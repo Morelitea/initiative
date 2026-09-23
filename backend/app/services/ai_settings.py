@@ -118,7 +118,7 @@ class _PlatformConfig:
     connections: tuple[_ConnRow, ...]
 
 
-# Only the admin-only operator CONNECTIONS are cached (the expensive read). The
+# Only the owner-only platform CONNECTIONS are cached (the expensive read). The
 # mode + a monotonic version live on app_settings, which every role can read, so
 # each request reads them fresh on its own (guild) session and reloads the cached
 # connections only when the version moves. An operator change therefore reaches
@@ -127,7 +127,7 @@ _cache: _PlatformConfig | None = None
 
 
 async def _load_platform_connections() -> tuple[_ConnRow, ...]:
-    """Read the operator connections on the system engine (admin-only table)."""
+    """Read the operator connections on the system engine (app_admin-only table)."""
     async with db_session.system_engine.connect() as conn:
         # Pooled connection: shed any guild role a prior checkout assumed.
         await conn.execute(text("SELECT set_config('role', 'none', false)"))

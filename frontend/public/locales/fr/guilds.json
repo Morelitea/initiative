@@ -182,7 +182,7 @@
     "noActiveInvites": "Aucune invitation active.",
     "unableToLoadInvites": "Impossible de charger les invitations.",
     "unableToCreateInvite": "Impossible de créer l'invitation.",
-    "inviteSeatsFull": "Les {{max}} places sont occupées. Retirez un membre ou demandez à un administrateur de la plateforme d'augmenter la limite avant de créer une autre invitation.",
+    "inviteSeatsFull": "Les {{max}} places sont occupées. Retirez un membre ou demandez à la personne qui gère ce serveur d'augmenter la limite avant de créer une autre invitation.",
     "inviteSeatsFullPlan_one": "Le forfait {{plan}} ne comprend qu'une place, et elle est occupée. Mettez à niveau pour inviter des personnes dans cette communauté.",
     "inviteSeatsFullPlan_other": "Les {{count}} places du forfait {{plan}} sont occupées. Mettez à niveau pour inviter plus de personnes.",
     "inviteSeatsFullUpgrade_one": "Votre forfait ne comprend qu'une place, et elle est occupée. Mettez à niveau pour inviter des personnes dans cette communauté.",

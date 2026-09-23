@@ -25,7 +25,7 @@ from app.schemas.platform.operator import (
     GuildBlockerInfo,
 )
 from app.core.messages import (
-    AdminMessages,
+    OperatorMessages,
     AuthMessages,
     SettingsMessages,
     UserMessages,
@@ -48,9 +48,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Per-capability guards. Each admin endpoint is gated on the specific
-# capability it needs rather than a blanket "admin" role, so the privilege
-# ladder (member → support → moderator → admin → owner) maps cleanly onto
+# Per-capability guards. Each operator endpoint is gated on the specific
+# capability it needs rather than a platform role name, so the privilege
+# ladder (member → support → moderator → operator → owner) maps cleanly onto
 # what each operation actually requires.
 UsersReadDep = Annotated[User, Depends(require_capability(Capability.USERS_READ))]
 UsersAgeUnblockDep = Annotated[
@@ -83,7 +83,7 @@ async def list_all_users(
     """
     stmt = select(User).order_by(User.created_at.asc())
     result = await session.exec(stmt)
-    return await users_service.to_admin_read(list(result.all()))
+    return await users_service.to_operator_read(list(result.all()))
 
 
 #: ``email`` is masked here exactly as it is in the roster this exports, so
@@ -111,7 +111,7 @@ async def export_platform_users_csv(
 ) -> Response:
     """Export platform users as a CSV file. Pass `user_id` one or more times to
     restrict the export to a subset. Without `user_id`, every user is included.
-    Platform-admin only."""
+    Support and above (``users.read``)."""
     stmt = select(User).order_by(User.created_at.asc())
     if user_id:
         stmt = stmt.where(User.id.in_(user_id))
@@ -125,7 +125,7 @@ async def export_platform_users_csv(
 
     # Through the same shape the roster returns, so the export cannot be the one
     # place that forgets to mask an address.
-    records = await users_service.to_admin_read(users)
+    records = await users_service.to_operator_read(users)
 
     rows = []
     for record in records:
@@ -225,7 +225,7 @@ async def trigger_password_reset(
     session: SystemSessionDep,
     _current_user: UsersManageDep,
 ) -> VerificationSendResponse:
-    """Trigger a password reset email for a user (admin only)."""
+    """Trigger a password reset email for a user (``users.manage``)."""
     stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
     user = result.one_or_none()
@@ -237,7 +237,7 @@ async def trigger_password_reset(
     if user.status != UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.CANNOT_RESET_INACTIVE,
+            detail=OperatorMessages.CANNOT_RESET_INACTIVE,
         )
 
     try:
@@ -266,7 +266,7 @@ async def reactivate_user(
     session: SystemSessionDep,
     _current_user: UsersManageDep,
 ) -> OperatorUserRead:
-    """Reactivate a deactivated user account (admin only)."""
+    """Reactivate a deactivated user account (``users.manage``)."""
     stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
     user = result.one_or_none()
@@ -278,7 +278,7 @@ async def reactivate_user(
     if user.status == UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.USER_ALREADY_ACTIVE,
+            detail=OperatorMessages.USER_ALREADY_ACTIVE,
         )
 
     if user.status == UserStatus.anonymized:
@@ -294,7 +294,7 @@ async def reactivate_user(
     await session.refresh(user)
     # Platform user management stays platform-table-only: initiative
     # membership is guild-schema content this path cannot read.
-    return await users_service.to_admin_read_one(user)
+    return await users_service.to_operator_read_one(user)
 
 
 @router.post("/users/{user_id}/restore", response_model=OperatorUserRead)
@@ -326,14 +326,14 @@ async def restore_deleted_user(
     if user.status != UserStatus.deleted:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=AdminMessages.USER_NOT_DELETED,
+            detail=OperatorMessages.USER_NOT_DELETED,
         )
     await users_service.cancel_account_deletion(
         session, user_id, actor_user_id=current_user.id, via="operator"
     )
     await session.commit()
     await session.refresh(user)
-    return await users_service.to_admin_read_one(user)
+    return await users_service.to_operator_read_one(user)
 
 
 @router.delete("/users/{user_id}/avatar", status_code=status.HTTP_204_NO_CONTENT)
@@ -445,7 +445,7 @@ async def set_user_username(
     )
     await session.commit()
     await session.refresh(user)
-    return await users_service.to_admin_read_one(user)
+    return await users_service.to_operator_read_one(user)
 
 
 @router.post("/users/{user_id}/suspension", response_model=OperatorUserRead)
@@ -472,7 +472,7 @@ async def set_user_suspension(
         # lifting of it to someone else.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.CANNOT_SUSPEND_SELF,
+            detail=OperatorMessages.CANNOT_SUSPEND_SELF,
         )
 
     user = await session.get(User, user_id)
@@ -486,12 +486,12 @@ async def set_user_suspension(
     if user.status not in (UserStatus.active, UserStatus.suspended):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.CANNOT_SUSPEND_INACTIVE,
+            detail=OperatorMessages.CANNOT_SUSPEND_INACTIVE,
         )
 
     already = user.status == UserStatus.suspended
     if already == payload.suspended:
-        return await users_service.to_admin_read_one(user)
+        return await users_service.to_operator_read_one(user)
 
     user.status = UserStatus.suspended if payload.suspended else UserStatus.active
     user.updated_at = datetime.now(timezone.utc)
@@ -528,7 +528,7 @@ async def set_user_suspension(
         # guild to name.
         await stream_authority.revoke_user_everywhere(user_id)
 
-    return await users_service.to_admin_read_one(user)
+    return await users_service.to_operator_read_one(user)
 
 
 @router.delete("/users/{user_id}/age-block", response_model=OperatorUserRead)
@@ -580,7 +580,7 @@ async def clear_age_block(
     account_stream.queue_account_signal(session, user_id, "age")
     await session.commit()
     await session.refresh(user)
-    return await users_service.to_admin_read_one(user)
+    return await users_service.to_operator_read_one(user)
 
 
 @router.patch("/users/{user_id}/platform-role", response_model=OperatorUserRead)
@@ -599,7 +599,7 @@ async def update_platform_role(
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.CANNOT_CHANGE_OWN_ROLE,
+            detail=OperatorMessages.CANNOT_CHANGE_OWN_ROLE,
         )
 
     stmt = select(User).where(User.id == user_id).with_for_update()
@@ -618,18 +618,18 @@ async def update_platform_role(
     if user.status != UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.CANNOT_CHANGE_ROLE_INACTIVE,
+            detail=OperatorMessages.CANNOT_CHANGE_ROLE_INACTIVE,
         )
 
     # Bounded delegation: you may only assign a role whose capabilities are a
     # subset of your own, and you may not modify a user who already outranks
-    # you (an admin can't touch an owner, in either direction).
+    # you (an operator can't touch an owner, in either direction).
     if not can_assign_role(current_user, payload.role) or not can_assign_role(
         current_user, user.role
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=AdminMessages.CANNOT_ASSIGN_HIGHER_ROLE,
+            detail=OperatorMessages.CANNOT_ASSIGN_HIGHER_ROLE,
         )
 
     # Don't strip config-management from the last user who has it — that would
@@ -643,7 +643,7 @@ async def update_platform_role(
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AdminMessages.CANNOT_DEMOTE_LAST_OWNER,
+                detail=OperatorMessages.CANNOT_DEMOTE_LAST_OWNER,
             )
 
     previous_role = user.role
@@ -665,7 +665,7 @@ async def update_platform_role(
     await session.commit()
     await session.refresh(user)
     # Platform user management stays platform-table-only (see reactivate).
-    return await users_service.to_admin_read_one(user)
+    return await users_service.to_operator_read_one(user)
 
 
 @router.get(
@@ -677,7 +677,7 @@ async def check_user_deletion_eligibility(
     session: SystemSessionDep,
     current_user: UsersDeleteDep,
 ) -> OperatorDeletionEligibilityResponse:
-    """Check if a user can be deleted (admin only).
+    """Check if a user can be deleted (``users.delete``).
 
     Returns the blockers: the communities the user holds the only superadmin
     seat of. That is the only one: owning content does not stop a deletion,
@@ -687,7 +687,7 @@ async def check_user_deletion_eligibility(
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.USE_SELF_DELETION,
+            detail=OperatorMessages.USE_SELF_DELETION,
         )
 
     stmt = select(User).where(User.id == user_id)
@@ -699,7 +699,7 @@ async def check_user_deletion_eligibility(
         )
 
     can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, user_id, admin_context=True
+        session, user_id, operator_context=True
     )
 
     # Check if target is the last platform owner (last config manager)
@@ -733,7 +733,7 @@ async def delete_user(
     session: SystemSessionDep,
     current_user: UsersDeleteDep,
 ) -> AccountDeletionResponse:
-    """Delete, anonymize, or deactivate a user account (admin only).
+    """Delete, anonymize, or deactivate a user account (``users.delete``).
 
     `action` selects the path:
       - `deactivate` — reversible; flips status to deactivated, drops memberships.
@@ -751,7 +751,7 @@ async def delete_user(
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.CANNOT_DELETE_SELF,
+            detail=OperatorMessages.CANNOT_DELETE_SELF,
         )
 
     stmt = select(User).where(User.id == user_id).with_for_update()
@@ -769,31 +769,31 @@ async def delete_user(
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=AdminMessages.CANNOT_DELETE_LAST_OWNER,
+                detail=OperatorMessages.CANNOT_DELETE_LAST_OWNER,
             )
 
-    # Being the last admin of a guild is the only blocker. Content the user owns
-    # is released as their memberships go and left unowned for a guild admin to
-    # claim, so there is nothing for this endpoint to collect first.
+    # Holding a guild's only superadmin seat is the only blocker. Content the
+    # user owns is released as their memberships go and left unowned for a guild
+    # admin to claim, so there is nothing for this endpoint to collect first.
     can_delete, blockers = await users_service.check_deletion_eligibility(
-        session, user_id, admin_context=True
+        session, user_id, operator_context=True
     )
     if not can_delete:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=blockers[0] if blockers else AdminMessages.USER_CANNOT_BE_DELETED,
+            detail=blockers[0] if blockers else OperatorMessages.USER_CANNOT_BE_DELETED,
         )
 
     # An already-anonymized row is a permanently empty husk; the only
     # valid follow-up is hard delete. Refuse deactivate / soft_delete
     # explicitly — without this guard, deactivate would flip
     # ``anonymized`` → ``deactivated``, which then satisfies the
-    # ``reactivate`` endpoint's anonymized check and lets an admin
+    # ``reactivate`` endpoint's anonymized check and lets an operator
     # accidentally resurrect the husk as an active loginable account.
     if user.status == UserStatus.anonymized and payload.action != "hard_delete":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.ALREADY_ANONYMIZED,
+            detail=OperatorMessages.ALREADY_ANONYMIZED,
         )
 
     if payload.action == "deactivate":

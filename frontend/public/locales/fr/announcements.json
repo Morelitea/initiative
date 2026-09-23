@@ -26,7 +26,7 @@
     "later": "Plus tard",
     "reloadNow": "Recharger maintenant"
   },
-  "admin": {
+  "operator": {
     "title": "Annonces",
     "subtitle": "Avis destinés aux personnes qui utilisent cette installation. Chacun s'affiche une fois et reste mémorisé par personne.",
     "new": "Nouvelle annonce",

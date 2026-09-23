@@ -111,7 +111,7 @@ def builtin_announcement_key(slug: str) -> str:
 class Announcement(SQLModel, table=True):
     __tablename__ = "announcements"
     __table_args__ = (
-        # Every read is "what is live now, newest first"; the admin list is the
+        # Every read is "what is live now, newest first"; the operator list is the
         # same query with the published filter dropped.
         Index("ix_announcements_published_at", "published_at"),
     )

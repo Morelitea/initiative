@@ -7,7 +7,7 @@
  * opened.
  *
  * Deliberately not a trust ranking. Every listing on a deployment is there
- * because an administrator put it there — they choose the registry to trust and
+ * because whoever runs the server put it there — they choose the registry to trust and
  * the files to drop in — so sorting listings by where they came from would
  * imply a distinction the platform does not have. What keeps the name honest is
  * enforcement rather than a badge: `core.*` is reserved to listings shipped in

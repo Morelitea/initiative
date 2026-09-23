@@ -98,11 +98,11 @@ class AccessGrant(SQLModel, table=True):
     """A time-bound, per-guild privileged-access grant (PAM).
 
     A lower-privilege platform user (e.g. ``support``) requests temporary
-    access to one guild; an ``owner``/``admin`` approves it; it auto-expires.
+    access to one guild; an ``operator``/``owner`` approves it; it auto-expires.
     This is the least-privilege alternative to the standing all-guild
-    ``data.bypass`` that ``admin``/``owner`` hold.
+    ``data.bypass`` that ``operator``/``owner`` hold.
 
-    Managed cross-guild by platform staff, so endpoints use the admin
+    Managed cross-guild by platform staff, so endpoints use the system
     (RLS-bypassing) session with explicit capability + ownership checks —
     the same pattern as the ``users`` table.
     """

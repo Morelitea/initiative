@@ -18,7 +18,7 @@ Four classes, because "required" alone is the distinction that misleads:
 
   required      No default. The app will not start without it.
   runtime       Read once as a first-boot SEED, then owned by a database row and
-                edited in Settings -> Admin (config.RUNTIME_SEEDED_SETTINGS).
+                edited in Settings -> Platform (config.RUNTIME_SEEDED_SETTINGS).
                 An operator does not need these at deploy time at all — which is
                 the whole point of publishing them as their own class.
   env_only      Operator credentials for an optional feature with no database

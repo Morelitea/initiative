@@ -2,7 +2,7 @@
 
 The shared secret is write-only in every direction: it arrives on create and on
 a rotation, and it leaves as ``has_secret`` — a boolean saying one is stored.
-Nothing here ever carries the value or its ciphertext, so an admin screen (and
+Nothing here ever carries the value or its ciphertext, so the owner's screen (and
 anything that logs a response) sees only whether the app is wired up.
 """
 
@@ -22,7 +22,7 @@ __all__ = [
 
 
 class AppServiceRegistrationRead(SanitizedBaseModel):
-    """A registration as the admin surface sees it."""
+    """A registration as the owner's settings see it."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

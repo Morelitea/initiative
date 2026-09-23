@@ -74,7 +74,7 @@ class UserCreate(SanitizedBaseModel):
     # self-registration (``/auth/register``) and guild-admin user creation
     # (``POST /users/``), and neither caller is authorized to grant a
     # platform role from the request body. Registration computes the role
-    # itself (first user = owner, everyone else = member) and the admin
+    # itself (first user = owner, everyone else = member) and the guild-admin
     # endpoint forces ``member``; standing platform roles change only via
     # ``/operator/users/{id}/platform-role`` (capability-gated, bounded
     # delegation). See SEC-1.
@@ -626,9 +626,9 @@ class OperatorUserRead(UserRead):
     itself. What the mask leaves is enough to match a row against an address
     somebody has quoted at you, which is what the column is read for.
 
-    Masking lives on the shape rather than in each admin route: subclassing
+    Masking lives on the shape rather than in each operator route: subclassing
     keeps ``/users/me`` — where the reader is the address's owner — on plain
-    ``UserRead``, while every admin route that returns an account gets the
+    ``UserRead``, while every operator route that returns an account gets the
     masked form without opting in.
     """
 
@@ -722,7 +722,7 @@ class AccountDeletionRequest(SanitizedBaseModel):
     """Request from a user to deactivate or anonymize (soft-delete) their own account.
 
     `hard_delete` is intentionally not allowed from this self-service endpoint;
-    only an operator can purge a row, and they do so via the admin endpoint.
+    only an operator can purge a row, and they do so via the operator endpoint.
     """
 
     action: Literal["deactivate", "soft_delete"]

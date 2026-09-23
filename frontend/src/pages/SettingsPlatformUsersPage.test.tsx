@@ -22,16 +22,16 @@ import type { OperatorUserRead, UserRead, UserRole } from "@/api/generated/initi
 // what another left behind.
 const state = vi.hoisted(() => ({ roster: [] as OperatorUserRead[] }));
 
-vi.mock("@/hooks/useAdmin", () => ({
+vi.mock("@/hooks/useOperatorUsers", () => ({
   usePlatformUsers: () => ({ data: state.roster, isLoading: false, isError: false }),
-  useAdminTriggerPasswordReset: () => ({ mutate: vi.fn(), isPending: false }),
-  useAdminSetUsername: () => ({ mutate: vi.fn(), isPending: false }),
-  useAdminClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
-  useAdminSetSuspension: () => ({ mutate: vi.fn(), isPending: false }),
-  useAdminReactivateUser: () => ({ mutate: vi.fn(), isPending: false }),
-  useAdminRestoreUser: () => ({ mutate: vi.fn(), isPending: false }),
-  useAdminUpdatePlatformRole: () => ({ mutate: vi.fn(), isPending: false }),
-  useAdminRemoveAvatar: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorTriggerPasswordReset: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorSetUsername: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorSetSuspension: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorReactivateUser: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorRestoreUser: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorUpdatePlatformRole: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorRemoveAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useExportPlatformUsersCsv: () => ({ mutate: vi.fn() }),
 }));
 

@@ -110,8 +110,8 @@
     "guidesBody": "Anleitungen für jedes Werkzeug.",
     "faqTitle": "FAQ",
     "faqBody": "Kurze Antworten auf die häufigsten Fragen.",
-    "adminTitle": "Für Administratoren",
-    "adminBody": "Den eigenen Server installieren, konfigurieren und pflegen.",
+    "serverTitle": "Einen Server betreiben",
+    "serverBody": "Den eigenen Server installieren, konfigurieren und pflegen.",
     "securityTitle": "Sicherheit & Datenschutz",
     "securityBody": "Was „sicher“ für dich bedeutet, und wie die Sachen deiner Gruppe eure bleiben."
   },

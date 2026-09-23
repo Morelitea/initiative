@@ -25,9 +25,9 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
 import { useReadIntakeSettingsApiV1SettingsIntakeGet } from "@/api/generated/intake/intake";
-import { BillingConsoleButton } from "@/components/admin/BillingConsoleButton";
-import { GuildRestoreWizard } from "@/components/admin/GuildRestoreWizard";
-import { Section, SettingRow } from "@/components/admin/SettingRow";
+import { BillingConsoleButton } from "@/components/platform/BillingConsoleButton";
+import { GuildRestoreWizard } from "@/components/platform/GuildRestoreWizard";
+import { Section, SettingRow } from "@/components/platform/SettingRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

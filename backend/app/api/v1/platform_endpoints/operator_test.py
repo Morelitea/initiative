@@ -33,7 +33,7 @@ _NO_SUCH_USER = {"missing": 99998, "gone": 99999}
 async def platform_people(acting_user):
     """An operator who may export, and two ordinary accounts to export."""
     return {
-        "admin": await acting_user("operator", email="admin@example.com"),
+        "operator": await acting_user("operator", email="operator@example.com"),
         "one": await acting_user("member", email="alpha@example.com"),
         "two": await acting_user("member", email="bravo@example.com"),
     }
@@ -43,13 +43,13 @@ def _export_id(people: dict, name: str) -> int:
     return _NO_SUCH_USER.get(name) or people[name].user.id
 
 
-async def test_export_platform_users_csv_as_admin(client, platform_people):
-    """Platform admins export every account as a BOM'd CSV attachment, with
+async def test_export_platform_users_csv_as_operator(client, platform_people):
+    """Operators export every account as a BOM'd CSV attachment, with
     the addresses masked the way the roster it exports masks them."""
-    admin = platform_people["admin"]
+    operator = platform_people["operator"]
 
     response = await client.get(
-        "/api/v1/operator/users/export.csv", headers=admin.headers
+        "/api/v1/operator/users/export.csv", headers=operator.headers
     )
 
     assert response.status_code == 200
@@ -72,7 +72,7 @@ async def test_export_platform_users_csv_as_admin(client, platform_people):
         "locale",
     ]
     assert {row[1] for row in data_rows} == {
-        "a***n@e***m",
+        "o***r@e***m",
         "a***a@e***m",
         "b***o@e***m",
     }
@@ -93,11 +93,11 @@ async def test_export_platform_users_csv_returns_the_accounts_asked_for(
     """``user_id`` narrows the export to the accounts it names, and a request
     that resolves to nobody is a 404. A single account files under its handle;
     any wider export files under the platform."""
-    admin = platform_people["admin"]
+    operator = platform_people["operator"]
     query = "&".join(f"user_id={_export_id(platform_people, name)}" for name in ask)
 
     response = await client.get(
-        f"/api/v1/operator/users/export.csv?{query}", headers=admin.headers
+        f"/api/v1/operator/users/export.csv?{query}", headers=operator.headers
     )
 
     if not expect:
@@ -135,20 +135,20 @@ async def test_the_only_follow_up_to_anonymizing_is_a_hard_delete(
 ):
     """An anonymized row holds nothing left to deactivate or to strip, so the
     one action still open on it is removing it."""
-    admin = await acting_user("operator")
+    operator = await acting_user("operator")
     target = await create_user(session)
     await users_service.soft_delete_user(session, target.id)
 
     response = await client.request(
         "DELETE",
         f"/api/v1/operator/users/{target.id}",
-        headers=admin.headers,
+        headers=operator.headers,
         json={"action": action},
     )
 
     assert response.status_code == expected
     if expected == 400:
-        assert response.json()["detail"] == "ADMIN_ALREADY_ANONYMIZED"
+        assert response.json()["detail"] == "OPERATOR_ALREADY_ANONYMIZED"
 
 
 @pytest.mark.parametrize(
@@ -164,9 +164,9 @@ async def test_platform_role_change_rejected_on_inactive_users(
     client, session, acting_user, how, start_role, requested
 ):
     """Platform role mutations on deactivated or anonymized users are refused
-    with ``ADMIN_CANNOT_CHANGE_ROLE_INACTIVE``, in either direction. The role
+    with ``OPERATOR_CANNOT_CHANGE_ROLE_INACTIVE``, in either direction. The role
     on the target row is unchanged."""
-    admin = await acting_user("operator")
+    operator = await acting_user("operator")
     target = await create_user(session, role=start_role)
     if how == "deactivate":
         await users_service.deactivate_user(session, target.id)
@@ -181,18 +181,18 @@ async def test_platform_role_change_rejected_on_inactive_users(
 
     response = await client.patch(
         f"/api/v1/operator/users/{target.id}/platform-role",
-        headers=admin.headers,
+        headers=operator.headers,
         json={"role": requested},
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
+    assert response.json()["detail"] == "OPERATOR_CANNOT_CHANGE_ROLE_INACTIVE"
     refreshed = (await session.exec(select(User).where(User.id == target.id))).one()
     assert refreshed.role == start_role
 
 
-async def test_demoting_an_active_admin_completes(client, session, acting_user):
-    """Demoting an active admin runs the last-holder check and answers 200,
+async def test_demoting_an_active_operator_completes(client, session, acting_user):
+    """Demoting an active operator runs the last-holder check and answers 200,
     with the target's role ending up demoted."""
     deleter = await acting_user("operator")
     target = await create_user(session, role=UserRole.operator)
@@ -225,8 +225,8 @@ async def test_platform_roster_masks_addresses(client, acting_user):
     assert "@example.com" not in response.text
 
 
-async def test_admin_mutations_return_masked_addresses(client, acting_user):
-    """The single-account admin routes mask too, not just the list.
+async def test_operator_mutations_return_masked_addresses(client, acting_user):
+    """The single-account operator routes mask too, not just the list.
 
     Each returns the account it just changed, so each is its own read of an
     address and needs the same shape.
@@ -273,10 +273,10 @@ async def test_own_account_still_reads_its_whole_address(client, acting_user):
         pytest.param("GET", "/api/v1/operator/users", id="the-roster"),
     ],
 )
-async def test_the_admin_router_turns_away_an_ordinary_account(
+async def test_the_operator_router_turns_away_an_ordinary_account(
     client, acting_user, method, path
 ):
-    """The platform-admin routes are gated on a capability an ordinary account
+    """The operator routes are gated on a capability an ordinary account
     does not hold."""
     a = await acting_user("member")
 

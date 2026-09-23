@@ -75,7 +75,7 @@ export function canAccessOperatorDashboard(user: WithCapabilities): boolean {
 
 /** True iff the user can access *either* platform area — used for coarse
  * gating (no-guild layout choice, route guards). */
-export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
+export function canAccessPlatformAreas(user: WithCapabilities): boolean {
   return canManagePlatformConfig(user) || canAccessOperatorDashboard(user);
 }
 

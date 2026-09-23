@@ -52,7 +52,7 @@ import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { isJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
-import { canAccessPlatformAdmin } from "@/lib/permissions";
+import { canAccessPlatformAreas } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
 import { returnPath } from "@/lib/returnPath";
 import { cn } from "@/lib/utils";
@@ -177,19 +177,19 @@ function AppLayout() {
   }
 
   // No-guild empty-state branch. The user-scoped settings routes
-  // (``/profile/*``) and platform-admin settings (``/settings/operator/*``
-  // for an admin) don't need guild context — the APIs they call work
-  // without a server-held guild — and a user with zero
+  // (``/profile/*``) and the platform areas (``/settings/operator/*`` and
+  // ``/settings/platform/*``, for platform staff) don't need guild context —
+  // the APIs they call work without a server-held guild — and a user with zero
   // memberships would otherwise have no path to delete their account
-  // or, for platform admins, configure system-wide settings. The
+  // or, for platform staff, configure system-wide settings. The
   // path-based decision lives in ``chooseNoGuildLayout`` so it can be
   // unit-tested without a router; see ``noGuildLayout.test.ts``.
   if (user) {
-    const isPlatformAdmin = canAccessPlatformAdmin(user);
+    const reachesPlatformAreas = canAccessPlatformAreas(user);
     const layout = chooseNoGuildLayout({
       hasGuilds: guilds.length > 0,
       pathname: location.pathname,
-      isPlatformAdmin,
+      canAccessPlatformAreas: reachesPlatformAreas,
     });
     if (layout === "shell") {
       return <NoGuildSettingsShell logout={logout} />;
@@ -200,7 +200,7 @@ function AppLayout() {
           canCreateGuilds={canCreateGuilds}
           createGuild={createGuild}
           logout={logout}
-          isPlatformAdmin={isPlatformAdmin}
+          reachesPlatformAreas={reachesPlatformAreas}
         />
       );
     }
@@ -446,12 +446,12 @@ function NoGuildState({
   canCreateGuilds,
   createGuild,
   logout,
-  isPlatformAdmin,
+  reachesPlatformAreas,
 }: {
   canCreateGuilds: boolean;
   createGuild: (input: { name: string; description?: string }) => Promise<GuildRead>;
   logout: () => void;
-  isPlatformAdmin: boolean;
+  reachesPlatformAreas: boolean;
 }) {
   const { t } = useTranslation("guilds");
   const { billing, openPortal, reserveTab } = useBillingPortal();
@@ -536,7 +536,7 @@ function NoGuildState({
 
         {/* Direct entry points to the user/platform settings pages so a
             user with no memberships can still manage their account
-            (e.g. delete it) or, for platform admins, system-wide
+            (e.g. delete it) or, for platform staff, system-wide
             configuration. Without these the only paths off this screen
             are create/join/logout. */}
         <div className="flex flex-col gap-2">
@@ -546,7 +546,7 @@ function NoGuildState({
               {t("noGuild.accountSettings")}
             </Link>
           </Button>
-          {isPlatformAdmin && (
+          {reachesPlatformAreas && (
             <Button variant="outline" asChild>
               <Link to="/settings/operator">
                 <Settings className="h-4 w-4" />

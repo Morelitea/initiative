@@ -150,7 +150,7 @@ async def test_connection(cfg: ResolvedStorageConfig) -> tuple[bool, str]:
 
     try:
         await anyio.to_thread.run_sync(_head)
-    except Exception as exc:  # noqa: BLE001 — report failure to the admin
+    except Exception as exc:  # noqa: BLE001 — report failure to the owner
         return False, str(exc)
     return True, "Connection successful."
 

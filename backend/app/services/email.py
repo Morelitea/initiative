@@ -371,7 +371,7 @@ async def _account_recipients(user: User) -> list[str]:
     On its own system-engine session rather than the caller's. Which addresses
     an account holds is reached there and nowhere else, and the callers here
     arrive with whichever session their endpoint runs on — a password reset
-    with the request-path one, an operator's reset with the admin one.
+    with the request-path one, an operator's reset with the system one.
     """
     from app.db.session import SystemSessionLocal
     from app.services.auth import addresses
@@ -1165,7 +1165,7 @@ def access_grant_pieces(
             level=level_label,
             requester=requester or "",
         ),
-        link=_frontend_url("/settings/admin/access"),
+        link=_frontend_url("/settings/operator/access"),
         link_label=email_t("accessGrant.buttonLabel", locale=locale),
     )
 

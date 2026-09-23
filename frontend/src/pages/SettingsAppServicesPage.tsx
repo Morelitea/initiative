@@ -5,8 +5,8 @@ import type { AppServiceRegistrationRead } from "@/api/generated/initiativeAPI.s
 import {
   AppServiceFormDialog,
   type AppServiceFormValues,
-} from "@/components/admin/AppServiceFormDialog";
-import { AppServiceStatusBadge } from "@/components/admin/AppServiceStatusBadge";
+} from "@/components/platform/AppServiceFormDialog";
+import { AppServiceStatusBadge } from "@/components/platform/AppServiceStatusBadge";
 import { ListSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -192,7 +192,7 @@ export const SettingsAppServicesPage = () => {
   };
 
   if (!canManageApps) {
-    return <p className="text-muted-foreground text-sm">{t("appServices.adminOnly")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("appServices.platformOnly")}</p>;
   }
   if (servicesQuery.isLoading) {
     return (

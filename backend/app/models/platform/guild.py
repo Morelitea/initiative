@@ -434,7 +434,8 @@ class GuildRole(str, Enum):
     # at the Postgres role level — a read grant assumes ``guild_<id>_ro``. It
     # is the content axis only: what of the community's configuration a
     # grantee may work is a settings grant, held at its own rung beside this.
-    # Break-glass grantees are ``admin``, not this.
+    # A break-glass grantee holds this too: its content grant is one of these,
+    # and the ``superadmin`` settings grant beside it is read separately.
     support = "support"
 
     def reaches(self, rung: "GuildRole") -> bool:

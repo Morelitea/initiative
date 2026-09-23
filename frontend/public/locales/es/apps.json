@@ -139,7 +139,7 @@
     "notFound": "Aplicación no encontrada",
     "disabled": "{{name}} está desactivada",
     "unavailable": "{{name}} no está configurada en este servidor",
-    "unavailableDescription": "Un administrador debe conectar el servicio de esta aplicación antes de poder abrirla.",
+    "unavailableDescription": "Quien gestiona este servidor debe conectar el servicio de esta aplicación antes de poder abrirla.",
     "noSurface": "{{name}} no tiene una página propia"
   },
   "browse": "Explorar la tienda de aplicaciones",

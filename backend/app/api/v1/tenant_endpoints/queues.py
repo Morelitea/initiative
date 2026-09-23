@@ -963,7 +963,7 @@ async def websocket_queue(
         # Establish guild access through the single entry point (membership /
         # live PAM grant / break-glass) — same gate and applied context as REST
         # and the other sockets. Previously a membership-only check, so a PAM
-        # grantee or break-glass admin couldn't subscribe.
+        # or break-glass grantee couldn't subscribe.
         try:
             await establish_guild_access(session, user, guild_id)
         except GuildAccessError:
@@ -980,9 +980,10 @@ async def websocket_queue(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        # DAC level via the shared engine; the guild-admin / break-glass bypass is
-        # applied inside compute_* through the active role context that
-        # establish_guild_access set, so no separate admin check is needed.
+        # DAC level via the shared engine; the guild-admin leg and a PAM or
+        # break-glass grant's rung are applied inside compute_* through the
+        # context establish_guild_access set, so no separate admin check is
+        # needed.
         level = permissions_service.compute_permission(
             queue, context=require_guild_context(session)
         )

@@ -196,7 +196,7 @@
   "platformAI": {
     "title": "Plattform-KI",
     "description": "Lege fest, wie KI plattformweit konfiguriert wird. Wie bei der Anmeldung wird KI entweder von der Plattform oder von jeder Community verwaltet – niemals von beiden.",
-    "adminOnly": "Nur Plattform-Eigentümer können die KI-Einstellungen der Plattform verwalten.",
+    "platformOnly": "Nur Plattform-Eigentümer können die KI-Einstellungen der Plattform verwalten.",
     "modeLabel": "KI-Konfigurationsmodus",
     "mode_disabled": "Deaktiviert",
     "mode_disabled_description": "KI-Funktionen sind für alle deaktiviert.",
@@ -410,7 +410,7 @@
     "disconnectDescription": "Melde dich ab und trenne die Verbindung zu diesem Server. Du kannst dich danach mit einem anderen Server verbinden.",
     "disconnectButton": "Trennen",
     "deactivateTitle": "Konto deaktivieren",
-    "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Community entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Administrator kann dein Konto später wieder aktivieren.",
+    "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Community entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Person, die diesen Server betreibt, kann dein Konto später wieder aktivieren.",
     "permanentDeleteTitle": "Konto löschen",
     "permanentDeleteDescriptionText": "Ihr Konto verschwindet sofort für alle anderen. Endgültig gelöscht wird zunächst nichts — melden Sie sich vorher wieder an, und die Löschung ist abgesagt, mit Ihren Communitys und Ihrer Arbeit genau so, wie Sie sie verlassen haben. Danach gehen Projekte an andere über, und Kommentare und Dokumente bleiben, zeigen aber „[Gelöschter Nutzer]“.",
     "cannotBeUndone": "Eine Anmeldung stoppt die Löschung.",
@@ -430,7 +430,7 @@
     "checkBlockersDeactivateDescription": "Es wird geprüft, ob dein Konto deaktiviert werden kann",
     "confirmDeletionDescription": "Kontolöschung bestätigen",
     "confirmDeactivationDescription": "Kontodeaktivierung bestätigen",
-    "deactivateLabel": "Mein Konto deaktivieren (Administratoren können es später für dich aktivieren)",
+    "deactivateLabel": "Mein Konto deaktivieren (wer diesen Server betreibt, kann es später wieder aktivieren)",
     "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Betreiber des Servers können dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteLabel": "Mein Konto löschen (meine persönlichen Informationen entfernen)",
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
@@ -441,7 +441,7 @@
     "eligible": "Dein Konto ist zum Löschen berechtigt.",
     "eligibleDeactivate": "Dein Konto ist zur Deaktivierung berechtigt.",
     "actionSerious": "Diese Aktion ist schwerwiegend:",
-    "deactivateConfirmDescription": "Dein Konto wird deaktiviert. Du kannst dich nicht anmelden, bis ein Administrator dein Konto wieder aktiviert. Du wirst aus jeder Community entfernt, der du angehörst, und ein erneuter Beitritt erfordert eine neue Einladung. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
+    "deactivateConfirmDescription": "Dein Konto wird deaktiviert. Du kannst dich nicht anmelden, bis die Person, die diesen Server betreibt, es wieder aktiviert. Du wirst aus jeder Community entfernt, der du angehörst, und ein erneuter Beitritt erfordert eine neue Einladung. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteConfirmDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt. Du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "confirmPasswordLabel": "Bestätige dein Passwort",
     "enterPassword": "Gib dein Passwort ein",
@@ -454,7 +454,7 @@
     "softDeleteSuccess": "Dein Konto wurde anonymisiert."
   },
   "branding": {
-    "adminOnly": "Nur der Plattform-Eigentümer kann die Branding-Einstellungen verwalten.",
+    "platformOnly": "Nur der Plattform-Eigentümer kann die Branding-Einstellungen verwalten.",
     "colorsTitle": "Markenfarben",
     "colorsDescription": "Passe die Akzentfarben für den hellen und dunklen Modus an.",
     "loadingInterface": "Oberflächeneinstellungen werden geladen…",
@@ -531,7 +531,7 @@
     }
   },
   "email": {
-    "adminOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
+    "platformOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
     "title": "SMTP-E-Mail",
     "description": "Konfiguriere den SMTP-Server, der für Transaktions-E-Mails verwendet wird.",
     "loading": "E-Mail-Einstellungen werden geladen…",
@@ -562,7 +562,7 @@
     "saveError": "E-Mail-Einstellungen konnten nicht gespeichert werden"
   },
   "auth": {
-    "adminOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
+    "platformOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
     "loadError": "Authentifizierungseinstellungen konnten nicht geladen werden.",
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
@@ -732,7 +732,7 @@
     "restoreSuccess": "{{handle}} wiederhergestellt.",
     "restoreError": "Das Konto konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
   },
-  "adminDeleteUser": {
+  "operatorDeleteUser": {
     "subtitle": "{{email}} löschen",
     "back": "Zurück",
     "next": "Weiter",
@@ -782,7 +782,7 @@
       "error": "Notfallzugriff nicht möglich",
       "codeLabel": "Dein Authenticator-Code",
       "codePlaceholder": "123456 oder ein Wiederherstellungscode",
-      "codeHelp": "Jemand mit Administrationsrechten für diese Installation hat die Zwei-Faktor-Authentifizierung eingerichtet, daher musst du beim Notzugriff nachweisen, dass du es bist. Ein Authenticator-Code, ein Wiederherstellungscode oder einer deiner Passkeys genügt.",
+      "codeHelp": "Auf diesem Server ist die Zwei-Faktor-Authentifizierung aktiviert, daher musst du beim Notzugriff nachweisen, dass du es bist. Ein Authenticator-Code, ein Wiederherstellungscode oder einer deiner Passkeys genügt.",
       "codeNotEnrolled": "Für dieses Konto sind weder ein Authenticator noch ein Passkey eingerichtet. Richte unter Sicherheit eines davon ein und nutze dann den Notzugriff.",
       "passkeySubmit": "Notzugriff mit Passkey",
       "passkeyPresenting": "Warten auf deinen Passkey …"
@@ -849,7 +849,7 @@
     }
   },
   "appServices": {
-    "adminOnly": "Nur Plattform-Eigentümer können App-Dienste verwalten.",
+    "platformOnly": "Nur Plattform-Eigentümer können App-Dienste verwalten.",
     "loading": "App-Dienste werden geladen…",
     "loadError": "App-Dienste konnten nicht geladen werden.",
     "title": "App-Dienste",
@@ -959,7 +959,7 @@
     "description": "Ordne die Leute, die ein Anmeldeanbieter anmeldet – nach der Gruppe oder dem Verzeichnis, das er meldet –, einer Community zu, und dort einer Initiative, wenn du eine nennst.",
     "loading": "Zuordnungsregeln werden geladen…",
     "loadError": "Zuordnungsregeln konnten nicht geladen werden. Bitte versuche es erneut.",
-    "adminOnly": "Die Zuordnung bei Anmeldung verwalten Plattform-Operatoren und -Owner.",
+    "platformOnly": "Die Zuordnung bei Anmeldung verwalten Plattform-Operatoren und -Owner.",
     "everywhere": {
       "label": "Zuordnungsregeln auf jede Community anwenden",
       "help": "Eingeschaltet ordnet eine Regel Leute der genannten Community zu, ob diese zugestimmt hat oder nicht. Jede Änderung wird protokolliert.",
@@ -1026,7 +1026,7 @@
   "guilds": {
     "title": "Community-Limits",
     "description": "Lege pro Community Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
-    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um Community-Limits zu verwalten.",
+    "platformOnly": "Du benötigst die Plattform-Eigentümerrolle, um Community-Limits zu verwalten.",
     "loading": "Communitys werden geladen…",
     "loadError": "Communitys konnten nicht geladen werden. Bitte versuche es erneut.",
     "filterByName": "Communitys nach Namen filtern",
@@ -1136,7 +1136,7 @@
     }
   },
   "storage": {
-    "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",
+    "platformOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",
     "loading": "Speichereinstellungen werden geladen…",
     "loadError": "Speichereinstellungen konnten nicht geladen werden.",
     "title": "Objektspeicher",
@@ -1496,7 +1496,8 @@
     "title": "Meine KI",
     "description": "Sieh alle KI-Verbindungen, die dir in deinen Communitys zur Verfügung stehen. Füge dort, wo es erlaubt ist, deinen eigenen API-Schlüssel hinzu und wähle die Verbindung, die du verwendest.",
     "noneAvailable": "Dir sind noch keine KI-Verbindungen verfügbar.",
-    "managedByAdmin": "Von deinem Admin verwaltet – verwendet einen gemeinsamen Schlüssel.",
+    "sharedKeyGuild": "Verwendet einen gemeinsamen Schlüssel, den die Community-Administration festgelegt hat.",
+    "sharedKeyPlatform": "Verwendet einen gemeinsamen Schlüssel, den die Person festgelegt hat, die diesen Server betreibt.",
     "selected": "In Verwendung",
     "requiresKey": "Benötigt deinen Schlüssel",
     "keySet": "Dein Schlüssel ist gesetzt",
@@ -1523,7 +1524,7 @@
     "enabledToast": "Das Community-Verzeichnis ist aktiv.",
     "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
     "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
-    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben.",
+    "platformOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben.",
     "ageGateLabel": "Mitglieder bestätigen lassen, dass sie mindestens 16 sind",
     "ageGateHelpText": "Solange dies aktiv ist, wird jede Person, die über das Verzeichnis einer gelisteten Community beitritt, einmal um eine Altersbestätigung gebeten; die Antwort bleibt an ihrem Konto. Nur dieser Beitritt ist davon betroffen – Communitys mit Einladung fragen nie. Nur dort deaktivieren, wo bereits feststeht, dass jedes Konto einer erwachsenen Person gehört.",
     "ageGateOffTitle": "Nicht mehr nach dem Alter fragen?",

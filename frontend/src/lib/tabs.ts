@@ -1,6 +1,6 @@
 /**
  * Derive the active tab from the current pathname using longest-path-first,
- * exact-or-prefix matching. Shared by the settings/admin tabbed layouts.
+ * exact-or-prefix matching. Shared by the settings and operator tabbed layouts.
  *
  * @param tabs Tab descriptors carrying the `path` each tab maps to.
  * @param normalizedPath The current pathname, trailing slashes already trimmed.

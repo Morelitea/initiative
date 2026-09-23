@@ -53,7 +53,7 @@ describe("isPersistablePath", () => {
     expect(isPersistablePath("/other/path")).toBe(false);
   });
 
-  it("never persists configuration, admin or access-grant surfaces", () => {
+  it("never persists configuration, operator or access-grant surfaces", () => {
     for (const path of [
       "/api/v1/auth/providers",
       "/api/v1/config",

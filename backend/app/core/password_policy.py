@@ -12,7 +12,7 @@ Aligned with NIST SP 800-63B (rev. 3, 2017):
 The login path is intentionally NOT routed through this module —
 existing users with shorter or breached passwords keep working until
 the next time they change one ("grandfathered"). All new password
-material flows (register, password reset, self-update, admin-update)
+material flows (register, password reset, self-update, operator-update)
 must call ``validate_new_password`` immediately before hashing.
 """
 

@@ -26,7 +26,7 @@
     "later": "Later",
     "reloadNow": "Reload now"
   },
-  "admin": {
+  "operator": {
     "title": "Announcements",
     "subtitle": "Notices shown to people using this deployment. Each one is shown once and remembered per person.",
     "new": "New announcement",

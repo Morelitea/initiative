@@ -260,7 +260,7 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
 @pytest.mark.service
 async def test_deactivate_user(session: AsyncSession):
     """Deactivation flips status, drops memberships, bumps token_version,
-    and leaves PII intact so an admin can later reactivate."""
+    and leaves PII intact so an operator can later reactivate."""
     user = await create_user(
         session, email="todeactivate@example.com", full_name="Original Name"
     )
@@ -284,7 +284,7 @@ async def test_deactivate_user(session: AsyncSession):
 
     assert deactivated.status == UserStatus.deactivated
     assert deactivated.token_version == original_token_version + 1
-    # PII preserved — admin can reactivate.
+    # PII preserved — an operator can reactivate.
     assert deactivated.full_name == "Original Name"
     assert await addresses.holds_address(
         session, user_id=deactivated.id, email="todeactivate@example.com"
@@ -295,7 +295,7 @@ async def test_deactivate_user(session: AsyncSession):
 @pytest.mark.service
 async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_session):
     """Soft delete (anonymize) clears PII, blocks login, drops memberships,
-    demotes platform admins to member, revokes auth artifacts, and keeps
+    demotes platform staff to member, revokes auth artifacts, and keeps
     the row so historical FKs resolve."""
     from app.models.platform.api_key import UserApiKey
     from app.models.platform.federated_identity import FederatedIdentity
@@ -364,7 +364,7 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     # The row stays — same id, same created_at — so FKs resolve.
     assert anonymized.id == original_id
     assert anonymized.status == UserStatus.anonymized
-    # Platform-admin role demoted to member so the husk doesn't carry
+    # Platform staff role demoted to member so the husk doesn't carry
     # elevated privileges.
     assert anonymized.role == UserRole.member
     # PII gone.
@@ -718,13 +718,13 @@ async def test_is_last_config_manager_excludes_operator(session: AsyncSession):
     from app.models.platform.user import UserRole
 
     await create_user(session, email="owner@example.com", role=UserRole.owner)
-    plain_admin = await create_user(
-        session, email="admin@example.com", role=UserRole.operator
+    operator = await create_user(
+        session, email="operator@example.com", role=UserRole.operator
     )
 
     assert (
         await user_service.is_last_capability_holder(
-            session, plain_admin.id, Capability.CONFIG_MANAGE
+            session, operator.id, Capability.CONFIG_MANAGE
         )
         is False
     )

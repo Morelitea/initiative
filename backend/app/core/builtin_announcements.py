@@ -15,7 +15,7 @@ consequences of living in source control:
 * they can be conditioned on the upgrade that brought them
   (``only_upgrading_from_below``), which an authored notice has no use for —
   it is written on a deployment that is already running;
-* they cannot be edited or deleted from the admin surface — the way to retire
+* they cannot be edited or deleted from the operator surface — the way to retire
   one is to remove it here and ship that;
 * their pictures are static assets shipped with the SPA
   (``frontend/public/announcement-images/…``, served at

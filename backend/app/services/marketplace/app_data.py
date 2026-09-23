@@ -523,9 +523,9 @@ async def _load_registration(public_id: str) -> AppServiceRegistration:
     guild session serving the request. Read per call rather than cached, so the
     operator's kill switch takes effect on the next request in every worker.
     """
-    async with db_session.SystemSessionLocal() as admin:
+    async with db_session.SystemSessionLocal() as system_session:
         row = (
-            await admin.exec(
+            await system_session.exec(
                 select(AppServiceRegistration).where(
                     AppServiceRegistration.public_id == public_id
                 )

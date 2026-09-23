@@ -200,7 +200,7 @@ async def test_the_browser_address_round_trips_and_clears(
 @pytest.mark.parametrize(
     ("case", "body", "detail"),
     [
-        # A power no code resolves would read in the admin UI as something this
+        # A power no code resolves would read in the owner's settings as something this
         # deployment had conferred.
         (
             "a grant outside the vocabulary",
