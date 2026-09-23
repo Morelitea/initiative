@@ -15,8 +15,8 @@ Two NOLOGIN roles beside the platform ladder:
 The policies that let the read floor see a reader's own rows come from the
 registry (``app.db.public_rls``), applied at boot.
 
-Revision ID: 20260923_0362
-Revises: 20260923_0361
+Revision ID: 20260923_0363
+Revises: 20260923_0362
 Create Date: 2026-09-23
 """
 
@@ -24,8 +24,8 @@ import string
 
 from alembic import op
 
-revision = "20260923_0362"
-down_revision = "20260923_0361"
+revision = "20260923_0363"
+down_revision = "20260923_0362"
 branch_labels = None
 depends_on = None
 
