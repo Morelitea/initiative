@@ -663,6 +663,13 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
 # migration and everything else is ``None`` by construction.
 SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "users": None,
+    # No TABLE grant: a community's name, its icon and its lifecycle status are
+    # not the seat's. It holds a column-scoped UPDATE on the six switches its
+    # own routes set — what may be used to reach the community, and what its
+    # notifications may leave carrying (migration 20260923_0355). Column grants
+    # live in pg_attribute, not relacl, so they are asserted separately
+    # (security_invariants_test). SELECT comes from app_guild_base_ro, which
+    # guild_<id>_superadmin also inherits.
     "guilds": None,
     "guild_administration": None,
     "guild_memberships": None,
