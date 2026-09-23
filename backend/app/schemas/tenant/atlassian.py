@@ -117,6 +117,10 @@ class AtlassianJiraImportRequest(SanitizedBaseModel):
     #: it costs a call per issue whose comments run past the first page, which
     #: a large project with long threads will feel.
     include_comments: bool = True
+    #: Bring each issue's images across as uploads, shown where the
+    #: description or a comment embedded them. On unless turned off: each is a
+    #: download, and they count against the community's storage.
+    include_attachments: bool = True
 
 
 class AtlassianConnectResponse(SanitizedBaseModel):

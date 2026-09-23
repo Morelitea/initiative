@@ -190,6 +190,16 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: group at the source, left behind rather than shown to everybody.
     comments: int = 0
     comments_restricted: int = 0
+    #: Images coming over as uploads, and the storage they will use — what a
+    #: community with a quota wants to know before it confirms.
+    images: int = 0
+    image_bytes: int = 0
+    #: Images over the per-image cap or past the bundle's budget, and those
+    #: the site would not hand over.
+    images_oversize: int = 0
+    images_unreadable: int = 0
+    #: Attached files that are not images, which do not come over yet.
+    other_attachments: int = 0
 
 
 class BackupImportPlan(SanitizedBaseModel):

@@ -330,6 +330,7 @@ async def start_jira_import(
             initiative_id=payload.initiative_id,
             project_keys=payload.project_keys,
             include_comments=payload.include_comments,
+            include_attachments=payload.include_attachments,
         )
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)

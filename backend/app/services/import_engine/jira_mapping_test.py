@@ -634,3 +634,98 @@ def test_comments_survive_into_a_real_envelope():
     ).envelope
     parsed = ProjectExportEnvelope.model_validate(envelope)
     assert parsed.tasks[0].comments[0].author_handle == "Robin"
+
+
+# --- images --------------------------------------------------------------------
+
+
+def _media_doc(filename, text="See"):
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": text}]},
+            {
+                "type": "mediaSingle",
+                "content": [
+                    {
+                        "type": "media",
+                        "attrs": {"id": "media-uuid", "type": "file", "alt": filename},
+                    }
+                ],
+            },
+        ],
+    }
+
+
+def _stored(filename, key):
+    from app.services.import_engine.jira_attachments import StoredImage
+
+    return StoredImage(filename, key, "image/png", b"")
+
+
+def test_an_embedded_image_renders_from_its_upload_where_it_sat():
+    """Found by the filename Jira puts on the media node's alt — its id is a
+    Media Services id with no way back to the attachment."""
+    mapped = jm.map_issue(
+        _issue("ACME-1", "One", description=_media_doc("door.png")),
+        position=1.0,
+        status_names={"To Do"},
+        default_status_name="To Do",
+        images=[_stored("door.png", "k1.png")],
+        guild_id=5,
+    )
+    assert mapped is not None
+    description = mapped[0]["description"]
+    assert "![door.png](/uploads/5/k1.png)" in description
+    # Placed where it was embedded, and not listed again at the foot.
+    assert "Attachments" not in description
+
+
+def test_an_image_nobody_embedded_is_listed_at_the_foot():
+    mapped = jm.map_issue(
+        _issue("ACME-1", "One", description=_adf_text("Body")),
+        position=1.0,
+        status_names={"To Do"},
+        default_status_name="To Do",
+        images=[_stored("hinge.png", "k2.png")],
+        guild_id=5,
+    )
+    assert mapped is not None
+    description = mapped[0]["description"]
+    assert description.startswith("Body")
+    assert description.endswith("![hinge.png](/uploads/5/k2.png)")
+
+
+def test_an_image_embedded_in_a_comment_renders_there_too():
+    mapped = jm.map_issue(
+        _issue(
+            "ACME-1",
+            "One",
+            comment={
+                "comments": [
+                    {
+                        "author": {"displayName": "Robin"},
+                        "body": _media_doc("proof.png", text="Done"),
+                        "created": "2024-03-04T09:00:00.000+0000",
+                    }
+                ]
+            },
+        ),
+        position=1.0,
+        status_names={"To Do"},
+        default_status_name="To Do",
+        include_comments=True,
+        images=[_stored("proof.png", "k3.png")],
+        guild_id=5,
+    )
+    assert mapped is not None
+    task = mapped[0]
+    assert "![proof.png](/uploads/5/k3.png)" in task["comments"][0]["body"]
+    # Embedded in a comment counts as placed: not repeated in the description.
+    assert not task["description"]
+
+
+def test_without_images_a_media_node_is_its_filename():
+    task = _map(_issue("ACME-1", "One", description=_media_doc("door.png")))
+    assert "door.png" in task["description"] and "/uploads/" not in task["description"]

@@ -36,8 +36,12 @@ from typing import Any, Awaitable, Callable, Optional
 
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
-from app.services.import_engine import jira_mapping, jira_sprints
-from app.services.import_engine.atlassian import AtlassianCredential, get_json
+from app.services.import_engine import jira_attachments, jira_mapping, jira_sprints
+from app.services.import_engine.atlassian import (
+    AtlassianCredential,
+    get_bytes,
+    get_json,
+)
 from app.services.import_engine.contract import ImportEngineError
 
 logger = logging.getLogger(__name__)
@@ -63,6 +67,15 @@ ISSUE_FIELDS = ("*navigable",)
 #: first page of each issue's comments with its ``total``, so only an issue
 #: with more than that costs a call of its own.
 COMMENT_FIELD = "comment"
+
+#: Asked for beside those when images are wanted: each issue's attachments,
+#: with the size and type the download is decided by.
+ATTACHMENT_FIELD = "attachment"
+
+#: Held back from the bundle's byte and member bounds for the manifest and
+#: the envelopes, so images cannot crowd them out.
+_BUNDLE_RESERVE_BYTES = 64 * 1024 * 1024
+_BUNDLE_RESERVE_FILES = 500
 
 #: Comments per page when an issue's have to be read on their own.
 COMMENT_PAGE_SIZE = 100
@@ -112,6 +125,15 @@ class FetchReport:
     sprint_calendars: int = 0
     #: Sprints planned but never started: no dates, so no event.
     sprints_undated: int = 0
+    #: Images that will come over as uploads, and their bytes.
+    images: int = 0
+    image_bytes: int = 0
+    #: Images over the per-image cap or past the bundle's budget.
+    images_oversize: int = 0
+    #: Images the site would not hand over.
+    images_unreadable: int = 0
+    #: Attachments that are not images — file documents are a later item.
+    other_attachments: int = 0
     #: Comments that will come over.
     comments: int = 0
     #: Comments visible only to a role or group at the source, left behind
@@ -183,6 +205,7 @@ async def fetch_issues(
     jql_extra: str | None = None,
     max_issues: int,
     include_comments: bool = False,
+    include_attachments: bool = False,
 ) -> list[Any]:
     """Every issue in the project, in Rank order, a page at a time.
 
@@ -210,7 +233,11 @@ async def fetch_issues(
         body: dict[str, Any] = {
             "jql": jql,
             "maxResults": min(ISSUE_PAGE_SIZE, max_issues - len(issues)),
-            "fields": [*ISSUE_FIELDS, *([COMMENT_FIELD] if include_comments else [])],
+            "fields": [
+                *ISSUE_FIELDS,
+                *([COMMENT_FIELD] if include_comments else []),
+                *([ATTACHMENT_FIELD] if include_attachments else []),
+            ],
         }
         if token:
             body["nextPageToken"] = token
@@ -293,6 +320,38 @@ async def complete_comments(credential: AtlassianCredential, issue: Any) -> None
         field["comments"] = comments
 
 
+@dataclass
+class FetchedProject:
+    """One project read from the site, and what the bundle-wide passes need
+    from it once every project is in."""
+
+    mapped: jira_mapping.MappedProject
+    #: Issues the search returned, usable or not — what the row budget spent.
+    issues_used: int
+    #: ``(link id, far key)`` pairs, counted once all projects are read.
+    link_ends: list[tuple[str, str]]
+    #: Each issue's sprints, by issue key.
+    sprints: dict[str, list[jira_sprints.Sprint]]
+    #: Comments visible only to a role or group, left behind.
+    restricted_comments: int
+    #: The images downloaded for this project's issues.
+    images: jira_attachments.ImageReport
+
+
+@dataclass
+class ImageBudget:
+    """What the bundle can still hold, shared across every project.
+
+    Kept under the bounds the restore checks when it opens the zip — its
+    uncompressed size and its member count — with room left for the
+    manifest and the envelopes, so a bundle the fetch wrote is never one the
+    apply refuses whole.
+    """
+
+    bytes_left: int
+    files_left: int
+
+
 async def fetch_project_envelope(
     credential: AtlassianCredential,
     project: dict,
@@ -302,13 +361,9 @@ async def fetch_project_envelope(
     max_issues: int,
     field_catalog: Any = None,
     include_comments: bool = False,
-) -> tuple[
-    jira_mapping.MappedProject,
-    int,
-    list[tuple[str, str]],
-    dict[str, list[jira_sprints.Sprint]],
-    int,
-]:
+    image_budget: Optional[ImageBudget] = None,
+    guild_id: Optional[int] = None,
+) -> FetchedProject:
     """One Jira project as an envelope, how many issues it cost, and what its
     issues are linked to.
 
@@ -347,10 +402,33 @@ async def fetch_project_envelope(
         jql_extra=jql_extra,
         max_issues=max_issues,
         include_comments=include_comments,
+        include_attachments=image_budget is not None,
     )
     if include_comments:
         for issue in issues:
             await complete_comments(credential, issue)
+
+    images = jira_attachments.ImageReport()
+    if image_budget is not None and guild_id is not None:
+
+        async def download(attachment_id: str, max_bytes: int) -> bytes:
+            # redirect=false: the content itself, not a hop to a media host
+            # this client would refuse to follow.
+            return await get_bytes(
+                credential,
+                f"/rest/api/3/attachment/content/{attachment_id}?redirect=false",
+                max_bytes=max_bytes,
+            )
+
+        images = await jira_attachments.download_images(
+            issues,
+            download=download,
+            budget_bytes=image_budget.bytes_left,
+            max_files=image_budget.files_left,
+        )
+        image_budget.bytes_left -= images.image_bytes
+        image_budget.files_left -= images.images
+
     mapped = jira_mapping.build_project_envelope(
         project=project,
         issue_type_statuses=statuses,
@@ -360,6 +438,8 @@ async def fetch_project_envelope(
         site_url=credential.site_url,
         field_catalog=field_catalog,
         include_comments=include_comments,
+        images_by_issue=images.by_issue,
+        guild_id=guild_id,
     )
     link_ends = [end for issue in issues for end in jira_mapping.link_far_ends(issue)]
     # Which sprints each issue was in, keyed by issue key. Built into events
@@ -380,7 +460,14 @@ async def fetch_project_envelope(
         if include_comments
         else 0
     )
-    return mapped, len(issues), link_ends, sprints, restricted
+    return FetchedProject(
+        mapped=mapped,
+        issues_used=len(issues),
+        link_ends=link_ends,
+        sprints=sprints,
+        restricted_comments=restricted,
+        images=images,
+    )
 
 
 def _entry_path(index: int, project_key: str) -> str:
@@ -402,6 +489,7 @@ def build_bundle(
     app_version: str,
     site_url: str,
     calendars: list[dict[str, Any]] | None = None,
+    images: list[jira_attachments.StoredImage] | None = None,
 ) -> bytes:
     """The zip the applier reads: a manifest, one envelope per project, and
     one calendar per board whose sprints came along.
@@ -452,6 +540,20 @@ def build_bundle(
             }
         )
 
+    assets = []
+    for image in images or []:
+        path = f"assets/{image.storage_key}"
+        files[path] = image.data
+        assets.append(
+            {
+                "path": path,
+                "storage_key": image.storage_key,
+                "original_filename": image.filename,
+                "content_type": image.content_type,
+                "size_bytes": len(image.data),
+            }
+        )
+
     tools = {"project": "included"}
     if calendars:
         tools["calendar"] = "included"
@@ -462,7 +564,7 @@ def build_bundle(
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "source_instance_url": site_url,
         "guild": {"id": guild_id, "name": guild_name},
-        "include_uploads": False,
+        "include_uploads": bool(assets),
         "initiatives": [
             {
                 "id": 1,
@@ -475,7 +577,7 @@ def build_bundle(
             }
         ],
         "entries": entries,
-        "assets": [],
+        "assets": assets,
         "skipped": [],
         "people": _people(envelopes),
     }
@@ -560,6 +662,7 @@ async def fetch_projects_bundle(
     progress: Optional[Callable[[FetchReport], Awaitable[None]]] = None,
     sprints_blocked_by: str | None = None,
     include_comments: bool = True,
+    include_attachments: bool = True,
 ) -> tuple[bytes, FetchReport]:
     """Read the chosen projects and return the bundle plus what it found.
 
@@ -589,6 +692,17 @@ async def fetch_projects_bundle(
     field_catalog = await fetch_field_catalog(credential)
     dropped_fields: set[str] = set()
     all_sprints: dict[int, jira_sprints.Sprint] = {}
+    all_images: list[jira_attachments.StoredImage] = []
+    image_budget = (
+        ImageBudget(
+            bytes_left=max(
+                0, settings.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES - _BUNDLE_RESERVE_BYTES
+            ),
+            files_left=max(0, settings.IMPORT_MAX_ZIP_MEMBERS - _BUNDLE_RESERVE_FILES),
+        )
+        if include_attachments
+        else None
+    )
     sprint_membership: dict[str, list[int]] = {}
 
     for key in project_keys:
@@ -601,7 +715,7 @@ async def fetch_projects_bundle(
             project = await get_json(credential, f"/rest/api/3/project/{key}")
             if not isinstance(project, dict):
                 raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
-            mapped, used, ends, sprints, restricted = await fetch_project_envelope(
+            fetched = await fetch_project_envelope(
                 credential,
                 project,
                 app_version=app_version,
@@ -609,7 +723,10 @@ async def fetch_projects_bundle(
                 max_issues=remaining,
                 field_catalog=field_catalog,
                 include_comments=include_comments,
+                image_budget=image_budget,
+                guild_id=guild_id,
             )
+            mapped = fetched.mapped
         except ImportEngineError as exc:
             if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
                 # Being throttled is about the site, not this project, and the
@@ -619,8 +736,16 @@ async def fetch_projects_bundle(
             report.unreadable_projects.append(key)
         else:
             envelopes.append((key, mapped.envelope))
-            link_ends.extend(ends)
-            for issue_key, found in sprints.items():
+            link_ends.extend(fetched.link_ends)
+            images = fetched.images
+            report.images += images.images
+            report.image_bytes += images.image_bytes
+            report.images_oversize += images.oversize
+            report.images_unreadable += images.unreadable
+            report.other_attachments += images.other_files
+            for stored in images.by_issue.values():
+                all_images.extend(stored)
+            for issue_key, found in fetched.sprints.items():
                 for sprint in found:
                     all_sprints.setdefault(sprint.id, sprint)
                 sprint_membership[issue_key] = [sprint.id for sprint in found]
@@ -642,8 +767,8 @@ async def fetch_projects_bundle(
                 len(task["comments"]) for task in mapped.envelope["tasks"]
             )
             report.comments += project_comments
-            report.comments_restricted += restricted
-            remaining -= used + project_comments
+            report.comments_restricted += fetched.restricted_comments
+            remaining -= fetched.issues_used + project_comments
         if progress is not None:
             await progress(report)
 
@@ -674,6 +799,7 @@ async def fetch_projects_bundle(
         app_version=app_version,
         site_url=credential.site_url,
         calendars=calendars,
+        images=all_images,
     )
     return bundle, report
 
