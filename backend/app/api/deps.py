@@ -50,6 +50,7 @@ from app.core.security import (
     verify_upload_token,
 )
 from app.db.guild_standing import GuildContext
+from app.db.schema_provisioning import PLATFORM_SUSPENDED
 from app.db.session import (
     SYSTEM_SATISFIED,
     apply_guild_standing,
@@ -72,7 +73,6 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import (
     LOGIN_STATUSES,
     User,
-    UserRole,
     UserStatus,
 )
 from app.schemas.platform.token import TokenPayload
@@ -1576,18 +1576,19 @@ async def _apply_user_session_context(
     own tier. The body the user-session dependencies share.
 
     A suspended account holds no rung while it is in time out, so it is routed
-    at the lowest one whatever ``users.role`` says; the rung comes back
-    untouched when the suspension lifts.
+    as ``platform_suspended`` whatever ``users.role`` says — its own rows, read,
+    and nothing written. The rung comes back untouched when the suspension
+    lifts.
     """
     tier = (
-        UserRole.member
+        PLATFORM_SUSPENDED
         if current_user.status == UserStatus.suspended
-        else current_user.role
+        else current_user.role.value
     )
     await set_rls_context(
         session,
         user_id=current_user.id,
-        platform_role=tier.value,
+        platform_role=tier,
     )
     return session
 
