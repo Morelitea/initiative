@@ -739,7 +739,7 @@ def _captcha_payload(
     has_secret = bool(secrets.captcha_secret_key_encrypted)
     provider = settings_obj.captcha_provider
     return CaptchaSettingsResponse(
-        provider=provider,  # ty: ignore[invalid-argument-type]
+        provider=provider,
         site_key=settings_obj.captcha_site_key,
         has_secret_key=has_secret,
         # The client cannot see the secret, so it cannot work out whether
