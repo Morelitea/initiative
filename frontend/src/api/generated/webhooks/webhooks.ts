@@ -330,8 +330,9 @@ export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
 /**
  * Partial-update target_url, event_types, or active flag.
  *
- * Only the acting user who created it, or a guild admin, may mutate.
- * ``target_url`` (when provided) is re-validated against the SSRF allowlist.
+ * Who may is the UPDATE policy — initiative write access, or guild admin for
+ * a community-wide subscription. ``target_url`` (when provided) is
+ * re-validated against the SSRF allowlist.
  * @summary Update Subscription
  */
 export const updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch = (
@@ -450,8 +451,8 @@ export const useUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
   );
 };
 /**
- * Hard-delete a subscription. Cross-guild lookups 404; non-owner
- * non-admin attempts 403.
+ * Hard-delete a subscription. Who may is the DELETE policy, the same gates
+ * that govern the content it watches; a cross-guild lookup is a 404.
  * @summary Delete Subscription
  */
 export const deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete = (
