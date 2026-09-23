@@ -46,11 +46,16 @@ from app.core.messages import (
     SharingMessages,
     ProjectMessages,
 )
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import (
+    RESOURCE_LEVEL_LADDER,
+    WRITE_LEVELS,
+    ResourceAccessLevel,
+    ResourceGrant,
+)
 
 
-# Where a level string sits on the shared read < write < owner ladder.
-_LEVEL_RANK = {"read": 0, "write": 1, "owner": 2}
+# Where a level string sits on the sharing ladder — the ladder's own order.
+_LEVEL_RANK = {level.value: rank for rank, level in enumerate(RESOURCE_LEVEL_LADDER)}
 
 
 def _frozen_community(context: GuildContext | None) -> bool:
@@ -94,10 +99,6 @@ def lift_level_for_grant(
 # ── Visibility subqueries ────────────────────────────────────────
 # IDs of a resource the user can see, from resource_grants (one query). Run under
 # RLS, so stale grants in an initiative the user left are already filtered out.
-
-
-#: The grant levels that let somebody change a resource. ``read`` is the third.
-WRITE_LEVELS = (ResourceAccessLevel.write, ResourceAccessLevel.owner)
 
 
 def _granted_resource_ids(

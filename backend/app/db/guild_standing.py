@@ -45,6 +45,9 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 from app.core.tools import Tool
+from app.db.authorization import sql_values
+from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
+from app.models.platform.guild import GUILD_LADDER, GuildRole
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -93,6 +96,19 @@ def _live_grant(purpose: str, extra: str = "") -> str:
     )
 
 
+#: The rungs that administer a community, as the ladder orders them — the
+#: one spelling the admin fact and the settings rung are read off.
+_ADMIN_RUNGS: tuple[GuildRole, ...] = tuple(
+    rung for rung in GUILD_LADDER if rung.reaches(GuildRole.admin)
+)
+_ADMIN_RUNGS_SQL = sql_values(rung.value for rung in _ADMIN_RUNGS)
+#: The highest rung held wins, so the ladder is walked from the top.
+_SETTINGS_RUNG_CASE = "\n".join(
+    f"               WHEN bool_or(rung = '{rung.value}') THEN '{rung.value}'"
+    for rung in reversed(_ADMIN_RUNGS)
+)
+
+
 def _tool_switch_values() -> str:
     """The per-initiative tool switches as a ``VALUES`` list.
 
@@ -137,7 +153,7 @@ SELECT
       NULLIF(current_setting('app.settings_guild_id', true), ''),
       ''), true) AS standing_guild_id,
   set_config('app.guild_admin', COALESCE((
-      SELECT (m.role IN ('admin', 'superadmin'))::text
+      SELECT (m.role IN ({_ADMIN_RUNGS_SQL}))::text
       FROM public.guild_memberships m
       WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
     ), 'false'), true) AS guild_admin,
@@ -146,24 +162,23 @@ SELECT
     ), 'false'), true) AS guild_seat,
   set_config('app.settings_rung', COALESCE((
       SELECT CASE
-               WHEN bool_or(rung = 'superadmin') THEN 'superadmin'
-               WHEN bool_or(rung = 'admin') THEN 'admin'
+{_SETTINGS_RUNG_CASE}
              END
       FROM (
         SELECT m.role::text AS rung
         FROM public.guild_memberships m
         WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
-          AND m.role IN ('admin', 'superadmin')
+          AND m.role IN ({_ADMIN_RUNGS_SQL})
         UNION ALL
-        SELECT g.access_level::text {_live_grant("settings")}
+        SELECT g.access_level::text {_live_grant(AccessGrantPurpose.settings.value)}
       ) AS rungs
     ), ''), true) AS settings_rung,
   set_config('app.pam_read', (
-      SELECT EXISTS (SELECT 1 {_live_grant("content")})::text
+      SELECT EXISTS (SELECT 1 {_live_grant(AccessGrantPurpose.content.value)})::text
     ), true) AS pam_read,
   set_config('app.pam_write', (
       SELECT EXISTS (
-        SELECT 1 {_live_grant("content", " AND g.access_level = 'read_write'")}
+        SELECT 1 {_live_grant(AccessGrantPurpose.content.value, f" AND g.access_level = '{AccessLevel.read_write.value}'")}
       )::text
     ), true) AS pam_write,
   set_config('app.member_initiatives', COALESCE((
@@ -300,8 +315,6 @@ class GuildContext:
         the community's configuration a grant reaches is its settings rung,
         read separately.
         """
-        from app.models.platform.guild import GuildRole
-
         if self.guild_role is None:
             return GuildRole.support
         return GuildRole(self.guild_role)
@@ -324,8 +337,6 @@ class GuildContext:
         ``support`` for granted access — this names what they may run, which
         is what a decision about the roster or the seat asks.
         """
-        from app.models.platform.guild import GuildRole
-
         if self.membership is None and self.settings_rung is not None:
             return GuildRole(self.settings_rung)
         return self.role
@@ -339,8 +350,6 @@ class GuildContext:
         member rung is a membership row. ``support`` is below every rung —
         granted access is its own identity — so every request reaches it.
         """
-        from app.models.platform.guild import GuildRole
-
         if rung is GuildRole.superadmin:
             return self.seat
         if rung is GuildRole.admin:
@@ -361,8 +370,6 @@ class GuildContext:
         answered by ``public.guild_superadmin()`` from the same rows, and is
         what a guard checks once the standing is in.
         """
-        from app.models.platform.guild import GuildRole
-
         return (
             self.guild_role == GuildRole.superadmin.value
             or self.settings_grant_level == GuildRole.superadmin.value
@@ -385,8 +392,6 @@ class GuildContext:
 
     def settings_rung_reaches(self, role: "GuildRole") -> bool:
         """Whether the settings grant includes ``role``'s authority."""
-        from app.models.platform.guild import GuildRole
-
         level = self.settings_level
         if level is None:
             return False

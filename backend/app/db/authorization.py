@@ -48,6 +48,11 @@ at call time is still the caller's route, which is the same schema.
 """
 
 from __future__ import annotations
+from collections.abc import Iterable
+from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
+from app.models.platform.guild import GuildRole
+from app.models.platform.user import UserRole
+from app.models.tenant.resource_grant import WRITE_LEVELS
 
 import hashlib
 from dataclasses import dataclass, field
@@ -216,7 +221,7 @@ $function$
 #:
 #: Unset reads as fail-closed: no rung recorded is not ``member``, and no
 #: standing recorded is not answered.
-PLATFORM_FACTOR_SATISFIED = """\
+PLATFORM_FACTOR_SATISFIED = f"""\
 CREATE OR REPLACE FUNCTION public.platform_factor_satisfied()
  RETURNS boolean
  LANGUAGE sql
@@ -228,7 +233,7 @@ AS $function$
           AND s.second_factor_requirement <> 'nobody'
           AND (
               s.second_factor_requirement = 'everyone'
-              OR COALESCE(current_setting('app.platform_role', true), '') <> 'member'
+              OR COALESCE(current_setting('app.platform_role', true), '') <> '{UserRole.member.value}'
           )
           AND COALESCE(
                 current_setting('app.platform_factor', true), 'false'
@@ -416,6 +421,16 @@ def standing_pairs(key: str) -> str:
     )
 
 
+def sql_values(values: Iterable[str]) -> str:
+    """``'a', 'b'`` — a value list for an ``IN`` clause.
+
+    Rendered from the enum that owns the vocabulary, the way the tool switches
+    are rendered from ``Tool``, so the SQL spells a rung the way Python does
+    and a rung added to the ladder reaches every policy on the next render.
+    """
+    return ", ".join(f"'{value}'" for value in values)
+
+
 #: Gate 2: the hard isolation boundary. Every initiative-scoped table's
 #: policies defer to this one function.
 INITIATIVE_ACCESS = f"""\
@@ -540,7 +555,7 @@ BEGIN
             SELECT 1 FROM resource_grants g
             WHERE g.resource_type = p_tool
               AND g.resource_id = p_resource_id
-              AND (NOT p_need_write OR g.level IN ('write', 'owner'))
+              AND (NOT p_need_write OR g.level IN ({sql_values(level.value for level in WRITE_LEVELS)}))
               AND (
                    g.user_id = p_user_id
                 OR ({STANDING_IS_THIS_GUILD}
@@ -580,7 +595,7 @@ $function$
 #: it, and so does the app — ``func.guild_superadmin(...)`` where an endpoint
 #: has to decide before it writes, the way ``initiative_scope_clause`` already
 #: defers to ``initiative_access`` rather than restating it in Python.
-GUILD_SUPERADMIN = """\
+GUILD_SUPERADMIN = f"""\
 CREATE OR REPLACE FUNCTION public.guild_superadmin(p_guild_id integer, p_user_id integer)
  RETURNS boolean
  LANGUAGE sql
@@ -591,7 +606,7 @@ AS $function$
         FROM public.guild_memberships m
         WHERE m.guild_id = p_guild_id
           AND m.user_id = p_user_id
-          AND m.role = 'superadmin'
+          AND m.role = '{GuildRole.superadmin.value}'
     )
     -- A live superadmin settings grant satisfies the same predicate.
     OR EXISTS (
@@ -599,8 +614,8 @@ AS $function$
         FROM public.access_grants g
         WHERE g.guild_id = p_guild_id
           AND g.user_id = p_user_id
-          AND g.purpose = 'settings'
-          AND g.access_level = 'superadmin'
+          AND g.purpose = '{AccessGrantPurpose.settings.value}'
+          AND g.access_level = '{SettingsLevel.superadmin.value}'
           AND g.status = 'approved'
           AND g.expires_at > now()
     )
