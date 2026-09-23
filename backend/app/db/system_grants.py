@@ -457,19 +457,20 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # 0138 revoked INSERT and UPDATE at the table level. UPDATE survives as
     # column grants on the identity columns a community's admin edits (name,
     # description, banner, categories, is_community, has_adult_content,
-    # show_member_names, updated_at — 0138, 0196, 0200, 0203). guild_select
-    # narrows SELECT to the routed community and the reader's own. 0357 took
-    # DELETE back: creating, deleting and purging a community run on the
+    # show_member_names, updated_at — 0138, 0196, 0200, 0203).
+    # guild_select_routed narrows SELECT to the routed community (0360). 0357
+    # took DELETE back: creating, deleting and purging a community run on the
     # system engine.
     "guilds": frozenset({"SELECT"}),
     # 0179: read-only for every request-path role; a community reads its own
-    # caps and plan label (guild_administration_select).
+    # caps and plan label (guild_administration_select_routed).
     "guild_administration": frozenset({"SELECT"}),
     # 0145 revoked UPDATE — ``role`` is the system engine's column — and 0266
     # re-granted it on ``position`` alone, as a column grant. 0354 took INSERT
     # back: joining is the system engine's (invite redemption, a community
     # join, sign-in sync). What remains at the table level is leaving (DELETE
-    # of the reader's own row) and reading the routed community's roster.
+    # of the reader's own row) and reading the routed community's roster
+    # (guild_memberships_select_routed).
     "guild_memberships": frozenset({"SELECT", "DELETE"}),
     # Listed, issued and withdrawn on a routed request. The three guild_*
     # policies admit an administrator of the invite's community — by the
@@ -493,30 +494,27 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "app_service_registrations": None,
     "app_service_nonces": None,
     "marketplace_registry_state": None,
-    # Served to anyone holding the digest, so read under every request role.
-    "marketplace_media": frozenset({"SELECT"}),
+    # 0360: served on the bare login role alone.
+    "marketplace_media": None,
     # 0200: no table grant; the routed path holds a column-scoped SELECT on
-    # (guild_id, variant, sha256), asserted in security_invariants_test.
+    # (guild_id, variant, sha256), asserted in security_invariants_test, over
+    # the routed community's rows (guild_image_member_read_routed).
     "guild_images": None,
-    # 0201: any role reads any avatar; the self_* policies narrow the three
-    # writes to the caller's own row, on this floor and the platform one.
-    "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # 0213: a member reads their own library from inside a community
-    # (user_decoration_self_read); grants are issued on the system engine.
-    "user_decorations": frozenset({"SELECT"}),
+    # 0360: served on the bare login role and changed under a platform tier; a
+    # routed payload names the picture by its serving URL.
+    "user_avatars": None,
+    # 0360: a library is listed, installed and worn under a platform tier.
+    "user_decorations": None,
     # Platform-tier path only: every policy on these is TO platform_base, and
     # the migration that added each took the schema default back.
     "profile_favorites": None,
     "legal_acceptances": None,
     "user_dm_settings": None,
-    # 0343: own-row policies for the guild floor on SELECT, INSERT and UPDATE,
-    # so a member's answer follows them into a community. DELETE carries no
-    # policy for this floor, and a grant admits no row without one.
-    "user_cookie_consent": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # 0245: the same shape — own-row SELECT, INSERT and UPDATE for the guild
-    # floor; a member reads and changes their own preferences from inside a
-    # community. DELETE carries no policy here either.
-    "user_notification_prefs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0360: an account's answer is read and recorded under a platform tier.
+    "user_cookie_consent": None,
+    # 0360: read and changed under a platform tier; delivery reads a
+    # recipient's settings on the system engine.
+    "user_notification_prefs": None,
     # 0320: a routed request appends the notification email for its recipient;
     # reading, claiming and settling are the worker's, on the system engine.
     "email_outbox": frozenset({"INSERT"}),
@@ -542,12 +540,13 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_provider_secrets": None,
     "federated_identities": None,
     "federated_identity_secrets": None,
-    # 0147 granted SELECT — the gate reads the requirement before routing, in
-    # whatever role the request assumed, so every floor keeps it. 0297 added
-    # the three writes and 0349 moved them to app_superadmin, the floor only a
-    # seat route inherits.
+    # 0147 granted SELECT: the routed community's gate reads its requirement
+    # (guild_auth_policies_routed_read, 0360). 0297 added the three writes and
+    # 0349 moved them to app_superadmin, the floor only a seat route inherits.
     "guild_auth_policies": frozenset({"SELECT"}),
-    # 0308: the read floor reads the gate; the writes are the system engine's.
+    # 0308: the routed community's gate reads its connections
+    # (guild_provider_connections_routed_read, 0360); the writes are the
+    # system engine's.
     "guild_provider_connections": frozenset({"SELECT"}),
     "platform_provider_defaults": frozenset({"SELECT"}),
     # 0132, 0261, 0262, 0290, 0307: sessions, addresses, factors and
@@ -561,20 +560,18 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "user_totp_secrets": None,
     "mfa_recovery_codes": None,
     "auth_challenges": None,
-    # The schema default, never narrowed. user_view_preferences_self_scope
-    # (FOR ALL, TO public) narrows every verb to the reader's own rows.
-    "user_view_preferences": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # 0360: personal UI state, read and written under a platform tier.
+    "user_view_preferences": None,
     # 0245 records the decision: a notification is written by the actor for
     # its recipient on the routed session, in the same transaction as the
     # content that caused it, and the table carries no policy for the request
     # path. Reading and dismissing run under a platform tier.
     "notifications": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # 0218: read from inside a community as from the platform path, within the
-    # live window (announcement_live_read); receipts are written under a
-    # platform tier only.
-    "announcements": frozenset({"SELECT"}),
+    # 0360: announcements, their receipts and their pictures are read under a
+    # platform tier.
+    "announcements": None,
     "announcement_reads": None,
-    "announcement_images": frozenset({"SELECT"}),
+    "announcement_images": None,
     # 0156: system-engine-only, no request-path grant.
     "user_api_keys": None,
     # 0358: tokens are the system engine's, and a push is delivered on it; the
@@ -620,7 +617,8 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "app_service_registrations": None,
     "app_service_nonces": None,
     "marketplace_registry_state": None,
-    "marketplace_media": frozenset({"SELECT"}),
+    # 0360: served on the bare login role alone.
+    "marketplace_media": None,
     "guild_images": None,
     "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_decorations": frozenset({"SELECT"}),
