@@ -80,10 +80,8 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     assert grant["guild_name"] == guild.name
     grant_id = grant["id"]
 
-    # The owner sees it in the full queue (mine=false requires access.approve).
-    queue = await client.get(
-        f"{GRANTS}?mine=false&status=pending", headers=owner.headers
-    )
+    # The owner sees it in the full queue (which requires access.approve).
+    queue = await client.get(f"{GRANTS}queue?status=pending", headers=owner.headers)
     assert queue.status_code == 200
     row = next(g for g in queue.json() if g["id"] == grant_id)
     assert row["user_email"] == "s***t@e***m"
@@ -155,7 +153,7 @@ async def test_queue_live_filter_excludes_expired(
     )
 
     queue = await client.get(
-        f"{GRANTS}?mine=false&status=approved&live=true", headers=host.headers
+        f"{GRANTS}queue?status=approved&live=true", headers=host.headers
     )
     assert queue.status_code == 200, queue.text
     assert [g["reason"] for g in queue.json()] == ["live one"]
@@ -396,3 +394,103 @@ async def test_grant_read_carries_guild_status(
     assert mine.status_code == 200, mine.text
     rows = [g for g in mine.json() if g["guild_id"] == host.guild.id]
     assert rows and rows[0]["guild_status"] == "suspended"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "tier,expected",
+    [
+        pytest.param("support", 403, id="support-is-refused"),
+        pytest.param("moderator", 403, id="moderator-is-refused"),
+        pytest.param("operator", 200, id="operator-reads-it"),
+        pytest.param("owner", 200, id="owner-reads-it"),
+    ],
+)
+async def test_the_queue_is_read_by_approvers_on_their_own_tier(
+    client: AsyncClient, session: AsyncSession, acting_user, tier, expected
+):
+    """The queue is its own route behind ``access.approve``, read on the
+    caller's platform tier: an approver sees somebody else's grant, named."""
+    host = await acting_user("owner", guild_role=GuildRole.admin)
+    support = await acting_user("support")
+    grant = await _approved_grant(session, grantee=support, host=host)
+    reader = await acting_user(tier)
+
+    queue = await client.get(f"{GRANTS}queue", headers=reader.headers)
+
+    assert queue.status_code == expected, queue.text
+    if expected == 200:
+        row = next(g for g in queue.json() if g["id"] == grant.id)
+        assert row["guild_name"] == host.guild.name
+        assert row["user_email"] is not None
+
+
+@pytest.mark.integration
+async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """One grant, read on the caller's tier: its holder reads it with the
+    community it names; another requester is not shown it."""
+    host = await acting_user("owner", guild_role=GuildRole.admin)
+    support = await acting_user("support")
+    other = await acting_user("support")
+    grant = await _approved_grant(session, grantee=support, host=host)
+
+    own = await client.get(f"{GRANTS}{grant.id}", headers=support.headers)
+    assert own.status_code == 200, own.text
+    assert own.json()["guild_name"] == host.guild.name
+
+    listed = await client.get(GRANTS, headers=other.headers)
+    assert listed.status_code == 200, listed.text
+    assert grant.id not in {g["id"] for g in listed.json()}
+    theirs = await client.get(f"{GRANTS}{grant.id}", headers=other.headers)
+    assert theirs.status_code == 404, theirs.text
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "tier,expected",
+    [
+        pytest.param("member", 403, id="member-cannot-ask"),
+        pytest.param("support", 200, id="support"),
+        pytest.param("moderator", 200, id="moderator"),
+        pytest.param("operator", 200, id="operator"),
+    ],
+)
+async def test_the_request_form_reads_the_callers_ceiling(
+    client: AsyncClient, acting_user, monkeypatch, tier, expected
+):
+    """The longest window a requester may ask for is the deployment's figure
+    for their tier, served rather than mirrored."""
+    from app.services.platform import access_grants as service
+
+    # A deployment that configured its own figure for one tier.
+    monkeypatch.setitem(service._ROLE_MAX_MINUTES, service.UserRole.support, 90)
+    reader = await acting_user(tier)
+
+    limits = await client.get(f"{GRANTS}limits", headers=reader.headers)
+
+    assert limits.status_code == expected, limits.text
+    if expected != 200:
+        return
+    assert limits.json() == {
+        "max_duration_minutes": service.max_minutes_for_role(service.UserRole(tier))
+    }
+    if tier == "support":
+        assert limits.json()["max_duration_minutes"] == 90
+
+
+@pytest.mark.integration
+async def test_break_glass_requirements_carry_the_window(
+    client: AsyncClient, acting_user
+):
+    from app.services.platform import access_grants as service
+
+    operator = await acting_user("operator")
+
+    resp = await client.get(f"{GRANTS}break-glass", headers=operator.headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["max_duration_minutes"] == service.break_glass_max_minutes(
+        service.UserRole.operator
+    )

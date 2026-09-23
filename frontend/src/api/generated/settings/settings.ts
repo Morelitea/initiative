@@ -2545,11 +2545,11 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
 /**
  * List every guild with its storage cap, for the Operator dashboard Guilds tab.
  *
- * Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
- * (``guilds``, ``guild_administration``, ``guild_memberships``) — no
- * guild-scoped content — so it runs on the system admin engine without routing
- * into any guild schema. The caps join in a single pass, and member counts come
- * from one grouped query rather than per-guild (no N+1).
+ * Admin/owner (``guilds.manage``). Reads only shared ``public`` tables. The
+ * guilds and their administration rows are read on the caller's platform
+ * tier, under the ``guilds.manage`` policies on both; the caps join in a
+ * single pass. Member counts and seats are totals read on the system engine
+ * (``_member_tallies``), one grouped query each rather than per guild.
  * @summary List Platform Guild Storage
  */
 export const listPlatformGuildStorageApiV1SettingsGuildsGet = (

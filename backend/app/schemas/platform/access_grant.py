@@ -171,7 +171,18 @@ class BreakGlassRequirements(SanitizedBaseModel):
     """
 
     second_factor_required: bool
+    #: The longest window, in minutes, the caller may break glass for.
+    max_duration_minutes: int
     #: Whether the caller holds a confirmed authenticator to answer with.
     totp_enrolled: bool
     #: And whether they hold a passkey, which answers it just as well.
     passkey_enrolled: bool
+
+
+class AccessGrantLimits(SanitizedBaseModel):
+    """What the caller may ask for through the request flow, as this
+    deployment configures it — read by the request form to offer its
+    durations."""
+
+    #: The longest window, in minutes, the caller may request.
+    max_duration_minutes: int

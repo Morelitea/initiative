@@ -1110,10 +1110,9 @@ async def update_users_me(
 ) -> UserRead:
     update_data = user_in.model_dump(exclude_unset=True)
     # Fetched once: feeds both the password-gate exemption and the response
-    # payload (identities can't change within this request).
-    is_sso_account = await has_federated_identity(
-        admin_session, user_id=current_user.id
-    )
+    # payload (identities can't change within this request). The caller's own
+    # links, read on their platform tier.
+    is_sso_account = await has_federated_identity(session, user_id=current_user.id)
     if not update_data:
         payload = await users_service.to_self_read(current_user)
         payload.has_federated_identity = is_sso_account

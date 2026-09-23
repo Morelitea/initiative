@@ -8,12 +8,16 @@ import {
   createAccessRequestApiV1AccessGrantsPost,
   denyAccessGrantApiV1AccessGrantsGrantIdDenyPost,
   getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey,
+  getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey,
+  listAccessGrantQueueApiV1AccessGrantsQueueGet,
   listAccessGrantsApiV1AccessGrantsGet,
+  readAccessGrantLimitsApiV1AccessGrantsLimitsGet,
   revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost,
 } from "@/api/generated/access-grants/access-grants";
 import type {
   AccessGrantApprove,
   AccessGrantCreate,
+  AccessGrantLimits,
   AccessGrantRead,
   BreakGlassCreate,
   BreakGlassRequirements,
@@ -53,7 +57,6 @@ export const useMyAccessGrants = () =>
     queryKey: [...ACCESS_GRANTS_KEY, "mine"],
     queryFn: ({ pageParam }) =>
       listAccessGrantsApiV1AccessGrantsGet({
-        mine: true,
         limit: ACCESS_GRANTS_PAGE_SIZE,
         offset: pageParam,
       }),
@@ -70,8 +73,7 @@ export const useAccessGrantQueue = (status: string | undefined, opts?: { live?: 
   useInfiniteQuery({
     queryKey: [...ACCESS_GRANTS_KEY, "queue", status ?? "all", opts?.live ? "live" : "all"],
     queryFn: ({ pageParam }) =>
-      listAccessGrantsApiV1AccessGrantsGet({
-        mine: false,
+      listAccessGrantQueueApiV1AccessGrantsQueueGet({
         status,
         live: opts?.live,
         limit: ACCESS_GRANTS_PAGE_SIZE,
@@ -79,6 +81,17 @@ export const useAccessGrantQueue = (status: string | undefined, opts?: { live?: 
       }),
     initialPageParam: 0,
     getNextPageParam: nextOffset,
+  });
+
+/**
+ * The longest window the caller may request, as this deployment configures it
+ * — requires access.request. The request form offers durations up to it.
+ */
+export const useAccessGrantLimits = (options?: { enabled?: boolean }) =>
+  useQuery<AccessGrantLimits>({
+    queryKey: getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey(),
+    queryFn: () => readAccessGrantLimitsApiV1AccessGrantsLimitsGet(),
+    enabled: options?.enabled ?? true,
   });
 
 export const useCreateAccessRequest = (

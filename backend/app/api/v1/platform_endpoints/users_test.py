@@ -1013,6 +1013,29 @@ async def test_users_me_reports_linked_identity(client, session, acting_user):
     assert response.json()["has_federated_identity"] is False
 
 
+async def test_updating_yourself_reports_your_own_linked_identity(
+    client, session, acting_user
+):
+    """PATCH /users/me reads the caller's own identity links on their platform
+    tier and carries the answer back, for an empty update and a real one."""
+    linked = await acting_user()
+    await create_federated_identity(session, linked.user)
+    plain = await acting_user()
+
+    for body in ({}, {"full_name": "Renamed"}):
+        response = await client.patch(
+            "/api/v1/users/me", headers=linked.headers, json=body
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["has_federated_identity"] is True
+
+    response = await client.patch(
+        "/api/v1/users/me", headers=plain.headers, json={"full_name": "Plain"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["has_federated_identity"] is False
+
+
 async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
     """Headers naming a session row opened a moment ago — what an account with
     no password to re-check answers a confirmation with."""

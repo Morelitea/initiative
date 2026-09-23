@@ -13,6 +13,8 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 
 const createRequest = vi.fn();
 const breakGlass = vi.fn();
+/** The ceiling the server reports for the caller's requests. */
+let requestCeiling = 240;
 
 /** What every read the page makes has come back as: loaded, nothing in flight. */
 const settled = {
@@ -92,11 +94,17 @@ vi.mock(import("@/hooks/useAccessGrants"), async (importOriginal) => ({
   ...(await importOriginal()),
   useMyAccessGrants: () => noPages(),
   useAccessGrantQueue: () => noPages(),
+  useAccessGrantLimits: () => answered({ max_duration_minutes: requestCeiling }),
   useCreateAccessRequest: () => idle(createRequest),
   useCancelAccessRequest: () => idle(),
   useBreakGlass: () => idle(breakGlass),
   useBreakGlassRequirements: () =>
-    answered({ second_factor_required: false, totp_enrolled: true, passkey_enrolled: false }),
+    answered({
+      second_factor_required: false,
+      max_duration_minutes: 240,
+      totp_enrolled: true,
+      passkey_enrolled: false,
+    }),
   useApproveAccessGrant: () => idle(),
   useDenyAccessGrant: () => idle(),
   useRevokeAccessGrant: () => idle(),
@@ -132,6 +140,7 @@ describe("SettingsAccessGrantsPage", () => {
   beforeEach(() => {
     createRequest.mockClear();
     breakGlass.mockClear();
+    requestCeiling = 240;
   });
 
   it("asks for a content read and no settings by default", async () => {
@@ -146,8 +155,36 @@ describe("SettingsAccessGrantsPage", () => {
     expect(createRequest.mock.calls[0][0]).toMatchObject({
       guild_id: 7,
       access_level: "read",
+      requested_duration_minutes: 240,
     });
     expect(createRequest.mock.calls[0][0].settings_level).toBeUndefined();
+  });
+
+  it("offers the windows up to the ceiling the server reports", async () => {
+    requestCeiling = 480;
+    const user = userEvent.setup();
+    render();
+
+    await user.click(await screen.findByLabelText(/duration/i));
+
+    expect(await screen.findByRole("option", { name: /^8 hours$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /^24 hours$/i })).not.toBeInTheDocument();
+  });
+
+  it("offers a ceiling the deployment set between the presets", async () => {
+    requestCeiling = 120;
+    const user = userEvent.setup();
+    render();
+
+    await user.click(await screen.findByLabelText(/duration/i));
+    await user.click(await screen.findByRole("option", { name: /^2 hours$/i }));
+    expect(screen.queryByRole("option", { name: /^4 hours$/i })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/community id/i), "7");
+    await user.type(screen.getByLabelText(/reason/i), "a short look");
+    await user.click(screen.getByRole("button", { name: /request access/i }));
+
+    expect(createRequest.mock.calls[0][0]).toMatchObject({ requested_duration_minutes: 120 });
   });
 
   it("asks for both where the errand needs both", async () => {

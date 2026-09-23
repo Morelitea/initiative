@@ -314,6 +314,14 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ("platform_base",),
                 using=OPEN,
             ),
+            # Stored, re-stamped and pruned by the tier that writes
+            # announcements.
+            Policy(
+                "announcement_images_manage",
+                ALL,
+                Capability.ANNOUNCEMENTS_MANAGE,
+                using=OPEN,
+            ),
         ),
     ),
     "announcement_reads": TableRls(
@@ -345,6 +353,14 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 SELECT,
                 ("platform_base",),
                 using=LIVE_WINDOW,
+            ),
+            # Drafts, scheduled and expired rows included: the tier that writes
+            # announcements reads and changes every one.
+            Policy(
+                "announcements_manage",
+                ALL,
+                Capability.ANNOUNCEMENTS_MANAGE,
+                using=OPEN,
             ),
         ),
     ),
@@ -573,6 +589,13 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ("app_guild_base",),
                 using=routed_or_pam("guild_id"),
             ),
+            # The operator's list of every community reads each one's caps.
+            Policy(
+                "guild_administration_guilds_manage_read",
+                SELECT,
+                Capability.GUILDS_MANAGE,
+                using=OPEN,
+            ),
             # A settings rung routed read-only reads the community it
             # administers.
             Policy(
@@ -792,6 +815,13 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 using=routed_or_pam("id"),
             ),
             Policy("guild_update", UPDATE, ("public",), using=routed_admin_write("id")),
+            # The operator's list of every community.
+            Policy(
+                "guilds_manage_read",
+                SELECT,
+                Capability.GUILDS_MANAGE,
+                using=OPEN,
+            ),
             Policy("guilds_pam_read", SELECT, ("public",), using=pam_read("id")),
             # A settings rung routed read-only reads the community it
             # administers.
