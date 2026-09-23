@@ -11,7 +11,7 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar, Optional
 
-from sqlalchemy import DateTime, Integer, func
+from sqlalchemy import DateTime, Integer, func, select
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, SQLModel
 
@@ -243,10 +243,19 @@ def attach_access_level(model: type[SQLModel], tool: "Tool") -> None:
     reader = func.nullif(func.current_setting("app.current_user_id", True), "").cast(
         Integer
     )
+    # This statement's standing, as ``app.db.authorization.standing_arg`` spells
+    # it; this module sits below that one, so the sub-select is written here.
+    standing = select(func.current_standing()).scalar_subquery()
     model.__mapper__.add_property(  # type: ignore[attr-defined]
         "access_level",
         column_property(
-            func.resource_level(tool.value, model.id, reader, model.initiative_id),  # type: ignore[attr-defined]
+            func.resource_level(
+                tool.value,
+                model.id,  # type: ignore[attr-defined]
+                reader,
+                model.initiative_id,  # type: ignore[attr-defined]
+                standing,
+            ),
             deferred=True,
         ),
     )

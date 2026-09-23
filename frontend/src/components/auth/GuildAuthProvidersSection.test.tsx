@@ -13,11 +13,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { GuildProviderConnectionRead } from "@/api/generated/initiativeAPI.schemas";
 
 const connect = vi.fn();
 const updateConnection = vi.fn();
 
-const row = (overrides: Record<string, unknown> = {}) => ({
+const row = (
+  overrides: Partial<GuildProviderConnectionRead> = {}
+): GuildProviderConnectionRead => ({
   id: 1,
   provider_id: 11,
   provider_slug: "entra",
@@ -27,12 +30,13 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   claim_values: [],
   enabled: true,
   auto_join: false,
+  narrowing_approved: false,
   login_ready: true,
   inherited: false,
   ...overrides,
 });
 
-let connections: unknown[] = [];
+let connections: GuildProviderConnectionRead[] = [];
 
 vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),

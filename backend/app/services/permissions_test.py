@@ -569,7 +569,7 @@ def test_the_writable_clause_asks_the_gate_when_confined():
     )
     assert sql != "true"
     assert "resource_access(" in sql
-    assert sql.rstrip().endswith("true)")
+    assert ", true, (SELECT current_standing()" in sql
 
 
 def test_the_writable_clause_spanning_initiatives_filters_the_grant_rows():

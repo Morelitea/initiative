@@ -12,6 +12,8 @@ import "fake-indexeddb/auto";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { DmSendRequest } from "@/api/generated/initiativeAPI.schemas";
+
 /** Prekeys the stand-in account has already spent. Cleared per test. */
 const spent = vi.hoisted(() => new Set<string>());
 
@@ -20,7 +22,7 @@ const api = vi.hoisted(() => ({
   readDirectory: vi.fn(),
   claimSessionKeys: vi.fn(),
   claimOwnSessionKeys: vi.fn(),
-  sendMessages: vi.fn(),
+  sendMessages: vi.fn<(conversationId: string, body: DmSendRequest) => Promise<unknown>>(),
   collectQueue: vi.fn(),
   ackQueue: vi.fn(),
   listConversations: vi.fn(),
@@ -35,7 +37,7 @@ vi.mock("@/api/generated/direct-messages/direct-messages", () => ({
   claimSessionKeysApiV1UsersUserIdDmSessionKeysPost: (userId: number) =>
     api.claimSessionKeys(userId),
   claimOwnSessionKeysApiV1MeDmSessionKeysPost: (body: unknown) => api.claimOwnSessionKeys(body),
-  sendMessagesApiV1MeDmConversationsConversationIdMessagesPost: (id: string, body: unknown) =>
+  sendMessagesApiV1MeDmConversationsConversationIdMessagesPost: (id: string, body: DmSendRequest) =>
     api.sendMessages(id, body),
   collectQueueApiV1MeDmQueueGet: (params: unknown) => api.collectQueue(params),
   acknowledgeQueueApiV1MeDmQueueAckPost: (body: unknown) => api.ackQueue(body),
@@ -688,8 +690,8 @@ describe("history between this account's own devices", () => {
     from(OUR_PHONE.identity_key, JSON.stringify(envelope), prekey);
 
   const sentEnvelopes = () =>
-    api.sendMessages.mock.calls.flatMap(([, body]: [string, { messages: unknown[] }]) =>
-      (body.messages as { payload: string }[]).map(
+    api.sendMessages.mock.calls.flatMap(([, body]) =>
+      body.messages.map(
         (message) => JSON.parse(JSON.parse(message.payload).body) as Record<string, unknown>
       )
     );
@@ -718,11 +720,10 @@ describe("history between this account's own devices", () => {
 
     await collect({ receipts: false });
 
-    const asked = api.sendMessages.mock.calls.find(
-      ([, body]: [string, { messages: { payload: string }[] }]) =>
-        body.messages.some(
-          (message) => JSON.parse(JSON.parse(message.payload).body).kind === "history-request"
-        )
+    const asked = api.sendMessages.mock.calls.find(([, body]) =>
+      body.messages.some(
+        (message) => JSON.parse(JSON.parse(message.payload).body).kind === "history-request"
+      )
     );
     expect(asked?.[1]).toMatchObject({ silent: true, wake_own_devices: true });
   });
@@ -733,9 +734,7 @@ describe("history between this account's own devices", () => {
     // matters.
     await collect({ receipts: true });
 
-    const woken = api.sendMessages.mock.calls.filter(
-      ([, body]: [string, { wake_own_devices?: boolean }]) => body.wake_own_devices
-    );
+    const woken = api.sendMessages.mock.calls.filter(([, body]) => body.wake_own_devices);
     expect(woken).toEqual([]);
   });
 
@@ -1381,12 +1380,11 @@ describe("catching up on a group joined late", () => {
 
   /** Every envelope handed to the server, with the device it was addressed to. */
   const sent = () =>
-    api.sendMessages.mock.calls.flatMap(
-      ([, body]: [string, { messages: { recipient_device_id: string; payload: string }[] }]) =>
-        body.messages.map((message) => ({
-          to: message.recipient_device_id,
-          envelope: JSON.parse(JSON.parse(message.payload).body) as Record<string, unknown>,
-        }))
+    api.sendMessages.mock.calls.flatMap(([, body]) =>
+      body.messages.map((message) => ({
+        to: message.recipient_device_id,
+        envelope: JSON.parse(JSON.parse(message.payload).body) as Record<string, unknown>,
+      }))
     );
 
   const asks = () => sent().filter((row) => row.envelope.kind === "thread-history-request");
@@ -1555,12 +1553,10 @@ describe("catching up on a group joined late", () => {
 
     await collect({ receipts: false });
 
-    const askedWith = api.sendMessages.mock.calls.find(
-      ([, body]: [string, { messages: { payload: string }[] }]) =>
-        body.messages.some(
-          (message) =>
-            JSON.parse(JSON.parse(message.payload).body).kind === "thread-history-request"
-        )
+    const askedWith = api.sendMessages.mock.calls.find(([, body]) =>
+      body.messages.some(
+        (message) => JSON.parse(JSON.parse(message.payload).body).kind === "thread-history-request"
+      )
     );
     expect(askedWith?.[1]).toMatchObject({ silent: true });
   });

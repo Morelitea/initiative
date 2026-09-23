@@ -66,10 +66,8 @@ const stubWidths = () => {
 };
 
 afterEach(() => {
-  // biome-ignore lint/performance/noDelete: restoring the prototype, not a hot path.
-  delete (HTMLInputElement.prototype as Partial<HTMLInputElement>).scrollWidth;
-  // biome-ignore lint/performance/noDelete: restoring the prototype, not a hot path.
-  delete (HTMLInputElement.prototype as Partial<HTMLInputElement>).clientWidth;
+  Reflect.deleteProperty(HTMLInputElement.prototype, "scrollWidth");
+  Reflect.deleteProperty(HTMLInputElement.prototype, "clientWidth");
 });
 
 describe("TaskChecklist", () => {

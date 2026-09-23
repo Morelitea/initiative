@@ -97,7 +97,7 @@ from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.user import UserPublic, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.initiative import (
-    serialize_initiative,
+    InitiativeSummary,
 )
 from app.schemas.tenant.document import (
     ProjectDocumentSummary,
@@ -476,11 +476,11 @@ async def _copy_task_relationships(
 def project_load_options(*, slim: bool = False) -> list:
     """Eager loads for a page of projects.
 
-    The full set serializes a whole ``ProjectRead`` (owner, nested initiative
-    with its roster, linked documents with their DAC, tags, grants). The slim
-    one carries only what the level and the owner need — the grants and the
-    level itself — since the slim projection drops the owner, documents, tags
-    and nested roles.
+    The full set serializes a whole ``ProjectRead`` (owner, nested initiative,
+    linked documents with their DAC, tags, grants). The slim one carries only
+    what the level and the owner need — the grants and the level itself —
+    since the slim projection drops the owner, documents, tags and the
+    initiative.
     """
     if slim:
         return [
@@ -492,14 +492,7 @@ def project_load_options(*, slim: bool = False) -> list:
         selectinload(Project.grants).options(
             selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
         ),
-        selectinload(Project.initiative)
-        .selectinload(Initiative.memberships)
-        .options(
-            selectinload(InitiativeMember.user),
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            ),
-        ),
+        selectinload(Project.initiative),
         undefer(Project.access_level),
     ]
 
@@ -641,6 +634,9 @@ def _slim_project_reads(
                 pinned_at=project.pinned_at,
                 guild_id=context.guild_id,
                 **permissions_service.client_access(project, user_id, context=context),
+                can_configure=permissions_service.can_administer_project(
+                    project, context=context
+                ),
             )
         )
     return reads
@@ -753,14 +749,7 @@ async def _projects_by_ids(
             selectinload(Project.grants).options(
                 selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
             ),
-            selectinload(Project.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
-            ),
+            selectinload(Project.initiative),
             undefer(Project.access_level),
         )
     )
@@ -812,7 +801,7 @@ def _build_project_payload(
 ) -> ProjectRead:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
-        payload.initiative = serialize_initiative(project.initiative, context=context)
+        payload.initiative = InitiativeSummary.model_validate(project.initiative)
     project_id = project.id or 0
     summary = getattr(project, "_task_summary", None)
     if not isinstance(summary, ProjectTaskSummary):
@@ -829,6 +818,9 @@ def _build_project_payload(
             "tags": annotated_tags(project),
             "grants": permissions_service.serialize_grants(project),
             **permissions_service.client_access(project, user_id, context=context),
+            "can_configure": permissions_service.can_administer_project(
+                project, context=context
+            ),
             "owner_id": ownership_service.owner_id_of(project),
             "owner": _project_owner(project),
         }
@@ -1039,7 +1031,7 @@ async def create_project(
     project = await _get_project_or_404(
         project.id, session, guild_context.guild_id, user_id=current_user.id
     )
-    if project.initiative_id and project.initiative:
+    if project.initiative_id:
         # Notify every member the project is shared with, derived from the grants:
         # all members, members of a granted role, or a directly granted user.
         share_all = any(g.all_initiative_members for g in project_in.grants)
@@ -1047,7 +1039,9 @@ async def create_project(
         granted_users = {g.user_id for g in project_in.grants if g.user_id is not None}
         shared_with = [
             membership.user_id
-            for membership in project.initiative.memberships
+            for membership in await initiatives_service.initiative_roster(
+                session, project.initiative_id
+            )
             if membership.user_id
             and membership.user_id != current_user.id
             and (
@@ -1138,8 +1132,10 @@ async def duplicate_project(
     )
 
     # Add read permissions for all initiative members (except owner)
-    if source_project.initiative:
-        for membership in source_project.initiative.memberships:
+    if source_project.initiative_id:
+        for membership in await initiatives_service.initiative_roster(
+            session, source_project.initiative_id
+        ):
             if membership.user_id is not None and membership.user_id != owner_id:
                 read_permission = ResourceGrant(
                     resource_type="project",
@@ -1194,10 +1190,12 @@ async def duplicate_project(
     new_project = await _get_project_or_404(
         new_project.id, session, guild_context.guild_id, user_id=current_user.id
     )
-    if new_project.initiative_id and new_project.initiative:
+    if new_project.initiative_id:
         notify_ids = [
             membership.user_id
-            for membership in new_project.initiative.memberships
+            for membership in await initiatives_service.initiative_roster(
+                session, new_project.initiative_id
+            )
             if membership.user_id and membership.user_id != current_user.id
         ]
         for member in await accounts_service.load_all(notify_ids):
@@ -1435,7 +1433,9 @@ async def search_project_members(
     # Candidate pool = the initiative's members. User-level grants are validated
     # to reference initiative members when written (see replace_resource_grants),
     # so the membership list is a complete superset of the assignable users.
-    members = getattr(project.initiative, "memberships", None) or []
+    members = await initiatives_service.initiative_roster(
+        session, project.initiative_id, with_users=True
+    )
     shows_names = bool(guild_context.guild.show_member_names)
     assignable: list[User] = []
     seen: set[int] = set()
@@ -1528,8 +1528,8 @@ async def update_project(
     pinned_value = update_data.pop("pinned", sentinel)
     view_mode_value = update_data.pop("default_view_mode", sentinel)
     if pinned_value is not sentinel or view_mode_value is not sentinel:
-        can_administer = await permissions_service.can_administer_project(
-            session, project, current_user, context=guild_context
+        can_administer = permissions_service.can_administer_project(
+            project, context=guild_context
         )
         if not can_administer:
             raise HTTPException(

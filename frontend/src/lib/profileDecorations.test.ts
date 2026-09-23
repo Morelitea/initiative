@@ -30,7 +30,9 @@ describe("resolving a decoration", () => {
     const trophies = resolveTrophies({
       banner: null,
       frame: null,
+      frame_tint: [],
       trophies: ["spooky.lantern", "thirdparty.unknown", "core.fan"],
+      grad_year: null,
     });
 
     expect(trophies.map((badge) => badge.id)).toEqual(["spooky.lantern", "core.fan"]);

@@ -21,6 +21,7 @@ from app.db.authorization import (
     RESOURCE_ACCESS,
     RESOURCE_LEVEL,
     _highest_rung_case,
+    standing_arg,
 )
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
@@ -186,9 +187,10 @@ async def test_the_level_the_gate_and_the_column_agree(
 
     expected = EXPECTED[standing][shape]
     args = ("project", a.project.id, reader_id, a.initiative.id)
-    level = (await s.exec(select(func.resource_level(*args)))).one()
-    reads = (await s.exec(select(func.resource_access(*args, False)))).one()
-    writes = (await s.exec(select(func.resource_access(*args, True)))).one()
+    st = standing_arg()
+    level = (await s.exec(select(func.resource_level(*args, st)))).one()
+    reads = (await s.exec(select(func.resource_access(*args, False, st)))).one()
+    writes = (await s.exec(select(func.resource_access(*args, True, st)))).one()
     assert level == expected, f"{standing} under {shape}"
     assert reads is (level is not None)
     assert writes is (level in {lvl.value for lvl in WRITE_LEVELS})

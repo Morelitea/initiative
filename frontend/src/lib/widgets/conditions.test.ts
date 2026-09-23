@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { FieldDescription } from "@/api/generated/initiativeAPI.schemas";
 import {
   countLeaves,
   expandConditions,
@@ -133,7 +134,7 @@ describe("expandConditions", () => {
 describe("reading the server's field declarations", () => {
   // The list itself is the server's now; what is tested here is the mapping
   // onto the shape the controls read, and the lookup over it.
-  const described = [
+  const described: FieldDescription[] = [
     {
       name: "assignee_ids",
       type: "reference",

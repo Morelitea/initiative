@@ -32,6 +32,7 @@ from app.core.tools import Tool
 from app.db.blocking import open_expr
 from app.db.initiative_rls import INITIATIVE_PATHS
 from app.db.search_index import SEARCH_SOURCES
+from app.db.authorization import standing_arg
 
 
 def _table_for(entity_type: SearchEntityType) -> str:
@@ -193,6 +194,7 @@ def visible_ids(
                 user_id,
                 table.c["initiative_id"],
                 need_write,
+                standing_arg(),
             )
         )
 
@@ -206,6 +208,7 @@ def visible_ids(
             user_id,
             resource.c["initiative_id"],
             need_write,
+            standing_arg(),
         )
     )
 

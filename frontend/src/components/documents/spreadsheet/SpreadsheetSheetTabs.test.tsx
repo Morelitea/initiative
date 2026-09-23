@@ -25,6 +25,7 @@ const renderTabs = (overrides: Partial<React.ComponentProps<typeof SpreadsheetSh
       onDelete={vi.fn()}
       onDuplicate={vi.fn()}
       onMove={vi.fn()}
+      onSetHidden={vi.fn()}
       {...overrides}
     />
   );

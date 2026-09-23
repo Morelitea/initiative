@@ -29,11 +29,13 @@ import { PlatformAuthSection } from "./PlatformAuthSection";
 
 const base: PlatformAuthSettingsResponse = {
   methods: [
-    { method: "password", enabled: true, primary: true, would_strand: 0 },
-    { method: "sso", enabled: true, primary: true, would_strand: 0 },
+    { method: "password", enabled: true, primary: true, answers_factor: false, would_strand: 0 },
+    { method: "sso", enabled: true, primary: true, answers_factor: false, would_strand: 0 },
   ],
   guilds_requiring_sign_in: 0,
+  factor_methods_permitted: false,
   session_max_hours: null,
+  session_idle_minutes: null,
   second_factor_requirement: "nobody",
   accounts_without_factor: { platform_roles: 0, everyone: 0 },
 };
@@ -65,8 +67,14 @@ describe("PlatformAuthSection", () => {
   describe("ways in", () => {
     it("sends the change without a number of its own", () => {
       settings.methods = [
-        { method: "password", enabled: true, primary: true, would_strand: 0 },
-        { method: "sso", enabled: true, primary: true, would_strand: 3 },
+        {
+          method: "password",
+          enabled: true,
+          primary: true,
+          answers_factor: false,
+          would_strand: 0,
+        },
+        { method: "sso", enabled: true, primary: true, answers_factor: false, would_strand: 3 },
       ];
       renderWithProviders(<PlatformAuthSection />);
 
@@ -126,8 +134,14 @@ describe("PlatformAuthSection", () => {
 
     it("will not let the last way in be withdrawn", () => {
       settings.methods = [
-        { method: "password", enabled: true, primary: true, would_strand: 0 },
-        { method: "sso", enabled: false, primary: true, would_strand: 0 },
+        {
+          method: "password",
+          enabled: true,
+          primary: true,
+          answers_factor: false,
+          would_strand: 0,
+        },
+        { method: "sso", enabled: false, primary: true, answers_factor: false, would_strand: 0 },
       ];
       renderWithProviders(<PlatformAuthSection />);
 

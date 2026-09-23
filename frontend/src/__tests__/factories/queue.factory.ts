@@ -27,6 +27,7 @@ export function buildQueueItem(overrides: Partial<QueueItemRead> = {}): QueueIte
     tags: [],
     documents: [],
     tasks: [],
+    attachment_count: 0,
     created_at: "2026-01-15T00:00:00.000Z",
     ...overrides,
   };
@@ -73,6 +74,7 @@ export function buildQueue(overrides: Partial<QueueRead> = {}): QueueRead {
     archived_at: null,
     can_unarchive: false,
     my_permission_level: "owner",
+    tags: [],
     items: [],
     current_item: null,
     grants: [],

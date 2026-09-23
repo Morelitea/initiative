@@ -1350,14 +1350,9 @@ async def notify_mentions(
         access="write",
         hydrated=True,
     )
-    initiative = document.initiative
-    if not initiative:
-        initiative = await get_initiative_or_404(
-            session,
-            initiative_id=document.initiative_id,
-            guild_id=guild_context.guild_id,
-        )
-    memberships = getattr(initiative, "memberships", []) or []
+    memberships = await initiatives_service.initiative_roster(
+        session, document.initiative_id
+    )
     member_ids = {
         membership.user_id for membership in memberships if membership.user_id
     }

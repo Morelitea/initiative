@@ -29,6 +29,7 @@ from app.models.platform.user import User
 
 # Re-export the RLS context helper so callers can import from a single place.
 from app.db.session import require_guild_context, set_rls_context  # noqa: F401
+from app.db.authorization import standing_arg
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +83,11 @@ async def check_initiative_permission(
             await session.exec(
                 select(
                     func.initiative_role_permits(
-                        initiative_id, user.id, permission_key.value, default
+                        initiative_id,
+                        user.id,
+                        permission_key.value,
+                        default,
+                        standing_arg(),
                     )
                 )
             )

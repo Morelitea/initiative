@@ -16,6 +16,13 @@ export function buildContactGrant(overrides: Partial<ContactGrantRead> = {}): Co
     avatar_url: null,
     status: "active",
     presence: "offline",
+    profile_decorations: {
+      banner: null,
+      frame: null,
+      frame_tint: [],
+      trophies: [],
+      grad_year: null,
+    },
     state: "accepted",
     outgoing: false,
     created_at: "2026-01-15T00:00:00.000Z",

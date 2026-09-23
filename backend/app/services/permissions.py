@@ -40,8 +40,8 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.project import Project
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
-from app.models.platform.user import User
 from app.db.frozen import ancestor_is_frozen, row_is_frozen
+from app.db.authorization import standing_arg
 from app.core.messages import (
     CommonMessages,
     SharingMessages,
@@ -202,7 +202,9 @@ def writable_scope_clause(
     only what has been granted does.
     """
     if initiative_id is not None:
-        return func.resource_access(tool.value, id_col, user_id, initiative_id, True)
+        return func.resource_access(
+            tool.value, id_col, user_id, initiative_id, True, standing_arg()
+        )
     if context is not None and context.grant_satisfies(access="write"):
         return true()
     return id_col.in_(_granted_resource_ids(tool, user_id, levels=WRITE_LEVELS))
@@ -750,43 +752,30 @@ def client_access(
 # ── Project helpers above the generic engine ────────────────────
 
 
-async def can_administer_project(
-    session,
-    project: Project,
-    user: User,
-    *,
-    context: GuildContext | None,
-) -> bool:
-    """Whether the user may configure the project itself.
+def can_administer_project(project: Project, *, context: GuildContext | None) -> bool:
+    """Whether the request may configure the project itself.
 
     Configuring a project — pinning it, setting its default view, curating its
-    filter presets — is a step above being able to edit its content. Three ways
-    to hold it: a guild admin, a manager of the owning initiative, or the
+    filter presets — is a step above being able to edit its content. Three
+    ways to hold it: a guild admin, a manager of the owning initiative, or the
     project's own owner. Plain write access is deliberately not enough.
-    """
-    from app.services import rls as rls_service  # local: rls imports this module
 
-    if context is not None and context.is_admin:
+    Read off the standing and the level the database answered, so the routes
+    that configure a project and the ``can_configure`` a project reports are
+    the same answer.
+    """
+    if context is None:
+        return False
+    if context.is_admin:
         return True
     if compute_permission(project, context=context) == "owner":
         return True
-    if project.initiative_id:
-        return await rls_service.is_initiative_manager(
-            session,
-            initiative_id=project.initiative_id,
-        )
-    return False
+    return project.initiative_id in context.manager_initiatives
 
 
-async def require_project_admin(
-    session,
-    project: Project,
-    user: User,
-    *,
-    context: GuildContext | None,
-) -> None:
-    """Raise 403 unless the user may configure the project (see above)."""
-    if not await can_administer_project(session, project, user, context=context):
+def require_project_admin(project: Project, *, context: GuildContext | None) -> None:
+    """Raise 403 unless the request may configure the project (see above)."""
+    if not can_administer_project(project, context=context):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ProjectMessages.ADMIN_REQUIRED,

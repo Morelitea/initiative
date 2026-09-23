@@ -24,6 +24,7 @@ import {
   toolIndexEntry,
 } from "@/components/tools/ToolIndexPage";
 import { TOOLS, toolRouteSegment } from "@/lib/tools";
+import type { TranslateFn } from "@/types/i18n";
 
 const INITIATIVE_ID = 1;
 
@@ -33,12 +34,15 @@ const CASES = TOOLS.flatMap((tool) => {
   return entry ? [{ tool, entry }] : [];
 });
 
+/** The keys come from the table, so the loose signature the page itself uses. */
+const translate = i18n.t.bind(i18n) as TranslateFn;
+
 /** One of the tool's own strings, read through the key the table declares. */
 const copy = (entry: ToolIndexEntry, key: keyof ToolIndexEntry["text"]) =>
-  i18n.t(entry.text[key], { ns: entry.text.ns });
+  translate(entry.text[key], { ns: entry.text.ns });
 
 /** A string from the shared toolbar/panel chrome. */
-const shared = (key: string) => i18n.t(key, { ns: "common" });
+const shared = (key: string) => translate(key, { ns: "common" });
 
 /**
  * Fields a tool's card reads beyond the ones every row has. Written out rather

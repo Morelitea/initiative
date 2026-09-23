@@ -3192,84 +3192,15 @@ export interface DocumentFileVersionRead {
 }
 
 /**
- * How a guild member may come to hold a membership row in an initiative.
+ * An initiative as something else names it: enough to label and link it.
  *
- * The policy governs *how a membership row comes to exist* — it is never
- * consulted by RLS. ``initiative_access`` still answers every access
- * question from ``initiative_members`` exactly as it did before.
- *
- * - ``private``: invisible outside its membership; a manager adds people by
- *   hand. The default, so nothing opens on upgrade.
- * - ``request``: listed in the guild's initiative directory; members ask and a
- *   manager resolves the request.
- * - ``open``: listed in the directory; any guild member self-joins and
- *   receives the built-in ``member`` role.
- *
- * Stored as a plain string with a table CHECK (the ``guilds.status`` pattern)
- * rather than a Postgres enum, so adding a policy is an ordinary migration.
+ * What a project, a document or a task carries about the initiative it is in.
+ * The initiative's own read is :class:`InitiativeRead`, roster and all.
  */
-export type InitiativeJoinPolicy = (typeof InitiativeJoinPolicy)[keyof typeof InitiativeJoinPolicy];
-
-export const InitiativeJoinPolicy = {
-  private: "private",
-  request: "request",
-  open: "open",
-} as const;
-
-/**
- * Member info including their role.
- */
-export interface InitiativeMemberRead {
-  can_view_projects: boolean;
-  can_view_documents: boolean;
-  can_view_queues: boolean;
-  can_view_counter_groups: boolean;
-  can_view_calendars: boolean;
-  can_view_dashboards: boolean;
-  can_view_posts: boolean;
-  can_view_galleries: boolean;
-  can_view_wikis: boolean;
-  can_create_projects: boolean;
-  can_create_documents: boolean;
-  can_create_queues: boolean;
-  can_create_counter_groups: boolean;
-  can_create_calendars: boolean;
-  can_create_dashboards: boolean;
-  can_create_posts: boolean;
-  can_create_galleries: boolean;
-  can_create_wikis: boolean;
-  user: UserPublic;
-  role_id: number | null;
-  role_name: string | null;
-  role_display_name: string | null;
-  is_manager: boolean;
-  override_share_restrictions: boolean;
-  joined_at: string;
-  oidc_managed: boolean;
-}
-
-export interface InitiativeRead {
-  projects_enabled: boolean;
-  documents_enabled: boolean;
-  queues_enabled: boolean;
-  counter_groups_enabled: boolean;
-  calendars_enabled: boolean;
-  dashboards_enabled: boolean;
-  posts_enabled: boolean;
-  galleries_enabled: boolean;
-  wikis_enabled: boolean;
-  name: string;
-  description: string | null;
-  color: string | null;
+export interface InitiativeSummary {
   id: number;
-  guild_id: number | null;
-  is_default: boolean;
-  archived_at: string | null;
-  join_policy: InitiativeJoinPolicy;
-  auto_join: boolean;
-  created_at: string;
-  updated_at: string;
-  members: InitiativeMemberRead[];
+  name: string;
+  color: string | null;
 }
 
 export interface DocumentProjectLink {
@@ -3303,7 +3234,8 @@ export interface DocumentSummary {
   created_by: number;
   created_at: string;
   updated_at: string;
-  initiative: InitiativeRead | null;
+  initiative: InitiativeSummary | null;
+  owner: UserPublic | null;
   projects: DocumentProjectLink[];
   comment_count: number;
   comments_enabled: boolean;
@@ -3355,7 +3287,8 @@ export interface DocumentRead {
   created_by: number;
   created_at: string;
   updated_at: string;
-  initiative: InitiativeRead | null;
+  initiative: InitiativeSummary | null;
+  owner: UserPublic | null;
   projects: DocumentProjectLink[];
   comment_count: number;
   comments_enabled: boolean;
@@ -4852,6 +4785,31 @@ export interface ImportJobRead {
   updated_at: string;
 }
 
+/**
+ * How a guild member may come to hold a membership row in an initiative.
+ *
+ * The policy governs *how a membership row comes to exist* — it is never
+ * consulted by RLS. ``initiative_access`` still answers every access
+ * question from ``initiative_members`` exactly as it did before.
+ *
+ * - ``private``: invisible outside its membership; a manager adds people by
+ *   hand. The default, so nothing opens on upgrade.
+ * - ``request``: listed in the guild's initiative directory; members ask and a
+ *   manager resolves the request.
+ * - ``open``: listed in the directory; any guild member self-joins and
+ *   receives the built-in ``member`` role.
+ *
+ * Stored as a plain string with a table CHECK (the ``guilds.status`` pattern)
+ * rather than a Postgres enum, so adding a policy is an ordinary migration.
+ */
+export type InitiativeJoinPolicy = (typeof InitiativeJoinPolicy)[keyof typeof InitiativeJoinPolicy];
+
+export const InitiativeJoinPolicy = {
+  private: "private",
+  request: "request",
+  open: "open",
+} as const;
+
 export interface InitiativeCreate {
   projects_enabled?: boolean;
   documents_enabled?: boolean;
@@ -4993,10 +4951,66 @@ export interface InitiativeMemberAdd {
 }
 
 /**
+ * Member info including their role.
+ */
+export interface InitiativeMemberRead {
+  can_view_projects: boolean;
+  can_view_documents: boolean;
+  can_view_queues: boolean;
+  can_view_counter_groups: boolean;
+  can_view_calendars: boolean;
+  can_view_dashboards: boolean;
+  can_view_posts: boolean;
+  can_view_galleries: boolean;
+  can_view_wikis: boolean;
+  can_create_projects: boolean;
+  can_create_documents: boolean;
+  can_create_queues: boolean;
+  can_create_counter_groups: boolean;
+  can_create_calendars: boolean;
+  can_create_dashboards: boolean;
+  can_create_posts: boolean;
+  can_create_galleries: boolean;
+  can_create_wikis: boolean;
+  user: UserPublic;
+  role_id: number | null;
+  role_name: string | null;
+  role_display_name: string | null;
+  is_manager: boolean;
+  override_share_restrictions: boolean;
+  joined_at: string;
+  oidc_managed: boolean;
+}
+
+/**
  * Update a member's role.
  */
 export interface InitiativeMemberUpdate {
   role_id: number;
+}
+
+export interface InitiativeRead {
+  projects_enabled: boolean;
+  documents_enabled: boolean;
+  queues_enabled: boolean;
+  counter_groups_enabled: boolean;
+  calendars_enabled: boolean;
+  dashboards_enabled: boolean;
+  posts_enabled: boolean;
+  galleries_enabled: boolean;
+  wikis_enabled: boolean;
+  name: string;
+  description: string | null;
+  color: string | null;
+  id: number;
+  guild_id: number | null;
+  is_default: boolean;
+  archived_at: string | null;
+  join_policy: InitiativeJoinPolicy;
+  auto_join: boolean;
+  created_at: string;
+  updated_at: string;
+  members: InitiativeMemberRead[];
 }
 
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
@@ -6574,7 +6588,8 @@ export interface ProjectRead {
   pinned_at: string | null;
   default_view_mode: string | null;
   owner: UserPublic | null;
-  initiative: InitiativeRead | null;
+  initiative: InitiativeSummary | null;
+  can_configure: boolean;
   sort_order: number | null;
   is_favorited: boolean;
   last_viewed_at: string | null;
@@ -7965,18 +7980,12 @@ export interface TaskMoveRequest {
   target_project_id: number;
 }
 
-export interface TaskProjectInitiativeSummary {
-  id: number;
-  name: string;
-  color: string | null;
-}
-
 export interface TaskProjectSummary {
   id: number;
   name: string;
   icon: string | null;
   initiative_id: number | null;
-  initiative: TaskProjectInitiativeSummary | null;
+  initiative: InitiativeSummary | null;
   archived_at: string | null;
   is_template: boolean | null;
 }

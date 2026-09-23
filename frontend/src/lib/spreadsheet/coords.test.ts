@@ -76,7 +76,7 @@ describe("boundingBox", () => {
   });
 
   it("ignores malformed keys", () => {
-    const cells = { "0:0": "a", garbage: 1, "5:5": 2 } as Record<string, never>;
+    const cells = { "0:0": "a", garbage: 1, "5:5": 2 };
     expect(boundingBox(cells)).toEqual({ rows: 6, cols: 6 });
   });
 

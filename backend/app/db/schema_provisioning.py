@@ -456,10 +456,10 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
     )
 
     functions = 0
-    for name, args in {
-        **GUILD_FUNCTION_SIGNATURES,
-        **RETIRED_GUILD_FUNCTION_SIGNATURES,
-    }.items():
+    for name, args in (
+        *GUILD_FUNCTION_SIGNATURES.items(),
+        *RETIRED_GUILD_FUNCTION_SIGNATURES,
+    ):
         present = (
             await conn.execute(
                 text("SELECT to_regprocedure(CAST(:sig AS text)) IS NOT NULL"),

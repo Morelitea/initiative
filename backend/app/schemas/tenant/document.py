@@ -10,8 +10,10 @@ from app.schemas.base import SanitizedBaseModel
 from app.schemas.tenant.archive import ArchiveState
 
 from app.models.tenant.document import DocumentType
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.initiative import InitiativeRead, serialize_initiative
+from app.schemas.platform.user import UserPublic
+from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
@@ -87,7 +89,9 @@ class DocumentSummary(DocumentBase, ArchiveState):
     created_by: int
     created_at: datetime
     updated_at: datetime
-    initiative: Optional[InitiativeRead] = None
+    initiative: Optional[InitiativeSummary] = None
+    #: The holder of the document's owner grant, or None when it is unowned.
+    owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
     # When false this entity's comment thread is off — the UI renders none
@@ -200,6 +204,22 @@ def _serialize_document_properties(document: "Document") -> List[PropertySummary
     return summaries_from_rows(rows)
 
 
+def _document_owner(document: "Document") -> Optional[UserPublic]:
+    """The user holding the document's owner grant, or None when it is unowned.
+
+    Read off the grants the loader brings with their users, as a project reads
+    its own; ownership is recorded there and nowhere else.
+    """
+    for grant in getattr(document, "grants", None) or []:
+        if (
+            grant.user_id is not None
+            and grant.level == ResourceAccessLevel.owner
+            and grant.user
+        ):
+            return UserPublic.model_validate(grant.user)
+    return None
+
+
 def serialize_document_summary(
     document: "Document",
     *,
@@ -208,7 +228,7 @@ def serialize_document_summary(
     projects: Sequence[Related] = (),
 ) -> DocumentSummary:
     initiative = (
-        serialize_initiative(document.initiative, context=context)
+        InitiativeSummary.model_validate(document.initiative)
         if document.initiative
         else None
     )
@@ -231,6 +251,7 @@ def serialize_document_summary(
         created_at=document.created_at,
         updated_at=document.updated_at,
         initiative=initiative,
+        owner=_document_owner(document),
         projects=_serialize_project_links(projects),
         comment_count=getattr(document, "comment_count", 0),
         comments_enabled=document.comments_enabled,

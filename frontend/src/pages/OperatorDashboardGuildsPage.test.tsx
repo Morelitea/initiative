@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
 
 const GIB = 1024 ** 3;
 
@@ -14,7 +15,7 @@ const GIB = 1024 ** 3;
 const mutate = vi.fn();
 const restore = vi.fn();
 
-const guildsData = [
+const guildsData: PlatformGuildStorageRead[] = [
   {
     id: 7,
     name: "Capped Community",

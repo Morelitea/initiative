@@ -181,10 +181,7 @@ export const DocumentsListView = ({
           if (!ownerGrant || ownerGrant.user_id == null) {
             return <span className="text-muted-foreground">—</span>;
           }
-          const ownerMember = row.original.initiative?.members?.find(
-            (m) => m.user.id === ownerGrant.user_id
-          );
-          const ownerName = ownerMember?.user ? getUserDisplayName(ownerMember.user) : undefined;
+          const ownerName = row.original.owner ? getUserDisplayName(row.original.owner) : undefined;
           return (
             <span>{ownerName || t("documents:bulk.userFallback", { id: ownerGrant.user_id })}</span>
           );

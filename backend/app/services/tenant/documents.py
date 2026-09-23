@@ -16,11 +16,6 @@ from app.models.tenant.document import (
     Document,
     DocumentType,
 )
-from app.models.tenant.initiative import (
-    Initiative,
-    InitiativeMember,
-    InitiativeRoleModel,
-)
 from app.models.tenant.upload import Upload
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -131,21 +126,15 @@ def normalize_document_content(
 
 
 def list_loader_options() -> list:
-    """Eager-load what a document *list* row needs: its initiative with its
-    roster (the summary nests the initiative, members and all), the level the
-    request holds on it, its sharing, and the property values its card
-    shows."""
+    """Eager-load what a document *list* row needs: its initiative, the level
+    the request holds on it, its sharing with the grant holders (the owner is
+    reported by name), and the property values its card shows."""
     return [
-        selectinload(Document.initiative)
-        .selectinload(Initiative.memberships)
-        .options(
-            selectinload(InitiativeMember.user),
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            ),
-        ),
+        selectinload(Document.initiative),
         undefer(Document.access_level),
-        selectinload(Document.grants).selectinload(ResourceGrant.role),
+        selectinload(Document.grants).options(
+            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+        ),
         selectinload(Document.property_values).selectinload(
             DocumentPropertyValue.property_definition
         ),
@@ -275,16 +264,11 @@ async def get_document_for_grants(
         select(Document)
         .where(Document.id == document_id)
         .options(
-            selectinload(Document.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
-            ),
+            selectinload(Document.initiative),
             undefer(Document.access_level),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
+            selectinload(Document.grants).options(
+                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+            ),
         )
     )
     return (await session.exec(statement)).one_or_none()

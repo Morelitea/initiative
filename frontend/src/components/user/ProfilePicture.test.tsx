@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
 
 import { ProfilePicture } from "./ProfilePicture";
 
@@ -16,7 +17,13 @@ const mocks = vi.hoisted(() => ({ update: vi.fn() }));
 
 vi.mock("@/hooks/useUsers", () => ({ useUpdateCurrentUser: () => mocks.update() }));
 
-const BARE = { banner: null, frame: null, badges: [] };
+const BARE: ProfileDecorationsOutput = {
+  banner: null,
+  frame: null,
+  frame_tint: [],
+  trophies: [],
+  grad_year: null,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -58,6 +58,9 @@ export const buildNotificationPreferences = (
   ],
   settings: {},
   quiet_hours: null,
+  email: { cadence: "instant", at: "21:00", weekday: 1, personal_instant: true },
+  pause: null,
+  respect_presence: true,
   guilds: [],
   ...overrides,
 });

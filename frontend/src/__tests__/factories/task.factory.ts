@@ -21,6 +21,7 @@ export function buildTaskAssignee(
     discriminator: 2000 + counter,
     full_name: `Assignee ${counter}`,
     avatar_url: null,
+    status: "active",
     ...overrides,
   };
 }
@@ -35,6 +36,8 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
     category: "todo",
     position: 0,
     is_default: true,
+    color: "#94A3B8",
+    icon: "circle",
   };
 
   return {
@@ -46,8 +49,8 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
     priority: "medium",
     project_id: 1,
     assignees: [],
-    start_date: undefined,
-    due_date: undefined,
+    start_date: null,
+    due_date: null,
     recurrence: null,
     recurrence_strategy: "fixed",
     recurrence_occurrence_count: 0,
@@ -55,17 +58,19 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
     updated_at: "2026-01-15T00:00:00.000Z",
     position: counter,
     archived_at: null,
+    created_by: 1,
     comment_count: 0,
+    blocked_by_open_count: 0,
     guild_id: null,
     guild_name: null,
     project_name: null,
     initiative_id: null,
     initiative_name: null,
     initiative_color: null,
-    checklist: [],
     checklist_progress: null,
     completed_at: null,
     tags: [],
+    properties: [],
     ...overrides,
   };
 }

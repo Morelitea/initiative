@@ -67,9 +67,7 @@ async def _require_manageable_project(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ProjectMessages.IS_ARCHIVED,
         )
-    await permissions_service.require_project_admin(
-        session, project, user, context=guild_context
-    )
+    permissions_service.require_project_admin(project, context=guild_context)
     return project
 
 
@@ -105,8 +103,8 @@ async def list_filter_presets(
         access="read",
     )
     presets = await filter_presets_service.list_presets(session, project_id)
-    can_manage = await permissions_service.can_administer_project(
-        session, project, current_user, context=guild_context
+    can_manage = permissions_service.can_administer_project(
+        project, context=guild_context
     )
     return FilterPresetListResponse(
         items=[FilterPresetRead.model_validate(preset) for preset in presets],

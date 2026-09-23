@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { WidgetBinding, WidgetDataResult } from "@/hooks/useWidgetData";
+import type { DefinitionWidget } from "@/lib/widgets/definition";
 import { WidgetErrorCode } from "@/lib/widgets/errors";
 import { emptyDataFor } from "@/lib/widgets/normalize";
 
@@ -25,8 +26,15 @@ vi.mock("@/hooks/useDashboards", () => ({ useWidgetCatalog: () => ({ data: undef
 
 import { DashboardWidget } from "./DashboardWidget";
 
-const widget = { id: "w1", type: "stat", grid: { x: 0, y: 0, w: 3, h: 2 } };
 const binding: WidgetBinding = { source: "query" };
+const widget: DefinitionWidget = {
+  id: "w1",
+  type: "stat",
+  grid: { x: 0, y: 0, w: 3, h: 2 },
+  binding,
+};
+/** A binding that names what it reads, so the fetch has a target to resolve. */
+const boundBinding: WidgetBinding = { source: "query", sql: "SELECT name, count FROM counters" };
 
 const render = (sampleData: boolean) => {
   useWidgetData.mockReturnValue({
@@ -90,7 +98,7 @@ describe("DashboardWidget", () => {
 describe("a widget with nothing to draw", () => {
   const renderState = (result: Partial<WidgetDataResult>, widgetBinding = binding) => {
     useWidgetData.mockReturnValue({
-      data: emptyDataFor("counter"),
+      data: emptyDataFor("query"),
       isLoading: false,
       isUnbound: false,
       isRestricted: false,
@@ -114,7 +122,7 @@ describe("a widget with nothing to draw", () => {
   });
 
   it("says the data is out of reach when the target resolved and is not there", async () => {
-    renderState({ isRestricted: true }, { source: "counter", counter_group_id: 3, counter_id: 9 });
+    renderState({ isRestricted: true }, boundBinding);
     expect(await screen.findByText(/can't see this widget's data/i)).toBeInTheDocument();
     // Nothing to configure here, so nothing invites a reader to repoint a
     // binding that was never wrong.
@@ -122,10 +130,7 @@ describe("a widget with nothing to draw", () => {
   });
 
   it("reports a failed fetch as a failure, not as an access decision", async () => {
-    renderState(
-      { errorCode: WidgetErrorCode.DATA_UNAVAILABLE },
-      { source: "counter", counter_group_id: 3, counter_id: 9 }
-    );
+    renderState({ errorCode: WidgetErrorCode.DATA_UNAVAILABLE }, boundBinding);
     expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument();
     expect(screen.queryByText(/can't see this widget's data/i)).toBeNull();
   });

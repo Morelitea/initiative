@@ -14,7 +14,7 @@ const wearing = (frame: string, frameTint: string[] = []) =>
   render(
     <ProfileAvatar
       user={buildUser()}
-      decorations={{ banner: null, frame, frame_tint: frameTint, trophies: [] }}
+      decorations={{ banner: null, frame, frame_tint: frameTint, trophies: [], grad_year: null }}
     />
   );
 

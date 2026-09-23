@@ -17,10 +17,11 @@ import { SessionLifetimeSection } from "./SessionLifetimeSection";
 
 const base: PlatformAuthSettingsResponse = {
   methods: [
-    { method: "password", enabled: true, would_strand: 0 },
-    { method: "sso", enabled: true, would_strand: 0 },
+    { method: "password", enabled: true, primary: true, answers_factor: false, would_strand: 0 },
+    { method: "sso", enabled: true, primary: true, answers_factor: false, would_strand: 0 },
   ],
   guilds_requiring_sign_in: 0,
+  factor_methods_permitted: false,
   session_max_hours: null,
   session_idle_minutes: null,
   second_factor_requirement: "nobody",

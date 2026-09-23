@@ -2,9 +2,11 @@ import { screen } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
+import { buildGuild } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { useGuilds } from "@/hooks/useGuilds";
 
 import { CommunityExportCard } from "./CommunityExportCard";
 
@@ -15,15 +17,29 @@ vi.mock("@/lib/exportDownload", () => ({
   downloadExportArtifact: vi.fn(),
 }));
 
+const activeGuild = buildGuild({ id: 1, name: "Test Community", role: "superadmin" });
+const guildsValue: ReturnType<typeof useGuilds> = {
+  guilds: [activeGuild],
+  activeGuildId: 1,
+  activeGuild,
+  activeGuildReadOnly: false,
+  loading: false,
+  error: null,
+  refreshGuilds: vi.fn(),
+  switchGuild: vi.fn(),
+  syncGuildFromUrl: vi.fn(),
+  createGuild: vi.fn(),
+  updateGuildInState: vi.fn(),
+  reorderGuilds: vi.fn(),
+  canCreateGuilds: true,
+};
+
 // Taking the whole community out in one file is the seat's errand, and the
 // card says so itself rather than resting on which tab it sits in. Partial:
 // the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useGuilds: () => ({
-    activeGuild: { id: 1, name: "Test Community", role: "superadmin" },
-    activeGuildId: 1,
-  }),
+  useGuilds: () => guildsValue,
 }));
 
 const now = new Date();

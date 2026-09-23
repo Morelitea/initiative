@@ -23,9 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import ProjectMessages
 from app.core.tools import Tool
 from app.models.tenant.initiative import (
-    Initiative,
     InitiativeMember,
-    InitiativeRoleModel,
 )
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import WRITE_LEVELS, ResourceGrant
@@ -54,9 +52,8 @@ async def get_project_hydrated(
     """Load a project with everything a serialized ``ProjectRead`` reads.
 
     The grant loader above carries what the access decision needs; this carries
-    that plus what the response does — the grant holders by name, the
-    initiative's roster with each member's role, and the project's task
-    statuses. RLS scopes the row to the request's guild.
+    that plus what the response does — the grant holders by name and the
+    project's task statuses. RLS scopes the row to the request's guild.
 
     ``populate_existing=True`` refreshes a project already in the session's
     identity map, for a re-read after a commit (``expire_on_commit=False``
@@ -69,14 +66,7 @@ async def get_project_hydrated(
             selectinload(Project.grants).options(
                 selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
             ),
-            selectinload(Project.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
-            ),
+            selectinload(Project.initiative),
             undefer(Project.access_level),
             selectinload(Project.task_statuses),
         )

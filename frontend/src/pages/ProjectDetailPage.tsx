@@ -16,7 +16,7 @@ import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
@@ -31,7 +31,6 @@ export const ProjectDetailPage = () => {
     projectId: string;
   };
   const router = useRouter();
-  const { permissionsFor } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { create?: string };
   const parsedProjectId = Number(projectId);
@@ -76,6 +75,11 @@ export const ProjectDetailPage = () => {
   }, [viewedProjectId, recordViewMutation.mutate]);
 
   const project = projectQuery.data;
+  // Creating a document targets the project's initiative, so it follows that
+  // initiative's server-computed create flag.
+  const { canCreate: canCreateDocuments } = useToolCreateAccess(Tool.document, {
+    initiativeId: project?.initiative_id,
+  });
   // The path supplies the initiative while this loads, but the entity is the
   // authority once it arrives — a URL naming a different one is corrected
   // rather than left to build links into an initiative it isn't in.
@@ -165,11 +169,6 @@ export const ProjectDetailPage = () => {
   // Pure DAC: settings/write access based on permission level
   const canManageSettings = hasWritePermission;
   const canWriteProject = hasWritePermission;
-  // Creating a document targets the project's initiative, so it follows that
-  // initiative's server-computed create flag.
-  const canCreateDocuments = project.initiative
-    ? permissionsFor(project.initiative)[Tool.document].create
-    : false;
   const canAttachDocuments = canWriteProject;
   // Pure DAC: any permission grants view access
   const canViewTaskDetails = Boolean(project && myLevel);

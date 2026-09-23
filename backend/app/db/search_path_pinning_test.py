@@ -87,9 +87,9 @@ class TestInitiativeAccessBindsTheRoutedSchema:
 
         granted = (
             await routed.exec(
-                text("SELECT initiative_access(:i, :u, false)").bindparams(
-                    i=first.id, u=owner.id
-                )
+                text(
+                    "SELECT initiative_access(:i, :u, false, (SELECT current_standing()))"
+                ).bindparams(i=first.id, u=owner.id)
             )
         ).scalar()
         assert granted is True
@@ -120,9 +120,9 @@ class TestInitiativeAccessBindsTheRoutedSchema:
         )
         granted = (
             await s.exec(
-                text("SELECT initiative_access(:i, :u, false)").bindparams(
-                    i=first.id, u=outsider.id
-                )
+                text(
+                    "SELECT initiative_access(:i, :u, false, (SELECT current_standing()))"
+                ).bindparams(i=first.id, u=outsider.id)
             )
         ).scalar()
         assert granted is False

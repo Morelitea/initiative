@@ -471,14 +471,14 @@ def render_retired_functions_ddl() -> str:
     boot, after every guild has stopped using it
     (``ensure_public_copies_dropped``).
     """
-    return "\n".join(
-        "DO $retire$ BEGIN "
+    drops = " ".join(
         f"IF to_regprocedure(format('%I.{name}{args}', current_schema())) "
         "IS NOT NULL THEN "
         f"EXECUTE format('DROP FUNCTION %I.{name}{args}', current_schema()); "
-        "END IF; END $retire$;"
-        for name, args in RETIRED_GUILD_FUNCTION_SIGNATURES.items()
+        "END IF;"
+        for name, args in RETIRED_GUILD_FUNCTION_SIGNATURES
     )
+    return f"DO $retire$ BEGIN {drops} END $retire$;"
 
 
 def render_guild_rls_ddl() -> str:

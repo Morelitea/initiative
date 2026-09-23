@@ -8,6 +8,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.schemas.platform.user import UserPublic
+from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.guild import GuildSummary
 from app.schemas.tenant.tag import TagSummary
@@ -221,16 +222,6 @@ class TaskMoveRequest(SanitizedBaseModel):
     target_project_id: int = Field(gt=0)
 
 
-class TaskProjectInitiativeSummary(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    name: str
-    color: Optional[str] = None
-
-
 class TaskProjectSummary(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -240,7 +231,7 @@ class TaskProjectSummary(SanitizedBaseModel):
     name: str
     icon: Optional[str] = None
     initiative_id: Optional[int] = None
-    initiative: Optional[TaskProjectInitiativeSummary] = None
+    initiative: Optional[InitiativeSummary] = None
     archived_at: Optional[datetime] = None
     is_template: Optional[bool] = None
 

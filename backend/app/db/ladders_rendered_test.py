@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import func
 from sqlmodel import select
 
-from app.db.authorization import sql_values
+from app.db.authorization import sql_values, standing_arg
 from app.models.platform.access_grant import SettingsLevel
 from app.models.platform.guild import GUILD_STORED_ROLES, GuildRole
 from app.models.platform.user import UserRole
@@ -119,7 +119,12 @@ async def test_the_write_leg_reads_the_sharing_ladder(
         await s.exec(
             select(
                 func.resource_access(
-                    "project", project.id, member.user.id, a.initiative.id, False
+                    "project",
+                    project.id,
+                    member.user.id,
+                    a.initiative.id,
+                    False,
+                    standing_arg(),
                 )
             )
         )
@@ -128,7 +133,12 @@ async def test_the_write_leg_reads_the_sharing_ladder(
         await s.exec(
             select(
                 func.resource_access(
-                    "project", project.id, member.user.id, a.initiative.id, True
+                    "project",
+                    project.id,
+                    member.user.id,
+                    a.initiative.id,
+                    True,
+                    standing_arg(),
                 )
             )
         )
