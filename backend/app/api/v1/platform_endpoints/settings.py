@@ -916,7 +916,7 @@ async def update_platform_guild_storage(
 
     Where billing sets plans (``billing_service.billing_managed``), the caps and
     entitlements are refused and the status may only move to one of the row's
-    ``status_choices``; the triggers of migration 0362 hold the database to the
+    ``status_choices``; the triggers of migration 0364 hold the database to the
     same rule.
     """
     provided = payload.model_fields_set

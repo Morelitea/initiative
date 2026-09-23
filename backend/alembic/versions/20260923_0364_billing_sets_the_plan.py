@@ -20,8 +20,8 @@ billing's, and the database holds every other writer to that.
   into ``deleted``, or out of ``deleted``.
 * A ``billing`` access grant has one level, ``read``.
 
-Revision ID: 20260923_0362
-Revises: 20260923_0361
+Revision ID: 20260923_0364
+Revises: 20260923_0363
 Create Date: 2026-09-23
 """
 
@@ -32,8 +32,8 @@ from alembic import op
 
 from app.core.config import settings
 
-revision = "20260923_0362"
-down_revision = "20260923_0361"
+revision = "20260923_0364"
+down_revision = "20260923_0363"
 branch_labels = None
 depends_on = None
 

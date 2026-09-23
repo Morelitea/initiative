@@ -1,4 +1,4 @@
-"""The plan and status triggers of migration 0362, on the real logins.
+"""The plan and status triggers of migration 0364, on the real logins.
 
 Every write here runs twice over: with ``public.billing_managed()`` answering
 false, where it must land, and answering true, where only the moves the rule

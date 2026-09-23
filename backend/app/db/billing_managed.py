@@ -1,7 +1,7 @@
 """Whether this deployment's plans are set by its billing service.
 
 ``public.billing_managed()`` answers that inside the database, for the
-triggers on ``guilds`` and ``guild_administration`` (migration 0362) that hold
+triggers on ``guilds`` and ``guild_administration`` (migration 0364) that hold
 a billing-managed deployment's plan columns and lifecycle statuses to billing.
 Its body is a constant rendered here from the environment on every boot, over
 the provisioning engine, which owns the function.

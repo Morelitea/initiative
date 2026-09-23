@@ -2710,7 +2710,7 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
  *
  * Where billing sets plans (``billing_service.billing_managed``), the caps and
  * entitlements are refused and the status may only move to one of the row's
- * ``status_choices``; the triggers of migration 0362 hold the database to the
+ * ``status_choices``; the triggers of migration 0364 hold the database to the
  * same rule.
  * @summary Update Platform Guild Storage
  */

@@ -111,7 +111,7 @@ def operator_status_choices(
     Where billing sets plans, the operator's one status is the time out: into
     ``suspended``, and out of it to the status billing last wrote. Everywhere
     else, any of :data:`OPERATOR_SETTABLE_STATUSES`. A deleted guild has none;
-    restoring it is not a status change. The triggers of migration 0362 hold
+    restoring it is not a status change. The triggers of migration 0364 hold
     the database to the same rule.
     """
     if status is GuildStatus.deleted:
