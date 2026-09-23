@@ -113,6 +113,10 @@ class AtlassianJiraImportRequest(SanitizedBaseModel):
             str, Field(min_length=1, max_length=50, pattern=JIRA_PROJECT_KEY_PATTERN)
         ]
     ] = Field(max_length=200)
+    #: Bring each issue's comments across. On unless somebody turns it off:
+    #: it costs a call per issue whose comments run past the first page, which
+    #: a large project with long threads will feel.
+    include_comments: bool = True
 
 
 class AtlassianConnectResponse(SanitizedBaseModel):

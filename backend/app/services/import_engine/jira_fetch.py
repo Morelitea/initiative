@@ -59,6 +59,18 @@ MAX_ISSUE_PAGES = 500
 #: (§6.5).
 ISSUE_FIELDS = ("*navigable",)
 
+#: Asked for beside those when comments are wanted. The search returns the
+#: first page of each issue's comments with its ``total``, so only an issue
+#: with more than that costs a call of its own.
+COMMENT_FIELD = "comment"
+
+#: Comments per page when an issue's have to be read on their own.
+COMMENT_PAGE_SIZE = 100
+
+#: A hard stop on one issue's comment pages, for the same reason the issue
+#: walk has one: the site decides how many pages there are.
+MAX_COMMENT_PAGES = 50
+
 _MANIFEST_NAME = "manifest.json"
 
 
@@ -100,6 +112,11 @@ class FetchReport:
     sprint_calendars: int = 0
     #: Sprints planned but never started: no dates, so no event.
     sprints_undated: int = 0
+    #: Comments that will come over.
+    comments: int = 0
+    #: Comments visible only to a role or group at the source, left behind
+    #: rather than shown to the whole initiative.
+    comments_restricted: int = 0
     #: Why sprints will not come over at all, as a code — the target
     #: initiative has no calendars, or the importer cannot create one there.
     #: ``None`` when they will.
@@ -165,6 +182,7 @@ async def fetch_issues(
     *,
     jql_extra: str | None = None,
     max_issues: int,
+    include_comments: bool = False,
 ) -> list[Any]:
     """Every issue in the project, in Rank order, a page at a time.
 
@@ -192,7 +210,7 @@ async def fetch_issues(
         body: dict[str, Any] = {
             "jql": jql,
             "maxResults": min(ISSUE_PAGE_SIZE, max_issues - len(issues)),
-            "fields": list(ISSUE_FIELDS),
+            "fields": [*ISSUE_FIELDS, *([COMMENT_FIELD] if include_comments else [])],
         }
         if token:
             body["nextPageToken"] = token
@@ -232,6 +250,49 @@ async def fetch_field_catalog(credential: AtlassianCredential) -> list[Any]:
     return payload if isinstance(payload, list) else []
 
 
+async def complete_comments(credential: AtlassianCredential, issue: Any) -> None:
+    """Fill in the rest of an issue's comments when the search held back some.
+
+    The search carries each issue's first page with a ``total``; an issue
+    with more is read on its own, oldest first, and the comment field is
+    replaced with the whole list. One that will not answer keeps the page it
+    had — a partial thread beats failing the project over it.
+    """
+    fields = issue.get("fields") if isinstance(issue, dict) else None
+    field = fields.get(COMMENT_FIELD) if isinstance(fields, dict) else None
+    if not isinstance(field, dict):
+        return
+    have = field.get("comments")
+    total = field.get("total")
+    if not isinstance(have, list) or not isinstance(total, int) or total <= len(have):
+        return
+    key = str(issue.get("key") or "").strip()
+    if not key:
+        return
+    comments: list[Any] = []
+    for page in range(MAX_COMMENT_PAGES):
+        try:
+            payload = await get_json(
+                credential,
+                f"/rest/api/3/issue/{key}/comment"
+                f"?startAt={page * COMMENT_PAGE_SIZE}"
+                f"&maxResults={COMMENT_PAGE_SIZE}&orderBy=created",
+            )
+        except ImportEngineError as exc:
+            if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
+                raise
+            logger.info("jira comments unreadable key=%s code=%s", key, exc.code)
+            return
+        batch = payload.get("comments") if isinstance(payload, dict) else None
+        if not isinstance(batch, list) or not batch:
+            break
+        comments.extend(batch)
+        if len(comments) >= total:
+            break
+    if comments:
+        field["comments"] = comments
+
+
 async def fetch_project_envelope(
     credential: AtlassianCredential,
     project: dict,
@@ -240,11 +301,13 @@ async def fetch_project_envelope(
     jql_extra: str | None = None,
     max_issues: int,
     field_catalog: Any = None,
+    include_comments: bool = False,
 ) -> tuple[
     jira_mapping.MappedProject,
     int,
     list[tuple[str, str]],
     dict[str, list[jira_sprints.Sprint]],
+    int,
 ]:
     """One Jira project as an envelope, how many issues it cost, and what its
     issues are linked to.
@@ -279,8 +342,15 @@ async def fetch_project_envelope(
         ]
 
     issues = await fetch_issues(
-        credential, key, jql_extra=jql_extra, max_issues=max_issues
+        credential,
+        key,
+        jql_extra=jql_extra,
+        max_issues=max_issues,
+        include_comments=include_comments,
     )
+    if include_comments:
+        for issue in issues:
+            await complete_comments(credential, issue)
     mapped = jira_mapping.build_project_envelope(
         project=project,
         issue_type_statuses=statuses,
@@ -289,6 +359,7 @@ async def fetch_project_envelope(
         app_version=app_version,
         site_url=credential.site_url,
         field_catalog=field_catalog,
+        include_comments=include_comments,
     )
     link_ends = [end for issue in issues for end in jira_mapping.link_far_ends(issue)]
     # Which sprints each issue was in, keyed by issue key. Built into events
@@ -300,7 +371,16 @@ async def fetch_project_envelope(
         if isinstance(issue, dict)
         and (found := jira_sprints.issue_sprints(issue, sprint_fields))
     }
-    return mapped, len(issues), link_ends, sprints
+    restricted = (
+        sum(
+            jira_mapping.restricted_comment_count(issue.get("fields"))
+            for issue in issues
+            if isinstance(issue, dict)
+        )
+        if include_comments
+        else 0
+    )
+    return mapped, len(issues), link_ends, sprints, restricted
 
 
 def _entry_path(index: int, project_key: str) -> str:
@@ -419,6 +499,7 @@ def _people(envelopes: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]
     from app.services.import_engine.people import user_reference_handles
 
     counts: dict[str, int] = {}
+    comments: dict[str, int] = {}
     for _key, envelope in envelopes:
         for task in envelope.get("tasks") or []:
             named = [
@@ -429,8 +510,13 @@ def _people(envelopes: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]
                 name = str(handle).strip()
                 if name:
                     counts[name] = counts.get(name, 0) + 1
+            for comment in task.get("comments") or []:
+                name = str(comment.get("author_handle") or "").strip()
+                if name:
+                    counts[name] = counts.get(name, 0) + 1
+                    comments[name] = comments.get(name, 0) + 1
     return [
-        {"handle": name, "name": name, "comment_count": 0}
+        {"handle": name, "name": name, "comment_count": comments.get(name, 0)}
         for name, _count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
     ]
 
@@ -473,6 +559,7 @@ async def fetch_projects_bundle(
     jql_extra: str | None = None,
     progress: Optional[Callable[[FetchReport], Awaitable[None]]] = None,
     sprints_blocked_by: str | None = None,
+    include_comments: bool = True,
 ) -> tuple[bytes, FetchReport]:
     """Read the chosen projects and return the bundle plus what it found.
 
@@ -514,13 +601,14 @@ async def fetch_projects_bundle(
             project = await get_json(credential, f"/rest/api/3/project/{key}")
             if not isinstance(project, dict):
                 raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
-            mapped, used, ends, sprints = await fetch_project_envelope(
+            mapped, used, ends, sprints, restricted = await fetch_project_envelope(
                 credential,
                 project,
                 app_version=app_version,
                 jql_extra=jql_extra,
                 max_issues=remaining,
                 field_catalog=field_catalog,
+                include_comments=include_comments,
             )
         except ImportEngineError as exc:
             if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
@@ -548,7 +636,14 @@ async def fetch_projects_bundle(
                 report.properties[name] = (ptype, total + count)
             dropped_fields.update(mapped.dropped_fields)
             report.dropped_fields = sorted(dropped_fields, key=str.lower)
-            remaining -= used
+            # A comment is a row like a task is, so it spends the same budget:
+            # ten tasks carrying four thousand comments is a large import.
+            project_comments = sum(
+                len(task["comments"]) for task in mapped.envelope["tasks"]
+            )
+            report.comments += project_comments
+            report.comments_restricted += restricted
+            remaining -= used + project_comments
         if progress is not None:
             await progress(report)
 

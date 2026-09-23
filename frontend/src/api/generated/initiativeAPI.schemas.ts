@@ -1186,6 +1186,7 @@ export interface AtlassianJiraImportRequest {
    * @items.pattern ^[A-Za-z][A-Za-z0-9_]*$
    */
   project_keys: string[];
+  include_comments?: boolean;
 }
 
 export interface AttachmentUploadResponse {
