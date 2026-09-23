@@ -141,12 +141,7 @@ class BillingGuildStatusRequest(SanitizedBaseModel):
 
 
 class BillingGuildStatusRead(SanitizedBaseModel):
-    """Where one guild is in its lifecycle, ``deleted`` included.
-
-    What billing reads to learn that a community it charges for has been
-    deleted here, or has come back. Billing's own status writes never move a
-    guild into or out of ``deleted``, so this is the only way it finds out.
-    """
+    """Where one guild is in its lifecycle, ``deleted`` included."""
 
     guild_ref: str
     status: GuildStatus

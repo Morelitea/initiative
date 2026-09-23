@@ -2,9 +2,8 @@
 
 Two nudges: a guild's membership changed, and a guild was deleted or restored.
 What the service does with either is its own business; this side only sends
-it. Neither carries a fact — the lifecycle one in particular does not say which
-way the guild moved, because billing cancels a subscription on the answer and
-reads that answer over the signed boundary instead.
+it. Neither carries a fact — the lifecycle one does not say which way the
+guild moved.
 
 * the payload is the guild's reference and a fresh event id, and nothing
   else — no member data, no PII, no count;
@@ -117,12 +116,8 @@ async def _send_membership_ping(guild_id: int) -> None:
 
 
 async def _send_lifecycle_ping(guild_id: int) -> None:
-    """One attempt, no retry; never raises.
-
-    Names the guild by the reference billing already holds, and never mints
-    one: a guild billing has never been told about is not one it charges, so
-    there is nobody to tell.
-    """
+    """One attempt, no retry; never raises. Uses the guild's existing billing
+    reference and never mints one."""
     try:
         guild_ref = await existing_ref(
             entity_type=IdentityEntity.guild,
@@ -136,8 +131,7 @@ async def _send_lifecycle_ping(guild_id: int) -> None:
             await client.post(url, content=body, headers=headers)
     except Exception:
         logger.debug(
-            "billing: lifecycle ping for guild %s failed (billing's nightly "
-            "sweep reads it anyway)",
+            "billing: lifecycle ping for guild %s failed",
             guild_id,
         )
 
@@ -164,10 +158,7 @@ def notify_membership_changed(guild_id: int) -> None:
 def notify_lifecycle_changed(guild_id: int) -> None:
     """Nudge billing that ``guild_id`` was deleted or restored.
 
-    Call **after** the commit: billing answers by reading the guild's status,
-    and a ping that arrives first reads the status it had before. Losing one
-    costs a day, not a charge that never stops — billing's nightly sweep reads
-    every guild's status as well.
+    Call **after** the commit, so the status it points at is the new one.
     """
     _dispatch(_send_lifecycle_ping, guild_id)
 

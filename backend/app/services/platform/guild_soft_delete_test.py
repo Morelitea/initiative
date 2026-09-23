@@ -244,10 +244,8 @@ def lifecycle_pings(monkeypatch):
 async def test_billing_keeps_its_name_for_a_deleted_community_and_hears_both_ways(
     client: AsyncClient, session: AsyncSession, acting_user, lifecycle_pings
 ):
-    """Billing charges a deleted community until it learns otherwise, and learns
-    it by asking about the name it already holds. Dropping that name at the
-    delete left billing unable to ask — and a restore came back as a community
-    billing had never seen, on the free plan."""
+    """A soft delete keeps the guild's billing reference, and both the delete
+    and the restore send a lifecycle ping."""
     operator = await acting_user("owner")
     admin, guild = await _seated_guild(session)
     await create_guild_membership(session, user=await create_user(session), guild=guild)

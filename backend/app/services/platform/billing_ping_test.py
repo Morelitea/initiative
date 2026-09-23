@@ -268,7 +268,7 @@ async def test_payment_issue_unreachable_is_false(
 async def test_a_lifecycle_ping_names_only_a_guild_billing_already_knows(
     session, billing_configured, monkeypatch
 ):
-    """Never mints: a guild billing was never told about is not one it charges."""
+    """Never mints a reference."""
     posted: list[bytes] = []
 
     class _Client:

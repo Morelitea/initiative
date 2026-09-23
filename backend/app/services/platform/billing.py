@@ -324,13 +324,8 @@ async def apply_guild_tier(
         guild_values: dict = {}
         if payload.status is not None and payload.status.value != row.status:
             if GuildStatus.deleted.value in (row.status, payload.status.value):
-                # ``deleted`` belongs to the community's admins and the platform
-                # operators, never to billing: a status write must not delete a
-                # guild, and must not bring one back either. The second is the
-                # dangerous one — a lapsed card's ``read_only`` landing on a
-                # deleted guild would restore it and restart its purge clock.
-                # The caps still land, so a restore comes back on the plan
-                # billing last recorded.
+                # A status write never moves a guild into or out of
+                # ``deleted``; deletion and restore own that. The caps still land.
                 logger.info(
                     "billing: guild %s status write %s -> %s ignored (source=%s event=%s)",
                     guild_id,

@@ -1045,8 +1045,6 @@ async def restore_platform_guild(
         ) from exc
     logger.info("guild %s restored as %s by user %s", guild_id, guild.status, admin.id)
     await session.commit()
-    # Billing canceled what it charged while the guild was deleted, and puts
-    # back the plan and status it holds for it — not the status named here.
     billing_ping.notify_lifecycle_changed(guild_id)
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return PlatformGuildStorageRead(
