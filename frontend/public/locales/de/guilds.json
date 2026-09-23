@@ -218,7 +218,9 @@
   },
   "closed": {
     "title": "Diese Community ist gesperrt",
-    "description": "Niemand kann sie öffnen, bis die Sperre aufgehoben ist. Wende dich an die Betreiber dieses Servers."
+    "description": "Niemand kann sie öffnen, bis die Sperre aufgehoben ist.",
+    "contact": "Wende dich an {{email}}.",
+    "contactNobody": "Wende dich an die Betreiber dieses Servers."
   },
   "statusNotice": {
     "title": "Etwas stimmt nicht",

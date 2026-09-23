@@ -78,6 +78,22 @@ describe("a suspended community is closed to its own administrators", () => {
     expect(sync).not.toHaveBeenCalled();
   });
 
+  it("names who to contact when the deployment has said", async () => {
+    show(
+      guildEntry(7, "Beta", {
+        role: "admin",
+        status: "suspended",
+        contact_email: "trust@example.com",
+      })
+    );
+    expect(await screen.findByText(/Contact trust@example\.com\./)).toBeInTheDocument();
+  });
+
+  it("says to contact whoever runs the server when nobody is named", async () => {
+    show(guildEntry(7, "Beta", { role: "admin", status: "suspended" }));
+    expect(await screen.findByText(/Contact whoever runs this server\./)).toBeInTheDocument();
+  });
+
   it("lets a platform grant through", async () => {
     const sync = show(guildEntry(7, "Beta", { status: "suspended", accessType: "grant" }));
     await waitFor(() => expect(sync).toHaveBeenCalledWith(7));

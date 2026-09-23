@@ -24,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import GuildMessages
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildInvite, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.services.tenant import task_statuses as task_statuses_service
@@ -145,6 +146,36 @@ async def test_suspended_guild_hidden_from_members_listed_for_admins(
     listed = [g for g in resp.json() if g["id"] == admin.guild.id]
     assert listed, "admin must still see the suspended guild"
     assert listed[0]["status"] == "suspended", "admin sees the lifecycle status"
+
+
+async def test_suspended_guild_names_who_to_contact_for_admins(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The closed entry carries the moderation contact, falling back to the
+    general one; a read-only guild's entry carries none."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    other_guild = await create_guild(session, creator=admin.user)
+    await _set_status(session, admin.guild, GuildStatus.suspended)
+    await _set_status(session, other_guild, GuildStatus.read_only)
+
+    settings_row = await session.get(AppSetting, 1) or AppSetting(id=1)
+    settings_row.intake_general_contact = "ops@example.com"
+    session.add(settings_row)
+    await session.commit()
+
+    def entry(body, guild):
+        return next(g for g in body if g["id"] == guild.id)
+
+    body = (await client.get("/api/v1/guilds/", headers=admin.headers)).json()
+    assert entry(body, admin.guild)["contact_email"] == "ops@example.com"
+    assert entry(body, other_guild)["contact_email"] is None
+
+    settings_row = await session.get(AppSetting, 1) or AppSetting(id=1)
+    settings_row.intake_contacts = {"moderation": "trust@example.com"}
+    session.add(settings_row)
+    await session.commit()
+    body = (await client.get("/api/v1/guilds/", headers=admin.headers)).json()
+    assert entry(body, admin.guild)["contact_email"] == "trust@example.com"
 
 
 async def test_read_only_status_visible_to_admin_not_member(

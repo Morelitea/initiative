@@ -45,6 +45,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     tier_name: null,
     status: null,
     content_read_only: false,
+    contact_email: null,
     auth_options: null,
     allow_api_keys: null,
     enforce_compliance_session: null,

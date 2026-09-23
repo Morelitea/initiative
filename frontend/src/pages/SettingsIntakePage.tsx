@@ -1,28 +1,33 @@
 /**
  * Where this deployment's operations work lands (platform settings → Intake).
  *
- * Two levels of decision, in the order an owner makes them: name the community
- * that receives operations work, then say which project each stream lands in.
- * Nothing below the first is offered until it is answered, because every id in
- * it belongs to that community.
+ * Who to contact comes first, and stands on its own: a deployment that routes
+ * nothing anywhere still tells people whom to write to.
+ *
+ * Then two levels of decision, in the order an owner makes them: name the
+ * community that receives operations work, then say which project each stream
+ * lands in. Nothing below the first is offered until it is answered, because
+ * every id in it belongs to that community.
  *
  * Each stream offers the same two routes: import the blueprint, which produces
  * a ready-made project, or point at a project the team already has. Both end in
  * the same binding — the blueprint is a convenience, not a different mechanism.
  */
 
-import { useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   IntakeBindingRead,
   IntakeInitiativeOption,
+  IntakeSettingsRead,
   IntakeStream,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -38,6 +43,8 @@ import {
   useImportIntakeBlueprint,
   useIntakeOptions,
   useIntakeSettings,
+  useUpdateIntakeGeneralContact,
+  useUpdateIntakeStreamContact,
   useUpdateOperationsGuild,
   useUpsertIntakeBinding,
 } from "@/hooks/useIntakeSettings";
@@ -114,6 +121,8 @@ export const SettingsIntakePage = () => {
 
   return (
     <div className="space-y-6">
+      {settings ? <ContactsCard settings={settings} settled={settled} /> : null}
+
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>{t("guild.title")}</CardTitle>
@@ -174,6 +183,107 @@ export const SettingsIntakePage = () => {
         onConfirm={() => updateGuild.mutate({ guild_id: null })}
       />
     </div>
+  );
+};
+
+/**
+ * Who a notice tells somebody to contact: one general address, and one per
+ * stream. A stream left blank uses the general address — never another
+ * stream's — and with neither set the notice names nobody.
+ */
+const ContactsCard = ({
+  settings,
+  settled,
+}: {
+  settings: IntakeSettingsRead;
+  settled: boolean;
+}) => {
+  const { t } = useTranslation("intake");
+  const streams = useMemo(
+    () => settings.bindings.map((binding) => binding.stream as IntakeStream),
+    [settings.bindings]
+  );
+  const saved = useMemo(
+    () => ({
+      general: settings.general_contact_email ?? "",
+      streams: Object.fromEntries(
+        streams.map((stream) => [stream, settings.contact_emails?.[stream] ?? ""])
+      ) as Record<IntakeStream, string>,
+    }),
+    [settings, streams]
+  );
+  const [draft, setDraft] = useState(saved);
+  // A save, or another tab's, replaces what the form started from.
+  useEffect(() => setDraft(saved), [saved]);
+
+  const updateGeneral = useUpdateIntakeGeneralContact();
+  const updateStream = useUpdateIntakeStreamContact();
+  const saving = updateGeneral.isPending || updateStream.isPending;
+  const changed =
+    draft.general.trim() !== saved.general ||
+    streams.some((stream) => draft.streams[stream].trim() !== saved.streams[stream]);
+
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const email = (value: string) => value.trim() || null;
+    try {
+      if (draft.general.trim() !== saved.general) {
+        await updateGeneral.mutateAsync({ email: email(draft.general) });
+      }
+      for (const stream of streams) {
+        if (draft.streams[stream].trim() !== saved.streams[stream]) {
+          await updateStream.mutateAsync({ stream, body: { email: email(draft.streams[stream]) } });
+        }
+      }
+      toast.success(t("contacts.saved"));
+    } catch (err) {
+      toast.error(getErrorMessage(err, "intake:contacts.saveError"));
+    }
+  };
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>{t("contacts.title")}</CardTitle>
+        <CardDescription>{t("contacts.description")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="max-w-md space-y-4" onSubmit={onSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="intake-contact-general">{t("contacts.generalLabel")}</Label>
+            <Input
+              id="intake-contact-general"
+              type="email"
+              value={draft.general}
+              placeholder={t("contacts.generalPlaceholder")}
+              disabled={!settled || saving}
+              onChange={(event) => setDraft({ ...draft, general: event.target.value })}
+            />
+          </div>
+          {streams.map((stream) => (
+            <div key={stream} className="space-y-2">
+              <Label htmlFor={`intake-contact-${stream}`}>{t(`streams.${stream}.title`)}</Label>
+              <Input
+                id={`intake-contact-${stream}`}
+                type="email"
+                value={draft.streams[stream]}
+                placeholder={t("contacts.streamPlaceholder")}
+                disabled={!settled || saving}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    streams: { ...draft.streams, [stream]: event.target.value },
+                  })
+                }
+              />
+            </div>
+          ))}
+          <Button type="submit" disabled={!settled || saving || !changed}>
+            {saving ? t("contacts.saving") : t("contacts.save")}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 

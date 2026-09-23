@@ -26,6 +26,7 @@ from app.schemas.platform.intake import (
     IntakeBindingRead,
     IntakeBindingUpsert,
     IntakeBlueprintImport,
+    IntakeContactUpdate,
     IntakeOptionsRead,
     IntakeSettingsRead,
     OperationsGuildUpdate,
@@ -65,6 +66,10 @@ def _stream_or_404(raw: str) -> IntakeStream:
         ) from None
 
 
+def _address(payload: IntakeContactUpdate) -> str | None:
+    return None if payload.email is None else str(payload.email)
+
+
 async def _settings(session: AsyncSession) -> IntakeSettingsRead:
     guild_id, views = await intake_setup.list_bindings(session)
     guild_name = None
@@ -73,10 +78,13 @@ async def _settings(session: AsyncSession) -> IntakeSettingsRead:
         guild_name = (
             await session.exec(select(Guild.name).where(Guild.id == guild_id))
         ).one_or_none()
+    general, per_stream = await intake_setup.contacts(session)
     return IntakeSettingsRead(
         operations_guild_id=guild_id,
         operations_guild_name=guild_name,
         bindings=[_read(view) for view in views],
+        general_contact_email=general,
+        contact_emails={IntakeStream(key): email for key, email in per_stream.items()},
     )
 
 
@@ -121,6 +129,35 @@ async def update_operations_guild(
     guild, so pointing back restores exactly what was there.
     """
     await intake_setup.set_operations_guild(session, payload.guild_id)
+    return await _settings(session)
+
+
+@router.put("/intake/contact", response_model=IntakeSettingsRead)
+async def update_general_contact(
+    payload: IntakeContactUpdate,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> IntakeSettingsRead:
+    """Set the deployment's catch-all contact address, or clear it.
+
+    Named wherever somebody is told who to contact and the stream in question
+    has no address of its own.
+    """
+    await intake_setup.set_general_contact(session, _address(payload))
+    return await _settings(session)
+
+
+@router.put("/intake/{stream}/contact", response_model=IntakeSettingsRead)
+async def update_stream_contact(
+    stream: str,
+    payload: IntakeContactUpdate,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> IntakeSettingsRead:
+    """Set one stream's contact address, or clear it back to the general one."""
+    await intake_setup.set_stream_contact(
+        session, _stream_or_404(stream), _address(payload)
+    )
     return await _settings(session)
 
 

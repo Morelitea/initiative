@@ -36,6 +36,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.core import auth_context
+from app.core.intake import IntakeStream
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
@@ -119,6 +120,7 @@ from app.services.platform import billing_ping
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.platform import guilds as guilds_service
+from app.services.platform import intake as intake_service
 from app.services.realtime import manager as realtime_manager
 from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_revocation as app_revocation_service
@@ -148,6 +150,7 @@ def _serialize_guild(
     administration: GuildAdministration | None = None,
     images: dict[GuildImageVariant, str] | None = None,
     writes_settings: bool | None = None,
+    closed_contact: str | None = None,
 ) -> GuildRead:
     """Build one entry of the caller's own guild list.
 
@@ -170,6 +173,9 @@ def _serialize_guild(
 
     ``writes_settings`` is the caller's standing, where the caller has one
     (``GuildContext.writes_settings``); left out, the membership row answers.
+
+    ``closed_contact`` is who a suspended guild's admins are told to contact;
+    it reaches the payload only for that guild and that rung.
     """
     # The rung decides, not the caller: passing the row for a member still
     # serves a member's payload, so this stays the one place the split is made.
@@ -202,6 +208,11 @@ def _serialize_guild(
         # already fail at the DB role level) so the UI can drop write
         # affordances — without disclosing the status itself.
         content_read_only=(guild.status == GuildStatus.read_only.value),
+        contact_email=(
+            closed_contact
+            if is_admin and guild.status == GuildStatus.suspended.value
+            else None
+        ),
         # Admins only: lets their settings UI show/hide the Authentication tab.
         # Derived, not stored — an option ticked under a master nobody granted
         # is not one this guild holds.
@@ -304,6 +315,13 @@ async def list_guilds(
         GuildImageVariant.icon,
         GuildImageVariant.full,
     )
+    # Asked once, and only when a suspended guild is on the list — the only
+    # entry that names who to contact.
+    closed_contact = (
+        await intake_service.contact_for(session, IntakeStream.moderation)
+        if any(guild.status == GuildStatus.suspended.value for guild, *_ in memberships)
+        else None
+    )
     payloads: List[GuildRead] = []
     for guild, membership, retention_days, member_count, administration in memberships:
         payloads.append(
@@ -315,6 +333,7 @@ async def list_guilds(
                 member_count=member_count,
                 administration=administration,
                 images=images.get(guild.id),
+                closed_contact=closed_contact,
             )
         )
     return payloads

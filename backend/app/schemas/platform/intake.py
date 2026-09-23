@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
+
+from pydantic import EmailStr, Field
 
 from app.core.intake import IntakeStream
 from app.schemas.base import SanitizedBaseModel
@@ -30,11 +32,22 @@ class IntakeBindingRead(SanitizedBaseModel):
 
 
 class IntakeSettingsRead(SanitizedBaseModel):
-    """The pointer, and every stream whether bound or not."""
+    """The pointer, every stream whether bound or not, and who to contact."""
 
     operations_guild_id: Optional[int] = None
     operations_guild_name: Optional[str] = None
     bindings: List[IntakeBindingRead]
+    #: The deployment's catch-all contact address.
+    general_contact_email: Optional[str] = None
+    #: Each stream's own contact address, for the streams that have one. A
+    #: stream absent here falls back to the general address.
+    contact_emails: Dict[IntakeStream, str] = Field(default_factory=dict)
+
+
+class IntakeContactUpdate(SanitizedBaseModel):
+    """Set a contact address, or clear it with ``null``."""
+
+    email: Optional[EmailStr] = None
 
 
 class OperationsGuildUpdate(SanitizedBaseModel):

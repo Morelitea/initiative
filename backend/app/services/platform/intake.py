@@ -107,6 +107,20 @@ async def operations_guild_id(session: AsyncSession) -> Optional[int]:
     return row.operations_guild_id if row is not None else None
 
 
+async def contact_for(session: AsyncSession, stream: IntakeStream) -> Optional[str]:
+    """Who somebody is told to contact about ``stream``.
+
+    The stream's own address, else the deployment's general one, else
+    ``None`` — in which case the notice names nobody. Never another stream's
+    address: each inbox answers its own kind of work, and the general address
+    is the catch-all. Readable on any session, since ``app_settings`` is.
+    """
+    row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
+    if row is None:
+        return None
+    return (row.intake_contacts or {}).get(stream.value) or row.intake_general_contact
+
+
 async def _binding_for(
     session: AsyncSession, stream: IntakeStream
 ) -> Optional[IntakeBinding]:

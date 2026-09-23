@@ -116,7 +116,11 @@ export function GuildLayout() {
         <StatusMessage
           icon={<Lock />}
           title={t("closed.title")}
-          description={t("closed.description")}
+          description={`${t("closed.description")} ${
+            guild.contact_email
+              ? t("closed.contact", { email: guild.contact_email })
+              : t("closed.contactNobody")
+          }`}
           backTo="/"
           backLabel={t("notMember.backToHome")}
         />

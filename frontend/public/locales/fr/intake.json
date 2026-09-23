@@ -1,5 +1,16 @@
 {
   "ownerOnly": "Seuls les propriétaires de la plateforme peuvent configurer où arrive le travail d'exploitation.",
+  "contacts": {
+    "title": "Qui contacter",
+    "description": "L’adresse qu’un avis indique lorsqu’il invite quelqu’un à prendre contact — par exemple une personne dont le compte ou la communauté est suspendu. Un type de travail sans adresse propre utilise le contact général ; sans aucun des deux, l’avis renvoie à la personne qui gère ce serveur.",
+    "generalLabel": "Contact général",
+    "generalPlaceholder": "nom@example.com",
+    "streamPlaceholder": "Utilise le contact général",
+    "save": "Enregistrer les contacts",
+    "saving": "Enregistrement…",
+    "saved": "Contacts enregistrés.",
+    "saveError": "Impossible d’enregistrer les contacts."
+  },
   "guild": {
     "title": "Communauté d'exploitation",
     "description": "La communauté qui reçoit le travail de sécurité, de modération, d'assistance et de retours de cette installation.",

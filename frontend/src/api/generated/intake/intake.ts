@@ -25,6 +25,7 @@ import type {
   IntakeBindingRead,
   IntakeBindingUpsert,
   IntakeBlueprintImport,
+  IntakeContactUpdate,
   IntakeOptionsRead,
   IntakeSettingsRead,
   OperationsGuildUpdate,
@@ -446,6 +447,209 @@ export const useUpdateOperationsGuildApiV1SettingsIntakeGuildPut = <
 > => {
   return useMutation(
     getUpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set the deployment's catch-all contact address, or clear it.
+ *
+ * Named wherever somebody is told who to contact and the stream in question
+ * has no address of its own.
+ * @summary Update General Contact
+ */
+export const updateGeneralContactApiV1SettingsIntakeContactPut = (
+  intakeContactUpdate: BodyType<IntakeContactUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<IntakeSettingsRead>(
+    {
+      url: `/api/v1/settings/intake/contact`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: intakeContactUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateGeneralContactApiV1SettingsIntakeContactPutMutationKey = () =>
+  ["updateGeneralContactApiV1SettingsIntakeContactPut"] as const;
+
+export const getUpdateGeneralContactApiV1SettingsIntakeContactPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateGeneralContactApiV1SettingsIntakeContactPut>>,
+    TError,
+    UpdateGeneralContactApiV1SettingsIntakeContactPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateGeneralContactApiV1SettingsIntakeContactPut>>,
+  TError,
+  UpdateGeneralContactApiV1SettingsIntakeContactPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateGeneralContactApiV1SettingsIntakeContactPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateGeneralContactApiV1SettingsIntakeContactPut>>,
+    UpdateGeneralContactApiV1SettingsIntakeContactPutMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateGeneralContactApiV1SettingsIntakeContactPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateGeneralContactApiV1SettingsIntakeContactPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateGeneralContactApiV1SettingsIntakeContactPut>>
+>;
+export type UpdateGeneralContactApiV1SettingsIntakeContactPutMutationBody =
+  BodyType<IntakeContactUpdate>;
+export type UpdateGeneralContactApiV1SettingsIntakeContactPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateGeneralContactApiV1SettingsIntakeContactPutMutationVariables = {
+  data: BodyType<IntakeContactUpdate>;
+};
+
+/**
+ * @summary Update General Contact
+ */
+export const useUpdateGeneralContactApiV1SettingsIntakeContactPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateGeneralContactApiV1SettingsIntakeContactPut>>,
+      TError,
+      UpdateGeneralContactApiV1SettingsIntakeContactPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateGeneralContactApiV1SettingsIntakeContactPut>>,
+  TError,
+  UpdateGeneralContactApiV1SettingsIntakeContactPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateGeneralContactApiV1SettingsIntakeContactPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set one stream's contact address, or clear it back to the general one.
+ * @summary Update Stream Contact
+ */
+export const updateStreamContactApiV1SettingsIntakeStreamContactPut = (
+  stream: string,
+  intakeContactUpdate: BodyType<IntakeContactUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<IntakeSettingsRead>(
+    {
+      url: `/api/v1/settings/intake/${stream}/contact`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: intakeContactUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationKey = () =>
+  ["updateStreamContactApiV1SettingsIntakeStreamContactPut"] as const;
+
+export const getUpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStreamContactApiV1SettingsIntakeStreamContactPut>>,
+    TError,
+    UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStreamContactApiV1SettingsIntakeStreamContactPut>>,
+  TError,
+  UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStreamContactApiV1SettingsIntakeStreamContactPut>>,
+    UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationVariables
+  > = (props) => {
+    const { stream, data } = props ?? {};
+
+    return updateStreamContactApiV1SettingsIntakeStreamContactPut(stream, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStreamContactApiV1SettingsIntakeStreamContactPut>>
+>;
+export type UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationBody =
+  BodyType<IntakeContactUpdate>;
+export type UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationVariables = {
+  stream: string;
+  data: BodyType<IntakeContactUpdate>;
+};
+
+/**
+ * @summary Update Stream Contact
+ */
+export const useUpdateStreamContactApiV1SettingsIntakeStreamContactPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateStreamContactApiV1SettingsIntakeStreamContactPut>>,
+      TError,
+      UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateStreamContactApiV1SettingsIntakeStreamContactPut>>,
+  TError,
+  UpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateStreamContactApiV1SettingsIntakeStreamContactPutMutationOptions(options),
     queryClient
   );
 };

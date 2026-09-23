@@ -218,7 +218,9 @@
   },
   "closed": {
     "title": "This community is suspended",
-    "description": "Nobody can open it until the suspension is lifted. Contact whoever runs this server."
+    "description": "Nobody can open it until the suspension is lifted.",
+    "contact": "Contact {{email}}.",
+    "contactNobody": "Contact whoever runs this server."
   },
   "statusNotice": {
     "title": "Something is wrong",
