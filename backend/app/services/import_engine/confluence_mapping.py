@@ -128,6 +128,11 @@ def page_labels(payload: Any) -> tuple[str, ...]:
     return tuple(names)
 
 
+def page_ref(page_id: str) -> str:
+    """The name a page answers to in the job's links: ``confluence:123``."""
+    return f"confluence:{page_id}"
+
+
 def page_url(site_url: str, space_key: str, title: str) -> str:
     """Where a page lives at the source, by its space and title — for a link
     to a page the import did not bring."""
@@ -239,6 +244,7 @@ def build_wiki_envelope(
             "content": content,
             "tags": list(page.labels),
             "mention_handles": mentions,
+            "external_ref": page_ref(page.id),
         }
         author = users.get(page.author_id or "")
         if author:

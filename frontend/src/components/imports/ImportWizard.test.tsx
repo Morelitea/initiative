@@ -169,9 +169,9 @@ describe("ImportWizard", () => {
     expect(screen.queryByRole("button", { name: /upload backup/i })).not.toBeInTheDocument();
   });
 
-  it("reads a Jira site: the tile opens the connect step", async () => {
+  it("reads an Atlassian site: the tile opens the connect step", async () => {
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: /^jira/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^jira & confluence/i }));
     expect(await screen.findByLabelText(/site address/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/api token/i)).toHaveAttribute("type", "password");
   });
@@ -179,7 +179,7 @@ describe("ImportWizard", () => {
   it("picks a Jira fetch back up when the wizard is opened again", async () => {
     // A fetch outlives the dialog; the job it started is remembered, and
     // reopening lands on its review once it has been staged.
-    localStorage.setItem("imports:jira-job:1", "77");
+    localStorage.setItem("imports:atlassian-job:1", "77");
     server.use(
       guildHttp.get("/imports/jobs/:jobId", () =>
         HttpResponse.json({
@@ -191,11 +191,13 @@ describe("ImportWizard", () => {
       )
     );
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
-    expect(await screen.findByText(/9 tasks from 1 project/i)).toBeInTheDocument();
+    // Read once the dialog has settled on the review: the step it resumes
+    // on redraws as the staged job arrives.
+    await waitFor(() => expect(screen.getByText(/9 tasks from 1 project/i)).toBeInTheDocument());
   });
 
   it("sends the properties unticked on the review with the confirm", async () => {
-    localStorage.setItem("imports:jira-job:1", "77");
+    localStorage.setItem("imports:atlassian-job:1", "77");
     let confirmBody: Record<string, unknown> | null = null;
     const staged = {
       ...STAGED_JOB,
@@ -229,15 +231,8 @@ describe("ImportWizard", () => {
     expect(confirmBody).toEqual({ exclude_properties: ["Priority"] });
   });
 
-  it("reads a Confluence site: the tile asks for the site, and a space fetch resumes on its review", async () => {
-    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: /^confluence/i }));
-    expect(await screen.findByText(/connect to your confluence site/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/site address/i)).toBeInTheDocument();
-  });
-
   it("picks a Confluence fetch back up and shows what the spaces hold", async () => {
-    localStorage.setItem("imports:confluence-job:1", "78");
+    localStorage.setItem("imports:atlassian-job:1", "78");
     server.use(
       guildHttp.get("/imports/jobs/:jobId", () =>
         HttpResponse.json({
@@ -258,7 +253,7 @@ describe("ImportWizard", () => {
       )
     );
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
-    expect(await screen.findByText(/12 pages from 1 spaces/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/12 pages from 1 spaces/i)).toBeInTheDocument());
     expect(screen.getByText(/3 attached files don't come over yet/i)).toBeInTheDocument();
     expect(screen.getByText(/left out: toc ×2/i)).toBeInTheDocument();
     // No properties to untick: a wiki carries none.

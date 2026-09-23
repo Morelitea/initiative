@@ -39,10 +39,9 @@ from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.atlassian import (
-    AtlassianConfluenceImportRequest,
     AtlassianConnectRequest,
     AtlassianConnectResponse,
-    AtlassianJiraImportRequest,
+    AtlassianImportRequest,
 )
 from app.schemas.tenant.import_job import (
     EnvelopeImportRequest,
@@ -290,39 +289,40 @@ async def connect_atlassian(
 
 
 @router.post(
-    "/atlassian/jira",
+    "/atlassian/import",
     response_model=ImportJobRead,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def start_jira_import(
-    payload: AtlassianJiraImportRequest,
+async def start_atlassian_import(
+    payload: AtlassianImportRequest,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ImportJobRead:
-    """Start reading Jira projects into an initiative.
+    """Start reading Jira projects and Confluence spaces into an initiative.
 
-    Carries the same token the connect proved, which is stored encrypted on
-    the job row itself and cleared the moment that job is over. The job comes
-    back ``queued``; the worker moves it to
-    ``fetching`` while it reads the site, filling ``plan.atlassian`` with
-    counts as it goes, and parks it at ``staged`` with the full plan — the
-    people the projects name included — for
-    ``POST /imports/jobs/{id}/confirm``, exactly as an uploaded backup waits.
+    One job for both: projects arrive as projects, each space as a wiki, and
+    a link between an issue and a page read together is joined when the
+    bundle is applied. Carries the same token the connect proved, stored
+    encrypted on the job row and cleared the moment that job is over. The job
+    comes back ``queued``; the worker moves it to ``fetching`` while it reads
+    the site, filling ``plan.atlassian`` with counts as it goes, and parks it
+    at ``staged`` with the full plan — the people both products name included
+    — for ``POST /imports/jobs/{id}/confirm``.
 
-    The initiative needs projects switched on and the caller needs to be able
-    to create them there. That is checked now, again before the site is read,
-    and again when the bundle is applied."""
+    The initiative needs projects switched on for projects, wikis for spaces,
+    and the caller needs to be able to create them there. That is checked
+    now, again before the site is read, and again when the bundle is applied."""
     _require_writable(guild_context)
     if guild_context.grant is not None:
-        # The same line the connect draws: a grant reaches existing content,
-        # not this server's outbound connections.
+        # A grant reaches existing content, not this server's outbound
+        # connections.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
         )
     try:
-        job = await atlassian_job.start_jira_import(
+        job = await atlassian_job.start_import(
             session,
             user=current_user,
             guild_id=guild_context.guild_id,
@@ -333,52 +333,9 @@ async def start_jira_import(
             ),
             initiative_id=payload.initiative_id,
             project_keys=payload.project_keys,
+            space_keys=payload.space_keys,
             include_comments=payload.include_comments,
             include_attachments=payload.include_attachments,
-        )
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
-    return serialize_import_job(job, guild_id=guild_context.guild_id)
-
-
-@router.post(
-    "/atlassian/confluence",
-    response_model=ImportJobRead,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def start_confluence_import(
-    payload: AtlassianConfluenceImportRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ImportJobRead:
-    """Start reading Confluence spaces into an initiative, one wiki each.
-
-    The Jira start's twin: the token rides on the job, encrypted, until the
-    job is over; the worker reads the spaces while the job is ``fetching`` and
-    parks it at ``staged`` with the plan — pages, what will not come over, and
-    the people the pages name — for ``POST /imports/jobs/{id}/confirm``.
-
-    The initiative needs wikis switched on and the caller needs to be able to
-    create them there, checked now, before the site is read, and at apply."""
-    _require_writable(guild_context)
-    if guild_context.grant is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
-        )
-    try:
-        job = await atlassian_job.start_confluence_import(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            credential=atlassian_service.AtlassianCredential(
-                site_url=atlassian_service.normalize_site_url(payload.site_url),
-                email=payload.email.strip(),
-                api_token=payload.api_token,
-            ),
-            initiative_id=payload.initiative_id,
-            space_keys=payload.space_keys,
         )
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)

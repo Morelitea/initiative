@@ -15,16 +15,14 @@
       "prompt": "Where is this coming from?",
       "names": {
         "backup": "Initiative backup",
-        "jira": "Jira",
-        "confluence": "Confluence",
+        "atlassian": "Jira & Confluence",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
       },
       "descriptions": {
         "backup": "A .zip exported from Initiative, put back as it was.",
-        "jira": "Projects read straight from your Jira site.",
-        "confluence": "Spaces read straight from your Confluence site, each as a wiki.",
+        "atlassian": "Projects and spaces read straight from your Atlassian site.",
         "todoist": "A project exported as CSV.",
         "ticktick": "A backup CSV holding every list.",
         "vikunja": "The data.json from a Vikunja export."
@@ -106,21 +104,21 @@
       "failedEntries": "Items that failed to import:",
       "nothing": "Nothing was imported."
     },
-    "jira": {
+    "atlassian": {
       "connect": {
-        "prompt": "Connect to your Jira site.",
+        "prompt": "Connect to your Atlassian site.",
         "siteLabel": "Site address",
         "sitePlaceholder": "your-team.atlassian.net",
         "emailLabel": "Your Atlassian email",
         "tokenLabel": "API token",
         "tokenLink": "Create an API token",
-        "note": "The token is used only to read the projects you pick, and it's deleted as soon as they've been read.",
+        "note": "The token is used only to read what you pick, and it's deleted as soon as it's been read.",
         "submit": "Connect",
         "failed": "We couldn't connect to that site.",
-        "noJira": "We reached the site, but there's no Jira there that this token can see."
+        "noProducts": "We reached the site, but this token can't see any Jira projects or Confluence spaces."
       },
       "choose": {
-        "prompt": "Which projects should come across, and where to?",
+        "prompt": "What should come across, and where to?",
         "projectsLabel": "Projects",
         "selectAll": "Select all",
         "selectNone": "Select none",
@@ -129,20 +127,27 @@
         "issues_other": "{{count}} issues",
         "includeComments": "Bring comments",
         "includeAttachments": "Bring images",
-        "note": "Each project arrives as a new project in this initiative, with its columns, tasks, fields, links and sprints. Nothing is written until you've reviewed what we found.",
-        "submit": "Read these projects",
-        "failed": "We couldn't start reading those projects.",
-        "noProjects": "This token can't see any Jira projects."
+        "note": "Each project arrives as a new project and each space as a new wiki in this initiative, with links between them joined up. Nothing is written until you've reviewed what we found.",
+        "submit": "Start reading",
+        "failed": "We couldn't start reading those.",
+        "spacesLabel": "Spaces",
+        "pages_one": "{{count}} page",
+        "pages_other": "{{count}} pages",
+        "initiativeHint": "Only initiatives where you can add everything you've ticked are listed."
       },
       "fetch": {
-        "title": "Reading your Jira site…",
-        "progress": "{{projects}} projects and {{tasks}} tasks read so far",
+        "title": "Reading your Atlassian site…",
+        "progress": "{{tasks}} tasks from {{projects}} projects and {{pages}} pages from {{spaces}} spaces read so far",
         "note": "This can take a few minutes for a large project. You can close this window; opening the import again brings you back here.",
         "cancel": "Stop",
-        "failed": "We couldn't read those projects.",
+        "failed": "We couldn't read what you picked.",
         "stopped": "Reading stopped before it finished.",
         "startOver": "Start over"
       },
+      "crossLinks_one": "{{count}} link between an issue and a page, joined up",
+      "crossLinks_other": "{{count}} links between issues and pages, joined up"
+    },
+    "jira": {
       "review": {
         "prompt": "Here's what we found. Nothing has been written yet.",
         "tasks_one": "{{count}} task from {{projects}} project(s)",
@@ -181,26 +186,6 @@
       }
     },
     "confluence": {
-      "connect": {
-        "prompt": "Connect to your Confluence site.",
-        "note": "The token is used only to read the spaces you pick, and it's deleted as soon as they've been read.",
-        "noConfluence": "We reached the site, but there's no Confluence there that this token can see."
-      },
-      "choose": {
-        "prompt": "Pick the spaces to bring over, and where they go.",
-        "spacesLabel": "Spaces",
-        "pages_one": "{{count}} page",
-        "pages_other": "{{count}} pages",
-        "note": "Each space arrives as a new wiki in this initiative, with its pages in the same tree. Nothing is written until you've checked what we found.",
-        "submit": "Read these spaces",
-        "failed": "We couldn't start reading those spaces.",
-        "noSpaces": "This token can't see any spaces on the site."
-      },
-      "fetch": {
-        "title": "Reading your Confluence site…",
-        "progress": "{{spaces}} spaces and {{pages}} pages read so far",
-        "failed": "We couldn't read those spaces."
-      },
       "review": {
         "pages_one": "{{count}} page from {{spaces}} spaces",
         "pages_other": "{{count}} pages from {{spaces}} spaces",

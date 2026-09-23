@@ -1081,39 +1081,6 @@ export interface ArchiveResponse {
 }
 
 /**
- * The choose step's answer for Confluence: which spaces, from which
- * site, into which initiative. Each space becomes one wiki.
- *
- * Like the Jira request, it starts a job and reads nothing itself, and it
- * carries the three values the connect step proved.
- */
-export interface AtlassianConfluenceImportRequest {
-  /**
-   * @minLength 1
-   * @maxLength 2000
-   */
-  site_url: string;
-  /**
-   * @minLength 1
-   * @maxLength 320
-   */
-  email: string;
-  /**
-   * @minLength 1
-   * @maxLength 2000
-   */
-  api_token: string;
-  initiative_id: number;
-  /**
-   * @maxItems 200
-   * @items.minLength 1
-   * @items.maxLength 255
-   * @items.pattern ^~?[A-Za-z0-9_-]+$
-   */
-  space_keys: string[];
-}
-
-/**
  * One Confluence space the token can see.
  */
 export interface AtlassianConfluenceSpace {
@@ -1184,18 +1151,19 @@ export interface AtlassianConnectResponse {
 }
 
 /**
- * The choose step's answer: which projects, from which site, into which
- * initiative.
+ * The choose step's answer: which Jira projects and Confluence spaces,
+ * from which site, into which initiative. Either list may be empty, not
+ * both.
  *
- * Nothing is read from the site here. The request starts a job, and the
- * worker reads the projects into a bundle and parks it for review — the
- * plan the wizard shows next is filled in as that fetch goes.
+ * Nothing is read from the site here. The request starts one job, and the
+ * worker reads the projects and spaces into one bundle and parks it for
+ * review — so a link between an issue and a page read together is joined
+ * when it is applied.
  *
  * It carries the same three values the connect step proved, because the job
- * row is what holds them from here on: the site the projects come from, who
- * the token authenticates as there, and the token itself.
+ * row is what holds them from here on.
  */
-export interface AtlassianJiraImportRequest {
+export interface AtlassianImportRequest {
   /**
    * @minLength 1
    * @maxLength 2000
@@ -1218,7 +1186,14 @@ export interface AtlassianJiraImportRequest {
    * @items.maxLength 50
    * @items.pattern ^[A-Za-z][A-Za-z0-9_]*$
    */
-  project_keys: string[];
+  project_keys?: string[];
+  /**
+   * @maxItems 200
+   * @items.minLength 1
+   * @items.maxLength 255
+   * @items.pattern ^~?[A-Za-z0-9_-]+$
+   */
+  space_keys?: string[];
   include_comments?: boolean;
   include_attachments?: boolean;
 }

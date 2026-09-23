@@ -22,6 +22,7 @@ dropped — the review step can sit for hours without a live secret behind it.
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncContextManager, Awaitable, Callable
@@ -123,7 +124,12 @@ def confluence_summary_of(
     )
 
 
-async def start_jira_import(
+def _unique(keys: list[str]) -> list[str]:
+    """Order kept, repeats dropped: the order is the order they were ticked."""
+    return list(dict.fromkeys(key.strip() for key in keys if key.strip()))
+
+
+async def start_import(
     session: AsyncSession,
     *,
     user: User,
@@ -131,10 +137,15 @@ async def start_jira_import(
     credential: AtlassianCredential,
     initiative_id: int,
     project_keys: list[str],
+    space_keys: list[str],
     include_comments: bool = True,
     include_attachments: bool = True,
 ) -> ImportJob:
-    """Queue a job that reads these Jira projects into ``initiative_id``.
+    """Queue a job that reads these Jira projects and Confluence spaces into
+    ``initiative_id`` — projects as projects, each space as a wiki.
+
+    One job for both products, so a link between an issue and a page read in
+    the same fetch has both of its ends in the same apply to be joined.
 
     The token the connect step proved comes back with this request and is
     stored on the job, encrypted, for the worker that reads the site minutes
@@ -142,22 +153,29 @@ async def start_jira_import(
 
     Everything that can be refused now is refused now, so a person finds out
     in the wizard rather than from a failed job minutes later: nothing
-    ticked, an initiative they cannot create projects in. The worker asks the
-    second of those again before it reads anything, and the apply asks it a
-    third time — authorization is a property of the moment.
+    ticked, an initiative they cannot create projects — or wikis — in. The
+    worker asks the second of those again before it reads anything, and the
+    apply asks it a third time: authorization is a property of the moment.
     """
-    # Order kept, repeats dropped: the order is the order they were ticked.
-    keys = list(dict.fromkeys(key.strip() for key in project_keys if key.strip()))
-    if not keys:
+    projects = _unique(project_keys)
+    spaces = _unique(space_keys)
+    if not projects and not spaces:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
 
-    initiative = await import_engine.load_target_initiative(
-        session,
-        guild_id=guild_id,
-        initiative_id=initiative_id,
-        importer=import_engine.get_importer(_PROJECT_ENVELOPE),
-        user=user,
-    )
+    initiative = None
+    for chosen, envelope_type in (
+        (projects, _PROJECT_ENVELOPE),
+        (spaces, _WIKI_ENVELOPE),
+    ):
+        if chosen:
+            initiative = await import_engine.load_target_initiative(
+                session,
+                guild_id=guild_id,
+                initiative_id=initiative_id,
+                importer=import_engine.get_importer(envelope_type),
+                user=user,
+            )
+    assert initiative is not None
     await import_engine.count_active_jobs_locked(session, user=user)
 
     job = ImportJob(
@@ -169,7 +187,8 @@ async def start_jira_import(
             # where this came from. The person typed both; neither is secret.
             "site_url": credential.site_url,
             "principal": credential.email,
-            "jira_projects": keys,
+            "jira_projects": projects,
+            "confluence_spaces": spaces,
             "include_comments": include_comments,
             "include_attachments": include_attachments,
         },
@@ -184,52 +203,79 @@ async def start_jira_import(
     return job
 
 
-async def start_confluence_import(
-    session: AsyncSession,
+def combined_summary(
+    jira: jira_fetch.FetchReport | None,
+    confluence: confluence_fetch.ConfluenceFetchReport | None,
     *,
-    user: User,
-    guild_id: int,
-    credential: AtlassianCredential,
-    initiative_id: int,
-    space_keys: list[str],
-) -> ImportJob:
-    """Queue a job that reads these Confluence spaces into ``initiative_id``,
-    one wiki each.
+    cross_links: int = 0,
+) -> AtlassianFetchSummary:
+    """One summary for the review, whichever products were read."""
+    summary = summary_of(jira) if jira is not None else AtlassianFetchSummary()
+    if confluence is not None:
+        pages = confluence_summary_of(confluence)
+        for name in (
+            "spaces",
+            "pages",
+            "page_containers",
+            "unreadable_spaces",
+            "pages_over_limit",
+            "page_attachments",
+            "labels",
+            "dropped_macros",
+        ):
+            setattr(summary, name, getattr(pages, name))
+        summary.dropped_nodes += pages.dropped_nodes
+    summary.cross_links = cross_links
+    return summary
 
-    The same shape as :func:`start_jira_import`, with the wiki importer's
-    permission in place of the project importer's.
-    """
-    keys = list(dict.fromkeys(key.strip() for key in space_keys if key.strip()))
-    if not keys:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
 
-    initiative = await import_engine.load_target_initiative(
-        session,
-        guild_id=guild_id,
-        initiative_id=initiative_id,
-        importer=import_engine.get_importer(_WIKI_ENVELOPE),
-        user=user,
+def count_cross_links(
+    projects: list[tuple[str, dict[str, Any]]],
+    wikis: list[tuple[str, dict[str, Any]]],
+    *,
+    site_url: str,
+) -> int:
+    """How many links between an issue and a page the apply will join: a
+    page naming an issue that came over, and an issue naming a page that
+    did."""
+    from app.services.import_engine.importers.wiki import _jira_keys
+    from app.services.import_engine.links import (
+        _MARKDOWN_LINK,
+        confluence_page_ref,
     )
-    await import_engine.count_active_jobs_locked(session, user=user)
 
-    job = ImportJob(
-        created_by=user.id,
-        source=SOURCE,
-        params={
-            "initiative_id": initiative.id,
-            "site_url": credential.site_url,
-            "principal": credential.email,
-            "confluence_spaces": keys,
-        },
-        secret_encrypted=encrypt_field(credential.api_token, SALT_IMPORT_CREDENTIAL),
-        status=ImportJobStatus.queued,
-        expires_at=datetime.now(timezone.utc)
-        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+    issues = {
+        str(task.get("external_ref") or "").removeprefix("jira:")
+        for _key, envelope in projects
+        for task in envelope["tasks"]
+    }
+    pages = {
+        page.get("external_ref")
+        for _key, envelope in wikis
+        for page in envelope["pages"]
+    }
+    count = sum(
+        1
+        for _key, envelope in wikis
+        for page in envelope["pages"]
+        for key in _jira_keys(page.get("content"))
+        if key in issues
     )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
-    return job
+    for _key, envelope in projects:
+        for task in envelope["tasks"]:
+            count += sum(
+                1 for link in task["links"] if link["target_external_ref"] in pages
+            )
+            texts = [task.get("description") or ""] + [
+                comment.get("body") or "" for comment in task.get("comments") or []
+            ]
+            count += sum(
+                1
+                for text in texts
+                for match in _MARKDOWN_LINK.finditer(text)
+                if confluence_page_ref(match.group(2), site_url) in pages
+            )
+    return count
 
 
 @dataclass(frozen=True)
@@ -263,19 +309,22 @@ async def fetch(
     from app.services.platform import accounts as accounts_service
 
     params = job.params or {}
-    # One product per job: a Jira job names projects, a Confluence one spaces.
-    confluence = "confluence_spaces" in params
-    keys = params.get("confluence_spaces" if confluence else "jira_projects")
+    raw_projects = params.get("jira_projects", [])
+    raw_spaces = params.get("confluence_spaces", [])
     site_url = params.get("site_url")
     principal = params.get("principal")
     if (
-        not isinstance(keys, list)
+        not isinstance(raw_projects, list)
+        or not isinstance(raw_spaces, list)
         or not isinstance(site_url, str)
         or not isinstance(principal, str)
         or not job.secret_encrypted
     ):
         raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
-    keys = [key for key in keys if isinstance(key, str) and key]
+    projects = [key for key in raw_projects if isinstance(key, str) and key]
+    spaces = [key for key in raw_spaces if isinstance(key, str) and key]
+    if not projects and not spaces:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
 
     user = await accounts_service.load_one(job.created_by)
     if user is None or user.status != UserStatus.active:
@@ -297,22 +346,26 @@ async def fetch(
         )
         if context.content_read_only or context.is_pam or context.grant is not None:
             raise ImportEngineError(ImportEngineMessages.IMPORT_WRITE_REQUIRED)
-        initiative = await import_engine.load_target_initiative(
-            user_session,
-            guild_id=guild_id,
-            initiative_id=params.get("initiative_id"),
-            importer=import_engine.get_importer(
-                _WIKI_ENVELOPE if confluence else _PROJECT_ENVELOPE
-            ),
-            user=user,
-        )
-        target_initiative_id = initiative.id
+        target_initiative_id = 0
+        for chosen, envelope_type in (
+            (projects, _PROJECT_ENVELOPE),
+            (spaces, _WIKI_ENVELOPE),
+        ):
+            if chosen:
+                initiative = await import_engine.load_target_initiative(
+                    user_session,
+                    guild_id=guild_id,
+                    initiative_id=params.get("initiative_id"),
+                    importer=import_engine.get_importer(envelope_type),
+                    user=user,
+                )
+                target_initiative_id = initiative.id
         # Sprints land as calendar events, so they need somewhere to land.
         # Asked now, with the same gate the apply will use, so the plan can
         # say sprints are being left behind rather than the apply refusing
         # the whole bundle over a tool the projects never needed.
         sprints_blocked_by: str | None = None
-        if not confluence:
+        if projects:
             try:
                 await import_engine.load_target_initiative(
                     user_session,
@@ -332,45 +385,91 @@ async def fetch(
     )
     # The bundle's "source guild" is where it came from, which is the site.
     source_name = urlsplit(site_url).hostname or site_url
-    summary: AtlassianFetchSummary
-    if confluence:
+    jira: jira_fetch.JiraFetched | None = None
+    pages: confluence_fetch.ConfluenceFetched | None = None
+    jira_report: jira_fetch.FetchReport | None = None
 
-        async def report_spaces(
-            report: confluence_fetch.ConfluenceFetchReport,
-        ) -> None:
-            if progress is not None:
-                await progress(confluence_summary_of(report))
+    async def report_issues(report: jira_fetch.FetchReport) -> None:
+        if progress is not None:
+            await progress(combined_summary(report, None))
 
-        bundle, space_report = await confluence_fetch.fetch_spaces_bundle(
-            credential,
-            space_keys=keys,
-            guild_id=guild_id,
-            guild_name=source_name,
-            target_initiative_id=target_initiative_id,
-            app_version=get_version(),
-            progress=report_spaces,
-        )
-        summary = confluence_summary_of(space_report)
-    else:
+    async def report_spaces(report: confluence_fetch.ConfluenceFetchReport) -> None:
+        if progress is not None:
+            await progress(combined_summary(jira_report, report))
 
-        async def report_progress(report: jira_fetch.FetchReport) -> None:
-            if progress is not None:
-                await progress(summary_of(report))
+    if projects:
+        try:
+            jira = await jira_fetch.fetch_projects(
+                credential,
+                project_keys=projects,
+                guild_id=guild_id,
+                app_version=get_version(),
+                progress=report_issues,
+                sprints_blocked_by=sprints_blocked_by,
+                # A job started before the option existed brought comments
+                # across.
+                include_comments=params.get("include_comments") is not False,
+                include_attachments=params.get("include_attachments") is not False,
+                # An issue's "Confluence pages" are worth asking for only when
+                # the pages are coming too.
+                link_pages=bool(spaces),
+            )
+            jira_report = jira.report
+        except ImportEngineError as exc:
+            # Nothing readable on the Jira side is the whole import's failure
+            # only when there is no other side to bring.
+            if exc.code != ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE or not spaces:
+                raise
+            jira_report = jira_fetch.FetchReport(unreadable_projects=list(projects))
+    if spaces:
+        try:
+            pages = await confluence_fetch.fetch_spaces(
+                credential,
+                space_keys=spaces,
+                app_version=get_version(),
+                progress=report_spaces,
+                # What the issues left of the import's row budget.
+                max_rows=settings.IMPORT_MAX_ROWS - (jira.rows_used if jira else 0),
+            )
+        except ImportEngineError as exc:
+            if (
+                exc.code != ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+                or jira is None
+            ):
+                raise
+    space_report = (
+        pages.report
+        if pages is not None
+        else confluence_fetch.ConfluenceFetchReport(unreadable_spaces=list(spaces))
+        if spaces
+        else None
+    )
 
-        bundle, report = await jira_fetch.fetch_projects_bundle(
-            credential,
-            project_keys=keys,
-            guild_id=guild_id,
-            guild_name=source_name,
-            target_initiative_id=target_initiative_id,
-            app_version=get_version(),
-            progress=report_progress,
-            sprints_blocked_by=sprints_blocked_by,
-            # A job started before the option existed brought comments across.
-            include_comments=params.get("include_comments") is not False,
-            include_attachments=params.get("include_attachments") is not False,
-        )
-        summary = summary_of(report)
+    from app.services.import_engine.atlassian_bundle import merge_people, write_bundle
+
+    project_envelopes = jira.envelopes if jira else []
+    wiki_envelopes = pages.envelopes if pages else []
+    bundle = write_bundle(
+        projects=project_envelopes,
+        calendars=jira.calendars if jira else [],
+        images=jira.images if jira else [],
+        wikis=wiki_envelopes,
+        people=merge_people(
+            jira.people if jira else [], pages.people if pages else Counter()
+        ),
+        guild_id=guild_id,
+        guild_name=source_name,
+        target_initiative_id=target_initiative_id,
+        app_version=get_version(),
+        site_url=site_url,
+    )
+    summary = combined_summary(
+        jira_report,
+        space_report,
+        cross_links=count_cross_links(
+            project_envelopes, wiki_envelopes, site_url=site_url
+        ),
+    )
 
     from app.services.import_engine import backup as backup_service
 

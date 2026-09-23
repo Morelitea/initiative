@@ -82,6 +82,9 @@ class WikiPageEnvelope(SanitizedBaseModel):
     #: The handles the body's mention nodes name without an account yet. Each
     #: one the people step places is linked to that account on apply.
     mention_handles: list[str] = []
+    #: What the page was called where it came from — ``confluence:123`` — for
+    #: the job's links to point at. Never written to a column.
+    external_ref: Optional[str] = None
 
 
 class WikiEnvelope(_EnvelopeBase):

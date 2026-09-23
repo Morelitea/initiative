@@ -2846,7 +2846,7 @@ async def _start_jira(client, actor, *, initiative_id, keys=("ACME",), **overrid
         **overrides,
     }
     return await client.post(
-        actor.g("/imports/atlassian/jira"), headers=actor.headers, json=body
+        actor.g("/imports/atlassian/import"), headers=actor.headers, json=body
     )
 
 
@@ -3836,7 +3836,7 @@ def _confluence_page(page_id, title, body, parent=None, author="acc-1"):
 
 async def _start_confluence(client, actor, *, initiative_id, keys=("DOCS",)):
     return await client.post(
-        actor.g("/imports/atlassian/confluence"),
+        actor.g("/imports/atlassian/import"),
         headers=actor.headers,
         json={
             "site_url": "https://acme.atlassian.net",
@@ -4038,3 +4038,128 @@ async def test_a_confluence_page_points_its_jira_issues_at_the_tasks_they_became
         {"type": "status", "version": 1, "text": "DONE", "color": "green"}
     ]
     assert "importJiraKey" not in str(page.content)
+
+
+async def test_one_atlassian_import_joins_its_issues_and_pages_both_ways(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Projects and spaces read together are joined whichever way they point:
+    the page's Jira macro is the task and its live status, the issue's link
+    to the page is a mention of the wiki page, and the page the issue lists
+    under "Confluence pages" is related to its task. Found through the job
+    itself — the Jira key property is unticked here, and it still joins."""
+    import httpx
+    from sqlmodel import select
+
+    from app.models.tenant.relationship import EntityRelationship
+    from app.models.tenant.task import Task
+    from app.models.tenant.wiki import WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+
+    page_url = "https://acme.atlassian.net/wiki/spaces/DOCS/pages/2/Guide"
+    issue = _jira_issue("ACME-1", "Wire the thing")
+    issue["fields"]["description"] = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "Read "},
+                    {
+                        "type": "text",
+                        "text": "the guide",
+                        "marks": [{"type": "link", "attrs": {"href": page_url}}],
+                    },
+                ],
+            }
+        ],
+    }
+    jira = _jira_site(issues=[issue])
+    confluence = _confluence_site(
+        pages=[
+            _confluence_page(
+                2,
+                "Guide",
+                '<p>Tracked in <ac:structured-macro ac:name="jira">'
+                '<ac:parameter ac:name="key">ACME-1</ac:parameter>'
+                "</ac:structured-macro></p>",
+            )
+        ],
+        users={"acc-1": "Robin Ade"},
+    )
+
+    async def both(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if url.endswith("/remotelink"):
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "application": {"type": "com.atlassian.confluence"},
+                        "object": {
+                            "url": "https://acme.atlassian.net/wiki/pages/"
+                            "viewpage.action?pageId=2",
+                            "title": "Guide",
+                        },
+                    }
+                ],
+            )
+        site = confluence if "/wiki/" in url else jira
+        return await site(method, url, headers=headers, json=json, timeout=timeout)
+
+    monkeypatch.setattr(atlassian_service, "request_public_target", both)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    resp = await client.post(
+        a.g("/imports/atlassian/import"),
+        headers=a.headers,
+        json={
+            "site_url": "https://acme.atlassian.net",
+            "email": "someone@example.com",
+            "api_token": "shhh",
+            "initiative_id": a.initiative.id,
+            "project_keys": ["ACME"],
+            "space_keys": ["DOCS"],
+        },
+    )
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["projects"], summary["tasks"]) == (1, 1)
+    assert (summary["spaces"], summary["pages"]) == (1, 1)
+    # The macro, the description's link and the "Confluence pages" entry.
+    assert summary["cross_links"] == 3
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"exclude_properties": ["Jira key"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    task = (
+        await session.exec(select(Task).where(Task.title == "Wire the thing"))
+    ).one()
+    page = (await session.exec(select(WikiPage).where(WikiPage.title == "Guide"))).one()
+
+    assert f"#wiki_page[the guide]({page.id})" in (task.description or "")
+    (paragraph,) = page.content["root"]["children"]
+    by_type = {node["type"]: node for node in paragraph["children"]}
+    assert by_type["entity-mention"]["entityId"] == task.id
+    assert by_type["smart-chip"]["entityId"] == task.id
+    edges = (await session.exec(select(EntityRelationship))).all()
+    ends = {
+        frozenset({(e.source_type, e.source_id), (e.target_type, e.target_id)})
+        for e in edges
+        if e.relationship_type == "related_to"
+    }
+    assert frozenset({("task", task.id), ("wiki_page", page.id)}) in ends

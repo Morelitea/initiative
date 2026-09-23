@@ -15,16 +15,14 @@
       "prompt": "D'où viennent ces données ?",
       "names": {
         "backup": "Sauvegarde Initiative",
-        "jira": "Jira",
-        "confluence": "Confluence",
+        "atlassian": "Jira et Confluence",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
       },
       "descriptions": {
         "backup": "Un .zip exporté depuis Initiative, remis en l'état.",
-        "jira": "Des projets lus directement depuis votre site Jira.",
-        "confluence": "Des espaces lus directement depuis votre site Confluence, chacun en wiki.",
+        "atlassian": "Des projets et des espaces lus directement depuis votre site Atlassian.",
         "todoist": "Un projet exporté en CSV.",
         "ticktick": "Un CSV de sauvegarde contenant toutes les listes.",
         "vikunja": "Le data.json d'un export Vikunja."
@@ -106,21 +104,21 @@
       "failedEntries": "Éléments non importés :",
       "nothing": "Rien n'a été importé."
     },
-    "jira": {
+    "atlassian": {
       "connect": {
-        "prompt": "Connectez-vous à votre site Jira.",
+        "prompt": "Connectez-vous à votre site Atlassian.",
         "siteLabel": "Adresse du site",
         "sitePlaceholder": "votre-equipe.atlassian.net",
         "emailLabel": "Votre adresse e-mail Atlassian",
         "tokenLabel": "Jeton d'API",
         "tokenLink": "Créer un jeton d'API",
-        "note": "Le jeton sert uniquement à lire les projets que vous choisissez, et il est supprimé dès qu'ils ont été lus.",
+        "note": "Le jeton sert uniquement à lire ce que vous choisissez, et il est supprimé dès que c'est lu.",
         "submit": "Se connecter",
         "failed": "Nous n'avons pas pu nous connecter à ce site.",
-        "noJira": "Le site répond, mais ce jeton n'y voit aucun Jira."
+        "noProducts": "Nous avons joint le site, mais ce jeton ne voit aucun projet Jira ni aucun espace Confluence."
       },
       "choose": {
-        "prompt": "Quels projets importer, et où ?",
+        "prompt": "Que faut-il importer, et où ?",
         "projectsLabel": "Projets",
         "selectAll": "Tout sélectionner",
         "selectNone": "Ne rien sélectionner",
@@ -129,20 +127,27 @@
         "issues_other": "{{count}} tickets",
         "includeComments": "Importer les commentaires",
         "includeAttachments": "Importer les images",
-        "note": "Chaque projet arrive comme un nouveau projet dans cette initiative, avec ses colonnes, tâches, champs, liens et sprints. Rien n'est écrit avant que vous ayez vérifié ce que nous avons trouvé.",
-        "submit": "Lire ces projets",
-        "failed": "Nous n'avons pas pu commencer à lire ces projets.",
-        "noProjects": "Ce jeton ne voit aucun projet Jira."
+        "note": "Chaque projet arrive comme un nouveau projet et chaque espace comme un nouveau wiki dans cette initiative, avec les liens entre eux reliés. Rien n'est écrit avant que vous ayez vérifié ce que nous avons trouvé.",
+        "submit": "Commencer la lecture",
+        "failed": "Nous n'avons pas pu commencer la lecture.",
+        "spacesLabel": "Espaces",
+        "pages_one": "{{count}} page",
+        "pages_other": "{{count}} pages",
+        "initiativeHint": "Seules les initiatives où vous pouvez créer tout ce que vous avez coché sont proposées."
       },
       "fetch": {
-        "title": "Lecture de votre site Jira…",
-        "progress": "{{projects}} projets et {{tasks}} tâches lus jusqu'ici",
+        "title": "Lecture de votre site Atlassian…",
+        "progress": "{{tasks}} tâches de {{projects}} projets et {{pages}} pages de {{spaces}} espaces lues jusqu'ici",
         "note": "Pour un grand projet, cela peut prendre quelques minutes. Vous pouvez fermer cette fenêtre ; rouvrir l'import vous ramène ici.",
         "cancel": "Arrêter",
-        "failed": "Nous n'avons pas pu lire ces projets.",
+        "failed": "Nous n'avons pas pu lire votre sélection.",
         "stopped": "La lecture s'est arrêtée avant la fin.",
         "startOver": "Recommencer"
       },
+      "crossLinks_one": "{{count}} lien entre un ticket et une page, relié",
+      "crossLinks_other": "{{count}} liens entre des tickets et des pages, reliés"
+    },
+    "jira": {
       "review": {
         "prompt": "Voici ce que nous avons trouvé. Rien n'a encore été écrit.",
         "tasks_one": "{{count}} tâche issue de {{projects}} projet(s)",
@@ -181,26 +186,6 @@
       }
     },
     "confluence": {
-      "connect": {
-        "prompt": "Connectez-vous à votre site Confluence.",
-        "note": "Le jeton sert uniquement à lire les espaces que vous choisissez, et il est supprimé dès qu'ils ont été lus.",
-        "noConfluence": "Nous avons joint le site, mais aucun Confluence n'y est visible avec ce jeton."
-      },
-      "choose": {
-        "prompt": "Choisissez les espaces à importer et leur destination.",
-        "spacesLabel": "Espaces",
-        "pages_one": "{{count}} page",
-        "pages_other": "{{count}} pages",
-        "note": "Chaque espace arrive comme un nouveau wiki dans cette initiative, avec ses pages dans la même arborescence. Rien n'est écrit avant que vous ayez vérifié ce que nous avons trouvé.",
-        "submit": "Lire ces espaces",
-        "failed": "Nous n'avons pas pu commencer à lire ces espaces.",
-        "noSpaces": "Ce jeton ne voit aucun espace sur le site."
-      },
-      "fetch": {
-        "title": "Lecture de votre site Confluence…",
-        "progress": "{{spaces}} espaces et {{pages}} pages lus jusqu'ici",
-        "failed": "Nous n'avons pas pu lire ces espaces."
-      },
       "review": {
         "pages_one": "{{count}} page issue de {{spaces}} espaces",
         "pages_other": "{{count}} pages issues de {{spaces}} espaces",
