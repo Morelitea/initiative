@@ -37,13 +37,10 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
-from app.db.authorization import (
-    GUILD_ADMIN,
-    PAM_ANY,
-    STANDING_IS_THIS_GUILD,
-    SYSTEM_SESSION,
-    standing_pairs,
-)
+from app.db.authorization import IN_POLICY, STANDING, in_body
+
+#: The legs a policy reads, off this statement's standing.
+_P = IN_POLICY
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
@@ -178,8 +175,8 @@ def _switch_leg(tool: "Tool", initiative: str) -> str:
     """Whether ``tool`` is switched on for ``initiative``, for this reader."""
     return (
         f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
-        f" OR ({STANDING_IS_THIS_GUILD} AND ({initiative}::text || ':{tool.value}')"
-        f" = ANY ({standing_pairs('app.enabled_tools')})))"
+        f" OR ({_P.this_guild} AND ({initiative}::text || ':{tool.value}')"
+        f" = ANY ({_P.field('enabled_tools')})))"
     )
 
 
@@ -194,7 +191,7 @@ def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) ->
     """
     return (
         f"resource_access({tool}, {resource_id}, {_UID}, "
-        f"{initiative}, {_sql_bool(write)})"
+        f"{initiative}, {_sql_bool(write)}, {STANDING})"
     )
 
 
@@ -232,12 +229,14 @@ def _tool_gate(
 
     key = tool.create_permission if creating else tool.view_permission
     default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
-    legs.append(f"initiative_role_permits({initiative}, {_UID}, '{key}', {default})")
+    legs.append(
+        f"initiative_role_permits({initiative}, {_UID}, '{key}', {default}, {STANDING})"
+    )
 
     if not creating:
         legs.append(
             f"resource_access('{tool.value}', {resource_id}, {_UID}, "
-            f"{initiative}, {_sql_bool(write)})"
+            f"{initiative}, {_sql_bool(write)}, {STANDING})"
         )
 
     return "(" + " AND ".join(legs) + ")"
@@ -363,15 +362,17 @@ _FROM_CONTENT = f"'{Provenance.content.value}'"
 #: community, beside the one that admits trusted system maintenance. Both are
 #: the same legs the gate functions carry — one definition, in
 #: :mod:`app.db.authorization`.
-_GUILD_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
+_GUILD_ADMIN = f"({_P.system} OR {_P.admin})"
 
 #: A live PAM window, either level. Used where a leg is about what a guild has
 #: switched on rather than about what one person may reach.
-_PAM_ANY = PAM_ANY
+_PAM_ANY = _P.pam_any
 
 
 def _access(initiative_expr: str, write: bool) -> str:
-    return f"initiative_access({initiative_expr}, {_UID}, {_sql_bool(write)})"
+    return (
+        f"initiative_access({initiative_expr}, {_UID}, {_sql_bool(write)}, {STANDING})"
+    )
 
 
 def _full_access(initiative_expr: str, write: bool) -> str:
@@ -383,7 +384,7 @@ def _full_access(initiative_expr: str, write: bool) -> str:
     table taking this path is reachable by whoever already sees everything in
     the initiative, and by the guild admin, and by nobody else.
     """
-    return f"initiative_full_access({initiative_expr}, {_sql_bool(write)})"
+    return f"initiative_full_access({initiative_expr}, {_sql_bool(write)}, {STANDING})"
 
 
 def direct_full_access() -> InitiativePath:
@@ -742,7 +743,7 @@ def _comment_parent_id(t: str) -> str:
 def _entity_call(kind: str, entity_id: str, write: WriteFlag, share: WriteFlag) -> str:
     return (
         f"{ENTITY_ACCESS_FN}({kind}, {entity_id}, "
-        f"{_sql_bool(write)}, {_sql_bool(share)})"
+        f"{_sql_bool(write)}, {_sql_bool(share)}, {STANDING})"
     )
 
 
@@ -947,7 +948,8 @@ def render_entity_access_fn() -> str:
     ``p_need_write`` is what the reader needs of the initiative;
     ``p_need_share_write`` what they need of the resource's sharing. A table
     whose writes are edits passes the same flag twice; one whose writes are
-    responses passes read for the second whatever the command.
+    responses passes read for the second whatever the command. ``p_st`` is the
+    statement's standing, which each arm hands on to the gates it calls.
     """
     arms = "\n".join(
         f"        WHEN '{kind}' THEN\n"
@@ -955,9 +957,11 @@ def render_entity_access_fn() -> str:
         f"WHERE re.id = p_entity_id AND ({_entity_arm(table)}));"
         for kind, table in sorted(entity_tables().items())
     )
+    arms = in_body(arms)
     return f"""
 CREATE OR REPLACE FUNCTION {ENTITY_ACCESS_FN}(
-    p_kind text, p_entity_id integer, p_need_write boolean, p_need_share_write boolean
+    p_kind text, p_entity_id integer, p_need_write boolean, p_need_share_write boolean,
+    p_st standing
 ) RETURNS boolean
     LANGUAGE plpgsql STABLE
     AS $entity_access$
@@ -1095,14 +1099,14 @@ def _search_tool_gate(t: str, write: bool) -> str:
     switch = (
         f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
         f" OR {t}.dac_tool IS NULL"
-        f" OR ({STANDING_IS_THIS_GUILD}"
+        f" OR ({_P.this_guild}"
         f" AND ({t}.initiative_id::text || ':' || {t}.dac_tool)"
-        f" = ANY ({standing_pairs('app.enabled_tools')})))"
+        f" = ANY ({_P.field('enabled_tools')})))"
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN initiative_role_permits("
         f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
-        f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()})"
+        f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()}, {STANDING})"
         for tool in Tool
     )
     return (

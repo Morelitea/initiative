@@ -356,6 +356,22 @@ def member_tool_flags(
     return flags
 
 
+class InitiativeSummary(SanitizedBaseModel):
+    """An initiative as something else names it: enough to label and link it.
+
+    What a project, a document or a task carries about the initiative it is in.
+    The initiative's own read is :class:`InitiativeRead`, roster and all.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    name: str
+    color: Optional[str] = None
+
+
 def serialize_initiative(
     initiative: "Initiative", *, context: "GuildContext"
 ) -> InitiativeRead:

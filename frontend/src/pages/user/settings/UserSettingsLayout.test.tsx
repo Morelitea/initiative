@@ -9,7 +9,7 @@
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { renderPage } from "@/__tests__/helpers/render";
+import { buildRouterContext, renderPage } from "@/__tests__/helpers/render";
 
 import { UserSettingsLayout } from "./UserSettingsLayout";
 
@@ -87,11 +87,8 @@ describe("the settings tabs", () => {
 
     // Resolved through a real router over the generated tree: a tab pointing
     // at a path nothing registered would render exactly the same.
-    const router = createRouter({ routeTree });
-    const matches = router.matchRoutes(
-      { pathname: "/profile/privacy", search: {} },
-      { preload: true }
-    );
+    const router = createRouter({ routeTree, context: buildRouterContext() });
+    const matches = router.matchRoutes("/profile/privacy", {});
     expect(String(matches.at(-1)?.routeId)).toContain("profile/privacy");
   });
 });

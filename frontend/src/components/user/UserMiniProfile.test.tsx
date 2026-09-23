@@ -5,10 +5,11 @@ import { describe, expect, it } from "vitest";
 import { buildUserSummary } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { UserProfile } from "@/api/generated/initiativeAPI.schemas";
 
 import { UserMiniProfile } from "./UserMiniProfile";
 
-const profile = (overrides: Record<string, unknown> = {}) => ({
+const profile = (overrides: Partial<UserProfile> = {}): UserProfile => ({
   id: 12,
   username: "ada",
   discriminator: 7,
@@ -27,7 +28,7 @@ const profile = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const answerWithProfile = (body: unknown, status = 200) =>
+const answerWithProfile = (body: UserProfile | null, status = 200) =>
   server.use(
     http.get("*/api/v1/users/:handle/profile", () =>
       status === 200 ? HttpResponse.json(body) : new HttpResponse(null, { status })

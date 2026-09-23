@@ -239,7 +239,6 @@ def authorize(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[cfg.dac_kind],
         row,
-        user,
         context=context,
         access=access,
         allow_frozen=allow_frozen,
@@ -249,9 +248,7 @@ def authorize(
     # exists before it is anybody's to read — a post that has not gone up.
     # Answering 404 here rather than 403 is the point; to a reader the
     # notice does not exist yet.
-    if user is not None and permissions_service.hidden_from_reader(
-        cfg.dac_kind, row, user.id, context=context
-    ):
+    if user is not None and permissions_service.hidden_from_reader(cfg.dac_kind, row):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=cfg.not_found_msg,
@@ -313,8 +310,8 @@ async def load_authorized(
 class GrantHooks:
     # raise to reject the change (e.g. archived project) — runs after authorization
     precheck: Optional[Callable[[Any], None]] = None
-    # snapshot of who can write *before* the change, for diffing afterwards
-    writers_before: Optional[Callable[[Any], set[int]]] = None
+    # who can write *before* the change, for diffing afterwards
+    writers_before: Optional[Callable[[Any, Any], Awaitable[set[int]]]] = None
     # post-change hook: (session, reloaded_row, writers_before) -> None
     on_changed: Optional[Callable[..., Awaitable[None]]] = None
 
@@ -325,7 +322,7 @@ async def _project_on_grants_changed(
     """Unassign anyone the grant change dropped below project write access — you
     can't be assigned to tasks you can no longer edit. Commits + reapplies RLS
     only when something actually changed."""
-    demoted = writers_before - project_grants.write_holder_ids(row)
+    demoted = writers_before - await project_grants.write_holder_ids(session, row)
     if demoted:
         await project_grants.remove_user_task_assignments(session, row.id, demoted)
         await session.commit()
@@ -367,7 +364,9 @@ async def set_resource_grants(
     if hooks and hooks.precheck:
         hooks.precheck(row)
     writers_before = (
-        hooks.writers_before(row) if hooks and hooks.writers_before else None
+        await hooks.writers_before(session, row)
+        if hooks and hooks.writers_before
+        else None
     )
 
     await permissions_service.replace_resource_grants(
@@ -385,7 +384,6 @@ async def set_resource_grants(
     if hooks and hooks.on_changed:
         # replace_resource_grants rewrites resource_grants rows directly (by
         # resource_type/resource_id), so ``row.grants`` in the identity map is now
-        # stale — refresh just that one collection (the memberships the diff needs
-        # are untouched) rather than reloading the whole graph.
+        # stale — refresh just that one collection rather than the whole graph.
         await session.refresh(row, attribute_names=["grants"])
         await hooks.on_changed(session, row, writers_before or set())

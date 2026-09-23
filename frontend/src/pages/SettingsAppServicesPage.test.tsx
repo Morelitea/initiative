@@ -19,6 +19,7 @@ const buildRegistration = (
   manifest_hash: "abc123",
   protocol_version: 1,
   grants: [],
+  delegation_jwks: null,
   mandatory: false,
   enabled: true,
   status: "ok",

@@ -1494,7 +1494,7 @@ async def test_retiring_a_function_leaves_the_shared_copy_to_the_boot_step(engin
     from app.db.authorization import RETIRED_GUILD_FUNCTION_SIGNATURES
     from app.db.guild_ddl import render_retired_functions_ddl
 
-    name, args = next(iter(RETIRED_GUILD_FUNCTION_SIGNATURES.items()))
+    name, args = RETIRED_GUILD_FUNCTION_SIGNATURES[0]
     schema_a = guild_schema_name(_GID_RETIRED_A)
     schema_b = guild_schema_name(_GID_RETIRED_B)
     shared = f"public.{name}{args}"

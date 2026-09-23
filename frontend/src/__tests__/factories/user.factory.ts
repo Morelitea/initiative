@@ -64,6 +64,7 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
     discriminator: 1000 + counter,
     full_name: `User ${counter}`,
     avatar_url: null,
+    status: "active",
     ...overrides,
   };
 }
@@ -80,6 +81,8 @@ export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSumm
     full_name: `User ${counter}`,
     avatar_url: null,
     status: "active",
+    profile_decorations: null,
+    guild_role: null,
     ...overrides,
   };
 }
@@ -128,17 +131,36 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     capabilities: capabilitiesForRole(role),
     can_create_guilds: true,
     status: "active",
+    presence: "offline",
+    cookie_consent: null,
     email_verified: true,
     // Signs in with a password, like most accounts. A test about the
     // passwordless account overrides it.
     has_password: true,
+    has_federated_identity: false,
+    initiative_roles: [],
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     custom_status: { emoji: null, text: null },
-    profile_decorations: { banner: null, frame: null, trophies: [] },
+    profile_decorations: {
+      banner: null,
+      frame: null,
+      frame_tint: [],
+      trophies: [],
+      grad_year: null,
+    },
     week_starts_on: 0,
     time_format: "system",
     timezone: "America/New_York",
+    recent_tabs_limit: 20,
+    event_reminder_minutes_before: null,
+    last_overdue_notification_at: null,
+    last_task_assignment_digest_at: null,
+    color_theme: "kobold",
+    task_completion_visual_feedback: "none",
+    task_completion_audio_feedback: false,
+    task_completion_haptic_feedback: false,
+    locale: "en",
     ...overrides,
   };
 }
@@ -173,7 +195,13 @@ export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProf
     avatar_url: null,
     status: "active",
     custom_status: { emoji: null, text: null },
-    profile_decorations: { banner: null, frame: null, trophies: [] },
+    profile_decorations: {
+      banner: null,
+      frame: null,
+      frame_tint: [],
+      trophies: [],
+      grad_year: null,
+    },
     presence: "offline",
     joined_at: "2026-01-15T00:00:00.000Z",
     ...overrides,
@@ -182,5 +210,5 @@ export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProf
 
 /** One decoration in somebody's library. Shipped (no pack) by default. */
 export function buildOwnedDecoration(overrides: Partial<OwnedDecoration> = {}): OwnedDecoration {
-  return { id: "core.aurora", kind: "banner", source: null, ...overrides };
+  return { id: "core.aurora", kind: "banner", name: null, source: null, ...overrides };
 }

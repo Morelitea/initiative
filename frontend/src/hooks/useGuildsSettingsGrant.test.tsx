@@ -101,7 +101,7 @@ describe("settings grants in the community switcher", () => {
   it("keeps a settings grant alongside an ordinary membership", async () => {
     get.mockImplementation((path: string) => {
       if (path === "/guilds/") {
-        return Promise.resolve({ data: [buildGuild({ id: 8, role: "member", is_admin: false })] });
+        return Promise.resolve({ data: [buildGuild({ id: 8, role: "member" })] });
       }
       if (path === "/access-grants/") {
         return Promise.resolve({

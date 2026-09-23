@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.platform.user import ProfileDecorations
@@ -375,7 +374,7 @@ def serialize_post_summary(
         is_read=bool(getattr(post, "is_read", False)),
         read_count=int(getattr(post, "read_count", 0)),
         archived_at=post.archived_at,
-        **client_access(Tool.post, post, user_id, context=context),
+        **client_access(post, user_id, context=context),
         comments_enabled=post.comments_enabled,
         reactions_enabled=post.reactions_enabled,
         comment_count=getattr(post, "comment_count", 0),

@@ -37,6 +37,7 @@ const platformRow: AuthProviderAdminRead = {
   scopes: "openid email",
   role_claim_path: null,
   allow_jit: true,
+  asserts_second_factor: false,
   icon: null,
   button_style: null,
   secret_set: true,
@@ -253,7 +254,7 @@ describe("AuthProvidersSection", () => {
     it("does not let a late answer vouch for an address that has moved on", async () => {
       // Verify address A, edit to B before the answer lands, and the answer
       // about A must not unlock a form that now shows B.
-      let land: (() => void) | null = null;
+      let land: () => void = () => {};
       discoverMutate.mockImplementation((vars, options) => {
         land = () =>
           options?.onSuccess?.({
@@ -274,7 +275,7 @@ describe("AuthProvidersSection", () => {
       fireEvent.change(screen.getByLabelText("Okta domain"), {
         target: { value: "dev-2.okta.com" },
       });
-      land?.();
+      land();
 
       expect(screen.queryByText("Reachable")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Next: credentials/ })).toBeDisabled();

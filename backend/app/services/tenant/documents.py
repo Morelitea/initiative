@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from sqlalchemy import func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,11 +17,6 @@ from app.models.tenant.document import (
     DocumentType,
 )
 from app.models.tenant.upload import Upload
-from app.models.tenant.initiative import (
-    Initiative,
-    InitiativeMember,
-    InitiativeRoleModel,
-)
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.core.config import settings
@@ -131,19 +126,15 @@ def normalize_document_content(
 
 
 def list_loader_options() -> list:
-    """Eager-load what a document *list* row needs: its initiative's
-    memberships (the DAC engine reads them), its sharing, and the property
-    values its card shows."""
+    """Eager-load what a document *list* row needs: its initiative, the level
+    the request holds on it, its sharing with the grant holders (the owner is
+    reported by name), and the property values its card shows."""
     return [
-        selectinload(Document.initiative)
-        .selectinload(Initiative.memberships)
-        .options(
-            selectinload(InitiativeMember.user),
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            ),
+        selectinload(Document.initiative),
+        undefer(Document.access_level),
+        selectinload(Document.grants).options(
+            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
         ),
-        selectinload(Document.grants).selectinload(ResourceGrant.role),
         selectinload(Document.property_values).selectinload(
             DocumentPropertyValue.property_definition
         ),
@@ -234,7 +225,6 @@ async def get_document_for_export(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.document],
         document,
-        current_user,
         context=guild_context(session),
         access="read",
     )
@@ -266,7 +256,7 @@ async def get_document_for_grants(
     session: AsyncSession, document_id: int
 ) -> Document | None:
     """Load a document with just the relationships the grant flow needs — its
-    ``grants`` (owner resolution) and ``initiative.memberships`` (authorization).
+    ``grants`` (owner resolution) and the level the request holds on it.
     RLS scopes the row to the request's guild, so no explicit guild filter (mirrors
     the queue/counter grant loaders). Uniform ``(session, id)`` shape so
     ``resource_access`` can register it like the others."""
@@ -274,15 +264,11 @@ async def get_document_for_grants(
         select(Document)
         .where(Document.id == document_id)
         .options(
-            selectinload(Document.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
+            selectinload(Document.initiative),
+            undefer(Document.access_level),
+            selectinload(Document.grants).options(
+                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
             ),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
         )
     )
     return (await session.exec(statement)).one_or_none()

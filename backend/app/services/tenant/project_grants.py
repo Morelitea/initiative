@@ -15,33 +15,32 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete as sa_delete
-from sqlalchemy.orm import selectinload
+from sqlalchemy import or_
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ProjectMessages
 from app.core.tools import Tool
 from app.models.tenant.initiative import (
-    Initiative,
     InitiativeMember,
-    InitiativeRoleModel,
 )
 from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.resource_grant import WRITE_LEVELS, ResourceGrant
 from app.models.tenant.task import Task, TaskAssignee
-from app.services import permissions as permissions_service
 
 
 async def get_project(session: AsyncSession, project_id: int) -> Project | None:
-    """Load a project with just the relationships the grant flow needs — its
-    ``grants`` (for authorization + owner resolution) and ``initiative.memberships``
-    (for the write-holder diff). RLS scopes the row to the request's guild."""
+    """Load a project with just what the grant flow needs — its ``grants``
+    (owner resolution) and the level the request holds on it. RLS scopes the
+    row to the request's guild."""
     stmt = (
         select(Project)
         .where(Project.id == project_id)
         .options(
             selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.initiative).selectinload(Initiative.memberships),
+            selectinload(Project.initiative),
+            undefer(Project.access_level),
         )
     )
     return (await session.exec(stmt)).one_or_none()
@@ -53,9 +52,8 @@ async def get_project_hydrated(
     """Load a project with everything a serialized ``ProjectRead`` reads.
 
     The grant loader above carries what the access decision needs; this carries
-    that plus what the response does — the grant holders by name, each member's
-    role and its permission rows, and the project's task statuses. RLS scopes
-    the row to the request's guild.
+    that plus what the response does — the grant holders by name and the
+    project's task statuses. RLS scopes the row to the request's guild.
 
     ``populate_existing=True`` refreshes a project already in the session's
     identity map, for a re-read after a commit (``expire_on_commit=False``
@@ -68,14 +66,8 @@ async def get_project_hydrated(
             selectinload(Project.grants).options(
                 selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
             ),
-            selectinload(Project.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
-            ),
+            selectinload(Project.initiative),
+            undefer(Project.access_level),
             selectinload(Project.task_statuses),
         )
     )
@@ -93,19 +85,32 @@ def ensure_grantable(project: Project) -> None:
         )
 
 
-def write_holder_ids(project: Project) -> set[int]:
-    """Initiative-member user IDs with effective write+ (write/owner) access to the
-    project — i.e. those eligible to be task assignees. Pure read of the
-    eager-loaded ``grants`` + ``initiative.memberships`` (no DB I/O)."""
-    resource = permissions_service.DAC_RESOURCES[Tool.project]
-    memberships = getattr(project.initiative, "memberships", None) or []
-    return {
-        m.user_id
-        for m in memberships
-        if m.user_id is not None
-        and permissions_service.effective_level(resource, project, m.user_id)
-        in ("write", "owner")
-    }
+async def write_holder_ids(session: AsyncSession, project: Project) -> set[int]:
+    """Initiative members holding write or owner on the project — the people
+    eligible to be its task assignees.
+
+    Asked of the roster and the grant rows together: a member holds the level
+    through a grant naming them, one on the role they hold, or one shared with
+    every member.
+    """
+    held = (
+        select(ResourceGrant.id)
+        .where(
+            ResourceGrant.resource_type == Tool.project.value,
+            ResourceGrant.resource_id == project.id,
+            ResourceGrant.level.in_(WRITE_LEVELS),
+            or_(
+                ResourceGrant.user_id == InitiativeMember.user_id,
+                ResourceGrant.role_id == InitiativeMember.role_id,
+                ResourceGrant.all_initiative_members.is_(True),
+            ),
+        )
+        .exists()
+    )
+    stmt = select(InitiativeMember.user_id).where(
+        InitiativeMember.initiative_id == project.initiative_id, held
+    )
+    return set((await session.exec(stmt)).all())
 
 
 async def remove_user_task_assignments(

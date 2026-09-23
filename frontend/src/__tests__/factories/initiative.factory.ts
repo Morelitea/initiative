@@ -10,12 +10,23 @@ import {
   DEFAULT_ENABLED_TOOLS,
   TOOLS,
   toolCreatePermission,
+  toolPlural,
   toolViewPermission,
 } from "@/lib/tools";
 
 import { buildUserPublic, buildUserSummary } from "./user.factory";
 
 let counter = 0;
+
+type MemberToolFlags = Pick<
+  InitiativeMemberRead,
+  Extract<keyof InitiativeMemberRead, `can_view_${string}` | `can_create_${string}`>
+>;
+
+type InitiativeToolSwitches = Pick<
+  InitiativeRead,
+  Extract<keyof InitiativeRead, `${string}_enabled`>
+>;
 
 export function resetCounter(): void {
   counter = 0;
@@ -34,10 +45,14 @@ export function buildInitiativeMember(
     override_share_restrictions: false,
     oidc_managed: false,
     joined_at: "2026-01-15T00:00:00.000Z",
-    can_view_documents: true,
-    can_view_projects: true,
-    can_create_documents: false,
-    can_create_projects: false,
+    // Viewing a core (always-on) tool, creating nothing, per tool in the
+    // registry.
+    ...(Object.fromEntries(
+      TOOLS.flatMap((tool) => [
+        [`can_view_${toolPlural(tool)}`, DEFAULT_ENABLED_TOOLS.has(tool)],
+        [`can_create_${toolPlural(tool)}`, false],
+      ])
+    ) as MemberToolFlags),
     ...overrides,
   };
 }
@@ -64,7 +79,7 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     // a new tool arrives here without an edit.
     ...(Object.fromEntries(
       TOOLS.map((tool) => [toolViewPermission(tool), DEFAULT_ENABLED_TOOLS.has(tool)])
-    ) as Pick<InitiativeRead, `${string}_enabled`>),
+    ) as InitiativeToolSwitches),
     ...overrides,
   };
 }
@@ -112,6 +127,7 @@ export function buildInitiativeDirectoryEntry(
     description: `Description for initiative ${counter}`,
     color: "#3b82f6",
     join_policy: "open",
+    auto_join: false,
     member_count: 3,
     is_member: false,
     has_pending_request: false,

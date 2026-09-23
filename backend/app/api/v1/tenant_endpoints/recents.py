@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Annotated, Any, Callable, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.db.session import require_guild_context
@@ -34,7 +34,6 @@ from app.core.tools import RECENTABLE_TOOLS, Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.recent_view import RecentView
 from app.models.platform.user import User
@@ -130,7 +129,8 @@ async def _enrich_recent_rows(
             .where(model.id.in_(ids))
             .options(
                 selectinload(model.grants).selectinload(ResourceGrant.role),
-                selectinload(model.initiative).selectinload(Initiative.memberships),
+                selectinload(model.initiative),
+                undefer(model.access_level),
             )
         )
         result = await session.exec(stmt)
@@ -149,7 +149,6 @@ async def _enrich_recent_rows(
             permissions_service.require_access(
                 permissions_service.DAC_RESOURCES[tool],
                 entity,
-                current_user,
                 context=context,
                 access="read",
             )

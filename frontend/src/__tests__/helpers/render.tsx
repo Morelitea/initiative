@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  type AnyRouter,
   createMemoryHistory,
   createRootRoute,
   createRoute,
@@ -16,6 +17,7 @@ import { AuthContext } from "@/hooks/useAuth";
 import { GuildContext } from "@/hooks/useGuilds";
 import { ServerContext } from "@/hooks/useServer";
 import { ThemeContext } from "@/hooks/useTheme";
+import type { RouterContext } from "@/router";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,7 +43,7 @@ interface RenderWithProvidersResult extends ReturnType<typeof render> {
 interface RenderPageResult extends RenderWithProvidersResult {
   /** The memory router the page is mounted in — read
    *  `router.state.location.pathname` to assert where a flow navigated. */
-  router: ReturnType<typeof createRouter>;
+  router: AnyRouter;
 }
 
 interface RenderPageOptions extends ProviderOptions {
@@ -78,13 +80,29 @@ export function createTestQueryClient(): QueryClient {
 // Default context values
 // ---------------------------------------------------------------------------
 
+/** The context the shipped route tree is created with, for a test that builds
+ *  a router from `routeTree.gen` to resolve its routes. The app's providers
+ *  fill `auth`, `guilds` and `server` in at runtime; a test that only matches
+ *  routes needs none of them. */
+export function buildRouterContext(): RouterContext {
+  return {
+    queryClient: createTestQueryClient(),
+    auth: undefined,
+    guilds: undefined,
+    server: undefined,
+  };
+}
+
 function buildDefaultAuth(): React.ComponentProps<typeof AuthContext.Provider>["value"] {
   return {
     user: buildUser(),
     token: "test-token",
     loading: false,
     isDeviceToken: false,
+    sessionUnverified: false,
     login: vi.fn(),
+    completeSecondFactor: vi.fn(),
+    applyPasskeySignIn: vi.fn(),
     register: vi.fn(),
     completeOidcLogin: vi.fn(),
     stepUpWithFactor: vi.fn(),
@@ -101,6 +119,7 @@ function buildDefaultGuilds(): React.ComponentProps<typeof GuildContext.Provider
     guilds: [guild],
     activeGuildId: 1,
     activeGuild: guild,
+    activeGuildReadOnly: false,
     loading: false,
     error: null,
     refreshGuilds: vi.fn(),

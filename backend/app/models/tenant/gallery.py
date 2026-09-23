@@ -13,7 +13,9 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
+    attach_access_level,
     ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
@@ -252,3 +254,6 @@ class GalleryImageVersion(CreatedByMixin, table=True):
     )
 
     image: Optional[GalleryImage] = Relationship(back_populates="versions")
+
+
+attach_access_level(Gallery, Tool.gallery)

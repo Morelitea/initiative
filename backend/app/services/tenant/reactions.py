@@ -168,15 +168,12 @@ async def _resolve_post(
     # A notice that has not gone up has nothing to react to, and saying
     # otherwise would say it exists.
     context = db_session.guild_context(session)
-    if permissions_service.hidden_from_reader(
-        Tool.post, post, cast(int, user.id), context=context
-    ):
+    if permissions_service.hidden_from_reader(Tool.post, post):
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
     try:
         permissions_service.require_access(
             permissions_service.DAC_RESOURCES[Tool.post],
             post,
-            user,
             context=context,
             access="read",
         )

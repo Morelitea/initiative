@@ -10,6 +10,7 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
   counter++;
   return {
     id: counter,
+    guild_id: 1,
     initiative_id: 1,
     name: `Document ${counter}`,
     featured_image_url: null,
@@ -18,6 +19,7 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     initiative: null,
+    owner: null,
     projects: [],
     comment_count: 0,
     comments_enabled: true,
@@ -26,12 +28,14 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     can_unarchive: false,
     my_permission_level: "owner",
     tags: [],
+    properties: [],
     document_type: "native",
     file_url: null,
     file_content_type: null,
     file_size: null,
     original_filename: null,
     smart_link_url: null,
+    yjs_updated_at: null,
     ...overrides,
   };
 }

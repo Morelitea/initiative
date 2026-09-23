@@ -1,3 +1,9 @@
+import type {
+  InfiniteData,
+  UseInfiniteQueryResult,
+  UseMutationResult,
+  UseQueryResult,
+} from "@tanstack/react-query";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,26 +14,111 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 const createRequest = vi.fn();
 const breakGlass = vi.fn();
 
+/** What every read the page makes has come back as: loaded, nothing in flight. */
+const settled = {
+  dataUpdatedAt: 0,
+  error: null,
+  errorUpdatedAt: 0,
+  failureCount: 0,
+  failureReason: null,
+  errorUpdateCount: 0,
+  isError: false,
+  isFetched: true,
+  isFetchedAfterMount: true,
+  isFetching: false,
+  isLoading: false,
+  isPending: false,
+  isLoadingError: false,
+  isInitialLoading: false,
+  isPaused: false,
+  isPlaceholderData: false,
+  isRefetchError: false,
+  isRefetching: false,
+  isStale: false,
+  isSuccess: true,
+  isEnabled: true,
+  status: "success",
+  fetchStatus: "idle",
+} as const;
+
+/** A read that answered with this. */
+const answered = <TData,>(data: TData): UseQueryResult<TData, Error> => ({
+  ...settled,
+  data,
+  refetch: vi.fn(),
+});
+
+/** A paged list that answered with no pages at all. */
+const noPages = <TPage,>(): UseInfiniteQueryResult<InfiniteData<TPage, number>, Error> => ({
+  ...settled,
+  data: { pages: [], pageParams: [] },
+  refetch: vi.fn(),
+  fetchNextPage: vi.fn(),
+  fetchPreviousPage: vi.fn(),
+  hasNextPage: false,
+  hasPreviousPage: false,
+  isFetchNextPageError: false,
+  isFetchingNextPage: false,
+  isFetchPreviousPageError: false,
+  isFetchingPreviousPage: false,
+});
+
+/** A mutation nobody has fired yet. */
+const idle = <TData, TVariables>(
+  mutate: UseMutationResult<TData, Error, TVariables>["mutate"] = vi.fn<
+    (...args: unknown[]) => void
+  >()
+): UseMutationResult<TData, Error, TVariables> => ({
+  data: undefined,
+  variables: undefined,
+  error: null,
+  context: undefined,
+  failureCount: 0,
+  failureReason: null,
+  isError: false,
+  isIdle: true,
+  isPending: false,
+  isPaused: false,
+  isSuccess: false,
+  status: "idle",
+  submittedAt: 0,
+  mutate,
+  mutateAsync: vi.fn<(...args: unknown[]) => Promise<TData>>(),
+  reset: vi.fn(),
+});
+
 // Partial: the page also reaches for the page-flattening helper.
 vi.mock(import("@/hooks/useAccessGrants"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useMyAccessGrants: () => ({ data: { pages: [] }, isLoading: false }),
-  usePendingAccessGrants: () => ({ data: { pages: [] }, isLoading: false }),
-  useCreateAccessRequest: () => ({ mutate: createRequest, isPending: false }),
-  useCancelAccessRequest: () => ({ mutate: vi.fn(), isPending: false }),
-  useBreakGlass: () => ({ mutate: breakGlass, isPending: false }),
-  useBreakGlassRequirements: () => ({
-    data: { second_factor_required: false, totp_enrolled: true, passkey_enrolled: false },
-    refetch: vi.fn(),
-  }),
-  useApproveAccessGrant: () => ({ mutate: vi.fn(), isPending: false }),
-  useDenyAccessGrant: () => ({ mutate: vi.fn(), isPending: false }),
-  useRevokeAccessGrant: () => ({ mutate: vi.fn(), isPending: false }),
+  useMyAccessGrants: () => noPages(),
+  useAccessGrantQueue: () => noPages(),
+  useCreateAccessRequest: () => idle(createRequest),
+  useCancelAccessRequest: () => idle(),
+  useBreakGlass: () => idle(breakGlass),
+  useBreakGlassRequirements: () =>
+    answered({ second_factor_required: false, totp_enrolled: true, passkey_enrolled: false }),
+  useApproveAccessGrant: () => idle(),
+  useDenyAccessGrant: () => idle(),
+  useRevokeAccessGrant: () => idle(),
 }));
 
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useGuilds: () => ({ refreshGuilds: vi.fn() }),
+  useGuilds: () => ({
+    guilds: [],
+    activeGuild: null,
+    activeGuildId: null,
+    activeGuildReadOnly: false,
+    loading: false,
+    error: null,
+    refreshGuilds: vi.fn(),
+    switchGuild: vi.fn(),
+    syncGuildFromUrl: vi.fn(),
+    createGuild: vi.fn(),
+    updateGuildInState: vi.fn(),
+    reorderGuilds: vi.fn(),
+    canCreateGuilds: false,
+  }),
 }));
 
 import { SettingsAccessGrantsPage } from "./SettingsAccessGrantsPage";

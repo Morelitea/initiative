@@ -150,7 +150,7 @@ describe("the category cap", () => {
 
 describe("a category that shares the fold's name", () => {
   /** The biggest project by far, and called exactly what the fold is called. */
-  const withOther: WidgetData = {
+  const withOther: TabularData = {
     source: "rows",
     columns: [
       { name: "project", type: "text" },

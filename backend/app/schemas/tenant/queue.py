@@ -6,7 +6,6 @@ from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.core.relationships import Related
-from app.core.tools import Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
@@ -266,7 +265,7 @@ def serialize_queue_summary(
         created_at=queue.created_at,
         updated_at=queue.updated_at,
         archived_at=queue.archived_at,
-        **client_access(Tool.queue, queue, user_id, context=context),
+        **client_access(queue, user_id, context=context),
         comments_enabled=queue.comments_enabled,
         tags=annotated_tags(queue),
         grants=serialize_grants(queue),

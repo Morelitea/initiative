@@ -52,7 +52,11 @@ from collections.abc import Iterable
 from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
-from app.models.tenant.resource_grant import WRITE_LEVELS
+from app.models.tenant.resource_grant import (
+    RESOURCE_LEVEL_LADDER,
+    WRITE_LEVELS,
+    ResourceAccessLevel,
+)
 
 import hashlib
 from dataclasses import dataclass, field
@@ -67,7 +71,13 @@ DEPENDENT_OBJECTS_STILL_EXIST_SQLSTATE = "2BP01"
 
 __all__ = [
     "AUTHORIZATION_FUNCTIONS",
+    "CURRENT_STANDING",
     "GUILD_AUTHORIZATION_FUNCTIONS",
+    "IN_BODY",
+    "IN_POLICY",
+    "Legs",
+    "STANDING",
+    "STANDING_FIELDS",
     "GUILD_FUNCTION_SIGNATURES",
     "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
@@ -78,6 +88,8 @@ __all__ = [
     "ensure_authorization_functions",
     "ensure_public_copies_dropped",
     "render_guild_authorization_functions",
+    "in_body",
+    "standing_arg",
 ]
 
 #: Gate 0a: the rule itself — does an authentication satisfy one of a
@@ -380,21 +392,17 @@ SETTINGS_ADMIN = (
 )
 
 #: A live grant covers this request, at whichever level the command asks for.
+#: A live content grant, read one level at a time: the level a grant confers
+#: is the one its standing value names.
+PAM_READ = "current_setting('app.pam_read'::text, true) = 'true'::text"
+PAM_WRITE = "current_setting('app.pam_write'::text, true) = 'true'::text"
 PAM_AT_LEVEL = (
-    "(CASE"
-    " WHEN p_need_write"
-    " THEN current_setting('app.pam_write'::text, true) = 'true'::text"
-    " ELSE current_setting('app.pam_read'::text, true) = 'true'::text"
-    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
-    " END)"
+    f"(CASE WHEN p_need_write THEN {PAM_WRITE} ELSE {PAM_READ} OR {PAM_WRITE} END)"
 )
 
 #: A live grant at either level, where the question is what the community has
 #: switched on rather than what one person may reach.
-PAM_ANY = (
-    "current_setting('app.pam_read'::text, true) = 'true'::text"
-    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
-)
+PAM_ANY = f"{PAM_READ} OR {PAM_WRITE}"
 
 
 def standing_ids(key: str) -> str:
@@ -431,36 +439,206 @@ def sql_values(values: Iterable[str]) -> str:
     return ", ".join(f"'{value}'" for value in values)
 
 
+# --- The standing, read once per statement ----------------------------------
+#
+# The legs above read settings, and a gate asked once per row reads them once
+# per row: the system leg's catalog lookup, and each comma list parsed into an
+# array again. None of it depends on the row. ``current_standing()`` reads all
+# of it once and returns it as one value of type ``public.standing``. A policy
+# hands that value to each gate as a sub-select naming no row, which the
+# planner evaluates once for the statement, and a gate reads its fields. The
+# type is shared; the function is rendered into each guild schema with the
+# gates, so a schema's policies still call only that schema's functions.
+
+#: ``public.standing``'s attributes, in order: the name a gate reads, its type,
+#: and the leg it is read from. The type is created by a migration, and
+#: ``authorization_test`` holds the live type to this list.
+STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("system_session", "boolean", SYSTEM_SESSION),
+    ("this_guild", "boolean", STANDING_IS_THIS_GUILD),
+    ("guild_admin", "boolean", GUILD_ADMIN),
+    (
+        "guild_auth_ok",
+        "boolean",
+        "current_setting('app.guild_auth_ok'::text, true) = 'true'::text",
+    ),
+    (
+        "scope_initiative_id",
+        "integer",
+        "NULLIF(current_setting('app.scope_initiative_id'::text, true), ''::text)::integer",
+    ),
+    ("pam_read", "boolean", PAM_READ),
+    ("pam_write", "boolean", PAM_WRITE),
+    ("member_initiatives", "integer[]", standing_ids("app.member_initiatives")),
+    ("manager_initiatives", "integer[]", standing_ids("app.manager_initiatives")),
+    ("override_initiatives", "integer[]", standing_ids("app.override_initiatives")),
+    ("member_role_ids", "integer[]", standing_ids("app.member_role_ids")),
+    ("role_grants", "text[]", standing_pairs("app.role_grants")),
+    ("role_denies", "text[]", standing_pairs("app.role_denies")),
+    ("enabled_tools", "text[]", standing_pairs("app.enabled_tools")),
+    (
+        "via_dashboard_id",
+        "integer",
+        "NULLIF(current_setting('app.via_dashboard_id'::text, true), ''::text)::integer",
+    ),
+)
+_STANDING_NAMES = frozenset(name for name, _type, _expr in STANDING_FIELDS)
+
+#: What a policy passes a gate: this statement's standing. A sub-select that
+#: names no row, so the planner evaluates it once per statement.
+STANDING = "(SELECT current_standing())"
+
+_STANDING_ROW = ",\n        ".join(expr for _name, _type, expr in STANDING_FIELDS)
+
+#: The standing, read once. ``plpgsql`` like the gates, so its plan is kept.
+CURRENT_STANDING = f"""\
+CREATE OR REPLACE FUNCTION current_standing()
+ RETURNS standing
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN ROW(
+        {_STANDING_ROW}
+    )::public.standing;
+END
+$function$
+
+"""
+
+
+_STANDING_EXPRS = {name: expr for name, _type, expr in STANDING_FIELDS}
+_STANDING_TYPES = {name: sqltype for name, sqltype, _expr in STANDING_FIELDS}
+
+
+@dataclass(frozen=True)
+class Legs:
+    """Every leg, read off a standing. Two readings of the same fields: a gate
+    reads its parameter; a policy reads each field as a sub-select naming no
+    row, evaluated once for the statement, and computes only that field."""
+
+    standing: str
+    #: Inside a policy, a field is its own once-per-statement sub-select
+    #: rather than a field of the whole standing, which would compute every
+    #: other field alongside it.
+    per_field: bool = False
+
+    def field(self, name: str) -> str:
+        if name not in _STANDING_NAMES:
+            raise ValueError(f"public.standing has no attribute {name!r}")
+        if self.per_field:
+            # Cast to the field's type: ``x = ANY ((SELECT a))`` would otherwise
+            # read as a comparison against a sub-query's rows, not an array.
+            return f"((SELECT {_STANDING_EXPRS[name]})::{_STANDING_TYPES[name]})"
+        return f"({self.standing}).{name}"
+
+    @property
+    def system(self) -> str:
+        return self.field("system_session")
+
+    @property
+    def this_guild(self) -> str:
+        return self.field("this_guild")
+
+    @property
+    def admin(self) -> str:
+        return self.field("guild_admin")
+
+    @property
+    def auth_ok(self) -> str:
+        return self.field("guild_auth_ok")
+
+    @property
+    def scope(self) -> str:
+        return self.field("scope_initiative_id")
+
+    @property
+    def pam_read(self) -> str:
+        return self.field("pam_read")
+
+    @property
+    def pam_write(self) -> str:
+        return self.field("pam_write")
+
+    @property
+    def pam_any(self) -> str:
+        return f"({self.pam_read} OR {self.pam_write})"
+
+    def pam_at_level(self, need_write: str) -> str:
+        return (
+            f"(CASE WHEN {need_write} THEN {self.pam_write}"
+            f" ELSE {self.pam_read} OR {self.pam_write} END)"
+        )
+
+
+def standing_arg():
+    """This statement's standing, for an app query that asks a gate directly.
+
+    The same once-per-statement sub-select a policy passes, as a SQLAlchemy
+    expression.
+    """
+    from sqlalchemy import func, select
+
+    return select(func.current_standing()).scalar_subquery()
+
+
+#: Inside a gate's body, the standing is its last parameter.
+IN_BODY = Legs("p_st")
+#: Inside a policy, the standing is this statement's.
+IN_POLICY = Legs(STANDING, per_field=True)
+
+
+def in_body(sql: str) -> str:
+    """A policy predicate, read inside a gate's body instead.
+
+    ``entity_access`` answers each kind with the predicate that kind's own
+    policy renders, and inside the function the standing is its parameter: the
+    statement's standing becomes ``p_st``, and each field a policy reads on its
+    own becomes a field of ``p_st``. The longest field text first, so one that
+    contains another is replaced whole.
+    """
+    swaps = sorted(
+        ((IN_POLICY.field(name), IN_BODY.field(name)) for name in _STANDING_NAMES),
+        key=lambda pair: -len(pair[0]),
+    )
+    for policy_text, body_text in swaps:
+        sql = sql.replace(policy_text, body_text)
+    return sql.replace(STANDING, IN_BODY.standing)
+
+
+_B = IN_BODY
+
+
 #: Gate 2: the hard isolation boundary. Every initiative-scoped table's
 #: policies defer to this one function.
 INITIATIVE_ACCESS = f"""\
-CREATE OR REPLACE FUNCTION initiative_access(p_initiative_id integer, p_user_id integer, p_need_write boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION initiative_access(p_initiative_id integer, p_user_id integer, p_need_write boolean, p_st standing)
  RETURNS boolean
  LANGUAGE plpgsql
  STABLE
 AS $function$
 BEGIN
     RETURN
-        current_setting('app.guild_auth_ok'::text, true) = 'true'::text
+        {_B.auth_ok}
         AND (
             -- The read's own scope, when the surface asking has one. A row of
             -- another initiative is not the answer to the question, whatever
             -- else the context allows. Guild-level rows belong to no
             -- initiative and stay in scope.
             p_initiative_id IS NULL
-            OR NULLIF(current_setting('app.scope_initiative_id'::text, true), ''::text)::integer IS NULL
-            OR p_initiative_id = NULLIF(current_setting('app.scope_initiative_id'::text, true), ''::text)::integer
+            OR {_B.scope} IS NULL
+            OR p_initiative_id = {_B.scope}
         )
         AND (
             -- Guild-level scope: the row belongs to no initiative, so the
             -- initiative gate has nothing to decide. The schema boundary still
             -- confines it to this guild; grants decide who may read or write it.
             p_initiative_id IS NULL
-            OR {SYSTEM_SESSION}
-            OR {GUILD_ADMIN}
-            OR {PAM_AT_LEVEL}
-            OR ({STANDING_IS_THIS_GUILD}
-                AND p_initiative_id = ANY ({standing_ids("app.member_initiatives")}))
+            OR {_B.system}
+            OR {_B.admin}
+            OR {_B.pam_at_level("p_need_write")}
+            OR ({_B.this_guild}
+                AND p_initiative_id = ANY ({_B.field("member_initiatives")}))
         )
     ;
 END
@@ -470,20 +648,20 @@ $function$
 
 #: Gate 2, narrowed: full standing in the initiative rather than membership.
 INITIATIVE_FULL_ACCESS = f"""\
-CREATE OR REPLACE FUNCTION initiative_full_access(p_initiative_id integer, p_need_write boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION initiative_full_access(p_initiative_id integer, p_need_write boolean, p_st standing)
  RETURNS boolean
  LANGUAGE plpgsql
  STABLE
 AS $function$
 BEGIN
     RETURN
-        current_setting('app.guild_auth_ok'::text, true) = 'true'::text
+        {_B.auth_ok}
         AND (
-            {SYSTEM_SESSION}
-            OR {GUILD_ADMIN}
-            OR {PAM_AT_LEVEL}
-            OR ({STANDING_IS_THIS_GUILD}
-                AND p_initiative_id = ANY ({standing_ids("app.override_initiatives")}))
+            {_B.system}
+            OR {_B.admin}
+            OR {_B.pam_at_level("p_need_write")}
+            OR ({_B.this_guild}
+                AND p_initiative_id = ANY ({_B.field("override_initiatives")}))
         )
     ;
 END
@@ -499,7 +677,7 @@ $function$
 #: join per row. A manager holds every key, stored or not; for everyone else a
 #: stored row decides, and the tool's own default decides when there is none.
 INITIATIVE_ROLE_PERMITS = f"""\
-CREATE OR REPLACE FUNCTION initiative_role_permits(p_initiative_id integer, p_user_id integer, p_key text, p_default boolean)
+CREATE OR REPLACE FUNCTION initiative_role_permits(p_initiative_id integer, p_user_id integer, p_key text, p_default boolean, p_st standing)
  RETURNS boolean
  LANGUAGE plpgsql
  STABLE
@@ -508,18 +686,18 @@ BEGIN
     RETURN
         -- A row belonging to no initiative has no initiative role to answer to.
         p_initiative_id IS NULL
-        OR {SYSTEM_SESSION}
-        OR {GUILD_ADMIN}
-        OR {PAM_ANY}
-        OR ({STANDING_IS_THIS_GUILD} AND (
-                p_initiative_id = ANY ({standing_ids("app.manager_initiatives")})
+        OR {_B.system}
+        OR {_B.admin}
+        OR {_B.pam_any}
+        OR ({_B.this_guild} AND (
+                p_initiative_id = ANY ({_B.field("manager_initiatives")})
              OR (p_initiative_id::text || ':' || p_key)
-                    = ANY ({standing_pairs("app.role_grants")})
+                    = ANY ({_B.field("role_grants")})
              OR (
                  p_default
-                 AND p_initiative_id = ANY ({standing_ids("app.member_initiatives")})
+                 AND p_initiative_id = ANY ({_B.field("member_initiatives")})
                  AND NOT ((p_initiative_id::text || ':' || p_key)
-                              = ANY ({standing_pairs("app.role_denies")}))
+                              = ANY ({_B.field("role_denies")}))
              )
         ))
     ;
@@ -530,51 +708,119 @@ $function$
 
 #: Gate 4: per-resource sharing (the ``resource_grants`` table).
 #:
+#: Two functions answer it, from one spelling of every leg. ``resource_level``
+#: says which rung of the sharing ladder the request holds on a row — what a
+#: serializer reports and a route compares against. ``resource_access`` says
+#: whether it holds the rung a command needs — what every content policy asks,
+#: once per row, and so kept to an existence test rather than a reduction over
+#: the matched grants. ``resource_level_test`` holds the two to each other.
+#:
 #: The one gate that still probes a table, because which readers a resource was
 #: shared with is genuinely per resource. What the standing removes is the two
 #: reader sub-selects inside it: the roles they hold and the initiatives they
 #: are in are the same for every row.
+
+#: The legs that answer the whole question before sharing is consulted. A row
+#: that carries no sharing identity (guild vocabulary) has nothing to decide;
+#: the system engine, the community's admin and a reader holding "Full access"
+#: in the row's initiative reach it whatever its grants say.
+FULL_ACCESS = f"""\
+p_tool IS NULL
+        OR {_B.system}
+        OR {_B.admin}
+        OR ({_B.this_guild}
+            AND p_initiative_id = ANY ({_B.field("override_initiatives")}))"""
+
+#: The grant rows on ``(p_tool, p_resource_id)`` that reach this reader: one
+#: naming them, one on an initiative role they hold, one shared with every
+#: member of an initiative they are in (or of the community, on a row that
+#: belongs to no initiative), or the dashboard a published view is read
+#: through. Written over the row alias ``g``.
+GRANT_REACHES_READER = f"""\
+g.resource_type = p_tool
+              AND g.resource_id = p_resource_id
+              AND (
+                   g.user_id = p_user_id
+                OR ({_B.this_guild}
+                    AND g.role_id = ANY ({_B.field("member_role_ids")}))
+                OR (g.all_initiative_members
+                    AND {_B.this_guild}
+                    AND (g.initiative_id IS NULL
+                         OR g.initiative_id = ANY ({_B.field("member_initiatives")})))
+                OR (g.dashboard_id IS NOT NULL
+                    AND g.dashboard_id = {_B.field("via_dashboard_id")})
+              )"""
+
+
+def _highest_rung_case() -> str:
+    """The highest rung among the matched grant rows, spelled from the ladder:
+    one arm per rung above the lowest, and the lowest for any match at all."""
+    lowest, *higher = RESOURCE_LEVEL_LADDER
+    arms = [
+        f"WHEN bool_or(g.level = '{level.value}') THEN '{level.value}'"
+        for level in reversed(higher)
+    ]
+    arms.append(f"WHEN count(*) > 0 THEN '{lowest.value}'")
+    return "\n             ".join(arms)
+
+
+#: The rung the request holds on one row, or NULL for none. A content grant
+#: lends its own rung beside whatever the grant rows give, and never owner.
+RESOURCE_LEVEL = f"""\
+CREATE OR REPLACE FUNCTION resource_level(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_st standing)
+ RETURNS text
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_level text;
+BEGIN
+    IF {FULL_ACCESS}
+    THEN
+        RETURN '{ResourceAccessLevel.owner.value}';
+    END IF;
+    SELECT CASE
+             {_highest_rung_case()}
+           END
+      INTO v_level
+      FROM resource_grants g
+     WHERE {GRANT_REACHES_READER};
+    IF {_B.pam_write}
+       AND v_level IS DISTINCT FROM '{ResourceAccessLevel.owner.value}' THEN
+        RETURN '{ResourceAccessLevel.write.value}';
+    END IF;
+    IF {_B.pam_read} AND v_level IS NULL THEN
+        RETURN '{ResourceAccessLevel.read.value}';
+    END IF;
+    RETURN v_level;
+END
+$function$
+
+"""
+
+#: Whether the request holds the rung a command needs on one row. A dashboard's
+#: grant is ``read`` by constraint, so the level filter answers the write
+#: question for it too.
 RESOURCE_ACCESS = f"""\
-CREATE OR REPLACE FUNCTION resource_access(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer DEFAULT NULL::integer, p_need_write boolean DEFAULT false)
+CREATE OR REPLACE FUNCTION resource_access(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_need_write boolean, p_st standing)
  RETURNS boolean
  LANGUAGE plpgsql
  STABLE
 AS $function$
 BEGIN
     RETURN
-        -- Rows that carry no sharing identity (guild vocabulary) have nothing
-        -- for this to decide.
-        p_tool IS NULL
-        OR {SYSTEM_SESSION}
-        OR {GUILD_ADMIN}
-        OR {PAM_AT_LEVEL}
-        -- Initiatives where the request holds "Full access".
-        OR ({STANDING_IS_THIS_GUILD}
-            AND p_initiative_id = ANY ({standing_ids("app.override_initiatives")}))
+        {FULL_ACCESS}
+        OR {_B.pam_at_level("p_need_write")}
         OR EXISTS (
             SELECT 1 FROM resource_grants g
-            WHERE g.resource_type = p_tool
-              AND g.resource_id = p_resource_id
+            WHERE {GRANT_REACHES_READER}
               AND (NOT p_need_write OR g.level IN ({sql_values(level.value for level in WRITE_LEVELS)}))
-              AND (
-                   g.user_id = p_user_id
-                OR ({STANDING_IS_THIS_GUILD}
-                    AND g.role_id = ANY ({standing_ids("app.member_role_ids")}))
-                OR (g.all_initiative_members
-                    AND {STANDING_IS_THIS_GUILD}
-                    AND (g.initiative_id IS NULL
-                         OR g.initiative_id = ANY ({standing_ids("app.member_initiatives")})))
-                OR (NOT p_need_write
-                    AND g.dashboard_id IS NOT NULL
-                    AND g.dashboard_id = NULLIF(current_setting('app.via_dashboard_id'::text, true), '')::int)
-              )
         )
     ;
 END
 $function$
 
 """
-
 
 #: Who holds a guild's top seat — its sign-in configuration and its billing.
 #:
@@ -640,41 +886,51 @@ AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("guild_superadmin", GUILD_SUPERADMIN),
 )
 
-#: The four that read only guild tables. Rendered into every guild schema by
+#: The five that read only guild tables. Rendered into every guild schema by
 #: ``guild_ddl.render_guild_rls_ddl`` ahead of the policies that call them,
 #: in this order: the SQL bodies are checked at creation, and each names only
 #: tables and the ``public`` functions above.
 GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
+    ("current_standing", CURRENT_STANDING),
     ("initiative_access", INITIATIVE_ACCESS),
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),
     ("initiative_role_permits", INITIATIVE_ROLE_PERMITS),
+    ("resource_level", RESOURCE_LEVEL),
     ("resource_access", RESOURCE_ACCESS),
 )
 
-#: Argument types of every function that lives in a guild schema — the four
+#: Argument types of every function that lives in a guild schema — the five
 #: above plus the three ``frozen`` and ``initiative_rls`` render there. What
 #: ``DROP FUNCTION`` and ``pg_get_functiondef`` need to name one.
 GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
-    "initiative_access": "(integer, integer, boolean)",
-    "initiative_full_access": "(integer, boolean)",
-    "initiative_role_permits": "(integer, integer, text, boolean)",
-    "resource_access": "(text, integer, integer, integer, boolean)",
+    "current_standing": "()",
+    "initiative_access": "(integer, integer, boolean, public.standing)",
+    "initiative_full_access": "(integer, boolean, public.standing)",
+    "initiative_role_permits": "(integer, integer, text, boolean, public.standing)",
+    "resource_level": "(text, integer, integer, integer, public.standing)",
+    "resource_access": "(text, integer, integer, integer, boolean, public.standing)",
     "resource_frozen": "(text, bigint, boolean)",
     "resource_frozen_for_grant": "(text, bigint, boolean)",
-    "entity_access": "(text, integer, boolean, boolean)",
+    "entity_access": "(text, integer, boolean, boolean, public.standing)",
 }
 
 #: Functions an earlier render put in a guild schema under a name or
 #: signature this one no longer produces. The RLS render drops them last,
 #: the template strip drops them with the rest, and the boot step that
 #: retires ``public`` copies tries these names too.
-RETIRED_GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
-    "relationship_endpoint_access": "(text, integer, boolean)",
-}
+RETIRED_GUILD_FUNCTION_SIGNATURES: tuple[tuple[str, str], ...] = (
+    ("relationship_endpoint_access", "(text, integer, boolean)"),
+    # The gates before they took the statement's standing.
+    ("initiative_access", "(integer, integer, boolean)"),
+    ("initiative_full_access", "(integer, boolean)"),
+    ("initiative_role_permits", "(integer, integer, text, boolean)"),
+    ("resource_access", "(text, integer, integer, integer, boolean)"),
+    ("entity_access", "(text, integer, boolean, boolean)"),
+)
 
 
 def render_guild_authorization_functions() -> str:
-    """The four guild functions as schema-relative DDL, for the RLS render.
+    """The guild functions as schema-relative DDL, for the RLS render.
 
     Each text is one statement; the render is a script, so each is
     terminated here.
@@ -759,10 +1015,10 @@ async def drop_public_copies(engine: "AsyncEngine") -> DropReport:
     from app.db.errors import dbapi_sqlstate
 
     report = DropReport()
-    for name, args in {
-        **GUILD_FUNCTION_SIGNATURES,
-        **RETIRED_GUILD_FUNCTION_SIGNATURES,
-    }.items():
+    for name, args in (
+        *GUILD_FUNCTION_SIGNATURES.items(),
+        *RETIRED_GUILD_FUNCTION_SIGNATURES,
+    ):
         sig = f"public.{name}{args}"
         async with engine.connect() as conn:
             exists = (

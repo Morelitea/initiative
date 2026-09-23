@@ -34,7 +34,13 @@ const user = buildUser({
   username: "jordan",
   discriminator: 1234,
   custom_status: { emoji: "🎲", text: "Rolling initiative" },
-  profile_decorations: { banner: null, frame: "core.gold", trophies: ["ttrpg.d20"] },
+  profile_decorations: {
+    banner: null,
+    frame: "core.gold",
+    frame_tint: [],
+    trophies: ["ttrpg.d20"],
+    grad_year: null,
+  },
 });
 
 beforeEach(() => {
@@ -106,7 +112,16 @@ describe("the two halves of the page", () => {
     // Removing a pack strips its pieces server-side; the draft follows.
     rerender(
       <UserSettingsProfilePage
-        user={{ ...user, profile_decorations: { banner: null, frame: null, trophies: [] } }}
+        user={{
+          ...user,
+          profile_decorations: {
+            banner: null,
+            frame: null,
+            frame_tint: [],
+            trophies: [],
+            grad_year: null,
+          },
+        }}
         refreshUser={() => Promise.resolve()}
       />
     );

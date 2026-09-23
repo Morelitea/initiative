@@ -19,6 +19,7 @@ import { buildQueueSummary } from "@/__tests__/factories/queue.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
+import type { BannerTextAlign } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
 
 import { GuildHomePage } from "./GuildHomePage";
@@ -141,7 +142,7 @@ type FeedCase = [
     tools?: Parameters<typeof stubTools>[0];
     search?: Record<string, unknown>;
   },
-  entry: Parameters<typeof buildRecentActivityEntry>[0],
+  entry: NonNullable<Parameters<typeof buildRecentActivityEntry>[0]>,
   says: string,
   href: string,
 ];
@@ -268,7 +269,7 @@ describe("GuildHomePage", () => {
 
   // The tool circles sit under the banner's copy, so they follow the edge it
   // was aligned to rather than a fixed one of their own.
-  it.each([
+  it.each<[string, BannerTextAlign, boolean]>([
     ["centres the tool circles under a banner that centres its copy", "center", true],
     ["keeps them against the edge the banner's copy sits on when it is left", "left", false],
   ])("%s", async (_label, text_align, centred) => {
@@ -483,7 +484,7 @@ describe("GuildHomePage", () => {
     // The order changes after the table mounted — the back button landing on
     // one, say. The headers have to follow it, or the next click toggles from
     // where the table came in rather than from what the rows are actually in.
-    await router.navigate({ to: "/", search: { sort: "name", dir: "asc" } });
+    await router.navigate({ href: "/?sort=name&dir=asc" });
     await waitFor(() => expect(sought(asked, "sort_by")).toBe("name"));
 
     await userEvent.click(screen.getByRole("button", { name: /^name/i }));
@@ -510,7 +511,7 @@ describe("GuildHomePage", () => {
     // Typed, then a tool picked before the search had gone anywhere — the
     // rail's own link carries the tool and nothing else.
     await userEvent.type(screen.getByPlaceholderText("Search by name…"), "rover");
-    await router.navigate({ to: "/", search: { tool: "queues" } });
+    await router.navigate({ href: "/?tool=queues" });
 
     expect(await screen.findByRole("link", { name: "Launch Window" })).toBeInTheDocument();
     // The new tool is not narrowed by what was meant for the last one, and the

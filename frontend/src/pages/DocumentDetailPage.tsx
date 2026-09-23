@@ -105,7 +105,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { uploadAttachment } from "@/lib/attachmentUtils";
@@ -135,7 +134,6 @@ export const DocumentDetailPage = () => {
   const setDocumentCache = useSetDocumentCache();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
-  const { permissionsFor } = useInitiativeAccess();
   const guildId = Number(guildIdParam);
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
@@ -421,16 +419,6 @@ export const DocumentDetailPage = () => {
     // Pure DAC: users with write or owner permission can moderate comments
     return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
-
-  // Whether the user can create documents in this document's initiative —
-  // via the shared access helper, so guild admins and PAM grantees are
-  // included regardless of any membership row.
-  const _canCreateDocuments = useMemo(() => {
-    if (!document?.initiative) {
-      return false;
-    }
-    return permissionsFor(document.initiative)[Tool.document].create;
-  }, [document?.initiative, permissionsFor]);
 
   // Wikilink navigation handler
   const handleWikilinkNavigate = useCallback(

@@ -17,7 +17,7 @@ from fastapi import (
 from fastapi.responses import Response
 from sqlalchemy import delete as sa_delete, func, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -47,7 +47,7 @@ from app.core.messages import (
     InitiativeMessages,
 )
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session, require_guild_context
+from app.db.session import require_guild_context
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
@@ -56,8 +56,6 @@ from app.models.tenant.document import (
 from app.models.tenant.upload import Upload
 from app.models.tenant.initiative import (
     Initiative,
-    InitiativeMember,
-    InitiativeRoleModel,
     PermissionKey,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -1352,14 +1350,9 @@ async def notify_mentions(
         access="write",
         hydrated=True,
     )
-    initiative = document.initiative
-    if not initiative:
-        initiative = await get_initiative_or_404(
-            session,
-            initiative_id=document.initiative_id,
-            guild_id=guild_context.guild_id,
-        )
-    memberships = getattr(initiative, "memberships", []) or []
+    memberships = await initiatives_service.initiative_roster(
+        session, document.initiative_id
+    )
     member_ids = {
         membership.user_id for membership in memberships if membership.user_id
     }
@@ -1534,14 +1527,8 @@ async def read_after_write(
 def _download_document_options():
     """Eager loads the download's access check reads off the document."""
     return (
-        selectinload(Document.initiative)
-        .selectinload(Initiative.memberships)
-        .options(
-            selectinload(InitiativeMember.user),
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            ),
-        ),
+        selectinload(Document.initiative),
+        undefer(Document.access_level),
         selectinload(Document.grants).selectinload(ResourceGrant.role),
     )
 
@@ -1567,8 +1554,8 @@ async def _load_download_document(
     from app.db.schema_provisioning import guild_schema_name
 
     # Guard the SET ROLE sink: if the guild schema/role isn't provisioned,
-    # establish_guild_access would fault rather than 404. (The session is the
-    # system admin engine (BYPASSRLS), so this lookup runs regardless of context.)
+    # establish_guild_access would fault rather than 404. The catalog answers
+    # this for any login.
     schema_exists = (
         await session.exec(
             text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
@@ -1580,9 +1567,8 @@ async def _load_download_document(
 
     # Route into the guild through the single entry point — same resolution and
     # applied context (membership / live PAM / break-glass, then SET ROLE +
-    # active_role/grant, no ambient bypass) as REST and the realtime
-    # sockets. Fine-grained read permission is then enforced by
-    # require_document_access against the context this established.
+    # standing) as REST and the realtime sockets, on the request login, so the
+    # row arrives with the level this reader holds on it.
     try:
         ctx = await establish_guild_access(session, current_user, int(guild_id))
     except GuildAccessError:
@@ -1605,10 +1591,9 @@ async def download_document_file(
     guild_id: int,
     document_id: int,
     current_user: UploadUserDep,
-    # AdminSessionDep (not RLSSessionDep) because the loader routes the
-    # session into the path-addressed guild's schema itself after validating
-    # access.
-    session: Annotated[AsyncSession, Depends(get_admin_session)],
+    # SessionDep (not RLSSessionDep) because the loader routes the session
+    # into the path-addressed guild's schema itself after validating access.
+    session: SessionDep,
     inline: bool = False,
 ) -> Response:
     """Download a file-type document — requires read permission on the document."""
@@ -1660,8 +1645,8 @@ async def download_document_file_version(
     version_id: int,
     current_user: UploadUserDep,
     # Same rationale as download_document_file: the loader validates access
-    # and routes the admin session into the path-addressed guild's schema.
-    session: Annotated[AsyncSession, Depends(get_admin_session)],
+    # and routes the session into the path-addressed guild's schema.
+    session: SessionDep,
     inline: bool = False,
 ) -> Response:
     """Download a specific stored version of a file document — read permission."""

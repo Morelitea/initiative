@@ -132,20 +132,22 @@ async def author_still_reaches(grants: Sequence[ResourceGrant], guild_id: int) -
     published view serves on somebody's standing say-so, and an author who has
     lost the access, left, or been suspended is no longer saying it.
 
-    Read on a session of its own, routed into the guild, so the request's own
-    session keeps the context it was serving with.
+    Read on the request login, one session per author routed into the guild as
+    them: the level the row carries is the one that author holds on it, and
+    the request's own session keeps the context it was serving with. A session
+    each because a session carries one standing at a time.
     """
     if not grants:
         return False
     from app.api import resource_access
 
-    # Looked up on the module rather than bound at import: which database the
-    # system engine points at is decided after this module is read.
-    async with db_session.AdminSessionLocal() as session:
-        for grant in grants:
-            author_id = grant.created_by
-            if author_id is None:
-                return False
+    for grant in grants:
+        author_id = grant.created_by
+        if author_id is None:
+            return False
+        # Looked up on the module rather than bound at import: which database
+        # the request login points at is decided after this module is read.
+        async with db_session.AsyncSessionLocal() as session:
             standing = await _standing(session, author_id, guild_id)
             if standing is None:
                 return False

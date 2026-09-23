@@ -216,7 +216,7 @@ async def test_public_copies_drop_only_after_nothing_binds_them(engine):
         await conn.execute(
             text(
                 f'CREATE POLICY bound ON "{scratch}".t '
-                "USING (public.initiative_access(initiative_id, 1, false))"
+                "USING (public.initiative_access(initiative_id, 1, false, NULL::public.standing))"
             )
         )
     try:
@@ -240,3 +240,27 @@ async def test_public_copies_drop_only_after_nothing_binds_them(engine):
     # And running it again reports the copy as already gone, not as an error.
     again = await drop_public_copies(engine)
     assert "initiative_access" in again.absent
+
+
+async def test_the_standing_type_is_this_module(session):
+    """``public.standing``'s attributes are :data:`STANDING_FIELDS`, in order.
+
+    ``current_standing()`` builds the value positionally, so an attribute out
+    of place would hand a gate one leg under another's name.
+    """
+    from app.db.authorization import STANDING_FIELDS
+
+    live = (
+        await session.exec(
+            text(
+                "SELECT a.attname, format_type(a.atttypid, a.atttypmod)"
+                " FROM pg_attribute a"
+                " JOIN pg_type t ON t.typrelid = a.attrelid"
+                " WHERE t.typname = 'standing'"
+                "   AND t.typnamespace = 'public'::regnamespace"
+                "   AND a.attnum > 0 AND NOT a.attisdropped"
+                " ORDER BY a.attnum"
+            )
+        )
+    ).all()
+    assert [tuple(r) for r in live] == [(n, t) for n, t, _e in STANDING_FIELDS]

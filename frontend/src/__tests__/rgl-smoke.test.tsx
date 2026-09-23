@@ -12,8 +12,7 @@ describe("react-grid-layout v2 on React 19", () => {
     render(
       <StrictMode>
         <GridLayout
-          cols={12}
-          rowHeight={40}
+          gridConfig={{ cols: 12, rowHeight: 40 }}
           width={1200}
           layout={[
             { i: "a", x: 0, y: 0, w: 6, h: 3 },

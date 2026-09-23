@@ -28,6 +28,7 @@ from app.db.search_index import entity_types
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.search_entry import SearchEntry
 from app.schemas.tenant.search import SearchHit, SearchResults, SearchSuggestion
+from app.db.authorization import standing_arg
 
 
 def search_scope_clause(
@@ -50,6 +51,7 @@ def search_scope_clause(
         user_id,
         SearchEntry.initiative_id,
         access == "write",
+        standing_arg(),
     )
 
 
@@ -75,6 +77,7 @@ def writable_column(user_id: int):
             user_id,
             SearchEntry.initiative_id,
             True,
+            standing_arg(),
         ),
         False,
     ).label("can_write")

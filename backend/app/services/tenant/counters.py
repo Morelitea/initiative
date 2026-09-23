@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.services.permissions import (
@@ -42,12 +42,12 @@ from app.services.tenant import tags as tags_service
 
 def list_loader_options() -> list:
     """Eager-load what a counter-group *list* row needs: its counters (for the
-    count), its sharing, its initiative's memberships (the DAC engine reads
-    them) and its tags."""
+    count), its sharing, the level the request holds on it and its tags."""
     return [
         selectinload(CounterGroup.counters),
         selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
-        selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
+        selectinload(CounterGroup.initiative),
+        undefer(CounterGroup.access_level),
     ]
 
 
@@ -63,7 +63,8 @@ async def get_counter_group(
         .options(
             selectinload(CounterGroup.counters),
             selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
-            selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
+            selectinload(CounterGroup.initiative),
+            undefer(CounterGroup.access_level),
         )
     )
     if populate_existing:
@@ -103,7 +104,6 @@ async def get_counter_group_for_export(
     require_access(
         DAC_RESOURCES[Tool.counter_group],
         group,
-        current_user,
         context=db_session.guild_context(session),
         access="read",
     )

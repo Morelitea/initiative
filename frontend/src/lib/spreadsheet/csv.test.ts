@@ -137,7 +137,7 @@ describe("offsetCells", () => {
   });
 
   it("ignores malformed keys", () => {
-    const result = offsetCells({ "0:0": "a", garbage: "x" } as Record<string, never>, 1, 1);
+    const result = offsetCells({ "0:0": "a", garbage: "x" }, 1, 1);
     expect(result).toEqual({ "1:1": "a" });
   });
 });

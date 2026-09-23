@@ -1,30 +1,48 @@
 import { cleanup, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import { buildGuild, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
+import type { GuildAuthOption, GuildRole } from "@/api/generated/initiativeAPI.schemas";
+import type { GuildEntry } from "@/hooks/useGuilds";
 
 // What this member is in this community, and what the operator has granted it.
 // Flipped per test.
-let guildRole = "superadmin";
+let guildRole: GuildRole = "superadmin";
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let reachesContent = true;
-let authOptions: string[] = ["restrictions", "providers"];
+let authOptions: GuildAuthOption[] = ["restrictions", "providers"];
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useGuilds: () => ({
-    activeGuild: {
-      id: 4,
-      name: "Test Community",
-      role: guildRole,
+  useGuilds: () => {
+    const activeGuild: GuildEntry = {
+      ...buildGuild({
+        id: 4,
+        name: "Test Community",
+        role: guildRole,
+        auth_options: authOptions,
+      }),
       grantSettingsLevel,
       reachesContent,
-      auth_options: authOptions,
-    },
-    activeGuildId: 4,
-  }),
+    };
+    return {
+      guilds: [activeGuild],
+      activeGuild,
+      activeGuildId: 4,
+      activeGuildReadOnly: false,
+      loading: false,
+      error: null,
+      refreshGuilds: vi.fn(),
+      switchGuild: vi.fn(),
+      syncGuildFromUrl: vi.fn(),
+      createGuild: vi.fn(),
+      updateGuildInState: vi.fn(),
+      reorderGuilds: vi.fn(),
+      canCreateGuilds: false,
+    };
+  },
 }));
 
 import { GuildSettingsLayout } from "./GuildSettingsLayout";
@@ -45,14 +63,17 @@ describe("GuildSettingsLayout", () => {
     expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
   });
 
-  it.each([["providers"], ["restrictions"]])("offers it on the %s grant alone", async (option) => {
-    // The two grants are independent, and either one puts something on the
-    // page worth reaching.
-    authOptions = [option];
-    render();
+  it.each<[GuildAuthOption]>([["providers"], ["restrictions"]])(
+    "offers it on the %s grant alone",
+    async (option) => {
+      // The two grants are independent, and either one puts something on the
+      // page worth reaching.
+      authOptions = [option];
+      render();
 
-    expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
-  });
+      expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
+    }
+  );
 
   it("offers Integrations to the seat and not to an admin", async () => {
     // What the community hands to somebody outside it is the seat's, the way

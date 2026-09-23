@@ -17,7 +17,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
+    attach_access_level,
     ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
@@ -180,3 +182,6 @@ class DocumentFileVersion(CreatedByMixin, table=True):
     )
 
     document: Optional["Document"] = Relationship(back_populates="file_versions")
+
+
+attach_access_level(Document, Tool.document)

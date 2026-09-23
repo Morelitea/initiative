@@ -9,7 +9,7 @@ from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.initiative import InitiativeRead
+from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.document import ProjectDocumentSummary
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.task_status import TaskStatusRead
@@ -100,7 +100,11 @@ class ProjectRead(ProjectBase, ArchiveState):
     pinned_at: Optional[datetime] = None
     default_view_mode: Optional[str] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
-    initiative: Optional[InitiativeRead] = None
+    initiative: Optional[InitiativeSummary] = None
+    #: Whether the reader may configure the project itself — pin it, set its
+    #: default view, curate its filter presets. The server's own answer, the
+    #: one the configuring routes ask.
+    can_configure: bool = False
     sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None

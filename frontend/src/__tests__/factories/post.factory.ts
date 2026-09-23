@@ -61,7 +61,13 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
       discriminator: 1000,
       full_name: null,
       avatar_url: null,
-      profile_decorations: { banner: null, frame: null, frame_tint: [], trophies: [] },
+      profile_decorations: {
+        banner: null,
+        frame: null,
+        frame_tint: [],
+        trophies: [],
+        grad_year: null,
+      },
       presence: "online",
     },
     created_at: "2026-01-15T00:00:00.000Z",
@@ -102,9 +108,8 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
  * at a glance.
  */
 export function buildPoll(overrides: Partial<PollRead> = {}): PollRead {
-  const options = (overrides.options ?? ["Tuesday", "Thursday"].map(buildPollOption)) as
-    | PollOptionRead[]
-    | string[];
+  const options = (overrides.options ??
+    ["Tuesday", "Thursday"].map((text) => buildPollOption(text))) as PollOptionRead[] | string[];
   return {
     id: 1,
     question: "Which night works?",
@@ -122,7 +127,10 @@ export function buildPoll(overrides: Partial<PollRead> = {}): PollRead {
   };
 }
 
-export function buildPollOption(text: string, overrides: Partial<PollOptionRead> = {}) {
+export function buildPollOption(
+  text: string,
+  overrides: Partial<PollOptionRead> = {}
+): PollOptionRead {
   optionCounter++;
   return {
     id: optionCounter,

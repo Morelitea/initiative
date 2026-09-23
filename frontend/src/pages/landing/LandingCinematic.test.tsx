@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, http, type JsonBodyType } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
@@ -117,7 +117,7 @@ const stubBootstrap = (publicRegistrationEnabled: boolean) =>
     HttpResponse.json({ has_users: true, public_registration_enabled: publicRegistrationEnabled })
   );
 
-const stubCatalog = (body: unknown = CATALOG, status = 200) =>
+const stubCatalog = (body: JsonBodyType = CATALOG, status = 200) =>
   http.get(catalogUrl(PORTAL), () => HttpResponse.json(body, { status }));
 
 /** Nobody signed in: the page's whole audience. */

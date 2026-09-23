@@ -123,7 +123,7 @@ describe("tool registry", () => {
 
 describe("tool i18n", () => {
   it("nav has a label and create label for every tool", () => {
-    const keys = nav as Record<string, string>;
+    const keys: Record<string, unknown> = nav;
     for (const tool of TOOLS) {
       expect(keys[toolNavLabelKey(tool)], `missing nav.json ${toolNavLabelKey(tool)}`).toBeTruthy();
       expect(

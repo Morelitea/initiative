@@ -109,6 +109,13 @@ const PARAMS = { guildId: "1", initiativeId: "1", wikiId: "3", pageId: "11" };
 // when it is handed an empty one, so the intent is said out loud instead.
 const READING = { edit: false };
 
+/** The address of a page under ROUTE, carrying whether it is open for writing. */
+const addressOf = (params: typeof PARAMS, search: { edit: boolean }): string =>
+  `${Object.entries(params).reduce(
+    (path, [name, value]) => path.replaceAll(`$${name}`, value),
+    ROUTE
+  )}?edit=${search.edit}`;
+
 /** What the editor on screen was built with. */
 const shownBody = () => screen.getByRole("status").textContent ?? "";
 
@@ -131,11 +138,7 @@ describe("naming a wiki page", () => {
     // Well past the rename debounce, so what is held is settled.
     await vi.advanceTimersByTimeAsync(3000);
 
-    await router.navigate({
-      to: ROUTE,
-      params: { guildId: "1", initiativeId: "1", wikiId: "3", pageId: "12" },
-      search: { edit: true },
-    });
+    await router.navigate({ href: addressOf({ ...PARAMS, pageId: "12" }, { edit: true }) });
 
     await waitFor(() => expect(screen.getByLabelText("Title").getAttribute("value")).toBe(""));
     await vi.advanceTimersByTimeAsync(3000);
@@ -166,11 +169,7 @@ describe("naming a wiki page", () => {
     await screen.findByDisplayValue("Step 1");
     await user.click(await screen.findByRole("button", { name: "edit the body" }));
     // Away before the body's own pause is out.
-    await router.navigate({
-      to: ROUTE,
-      params: { guildId: "1", initiativeId: "1", wikiId: "3", pageId: "12" },
-      search: { edit: true },
-    });
+    await router.navigate({ href: addressOf({ ...PARAMS, pageId: "12" }, { edit: true }) });
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(patches.filter((patch) => patch.pageId === "12")).toEqual([]);
@@ -187,7 +186,7 @@ describe("putting the eye back on", () => {
     await user.click(screen.getByRole("button", { name: "edit the body" }));
 
     // Straight back to reading, well inside the pause that would have saved it.
-    await router.navigate({ to: ROUTE, params: PARAMS, search: READING });
+    await router.navigate({ href: addressOf(PARAMS, READING) });
 
     await waitFor(() => expect(shownBody()).toContain("just typed"));
   });
@@ -199,7 +198,7 @@ describe("putting the eye back on", () => {
 
     await screen.findByDisplayValue("Step 1");
     await user.click(screen.getByRole("button", { name: "edit the body" }));
-    await router.navigate({ to: ROUTE, params: PARAMS, search: READING });
+    await router.navigate({ href: addressOf(PARAMS, READING) });
 
     // Before the pause that would have sent it anyway.
     await waitFor(() => expect(patches).toHaveLength(1), { timeout: 1500 });

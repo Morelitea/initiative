@@ -122,7 +122,7 @@ export function buildToolRows(
         const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
         return {
           id: project.id,
-          guildId: project.guild_id ?? project.initiative?.guild_id ?? fallbackGuildId,
+          guildId: project.guild_id ?? fallbackGuildId,
           name: project.name,
           href: href(project.id, project.initiative_id),
           glyph: project.icon,

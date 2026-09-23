@@ -28,6 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.models.tenant.initiative import InitiativeMember
+from app.db.authorization import standing_arg
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +70,9 @@ def initiative_scope_clause(
     session (``RLSSessionDep`` or a per-guild ``set_rls_context``). ``need_write``
     selects the read vs. write PAM leg.
     """
-    return func.initiative_access(initiative_id_col, user_id, need_write)
+    return func.initiative_access(
+        initiative_id_col, user_id, need_write, standing_arg()
+    )
 
 
 #: Distinguishes "this row has no initiative_id column" from "its initiative_id

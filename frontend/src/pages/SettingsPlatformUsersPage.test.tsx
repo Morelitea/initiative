@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { AdminUserRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { AdminUserRead, UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 
 // The roster the mocked hook serves. Each test sets it, so no test depends on
 // what another left behind.
@@ -139,7 +139,7 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
   // ``roles.assign`` starts at operator — so each lever is drawn only for a
   // viewer whose capability would carry it, and only where the account has
   // something for it to act on.
-  it.each([
+  it.each<[string, UserRole, boolean, string[], string[]]>([
     [
       "an owner every lever, because an owner holds every capability",
       "owner",

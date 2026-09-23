@@ -16,7 +16,7 @@ from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
 from typing import Any, cast
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -35,10 +35,12 @@ from app.services.tenant import tags as tags_service
 
 def list_loader_options() -> list:
     """Eager-load what a post *list* row needs: its sharing, its initiative's
-    memberships (the DAC engine reads them), and its tags."""
+    memberships (the audience is drawn from them), the level the request holds
+    on it, and its tags."""
     return [
         selectinload(Post.grants).selectinload(ResourceGrant.role),
         selectinload(Post.initiative).selectinload(Initiative.memberships),
+        undefer(Post.access_level),
         # Who wrote it. A notice is signed — the board shows the person above
         # the headline the way a comment shows its author — so the profile
         # comes with the row rather than costing a query per card.
@@ -429,16 +431,13 @@ async def get_post_for_export(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.post],
         post,
-        current_user,
         context=context,
         access="read",
     )
     # A notice that has not gone up is in no export either — the same gate the
     # read path applies, asked here because this seam resolves a caller-chosen
     # id rather than going through ``load_authorized``.
-    if permissions_service.hidden_from_reader(
-        Tool.post, post, current_user.id, context=context
-    ):
+    if permissions_service.hidden_from_reader(Tool.post, post):
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=Tool.post.not_found_code,

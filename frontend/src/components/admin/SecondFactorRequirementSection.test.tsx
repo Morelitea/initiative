@@ -42,11 +42,12 @@ import { SecondFactorRequirementSection } from "./SecondFactorRequirementSection
 
 const base: PlatformAuthSettingsResponse = {
   methods: [
-    { method: "password", enabled: true, would_strand: 0 },
-    { method: "totp", enabled: true, would_strand: 0 },
+    { method: "password", enabled: true, primary: true, answers_factor: false, would_strand: 0 },
+    { method: "totp", enabled: true, primary: false, answers_factor: true, would_strand: 0 },
   ],
   guilds_requiring_sign_in: 0,
   session_max_hours: null,
+  session_idle_minutes: null,
   second_factor_requirement: "nobody",
   accounts_without_factor: { platform_roles: 2, everyone: 9 },
   // Something can answer the requirement; the case where nothing can has its

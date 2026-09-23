@@ -213,7 +213,7 @@ if (!Range.prototype.getBoundingClientRect) {
 if (typeof Blob.prototype.stream !== "function") {
   Blob.prototype.stream = function stream(this: Blob) {
     const blob = this;
-    return new ReadableStream<Uint8Array>({
+    return new ReadableStream<Uint8Array<ArrayBuffer>>({
       async start(controller) {
         controller.enqueue(new Uint8Array(await blob.arrayBuffer()));
         controller.close();

@@ -6,7 +6,9 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
+    attach_access_level,
     ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
@@ -136,3 +138,6 @@ class Counter(CreatedByMixin, SoftDeleteMixin, table=True):
     )
 
     group: Optional[CounterGroup] = Relationship(back_populates="counters")
+
+
+attach_access_level(CounterGroup, Tool.counter_group)

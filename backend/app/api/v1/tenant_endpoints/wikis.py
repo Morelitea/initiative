@@ -122,12 +122,7 @@ def _may_write(wiki: Wiki, current_user: User, *, context: GuildContext) -> bool
     """Whether this person may write this wiki — guild admins and full-access
     initiative members included, which is why it goes through the DAC engine
     rather than reading grants directly."""
-    level = permissions_service.compute_permission(
-        permissions_service.DAC_RESOURCES[Tool.wiki],
-        wiki,
-        current_user.id,
-        context=context,
-    )
+    level = permissions_service.compute_permission(wiki, context=context)
     return level in ("write", "owner")
 
 
