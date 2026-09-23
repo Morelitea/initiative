@@ -2393,6 +2393,232 @@ async def test_the_confirmed_mapping_decides_who_a_comment_belongs_to(
     assert comment.imported_author_name is None
 
 
+def _mention_node(name: str, user_id: int | None) -> dict:
+    return {
+        "type": "mention",
+        "version": 1,
+        "mentionName": name,
+        "mentionUserId": user_id,
+        "text": name,
+    }
+
+
+def _editor_state(*inline: dict) -> dict:
+    return {
+        "root": {
+            "type": "root",
+            "children": [{"type": "paragraph", "children": list(inline)}],
+        }
+    }
+
+
+def _mentions_in(content: dict) -> list[dict]:
+    return [
+        node
+        for node in content["root"]["children"][0]["children"]
+        if node.get("type") == "mention"
+    ]
+
+
+async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A mention names an account by id, and an id means nothing where a
+    backup is restored. So the backup names the person by handle — in a task's
+    description, a comment, a document, a post and a wiki page — lists them for
+    the people step, and the restore links each mention to whoever that step
+    says the handle is here: another account entirely, in this test, which is
+    what a restore into a community where the id is somebody else looks like.
+    """
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import (
+        _all_tools_enabled,
+        _export,
+        _rendered_zip,
+    )
+    from app.core.user_display import handle_of
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.document import Document
+    from app.models.tenant.post import Post
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.testing.factories import (
+        create_comment,
+        create_post,
+        create_wiki,
+        create_wiki_page,
+    )
+
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    c = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    await _all_tools_enabled(session, a.initiative)
+    handle = handle_of(b.user)
+    said = _editor_state(
+        {"type": "text", "text": "Ask "}, _mention_node("Bea", b.user.id)
+    )
+
+    task = await create_task(
+        session,
+        a.project,
+        title="Hang the door",
+        description=f"Ask @[Bea]({b.user.id})",
+    )
+    await create_comment(
+        session, a.user, task=task, content=f"@[Bea]({b.user.id}) agreed"
+    )
+    await create_document(session, a.initiative, a.user, name="Plan", content=said)
+    await create_post(session, a.initiative, a.user, name="Notice", body=said)
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    await create_wiki_page(session, wiki, a.user, title="Start", content=said)
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    assert handle in [person["handle"] for person in manifest["people"]]
+    for name in archive.namelist():
+        if name.endswith(".json") and name != "manifest.json":
+            text = archive.read(name).decode()
+            # Nothing in the archive names the account by its id any more.
+            assert f"]({b.user.id})" not in text, name
+            assert f'"mentionUserId": {b.user.id}' not in text, name
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as rezipped:
+        for name in archive.namelist():
+            rezipped.writestr(name, archive.read(name))
+    upload = await _upload_backup(client, a, buffer.getvalue())
+    assert upload.status_code == 201, upload.text
+    job_id = upload.json()["id"]
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {handle: c.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    restored = job["result"]["initiatives"][0]["initiative_id"]
+
+    project = (
+        await session.exec(select(Project).where(Project.initiative_id == restored))
+    ).one()
+    restored_task = (
+        await session.exec(select(Task).where(Task.project_id == project.id))
+    ).one()
+    assert restored_task.description == f"Ask @[{handle}]({c.user.id})"
+    comment = (
+        await session.exec(select(Comment).where(Comment.task_id == restored_task.id))
+    ).one()
+    assert comment.content == f"@[{handle}]({c.user.id}) agreed"
+
+    document = (
+        await session.exec(select(Document).where(Document.initiative_id == restored))
+    ).one()
+    post = (
+        await session.exec(select(Post).where(Post.initiative_id == restored))
+    ).one()
+    restored_wiki = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == restored))
+    ).one()
+    page = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == restored_wiki.id))
+    ).one()
+    for content in (document.content, post.body, page.content):
+        [mention] = _mentions_in(content)
+        assert mention["mentionUserId"] == c.user.id
+        assert mention["mentionName"] == "Bea"
+        assert "mentionHandle" not in mention
+
+
+async def test_a_documents_own_export_names_its_mentions_by_handle(
+    client, acting_user, session
+):
+    """The single-document export writes the same handle a backup does, and
+    importing it links the mention to the member who answers to that handle —
+    with no question asked, because the match is exact. The exported
+    document itself is left as it was."""
+    from sqlmodel import select
+
+    from app.core.user_display import handle_of
+    from app.models.tenant.document import Document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    target = await _second_initiative(session, a)
+    said = _editor_state(_mention_node("Me", a.user.id))
+    source = await create_document(
+        session, a.initiative, a.user, name="Notes", content=said
+    )
+
+    envelope = await _export_json(
+        client, a, "/exports/document", {"document_id": source.id}
+    )
+    assert envelope["mention_handles"] == [handle_of(a.user)]
+    [exported] = _mentions_in(envelope["content"])
+    assert exported["mentionUserId"] is None
+    assert exported["mentionHandle"] == handle_of(a.user)
+
+    resp = await _import_envelope(client, a, envelope, target.id)
+    assert resp.status_code == 201, resp.text
+
+    imported = (
+        await session.exec(select(Document).where(Document.initiative_id == target.id))
+    ).one()
+    [mention] = _mentions_in(imported.content)
+    assert mention["mentionUserId"] == a.user.id
+    assert "mentionHandle" not in mention
+    await session.refresh(source)
+    assert source.content == said
+
+
+async def test_a_mention_nobody_places_is_restored_as_a_name(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A document naming somebody the restore cannot place keeps their name
+    and links to nobody — never to whoever holds the id it had at the source."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    target = await _second_initiative(session, a, documents_enabled=True)
+    envelope = {
+        "type": "initiative-document",
+        "schema_version": 1,
+        "document_type": "native",
+        "name": "Minutes",
+        "content": _editor_state(
+            {**_mention_node("Bea", None), "mentionHandle": "stranger#4321"}
+        ),
+        "mention_handles": ["stranger#4321"],
+    }
+
+    resp = await _import_envelope(client, a, envelope, target.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    # Somebody only mentioned is still somebody the step asks about.
+    assert [p["handle"] for p in job["plan"]["people"]] == ["stranger#4321"]
+
+    confirm = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"), headers=a.headers, json={}
+    )
+    assert confirm.status_code == 200, confirm.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    document = (
+        await session.exec(select(Document).where(Document.initiative_id == target.id))
+    ).one()
+    [mention] = _mentions_in(document.content)
+    assert mention["mentionUserId"] is None
+    assert mention["mentionName"] == "Bea"
+    assert "mentionHandle" not in mention
+
+
 async def test_a_mapping_naming_a_non_member_is_dropped(
     client, acting_user, session, monkeypatch, role_session
 ):

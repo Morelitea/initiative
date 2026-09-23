@@ -44,7 +44,7 @@ from app.services.import_engine.common import (
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    NamesPeopleInItsProperties,
+    NamesPeopleInPassing,
     grant_ownership,
     parse_envelope,
     resolve_property_values,
@@ -52,7 +52,7 @@ from app.services.import_engine.importers._base import (
 from app.services.tenant import tags as tags_service
 
 
-class CalendarImporter(NamesPeopleInItsProperties):
+class CalendarImporter(NamesPeopleInPassing):
     envelope_type = "initiative-calendar"
     permission = PermissionKey.create_calendars
 

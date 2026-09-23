@@ -23,14 +23,20 @@ from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.post import Post
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.schemas.tenant.import_envelopes import PostEnvelope
-from app.services.import_engine.common import ensure_tag, unique_name
+from app.services.import_engine.common import (
+    ensure_tag,
+    load_initiative_member_handles,
+    unique_name,
+)
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInPassing,
     grant_ownership,
     parse_envelope,
 )
+from app.services.import_engine.mentions import place_mentions
+from app.services.import_engine.people import PeopleMap
 from app.services.tenant import tags as tags_service
 
 
@@ -40,7 +46,7 @@ _MAX_NAME = 255
 _NAME_SUFFIX_ROOM = 8
 
 
-class PostImporter(QuotesNobody):
+class PostImporter(NamesPeopleInPassing):
     envelope_type = "initiative-post"
     permission = PermissionKey.create_posts
 
@@ -79,9 +85,22 @@ class PostImporter(QuotesNobody):
             name = name[: _MAX_NAME - _NAME_SUFFIX_ROOM].rstrip()
             warnings.append(f"Headline shortened to fit: {name!r}")
 
+        body = place_mentions(
+            env.body or {},
+            env.mention_handles,
+            people=context.people if context is not None else PeopleMap(),
+            member_handles=(
+                await load_initiative_member_handles(
+                    session, initiative_id=target_initiative.id
+                )
+                if env.mention_handles
+                else {}
+            ),
+        )
+
         post = Post(
             name=unique_name(existing_names, name),
-            body=env.body or {},
+            body=body,
             initiative_id=target_initiative.id,
             created_by=importer.id,
             # A restored notice is live on arrival. The schedule is not carried

@@ -45,6 +45,7 @@ from app.services.import_engine.importers._base import (
     parse_envelope,
 )
 from app.services.import_engine.links import links_to_pages, wiki_page_slug_ref
+from app.services.import_engine.mentions import MENTION_HANDLE, place_mention_node
 from app.services.import_engine.people import PeopleMap, quoted_account
 from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
@@ -467,7 +468,8 @@ def _place_references(
 
     A wiki-page mention carrying an ``importSlug`` points at the page that
     slug became; one whose page did not arrive is its text again. A person's
-    mention with no account yet gets the one the people step placed its name
+    mention with no account yet gets the one the people step placed its
+    handle (``mentionHandle``, from an export) or its name (from Confluence)
     on, and stays a name otherwise.
 
     A Jira issue the page names by ``importJiraKey`` points at the task that
@@ -551,6 +553,11 @@ def _place_references(
                     "text": words or jira_key,
                 }
             node = bare
+        if node_type == "mention" and isinstance(node.get(MENTION_HANDLE), str):
+            # An exported page names its person by handle rather than by the
+            # account it had where it was written.
+            changed = True
+            return place_mention_node(node, mentioned.get(node[MENTION_HANDLE]))
         if (
             node_type == "mention"
             and node.get("mentionUserId") is None
