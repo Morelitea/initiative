@@ -24,6 +24,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
+from app.core.relationships import RelationshipType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.services.import_engine.adf import adf_to_markdown
 from app.services.import_engine.mapping import (
@@ -240,7 +241,7 @@ def map_issue(
             {"text": line.text, "done": line.done} for line in rendered.checklist
         ],
         "property_values": [],
-        "links": [],
+        "links": map_links(fields),
         "comments": [],
         "external_ref": _external_ref(issue),
     }
@@ -262,6 +263,107 @@ def map_issue(
     if updated:
         task["updated_at"] = updated
     return task, rendered.dropped_nodes
+
+
+def _is_blocking(link_type: Any) -> bool:
+    """Whether a Jira link type says one issue cannot proceed without the
+    other.
+
+    Known by name or by its outward verb, because a site can rename the type
+    but a blocking link still reads "blocks". Everything else — relates,
+    duplicates, clones, a site's own types — has no rule attached to it here.
+    """
+    if not isinstance(link_type, dict):
+        return False
+    name = str(link_type.get("name") or "").strip().lower()
+    outward = str(link_type.get("outward") or "").strip().lower()
+    return name == "blocks" or outward == "blocks"
+
+
+def _issue_key(value: Any) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return str(value.get("key") or "").strip()
+
+
+def map_links(fields: dict) -> list[dict[str, Any]]:
+    """The edges this issue asserts, as envelope links.
+
+    Jira shows every issue link on **both** of its issues — as an
+    ``outwardIssue`` on one and an ``inwardIssue`` on the other — so each is
+    emitted from exactly one side, or it would be written twice:
+
+    * **Blocks** becomes ``depends_on``, from the blocked issue to its
+      blocker. That is the side that sees its blocker as ``inwardIssue``
+      ("is blocked by"); the blocker's own copy is skipped.
+    * **Every other type** becomes ``related_to``, emitted from the outward
+      side. The finer words — duplicates, clones, causes — have no home: a
+      relationship's subtype ships empty (§6.3).
+    * **The parent** — a sub-task's parent, a story's epic — makes this issue
+      ``part_of`` it. Only the child names its parent, so there is nothing to
+      deduplicate.
+
+    A far end outside the import is still emitted; the deferred pass counts
+    it as unresolved when nothing answers to the ref.
+    """
+    links: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(relationship_type: RelationshipType, key: str) -> None:
+        if not key:
+            return
+        target = f"jira:{key}"
+        marker = (relationship_type.value, target)
+        if marker in seen:
+            return
+        seen.add(marker)
+        links.append({"type": relationship_type.value, "target_external_ref": target})
+
+    parent_key = _issue_key(fields.get("parent"))
+    if parent_key:
+        add(RelationshipType.part_of, parent_key)
+
+    for link in fields.get("issuelinks") or []:
+        if not isinstance(link, dict):
+            continue
+        inward = _issue_key(link.get("inwardIssue"))
+        outward = _issue_key(link.get("outwardIssue"))
+        if _is_blocking(link.get("type")):
+            if inward:
+                add(RelationshipType.depends_on, inward)
+        elif outward:
+            add(RelationshipType.related_to, outward)
+    return links
+
+
+def link_far_ends(issue: Any) -> list[tuple[str, str]]:
+    """Every link this issue takes part in, as ``(link id, far issue key)``.
+
+    For counting rather than for writing: both sides of a Jira link report
+    it, so the id is what lets the caller count one link once — and the far
+    key is what says whether its other end was brought over at all. The
+    parent counts too, keyed by the child, since only the child names it.
+    """
+    if not isinstance(issue, dict):
+        return []
+    fields = issue.get("fields")
+    if not isinstance(fields, dict):
+        return []
+    ends: list[tuple[str, str]] = []
+    parent_key = _issue_key(fields.get("parent"))
+    own_key = str(issue.get("key") or "").strip()
+    if parent_key:
+        ends.append((f"parent:{own_key}", parent_key))
+    for link in fields.get("issuelinks") or []:
+        if not isinstance(link, dict):
+            continue
+        far = _issue_key(link.get("inwardIssue")) or _issue_key(
+            link.get("outwardIssue")
+        )
+        link_id = str(link.get("id") or "").strip()
+        if far and link_id:
+            ends.append((f"link:{link_id}", far))
+    return ends
 
 
 def _labels(fields: dict) -> list[str]:

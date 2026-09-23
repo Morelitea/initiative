@@ -65,6 +65,10 @@ ISSUE_FIELDS = (
     "duedate",
     "created",
     "updated",
+    # What the issue is connected to: the deferred pass turns these into
+    # edges once every entry has been applied.
+    "issuelinks",
+    "parent",
 )
 
 _MANIFEST_NAME = "manifest.json"
@@ -89,6 +93,13 @@ class FetchReport:
     #: Projects asked for that the token could not read. Named so the plan can
     #: say which, rather than quietly importing fewer than were ticked.
     unreadable_projects: list[str] = field(default_factory=list)
+    #: Links and parents whose both ends were fetched — the edges the apply
+    #: will draw.
+    links: int = 0
+    #: Links and parents whose other end is outside what was fetched: another
+    #: project, an issue a narrowing left out, one the token cannot see. Said
+    #: before anybody commits, because those connections will not come over.
+    links_outside_selection: int = 0
 
 
 async def fetch_issue_type_statuses(
@@ -205,13 +216,19 @@ async def fetch_project_envelope(
     app_version: str,
     jql_extra: str | None = None,
     max_issues: int,
-) -> tuple[jira_mapping.MappedProject, int]:
-    """One Jira project as an envelope, and how many issues it cost.
+) -> tuple[jira_mapping.MappedProject, int, list[tuple[str, str]]]:
+    """One Jira project as an envelope, how many issues it cost, and what its
+    issues are linked to.
 
     The issue count is returned separately from the mapping's own counts so
     the caller can spend a shared row budget across several projects rather
     than letting the first one take all of it — what it spent is how many
     issues came back, including the ones that turned out to be unusable.
+
+    The link ends are ``(link id, far key)`` pairs. They come back raw
+    because whether a far end was fetched is only known once every project
+    has been read — a link between two ticked projects is not outside the
+    selection.
     """
     key = str(project.get("key") or "").strip()
     statuses = await fetch_issue_type_statuses(credential, key)
@@ -243,7 +260,8 @@ async def fetch_project_envelope(
         app_version=app_version,
         site_url=credential.site_url,
     )
-    return mapped, len(issues)
+    link_ends = [end for issue in issues for end in jira_mapping.link_far_ends(issue)]
+    return mapped, len(issues), link_ends
 
 
 def _entry_path(index: int, project_key: str) -> str:
@@ -345,6 +363,33 @@ def _people(envelopes: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]
     ]
 
 
+def _count_links(
+    report: FetchReport,
+    envelopes: list[tuple[str, dict[str, Any]]],
+    link_ends: list[tuple[str, str]],
+) -> None:
+    """Split the links into those that will be drawn and those that cannot.
+
+    A link is counted once however many of its issues reported it (both sides
+    of a Jira link do), and it is drawn only if its far end is among the tasks
+    this bundle carries — in any of the projects ticked, not only its own.
+    """
+    fetched = {
+        task["external_ref"].removeprefix("jira:")
+        for _key, envelope in envelopes
+        for task in envelope["tasks"]
+        if task.get("external_ref")
+    }
+    far_by_link: dict[str, set[str]] = {}
+    for link_id, far_key in link_ends:
+        far_by_link.setdefault(link_id, set()).add(far_key)
+    for far_keys in far_by_link.values():
+        if far_keys <= fetched:
+            report.links += 1
+        else:
+            report.links_outside_selection += 1
+
+
 async def fetch_projects_bundle(
     credential: AtlassianCredential,
     *,
@@ -373,6 +418,7 @@ async def fetch_projects_bundle(
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
 
     report = FetchReport()
+    link_ends: list[tuple[str, str]] = []
     remaining = settings.IMPORT_MAX_ROWS
     envelopes: list[tuple[str, dict[str, Any]]] = []
 
@@ -386,7 +432,7 @@ async def fetch_projects_bundle(
             project = await get_json(credential, f"/rest/api/3/project/{key}")
             if not isinstance(project, dict):
                 raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
-            mapped, used = await fetch_project_envelope(
+            mapped, used, ends = await fetch_project_envelope(
                 credential,
                 project,
                 app_version=app_version,
@@ -402,6 +448,7 @@ async def fetch_projects_bundle(
             report.unreadable_projects.append(key)
         else:
             envelopes.append((key, mapped.envelope))
+            link_ends.extend(ends)
             report.projects += 1
             report.tasks += len(mapped.envelope["tasks"])
             report.dropped_nodes += mapped.dropped_nodes
@@ -413,6 +460,7 @@ async def fetch_projects_bundle(
     if not envelopes:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
 
+    _count_links(report, envelopes, link_ends)
     bundle = build_bundle(
         envelopes,
         guild_id=guild_id,
