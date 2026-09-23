@@ -27,6 +27,7 @@ from typing import Any, Iterable, Optional
 from app.core.relationships import RelationshipType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.services.import_engine.adf import adf_to_markdown
+from app.services.import_engine.jira_fields import map_fields
 from app.services.import_engine.mapping import (
     DEFAULT_TAG_COLOR,
     POSITION_STEP,
@@ -432,6 +433,7 @@ def build_project_envelope(
     board_column_order: Optional[list[str]] = None,
     app_version: str,
     site_url: str | None = None,
+    field_catalog: Any = None,
 ) -> MappedProject:
     """A whole Jira project as the envelope an ordinary import applies.
 
@@ -455,6 +457,9 @@ def build_project_envelope(
         statuses[0]["name"],
     )
 
+    issues = list(issues)
+    fields = map_fields(field_catalog, issues)
+
     tasks: list[dict[str, Any]] = []
     dropped_nodes = 0
     skipped_issues = 0
@@ -469,6 +474,10 @@ def build_project_envelope(
             skipped_issues += 1
             continue
         task, lost = mapped
+        key = task["external_ref"].removeprefix("jira:")
+        task["property_values"] = fields.values_by_issue.get(key, [])
+        if key in fields.start_dates:
+            task["start_date"] = fields.start_dates[key]
         tasks.append(task)
         dropped_nodes += lost
 
@@ -487,7 +496,16 @@ def build_project_envelope(
             tasks=tasks,
             app_version=app_version,
             source_url=site_url,
+            property_definitions=fields.definitions,
         ),
         dropped_nodes=dropped_nodes,
         skipped_rows=skipped_issues,
+        properties={
+            definition["name"]: (
+                definition["type"],
+                fields.issue_counts.get(definition["name"], 0),
+            )
+            for definition in fields.definitions
+        },
+        dropped_fields=fields.dropped_fields,
     )

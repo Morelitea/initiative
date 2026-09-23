@@ -52,24 +52,12 @@ ISSUE_PAGE_SIZE = 100
 #: somebody else controls.
 MAX_ISSUE_PAGES = 500
 
-#: The fields the fetch asks for. Named rather than ``*``: every extra field
-#: is bytes over the wire and, for a custom field, a schema lookup nobody
-#: asked for. The property mapping (§6.5) widens this when it lands.
-ISSUE_FIELDS = (
-    "summary",
-    "description",
-    "status",
-    "priority",
-    "labels",
-    "assignee",
-    "duedate",
-    "created",
-    "updated",
-    # What the issue is connected to: the deferred pass turns these into
-    # edges once every entry has been applied.
-    "issuelinks",
-    "parent",
-)
+#: The fields the fetch asks for: every one a person can see on an issue.
+#: Narrower than ``*all`` (no internal bookkeeping), but it has to be all the
+#: navigable ones — which of a site's own fields anybody filled in is only
+#: known by reading them, and that is the rule a property is created by
+#: (§6.5).
+ISSUE_FIELDS = ("*navigable",)
 
 _MANIFEST_NAME = "manifest.json"
 
@@ -100,6 +88,12 @@ class FetchReport:
     #: project, an issue a narrowing left out, one the token cannot see. Said
     #: before anybody commits, because those connections will not come over.
     links_outside_selection: int = 0
+    #: Every property the bundle declares, by name: its type, and how many
+    #: tasks carry a value. The review step lists these for somebody to
+    #: untick what they do not want (§5.4).
+    properties: dict[str, tuple[str, int]] = field(default_factory=dict)
+    #: Fields some issue filled that have no home here, by name.
+    dropped_fields: list[str] = field(default_factory=list)
 
 
 async def fetch_issue_type_statuses(
@@ -209,6 +203,25 @@ async def fetch_issues(
     return issues[:max_issues]
 
 
+async def fetch_field_catalog(credential: AtlassianCredential) -> list[Any]:
+    """Every field the site defines, with the schema that says its type.
+
+    Read once per fetch, since it is the site's and not a project's. A site
+    that will not answer is not worth failing the import over: the built-in
+    fields still map by their own ids, and only the site's own fields go
+    without a type — so they are left out rather than guessed at. Being
+    throttled is the exception, as everywhere else.
+    """
+    try:
+        payload = await get_json(credential, "/rest/api/3/field")
+    except ImportEngineError as exc:
+        if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
+            raise
+        logger.info("jira field catalog unreadable code=%s", exc.code)
+        return []
+    return payload if isinstance(payload, list) else []
+
+
 async def fetch_project_envelope(
     credential: AtlassianCredential,
     project: dict,
@@ -216,6 +229,7 @@ async def fetch_project_envelope(
     app_version: str,
     jql_extra: str | None = None,
     max_issues: int,
+    field_catalog: Any = None,
 ) -> tuple[jira_mapping.MappedProject, int, list[tuple[str, str]]]:
     """One Jira project as an envelope, how many issues it cost, and what its
     issues are linked to.
@@ -259,6 +273,7 @@ async def fetch_project_envelope(
         board_column_order=column_names,
         app_version=app_version,
         site_url=credential.site_url,
+        field_catalog=field_catalog,
     )
     link_ends = [end for issue in issues for end in jira_mapping.link_far_ends(issue)]
     return mapped, len(issues), link_ends
@@ -346,14 +361,21 @@ def build_bundle(
 def _people(envelopes: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
     """Everyone the bundle names, for the wizard's people step.
 
-    Assignees only, for now: comments are a later item, and an assignee is the
-    one person a task currently names. Counted per mention so the step can say
-    how much hangs on getting one row right, and ordered most-named first.
+    Assignees, and whoever a person field names — a Reporter, a site's own
+    user fields — since both are placed through the step's answer. Comments
+    are a later item. Counted per mention so the step can say how much hangs
+    on getting one row right, and ordered most-named first.
     """
+    from app.services.import_engine.people import user_reference_handles
+
     counts: dict[str, int] = {}
     for _key, envelope in envelopes:
         for task in envelope.get("tasks") or []:
-            for handle in task.get("assignee_handles") or []:
+            named = [
+                *(task.get("assignee_handles") or []),
+                *user_reference_handles(task.get("property_values") or []),
+            ]
+            for handle in named:
                 name = str(handle).strip()
                 if name:
                     counts[name] = counts.get(name, 0) + 1
@@ -421,6 +443,8 @@ async def fetch_projects_bundle(
     link_ends: list[tuple[str, str]] = []
     remaining = settings.IMPORT_MAX_ROWS
     envelopes: list[tuple[str, dict[str, Any]]] = []
+    field_catalog = await fetch_field_catalog(credential)
+    dropped_fields: set[str] = set()
 
     for key in project_keys:
         if remaining <= 0:
@@ -438,6 +462,7 @@ async def fetch_projects_bundle(
                 app_version=app_version,
                 jql_extra=jql_extra,
                 max_issues=remaining,
+                field_catalog=field_catalog,
             )
         except ImportEngineError as exc:
             if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
@@ -453,6 +478,13 @@ async def fetch_projects_bundle(
             report.tasks += len(mapped.envelope["tasks"])
             report.dropped_nodes += mapped.dropped_nodes
             report.skipped_issues += mapped.skipped_rows
+            # Summed across projects: the same field on two boards is one
+            # property in the initiative they land in.
+            for name, (ptype, count) in mapped.properties.items():
+                _type, total = report.properties.get(name, (ptype, 0))
+                report.properties[name] = (ptype, total + count)
+            dropped_fields.update(mapped.dropped_fields)
+            report.dropped_fields = sorted(dropped_fields, key=str.lower)
             remaining -= used
         if progress is not None:
             await progress(report)

@@ -41,7 +41,11 @@ from app.core.encryption import (
     decrypt_field,
     encrypt_field,
 )
-from app.schemas.tenant.import_job import AtlassianFetchSummary, BackupImportPlan
+from app.schemas.tenant.import_job import (
+    AtlassianFetchSummary,
+    AtlassianPlanProperty,
+    BackupImportPlan,
+)
 from app.services.import_engine import engine as import_engine
 from app.services.import_engine import jira_fetch
 from app.services.import_engine.atlassian import AtlassianCredential
@@ -75,6 +79,11 @@ def summary_of(report: jira_fetch.FetchReport) -> AtlassianFetchSummary:
         unreadable_projects=list(report.unreadable_projects),
         links=report.links,
         links_outside_selection=report.links_outside_selection,
+        properties=[
+            AtlassianPlanProperty(name=name, type=ptype, issue_count=count)
+            for name, (ptype, count) in report.properties.items()
+        ],
+        dropped_fields=list(report.dropped_fields),
     )
 
 

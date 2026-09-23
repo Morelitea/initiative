@@ -46,6 +46,11 @@ class MappedProject:
     dropped_nodes: int = 0
     #: Anything the reader wants to say about the file, shown before confirm.
     warnings: list[str] = field(default_factory=list)
+    #: Each property definition the mapping declared, by name, with its type
+    #: and how many tasks carry a value for it — what the review step lists.
+    properties: dict[str, tuple[str, int]] = field(default_factory=dict)
+    #: Source fields something filled that have no home here, by name.
+    dropped_fields: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -214,6 +219,7 @@ def build_envelope(
     tasks: list[dict[str, Any]],
     app_version: str,
     source_url: str | None = None,
+    property_definitions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The project envelope itself — the same shape a project export writes."""
     return {
@@ -231,6 +237,6 @@ def build_envelope(
             for tag_name in collect_tag_names(tasks)
         ],
         "task_statuses": statuses,
-        "property_definitions": [],
+        "property_definitions": property_definitions or [],
         "tasks": tasks,
     }
