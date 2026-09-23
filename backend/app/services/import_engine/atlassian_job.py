@@ -91,6 +91,8 @@ def summary_of(report: jira_fetch.FetchReport) -> AtlassianFetchSummary:
         sprint_calendars=report.sprint_calendars,
         sprints_undated=report.sprints_undated,
         sprints_skipped=report.sprints_skipped,
+        comments=report.comments,
+        comments_restricted=report.comments_restricted,
     )
 
 
@@ -102,6 +104,7 @@ async def start_jira_import(
     credential: AtlassianCredential,
     initiative_id: int,
     project_keys: list[str],
+    include_comments: bool = True,
 ) -> ImportJob:
     """Queue a job that reads these Jira projects into ``initiative_id``.
 
@@ -139,6 +142,7 @@ async def start_jira_import(
             "site_url": credential.site_url,
             "principal": credential.email,
             "jira_projects": keys,
+            "include_comments": include_comments,
         },
         secret_encrypted=encrypt_field(credential.api_token, SALT_IMPORT_CREDENTIAL),
         status=ImportJobStatus.queued,
@@ -258,6 +262,8 @@ async def fetch(
         app_version=get_version(),
         progress=report_progress,
         sprints_blocked_by=sprints_blocked_by,
+        # A job started before the option existed brought comments across.
+        include_comments=params.get("include_comments") is not False,
     )
 
     from app.services.import_engine import backup as backup_service

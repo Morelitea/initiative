@@ -514,3 +514,123 @@ def test_links_survive_into_a_real_envelope():
         ("part_of", "jira:ACME-1"),
         ("depends_on", "jira:ACME-1"),
     ]
+
+
+# --- comments ------------------------------------------------------------------
+
+
+def _adf_text(text):
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
+    }
+
+
+def _jira_comment(author, text, created, **extra):
+    return {
+        "author": {"displayName": author, "emailAddress": "hidden@example.com"},
+        "body": _adf_text(text),
+        "created": created,
+        **extra,
+    }
+
+
+def test_comments_arrive_oldest_first_with_their_author_and_date():
+    mapped = jm.map_comments(
+        {
+            "comment": {
+                "comments": [
+                    _jira_comment("Sam", "Second", "2024-03-05T09:00:00.000+0000"),
+                    _jira_comment("Robin", "First", "2024-03-04T09:00:00.000+0000"),
+                ]
+            }
+        }
+    )
+    assert [c["body"] for c in mapped.comments] == ["First", "Second"]
+    first = mapped.comments[0]
+    assert first["author_handle"] == "Robin" and first["author_name"] == "Robin"
+    assert first["created_at"].startswith("2024-03-04")
+    # A display name, never an address.
+    assert "hidden@example.com" not in str(mapped.comments)
+
+
+def test_a_restricted_comment_stays_behind_and_is_counted():
+    """Visible to one role at the source; bringing it over would show it to
+    everybody in the initiative."""
+    fields = {
+        "comment": {
+            "comments": [
+                _jira_comment("Robin", "Open", "2024-03-04T09:00:00.000+0000"),
+                _jira_comment(
+                    "Sam",
+                    "Admins only",
+                    "2024-03-05T09:00:00.000+0000",
+                    visibility={"type": "role", "value": "Administrators"},
+                ),
+            ]
+        }
+    }
+    mapped = jm.map_comments(fields)
+    assert [c["body"] for c in mapped.comments] == ["Open"]
+    assert mapped.restricted == 1
+    assert jm.restricted_comment_count(fields) == 1
+
+
+def test_an_empty_comment_is_skipped_and_plain_text_is_kept():
+    mapped = jm.map_comments(
+        {
+            "comment": {
+                "comments": [
+                    {"author": {"displayName": "A"}, "body": _adf_text("   ")},
+                    {"author": {"displayName": "B"}, "body": "plain words"},
+                    "nonsense",
+                ]
+            }
+        }
+    )
+    assert [c["body"] for c in mapped.comments] == ["plain words"]
+
+
+def test_comments_ride_on_the_task_only_when_asked_for():
+    issue = _issue(
+        "ACME-1",
+        "One",
+        comment={
+            "comments": [_jira_comment("Robin", "Hi", "2024-03-04T09:00:00.000+0000")]
+        },
+    )
+    assert _map(issue)["comments"] == []
+    with_comments = jm.map_issue(
+        issue,
+        position=1.0,
+        status_names={"To Do"},
+        default_status_name="To Do",
+        include_comments=True,
+    )
+    assert with_comments is not None
+    assert [c["body"] for c in with_comments[0]["comments"]] == ["Hi"]
+
+
+def test_comments_survive_into_a_real_envelope():
+    from app.schemas.tenant.project_export import ProjectExportEnvelope
+
+    envelope = jm.build_project_envelope(
+        project={"key": "ACME", "name": "Acme"},
+        issue_type_statuses=[{"statuses": [_status("To Do", "new")]}],
+        issues=[
+            _issue(
+                "ACME-1",
+                "One",
+                comment={
+                    "comments": [
+                        _jira_comment("Robin", "Hi", "2024-03-04T09:00:00.000+0000")
+                    ]
+                },
+            )
+        ],
+        app_version="0.0.0-test",
+        include_comments=True,
+    ).envelope
+    parsed = ProjectExportEnvelope.model_validate(envelope)
+    assert parsed.tasks[0].comments[0].author_handle == "Robin"

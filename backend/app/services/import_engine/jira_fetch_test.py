@@ -473,7 +473,7 @@ async def test_links_are_asked_for(monkeypatch):
     search = next(c for c in calls if "search/jql" in c["url"])
     # Every navigable field, which carries the links and the parent too: which
     # of a site's fields anybody filled in is only known by reading them.
-    assert search["json"]["fields"] == ["*navigable"]
+    assert search["json"]["fields"][0] == "*navigable"
 
 
 async def test_links_are_counted_once_and_split_by_whether_both_ends_came(
@@ -698,3 +698,129 @@ async def test_sprints_blocked_by_the_target_are_counted_and_left_out(monkeypatc
     assert [e.tool for e in manifest.entries] == ["project"]
     project = json.loads(open_backup_zip(payload).read(manifest.entries[0].path))
     assert project["tasks"][0]["links"] == []
+
+
+# --- comments ----------------------------------------------------------------
+
+
+def _adf(text):
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
+    }
+
+
+def _comment(author, text, created, **extra):
+    return {
+        "author": {"displayName": author},
+        "body": _adf(text),
+        "created": created,
+        **extra,
+    }
+
+
+async def test_comments_come_with_their_issue_and_the_rest_are_paged_in(monkeypatch):
+    """The search carries the first page and a total; only an issue with more
+    than that costs a call of its own, and the whole thread arrives."""
+    comment_calls = []
+
+    first = [_comment("Robin", "One", "2024-03-04T09:00:00.000+0000")]
+    rest = [
+        _comment("Robin", "One", "2024-03-04T09:00:00.000+0000"),
+        _comment("Sam", "Two", "2024-03-05T09:00:00.000+0000"),
+    ]
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/comment?" in url:
+            comment_calls.append(url)
+            return httpx.Response(200, json={"comments": rest, "total": 2})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            return httpx.Response(200, json={"key": "ACME", "name": "ACME"})
+        if "search/jql" in url:
+            assert json is not None and "comment" in json["fields"]
+            return httpx.Response(
+                200,
+                json={
+                    "issues": [
+                        _issue(
+                            "ACME-1", "Long", comment={"comments": first, "total": 2}
+                        ),
+                        _issue(
+                            "ACME-2",
+                            "Short",
+                            comment={
+                                "comments": [
+                                    _comment(
+                                        "Ash", "Hi", "2024-03-06T09:00:00.000+0000"
+                                    )
+                                ],
+                                "total": 1,
+                            },
+                        ),
+                    ]
+                },
+            )
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    payload, report = await _bundle(monkeypatch)
+
+    assert len(comment_calls) == 1 and "/issue/ACME-1/comment" in comment_calls[0]
+    assert report.comments == 3
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    archive = open_backup_zip(payload)
+    manifest = read_manifest(archive)
+    envelope = json.loads(archive.read(manifest.entries[0].path))
+    assert [c["body"] for c in envelope["tasks"][0]["comments"]] == ["One", "Two"]
+    people = {p.handle: p.comment_count for p in manifest.people}
+    assert people == {"Robin": 1, "Sam": 1, "Ash": 1}
+
+
+async def test_comments_can_be_left_behind(monkeypatch):
+    calls = _site(
+        monkeypatch,
+        issues=[
+            _issue(
+                "ACME-1",
+                "One",
+                comment={
+                    "comments": [
+                        _comment("Robin", "Hi", "2024-03-04T09:00:00.000+0000")
+                    ],
+                    "total": 1,
+                },
+            )
+        ],
+    )
+    payload, report = await _bundle(monkeypatch, include_comments=False)
+    search = next(c for c in calls if "search/jql" in c["url"])
+    assert "comment" not in search["json"]["fields"]
+    assert report.comments == 0
+
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    archive = open_backup_zip(payload)
+    envelope = json.loads(archive.read(read_manifest(archive).entries[0].path))
+    assert envelope["tasks"][0]["comments"] == []
+
+
+async def test_comments_spend_the_row_budget(monkeypatch):
+    """A comment is a row. Two issues with two comments each fill a budget of
+    four, so the next project is not started."""
+    from app.core.config import settings
+
+    thread = {
+        "comments": [
+            _comment("Robin", "a", "2024-03-04T09:00:00.000+0000"),
+            _comment("Robin", "b", "2024-03-05T09:00:00.000+0000"),
+        ],
+        "total": 2,
+    }
+    _site(monkeypatch, issues=[_issue("ACME-1", "One", comment=thread)])
+    monkeypatch.setattr(settings, "IMPORT_MAX_ROWS", 3)
+    _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OTHER"])
+    assert report.projects == 1

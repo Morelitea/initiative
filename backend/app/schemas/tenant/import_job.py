@@ -186,6 +186,10 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: target initiative's calendars are off, or the importer cannot create
     #: one there.
     sprints_skipped: Optional[str] = None
+    #: Comments that will come over, and those visible only to a role or
+    #: group at the source, left behind rather than shown to everybody.
+    comments: int = 0
+    comments_restricted: int = 0
 
 
 class BackupImportPlan(SanitizedBaseModel):

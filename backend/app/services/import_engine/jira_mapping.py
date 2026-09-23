@@ -21,6 +21,7 @@ for and Jira does not.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
@@ -196,6 +197,7 @@ def map_issue(
     position: float,
     status_names: set[str],
     default_status_name: str,
+    include_comments: bool = False,
 ) -> Optional[tuple[dict[str, Any], int]]:
     """One Jira issue as a task in the envelope.
 
@@ -247,6 +249,12 @@ def map_issue(
         "external_ref": _external_ref(issue),
     }
 
+    lost = rendered.dropped_nodes
+    if include_comments:
+        mapped_comments = map_comments(fields)
+        task["comments"] = mapped_comments.comments
+        lost += mapped_comments.dropped_nodes
+
     assignee = _display_name(fields.get("assignee"))
     if assignee:
         # A display name, not a handle: who this is *here* is the wizard's
@@ -263,7 +271,72 @@ def map_issue(
     updated = _timestamp(fields.get("updated"))
     if updated:
         task["updated_at"] = updated
-    return task, rendered.dropped_nodes
+    return task, lost
+
+
+@dataclass
+class MappedComments:
+    """An issue's comments, and what reading them cost."""
+
+    comments: list[dict[str, Any]]
+    #: Comments visible only to a role or group at the source. The token can
+    #: read them, but bringing them over would show them to the whole
+    #: initiative, so they stay behind and are counted.
+    restricted: int = 0
+    #: ADF nodes no rule could render, summed over every body.
+    dropped_nodes: int = 0
+
+
+def restricted_comment_count(fields: Any) -> int:
+    """How many of an issue's comments are visible only to a role or group."""
+    field = fields.get("comment") if isinstance(fields, dict) else None
+    raw = field.get("comments") if isinstance(field, dict) else None
+    if not isinstance(raw, list):
+        return 0
+    return sum(1 for c in raw if isinstance(c, dict) and c.get("visibility"))
+
+
+def map_comments(fields: dict) -> MappedComments:
+    """The comments on one issue, as envelope comments, oldest first.
+
+    A comment's author travels as a display name: who that is *here* is the
+    people step's to answer, and one nobody maps keeps their name on the
+    comment rather than landing on a stranger (see ``project_import``).
+    Jira's comments are flat, so there is no thread to rebuild. A checkbox in
+    a comment stays a checkbox in its text — only a description's become the
+    task's checklist.
+    """
+    field = fields.get("comment")
+    raw = field.get("comments") if isinstance(field, dict) else None
+    result = MappedComments(comments=[])
+    if not isinstance(raw, list):
+        return result
+    for comment in raw:
+        if not isinstance(comment, dict):
+            continue
+        if comment.get("visibility"):
+            result.restricted += 1
+            continue
+        rendered = adf_to_markdown(comment.get("body"))
+        result.dropped_nodes += rendered.dropped_nodes
+        body = rendered.markdown.strip()
+        if not body and isinstance(comment.get("body"), str):
+            # A site that answers in plain text rather than ADF.
+            body = comment["body"].strip()
+        if not body:
+            continue
+        author = _display_name(comment.get("author")) or None
+        entry: dict[str, Any] = {
+            "author_handle": author,
+            "author_name": author,
+            "body": body,
+        }
+        created = _timestamp(comment.get("created"))
+        if created:
+            entry["created_at"] = created
+        result.comments.append(entry)
+    result.comments.sort(key=lambda c: c.get("created_at") or "")
+    return result
 
 
 def _is_blocking(link_type: Any) -> bool:
@@ -434,6 +507,7 @@ def build_project_envelope(
     app_version: str,
     site_url: str | None = None,
     field_catalog: Any = None,
+    include_comments: bool = False,
 ) -> MappedProject:
     """A whole Jira project as the envelope an ordinary import applies.
 
@@ -469,6 +543,7 @@ def build_project_envelope(
             position=(index + 1) * POSITION_STEP,
             status_names=status_names,
             default_status_name=default_status_name,
+            include_comments=include_comments,
         )
         if mapped is None:
             skipped_issues += 1

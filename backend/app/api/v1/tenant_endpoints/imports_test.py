@@ -3174,6 +3174,89 @@ async def test_sprints_are_left_behind_and_said_so_when_calendars_are_off(
     assert not (await session.exec(select(Calendar))).all()
 
 
+async def test_a_jira_import_brings_its_comments_to_whoever_wrote_them(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Comments land on their task, oldest first; the one somebody mapped in
+    the people step is that member's, one nobody mapped keeps its writer's
+    name, and one restricted to a role at the source stays behind."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    def body(text):
+        return {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": text}]}
+            ],
+        }
+
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["comment"] = {
+        "total": 3,
+        "comments": [
+            {
+                "author": {"displayName": "Robin"},
+                "body": body("Measured twice"),
+                "created": "2024-03-04T09:00:00.000+0000",
+            },
+            {
+                "author": {"displayName": "Sam"},
+                "body": body("Cut once"),
+                "created": "2024-03-05T09:00:00.000+0000",
+            },
+            {
+                "author": {"displayName": "Ash"},
+                "body": body("Admins only"),
+                "created": "2024-03-06T09:00:00.000+0000",
+                "visibility": {"type": "role", "value": "Administrators"},
+            },
+        ],
+    }
+    monkeypatch.setattr(
+        atlassian_service, "request_public_target", _jira_site(issues=[issue])
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["comments"], summary["comments_restricted"]) == (2, 1)
+    people = {p["handle"]: p["comment_count"] for p in staged["plan"]["people"]}
+    assert people == {"Robin": 1, "Sam": 1}
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin": a.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
+    comments = (
+        await session.exec(
+            select(Comment)
+            .where(Comment.task_id == task.id)
+            .order_by(Comment.created_at)
+        )
+    ).all()
+    assert [c.content for c in comments] == ["Measured twice", "Cut once"]
+    assert comments[0].created_by == a.user.id
+    assert comments[0].imported_author_name is None
+    assert comments[1].imported_author_name == "Sam"
+
+
 async def test_starting_a_jira_import_refuses_what_it_can_up_front(
     client, acting_user, session, monkeypatch
 ):
