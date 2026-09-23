@@ -41,8 +41,8 @@ import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from app.core.config import settings
 from app.core.security import (
+    APP_PLATFORM_ISSUER,
     app_platform_audience,
     resolve_app_platform_signing_material,
 )
@@ -115,7 +115,7 @@ def mint_context_token(
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
-        "iss": settings.APP_PLATFORM_ISSUER,
+        "iss": APP_PLATFORM_ISSUER,
         "aud": app_platform_audience(public_id),
         "iat": int(now.timestamp()),
         "exp": now + lifetime,

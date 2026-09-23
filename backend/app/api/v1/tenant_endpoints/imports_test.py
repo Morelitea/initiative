@@ -7,7 +7,6 @@ import zipfile
 import pytest
 from httpx import AsyncClient
 
-from app.core.config import settings
 from app.models.platform.guild import GuildRole
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.import_engine import worker as import_worker
@@ -21,6 +20,7 @@ from app.testing.factories import (
     create_queue,
     create_task,
 )
+from app.services.import_engine import limits as import_limits
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +362,7 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     from app.models.platform.notification import Notification, NotificationType
     from app.models.tenant.queue import Queue
 
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "type": "initiative-queue",
@@ -424,7 +424,7 @@ async def test_worker_fails_closed_on_revoked_permission(
     from app.models.tenant.initiative import InitiativeMember
     from app.models.tenant.queue import Queue
 
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "type": "initiative-queue",
@@ -465,7 +465,7 @@ async def test_stale_running_import_fails_closed_not_reapplied(
     (an interrupted apply may have committed rows already)."""
     from datetime import datetime, timedelta, timezone
 
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     from app.testing import route_session_to_guild
 
@@ -494,8 +494,8 @@ async def test_stale_running_import_fails_closed_not_reapplied(
 
 
 async def test_import_job_cap_and_cancel(client, acting_user, session, monkeypatch):
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
-    monkeypatch.setattr(settings, "IMPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "type": "initiative-queue",
@@ -528,7 +528,7 @@ async def test_import_jobs_are_own_row_isolated(
 ):
     """Another member sees neither the job nor its row (RLS, 404); a guild
     admin sees it via the admin leg."""
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "type": "initiative-queue",
@@ -556,7 +556,7 @@ async def test_envelope_byte_bound_enforced_before_body_is_read(
     Content-Length is refused before any body is read, and a chunked
     (length-less) stream is cut off as soon as it exceeds the limit — the
     server never buffers more than the cap."""
-    monkeypatch.setattr(settings, "IMPORT_MAX_ENVELOPE_BYTES", 1024)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ENVELOPE_BYTES", 1024)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
     big_body = json.dumps(
@@ -860,7 +860,7 @@ async def test_backup_rejects_invalid_and_bomb_zips(
     assert escaped.status_code == 400
     assert escaped.json()["detail"] == "IMPORT_ZIP_INVALID"
 
-    monkeypatch.setattr(settings, "IMPORT_MAX_ZIP_MEMBERS", 1)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ZIP_MEMBERS", 1)
     entry, envelope = _queue_entry()
     bomb = _make_backup_zip(
         _minimal_manifest(entries=[entry]),
@@ -870,7 +870,7 @@ async def test_backup_rejects_invalid_and_bomb_zips(
     assert too_many.status_code == 400
     assert too_many.json()["detail"] == "IMPORT_TOO_LARGE"
 
-    monkeypatch.setattr(settings, "IMPORT_MAX_ZIP_MEMBERS", 20_000)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ZIP_MEMBERS", 20_000)
     future = _make_backup_zip({**_minimal_manifest(), "schema_version": 99})
     unsupported = await _upload_backup(client, a, future)
     assert unsupported.status_code == 400
@@ -3782,7 +3782,7 @@ async def test_a_real_sized_export_arrives_whole(
     )
     assert len(content) > MAX_PLAIN_TEXT_LENGTH
     # Applied in the request, so what landed can be read straight back.
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 10_000)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 10_000)
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     resp = await client.post(

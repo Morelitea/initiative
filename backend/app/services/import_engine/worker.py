@@ -38,7 +38,6 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.db import session as db_session
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
@@ -51,6 +50,7 @@ from app.services.import_engine import engine as import_engine
 from app.services.platform import accounts as accounts_service
 from app.services.import_engine.contract import ImportEngineError
 from app.services.platform import user_notifications
+from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +293,7 @@ async def _fetch(
     job.plan = staged.plan
     job.updated_at = now
     # The review gets a whole window of its own, however long the read took.
-    job.expires_at = now + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS)
+    job.expires_at = now + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS)
     session.add(job)
     await session.commit()
     return None

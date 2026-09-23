@@ -45,7 +45,7 @@ import { formatBytes } from "@/lib/fileUtils";
 import { formatDateTime } from "@/lib/formatDate";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
-// Mirrors the backend's IMPORT_MAX_BACKUP_UPLOAD_BYTES default — the UX
+// Mirrors the backend's IMPORT_MAX_BACKUP_UPLOAD_BYTES — the UX
 // layer; the server (ASGI middleware + bounded read) is the enforcement.
 const MAX_UPLOAD_BYTES = 268_435_456;
 

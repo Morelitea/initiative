@@ -23,7 +23,6 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.db import session as db_session
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
@@ -33,6 +32,7 @@ from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services.export import engine as export_engine
 from app.services.platform import accounts as accounts_service
 from app.services.platform import user_notifications
+from app.services.export import limits as export_limits
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ async def _process_guild_jobs(
             # retention they keep there, and is not ours to sweep up.
             job.expires_at = (
                 datetime.now(timezone.utc)
-                + timedelta(hours=settings.EXPORT_ARTIFACT_TTL_HOURS)
+                + timedelta(hours=export_limits.EXPORT_ARTIFACT_TTL_HOURS)
                 if location.artifact_ref
                 else None
             )

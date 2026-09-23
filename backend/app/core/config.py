@@ -252,51 +252,6 @@ class Settings(BaseSettings):
     # with no impact on encrypted-at-rest data. Falls back to SECRET_KEY when unset.
     JWT_SIGNING_KEY: str | None = None
 
-    # --- The SQL query surface ----------------------------------------------
-    #
-    # Each of these is a bound, so each has a floor of one: a value below that
-    # would not loosen the limit, it would turn it off or refuse every query.
-    #: Connections kept for reader-written SQL. Small on purpose: it is the
-    #: bound on how much of the database's attention those statements can hold.
-    QUERY_POOL_SIZE: int = Field(default=4, gt=0)
-    #: How long a query waits for one of them before giving up.
-    QUERY_POOL_TIMEOUT_SECONDS: int = Field(default=5, gt=0)
-    #: How many queries one guild may have running at once, across the
-    #: deployment.
-    QUERY_MAX_CONCURRENT_PER_GUILD: int = Field(default=2, gt=0)
-    #: How long one statement may run.
-    QUERY_STATEMENT_TIMEOUT_MS: int = Field(default=5_000, gt=0)
-    #: Sort/hash memory per statement, as a PostgreSQL size.
-    QUERY_WORK_MEM: str = "16MB"
-    #: The planner's estimate above which a statement is refused unrun.
-    QUERY_MAX_COST: float = Field(default=1_000_000.0, gt=0)
-    #: Rows one query may return.
-    QUERY_MAX_ROWS: int = Field(default=5_000, gt=0)
-
-    @field_validator("QUERY_WORK_MEM")
-    @classmethod
-    def _rebuild_work_mem(cls, value: str) -> str:
-        """Read the setting as a number and a unit, and write it back out.
-
-        The result reaches ``SET LOCAL work_mem``, so what goes there is built
-        here from an integer and one of four known words rather than passed
-        through — a value this cannot read is a configuration error and says
-        so at startup.
-        """
-        text = value.strip()
-        unit = ""
-        for known in ("kB", "MB", "GB", "TB"):
-            if text.endswith(known):
-                unit = known
-                text = text[: -len(known)].strip()
-                break
-        if not text.isdigit() or int(text) <= 0:
-            raise ValueError(
-                "QUERY_WORK_MEM must be a positive number, optionally followed "
-                "by kB, MB, GB or TB — for example '16MB'"
-            )
-        return f"{int(text)}{unit}"
-
     # The JWT algorithm and cookie names are constants in app.core.security
     # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — a settable
     # JWT algorithm is an alg-confusion hazard, and the cookie names are part
@@ -609,7 +564,6 @@ class Settings(BaseSettings):
     # (serves blobs not yet copied by the backfill). Turn off once the backfill is
     # verified complete. Only consulted when STORAGE_BACKEND="s3".
     S3_LOCAL_FALLBACK: bool = False
-    STATIC_DIR: str = "static"
 
     # --- Marketplace ------------------------------------------------------
     # A directory of listing manifests (*.json) this deployment publishes as
@@ -622,32 +576,9 @@ class Settings(BaseSettings):
     MARKETPLACE_EXTRA_CATALOG_DIR: str | None = None
 
     # --- Data export engine ---
-    # Render backend seam. Only "local" (typst-py in-process) ships; a
-    # distributed/cloud backend would be an additive second implementation.
-    EXPORT_BACKEND: str = "local"
-    # Inline-vs-job auto-select: at or under this many rows the PDF renders
-    # in-request; above it the request becomes a persisted ExportJob.
-    EXPORT_INLINE_MAX_ROWS: int = 200
-    # Hard ceiling on rows in one export snapshot — the real DoS bound (the
-    # list-endpoint pagination caps deliberately do NOT apply to exports).
-    EXPORT_MAX_ROWS: int = 10_000
-    # Per-user cap on jobs that are queued or running at once.
-    EXPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
-    # Aggregate (initiative/guild) exports: their own row ceiling — a guild
-    # dump legitimately exceeds EXPORT_MAX_ROWS — and a byte cap on included
-    # uploads.
+    # The engine's own row, job and byte bounds are constants in
+    # ``app.services.export.limits``; these are the deployment's choices.
     #
-    # The archive now assembles on disk, one rendered artifact at a time
-    # (``engine._stream_zip_to_storage``), so peak memory no longer scales
-    # with how much a community has. The byte cap is therefore about how long
-    # a job may run and how much scratch disk it may use, not about what fits
-    # in RAM — which is why it is measured in gigabytes now rather than the
-    # 256 MiB that in-memory assembly could afford.
-    #
-    # The row ceiling still bounds the enumeration the adapter holds while it
-    # builds, so it stays — an order of magnitude higher, but a real bound.
-    EXPORT_MAX_BACKUP_ROWS: int = 500_000
-    EXPORT_MAX_BACKUP_UPLOAD_BYTES: int = 10_737_418_240  # 10 GiB
     # The line between an archive the app hands back over HTTP and one it
     # writes to the operator's destination. A download is served by this
     # process for as long as the client's connection lasts, so this is a bound
@@ -674,33 +605,6 @@ class Settings(BaseSettings):
     # the moment it switched storage over. Filesystem storage signs nothing,
     # so this does nothing there whatever it is set to.
     EXPORT_PRESIGNED_DOWNLOADS: bool = False
-    # Lifetime of a signed download URL. Short: it only has to outlive the
-    # redirect and the start of the transfer.
-    EXPORT_DOWNLOAD_URL_TTL_SECONDS: int = 300
-    # Artifact retention: expires_at = render time + this; the GC pass then
-    # deletes the artifact and marks the job expired.
-    EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days
-
-    # --- Import engine (mirrors the export knobs; imports are writes) ------
-    # Inline-vs-job auto-select: at or under this many rows the envelope
-    # applies in-request; above it the payload is staged and a job queued.
-    IMPORT_INLINE_MAX_ROWS: int = 200
-    # Hard ceiling on rows in one envelope import.
-    IMPORT_MAX_ROWS: int = 10_000
-    # Per-user cap on jobs that are staged, queued, or running at once.
-    IMPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
-    # Byte bound on a single envelope request body (rows bound the content,
-    # but a pathological single-field envelope must be bounded in bytes too).
-    IMPORT_MAX_ENVELOPE_BYTES: int = 20_971_520  # 20 MiB
-    # Staged payloads awaiting confirm/apply expire after this.
-    IMPORT_STAGED_TTL_HOURS: int = 24
-    # Backup-zip imports: upload byte cap (mirrors the export bundle cap),
-    # plus zip-bomb bounds independent of the transfer cap — total declared
-    # uncompressed size and member count.
-    IMPORT_MAX_BACKUP_UPLOAD_BYTES: int = 268_435_456  # 256 MiB
-    IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES: int = 1_073_741_824  # 4x the upload cap
-    IMPORT_MAX_ZIP_MEMBERS: int = 20_000
-
     # First/bootstrap user — becomes the platform `owner` tier (there is no
     # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
     # as aliases so existing deployments keep working.
@@ -742,20 +646,6 @@ class Settings(BaseSettings):
     # so a SET ROLE always targets the role the migration actually created.
     PLATFORM_ROLE_PREFIX: str = ""
 
-    # Privileged Access Management (PAM): time-bound, per-guild access grants.
-    PAM_DEFAULT_DURATION_MINUTES: int = 240  # 4 hours
-    PAM_MAX_DURATION_MINUTES: int = 1440  # 24 hours (absolute ceiling on any grant)
-    # Per-role maximum grant duration (least privilege: lower-trust roles get
-    # shorter windows). Each is clamped to PAM_MAX_DURATION_MINUTES.
-    PAM_SUPPORT_MAX_MINUTES: int = 240  # 4 hours
-    PAM_MODERATOR_MAX_MINUTES: int = 480  # 8 hours
-    PAM_OPERATOR_MAX_MINUTES: int = 1440  # 24 hours
-    # Break-glass (self-approved, data.bypass holders): deliberately short — a
-    # self-issued emergency grant skips the second-person approval, so its window
-    # is conservative and re-triggered to extend. Capped below the role maxima.
-    PAM_BREAK_GLASS_DEFAULT_MINUTES: int = 60  # 1 hour
-    PAM_BREAK_GLASS_MAX_MINUTES: int = 240  # 4 hours (ceiling on a self-approved grant)
-
     # Optional captcha gate on the public registration endpoint to push
     # back on bot signups. ``CAPTCHA_PROVIDER`` selects the vendor —
     # ``"hcaptcha"`` / ``"turnstile"`` / ``"recaptcha"`` — and the SPA
@@ -782,14 +672,6 @@ class Settings(BaseSettings):
     # to pick the right verifying key — useful when rotating.
     HANDOFF_SIGNING_KEY_ID: str | None = None
 
-    # Inbound delegation from an app service acting for one of its members.
-    # The app presents a JWT signed with its own private key (RS256); the
-    # public half lives on that app's registration, which is also what says
-    # whether it may delegate at all. These two are the envelope every such
-    # token is checked against.
-    AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
-    AUTO_DELEGATION_ISSUER: str = "initiative-auto"
-
     # --- App platform (external app services; default OFF) ----------------
     # An app service is an external container this deployment has wired up
     # (see the app service registry). Everything below is unset on a default
@@ -807,11 +689,6 @@ class Settings(BaseSettings):
     # Key id stamped on the JWT header so an app can pick the right verifying
     # key out of the published JWKS while a rotation is in flight.
     APP_PLATFORM_SIGNING_KEY_ID: str | None = None
-    # ``iss`` on context JWTs.
-    APP_PLATFORM_ISSUER: str = "initiative"
-    # ``aud`` is this prefix plus the registration's public_id, so a token
-    # minted for one app is not accepted by another.
-    APP_PLATFORM_AUDIENCE_PREFIX: str = "initiative-app:"
     # Path to a mounted file of app service registrations, reconciled into the
     # database at startup so a chart can wire approved apps with no admin
     # clicks. JSON (or a JSON array in a .json file):
@@ -873,10 +750,6 @@ class Settings(BaseSettings):
     # value before the cutover or the old value afterwards; clear it only once
     # every billing instance signs with BILLING_HMAC_SECRET.
     BILLING_HMAC_SECRET_PREVIOUS: str | None = None
-    BILLING_AUDIENCE: str = "initiative:billing"
-    BILLING_ISSUER: str = "initiative-billing"
-    # Max |now - signed timestamp| accepted, in seconds. Never 0.
-    BILLING_REPLAY_WINDOW_SECONDS: int = Field(default=300, ge=1)
     # Outbound base URL of the billing service, for the fire-and-forget
     # membership-change ping (guild id + event id only — no member data).
     # The ping is dispatched only when this AND BILLING_HMAC_SECRET are set.
@@ -926,10 +799,6 @@ class Settings(BaseSettings):
     # How often the background refresh re-fetches the index. ~15 minutes keeps a
     # withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
-    # How old a signed index may be before it is refused. A signature stays
-    # valid forever, so freshness is what stops a served copy from being frozen
-    # in place; the publish pipeline re-signs on a schedule well inside this.
-    MARKETPLACE_REGISTRY_MAX_AGE_SECONDS: int = Field(default=7 * 86400, ge=300)
     # Operator kill switch. False stops the background refresh and the
     # "refresh now" endpoint without unsetting the URL or the keys, so a
     # deployment can pause ingestion and resume with its trust settings intact.
@@ -942,12 +811,6 @@ class Settings(BaseSettings):
     # https + public-address policy. The connection is pinned to the
     # resolved address regardless of this setting.
     WEBHOOK_ALLOW_PRIVATE_TARGETS: bool = False
-
-    # How long delivered change events are kept in each guild's outbox before
-    # the retention sweep drops them. An instance that never registers a target
-    # still accumulates the log, so this bounds it; a subscriber further behind
-    # than this has stopped consuming and resumes from the current head.
-    WEBHOOK_OUTBOX_RETENTION_DAYS: int = 7
 
     BEHIND_PROXY: bool = (
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For

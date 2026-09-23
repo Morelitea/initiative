@@ -45,6 +45,7 @@ from app.services.storage import (
     content_disposition_attachment,
     get_guild_storage,
 )
+from app.services.export import limits as export_limits
 
 router = APIRouter()
 
@@ -781,7 +782,7 @@ async def download_export_artifact(
     signed = (
         storage.presign_get(
             job.artifact_ref,
-            ttl=settings.EXPORT_DOWNLOAD_URL_TTL_SECONDS,
+            ttl=export_limits.EXPORT_DOWNLOAD_URL_TTL_SECONDS,
             filename=filename,
         )
         if settings.EXPORT_PRESIGNED_DOWNLOADS

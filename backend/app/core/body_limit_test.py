@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.core.body_limit import _RULES
-from app.core.config import settings
+from app.services.import_engine import limits as import_limits
 
 pytestmark = pytest.mark.unit
 
@@ -24,5 +24,5 @@ def test_the_atlassian_routes_are_bounded_where_they_are():
     start = _limit("/api/v1/g/1/imports/atlassian/import")
     export = _limit("/api/v1/g/1/imports/atlassian/export")
     assert connect is not None and connect == start
-    assert export is not None and export > settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+    assert export is not None and export > import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
     assert export == _limit("/api/v1/g/1/imports/backup")

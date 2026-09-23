@@ -18,7 +18,7 @@ import json
 import re
 from typing import Awaitable, Callable
 
-from app.core.config import settings
+from app.services.import_engine import limits as import_limits
 
 #: The most any app-service request may carry. Sized for the largest route on
 #: that surface — events — plus its envelope, and kept here rather than imported
@@ -36,14 +36,14 @@ ATLASSIAN_MAX_REQUEST_BYTES = 16 * 1024
 _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
     (
         re.compile(r"^/api/v1/g/\d+/imports/envelope$"),
-        lambda: settings.IMPORT_MAX_ENVELOPE_BYTES,
+        lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (
         # A foreign export travels as its own text in a JSON body — the same
         # order of size as an envelope, and bounded the same way.
         re.compile(r"^/api/v1/g/\d+/imports/foreign/[^/]+(/preview)?$"),
-        lambda: settings.IMPORT_MAX_ENVELOPE_BYTES,
+        lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (
@@ -51,7 +51,7 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # framing overhead around the zip; allow 1 MiB slack over the cap the
         # handler's bounded read enforces exactly.
         re.compile(r"^/api/v1/g/\d+/imports/(backup|atlassian/export)$"),
-        lambda: settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
+        lambda: import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
         "IMPORT_TOO_LARGE",
     ),
     (

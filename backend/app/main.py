@@ -80,7 +80,7 @@ UPLOAD_CACHE_SECONDS = 300
 
 uploads_path = Path(settings.UPLOADS_DIR)
 uploads_path.mkdir(parents=True, exist_ok=True)
-static_path = Path(settings.STATIC_DIR)
+static_path = Path("static")
 static_path.mkdir(parents=True, exist_ok=True)
 static_index_path = static_path / "index.html"
 static_root = static_path.resolve()

@@ -30,6 +30,8 @@ from app.testing.delegation import (
     register_delegate,
 )
 from app.core.security import (
+    AUTO_DELEGATION_AUDIENCE,
+    AUTO_DELEGATION_ISSUER,
     AutoDelegationVerificationError,
     verify_auto_delegation_token,
 )
@@ -60,8 +62,8 @@ def _mint(*, jti: str, expires_in: int) -> str:
         {
             "jti": jti,
             "sub": "1",
-            "aud": config_module.settings.AUTO_DELEGATION_AUDIENCE,
-            "iss": config_module.settings.AUTO_DELEGATION_ISSUER,
+            "aud": AUTO_DELEGATION_AUDIENCE,
+            "iss": AUTO_DELEGATION_ISSUER,
             "iat": int(now.timestamp()),
             "exp": now + timedelta(seconds=expires_in),
             "guild_id": 1,

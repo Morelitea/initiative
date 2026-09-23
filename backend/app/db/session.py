@@ -56,6 +56,12 @@ provisioning_engine = create_async_engine(
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
 
+#: Connections kept for reader-written SQL. Small on purpose: it is the bound
+#: on how much of the database's attention those statements can hold.
+QUERY_POOL_SIZE = 4
+#: How long a query waits for one of them before giving up.
+QUERY_POOL_TIMEOUT_SECONDS = 5
+
 #: A pool of its own for reader-written SQL, so what those statements wait for
 #: is each other rather than the requests serving every other page. Same login
 #: as the request path — the difference is the role each statement assumes and
@@ -63,9 +69,9 @@ provisioning_engine = create_async_engine(
 query_engine = create_async_engine(
     settings.DATABASE_URL_APP,
     echo=False,
-    pool_size=settings.QUERY_POOL_SIZE,
+    pool_size=QUERY_POOL_SIZE,
     max_overflow=0,
-    pool_timeout=settings.QUERY_POOL_TIMEOUT_SECONDS,
+    pool_timeout=QUERY_POOL_TIMEOUT_SECONDS,
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
 

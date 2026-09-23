@@ -32,6 +32,12 @@ from app.schemas.platform.billing import BillingGuildTierApply, BillingGuildTier
 
 logger = logging.getLogger(__name__)
 
+# Pinned on both sides of the boundary — not deployment knobs.
+BILLING_AUDIENCE = "initiative:billing"
+BILLING_ISSUER = "initiative-billing"
+#: Max |now - signed timestamp| accepted, in seconds.
+BILLING_REPLAY_WINDOW_SECONDS = 300
+
 
 class BillingEnvelopeError(Exception):
     """The request failed envelope verification. ``code`` is the
@@ -117,7 +123,7 @@ def verify_billing_envelope(
         ts = int(ts_header)
     except ValueError as exc:
         raise BillingEnvelopeError(BillingMessages.STALE_TIMESTAMP) from exc
-    window = max(1, settings.BILLING_REPLAY_WINDOW_SECONDS)  # never 0 (P-6)
+    window = BILLING_REPLAY_WINDOW_SECONDS
     if abs(time.time() - ts) > window:
         raise BillingEnvelopeError(BillingMessages.STALE_TIMESTAMP)
 
@@ -157,8 +163,8 @@ def verify_billing_envelope(
                 token,
                 key,
                 algorithms=["RS256"],
-                audience=settings.BILLING_AUDIENCE,
-                issuer=settings.BILLING_ISSUER,
+                audience=BILLING_AUDIENCE,
+                issuer=BILLING_ISSUER,
                 options={"require": ["exp", "iat", "iss", "aud", "jti"]},
             )
             break

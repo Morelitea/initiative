@@ -84,8 +84,7 @@ class BreakGlassCreate(SecondFactorAnswer):
     issues write access to the community's content **and** a settings grant at
     ``superadmin``, because that is what an emergency is for. Somebody who
     wants less asks for less through the ordinary request flow. The window is
-    short and capped server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue
-    to extend.
+    short and capped server-side — re-issue to extend.
     """
 
     guild_id: int

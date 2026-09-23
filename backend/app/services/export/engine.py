@@ -28,6 +28,7 @@ from app.services.export.contract import (
 )
 from app.services.export.local_backend import LocalRenderBackend
 from app.services.storage import get_guild_storage
+from app.services.export import limits as export_limits
 
 
 # Advisory-lock namespace (arbitrary constant) for the per-user job-cap check.
@@ -87,9 +88,7 @@ class InlineExport:
 
 
 def get_backend() -> RenderBackend:
-    if settings.EXPORT_BACKEND == "local":
-        return LocalRenderBackend()
-    raise ValueError(f"Unknown EXPORT_BACKEND: {settings.EXPORT_BACKEND!r}")
+    return LocalRenderBackend()
 
 
 def get_adapter(source: str, format: str) -> SourceAdapter:
@@ -134,7 +133,7 @@ async def start_export(
     )
     # Aggregate sources (whole-initiative/guild) declare their own ceiling —
     # a guild dump legitimately exceeds the per-report bound.
-    max_rows = getattr(adapter, "max_rows", None) or settings.EXPORT_MAX_ROWS
+    max_rows = getattr(adapter, "max_rows", None) or export_limits.EXPORT_MAX_ROWS
     if row_count > max_rows:
         raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
 
@@ -142,7 +141,7 @@ async def start_export(
     # (and possibly upload blobs), and the worker's fresh creator-routed
     # session is where the mid-build access refresh is safe.
     always_job = getattr(adapter, "always_job", False)
-    if not always_job and row_count <= settings.EXPORT_INLINE_MAX_ROWS:
+    if not always_job and row_count <= export_limits.EXPORT_INLINE_MAX_ROWS:
         from app.services.export.branding import apply_brand
 
         request = await adapter.build(
@@ -181,7 +180,7 @@ async def start_export(
             )
         )
     ).one()
-    if active >= settings.EXPORT_MAX_ACTIVE_JOBS_PER_USER:
+    if active >= export_limits.EXPORT_MAX_ACTIVE_JOBS_PER_USER:
         raise ExportError(ExportMessages.EXPORT_JOB_LIMIT_REACHED, status_code=429)
 
     job = ExportJob(

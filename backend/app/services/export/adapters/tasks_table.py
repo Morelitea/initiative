@@ -19,13 +19,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import re
 
-from app.core.config import settings
 from app.models.platform.user import User
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale, localize_now
 from app.services.export.markdown import blocks_from_markdown
 from app.core.user_display import display_name
+from app.services.export import limits as export_limits
 
 # Comment mentions are stored as ``@[Display Name](id)`` / ``#type[Text](id)``;
 # a printed report shows ``@Display Name`` / the display text, not the
@@ -109,7 +109,7 @@ class TasksTableAdapter:
             user,
             guild_id,
             **_selector(params),
-            max_rows=settings.EXPORT_MAX_ROWS,
+            max_rows=export_limits.EXPORT_MAX_ROWS,
         )
         loc = export_locale(user)
         local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))
@@ -156,7 +156,7 @@ class TasksTableAdapter:
             user,
             guild_id,
             **_selector(params),
-            max_rows=settings.EXPORT_MAX_ROWS,
+            max_rows=export_limits.EXPORT_MAX_ROWS,
         )
         loc = export_locale(user)
         local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))

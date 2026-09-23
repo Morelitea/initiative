@@ -1,0 +1,20 @@
+"""The import engine's bounds (the counterpart of the export engine's)."""
+
+#: Inline-vs-job auto-select: at or under this many rows the envelope applies
+#: in-request; above it the payload is staged and a job queued.
+IMPORT_INLINE_MAX_ROWS = 200
+#: Hard ceiling on rows in one envelope import.
+IMPORT_MAX_ROWS = 10_000
+#: Per-user cap on jobs that are staged, queued, or running at once.
+IMPORT_MAX_ACTIVE_JOBS_PER_USER = 5
+#: Byte bound on a single envelope request body (rows bound the content, but a
+#: single-field envelope must be bounded in bytes too).
+IMPORT_MAX_ENVELOPE_BYTES = 20_971_520  # 20 MiB
+#: Staged payloads awaiting confirm/apply expire after this.
+IMPORT_STAGED_TTL_HOURS = 24
+
+#: Backup-zip imports: upload byte cap, plus bounds independent of the transfer
+#: cap — total declared uncompressed size and member count.
+IMPORT_MAX_BACKUP_UPLOAD_BYTES = 268_435_456  # 256 MiB
+IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES = 1_073_741_824  # 4x the upload cap
+IMPORT_MAX_ZIP_MEMBERS = 20_000

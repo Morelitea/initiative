@@ -18,6 +18,7 @@ import pytest
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import atlassian, jira_fetch
 from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine import limits as import_limits
 
 pytestmark = pytest.mark.unit
 
@@ -263,9 +264,8 @@ async def test_a_cursor_that_is_not_a_string_ends_the_walk(monkeypatch):
 async def test_the_row_budget_is_shared_across_projects(monkeypatch):
     """One enormous project must not eat the whole import's ceiling and leave
     the others empty without saying so."""
-    from app.core.config import settings
 
-    monkeypatch.setattr(settings, "IMPORT_MAX_ROWS", 3)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ROWS", 3)
     _site(monkeypatch, issues=[_issue(f"ACME-{i}", f"Task {i}") for i in range(10)])
     _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OTHER"])
 
@@ -811,7 +811,6 @@ async def test_comments_can_be_left_behind(monkeypatch):
 async def test_comments_spend_the_row_budget(monkeypatch):
     """A comment is a row. Two issues with two comments each fill a budget of
     four, so the next project is not started."""
-    from app.core.config import settings
 
     thread = {
         "comments": [
@@ -821,7 +820,7 @@ async def test_comments_spend_the_row_budget(monkeypatch):
         "total": 2,
     }
     _site(monkeypatch, issues=[_issue("ACME-1", "One", comment=thread)])
-    monkeypatch.setattr(settings, "IMPORT_MAX_ROWS", 3)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ROWS", 3)
     _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OTHER"])
     assert report.projects == 1
 

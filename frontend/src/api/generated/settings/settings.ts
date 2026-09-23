@@ -22,6 +22,8 @@ import type {
 
 import type {
   BillingPortalHandoffResponse,
+  CaptchaSettingsResponse,
+  CaptchaSettingsUpdate,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
   CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams,
@@ -43,6 +45,8 @@ import type {
   PlatformGuildRestore,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
+  PushSettingsResponse,
+  PushSettingsUpdate,
   SecondFactorAnswer,
   SecondFactorRequirementUpdate,
   SessionLifetimeUpdate,
@@ -2388,6 +2392,482 @@ export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
 }
 
 /**
+ * @summary Get Captcha Settings
+ */
+export const getCaptchaSettingsApiV1SettingsCaptchaGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CaptchaSettingsResponse>(
+    { url: `/api/v1/settings/captcha`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey = () => {
+  return [`/api/v1/settings/captcha`] as const;
+};
+
+export const getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>
+  > = ({ signal }) => getCaptchaSettingsApiV1SettingsCaptchaGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCaptchaSettingsApiV1SettingsCaptchaGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>
+>;
+export type GetCaptchaSettingsApiV1SettingsCaptchaGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
+  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+          TError,
+          Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
+  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+          TError,
+          Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
+  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Captcha Settings
+ */
+
+export function useGetCaptchaSettingsApiV1SettingsCaptchaGet<
+  TData = Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCaptchaSettingsApiV1SettingsCaptchaGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * @summary Update Captcha Settings
+ */
+export const updateCaptchaSettingsApiV1SettingsCaptchaPut = (
+  captchaSettingsUpdate: BodyType<CaptchaSettingsUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CaptchaSettingsResponse>(
+    {
+      url: `/api/v1/settings/captcha`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: captchaSettingsUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationKey = () =>
+  ["updateCaptchaSettingsApiV1SettingsCaptchaPut"] as const;
+
+export const getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+    TError,
+    UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+  TError,
+  UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+    UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateCaptchaSettingsApiV1SettingsCaptchaPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>
+>;
+export type UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationBody =
+  BodyType<CaptchaSettingsUpdate>;
+export type UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables = {
+  data: BodyType<CaptchaSettingsUpdate>;
+};
+
+/**
+ * @summary Update Captcha Settings
+ */
+export const useUpdateCaptchaSettingsApiV1SettingsCaptchaPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+      TError,
+      UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateCaptchaSettingsApiV1SettingsCaptchaPut>>,
+  TError,
+  UpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateCaptchaSettingsApiV1SettingsCaptchaPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Get Push Settings
+ */
+export const getPushSettingsApiV1SettingsPushGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PushSettingsResponse>(
+    { url: `/api/v1/settings/push`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetPushSettingsApiV1SettingsPushGetQueryKey = () => {
+  return [`/api/v1/settings/push`] as const;
+};
+
+export const getGetPushSettingsApiV1SettingsPushGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPushSettingsApiV1SettingsPushGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>> = ({
+    signal,
+  }) => getPushSettingsApiV1SettingsPushGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetPushSettingsApiV1SettingsPushGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>
+>;
+export type GetPushSettingsApiV1SettingsPushGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetPushSettingsApiV1SettingsPushGet<
+  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPushSettingsApiV1SettingsPushGet<
+  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPushSettingsApiV1SettingsPushGet<
+  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Push Settings
+ */
+
+export function useGetPushSettingsApiV1SettingsPushGet<
+  TData = Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPushSettingsApiV1SettingsPushGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPushSettingsApiV1SettingsPushGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * @summary Update Push Settings
+ */
+export const updatePushSettingsApiV1SettingsPushPut = (
+  pushSettingsUpdate: BodyType<PushSettingsUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PushSettingsResponse>(
+    {
+      url: `/api/v1/settings/push`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: pushSettingsUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdatePushSettingsApiV1SettingsPushPutMutationKey = () =>
+  ["updatePushSettingsApiV1SettingsPushPut"] as const;
+
+export const getUpdatePushSettingsApiV1SettingsPushPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+    TError,
+    UpdatePushSettingsApiV1SettingsPushPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+  TError,
+  UpdatePushSettingsApiV1SettingsPushPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdatePushSettingsApiV1SettingsPushPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+    UpdatePushSettingsApiV1SettingsPushPutMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updatePushSettingsApiV1SettingsPushPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePushSettingsApiV1SettingsPushPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>
+>;
+export type UpdatePushSettingsApiV1SettingsPushPutMutationBody = BodyType<PushSettingsUpdate>;
+export type UpdatePushSettingsApiV1SettingsPushPutMutationError = ErrorType<HTTPValidationError>;
+export type UpdatePushSettingsApiV1SettingsPushPutMutationVariables = {
+  data: BodyType<PushSettingsUpdate>;
+};
+
+/**
+ * @summary Update Push Settings
+ */
+export const useUpdatePushSettingsApiV1SettingsPushPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+      TError,
+      UpdatePushSettingsApiV1SettingsPushPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updatePushSettingsApiV1SettingsPushPut>>,
+  TError,
+  UpdatePushSettingsApiV1SettingsPushPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdatePushSettingsApiV1SettingsPushPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Get public FCM configuration for mobile app initialization.
  *
  * This endpoint is public (no authentication required) and only exposes
@@ -2395,6 +2875,12 @@ export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
  * Service account credentials are NOT exposed.
  *
  * Rate limited to 20 requests per minute to prevent abuse.
+ *
+ * Read from the settings row (``push_config``), not the environment: an owner
+ * who turns push on in Settings has the mobile clients pick it up on their
+ * next launch rather than on the next redeploy. The resolver opens its own
+ * system-engine session, which is what lets this endpoint stay
+ * unauthenticated and sessionless.
  * @summary Get Fcm Config
  */
 export const getFcmConfigApiV1SettingsFcmConfigGet = (
