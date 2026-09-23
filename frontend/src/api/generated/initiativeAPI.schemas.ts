@@ -275,6 +275,15 @@ export interface AccountDeletionResponse {
 }
 
 /**
+ * What a suspended account is told on its time-out screen.
+ */
+export interface AccountTimeOutRead {
+  contact_email?: string | null;
+  since?: string | null;
+  reason?: string | null;
+}
+
+/**
  * How many accounts each level would ask to set a second factor up.
  *
  * Both figures on every read, so the page states the consequence of a choice
@@ -560,7 +569,8 @@ export interface AdminUserRead {
   purge_at: string | null;
   readonly can_create_guilds: boolean;
   /**
-   * Platform capabilities granted by this user's standing role.
+   * Platform capabilities granted by this user's standing role — none
+   * while the account is suspended.
    *
    * The frontend gates UI on these values (single source of truth);
    * see ``app.core.capabilities``. Sorted by value.
@@ -8370,7 +8380,8 @@ export interface UserRead {
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
   /**
-   * Platform capabilities granted by this user's standing role.
+   * Platform capabilities granted by this user's standing role — none
+   * while the account is suspended.
    *
    * The frontend gates UI on these values (single source of truth);
    * see ``app.core.capabilities``. Sorted by value.

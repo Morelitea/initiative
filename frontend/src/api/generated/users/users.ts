@@ -23,6 +23,7 @@ import type {
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
+  AccountTimeOutRead,
   AgeConfirmation,
   ApiKeyCreateRequest,
   ApiKeyCreateResponse,
@@ -77,6 +78,150 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+/**
+ * What a suspended account is told on its time-out screen: why, where a
+ * reason was given, and whom to contact.
+ *
+ * Answers for an active account too — nobody to contact, since there is
+ * nothing to lift — so the screen can ask without first knowing the status.
+ * @summary Read My Time Out
+ */
+export const readMyTimeOutApiV1UsersMeTimeOutGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccountTimeOutRead>(
+    { url: `/api/v1/users/me/time-out`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadMyTimeOutApiV1UsersMeTimeOutGetQueryKey = () => {
+  return [`/api/v1/users/me/time-out`] as const;
+};
+
+export const getReadMyTimeOutApiV1UsersMeTimeOutGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getReadMyTimeOutApiV1UsersMeTimeOutGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>> = ({
+    signal,
+  }) => readMyTimeOutApiV1UsersMeTimeOutGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadMyTimeOutApiV1UsersMeTimeOutGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
+>;
+export type ReadMyTimeOutApiV1UsersMeTimeOutGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+          TError,
+          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+          TError,
+          Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read My Time Out
+ */
+
+export function useReadMyTimeOutApiV1UsersMeTimeOutGet<
+  TData = Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readMyTimeOutApiV1UsersMeTimeOutGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadMyTimeOutApiV1UsersMeTimeOutGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 /**
  * Who you are. Reachable while the deployment's second-factor rule is

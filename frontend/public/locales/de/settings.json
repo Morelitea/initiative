@@ -744,7 +744,7 @@
     "usernameChanged": "Benutzername geändert.",
     "suspend": "Sperren",
     "suspendTitle": "{{handle}} sperren?",
-    "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Community erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
+    "suspendBody": "Sie behalten alles – Mitgliedschaften, Freigaben und alles, was sie geschrieben haben – und erreichen nichts, bis die Sperre aufgehoben ist. Sie können sich weiterhin anmelden und sehen nur, dass sie gesperrt sind, deinen Grund und an wen sie sich wenden können.",
     "suspendReasonLabel": "Begründung (wird angezeigt)",
     "actionError": "Das hat nicht geklappt. Bitte erneut versuchen.",
     "clearAgeBlock": "Altersfrage zurücksetzen",
@@ -764,7 +764,7 @@
       "avatarConfirmBody": "Das Bild von {{handle}} wird entfernt und die Person wird benachrichtigt. Sie kann ein neues hochladen.",
       "access": "Zugriff",
       "suspendLabel": "Gesperrt",
-      "suspendHelp": "Ein gesperrtes Konto kann sich weiterhin anmelden und den Grund lesen, erreicht aber keine seiner Communitys.",
+      "suspendHelp": "Ein gesperrtes Konto kann sich anmelden und nachlesen, warum, und erreicht sonst nichts.",
       "role": "Plattformrolle",
       "roleLabel": "Rolle",
       "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben."

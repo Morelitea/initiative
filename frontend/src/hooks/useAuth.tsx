@@ -11,6 +11,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import {
+  AUTH_ACCOUNT_SUSPENDED_EVENT,
   AUTH_UNAUTHORIZED_EVENT,
   apiClient,
   renewSession,
@@ -744,6 +745,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
     return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
   }, [endSessionLocally, t]);
+
+  // Suspended while signed in: re-reading the account is what turns the app
+  // over to the time-out screen.
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+    const handleSuspended = () => {
+      void refreshUser();
+    };
+    window.addEventListener(AUTH_ACCOUNT_SUSPENDED_EVENT, handleSuspended);
+    return () => window.removeEventListener(AUTH_ACCOUNT_SUSPENDED_EVENT, handleSuspended);
+  }, [refreshUser]);
 
   const value: AuthContextValue = {
     user,

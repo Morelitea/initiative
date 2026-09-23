@@ -744,7 +744,7 @@
     "usernameChanged": "Nom d'utilisateur modifié.",
     "suspend": "Suspendre",
     "suspendTitle": "Suspendre {{handle}} ?",
-    "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune communauté tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
+    "suspendBody": "Ils conservent tout — adhésions, partages et tout ce qu’ils ont écrit — et n’accèdent à rien tant que la suspension n’est pas levée. Ils peuvent toujours se connecter et ne voient que leur suspension, votre motif et qui contacter.",
     "suspendReasonLabel": "Motif (qui lui sera montré)",
     "actionError": "L'opération n'a pas abouti. Réessayez.",
     "clearAgeBlock": "Réinitialiser la question d'âge",
@@ -764,7 +764,7 @@
       "avatarConfirmBody": "La photo de {{handle}} est retirée et la personne en est informée. Elle peut en téléverser une autre.",
       "access": "Accès",
       "suspendLabel": "Suspendu",
-      "suspendHelp": "Un compte suspendu peut toujours se connecter et lire le motif, mais n'atteint aucune de ses communautés.",
+      "suspendHelp": "Un compte suspendu peut se connecter et lire pourquoi, et n’accède à rien d’autre.",
       "role": "Rôle de plateforme",
       "roleLabel": "Rôle",
       "roleHelp": "Ce que ce compte peut faire sur l'ensemble du déploiement. Vous ne pouvez pas accorder au-delà de votre propre rôle."

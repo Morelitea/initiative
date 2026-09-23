@@ -214,7 +214,9 @@ async def test_an_account_that_cannot_sign_in_is_sent_nothing(
 
     await _permit(session)
     caught = _catch_codes(monkeypatch)
-    await create_user(session, email="paused@example.com", status=UserStatus.suspended)
+    await create_user(
+        session, email="paused@example.com", status=UserStatus.deactivated
+    )
 
     response = await client.post(SEND_URL, json={"email": "paused@example.com"})
 

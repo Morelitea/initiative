@@ -18,7 +18,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, FrozenSet
 
-from app.models.platform.user import UserRole
+from app.models.platform.user import UserRole, UserStatus
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user import User
@@ -142,13 +142,24 @@ def roles_with_capability(capability: Capability) -> FrozenSet[UserRole]:
     )
 
 
+def standing_capabilities(role: UserRole, status: UserStatus) -> FrozenSet[Capability]:
+    """What a standing role grants an account in ``status``.
+
+    A suspended account holds none: it is in time out, and its rung comes back
+    untouched when the suspension lifts.
+    """
+    if status == UserStatus.suspended:
+        return frozenset()
+    return capabilities_for(role)
+
+
 def user_has_capability(user: "User", capability: Capability) -> bool:
     """True iff the user's standing platform role grants ``capability``.
 
     This reflects *standing* privilege only. Time-bound PAM grants (cross-guild
     data access) are resolved separately when the guild session is built.
     """
-    return capability in capabilities_for(user.role)
+    return capability in standing_capabilities(user.role, user.status)
 
 
 # Privilege ladder, least → most, taken from ``UserRole``'s declaration order.

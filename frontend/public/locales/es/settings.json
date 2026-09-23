@@ -744,7 +744,7 @@
     "usernameChanged": "Nombre de usuario cambiado.",
     "suspend": "Suspender",
     "suspendTitle": "¿Suspender a {{handle}}?",
-    "suspendBody": "Conserva todo — pertenencias, permisos y todo lo que haya escrito — y no accede a ninguna comunidad hasta que se levante. Puede seguir entrando en su propia cuenta, donde verá tu motivo.",
+    "suspendBody": "Conservan todo —membresías, elementos compartidos y todo lo que han escrito— y no acceden a nada hasta que se levante. Pueden seguir iniciando sesión y solo ven que están suspendidos, tu motivo y a quién contactar.",
     "suspendReasonLabel": "Motivo (se le mostrará)",
     "actionError": "No se pudo completar. Inténtalo de nuevo.",
     "clearAgeBlock": "Restablecer pregunta de edad",
@@ -764,7 +764,7 @@
       "avatarConfirmBody": "Se retira la foto de {{handle}} y se le avisa. Puede subir otra.",
       "access": "Acceso",
       "suspendLabel": "Suspendida",
-      "suspendHelp": "Una cuenta suspendida aún puede iniciar sesión y leer el motivo, pero no accede a ninguna de sus comunidades.",
+      "suspendHelp": "Una cuenta suspendida puede iniciar sesión y leer el motivo, y no accede a nada más.",
       "role": "Rol de plataforma",
       "roleLabel": "Rol",
       "roleHelp": "Lo que esta cuenta puede hacer en toda la instalación. No puedes conceder por encima de tu propio rol."

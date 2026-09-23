@@ -8,13 +8,27 @@ from app.core.capabilities import (
     capabilities_for,
     role_rank,
     roles_with_capability,
+    standing_capabilities,
+    user_has_capability,
 )
-from app.models.platform.user import UserRole
+from app.models.platform.user import UserRole, UserStatus
 
 
 class _Actor:
-    def __init__(self, role: UserRole):
+    def __init__(self, role: UserRole, status: UserStatus = UserStatus.active):
         self.role = role
+        self.status = status
+
+
+@pytest.mark.unit
+def test_a_suspended_account_holds_no_capability():
+    """Whatever its rung: it is in time out, and the rung comes back on lifting."""
+    for role in UserRole:
+        assert standing_capabilities(role, UserStatus.suspended) == frozenset()
+        assert standing_capabilities(role, UserStatus.active) == capabilities_for(role)
+    assert not user_has_capability(
+        _Actor(UserRole.owner, UserStatus.suspended), Capability.CONFIG_MANAGE
+    )
 
 
 @pytest.mark.unit

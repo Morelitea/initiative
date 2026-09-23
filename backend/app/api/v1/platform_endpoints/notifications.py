@@ -15,7 +15,12 @@ from fastapi import (
 )
 from sqlalchemy import text
 
-from app.api.deps import UserSessionDep, get_current_active_user
+from app.api.deps import (
+    AccountHolder,
+    AccountHolderSessionDep,
+    UserSessionDep,
+    get_current_active_user,
+)
 from app.core.security import SESSION_COOKIE_NAME
 from app.db.session import CONNECTION_RESET_SQL, AsyncSessionLocal
 from app.models.platform.user import User
@@ -55,8 +60,8 @@ HEARTBEAT_SECONDS = 30.0
 
 @router.get("/", response_model=NotificationListResponse)
 async def list_notifications(
-    session: UserSessionDep,
-    current_user: User = Depends(get_current_active_user),
+    session: AccountHolderSessionDep,
+    current_user: AccountHolder,
     limit: int = Query(default=50, ge=1, le=100),
     cursor: str | None = Query(default=None),
     unread_only: bool = Query(default=False),

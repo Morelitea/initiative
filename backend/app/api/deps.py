@@ -72,6 +72,7 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import (
     LOGIN_STATUSES,
     User,
+    UserRole,
     UserStatus,
 )
 from app.schemas.platform.token import TokenPayload
@@ -501,17 +502,26 @@ async def platform_factor_unmet(
     return not held
 
 
-async def _active_user(request: Request, current_user: User) -> User:
+async def _active_user(
+    request: Request, current_user: User, *, admit_suspended: bool = False
+) -> User:
     """The caller, if their account may hold a session at all.
 
-    A *suspended* account may: its holder still reaches their own profile,
-    preferences, export and deletion, and being able to sign in is how they can
-    be told anything. Suspension bites at the guild instead — see
-    ``_load_guild_context``.
+    A *suspended* account may hold one: signing in is how its holder is told
+    they are in time out. What it reaches is the time-out allow-list and
+    nothing else — the routes that take :data:`AccountHolder` and its session,
+    which read the account's own state. Every other route refuses it with
+    ``ACCOUNT_SUSPENDED``, so a route written tomorrow is closed to it by
+    default.
     """
     if current_user.status not in LOGIN_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
+    if current_user.status == UserStatus.suspended and not admit_suspended:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.ACCOUNT_SUSPENDED,
         )
     # Whose request this is, for the few things that run before the endpoint
     # does and have only the request to read — see
@@ -537,13 +547,48 @@ async def get_current_active_user(
     because this one is the deployment's.
     """
     user = await _active_user(request, current_user)
+    await _require_platform_factor(session, user)
+    return user
+
+
+async def _require_platform_factor(session: AsyncSession, user: User) -> None:
     if await platform_factor_unmet(session, user):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
             headers={"WWW-Authenticate": STEP_UP_CHALLENGE},
         )
+
+
+async def get_current_account_holder(
+    request: Request,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """The caller on a time-out allow-list route: active, or suspended.
+
+    Held to the same second-factor rule as :func:`get_current_active_user`.
+    The routes that take it read or close the account's own state — its
+    sessions, its notifications — and nothing another person can see.
+    """
+    user = await _active_user(request, current_user, admit_suspended=True)
+    await _require_platform_factor(session, user)
     return user
+
+
+async def get_account_holder_exempt_from_factor(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """:func:`get_current_account_holder` for a factor-exempt route."""
+    return await _active_user(request, current_user, admit_suspended=True)
+
+
+#: The caller on a time-out allow-list route. See :func:`_active_user`.
+AccountHolder = Annotated[User, Depends(get_current_account_holder)]
+FactorExemptAccountHolder = Annotated[
+    User, Depends(get_account_holder_exempt_from_factor)
+]
 
 
 async def get_active_user_exempt_from_factor(
@@ -1528,11 +1573,21 @@ async def _apply_user_session_context(
     session: AsyncSession, current_user: User
 ) -> AsyncSession:
     """Route ``session`` for the public/platform path: no guild, the caller's
-    own tier. The body both user-session dependencies share."""
+    own tier. The body the user-session dependencies share.
+
+    A suspended account holds no rung while it is in time out, so it is routed
+    at the lowest one whatever ``users.role`` says; the rung comes back
+    untouched when the suspension lifts.
+    """
+    tier = (
+        UserRole.member
+        if current_user.status == UserStatus.suspended
+        else current_user.role
+    )
     await set_rls_context(
         session,
         user_id=current_user.id,
-        platform_role=current_user.role.value,
+        platform_role=tier.value,
     )
     return session
 
@@ -1549,6 +1604,28 @@ async def get_factor_exempt_user_session(
 
 FactorExemptSessionDep = Annotated[
     AsyncSession, Depends(get_factor_exempt_user_session)
+]
+
+
+async def get_account_holder_session(
+    session: SessionDep,
+    current_user: AccountHolder,
+) -> AsyncSession:
+    """The platform-path session for a time-out allow-list route."""
+    return await _apply_user_session_context(session, current_user)
+
+
+async def get_factor_exempt_account_holder_session(
+    session: SessionDep,
+    current_user: FactorExemptAccountHolder,
+) -> AsyncSession:
+    """The platform-path session for a factor-exempt time-out allow-list route."""
+    return await _apply_user_session_context(session, current_user)
+
+
+AccountHolderSessionDep = Annotated[AsyncSession, Depends(get_account_holder_session)]
+FactorExemptAccountHolderSessionDep = Annotated[
+    AsyncSession, Depends(get_factor_exempt_account_holder_session)
 ]
 
 

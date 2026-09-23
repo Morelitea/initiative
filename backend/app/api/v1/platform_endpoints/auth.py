@@ -19,7 +19,12 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import delete as sql_delete, select, update as sql_update
 
-from app.api.deps import SessionDep, get_current_active_user, get_current_user_optional
+from app.api.deps import (
+    AccountHolder,
+    SessionDep,
+    get_current_active_user,
+    get_current_user_optional,
+)
 from app.db.session import get_admin_session, set_rls_context
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -68,7 +73,13 @@ from app.api.v1.platform_endpoints.session_opening import (
 from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
-from app.models.platform.user import SIGN_IN_STATUSES, User, UserRole, UserStatus
+from app.models.platform.user import (
+    LOGIN_STATUSES,
+    SIGN_IN_STATUSES,
+    User,
+    UserRole,
+    UserStatus,
+)
 from app.models.platform.guild import Guild, GuildRole
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
@@ -1038,7 +1049,7 @@ async def refresh_access_token(
 
     issued = result.issued
     user = await admin_session.get(User, issued.session.user_id)
-    if user is None or user.status != UserStatus.active:
+    if user is None or user.status not in LOGIN_STATUSES:
         # The account was deactivated/removed after the session was minted — kill
         # the fresh session too rather than hand back a usable token.
         await session_service.revoke_chain(admin_session, session_id=issued.session.id)
@@ -1382,7 +1393,7 @@ async def exchange_device_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     user = await admin_session.get(User, record.user_id)
-    if user is None or user.status != UserStatus.active:
+    if user is None or user.status not in LOGIN_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
@@ -1434,7 +1445,7 @@ async def exchange_device_token(
 @router.get("/device-tokens", response_model=list[DeviceTokenInfo])
 async def list_device_tokens(
     admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: AccountHolder,
 ) -> list[DeviceTokenInfo]:
     """List all device tokens for the current user."""
     tokens = await user_tokens.get_user_device_tokens(
@@ -1453,7 +1464,7 @@ async def list_device_tokens(
 @router.delete("/device-tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_device_token(
     admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: AccountHolder,
     token_id: int,
 ) -> None:
     """Revoke a device token."""
