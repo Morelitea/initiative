@@ -25,7 +25,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import Guild
+from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.identity_ref import (
     REF_ENTROPY_BYTES,
     REF_MAX_LENGTH,
@@ -34,6 +34,7 @@ from app.models.platform.identity_ref import (
     IdentityRef,
     ref_prefix,
 )
+from app.models.platform.user import User, UserStatus
 
 __all__ = [
     "REF_GRACE_PERIOD",
@@ -44,11 +45,15 @@ __all__ = [
     "drop_guild_refs",
     "drop_sector_refs",
     "forget_user",
+    "IDENTITY_REF_SWEEP_POLL_SECONDS",
     "ensure_ref",
     "existing_ref",
     "mint_ref",
+    "process_identity_ref_sweep",
+    "purge_orphaned_entity_refs",
     "purge_orphaned_sector_refs",
     "purge_retired_refs",
+    "sweep_identity_refs",
     "reissue_all_refs",
     "reissue_ref",
     "resolve_billing_guild",
@@ -60,6 +65,8 @@ logger = logging.getLogger(__name__)
 #: How long a replaced reference keeps resolving. Long enough for the other
 #: party to pick up the new value and for anything already in flight to land.
 REF_GRACE_PERIOD = timedelta(days=30)
+
+IDENTITY_REF_SWEEP_POLL_SECONDS = 3600
 
 
 def mint_ref(entity_type: IdentityEntity, purpose: IdentityPurpose) -> str:
@@ -462,7 +469,8 @@ async def forget_user(*, user_id: int) -> int:
     references have been told, so a revocation already on its way still names
     somebody. Opens its own session for the reason ``billing_user_ref`` does —
     the callers are request handlers routed to other roles — and runs after the
-    commit, where a failure must not undo the erasure.
+    commit, where a failure must not undo the erasure;
+    :func:`purge_orphaned_entity_refs` removes what it leaves.
     """
     from app.db.session import AdminSessionLocal
 
@@ -481,17 +489,56 @@ async def forget_user(*, user_id: int) -> int:
 
 
 async def purge_orphaned_sector_refs(session: AsyncSession) -> int:
-    """Drop references whose sector guild no longer exists. Returns the count.
+    """Drop references whose sector guild is deleted or gone. Returns the count.
 
     The sector columns cannot be foreign keys, so a guild's references are
     removed by the deletion path rather than by a cascade. This reclaims the
     ones that path did not manage to remove — it runs after the deletion has
-    committed, where there is nothing left to roll back.
+    committed, where there is nothing left to roll back. A guild that is
+    deleted but not yet purged has let its apps go already, so its sectors are
+    taken too.
     """
     result = await session.exec(
         delete(IdentityRef).where(
             IdentityRef.sector_guild_id.is_not(None),
-            ~exists(select(Guild.id).where(Guild.id == IdentityRef.sector_guild_id)),
+            ~exists(
+                select(Guild.id).where(
+                    Guild.id == IdentityRef.sector_guild_id,
+                    Guild.status != GuildStatus.deleted.value,
+                )
+            ),
+        )
+    )
+    return result.rowcount or 0
+
+
+async def purge_orphaned_entity_refs(session: AsyncSession) -> int:
+    """Drop references naming an erased account or a purged guild.
+
+    Returns the count. The entity column cannot be a foreign key — erasure
+    keeps the ``users`` row as an anonymized husk — so these are removed by
+    :func:`forget_user` and the guild purge, both after their commit. This
+    reclaims what those did not manage to remove. An account that is deleted
+    but not yet erased, and a guild that is deleted but not yet purged, keep
+    theirs: either can still come back.
+    """
+    live_user = select(User.id).where(
+        User.id == IdentityRef.entity_id,
+        User.status != UserStatus.anonymized,
+    )
+    live_guild = select(Guild.id).where(Guild.id == IdentityRef.entity_id)
+    result = await session.exec(
+        delete(IdentityRef).where(
+            or_(
+                and_(
+                    IdentityRef.entity_type == IdentityEntity.user,
+                    ~exists(live_user),
+                ),
+                and_(
+                    IdentityRef.entity_type == IdentityEntity.guild,
+                    ~exists(live_guild),
+                ),
+            )
         )
     )
     return result.rowcount or 0
@@ -509,6 +556,35 @@ async def purge_retired_refs(
         )
     )
     return result.rowcount or 0
+
+
+async def sweep_identity_refs(
+    session: AsyncSession, *, now: datetime | None = None
+) -> int:
+    """One pass of every reclaim above. Returns how many rows went.
+
+    Split out from the loop entry point so tests can drive it with the test
+    session and a chosen ``now``.
+    """
+    from app.db.session import set_rls_context
+
+    await set_rls_context(session)
+    dropped = await purge_orphaned_sector_refs(session)
+    dropped += await purge_orphaned_entity_refs(session)
+    dropped += await purge_retired_refs(session, now=now)
+    await session.commit()
+    if dropped:
+        logger.info("identity refs: swept %d reference(s)", dropped)
+    return dropped
+
+
+async def process_identity_ref_sweep() -> None:
+    """One pass of the identity-ref sweep loop. Idempotent and safe to run on
+    a schedule even when nothing is due."""
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        await sweep_identity_refs(session)
 
 
 async def _live_ref(

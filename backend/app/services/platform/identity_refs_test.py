@@ -427,3 +427,85 @@ class TestTheBillingPair:
 
         first = await billing_refs(user_id=3, guild_id=4)
         assert await billing_refs(user_id=3, guild_id=4) == first
+
+
+class TestTheSweep:
+    @pytest.mark.integration
+    async def test_it_takes_what_names_nobody_and_keeps_what_can_come_back(
+        self, session
+    ):
+        from app.models.platform.guild import GuildStatus
+        from app.models.platform.user import UserStatus
+        from sqlmodel import select
+
+        from app.models.platform.identity_ref import IdentityRef
+        from app.services.platform.identity_refs import sweep_identity_refs
+        from app.testing import create_guild, create_user
+
+        active = await create_user(session)
+        leaving = await create_user(session, status=UserStatus.deleted)
+        erased = await create_user(session, status=UserStatus.anonymized)
+        live_guild = await create_guild(session, creator=active)
+        retained_guild = await create_guild(session, creator=active)
+        retained_guild.status = GuildStatus.deleted.value
+        session.add(retained_guild)
+        await session.commit()
+        gone_id = retained_guild.id + 1000
+
+        async def user_ref(user_id: int) -> str:
+            return await ensure_ref(
+                session,
+                entity_type=IdentityEntity.user,
+                entity_id=user_id,
+                purpose=BILLING,
+            )
+
+        async def guild_ref(guild_id: int) -> str:
+            return await ensure_ref(
+                session,
+                entity_type=IdentityEntity.guild,
+                entity_id=guild_id,
+                purpose=BILLING,
+            )
+
+        async def app_ref(guild_id: int) -> str:
+            return await ensure_ref(
+                session,
+                entity_type=IdentityEntity.user,
+                entity_id=active.id,
+                purpose=IdentityPurpose.app,
+                sector_guild_id=guild_id,
+                sector_id=1,
+            )
+
+        kept = [
+            await user_ref(active.id),
+            await user_ref(leaving.id),
+            await guild_ref(live_guild.id),
+            await guild_ref(retained_guild.id),
+            await app_ref(live_guild.id),
+        ]
+        swept = [
+            await user_ref(erased.id),
+            await user_ref(gone_id),
+            await guild_ref(gone_id),
+            await app_ref(retained_guild.id),
+            await app_ref(gone_id),
+        ]
+        await session.commit()
+
+        assert await sweep_identity_refs(session) > 0
+        for ref in kept:
+            assert await resolve_ref(session, ref=ref) is not None, ref
+        for ref in swept:
+            assert await resolve_ref(session, ref=ref) is None, ref
+        # Every purpose goes, not only the ones minted here: each account
+        # carries a client reference from the moment it exists.
+        left = await session.exec(
+            select(IdentityRef).where(
+                IdentityRef.entity_type == IdentityEntity.user,
+                IdentityRef.entity_id == erased.id,
+            )
+        )
+        assert left.all() == []
+        assert await sweep_identity_refs(session) == 0
