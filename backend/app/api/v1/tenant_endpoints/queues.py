@@ -421,7 +421,6 @@ async def delete_queue(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.queue],
         queue,
-        current_user,
         require_owner=True,
         context=guild_context,
     )
@@ -985,10 +984,7 @@ async def websocket_queue(
         # applied inside compute_* through the active role context that
         # establish_guild_access set, so no separate admin check is needed.
         level = permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[Tool.queue],
-            queue,
-            user.id,
-            context=require_guild_context(session),
+            queue, context=require_guild_context(session)
         )
         if level is None:
             logger.warning(
@@ -1011,10 +1007,7 @@ async def websocket_queue(
             return False
         return (
             permissions_service.compute_permission(
-                permissions_service.DAC_RESOURCES[Tool.queue],
-                q,
-                check_user.id,
-                context=require_guild_context(check_session),
+                q, context=require_guild_context(check_session)
             )
             is not None
         )

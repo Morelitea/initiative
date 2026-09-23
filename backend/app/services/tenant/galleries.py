@@ -30,6 +30,7 @@ from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -159,12 +160,12 @@ def render_thumbnail(contents: bytes) -> Thumbnail | None:
 
 
 def list_loader_options() -> list:
-    """Eager-load what a gallery *list* row needs: its sharing, its
-    initiative's memberships (the DAC engine reads them), its tags, and the
-    cover it chose."""
+    """Eager-load what a gallery *list* row needs: its sharing, the level the
+    request holds on it, its tags, and the cover it chose."""
     return [
         selectinload(Gallery.grants).selectinload(ResourceGrant.role),
-        selectinload(Gallery.initiative).selectinload(Initiative.memberships),
+        selectinload(Gallery.initiative),
+        undefer(Gallery.access_level),
         selectinload(Gallery.cover_image),
     ]
 
@@ -416,7 +417,6 @@ async def get_gallery_for_export(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.gallery],
         gallery,
-        current_user,
         context=db_session.guild_context(session),
         access="read",
     )

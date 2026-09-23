@@ -4,7 +4,9 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, DateTime, String, Text
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
+    attach_access_level,
     ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
@@ -87,3 +89,6 @@ class Calendar(
             "viewonly": True,
         }
     )
+
+
+attach_access_level(Calendar, Tool.calendar)

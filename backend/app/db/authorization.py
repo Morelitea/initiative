@@ -52,7 +52,11 @@ from collections.abc import Iterable
 from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
-from app.models.tenant.resource_grant import WRITE_LEVELS
+from app.models.tenant.resource_grant import (
+    RESOURCE_LEVEL_LADDER,
+    WRITE_LEVELS,
+    ResourceAccessLevel,
+)
 
 import hashlib
 from dataclasses import dataclass, field
@@ -380,21 +384,17 @@ SETTINGS_ADMIN = (
 )
 
 #: A live grant covers this request, at whichever level the command asks for.
+#: A live content grant, read one level at a time: the level a grant confers
+#: is the one its standing value names.
+PAM_READ = "current_setting('app.pam_read'::text, true) = 'true'::text"
+PAM_WRITE = "current_setting('app.pam_write'::text, true) = 'true'::text"
 PAM_AT_LEVEL = (
-    "(CASE"
-    " WHEN p_need_write"
-    " THEN current_setting('app.pam_write'::text, true) = 'true'::text"
-    " ELSE current_setting('app.pam_read'::text, true) = 'true'::text"
-    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
-    " END)"
+    f"(CASE WHEN p_need_write THEN {PAM_WRITE} ELSE {PAM_READ} OR {PAM_WRITE} END)"
 )
 
 #: A live grant at either level, where the question is what the community has
 #: switched on rather than what one person may reach.
-PAM_ANY = (
-    "current_setting('app.pam_read'::text, true) = 'true'::text"
-    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
-)
+PAM_ANY = f"{PAM_READ} OR {PAM_WRITE}"
 
 
 def standing_ids(key: str) -> str:
@@ -530,32 +530,37 @@ $function$
 
 #: Gate 4: per-resource sharing (the ``resource_grants`` table).
 #:
+#: Two functions answer it, from one spelling of every leg. ``resource_level``
+#: says which rung of the sharing ladder the request holds on a row — what a
+#: serializer reports and a route compares against. ``resource_access`` says
+#: whether it holds the rung a command needs — what every content policy asks,
+#: once per row, and so kept to an existence test rather than a reduction over
+#: the matched grants. ``resource_level_test`` holds the two to each other.
+#:
 #: The one gate that still probes a table, because which readers a resource was
 #: shared with is genuinely per resource. What the standing removes is the two
 #: reader sub-selects inside it: the roles they hold and the initiatives they
 #: are in are the same for every row.
-RESOURCE_ACCESS = f"""\
-CREATE OR REPLACE FUNCTION resource_access(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer DEFAULT NULL::integer, p_need_write boolean DEFAULT false)
- RETURNS boolean
- LANGUAGE plpgsql
- STABLE
-AS $function$
-BEGIN
-    RETURN
-        -- Rows that carry no sharing identity (guild vocabulary) have nothing
-        -- for this to decide.
-        p_tool IS NULL
+
+#: The legs that answer the whole question before sharing is consulted. A row
+#: that carries no sharing identity (guild vocabulary) has nothing to decide;
+#: the system engine, the community's admin and a reader holding "Full access"
+#: in the row's initiative reach it whatever its grants say.
+FULL_ACCESS = f"""\
+p_tool IS NULL
         OR {SYSTEM_SESSION}
         OR {GUILD_ADMIN}
-        OR {PAM_AT_LEVEL}
-        -- Initiatives where the request holds "Full access".
         OR ({STANDING_IS_THIS_GUILD}
-            AND p_initiative_id = ANY ({standing_ids("app.override_initiatives")}))
-        OR EXISTS (
-            SELECT 1 FROM resource_grants g
-            WHERE g.resource_type = p_tool
+            AND p_initiative_id = ANY ({standing_ids("app.override_initiatives")}))"""
+
+#: The grant rows on ``(p_tool, p_resource_id)`` that reach this reader: one
+#: naming them, one on an initiative role they hold, one shared with every
+#: member of an initiative they are in (or of the community, on a row that
+#: belongs to no initiative), or the dashboard a published view is read
+#: through. Written over the row alias ``g``.
+GRANT_REACHES_READER = f"""\
+g.resource_type = p_tool
               AND g.resource_id = p_resource_id
-              AND (NOT p_need_write OR g.level IN ({sql_values(level.value for level in WRITE_LEVELS)}))
               AND (
                    g.user_id = p_user_id
                 OR ({STANDING_IS_THIS_GUILD}
@@ -564,17 +569,80 @@ BEGIN
                     AND {STANDING_IS_THIS_GUILD}
                     AND (g.initiative_id IS NULL
                          OR g.initiative_id = ANY ({standing_ids("app.member_initiatives")})))
-                OR (NOT p_need_write
-                    AND g.dashboard_id IS NOT NULL
+                OR (g.dashboard_id IS NOT NULL
                     AND g.dashboard_id = NULLIF(current_setting('app.via_dashboard_id'::text, true), '')::int)
-              )
+              )"""
+
+
+def _highest_rung_case() -> str:
+    """The highest rung among the matched grant rows, spelled from the ladder:
+    one arm per rung above the lowest, and the lowest for any match at all."""
+    lowest, *higher = RESOURCE_LEVEL_LADDER
+    arms = [
+        f"WHEN bool_or(g.level = '{level.value}') THEN '{level.value}'"
+        for level in reversed(higher)
+    ]
+    arms.append(f"WHEN count(*) > 0 THEN '{lowest.value}'")
+    return "\n             ".join(arms)
+
+
+#: The rung the request holds on one row, or NULL for none. A content grant
+#: lends its own rung beside whatever the grant rows give, and never owner.
+RESOURCE_LEVEL = f"""\
+CREATE OR REPLACE FUNCTION resource_level(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer DEFAULT NULL::integer)
+ RETURNS text
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_level text;
+BEGIN
+    IF {FULL_ACCESS}
+    THEN
+        RETURN '{ResourceAccessLevel.owner.value}';
+    END IF;
+    SELECT CASE
+             {_highest_rung_case()}
+           END
+      INTO v_level
+      FROM resource_grants g
+     WHERE {GRANT_REACHES_READER};
+    IF {PAM_WRITE}
+       AND v_level IS DISTINCT FROM '{ResourceAccessLevel.owner.value}' THEN
+        RETURN '{ResourceAccessLevel.write.value}';
+    END IF;
+    IF {PAM_READ} AND v_level IS NULL THEN
+        RETURN '{ResourceAccessLevel.read.value}';
+    END IF;
+    RETURN v_level;
+END
+$function$
+
+"""
+
+#: Whether the request holds the rung a command needs on one row. A dashboard's
+#: grant is ``read`` by constraint, so the level filter answers the write
+#: question for it too.
+RESOURCE_ACCESS = f"""\
+CREATE OR REPLACE FUNCTION resource_access(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer DEFAULT NULL::integer, p_need_write boolean DEFAULT false)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN
+        {FULL_ACCESS}
+        OR {PAM_AT_LEVEL}
+        OR EXISTS (
+            SELECT 1 FROM resource_grants g
+            WHERE {GRANT_REACHES_READER}
+              AND (NOT p_need_write OR g.level IN ({sql_values(level.value for level in WRITE_LEVELS)}))
         )
     ;
 END
 $function$
 
 """
-
 
 #: Who holds a guild's top seat — its sign-in configuration and its billing.
 #:
@@ -640,7 +708,7 @@ AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("guild_superadmin", GUILD_SUPERADMIN),
 )
 
-#: The four that read only guild tables. Rendered into every guild schema by
+#: The five that read only guild tables. Rendered into every guild schema by
 #: ``guild_ddl.render_guild_rls_ddl`` ahead of the policies that call them,
 #: in this order: the SQL bodies are checked at creation, and each names only
 #: tables and the ``public`` functions above.
@@ -648,16 +716,18 @@ GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("initiative_access", INITIATIVE_ACCESS),
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),
     ("initiative_role_permits", INITIATIVE_ROLE_PERMITS),
+    ("resource_level", RESOURCE_LEVEL),
     ("resource_access", RESOURCE_ACCESS),
 )
 
-#: Argument types of every function that lives in a guild schema — the four
+#: Argument types of every function that lives in a guild schema — the five
 #: above plus the three ``frozen`` and ``initiative_rls`` render there. What
 #: ``DROP FUNCTION`` and ``pg_get_functiondef`` need to name one.
 GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "initiative_access": "(integer, integer, boolean)",
     "initiative_full_access": "(integer, boolean)",
     "initiative_role_permits": "(integer, integer, text, boolean)",
+    "resource_level": "(text, integer, integer, integer)",
     "resource_access": "(text, integer, integer, integer, boolean)",
     "resource_frozen": "(text, bigint, boolean)",
     "resource_frozen_for_grant": "(text, bigint, boolean)",
@@ -674,7 +744,7 @@ RETIRED_GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
 
 
 def render_guild_authorization_functions() -> str:
-    """The four guild functions as schema-relative DDL, for the RLS render.
+    """The guild functions as schema-relative DDL, for the RLS render.
 
     Each text is one statement; the render is a script, so each is
     terminated here.

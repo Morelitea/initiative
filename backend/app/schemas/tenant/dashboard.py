@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
@@ -297,7 +296,7 @@ def serialize_dashboard_summary(
         listing_uid=dashboard.listing_uid,
         listing_version=dashboard.listing_version,
         archived_at=dashboard.archived_at,
-        **client_access(Tool.dashboard, dashboard, user_id, context=context),
+        **client_access(dashboard, user_id, context=context),
         comments_enabled=dashboard.comments_enabled,
         tags=annotated_tags(dashboard),
         grants=serialize_grants(dashboard),

@@ -18,7 +18,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
+    attach_access_level,
     ArchiveMixin,
     CommentsToggleMixin,
     CreatedByMixin,
@@ -324,3 +326,6 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
+
+
+attach_access_level(Wiki, Tool.wiki)

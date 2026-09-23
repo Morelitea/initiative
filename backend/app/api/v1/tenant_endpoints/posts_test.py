@@ -23,6 +23,7 @@ from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.post import MAX_POST_TEXT_CHARS
 from app.testing import Actor, create_comment, create_post, lexical_body
+from app.testing import route_as
 
 
 async def _posts_enabled(session: AsyncSession, initiative) -> None:
@@ -1012,23 +1013,28 @@ async def test_a_draft_answers_a_reader_as_if_it_were_not_there(
 
 
 @pytest.mark.integration
-async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, session):
+async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, role_session):
     """The export seam resolves an id the caller chose, so it asks the same
-    question the board does rather than only read access."""
+    question the board does rather than only read access.
+
+    On the request login, routed as the reader: what a notice is to somebody
+    is the level they hold on it, and that is answered for whoever the
+    session is."""
     from app.services.tenant.posts import get_post_for_export
 
     reader, draft = draft_scene.reader, draft_scene.draft
+    guild_id = draft_scene.author.guild.id
 
+    s = await role_session("app_user")
+    await route_as(s, user_id=reader.user.id, guild_id=guild_id)
     with pytest.raises(HTTPException) as excinfo:
-        await get_post_for_export(
-            session, reader.user, draft_scene.author.guild.id, post_id=draft.id
-        )
+        await get_post_for_export(s, reader.user, guild_id, post_id=draft.id)
     assert excinfo.value.status_code == 404
 
 
 @pytest.mark.integration
 async def test_its_author_still_reaches_a_draft_everywhere(
-    client: AsyncClient, draft_scene: _DraftScene, session
+    client: AsyncClient, draft_scene: _DraftScene, role_session
 ):
     """The gate is "not yours to read yet", not "gone" — whoever could edit it
     keeps every door."""
@@ -1046,9 +1052,9 @@ async def test_its_author_still_reaches_a_draft_everywhere(
             json={"emoji": "👍"},
         )
     ).status_code == 200
-    assert await get_post_for_export(
-        session, author.user, author.guild.id, post_id=draft.id
-    )
+    s = await role_session("app_user")
+    await route_as(s, user_id=author.user.id, guild_id=author.guild.id)
+    assert await get_post_for_export(s, author.user, author.guild.id, post_id=draft.id)
 
 
 # ---------------------------------------------------------------------------

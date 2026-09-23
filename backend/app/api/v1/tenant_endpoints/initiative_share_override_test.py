@@ -14,17 +14,11 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.guild_standing import GuildContext
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
     InitiativeRoleModel,
-)
-from app.services.permissions import (
-    DAC_RESOURCES,
-    compute_permission,
-    request_bypasses_dac,
 )
 
 
@@ -75,53 +69,6 @@ async def _setup(session: AsyncSession, acting_user):
         email="pm@example.com",
     )
     return admin, owner, pm, admin.guild, initiative
-
-
-# ── Enforcement: the gate-4 override leg (unit) ──────────────────────────────
-
-
-def test_request_overrides_sharing_bypasses_dac():
-    """A "Full access" initiative bypasses DAC (incl. owner-only ops), scoped to
-    that initiative; compute_permission reports owner there and nothing extra
-    elsewhere."""
-    context = GuildContext(
-        guild=Guild(id=1, name="g"),
-        user_id=7,
-        guild_id=1,
-        guild_role=GuildRole.member.value,
-        standing_guild_id=1,
-        override_initiatives=(42,),
-    )
-
-    class _Row:
-        def __init__(self, guild_id, initiative_id):
-            self.guild_id = guild_id
-            self.initiative_id = initiative_id
-            self.grants = []
-            self.initiative = None
-
-    assert request_bypasses_dac(context, initiative_id=42, access="write") is True
-    # Ignores require_owner — a moderator may manage sharing.
-    assert (
-        request_bypasses_dac(
-            context, initiative_id=42, access="write", require_owner=True
-        )
-        is True
-    )
-    # Scope-bound: a different initiative is not covered.
-    assert request_bypasses_dac(context, initiative_id=99, access="write") is False
-    assert (
-        compute_permission(
-            DAC_RESOURCES["project"], _Row(1, 42), user_id=7, context=context
-        )
-        == "owner"
-    )
-    assert (
-        compute_permission(
-            DAC_RESOURCES["project"], _Row(1, 99), user_id=7, context=context
-        )
-        != "owner"
-    )
 
 
 # ── The built-in roles as created ────────────────────────────────────────────

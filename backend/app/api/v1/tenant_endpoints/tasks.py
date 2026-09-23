@@ -5,6 +5,7 @@ from typing import Annotated, Any, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import undefer
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from sqlalchemy import and_, exists, func, or_
@@ -42,7 +43,6 @@ from app.db.blocking import blocking_kinds
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.task import (
     Task,
     TaskAssignee,
@@ -798,9 +798,8 @@ async def _get_project_with_access(
         )
         .options(
             selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.initiative)
-            .selectinload(Initiative.memberships)
-            .selectinload(InitiativeMember.user),
+            selectinload(Project.initiative),
+            undefer(Project.access_level),
         )
     )
     project_result = await session.exec(project_stmt)

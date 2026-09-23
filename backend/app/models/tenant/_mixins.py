@@ -9,10 +9,14 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 """
 
 from datetime import datetime
-from typing import ClassVar, Optional
+from typing import TYPE_CHECKING, ClassVar, Optional
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, Integer, func
+from sqlalchemy.orm import column_property
 from sqlmodel import Field, SQLModel
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.core.tools import Tool
 
 
 class SoftDeleteMixin(SQLModel):
@@ -222,3 +226,24 @@ def tool_models() -> dict[str, type[SQLModel]]:
         if table and getattr(cls, "__table__", None) is not None:
             found[str(table)] = cls
     return found
+
+
+def attach_access_level(model: type[SQLModel], tool: "Tool") -> None:
+    """Map ``access_level`` on a shareable model: the rung of the sharing
+    ladder the request holds on the row, answered by the schema's own
+    ``resource_level`` in the same SELECT as the row.
+
+    Deferred, so a load that only needs the row pays nothing; a loader that
+    goes on to serialize the row asks for it with ``undefer``. Read through
+    :func:`app.services.permissions.level_of`.
+    """
+    reader = func.nullif(func.current_setting("app.current_user_id", True), "").cast(
+        Integer
+    )
+    model.__mapper__.add_property(  # type: ignore[attr-defined]
+        "access_level",
+        column_property(
+            func.resource_level(tool.value, model.id, reader, model.initiative_id),  # type: ignore[attr-defined]
+            deferred=True,
+        ),
+    )

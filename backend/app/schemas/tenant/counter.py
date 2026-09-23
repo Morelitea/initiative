@@ -9,7 +9,6 @@ from pydantic import ConfigDict, Field, model_validator
 
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -263,7 +262,7 @@ def serialize_counter_group_summary(
         created_by=group.created_by,
         counter_count=len(_active_counters(group)),
         archived_at=group.archived_at,
-        **client_access(Tool.counter_group, group, user_id, context=context),
+        **client_access(group, user_id, context=context),
         created_at=group.created_at,
         updated_at=group.updated_at,
         comments_enabled=group.comments_enabled,

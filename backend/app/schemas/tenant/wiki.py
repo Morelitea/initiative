@@ -295,7 +295,6 @@ def serialize_wiki_summary(
     wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
 ) -> WikiSummary:
     # Local import avoids a schema -> service import cycle.
-    from app.core.tools import Tool
     from app.schemas.tenant.tag import annotated_tags
     from app.services.permissions import client_access, serialize_grants
 
@@ -318,7 +317,7 @@ def serialize_wiki_summary(
         accent_color=wiki.accent_color,
         template_page_id=wiki.template_page_id,
         archived_at=wiki.archived_at,
-        **client_access(Tool.wiki, wiki, user_id, context=context),
+        **client_access(wiki, user_id, context=context),
         comments_enabled=wiki.comments_enabled,
         comment_count=getattr(wiki, "comment_count", 0),
         tags=annotated_tags(wiki),

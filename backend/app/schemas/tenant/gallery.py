@@ -5,7 +5,6 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.comment import CommentAuthor
@@ -224,7 +223,7 @@ def serialize_gallery_summary(
             if cover is not None
         ],
         archived_at=gallery.archived_at,
-        **client_access(Tool.gallery, gallery, user_id, context=context),
+        **client_access(gallery, user_id, context=context),
         comments_enabled=gallery.comments_enabled,
         comment_count=getattr(gallery, "comment_count", 0),
         tags=annotated_tags(gallery),

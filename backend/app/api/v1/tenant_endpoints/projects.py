@@ -4,7 +4,7 @@ from typing import Annotated, List, Optional, Sequence
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -30,7 +30,11 @@ from app.api.deps import (
 from app.models.tenant.project import (
     Project,
 )
-from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
+from app.models.tenant.resource_grant import (
+    WRITE_LEVELS,
+    ResourceGrant,
+    ResourceAccessLevel,
+)
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
@@ -472,16 +476,17 @@ async def _copy_task_relationships(
 def project_load_options(*, slim: bool = False) -> list:
     """Eager loads for a page of projects.
 
-    The full set serializes a whole ``ProjectRead`` (owner, nested initiative +
-    memberships, linked documents with their DAC, tags, grants). The slim one
-    carries only what ``compute_project_permission`` needs — own/role/
-    all-members grants and the initiative's memberships — since the slim
-    projection drops the owner, documents, tags and nested roles.
+    The full set serializes a whole ``ProjectRead`` (owner, nested initiative
+    with its roster, linked documents with their DAC, tags, grants). The slim
+    one carries only what the level and the owner need — the grants and the
+    level itself — since the slim projection drops the owner, documents, tags
+    and nested roles.
     """
     if slim:
         return [
             selectinload(Project.grants),
-            selectinload(Project.initiative).selectinload(Initiative.memberships),
+            selectinload(Project.initiative),
+            undefer(Project.access_level),
         ]
     return [
         selectinload(Project.grants).options(
@@ -495,6 +500,7 @@ def project_load_options(*, slim: bool = False) -> list:
                 InitiativeRoleModel.permissions
             ),
         ),
+        undefer(Project.access_level),
     ]
 
 
@@ -634,9 +640,7 @@ def _slim_project_reads(
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
                 guild_id=context.guild_id,
-                **permissions_service.client_access(
-                    Tool.project, project, user_id, context=context
-                ),
+                **permissions_service.client_access(project, user_id, context=context),
             )
         )
     return reads
@@ -757,6 +761,7 @@ async def _projects_by_ids(
                     InitiativeRoleModel.permissions
                 ),
             ),
+            undefer(Project.access_level),
         )
     )
     result = await session.exec(stmt)
@@ -823,9 +828,7 @@ def _build_project_payload(
             "task_statuses": _project_task_statuses(project),
             "tags": annotated_tags(project),
             "grants": permissions_service.serialize_grants(project),
-            **permissions_service.client_access(
-                Tool.project, project, user_id, context=context
-            ),
+            **permissions_service.client_access(project, user_id, context=context),
             "owner_id": ownership_service.owner_id_of(project),
             "owner": _project_owner(project),
         }
@@ -879,12 +882,12 @@ async def list_writable_projects(
         archived=None,
         template=None,
     )
+    writable = {level.value for level in WRITE_LEVELS}
     writable_projects = [
         project
         for project in projects
-        if permissions_service.has_project_write_access(
-            project, current_user, context=guild_context
-        )
+        if permissions_service.compute_permission(project, context=guild_context)
+        in writable
     ]
     return await _project_reads_with_order(
         session,
@@ -1436,6 +1439,7 @@ async def search_project_members(
     shows_names = bool(guild_context.guild.show_member_names)
     assignable: list[User] = []
     seen: set[int] = set()
+    holders = await project_grants.write_holder_ids(session, project)
     for member in members:
         user = member.user
         if user is None or user.id in seen:
@@ -1444,9 +1448,7 @@ async def search_project_members(
         # offered as someone to assign work to while the suspension lasts.
         if user.status == UserStatus.suspended:
             continue
-        if permissions_service.has_project_write_access(
-            project, user, context=guild_context
-        ):
+        if user.id in holders:
             assignable.append(user)
             seen.add(user.id)
 
