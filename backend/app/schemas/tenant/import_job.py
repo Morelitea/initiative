@@ -220,8 +220,20 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     #: Pages left out because the wiki would have been too large to import
     #: in one piece.
     pages_over_limit: int = 0
-    #: Files the pages show or link to, which do not come over yet.
+    #: Files the pages show or link to, left at the source because
+    #: attachments were not asked for.
     page_attachments: int = 0
+    #: Pictures the pages show, coming over as uploads, and files — with any
+    #: picture no page shows — coming over as documents filed in the wiki.
+    page_images: int = 0
+    page_files: int = 0
+    #: The storage both will use.
+    page_attachment_bytes: int = 0
+    #: Attachments too large, past the import's budget, of a type never
+    #: brought, or that the site would not hand over.
+    page_attachments_skipped: int = 0
+    #: Files left behind because the initiative cannot take documents.
+    page_files_blocked: int = 0
     #: Tags the pages' labels will become.
     labels: int = 0
     #: What the pages held that will not come over, by kind, most first.

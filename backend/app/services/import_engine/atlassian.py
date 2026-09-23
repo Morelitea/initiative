@@ -217,6 +217,7 @@ async def get_bytes(
     *,
     max_bytes: int,
     retry: RetryPolicy = BACKGROUND,
+    follow_redirect: bool = False,
 ) -> bytes:
     """A file from the site — an attachment's content — as raw bytes.
 
@@ -224,12 +225,19 @@ async def get_bytes(
     ``max_bytes`` raises ``IMPORT_TOO_LARGE``: the caller checked the size the
     site declared before asking, and this is the same bound held against what
     actually arrived, since a declaration is somebody else's to get wrong.
+
+    ``follow_redirect`` is for Confluence, whose download answers with one
+    hop to Atlassian's media host, the address carrying its own short-lived
+    grant. That hop is followed once, to a public https address, and without
+    this credential: the token is for the site, and goes nowhere else.
     """
     response = await _send(
         credential, path, method="GET", json=None, retry=retry, accept="*/*"
     )
     if response.status_code in (401, 403):
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_AUTH)
+    if follow_redirect and response.status_code in (301, 302, 303, 307, 308):
+        response = await _follow(response, path)
     if response.status_code >= 300:
         # A redirect is not followed: the attachment endpoint is asked for its
         # content directly, and anything else is not an answer.
@@ -241,6 +249,25 @@ async def get_bytes(
     if len(data) > max_bytes:
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     return data
+
+
+async def _follow(response: httpx.Response, path: str) -> httpx.Response:
+    """The one redirect a download is allowed, fetched without credentials."""
+    location = response.headers.get("location") or ""
+    if urlsplit(location).scheme != "https":
+        logger.info("atlassian download redirect refused path=%s", path)
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
+    try:
+        return await request_public_target(
+            "GET",
+            location,
+            headers={"Accept": "*/*"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except WebhookTargetUrlPrivateError:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_PRIVATE_HOST)
+    except (WebhookTargetUrlError, httpx.TimeoutException, httpx.TransportError):
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
 
 
 async def _send(

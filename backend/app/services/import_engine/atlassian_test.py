@@ -422,3 +422,71 @@ async def test_a_file_the_site_will_not_hand_over_is_a_code(
     with pytest.raises(ImportEngineError) as exc:
         await atlassian.get_bytes(CREDENTIAL, "/f", max_bytes=100)
     assert exc.value.code == code
+
+
+MEDIA = "https://api.media.atlassian.com/file/abc/binary?token=grant"
+
+
+async def test_a_download_follows_its_one_hop_without_the_token(monkeypatch):
+    calls = _stub(
+        monkeypatch,
+        lambda m, u, j: (
+            httpx.Response(302, headers={"location": MEDIA})
+            if "acme.atlassian.net" in u
+            else httpx.Response(200, content=b"%PDF")
+        ),
+    )
+    data = await atlassian.get_bytes(
+        CREDENTIAL, "/wiki/download", max_bytes=100, follow_redirect=True
+    )
+    assert data == b"%PDF"
+    assert [c["url"] for c in calls] == [
+        "https://acme.atlassian.net/wiki/download",
+        MEDIA,
+    ]
+    # The site's token goes to the site, and nowhere else.
+    assert "Authorization" in calls[0]["headers"]
+    assert "Authorization" not in calls[1]["headers"]
+
+
+async def test_a_hop_that_is_not_https_is_not_followed(monkeypatch):
+    calls = _stub(
+        monkeypatch,
+        lambda m, u, j: httpx.Response(
+            302, headers={"location": "http://media.example.com/f"}
+        ),
+    )
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_bytes(
+            CREDENTIAL, "/wiki/download", max_bytes=100, follow_redirect=True
+        )
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+    assert len(calls) == 1
+
+
+async def test_a_hop_to_a_private_address_is_refused(monkeypatch):
+    from app.services.webhook_target_url import WebhookTargetUrlPrivateError
+
+    async def fake_request(method, url, **kw):
+        if url == MEDIA:
+            raise WebhookTargetUrlPrivateError("private")
+        return httpx.Response(302, headers={"location": MEDIA})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_bytes(
+            CREDENTIAL, "/wiki/download", max_bytes=100, follow_redirect=True
+        )
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_PRIVATE_HOST
+
+
+async def test_a_second_hop_is_not_followed(monkeypatch):
+    _stub(
+        monkeypatch,
+        lambda m, u, j: httpx.Response(302, headers={"location": MEDIA}),
+    )
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_bytes(
+            CREDENTIAL, "/wiki/download", max_bytes=100, follow_redirect=True
+        )
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE

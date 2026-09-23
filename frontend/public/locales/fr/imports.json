@@ -126,7 +126,7 @@
         "issues_one": "{{count}} ticket",
         "issues_other": "{{count}} tickets",
         "includeComments": "Importer les commentaires",
-        "includeAttachments": "Importer les images",
+        "includeAttachments": "Importer les pièces jointes",
         "note": "Chaque projet arrive comme un nouveau projet et chaque espace comme un nouveau wiki dans cette initiative, avec les liens entre eux reliés. Rien n'est écrit avant que vous ayez vérifié ce que nous avons trouvé.",
         "submit": "Commencer la lecture",
         "failed": "Nous n'avons pas pu commencer la lecture.",
@@ -196,8 +196,14 @@
         "unreadableSpaces": "Illisibles : {{keys}}",
         "overLimit_one": "{{count}} page rendrait le wiki trop volumineux pour un seul import",
         "overLimit_other": "{{count}} pages rendraient le wiki trop volumineux pour un seul import",
-        "attachments_one": "{{count}} fichier joint n'est pas encore importé",
-        "attachments_other": "{{count}} fichiers joints ne sont pas encore importés",
+        "attachments_one": "{{count}} fichier joint reste de côté, car les pièces jointes étaient désactivées",
+        "attachments_other": "{{count}} fichiers joints restent de côté, car les pièces jointes étaient désactivées",
+        "attachmentsArriving_one": "{{count}} pièce jointe ({{size}}) : les images là où les pages les montrent, les fichiers comme documents dans le wiki",
+        "attachmentsArriving_other": "{{count}} pièces jointes ({{size}}) : les images là où les pages les montrent, les fichiers comme documents dans le wiki",
+        "attachmentsSkipped_one": "{{count}} pièce jointe trop volumineuse ou illisible",
+        "attachmentsSkipped_other": "{{count}} pièces jointes trop volumineuses ou illisibles",
+        "filesBlocked_one": "{{count}} fichier, car les documents sont désactivés dans cette initiative",
+        "filesBlocked_other": "{{count}} fichiers, car les documents sont désactivés dans cette initiative",
         "dropped": "Laissé de côté : {{items}}"
       }
     }

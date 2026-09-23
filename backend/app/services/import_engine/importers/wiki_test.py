@@ -193,3 +193,28 @@ def test_a_jira_issue_that_did_not_come_over_links_back_to_jira():
     assert link["url"] == "https://acme.atlassian.net/browse/SCRUM-9"
     assert link["children"][0]["text"] == "SCRUM-9"
     assert kept["type"] == "link" and "importJiraKey" not in kept
+
+
+def _file_mention(ref, text="spec.pdf"):
+    return {
+        "type": "entity-mention",
+        "version": 1,
+        "entityType": "document",
+        "entityId": 0,
+        "text": text,
+        "importRef": ref,
+    }
+
+
+def test_a_file_the_page_links_to_is_the_document_it_became():
+    placed = _place_references(
+        _doc(_file_mention("entry:assets/a.pdf"), _file_mention("entry:assets/b.pdf")),
+        page_ids={},
+        mentioned={},
+        documents={"entry:assets/a.pdf": 31},
+    )
+    assert placed is not None
+    found, missing = placed["root"]["children"][0]["children"]
+    assert found["entityId"] == 31 and "importRef" not in found
+    # One that did not arrive is its name again.
+    assert missing["type"] == "text" and missing["text"] == "spec.pdf"

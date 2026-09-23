@@ -20,9 +20,14 @@ from urllib.parse import quote
 
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
-from app.services.import_engine import confluence_mapping
-from app.services.import_engine.atlassian import AtlassianCredential, get_json
+from app.services.import_engine import confluence_attachments, confluence_mapping
+from app.services.import_engine.atlassian import (
+    AtlassianCredential,
+    get_bytes,
+    get_json,
+)
 from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine.jira_attachments import AssetBudget, StoredImage
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +70,20 @@ class ConfluenceFetchReport:
     #: Pages left out because the space's wiki would have been too large to
     #: import in one piece, or the import's row budget was spent.
     pages_over_limit: int = 0
-    #: Files the pages show or link to. They do not come over yet.
+    #: Files the pages show or link to, left at the source because
+    #: attachments were not asked for.
     attachments: int = 0
+    #: Pictures the pages show, coming over as uploads.
+    images: int = 0
+    #: Files — and pictures no page shows — coming over as documents.
+    files: int = 0
+    #: What both will take up.
+    attachment_bytes: int = 0
+    #: Too large, past the bundle's budget, a type never brought, or one the
+    #: site would not hand over.
+    attachments_skipped: int = 0
+    #: Files left behind because the initiative cannot take documents.
+    files_blocked: int = 0
     #: Tags the pages' labels will become.
     labels: int = 0
 
@@ -217,6 +234,60 @@ async def fetch_user_names(
     return names
 
 
+async def fetch_attachments(
+    credential: AtlassianCredential, page_id: str
+) -> list[confluence_attachments.PageAttachment]:
+    """What a page has attached. A page whose list will not answer has
+    none — not worth failing the space over. Being throttled is."""
+    found: list[confluence_attachments.PageAttachment] = []
+    path: Optional[str] = f"/wiki/api/v2/pages/{page_id}/attachments?limit={PAGE_LIMIT}"
+    for _ in range(MAX_PAGE_REQUESTS):
+        if path is None:
+            break
+        try:
+            payload = await get_json(credential, path)
+        except ImportEngineError as exc:
+            if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
+                raise
+            break
+        found.extend(confluence_attachments.read_attachments(payload))
+        path = _next_path(payload) if isinstance(payload, dict) else None
+    return found
+
+
+async def fetch_page_media(
+    credential: AtlassianCredential,
+    page_id: str,
+    *,
+    guild_id: int,
+    budget: AssetBudget,
+    report: confluence_attachments.AttachmentReport,
+    documents: bool,
+) -> confluence_attachments.PageMedia:
+    """A page's attachments, downloaded within what the bundle can hold."""
+
+    async def download(
+        attachment: confluence_attachments.PageAttachment, max_bytes: int
+    ) -> bytes:
+        # The download answers with one hop to Atlassian's media host.
+        return await get_bytes(
+            credential,
+            f"/wiki/rest/api/content/{page_id}/child/attachment/"
+            f"{attachment.id}/download",
+            max_bytes=max_bytes,
+            follow_redirect=True,
+        )
+
+    return await confluence_attachments.download_page_attachments(
+        await fetch_attachments(credential, page_id),
+        guild_id=guild_id,
+        download=download,
+        budget=budget,
+        report=report,
+        documents=documents,
+    )
+
+
 def _account_ids(pages: list[confluence_mapping.SourcePage]) -> set[str]:
     ids = {page.author_id for page in pages if page.author_id}
     for page in pages:
@@ -232,6 +303,10 @@ class ConfluenceFetched:
     envelopes: list[tuple[str, dict[str, Any]]]
     people: Counter[str]
     report: ConfluenceFetchReport
+    #: The pictures the pages show, restored as uploads.
+    images: list[StoredImage] = field(default_factory=list)
+    #: Each space's file documents, by space key.
+    files: dict[str, list[StoredImage]] = field(default_factory=dict)
 
 
 async def fetch_spaces_bundle(
@@ -245,9 +320,11 @@ async def fetch_spaces_bundle(
     """:func:`fetch_spaces`, written into a bundle of its own."""
     from app.services.import_engine.atlassian_bundle import merge_people, write_bundle
 
-    fetched = await fetch_spaces(credential, **kwargs)
+    fetched = await fetch_spaces(credential, guild_id=guild_id, **kwargs)
     bundle = write_bundle(
+        images=fetched.images,
         wikis=fetched.envelopes,
+        wiki_files=fetched.files,
         people=merge_people([], fetched.people),
         guild_id=guild_id,
         guild_name=guild_name,
@@ -265,6 +342,9 @@ async def fetch_spaces(
     app_version: str,
     progress: Optional[Callable[[ConfluenceFetchReport], Awaitable[None]]] = None,
     max_rows: Optional[int] = None,
+    guild_id: Optional[int] = None,
+    asset_budget: Optional[AssetBudget] = None,
+    documents: bool = True,
 ) -> ConfluenceFetched:
     """Read the chosen spaces and return what was read plus what it found.
 
@@ -272,6 +352,11 @@ async def fetch_spaces(
     fails the fetch, because then the selection is what is wrong. ``progress``
     hears the running report after each space, and raising from it stops the
     walk there — how a cancelled job ends.
+
+    ``asset_budget`` is what the bundle can still hold for attachments —
+    shared with the issues, when both are read — and without one none are
+    fetched. ``documents`` false is an initiative that cannot take file
+    documents: only the pictures the pages show come.
     """
     if not space_keys:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
@@ -281,6 +366,10 @@ async def fetch_spaces(
     envelopes: list[tuple[str, dict[str, Any]]] = []
     people: Counter[str] = Counter()
     labels: set[str] = set()
+    images: list[StoredImage] = []
+    files: dict[str, list[StoredImage]] = {}
+    downloads = confluence_attachments.AttachmentReport()
+    unshown_blocked = 0
     max_bytes = max(0, settings.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES)
 
     for key in space_keys:
@@ -308,6 +397,18 @@ async def fetch_spaces(
                 if folder is not None:
                     pages.append(folder)
             users = await fetch_user_names(credential, _account_ids(pages))
+            media: dict[str, confluence_attachments.PageMedia] = {}
+            if asset_budget is not None and guild_id is not None:
+                for page in pages:
+                    if not page.is_folder:
+                        media[page.id] = await fetch_page_media(
+                            credential,
+                            page.id,
+                            guild_id=guild_id,
+                            budget=asset_budget,
+                            report=downloads,
+                            documents=documents,
+                        )
         except ImportEngineError as exc:
             if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
                 raise
@@ -321,23 +422,41 @@ async def fetch_spaces(
                 site_url=credential.site_url,
                 app_version=app_version,
                 max_bytes=max_bytes,
+                media=media,
+                documents=documents,
             )
             envelopes.append((key, mapped.envelope))
+            images.extend(mapped.uploads)
+            if mapped.documents:
+                files[key] = mapped.documents
             people.update(mapped.people)
             report.spaces += 1
             report.pages += mapped.pages
             report.containers += mapped.containers
             report.dropped.update(mapped.dropped)
             report.pages_over_limit += mapped.over_limit
-            report.attachments += sum(len(a) for a in mapped.attachments.values())
+            if asset_budget is None:
+                report.attachments += sum(len(a) for a in mapped.attachments.values())
+            report.images += len(mapped.uploads)
+            report.files += len(mapped.documents)
+            report.attachment_bytes += sum(
+                len(blob.data) for blob in (*mapped.uploads, *mapped.documents)
+            )
+            unshown_blocked += mapped.documents_blocked
             for entry in mapped.envelope["pages"]:
                 labels.update(tag.casefold() for tag in entry["tags"])
             report.labels = len(labels)
             remaining -= mapped.pages + 1
+        report.attachments_skipped = (
+            downloads.oversize + downloads.unreadable + downloads.refused
+        )
+        report.files_blocked = downloads.blocked + unshown_blocked
         if progress is not None:
             await progress(report)
 
     if not envelopes:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
 
-    return ConfluenceFetched(envelopes=envelopes, people=people, report=report)
+    return ConfluenceFetched(
+        envelopes=envelopes, people=people, report=report, images=images, files=files
+    )

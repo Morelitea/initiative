@@ -46,6 +46,7 @@ async def test_refresh_loads_db_over_env(
 
     await app_settings_service.update_storage_settings(
         session,
+        admin_session=session,
         backend="s3",
         s3_bucket="db-bucket",
         s3_region="ap-south-1",

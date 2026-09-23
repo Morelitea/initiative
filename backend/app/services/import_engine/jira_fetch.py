@@ -68,11 +68,6 @@ COMMENT_FIELD = "comment"
 #: with the size and type the download is decided by.
 ATTACHMENT_FIELD = "attachment"
 
-#: Held back from the bundle's byte and member bounds for the manifest and
-#: the envelopes, so images cannot crowd them out.
-_BUNDLE_RESERVE_BYTES = 64 * 1024 * 1024
-_BUNDLE_RESERVE_FILES = 500
-
 #: Comments per page when an issue's have to be read on their own.
 COMMENT_PAGE_SIZE = 100
 
@@ -332,20 +327,6 @@ class FetchedProject:
     images: jira_attachments.ImageReport
 
 
-@dataclass
-class ImageBudget:
-    """What the bundle can still hold, shared across every project.
-
-    Kept under the bounds the restore checks when it opens the zip — its
-    uncompressed size and its member count — with room left for the
-    manifest and the envelopes, so a bundle the fetch wrote is never one the
-    apply refuses whole.
-    """
-
-    bytes_left: int
-    files_left: int
-
-
 async def fetch_project_envelope(
     credential: AtlassianCredential,
     project: dict,
@@ -355,7 +336,7 @@ async def fetch_project_envelope(
     max_issues: int,
     field_catalog: Any = None,
     include_comments: bool = False,
-    image_budget: Optional[ImageBudget] = None,
+    image_budget: Optional[jira_attachments.AssetBudget] = None,
     guild_id: Optional[int] = None,
 ) -> FetchedProject:
     """One Jira project as an envelope, how many issues it cost, and what its
@@ -583,6 +564,7 @@ async def fetch_projects(
     include_comments: bool = True,
     include_attachments: bool = True,
     link_pages: bool = False,
+    asset_budget: Optional[jira_attachments.AssetBudget] = None,
 ) -> JiraFetched:
     """Read the chosen projects and return what was read plus what it found.
 
@@ -614,12 +596,7 @@ async def fetch_projects(
     all_sprints: dict[int, jira_sprints.Sprint] = {}
     all_images: list[jira_attachments.StoredImage] = []
     image_budget = (
-        ImageBudget(
-            bytes_left=max(
-                0, settings.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES - _BUNDLE_RESERVE_BYTES
-            ),
-            files_left=max(0, settings.IMPORT_MAX_ZIP_MEMBERS - _BUNDLE_RESERVE_FILES),
-        )
+        (asset_budget or jira_attachments.bundle_budget())
         if include_attachments
         else None
     )

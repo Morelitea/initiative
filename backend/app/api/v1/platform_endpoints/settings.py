@@ -22,6 +22,7 @@ from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import (
     Guild,
     GuildMembership,
@@ -169,14 +170,16 @@ def _frontend_redirect_uri() -> str:
     return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
 
 
-def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
+def _email_settings_payload(
+    settings_obj: AppSetting, secrets: AppSettingSecret
+) -> EmailSettingsResponse:
     return EmailSettingsResponse(
         host=settings_obj.smtp_host,
         port=settings_obj.smtp_port,
         secure=settings_obj.smtp_secure,
         reject_unauthorized=settings_obj.smtp_reject_unauthorized,
         username=settings_obj.smtp_username,
-        has_password=bool(settings_obj.smtp_password_encrypted),
+        has_password=bool(secrets.smtp_password_encrypted),
         from_address=settings_obj.smtp_from_address,
         test_recipient=settings_obj.smtp_test_recipient,
     )
@@ -540,22 +543,30 @@ async def update_community_settings(
 @router.get("/email", response_model=EmailSettingsResponse)
 async def get_email_settings(
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> EmailSettingsResponse:
+    # Whether a password is stored is read on the system engine, which alone
+    # holds app_setting_secrets.
     settings_obj = await app_settings_service.get_app_settings(session)
-    return _email_settings_payload(settings_obj)
+    secrets = await app_settings_service.get_app_setting_secrets(admin_session)
+    return _email_settings_payload(settings_obj, secrets)
 
 
 @router.put("/email", response_model=EmailSettingsResponse)
 async def update_email_settings(
     payload: EmailSettingsUpdate,
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     admin: ConfigManageDep,
 ) -> EmailSettingsResponse:
+    # The settings row is written under the owner's tier; the password, when
+    # one is sent, on the system engine.
     data = payload.model_dump(exclude_unset=True)
     password_provided = "password" in data
-    updated = await app_settings_service.update_email_settings(
+    updated, secrets = await app_settings_service.update_email_settings(
         session,
+        admin_session=admin_session,
         host=payload.host,
         port=payload.port,
         secure=payload.secure,
@@ -567,7 +578,7 @@ async def update_email_settings(
         test_recipient=payload.test_recipient,
         actor_user_id=admin.id,
     )
-    return _email_settings_payload(updated)
+    return _email_settings_payload(updated, secrets)
 
 
 @router.post("/email/test")
@@ -605,7 +616,9 @@ async def send_test_email(
 # --- Object storage ---
 
 
-def _storage_settings_payload(settings_obj: AppSetting) -> StorageSettingsResponse:
+def _storage_settings_payload(
+    settings_obj: AppSetting, secrets: AppSettingSecret
+) -> StorageSettingsResponse:
     backend = (settings_obj.storage_backend or "local").lower()
     return StorageSettingsResponse(
         backend="s3" if backend == "s3" else "local",
@@ -613,7 +626,7 @@ def _storage_settings_payload(settings_obj: AppSetting) -> StorageSettingsRespon
         s3_region=settings_obj.s3_region or "us-east-1",
         s3_endpoint_url=settings_obj.s3_endpoint_url,
         s3_access_key_id=settings_obj.s3_access_key_id,
-        has_secret_access_key=bool(settings_obj.s3_secret_access_key_encrypted),
+        has_secret_access_key=bool(secrets.s3_secret_access_key_encrypted),
         s3_use_path_style=settings_obj.s3_use_path_style,
         s3_kms_key_id=settings_obj.s3_kms_key_id,
         s3_local_fallback=settings_obj.s3_local_fallback,
@@ -623,22 +636,30 @@ def _storage_settings_payload(settings_obj: AppSetting) -> StorageSettingsRespon
 @router.get("/storage", response_model=StorageSettingsResponse)
 async def get_storage_settings(
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> StorageSettingsResponse:
+    # Whether a secret key is stored is read on the system engine, which alone
+    # holds app_setting_secrets.
     settings_obj = await app_settings_service.get_app_settings(session)
-    return _storage_settings_payload(settings_obj)
+    secrets = await app_settings_service.get_app_setting_secrets(admin_session)
+    return _storage_settings_payload(settings_obj, secrets)
 
 
 @router.put("/storage", response_model=StorageSettingsResponse)
 async def update_storage_settings(
     payload: StorageSettingsUpdate,
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     admin: ConfigManageDep,
 ) -> StorageSettingsResponse:
+    # The settings row is written under the owner's tier; the secret key, when
+    # one is sent, on the system engine.
     data = payload.model_dump(exclude_unset=True)
     secret_provided = "s3_secret_access_key" in data
-    updated = await app_settings_service.update_storage_settings(
+    updated, secrets = await app_settings_service.update_storage_settings(
         session,
+        admin_session=admin_session,
         backend=payload.backend,
         s3_bucket=payload.s3_bucket,
         s3_region=payload.s3_region,
@@ -651,21 +672,21 @@ async def update_storage_settings(
         s3_local_fallback=payload.s3_local_fallback,
         actor_user_id=admin.id,
     )
-    return _storage_settings_payload(updated)
+    return _storage_settings_payload(updated, secrets)
 
 
 @router.post("/storage/test", response_model=StorageTestResponse)
 async def test_storage_connection(
     payload: StorageSettingsUpdate,
-    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> StorageTestResponse:
     # Test the submitted (possibly unsaved) config. If the admin left the secret
-    # blank, fall back to the saved one so they can re-test without re-typing it.
+    # blank, fall back to the saved one so they can re-test without re-typing it
+    # (read on the system engine, which alone holds app_setting_secrets).
     data = payload.model_dump(exclude_unset=True)
     secret = payload.s3_secret_access_key
     if "s3_secret_access_key" not in data or not secret:
-        secret = await storage_config.resolve_saved_secret(session)
+        secret = await storage_config.resolve_saved_secret()
     candidate = storage_config.ResolvedStorageConfig(
         backend="s3" if payload.backend == "s3" else "local",
         bucket=(payload.s3_bucket or "").strip() or None,

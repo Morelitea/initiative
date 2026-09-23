@@ -126,7 +126,7 @@
         "issues_one": "{{count}} incidencia",
         "issues_other": "{{count}} incidencias",
         "includeComments": "Traer comentarios",
-        "includeAttachments": "Traer imágenes",
+        "includeAttachments": "Traer adjuntos",
         "note": "Cada proyecto llega como un proyecto nuevo y cada espacio como una wiki nueva en esta iniciativa, con los enlaces entre ellos unidos. No se escribe nada hasta que hayas revisado lo que encontramos.",
         "submit": "Empezar a leer",
         "failed": "No pudimos empezar a leer eso.",
@@ -196,8 +196,14 @@
         "unreadableSpaces": "No se pudieron leer: {{keys}}",
         "overLimit_one": "{{count}} página haría la wiki demasiado grande para importarla de una vez",
         "overLimit_other": "{{count}} páginas harían la wiki demasiado grande para importarla de una vez",
-        "attachments_one": "{{count}} archivo adjunto todavía no se trae",
-        "attachments_other": "{{count}} archivos adjuntos todavía no se traen",
+        "attachments_one": "{{count}} archivo adjunto se queda atrás porque los adjuntos estaban desactivados",
+        "attachments_other": "{{count}} archivos adjuntos se quedan atrás porque los adjuntos estaban desactivados",
+        "attachmentsArriving_one": "{{count}} adjunto ({{size}}): imágenes donde las páginas las muestran, archivos como documentos en la wiki",
+        "attachmentsArriving_other": "{{count}} adjuntos ({{size}}): imágenes donde las páginas las muestran, archivos como documentos en la wiki",
+        "attachmentsSkipped_one": "{{count}} adjunto demasiado grande o que no se pudo leer",
+        "attachmentsSkipped_other": "{{count}} adjuntos demasiado grandes o que no se pudieron leer",
+        "filesBlocked_one": "{{count}} archivo, porque esta iniciativa tiene los documentos desactivados",
+        "filesBlocked_other": "{{count}} archivos, porque esta iniciativa tiene los documentos desactivados",
         "dropped": "Se omite: {{items}}"
       }
     }

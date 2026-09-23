@@ -9,8 +9,10 @@ storage config and the rules for refreshing it:
   Before the first DB load (and in CLI scripts / tests) it falls back to the env
   ``settings``, so behavior is identical to the pre-DB-config world.
 - :func:`refresh_storage_config` reloads the snapshot from ``app_settings``
-  (decrypting the secret) and drops the cached boto3 client so it rebuilds with
-  the new credentials. Called at startup and after every settings update.
+  and the secret key from ``app_setting_secrets`` (decrypted, read on a
+  system-engine session of its own), and drops the cached boto3 client so it
+  rebuilds with the new credentials. Called at startup and after every
+  settings update.
 - :func:`ensure_storage_config_fresh` re-loads if the snapshot is older than
   ``_TTL_SECONDS`` — bounds staleness across worker processes that didn't handle
   the update request themselves.
@@ -73,7 +75,11 @@ def current_storage_config() -> ResolvedStorageConfig:
 
 
 async def refresh_storage_config(session: AsyncSession) -> ResolvedStorageConfig:
-    """Reload the snapshot from ``app_settings`` and reset the cached S3 client."""
+    """Reload the snapshot from ``app_settings`` and reset the cached S3 client.
+
+    ``session`` reads the settings row; the secret key is read on the system
+    engine, whatever ``session`` is.
+    """
     global _resolved, _loaded_at
     # Imported here (not at module top) to avoid an import cycle: app_settings ->
     # storage_config (in update_storage_settings) and back.
@@ -81,11 +87,7 @@ async def refresh_storage_config(session: AsyncSession) -> ResolvedStorageConfig
     from app.services.platform.app_settings import get_app_settings  # noqa: PLC0415
 
     row = await get_app_settings(session)
-    secret = (
-        decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)
-        if row.s3_secret_access_key_encrypted
-        else None
-    )
+    secret = await resolve_saved_secret()
     _resolved = ResolvedStorageConfig(
         backend=(row.storage_backend or "local").lower(),
         bucket=row.s3_bucket,
@@ -109,11 +111,17 @@ async def ensure_storage_config_fresh(session: AsyncSession) -> None:
         await refresh_storage_config(session)
 
 
-async def resolve_saved_secret(session: AsyncSession) -> str | None:
-    """Decrypt the persisted S3 secret access key (or None if unset)."""
-    from app.services.platform.app_settings import get_app_settings  # noqa: PLC0415
+async def resolve_saved_secret() -> str | None:
+    """Decrypt the persisted S3 secret access key (or None if unset).
 
-    row = await get_app_settings(session)
+    Read on a system-engine session of its own: ``app_setting_secrets`` is
+    granted to no request-path role.
+    """
+    from app.services.platform.app_settings import (  # noqa: PLC0415
+        load_app_setting_secrets,
+    )
+
+    row = await load_app_setting_secrets()
     if not row.s3_secret_access_key_encrypted:
         return None
     return decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)

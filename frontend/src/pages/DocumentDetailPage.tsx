@@ -195,6 +195,15 @@ export const DocumentDetailPage = () => {
   const collaboratingRef = useRef(false);
   const sendContentRef = useRef<((content: unknown) => void) | null>(null);
   const syncContentBeaconRef = useRef<(() => void) | null>(null);
+  const parsedIdRef = useRef(parsedId);
+  parsedIdRef.current = parsedId;
+  // What this tab last rendered, for the room to save as the page leaves.
+  const finalCollabContent = useCallback(() => {
+    const stored = contentStateRef.current;
+    return collaboratingRef.current && stored?.documentId === parsedIdRef.current
+      ? stored.content
+      : undefined;
+  }, []);
 
   // Wikilink dialog state
   const [wikilinkDialogOpen, setWikilinkDialogOpen] = useState(false);
@@ -221,6 +230,7 @@ export const DocumentDetailPage = () => {
   // bootstrap and leaves Lexical stuck on "Syncing document…".
   const collaboration = useCollaboration({
     socketPath: Number.isFinite(parsedId) ? `documents/${parsedId}/collaborate` : null,
+    finalContent: finalCollabContent,
     enabled:
       collaborationEnabled && Number.isFinite(parsedId) && documentTypeFromQuery !== "smart_link",
     onError: (error) => {
@@ -616,12 +626,15 @@ export const DocumentDetailPage = () => {
     // When collaborating, sync content periodically to keep the content
     // column updated for non-collab readers. Native Lexical docs use 10s
     // (users type many characters per second, a shorter window would
-    // hammer the backend). Whiteboards use the same 2s debounce as
-    // non-collab mode — a single drawing action fits in 10s, so a longer
+    // hammer the backend). Whiteboards and spreadsheets use the same 2s
+    // debounce as non-collab mode — a single drawing action or cell edit fits in 10s, so a longer
     // window leaves document.content stale for external REST readers
     // and increases the yjs_state/content desync window.
     if (collaboration.isCollaborating) {
-      const collabDebounceMs = document?.document_type === "whiteboard" ? 2000 : 10000;
+      const collabDebounceMs =
+        document?.document_type === "whiteboard" || document?.document_type === "spreadsheet"
+          ? 2000
+          : 10000;
       const timer = setTimeout(() => {
         // The room is the writer of this document's content column while it
         // is live: it saves the JSON and the Yjs state from one snapshot, so

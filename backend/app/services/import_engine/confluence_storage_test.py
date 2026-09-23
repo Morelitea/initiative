@@ -459,6 +459,52 @@ def test_a_link_to_an_attachment_goes_where_the_file_went():
     assert texts(link) == "the spec"
 
 
+def test_a_link_to_a_file_that_became_a_document_mentions_it():
+    (p,) = blocks(
+        '<p><ac:link><ri:attachment ri:filename="spec.pdf"/>'
+        "<ac:plain-text-link-body><![CDATA[the spec]]></ac:plain-text-link-body>"
+        '</ac:link> and <ac:link><ri:attachment ri:filename="other.pdf"/></ac:link>'
+        '<a href="https://example.com"><ac:link><ri:attachment ri:filename="spec.pdf"/>'
+        "</ac:link></a></p>",
+        document=lambda name: "entry:assets/abc.pdf" if name == "spec.pdf" else None,
+        attachment=lambda name: None,
+    )
+    mention, words, inside = p["children"]
+    assert mention == {
+        "type": "entity-mention",
+        "version": 1,
+        "entityType": "document",
+        "entityId": 0,
+        "text": "the spec",
+        "importRef": "entry:assets/abc.pdf",
+    }
+    # A file that did not become one keeps its name.
+    assert (words["type"], words["text"]) == ("text", " and other.pdf")
+    # A mention cannot sit inside a link, so there it is words.
+    assert inside["type"] == "link" and texts(inside) == "spec.pdf"
+
+
+def test_a_file_card_mentions_its_document_too():
+    (p,) = blocks(
+        '<p><ac:structured-macro ac:name="view-file"><ac:parameter ac:name="name">'
+        '<ri:attachment ri:filename="deck.pptx"/></ac:parameter>'
+        "</ac:structured-macro></p>",
+        document=lambda name: f"entry:assets/{name}",
+    )
+    (mention,) = p["children"]
+    assert mention["importRef"] == "entry:assets/deck.pptx"
+    assert mention["text"] == "deck.pptx"
+
+
+def test_the_pictures_a_page_shows_are_told_apart_from_those_it_links():
+    result = storage_to_lexical(
+        '<p><ac:image><ri:attachment ri:filename="shown.png"/></ac:image>'
+        '<ac:link><ri:attachment ri:filename="linked.png"/></ac:link></p>'
+    )
+    assert result.attachments == ["shown.png", "linked.png"]
+    assert result.shown == ["shown.png"]
+
+
 def test_an_emoticon_and_a_date_are_text():
     (p,) = blocks(
         '<p><ac:emoticon ac:name="smile" ac:emoji-fallback="\U0001f642"/> on '
