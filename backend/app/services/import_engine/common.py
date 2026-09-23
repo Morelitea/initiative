@@ -15,7 +15,7 @@ same way:
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from sqlalchemy import func
 from sqlmodel import select
@@ -26,6 +26,9 @@ from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.property import PropertyDefinition, PropertyType
 from app.models.tenant.tag import Tag
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.services.import_engine.people import PeopleMap
 
 
 class TagResolved:
@@ -240,11 +243,19 @@ class _EnvelopePropertyValue(Protocol):
 def decode_property_value(
     pv: _EnvelopePropertyValue,
     initiative_member_handles: dict[str, int],
+    *,
+    people: "PeopleMap | None" = None,
 ) -> dict[str, Any] | None:
     """Convert an envelope property value back to the typed column kwargs.
 
-    Returns ``None`` if the value is a user reference whose handle isn't a
-    member of the target initiative — caller skips the row silently.
+    A user reference names somebody by handle, and is placed the way an
+    assignee is (``people.initiative_member_id``): the account the import's
+    people step mapped the handle to, else a member whose handle is the same
+    string — and a member of the target initiative either way, because a
+    property on a task in an initiative points at somebody in it.
+
+    Returns ``None`` when a user reference places nobody — the caller skips
+    that one value, and the property reads as empty.
     """
     t = pv.property_type
     if t in (PropertyType.text, PropertyType.url, PropertyType.select):
@@ -262,7 +273,14 @@ def decode_property_value(
     if t == PropertyType.user_reference:
         if not pv.value_handle:
             return {"value_user_id": None}
-        uid = initiative_member_handles.get(handle_key(pv.value_handle))
+        from app.services.import_engine.people import PeopleMap, initiative_member_id
+
+        uid = initiative_member_id(
+            pv.value_handle,
+            people=people if people is not None else PeopleMap(),
+            member_handles=initiative_member_handles,
+            member_ids=frozenset(initiative_member_handles.values()),
+        )
         if uid is None:
             # Drop the value rather than the whole row; the UI renders the
             # property as "—".

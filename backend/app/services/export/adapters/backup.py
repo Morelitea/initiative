@@ -844,6 +844,22 @@ class _ScopeBuilder:
                 if handle and handle not in self._people:
                     self._people[handle] = (None, 0)
 
+    def _record_property_people(self, *payloads) -> None:
+        """Note everyone a user-type property value names, in any entry.
+
+        Every tool's properties pass through here — a task's, a document's,
+        an event's, a file document's — because a restore places those values
+        through the people step's answer, and the step only asks about the
+        people the manifest lists. Counted as quoting nothing, like an
+        assignee: the number is for comments.
+        """
+        from app.services.import_engine.people import user_reference_handles
+
+        for payload in payloads:
+            for handle in user_reference_handles(payload):
+                if handle not in self._people:
+                    self._people[handle] = (None, 0)
+
     def people(self) -> list:
         """The archive's people, most-quoted first — which is the order the
         wizard should ask about them in."""
@@ -1356,6 +1372,7 @@ class _ScopeBuilder:
             )
 
     def _append_backup(self, item: RenderItem, *, path: str, **entry_kwargs) -> None:
+        self._record_property_people(item.data, entry_kwargs.get("properties"))
         self.items.append(replace(item, filename=path, format="json"))
         if self.mode == "backup":
             from app.schemas.tenant.backup_export import ManifestEntry

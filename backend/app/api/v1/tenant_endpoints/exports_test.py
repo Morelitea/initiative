@@ -1941,6 +1941,33 @@ async def test_a_backup_lists_its_assignees_among_its_people(
     } in manifest["people"]
 
 
+async def test_a_backup_lists_who_its_user_properties_name(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A restore places a user-type property value through the people step,
+    so the manifest has to list whoever one names — or the step never asks,
+    and the value lands only on an exact name match."""
+    from app.core.user_display import handle_of
+    from app.models.tenant.property import PropertyType
+    from app.testing.factories import (
+        create_property_definition,
+        create_task_property_value,
+    )
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Report it")
+    reporter = await create_property_definition(
+        session, a.initiative, name="Reporter", type=PropertyType.user_reference
+    )
+    await create_task_property_value(session, task, reporter, value_user_id=a.user.id)
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+
+    assert handle_of(a.user) in [p["handle"] for p in manifest["people"]]
+
+
 async def test_aggregate_export_hides_dac_invisible_rows(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):

@@ -154,3 +154,34 @@ def initiative_member_id(
     if mapped is not None and mapped in member_ids:
         return mapped
     return member_handles.get(handle_key(handle))
+
+
+def user_reference_handles(payload: Any) -> list[str]:
+    """Every handle a user-type property value in ``payload`` names.
+
+    ``payload`` is an envelope as plain data — a dict from a zip, or a model
+    dumped to JSON — walked whole, because property values sit at different
+    depths in different tools' envelopes (a task's, a document's, an event's)
+    and all of them are the same shape: ``property_type`` of
+    ``user_reference`` beside a ``value_handle``.
+
+    First-seen order, one entry per person, keyed the way handles are
+    matched. It is the inventory half of the people step: whoever a value
+    names has to be asked about, or it resolves by name alone.
+    """
+    found: dict[str, str] = {}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if node.get("property_type") == "user_reference":
+                handle = node.get("value_handle")
+                if isinstance(handle, str) and handle.strip():
+                    found.setdefault(handle_key(handle), handle.strip())
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(payload)
+    return list(found.values())

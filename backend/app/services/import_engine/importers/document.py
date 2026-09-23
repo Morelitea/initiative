@@ -29,7 +29,7 @@ from app.services.import_engine.contract import (
 )
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInItsProperties,
     grant_ownership,
     parse_envelope,
     resolve_property_values,
@@ -44,7 +44,7 @@ _IMPORTABLE_TYPES = {
 }
 
 
-class DocumentImporter(QuotesNobody):
+class DocumentImporter(NamesPeopleInItsProperties):
     envelope_type = "initiative-document"
     permission = PermissionKey.create_documents
 
@@ -130,6 +130,7 @@ class DocumentImporter(QuotesNobody):
             initiative_id=target_initiative.id,
             values=env.properties,
             member_handles=member_handles,
+            people=context.people if context is not None else None,
         )
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(

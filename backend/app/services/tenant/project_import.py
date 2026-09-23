@@ -376,7 +376,11 @@ async def _import_task(
         if prop_id is None:
             # Defensive: skip values whose property couldn't be resolved
             continue
-        column_kwargs = decode_property_value(pv, initiative_member_handles)
+        column_kwargs = decode_property_value(
+            pv,
+            initiative_member_handles,
+            people=context.people if context is not None else None,
+        )
         if column_kwargs is None:
             continue  # user_reference with no matching handle — skip silently
         session.add(

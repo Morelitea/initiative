@@ -21,6 +21,7 @@ from app.services.import_engine.contract import (
 )
 from app.services.import_engine.common import handle_key
 from app.services.import_engine.context import ImportContext
+from app.services.import_engine.people import user_reference_handles
 
 
 class ProjectImporter:
@@ -63,14 +64,16 @@ class ProjectImporter:
 
         The same inventory a backup's manifest carries, taken from one
         envelope: a handle, the name it went by, and how many comments hang
-        on getting that one row right. Two kinds of mention put somebody on
-        it, because both go through the answer the wizard records:
+        on getting that one row right. Three kinds of mention put somebody on
+        it, because all three go through the answer the wizard records:
 
         * a comment's author, whose words land under whoever the handle is
           mapped to;
         * an assignee, whose task lands on whoever the handle is mapped to —
           still only if that account is in the target initiative (see
-          ``people.initiative_member_id``).
+          ``people.initiative_member_id``);
+        * a user-type property value — a Reporter, a Reviewer — placed by
+          the same rule as an assignee.
 
         An assignee who wrote nothing is still a question worth asking. Left
         off, a handle nobody here answers to by name was applied without the
@@ -105,6 +108,10 @@ class ProjectImporter:
                 note(comment.author_handle, comment.author_name, 1)
             for handle in task.assignee_handles:
                 note(handle, None, 0)
+        # A user-type property — a Reporter, a Reviewer — is placed through
+        # the same answer an assignee is, so it is asked about the same way.
+        for handle in user_reference_handles(envelope.model_dump(mode="json")):
+            note(handle, None, 0)
         return sorted(seen.values(), key=lambda p: (-p.comment_count, p.handle.lower()))
 
     async def apply(
