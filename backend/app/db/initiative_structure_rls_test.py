@@ -127,7 +127,48 @@ async def test_a_content_grant_manages_no_roster(session, acting_user, role_sess
     await create_guild_membership(session, user=newcomer, guild=a.guild)
     role_id = await _member_role_id(session, a.initiative, a.guild.id)
     s = await _writing_as(role_session, user_id=support.id, guild_id=a.guild.id)
-    # The grant's role holds no INSERT on the roster; the policy stands behind it.
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await _add(s, a.initiative, newcomer.id, role_id)
+    await s.rollback()
+    assert not await _is_member(session, a.initiative, a.guild.id, newcomer.id)
+
+
+@pytest.mark.parametrize("rung", ["admin", "superadmin"])
+async def test_a_settings_rung_beside_read_write_manages_the_roster(
+    session, acting_user, role_session, rung
+):
+    """The two asks together: the rung names the surface, the read_write grant
+    lets it be changed — the roster included, at either rung."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    support = await create_user(session, role=UserRole.support)
+    await create_access_grant(
+        session, user=support, guild=a.guild, access_level=rung, purpose="settings"
+    )
+    await create_access_grant(
+        session, user=support, guild=a.guild, access_level="read_write"
+    )
+    newcomer = await create_user(session)
+    await create_guild_membership(session, user=newcomer, guild=a.guild)
+    role_id = await _member_role_id(session, a.initiative, a.guild.id)
+    s = await _writing_as(role_session, user_id=support.id, guild_id=a.guild.id)
+    await _add(s, a.initiative, newcomer.id, role_id)
+    assert await _is_member(session, a.initiative, a.guild.id, newcomer.id)
+
+
+async def test_a_settings_rung_alone_reads_the_roster_and_does_not_write_it(
+    session, acting_user, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    support = await create_user(session, role=UserRole.support)
+    await create_access_grant(
+        session, user=support, guild=a.guild, access_level="admin", purpose="settings"
+    )
+    newcomer = await create_user(session)
+    await create_guild_membership(session, user=newcomer, guild=a.guild)
+    role_id = await _member_role_id(session, a.initiative, a.guild.id)
+    s = await role_session("app_user")
+    await route_as(s, user_id=support.id, guild_id=a.guild.id, settings=True)
+    assert list(await s.exec(select(InitiativeMember.user_id))) == [a.user.id]
     with pytest.raises(DBAPIError, match="permission denied|row-level security"):
         await _add(s, a.initiative, newcomer.id, role_id)
     await s.rollback()

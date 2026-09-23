@@ -116,15 +116,15 @@ def guild_query_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_q"
 
 
-# Structural / permission tables the restricted ``support`` role may READ but never
-# WRITE — the DB-enforced "no member/permission management" line. Coarse by design
-# (table/verb, not row-level): the finer "edit-existing vs authoring" nuance stays in
-# the pam_write RLS leg. Kept in lockstep with the guild schema by
-# ``support_role_test`` (a renamed/added structural table must be reconsidered here).
+# Permission tables the restricted ``support`` role may READ but never WRITE:
+# what a resource is shared with, and what an installed app may do in
+# somebody's name — access management, which a content grant is not for.
+# Coarse by design (table/verb, not row-level). The initiative's own
+# structure (its roster, roles and their permissions) is not here: the
+# ``managed_*`` policies decide those writes from the standing, and a settings
+# rung beside a ``read_write`` grant is among what they admit. Kept in
+# lockstep with the guild schema by ``schema_provisioning_test``.
 SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
-    "initiative_members",
-    "initiative_roles",
-    "initiative_role_permissions",
     "resource_grants",
     # A member's own credential for an installed app. Deciding who reaches an
     # outside system through this guild is access management, not the
@@ -574,8 +574,8 @@ def _grant_statements(
         f'GRANT "{seat_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
     ]
-    # Hard-cap the support role: SELECT stays, writes are revoked on the structural /
-    # permission tables (these exist in every schema, so the REVOKE always applies).
+    # Cap the support role: SELECT stays, writes are revoked on the permission
+    # tables (these exist in every schema, so the REVOKE always applies).
     for table in SUPPORT_WRITE_PROTECTED_TABLES:
         stmts.append(
             f'REVOKE INSERT, UPDATE, DELETE ON "{schema}"."{table}" '

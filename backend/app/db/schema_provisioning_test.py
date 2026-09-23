@@ -323,9 +323,11 @@ async def test_the_read_roles_cannot_write_shared_tables(engine):
 
 
 async def test_support_role_write_capped_on_protected_tables(engine):
-    """The restricted ``support`` role reads everything and writes content, but
-    the structural / permission tables are SELECT-only — the DB-enforced
-    'no member/permission management' line, checked via has_table_privilege."""
+    """The restricted ``support`` role reads everything and writes content;
+    the permission tables are SELECT-only, checked via has_table_privilege.
+    The initiative's own structure is writable at the privilege level — the
+    ``managed_*`` policies decide those writes from the standing, and a settings
+    rung beside a read_write grant is among what they admit."""
     gid = _GID_SUPPORT
     schema = guild_schema_name(gid)
     support = guild_support_role_name(gid)
@@ -352,14 +354,20 @@ async def test_support_role_write_capped_on_protected_tables(engine):
             # DML until somebody remembers it, which has happened twice.
             for table in (
                 "resource_grants",
-                "initiative_members",
                 "guild_app_user_connections",
                 "guild_app_user_delegations",
             ):
                 assert table in SUPPORT_WRITE_PROTECTED_TABLES, table
 
-            # Content + guild settings: full DML (settings write is the carve-out).
-            for table in ("tasks", "guild_settings"):
+            # Content, guild settings and the initiative's structure: full DML
+            # at the privilege level; the policies decide the structure's writes.
+            for table in (
+                "tasks",
+                "guild_settings",
+                "initiative_members",
+                "initiative_roles",
+                "initiative_role_permissions",
+            ):
                 for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                     assert await priv(table, verb) is True, f"{table} {verb}"
     finally:
