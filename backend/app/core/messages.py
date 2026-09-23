@@ -172,8 +172,6 @@ class GuildMessages:
     #: Where billing sets plans, the operator moves a community into and out
     #: of a suspension and no other way.
     GUILD_STATUS_SET_BY_BILLING = "GUILD_STATUS_SET_BY_BILLING"
-    #: Where billing sets plans, a community is deleted from its own settings.
-    GUILD_DELETE_THROUGH_COMMUNITY = "GUILD_DELETE_THROUGH_COMMUNITY"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
     # Asked to join a guild that is not listed in the community directory (or
@@ -540,11 +538,7 @@ class SettingsMessages:
     # carry the SMTP host, port, or server banner) is logged server-side only
     # and never returned to the client (pentest SEC-16).
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
-    MAPPING_NOT_FOUND = "SETTINGS_MAPPING_NOT_FOUND"
-    INVALID_TARGET_TYPE = "SETTINGS_INVALID_TARGET_TYPE"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
-    INITIATIVE_ID_REQUIRED = "SETTINGS_INITIATIVE_ID_REQUIRED"
-    INITIATIVE_ROLE_ID_REQUIRED = "SETTINGS_INITIATIVE_ROLE_ID_REQUIRED"
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
     INITIATIVE_FIELDS_REQUIRED = "SETTINGS_INITIATIVE_FIELDS_REQUIRED"
     # The permitted sign-in methods.
@@ -620,12 +614,6 @@ class AdminMessages:
     CANNOT_DELETE_LAST_OWNER = "ADMIN_CANNOT_DELETE_LAST_OWNER"
     CANNOT_DELETE_SELF = "ADMIN_CANNOT_DELETE_SELF"
     USER_CANNOT_BE_DELETED = "ADMIN_USER_CANNOT_BE_DELETED"
-    # Operator guild deletion is scoped to resolving a user-deletion blocker:
-    # the guild must be one the named user is the SOLE admin of. Any other guild
-    # is refused (operators reach a live guild only via a break-glass grant).
-    GUILD_NOT_A_DELETION_BLOCKER = "ADMIN_GUILD_NOT_A_DELETION_BLOCKER"
-    USER_NOT_IN_INITIATIVE = "ADMIN_USER_NOT_IN_INITIATIVE"
-    CANNOT_DEMOTE_LAST_PM = "ADMIN_CANNOT_DEMOTE_LAST_PM"
 
 
 class AccessGrantMessages:

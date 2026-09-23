@@ -32,7 +32,6 @@ from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_initiative,
-    create_initiative_member,
     create_marketplace_listing,
     create_profile_pack,
     create_project,
@@ -1134,38 +1133,6 @@ async def test_self_delete_asks_a_password_account_for_its_password(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "USER_INVALID_PASSWORD"
-
-
-async def test_initiative_members_excludes_anonymized(
-    client, session, acting_user, role_session
-):
-    """The transfer-target picker offers people, so an anonymized husk is not
-    on it — only accounts that are still somebody."""
-    from app.services.platform import users as users_service
-
-    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
-    departing = await create_user(session)
-    await create_initiative_member(
-        session, initiative=creator.initiative, user=departing
-    )
-    survivor = await create_user(session)
-    await create_initiative_member(
-        session, initiative=creator.initiative, user=survivor
-    )
-
-    # Anonymize the departing user — they should disappear from the picker.
-    admin_session = await role_session("app_admin")
-    await users_service.soft_delete_user(admin_session, departing.id)
-
-    response = await client.get(
-        f"/api/v1/users/me/initiative-members/{creator.initiative.id}",
-        params={"guild_id": creator.guild.id},
-        headers=creator.headers,
-    )
-    assert response.status_code == 200
-    ids = {member["id"] for member in response.json()}
-    assert departing.id not in ids
-    assert survivor.id in ids
 
 
 async def test_profile_carries_the_basics(client, session, acting_user):

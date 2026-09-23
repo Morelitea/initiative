@@ -435,8 +435,6 @@ const moderationReports = (initiativeId: number): Spec => ({
   guildPrefix: [`/api/v1/initiatives/${initiativeId}/reports`],
 });
 
-const oidcMappings = (): Spec => ({ personalPrefix: ["/api/v1/settings/oidc-mappings"] });
-
 // The platform Guilds tab reads/writes only shared public tables (owner-only),
 // so its list lives in the personal/platform family, not under any /g/ key.
 const platformGuilds = (): Spec => ({ personalExact: ["/api/v1/settings/guilds"] });
@@ -725,7 +723,6 @@ export const q = {
   myAI,
   myPermissions,
   notifications,
-  oidcMappings,
   platformAIConnections,
   platformAIMode,
   platformGuilds,

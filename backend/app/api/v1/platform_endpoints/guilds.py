@@ -1879,10 +1879,11 @@ async def update_guild_membership(
             detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 
-    # The seat is passed on by whoever holds it, and by nobody below it. An
-    # operator seats the first one — that is the only part a guild cannot do
-    # for itself — and from then on a superadmin may seat another. An
-    # ordinary admin may do neither, which is the separation.
+    # The seat is passed on by whoever holds it, and by nobody below it. A
+    # superadmin seats another — one by membership, or one holding the seat
+    # through a settings grant, which is how a community whose only holder
+    # cannot pass it on gets a new one. An ordinary admin may do neither,
+    # which is the separation.
     if payload.role not in assignable_roles(guild_context.rung):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1929,9 +1930,8 @@ async def update_guild_membership(
     target_membership.role = payload.role
     session.add(target_membership)
     if GuildRole.superadmin in (previous_role, payload.role):
-        # The seat moving is recorded wherever it moves. An operator seats the
-        # first one from platform settings and that is recorded there; this is
-        # the same event when a guild passes it on itself.
+        # The seat moving is its own event, apart from an ordinary role
+        # change.
         await audit_service.record(
             session,
             event_type=AuditEventType.GUILD_SUPERADMIN_CHANGED,

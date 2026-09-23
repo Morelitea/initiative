@@ -1991,8 +1991,9 @@ async def must_keep_superadmin(
 
     True when they hold ``superadmin`` and are the only one who does. Every
     guild keeps one: the seat holds the sign-in configuration and the billing
-    portal, and only an operator can seat a guild that has emptied it — so
-    emptying it is not something a guild can be allowed to do to itself.
+    portal, and a guild that has emptied it has nobody inside who can seat
+    another — so emptying it is not something a guild can be allowed to do to
+    itself.
 
     Narrower once: the last holder stayed only while a sign-in requirement
     stood, which was right while the seat was about sign-in alone and rare

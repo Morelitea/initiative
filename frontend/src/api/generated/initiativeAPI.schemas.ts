@@ -303,36 +303,12 @@ export interface AccountsWithoutFactor {
   everyone: number;
 }
 
-export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
-
-export const UserStatus = {
-  active: "active",
-  suspended: "suspended",
-  deactivated: "deactivated",
-  anonymized: "anonymized",
-  deleted: "deleted",
-} as const;
-
-/**
- * A person, as everyone else sees them — the handle, and the name where
- * the guild being read renders one.
- */
-export interface UserPublic {
-  id: number;
-  username: string;
-  discriminator: number;
-  avatar_url: string | null;
-  status: UserStatus;
-  full_name: string | null;
-}
-
 /**
  * Info about a guild blocking user deletion.
  */
 export interface GuildBlockerInfo {
   guild_id: number;
   guild_name: string;
-  other_members: UserPublic[];
 }
 
 /**
@@ -342,36 +318,6 @@ export interface AdminDeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
   guild_blockers: GuildBlockerInfo[];
-}
-
-export type GuildRole = (typeof GuildRole)[keyof typeof GuildRole];
-
-export const GuildRole = {
-  admin: "admin",
-  member: "member",
-  superadmin: "superadmin",
-  support: "support",
-} as const;
-
-/**
- * Schema for updating a user's guild role via admin endpoint.
- */
-export interface AdminGuildRoleUpdate {
-  role: GuildRole;
-}
-
-/**
- * Schema for updating a user's initiative role via admin endpoint.
- *
- * ``role`` is the name of a role defined in that initiative — built-in
- * (``project_manager``, ``member``) or custom.
- */
-export interface AdminInitiativeRoleUpdate {
-  /**
-   * @minLength 1
-   * @maxLength 100
-   */
-  role: string;
 }
 
 /**
@@ -430,6 +376,16 @@ export interface CookieConsentRead {
   version: number;
   decided_at: string;
 }
+
+export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
+
+export const UserStatus = {
+  active: "active",
+  suspended: "suspended",
+  deactivated: "deactivated",
+  anonymized: "anonymized",
+  deleted: "deleted",
+} as const;
 
 /**
  * What a person is up to, in their own words.
@@ -1882,6 +1838,19 @@ export interface TaskListRead {
 export interface CalendarEntriesResponse {
   events: CalendarEventSummary[];
   tasks: TaskListRead[];
+}
+
+/**
+ * A person, as everyone else sees them — the handle, and the name where
+ * the guild being read renders one.
+ */
+export interface UserPublic {
+  id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  status: UserStatus;
+  full_name: string | null;
 }
 
 export type RSVPStatus = (typeof RSVPStatus)[keyof typeof RSVPStatus];
@@ -4510,6 +4479,15 @@ export interface GuildInviteStatus {
   uses: number | null;
 }
 
+export type GuildRole = (typeof GuildRole)[keyof typeof GuildRole];
+
+export const GuildRole = {
+  admin: "admin",
+  member: "member",
+  superadmin: "superadmin",
+  support: "support",
+} as const;
+
 /**
  * Schema for updating a user's guild membership role.
  */
@@ -5839,74 +5817,6 @@ export interface NotificationSettingsUpdate {
   push_notifications_enabled: boolean;
   email_notifications_enabled: boolean;
   redact_notification_content: boolean;
-}
-
-export interface OIDCClaimMappingCreate {
-  provider_id: number;
-  /**
-   * @minLength 1
-   * @maxLength 500
-   */
-  claim_value: string;
-  target_type: string;
-  guild_id: number;
-  guild_role?: string;
-  initiative_id?: number | null;
-  initiative_role_id?: number | null;
-}
-
-export interface OIDCClaimMappingRead {
-  id: number;
-  provider_id: number;
-  claim_value: string;
-  target_type: string;
-  guild_id: number;
-  guild_role: string;
-  initiative_id: number | null;
-  initiative_role_id: number | null;
-  provider_name: string | null;
-  guild_name: string | null;
-  initiative_name: string | null;
-  initiative_role_name: string | null;
-}
-
-export interface OIDCClaimMappingUpdate {
-  provider_id?: number | null;
-  claim_value?: string | null;
-  target_type?: string | null;
-  guild_id?: number | null;
-  guild_role?: string | null;
-  initiative_id?: number | null;
-  initiative_role_id?: number | null;
-}
-
-export interface OIDCMappingOptionGuild {
-  id: number;
-  name: string;
-}
-
-export interface OIDCMappingOptionInitiative {
-  id: number;
-  name: string;
-  guild_id: number;
-}
-
-export interface OIDCMappingOptionRole {
-  id: number;
-  name: string;
-  initiative_id: number;
-  guild_id: number;
-}
-
-export interface OIDCMappingOptionsResponse {
-  guilds: OIDCMappingOptionGuild[];
-  initiatives: OIDCMappingOptionInitiative[];
-  initiative_roles: OIDCMappingOptionRole[];
-}
-
-export interface OIDCMappingsResponse {
-  claim_path: string | null;
-  mappings: OIDCClaimMappingRead[];
 }
 
 export interface OIDCSettingsResponse {
@@ -9092,26 +9002,6 @@ export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams = {
   user_id?: number[] | null;
 };
 
-export type AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams = {
-  /**
-   * The user being deleted, for whom this guild must be a last-admin blocker. The delete is refused otherwise.
-   */
-  blocked_user_id: number;
-};
-
-export type AdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDeleteParams = {
-  guild_id: number;
-};
-
-export type AdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetParams = {
-  guild_id: number;
-};
-
-export type AdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchParams =
-  {
-    guild_id: number;
-  };
-
 export type ListCommunityGuildsApiV1GuildsCommunitiesGetParams = {
   q?: string | null;
   category?: GuildCategory | null;
@@ -9124,10 +9014,6 @@ export type ListCommunityGuildsApiV1GuildsCommunitiesGetParams = {
    * @maximum 60
    */
   page_size?: number;
-};
-
-export type GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams = {
-  guild_id: number;
 };
 
 export type ListAnnouncementsApiV1AnnouncementsGetParams = {

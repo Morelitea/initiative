@@ -6,16 +6,9 @@ import io
 import pytest
 from sqlmodel import select
 
-from app.core.messages import AdminMessages, InitiativeMessages
-from app.models.platform.guild import (
-    Guild,
-    GuildMembership,
-    GuildRole,
-    GuildStatus,
-)
 from app.models.platform.user import User, UserRole
 from app.services.platform import users as users_service
-from app.testing.factories import create_guild, create_guild_membership, create_user
+from app.testing.factories import create_user
 
 
 #: Every test here drives the API through the real app and a real database.
@@ -211,117 +204,6 @@ async def test_demoting_an_active_admin_completes(client, session, acting_user):
 
     refreshed = (await session.exec(select(User).where(User.id == target.id))).one()
     assert refreshed.role == UserRole.member
-
-
-@pytest.mark.parametrize(
-    ("target_seat", "other_seat", "expected", "deleted"),
-    [
-        pytest.param(
-            GuildRole.admin,
-            GuildRole.admin,
-            403,
-            False,
-            id="another-admin-is-no-blocker",
-        ),
-        pytest.param(
-            GuildRole.superadmin, GuildRole.member, 204, True, id="the-sole-seat-is"
-        ),
-    ],
-)
-async def test_admin_delete_guild_is_scoped_to_a_genuine_blocker(
-    client, session, acting_user, target_seat, other_seat, expected, deleted
-):
-    """Operator guild deletion resolves a user-deletion blocker: it succeeds
-    only where the named user holds the guild's sole seat, and a guild that
-    somebody else can still run is refused.
-
-    The row survives either way now — deletion is retention, not removal — so
-    what tells the two apart is the status it is left at."""
-    operator = await acting_user("owner")
-    target = await create_user(session)
-    guild = await create_guild(session, creator=target)
-    await create_guild_membership(session, user=target, guild=guild, role=target_seat)
-    await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=other_seat
-    )
-
-    response = await client.delete(
-        f"/api/v1/admin/guilds/{guild.id}?blocked_user_id={target.id}",
-        headers=operator.headers,
-    )
-
-    assert response.status_code == expected, response.text
-    if expected == 403:
-        assert response.json()["detail"] == AdminMessages.GUILD_NOT_A_DELETION_BLOCKER
-    session.expunge_all()
-    row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
-    assert (row.status == GuildStatus.deleted.value) is deleted
-    # The roster is kept either way. This endpoint only fires where somebody
-    # else is in the community, and those rows are theirs — what unblocks the
-    # account is that a deleted community has no seat to protect.
-    remaining = (
-        await session.exec(
-            select(GuildMembership).where(GuildMembership.guild_id == guild.id)
-        )
-    ).all()
-    assert len(remaining) == 2
-
-
-async def test_admin_delete_guild_requires_blocked_user_id(
-    client, session, acting_user
-):
-    """The blocked_user_id query param is required — no bare 'delete any guild'."""
-    operator = await acting_user("owner")
-    guild = await create_guild(session, creator=operator.user)
-
-    response = await client.delete(
-        f"/api/v1/admin/guilds/{guild.id}", headers=operator.headers
-    )
-
-    assert response.status_code == 422
-
-
-async def test_admin_initiative_role_update_takes_any_role_the_initiative_defines(
-    client, acting_user
-):
-    """The role switch names a role of that initiative — custom ones included;
-    a name the initiative doesn't define is a 404."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
-        initiative_role="member",
-    )
-    role_response = await client.post(
-        admin.g(f"/initiatives/{admin.initiative.id}/roles"),
-        headers=admin.headers,
-        json={"name": "leads", "display_name": "Leads", "is_manager": True},
-    )
-    assert role_response.status_code == 201, role_response.text
-
-    operator = await acting_user("operator")
-    url = (
-        f"/api/v1/admin/initiatives/{admin.initiative.id}"
-        f"/members/{member.user.id}/role?guild_id={admin.guild.id}"
-    )
-
-    resp = await client.patch(url, headers=operator.headers, json={"role": "leads"})
-    assert resp.status_code == 204, resp.text
-
-    roster = await client.get(
-        admin.g(f"/initiatives/{admin.initiative.id}"), headers=admin.headers
-    )
-    assert roster.status_code == 200, roster.text
-    row = next(m for m in roster.json()["members"] if m["user"]["id"] == member.user.id)
-    assert row["role_name"] == "leads"
-    assert row["is_manager"] is True
-
-    resp = await client.patch(
-        url, headers=operator.headers, json={"role": "no_such_role"}
-    )
-    assert resp.status_code == 404
-    assert resp.json()["detail"] == InitiativeMessages.ROLE_NOT_FOUND
 
 
 async def test_platform_roster_masks_addresses(client, acting_user):

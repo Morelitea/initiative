@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -20,7 +20,7 @@ from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import get_admin_session
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import (
@@ -29,13 +29,6 @@ from app.models.platform.guild import (
     GuildRole,
 )
 from app.models.platform.guild_administration import GuildAdministration
-from app.models.tenant.initiative import Initiative, InitiativeRoleModel
-from app.core.messages import AuthProviderMessages
-from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.oidc_claim_mapping import (
-    OIDCClaimMapping,
-    OIDCMappingTargetType,
-)
 from app.schemas.platform.settings import (
     NotificationSettingsResponse,
     NotificationSettingsUpdate,
@@ -54,11 +47,6 @@ from app.schemas.platform.settings import (
     LoginMethodsUpdate,
     SecondFactorRequirementUpdate,
     SessionLifetimeUpdate,
-    OIDCClaimMappingCreate,
-    OIDCClaimMappingRead,
-    OIDCClaimMappingUpdate,
-    OIDCMappingOptionsResponse,
-    OIDCMappingsResponse,
     OIDCSettingsResponse,
     PlatformAuthSettingsResponse,
     StorageBackfillStatusResponse,
@@ -79,7 +67,6 @@ from app.schemas.platform.push import FCMConfigResponse
 from app.core.messages import (
     BillingMessages,
     GuildMessages,
-    InitiativeMessages,
     SettingsMessages,
 )
 from app.core.security import (
@@ -88,7 +75,6 @@ from app.core.security import (
 )
 from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
-from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import narrowing_review
 from app.services.auth import platform_provider as platform_provider_service
 from app.core.login_methods import (
@@ -139,21 +125,7 @@ _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
     "support_enabled",
 )
 
-#: What a claim rule places somebody by, for the record.
-_CLAIM_RULE_FIELDS: tuple[str, ...] = (
-    "provider_id",
-    "claim_value",
-    "target_type",
-    "guild_role",
-    "initiative_id",
-    "initiative_role_id",
-)
-
-
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
-
-#: The guild roles a claim mapping may name, as the strings it stores them as.
-_MAPPABLE_GUILD_ROLES: frozenset[str] = claim_rules.MAPPABLE_GUILD_ROLES
 
 router = APIRouter()
 
@@ -1251,372 +1223,4 @@ async def create_platform_guild_billing_service_handoff(
     return BillingPortalHandoffResponse(
         handoff_token=token,
         expires_in_seconds=expires_in_seconds,
-    )
-
-
-# --- OIDC Claim Mapping endpoints ---
-
-
-async def _route_admin_to_guild(session: AsyncSession, guild_id: int) -> None:
-    """Route the admin session into a guild's ``guild_<id>`` schema.
-
-    Initiatives and initiative roles are guild-scoped content: their rows live in
-    each guild's schema, not in the empty ``public`` template copies. Reading them
-    requires routing the session into that schema. ``expunge_all`` first because
-    row ids are unique only within a schema — a cached object from a previously
-    routed guild could otherwise be returned for a colliding id.
-    """
-    session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id)
-
-
-#: A rule's destination is resolved the same way whoever wrote it — the
-#: operator here, or the community on its own surface.
-_reset_admin_session = claim_rules.reset_to_admin_baseline
-_lookup_guild_initiative = claim_rules.lookup_guild_initiative
-
-
-async def _require_known_provider(session: AsyncSession, provider_id: int) -> None:
-    """A rule reads some provider's claims, so it has to name one that exists.
-
-    Which guild it grants in is the rule's own business: every provider is the
-    operator's, and a rule names whichever guild it places somebody in.
-    """
-    if await session.get(AuthProvider, provider_id) is None:
-        raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
-
-
-async def _enrich_mapping(
-    session: AsyncSession, mapping: OIDCClaimMapping
-) -> OIDCClaimMappingRead:
-    """Build a read schema with denormalized names."""
-    guild_name = None
-    initiative_name = None
-    initiative_role_name = None
-
-    # Which provider's claims this rule reads, by name — the editor lists rules
-    # from several and the value alone does not say whose it is.
-    provider_name = None
-    provider = (
-        await session.exec(
-            select(AuthProvider).where(AuthProvider.id == mapping.provider_id)
-        )
-    ).one_or_none()
-    if provider:
-        provider_name = provider.display_name
-
-    guild = (
-        await session.exec(select(Guild).where(Guild.id == mapping.guild_id))
-    ).one_or_none()
-    if guild:
-        guild_name = guild.name
-
-    if mapping.initiative_id is not None:
-        # Initiatives/roles are guild-scoped: resolve their names inside the
-        # mapping's guild schema, the only place they exist.
-        initiative, role = await _lookup_guild_initiative(
-            session,
-            mapping.guild_id,
-            mapping.initiative_id,
-            mapping.initiative_role_id,
-        )
-        if initiative:
-            initiative_name = initiative.name
-        if role:
-            initiative_role_name = role.display_name
-
-    return OIDCClaimMappingRead(
-        id=mapping.id,
-        provider_id=mapping.provider_id,
-        provider_name=provider_name,
-        claim_value=mapping.claim_value,
-        target_type=mapping.target_type.value
-        if isinstance(mapping.target_type, OIDCMappingTargetType)
-        else mapping.target_type,
-        guild_id=mapping.guild_id,
-        guild_role=mapping.guild_role,
-        initiative_id=mapping.initiative_id,
-        initiative_role_id=mapping.initiative_role_id,
-        guild_name=guild_name,
-        initiative_name=initiative_name,
-        initiative_role_name=initiative_role_name,
-    )
-
-
-@router.get("/oidc-mappings", response_model=OIDCMappingsResponse)
-async def get_oidc_mappings(
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCMappingsResponse:
-    provider = await platform_provider_service.get_platform_provider(session)
-    stmt = select(OIDCClaimMapping).order_by(OIDCClaimMapping.id)
-    mappings = (await session.exec(stmt)).all()
-    enriched = [await _enrich_mapping(session, m) for m in mappings]
-    return OIDCMappingsResponse(
-        claim_path=provider.role_claim_path if provider else None,
-        mappings=enriched,
-    )
-
-
-@router.post(
-    "/oidc-mappings",
-    response_model=OIDCClaimMappingRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_oidc_mapping(
-    payload: OIDCClaimMappingCreate,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
-) -> OIDCClaimMappingRead:
-    # Validate target_type
-    try:
-        target_type = OIDCMappingTargetType(payload.target_type)
-    except ValueError:
-        raise HTTPException(
-            status_code=400, detail=SettingsMessages.INVALID_TARGET_TYPE
-        )
-
-    # What a rule may hand out, from the one set that says so — a claim value
-    # grants an ordinary standing, never the seat that decides who may enter.
-    if payload.guild_role not in _MAPPABLE_GUILD_ROLES:
-        raise HTTPException(status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE)
-
-    # Validate guild exists
-    guild = (
-        await session.exec(select(Guild).where(Guild.id == payload.guild_id))
-    ).one_or_none()
-    if not guild:
-        raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
-
-    await _require_known_provider(session, payload.provider_id)
-
-    # Validate initiative fields if target_type is initiative
-    if target_type == OIDCMappingTargetType.initiative:
-        if not payload.initiative_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_ID_REQUIRED
-            )
-        if not payload.initiative_role_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_ID_REQUIRED
-            )
-        initiative, role = await _lookup_guild_initiative(
-            session,
-            payload.guild_id,
-            payload.initiative_id,
-            payload.initiative_role_id,
-        )
-        if not initiative:
-            raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
-        if not role:
-            raise HTTPException(
-                status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
-            )
-
-    mapping = OIDCClaimMapping(
-        provider_id=payload.provider_id,
-        claim_value=payload.claim_value.strip(),
-        target_type=target_type,
-        guild_id=payload.guild_id,
-        guild_role=payload.guild_role,
-        initiative_id=payload.initiative_id
-        if target_type == OIDCMappingTargetType.initiative
-        else None,
-        initiative_role_id=payload.initiative_role_id
-        if target_type == OIDCMappingTargetType.initiative
-        else None,
-    )
-    session.add(mapping)
-    await session.flush()
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.CLAIM_RULE_CREATED,
-        actor_user_id=admin.id,
-        guild_id=mapping.guild_id,
-        target_type="claim_rule",
-        target_id=mapping.id,
-        detail={
-            "via": "operator",
-            **audit_service.changed_fields(
-                {}, audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
-            ),
-        },
-    )
-    await session.commit()
-    await session.refresh(mapping)
-    return await _enrich_mapping(session, mapping)
-
-
-@router.put("/oidc-mappings/{mapping_id}", response_model=OIDCClaimMappingRead)
-async def update_oidc_mapping(
-    mapping_id: int,
-    payload: OIDCClaimMappingUpdate,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
-) -> OIDCClaimMappingRead:
-    mapping = (
-        await session.exec(
-            select(OIDCClaimMapping).where(OIDCClaimMapping.id == mapping_id)
-        )
-    ).one_or_none()
-    if not mapping:
-        raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
-
-    before = audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
-    data = payload.model_dump(exclude_unset=True)
-    if "provider_id" in data and data["provider_id"] is not None:
-        mapping.provider_id = data["provider_id"]
-    if "claim_value" in data and data["claim_value"] is not None:
-        mapping.claim_value = data["claim_value"].strip()
-    if "target_type" in data and data["target_type"] is not None:
-        try:
-            mapping.target_type = OIDCMappingTargetType(data["target_type"])
-        except ValueError:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INVALID_TARGET_TYPE
-            )
-    if "guild_id" in data and data["guild_id"] is not None:
-        guild = (
-            await session.exec(select(Guild).where(Guild.id == data["guild_id"]))
-        ).one_or_none()
-        if not guild:
-            raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
-        mapping.guild_id = data["guild_id"]
-    if "guild_role" in data and data["guild_role"] is not None:
-        if data["guild_role"] not in _MAPPABLE_GUILD_ROLES:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE
-            )
-        mapping.guild_role = data["guild_role"]
-    if "initiative_id" in data:
-        mapping.initiative_id = data["initiative_id"]
-    if "initiative_role_id" in data:
-        mapping.initiative_role_id = data["initiative_role_id"]
-
-    # Full validation of the final state: the provider can move in the same
-    # request that moves everything else.
-    await _require_known_provider(session, mapping.provider_id)
-
-    effective_target = mapping.target_type
-    if isinstance(effective_target, str):
-        effective_target = OIDCMappingTargetType(effective_target)
-    if effective_target == OIDCMappingTargetType.initiative:
-        if not mapping.initiative_id or not mapping.initiative_role_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_FIELDS_REQUIRED
-            )
-        initiative, role = await _lookup_guild_initiative(
-            session,
-            mapping.guild_id,
-            mapping.initiative_id,
-            mapping.initiative_role_id,
-        )
-        if not initiative:
-            raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
-        if not role:
-            raise HTTPException(
-                status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
-            )
-    else:
-        # Guild-only mapping: clear initiative fields
-        mapping.initiative_id = None
-        mapping.initiative_role_id = None
-
-    mapping.updated_at = datetime.now(timezone.utc)
-    session.add(mapping)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
-    )
-    if changed["changed"]:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.CLAIM_RULE_UPDATED,
-            actor_user_id=admin.id,
-            guild_id=mapping.guild_id,
-            target_type="claim_rule",
-            target_id=mapping.id,
-            detail={"via": "operator", **changed},
-        )
-    await session.commit()
-    await session.refresh(mapping)
-    return await _enrich_mapping(session, mapping)
-
-
-@router.delete("/oidc-mappings/{mapping_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_oidc_mapping(
-    mapping_id: int,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
-) -> None:
-    mapping = (
-        await session.exec(
-            select(OIDCClaimMapping).where(OIDCClaimMapping.id == mapping_id)
-        )
-    ).one_or_none()
-    if not mapping:
-        raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
-    guild_id = mapping.guild_id
-    await session.delete(mapping)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.CLAIM_RULE_DELETED,
-        actor_user_id=admin.id,
-        guild_id=guild_id,
-        target_type="claim_rule",
-        target_id=mapping_id,
-        detail={"via": "operator"},
-    )
-    await session.commit()
-
-
-@router.get("/oidc-mappings/options")
-async def get_oidc_mapping_options(
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCMappingOptionsResponse:
-    """Return all guilds, initiatives, and initiative roles for the mapping form."""
-    # Guilds live in shared public; materialize them before routing into any guild
-    # schema (routing expunges the ORM objects).
-    guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
-    guild_payload = [{"id": g.id, "name": g.name} for g in guilds]
-
-    # Initiatives and initiative roles are guild-scoped content: their rows live
-    # only in each guild's guild_<id> schema. Route into
-    # every guild's schema in turn and collect them. Row ids are unique only within
-    # a schema, so each role carries its guild_id for the client to disambiguate
-    # against colliding initiative ids across guilds.
-    initiatives_payload: list[dict] = []
-    roles_payload: list[dict] = []
-    try:
-        for g in guild_payload:
-            await _route_admin_to_guild(session, g["id"])
-            initiatives = (
-                await session.exec(select(Initiative).order_by(Initiative.name))
-            ).all()
-            roles = (
-                await session.exec(
-                    select(InitiativeRoleModel).order_by(InitiativeRoleModel.position)
-                )
-            ).all()
-            initiatives_payload.extend(
-                {"id": i.id, "name": i.name, "guild_id": g["id"]} for i in initiatives
-            )
-            roles_payload.extend(
-                {
-                    "id": r.id,
-                    "name": r.display_name,
-                    "initiative_id": r.initiative_id,
-                    "guild_id": g["id"],
-                }
-                for r in roles
-            )
-    finally:
-        # Don't leave the pooled connection routed into the last guild's schema:
-        # reset to the neutral admin baseline like every write path in this file.
-        await _reset_admin_session(session)
-
-    return OIDCMappingOptionsResponse(
-        guilds=guild_payload,
-        initiatives=initiatives_payload,
-        initiative_roles=roles_payload,
     )

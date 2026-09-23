@@ -107,8 +107,8 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
     """Communities where this account holds the only superadmin seat.
 
     An ordinary admin does not count: a community left with admins but no
-    seat cannot appoint one, reach its billing, or change its sign-in until
-    an operator seats somebody. A community whose only member is this account
+    seat has nobody inside who can appoint one, reach its billing, or change
+    its sign-in. A community whose only member is this account
     does not count either — there is nobody there to strand.
     """
     from app.models.platform.guild import Guild
@@ -141,11 +141,8 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
 async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
     """Communities this account's removal would leave without a superadmin.
 
-    What :func:`is_last_guild_superadmin` reports, with the roster the operator
-    needs to act on it: ``guild_id``, ``guild_name``, and the other members —
-    the people who could be made superadmin instead of the community being
-    deleted. An empty ``other_members`` is the case where deleting the
-    community is the only way through.
+    What :func:`is_last_guild_superadmin` reports, with the id the operator
+    needs to act on it: ``guild_id`` and ``guild_name``.
     """
     from app.models.platform.guild import Guild
     from app.services.platform.guilds import would_strand_guild
@@ -171,26 +168,7 @@ async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List
             if not guild:
                 continue
 
-            # Who could take the seat instead.
-            members_stmt = (
-                select(User)
-                .join(GuildMembership, GuildMembership.user_id == User.id)
-                .where(
-                    GuildMembership.guild_id == membership.guild_id,
-                    GuildMembership.user_id != user_id,
-                    User.status == UserStatus.active,
-                )
-            )
-            members_result = await session.exec(members_stmt)
-            other_members = members_result.all()
-
-            blockers.append(
-                {
-                    "guild_id": guild.id,
-                    "guild_name": guild.name,
-                    "other_members": other_members,
-                }
-            )
+            blockers.append({"guild_id": guild.id, "guild_name": guild.name})
 
     return blockers
 
@@ -225,8 +203,9 @@ async def check_deletion_eligibility(
         if admin_context:
             blockers.append(
                 f"User is the only superadmin of community '{guild_name}'. "
-                f"Another user must be made superadmin or the community must be "
-                f"deleted first."
+                f"They can make another member superadmin, or somebody holding "
+                f"break-glass access to the community can appoint one, or delete "
+                f"the community, from its settings."
             )
         else:
             blockers.append(
@@ -801,10 +780,8 @@ async def hard_delete_user(
     guild_ids = list((await session.exec(select(Guild.id))).all())
 
     # Phase 1 — guild-scoped cleanup, ROUTED INTO EACH GUILD'S SCHEMA. Every
-    # statement below targets a guild-scoped table whose live rows live in
-    # ``guild_<id>``; running them on the default (public) context would hit the
-    # frozen pre-conversion backup and silently leave the user's content behind
-    # in every guild. ``flush`` (not commit) keeps everything in the single
+    # statement below targets a guild-scoped table, which exists only in
+    # ``guild_<id>``. ``flush`` (not commit) keeps everything in the single
     # transaction committed at the end, so a failure rolls the whole delete back.
     for gid in guild_ids:
         session.expunge_all()

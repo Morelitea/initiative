@@ -1,34 +1,24 @@
-import { AlertCircle, ChevronLeft, Loader2, Trash2 } from "lucide-react";
+import { AlertCircle, ChevronLeft, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   AdminDeletionEligibilityResponse,
   AdminUserRead,
-  GuildBlockerInfo,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import {
-  useAdminDeleteGuild,
-  useAdminDeleteUser,
-  useAdminPromoteGuildMember,
-  useUserDeletionEligibility,
-} from "@/hooks/useAdmin";
-import { useAppConfig } from "@/hooks/useAppConfig";
+import { useAdminDeleteUser, useUserDeletionEligibility } from "@/hooks/useAdmin";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { DisplayableUser } from "@/lib/userDisplay";
-import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**
@@ -118,10 +108,6 @@ export function AdminDeleteUserDialog({
   const [preferWindow, setPreferWindow] = useState(false);
 
   // State for blocker resolution
-  const [guildDeleteConfirm, setGuildDeleteConfirm] = useState<GuildBlockerInfo | null>(null);
-  const { billing } = useAppConfig();
-  const planIsBillings = billing?.manages_plans ?? false;
-  const [isResolvingBlocker, setIsResolvingBlocker] = useState(false);
 
   // Reset state when dialog opens/closes. Default action falls back to
   // whatever's valid for the target's current status, so a deactivated
@@ -134,38 +120,12 @@ export function AdminDeleteUserDialog({
       setConfirmationText("");
       setAgreedToConsequences(false);
       setPreferWindow(false);
-      setGuildDeleteConfirm(null);
-      setIsResolvingBlocker(false);
     }
   }, [open, validActions, reset]);
 
   // Fetch deletion eligibility
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
     useUserDeletionEligibility(targetUser.id);
-
-  // Mutations for resolving blockers
-  const promoteGuildMember = useAdminPromoteGuildMember({
-    onSuccess: async () => {
-      toast.success(t("adminDeleteUser.promoteSuccess"));
-      await refreshEligibility();
-    },
-    onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, "settings:adminDeleteUser.promoteError"));
-    },
-    onSettled: () => setIsResolvingBlocker(false),
-  });
-
-  const deleteGuild = useAdminDeleteGuild({
-    onSuccess: async () => {
-      toast.success(t("adminDeleteUser.deleteGuildSuccess"));
-      setGuildDeleteConfirm(null);
-      await refreshEligibility();
-    },
-    onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, "settings:adminDeleteUser.deleteGuildError"));
-    },
-    onSettled: () => setIsResolvingBlocker(false),
-  });
 
   const deleteUser = useAdminDeleteUser(targetUser.id, {
     onSuccess: (data) => {
@@ -178,7 +138,7 @@ export function AdminDeleteUserDialog({
     },
   });
 
-  // Refresh eligibility after resolving a blocker
+  // Check again once the blocker is resolved inside the community.
   const refreshEligibility = async () => {
     const result = await checkEligibility();
     if (result.data) {
@@ -220,19 +180,7 @@ export function AdminDeleteUserDialog({
     deleteUser.mutate({ action: effectiveAction });
   };
 
-  const handlePromoteGuildMember = (guildId: number, userId: number) => {
-    setIsResolvingBlocker(true);
-    promoteGuildMember.mutate({ guildId, userId });
-  };
-
-  const handleDeleteGuild = (guildId: number) => {
-    setIsResolvingBlocker(true);
-    // The guild is a blocker because targetUser is its sole admin — the backend
-    // re-verifies that before deleting (scoped to blocker resolution).
-    deleteGuild.mutate({ guildId, blockedUserId: targetUser.id });
-  };
-
-  // Being the last admin of a guild is the only blocker. Owning content is not
+  // Holding the only superadmin seat of a guild is the only blocker. Owning content is not
   // one — ownership is released as the memberships go, and what they owned is
   // left for a guild admin to claim.
   const hasBlockers = (eligibility?.guild_blockers.length ?? 0) > 0;
@@ -253,15 +201,6 @@ export function AdminDeleteUserDialog({
     (effectiveAction !== "hard_delete" || agreedToConsequences);
 
   const displayName = getUserDisplayName(targetUser);
-
-  // Helper to format member for combobox display
-  const formatMemberLabel = (member: DisplayableUser) => {
-    const handle = getUserHandle(member);
-    if (member.full_name) {
-      return handle ? `${member.full_name} (${handle})` : member.full_name;
-    }
-    return handle;
-  };
 
   const description: Record<DeletionStep, string> = {
     "choose-type": t("adminDeleteUser.stepType"),
@@ -375,54 +314,19 @@ export function AdminDeleteUserDialog({
                         {t("adminDeleteUser.guildBlockerDescription")}
                       </p>
                     </div>
-                    {/* Where billing sets plans, a community is deleted from its
-                        own settings, not from here. */}
-                    {planIsBillings ? null : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => setGuildDeleteConfirm(guildBlocker)}
-                        disabled={isResolvingBlocker}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        {t("adminDeleteUser.deleteGuild")}
-                      </Button>
-                    )}
                   </div>
-                  {planIsBillings ? (
-                    <p className="text-muted-foreground text-sm">
-                      {t("adminDeleteUser.deleteGuildThroughCommunity")}
-                    </p>
-                  ) : null}
-
-                  {guildBlocker.other_members.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label className="text-sm">{t("adminDeleteUser.promoteToGuildAdmin")}</Label>
-                      <div className="flex items-center gap-2">
-                        <SearchableCombobox
-                          items={guildBlocker.other_members.map((member) => ({
-                            value: member.id.toString(),
-                            label: formatMemberLabel(member),
-                          }))}
-                          onValueChange={(value) =>
-                            handlePromoteGuildMember(guildBlocker.guild_id, parseInt(value, 10))
-                          }
-                          placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
-                          emptyMessage={t("adminDeleteUser.noUsersAvailable")}
-                          disabled={isResolvingBlocker}
-                          className="flex-1"
-                        />
-                        {isResolvingBlocker && <Loader2 className="h-5 w-5 animate-spin" />}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground text-sm italic">
-                      {t("adminDeleteUser.noUsersAvailable")}
-                    </p>
-                  )}
                 </div>
               ))}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshEligibility}
+                disabled={isCheckingEligibility}
+              >
+                <RefreshCw className="h-4 w-4" />
+                {t("adminDeleteUser.checkAgain")}
+              </Button>
 
               {eligibility.can_delete && (
                 <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
@@ -507,11 +411,7 @@ export function AdminDeleteUserDialog({
 
         <DialogFooter>
           <div className="flex w-full justify-between">
-            <Button
-              variant="outline"
-              onClick={back}
-              disabled={!canGoBack || deleteUser.isPending || isResolvingBlocker}
-            >
+            <Button variant="outline" onClick={back} disabled={!canGoBack || deleteUser.isPending}>
               <ChevronLeft className="h-4 w-4" />
               {t("adminDeleteUser.back")}
             </Button>
@@ -520,7 +420,7 @@ export function AdminDeleteUserDialog({
               <Button
                 variant="ghost"
                 onClick={() => onOpenChange(false)}
-                disabled={deleteUser.isPending || isResolvingBlocker}
+                disabled={deleteUser.isPending}
               >
                 {t("adminDeleteUser.cancel")}
               </Button>
@@ -532,8 +432,7 @@ export function AdminDeleteUserDialog({
                     (step === "choose-type" && !canProceedFromChooseType) ||
                     (step === "check-blockers" && !canProceedFromBlockers) ||
                     (step === "resolve-blockers" && !canProceedFromBlockers) ||
-                    isCheckingEligibility ||
-                    isResolvingBlocker
+                    isCheckingEligibility
                   }
                 >
                   {isCheckingEligibility ? (
@@ -571,22 +470,6 @@ export function AdminDeleteUserDialog({
           </div>
         </DialogFooter>
       </WizardDialog>
-
-      {/* Guild deletion confirmation dialog. Its own AlertDialog with its own
-          portal, so it sits beside the wizard rather than inside it — the same
-          arrangement as everywhere else a confirm follows a dialog. */}
-      <ConfirmDialog
-        open={guildDeleteConfirm !== null}
-        onOpenChange={(open) => !open && setGuildDeleteConfirm(null)}
-        title={t("adminDeleteUser.deleteGuild")}
-        description={t("adminDeleteUser.deleteGuildConfirm", {
-          guildName: guildDeleteConfirm?.guild_name,
-        })}
-        confirmLabel={t("adminDeleteUser.deleteGuild")}
-        destructive
-        onConfirm={() => guildDeleteConfirm && handleDeleteGuild(guildDeleteConfirm.guild_id)}
-        isLoading={deleteGuild.isPending}
-      />
     </>
   );
 }

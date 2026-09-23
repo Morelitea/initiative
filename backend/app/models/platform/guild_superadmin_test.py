@@ -62,8 +62,8 @@ def test_an_ordinary_admin_cannot_hand_out_the_seat():
 
 
 def test_the_seat_is_passed_on_by_whoever_holds_it():
-    """An operator seats the first one; after that the guild can carry on
-    without going back to the platform for every change."""
+    """A superadmin seats another, so the guild carries on without going back
+    to the platform for every change."""
     allowed = assignable_roles(GuildRole.superadmin)
     assert GuildRole.superadmin in allowed
     assert {GuildRole.admin, GuildRole.member} <= allowed
@@ -134,8 +134,8 @@ def test_a_claim_rule_cannot_name_the_seat():
     against is derived from the same one the guild's own endpoints use, so the
     seat stays off it by construction rather than by a second list agreeing.
     """
-    from app.api.v1.platform_endpoints.settings import _MAPPABLE_GUILD_ROLES
+    from app.services.auth.guild_claim_rules import MAPPABLE_GUILD_ROLES
 
-    assert GuildRole.superadmin.value not in _MAPPABLE_GUILD_ROLES
-    assert GuildRole.support.value not in _MAPPABLE_GUILD_ROLES
-    assert _MAPPABLE_GUILD_ROLES == {r.value for r in GUILD_ASSIGNABLE_ROLES}
+    assert GuildRole.superadmin.value not in MAPPABLE_GUILD_ROLES
+    assert GuildRole.support.value not in MAPPABLE_GUILD_ROLES
+    assert MAPPABLE_GUILD_ROLES == {r.value for r in GUILD_ASSIGNABLE_ROLES}

@@ -209,7 +209,7 @@ async def test_a_communitys_own_rule_is_recorded_through_its_life(
         assert [(r["actor_user_id"], r["guild_id"], r["target"]) for r in rows] == [
             (admin_id, guild_id, {"type": "claim_rule", "id": rule_id})
         ], event
-        # The same rows an operator writes, told apart by who wrote them.
+        # Recorded as written from the community's own surface.
         assert rows[0]["detail"]["via"] == "guild"
 
     born = _of_type(written, AuditEventType.CLAIM_RULE_CREATED)[0]

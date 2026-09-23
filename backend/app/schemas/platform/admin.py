@@ -6,9 +6,7 @@ from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 
-from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
-from app.schemas.platform.user import UserPublic
 
 
 class PlatformRoleUpdate(SanitizedBaseModel):
@@ -33,7 +31,6 @@ class GuildBlockerInfo(SanitizedBaseModel):
 
     guild_id: int
     guild_name: str
-    other_members: List[UserPublic] = Field(default_factory=list)
 
 
 class AdminDeletionEligibilityResponse(SanitizedBaseModel):
@@ -44,22 +41,6 @@ class AdminDeletionEligibilityResponse(SanitizedBaseModel):
     can_delete: bool
     blockers: List[str] = Field(default_factory=list)
     guild_blockers: List[GuildBlockerInfo] = Field(default_factory=list)
-
-
-class AdminGuildRoleUpdate(SanitizedBaseModel):
-    """Schema for updating a user's guild role via admin endpoint."""
-
-    role: GuildRole
-
-
-class AdminInitiativeRoleUpdate(SanitizedBaseModel):
-    """Schema for updating a user's initiative role via admin endpoint.
-
-    ``role`` is the name of a role defined in that initiative — built-in
-    (``project_manager``, ``member``) or custom.
-    """
-
-    role: str = Field(..., min_length=1, max_length=100)
 
 
 class AdminUsernameUpdate(SanitizedBaseModel):

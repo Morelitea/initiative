@@ -464,20 +464,10 @@ async def test_the_last_seat_cannot_be_vacated_while_a_requirement_stands(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The requirement is lifted from the surface the seat holds, so the last
-    holder stays for as long as the requirement does — asked for by the
-    operator's role endpoint, and asked for by their own hand on the way
-    out."""
+    holder stays for as long as the requirement does — asked for by their own
+    hand on the way out."""
     keyholder = await _a_seat_and_a_requirement(session, acting_user)
-    operator = await acting_user("operator")
-    guild_id, keyholder_id = keyholder.guild.id, keyholder.user.id
-
-    demoted = await client.patch(
-        f"/api/v1/admin/guilds/{guild_id}/members/{keyholder_id}/role",
-        headers=operator.headers,
-        json={"role": "member"},
-    )
-    assert demoted.status_code == 400, demoted.text
-    assert demoted.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
+    guild_id = keyholder.guild.id
 
     left = await client.delete(
         f"/api/v1/guilds/{guild_id}/leave", headers=keyholder.headers
@@ -492,28 +482,26 @@ async def test_the_last_seat_stays_even_with_no_requirement(
     """Lifting the sign-in requirement does not free the seat.
 
     It did once, while the seat was about sign-in alone. It now holds billing
-    too, and only an operator can seat a guild that has emptied it — so a guild
-    keeps one whatever its sign-in rule says.
+    too, and a guild that has emptied it has nobody inside who can seat
+    another — so a guild keeps one whatever its sign-in rule says.
     """
     keyholder = await _a_seat_and_a_requirement(session, acting_user)
-    operator = await acting_user("operator")
     policy_row = await session.get(GuildAuthPolicy, keyholder.guild.id)
     await session.delete(policy_row)
     await session.commit()
-    role_url = (
-        f"/api/v1/admin/guilds/{keyholder.guild.id}/members/{keyholder.user.id}/role"
-    )
 
-    refused = await client.patch(
-        role_url, headers=operator.headers, json={"role": "member"}
+    refused = await client.delete(
+        f"/api/v1/guilds/{keyholder.guild.id}/leave", headers=keyholder.headers
     )
     assert refused.status_code == 400, refused.text
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
     # A second holder is what frees the first.
-    await acting_user(guild_role=GuildRole.superadmin, guild=keyholder.guild)
+    second = await acting_user(guild_role=GuildRole.superadmin, guild=keyholder.guild)
     allowed = await client.patch(
-        role_url, headers=operator.headers, json={"role": "member"}
+        f"/api/v1/guilds/{keyholder.guild.id}/members/{keyholder.user.id}",
+        headers=second.headers,
+        json={"role": "member"},
     )
     assert allowed.status_code == 204, allowed.text
 

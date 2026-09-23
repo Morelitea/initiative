@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 
 import { AuthProvidersSection } from "@/components/admin/AuthProvidersSection";
-import { OidcClaimMappingsSection } from "@/components/admin/OidcClaimMappingsSection";
 import { PlatformAuthSection } from "@/components/admin/PlatformAuthSection";
 import { ProviderDefaultsSection } from "@/components/admin/ProviderDefaultsSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
@@ -72,7 +71,6 @@ export const SettingsAuthPage = () => {
       <AuthProvidersSection />
 
       <ProviderDefaultsSection />
-      <OidcClaimMappingsSection />
     </div>
   );
 };

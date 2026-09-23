@@ -1,8 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
-  adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch,
   checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet,
   clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete,
   deleteUserApiV1AdminUsersUserIdDelete,
@@ -89,37 +87,6 @@ export const useAdminDeleteUser = (
     {
       mutationFn: (request) => deleteUserApiV1AdminUsersUserIdDelete(userId, request),
       invalidate: () => invalidate(q.adminUsers()),
-    },
-    options
-  );
-
-/** Promote a guild member to admin (admin only). */
-export const useAdminPromoteGuildMember = (
-  options?: MutationOpts<void, { guildId: number; userId: number }>
-) =>
-  useApiMutation<void, { guildId: number; userId: number }>(
-    {
-      mutationFn: ({ guildId, userId }) =>
-        adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch(guildId, userId, {
-          role: "admin",
-        }),
-      invalidate: () => invalidate(q.adminUsers()),
-    },
-    options
-  );
-
-/** Delete a guild that blocks a user's deletion (operator blocker resolution).
- * The guild must be one `blockedUserId` is the sole admin of. */
-export const useAdminDeleteGuild = (
-  options?: MutationOpts<void, { guildId: number; blockedUserId: number }>
-) =>
-  useApiMutation<void, { guildId: number; blockedUserId: number }>(
-    {
-      mutationFn: ({ guildId, blockedUserId }) =>
-        adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId, {
-          blocked_user_id: blockedUserId,
-        }),
-      invalidate: () => invalidate(q.adminUsers(), q.allGuilds()),
     },
     options
   );
