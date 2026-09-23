@@ -64,6 +64,9 @@ PROVIDER = "atlassian"
 #: add the wiki importer's beside it.
 _PROJECT_ENVELOPE = "initiative-project"
 
+#: The importer a board's sprints go through, as calendar events.
+_CALENDAR_ENVELOPE = "initiative-calendar"
+
 
 def awaits_fetch(job: ImportJob) -> bool:
     """Whether the worker should read the site for this job rather than apply."""
@@ -84,6 +87,10 @@ def summary_of(report: jira_fetch.FetchReport) -> AtlassianFetchSummary:
             for name, (ptype, count) in report.properties.items()
         ],
         dropped_fields=list(report.dropped_fields),
+        sprints=report.sprints,
+        sprint_calendars=report.sprint_calendars,
+        sprints_undated=report.sprints_undated,
+        sprints_skipped=report.sprints_skipped,
     )
 
 
@@ -215,6 +222,21 @@ async def fetch(
             user=user,
         )
         target_initiative_id = initiative.id
+        # Sprints land as calendar events, so they need somewhere to land.
+        # Asked now, with the same gate the apply will use, so the plan can
+        # say sprints are being left behind rather than the apply refusing
+        # the whole bundle over a tool the projects never needed.
+        sprints_blocked_by: str | None = None
+        try:
+            await import_engine.load_target_initiative(
+                user_session,
+                guild_id=guild_id,
+                initiative_id=target_initiative_id,
+                importer=import_engine.get_importer(_CALENDAR_ENVELOPE),
+                user=user,
+            )
+        except ImportEngineError as exc:
+            sprints_blocked_by = exc.code
         # The community's roster, so the plan can suggest who each person the
         # site names is — read now, as the person, like a backup upload does.
         roster = await load_guild_member_handles(user_session, guild_id=guild_id)
@@ -235,6 +257,7 @@ async def fetch(
         target_initiative_id=target_initiative_id,
         app_version=get_version(),
         progress=report_progress,
+        sprints_blocked_by=sprints_blocked_by,
     )
 
     from app.services.import_engine import backup as backup_service

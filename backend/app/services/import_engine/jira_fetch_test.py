@@ -598,3 +598,103 @@ async def test_a_catalog_the_site_will_not_give_is_not_fatal(monkeypatch):
     _site(monkeypatch, issues=[_issue("ACME-1", "One", priority={"name": "High"})])
     _payload, report = await _bundle(monkeypatch)
     assert report.properties["Priority"] == ("select", 1)
+
+
+# --- sprints -----------------------------------------------------------------
+
+
+def _sprint_site(monkeypatch, issues):
+    catalog = [
+        {
+            "id": "customfield_10020",
+            "name": "Sprint",
+            "custom": True,
+            "schema": {
+                "type": "array",
+                "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+            },
+        }
+    ]
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if url.endswith("/rest/api/3/field"):
+            return httpx.Response(200, json=catalog)
+        if "/rest/agile/1.0/board/3" in url:
+            return httpx.Response(200, json={"id": 3, "name": "Door team"})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            return httpx.Response(200, json={"key": "ACME", "name": "ACME"})
+        if "search/jql" in url:
+            return httpx.Response(200, json={"issues": issues})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+
+
+def _sprinted(key, *sprint_ids):
+    return _issue(
+        key,
+        key,
+        customfield_10020=[
+            {
+                "id": sprint_id,
+                "name": f"Sprint {sprint_id}",
+                "boardId": 3,
+                "startDate": "2024-03-04T09:00:00.000Z",
+                "endDate": "2024-03-18T09:00:00.000Z",
+            }
+            for sprint_id in sprint_ids
+        ],
+    )
+
+
+async def test_sprints_ride_in_the_bundle_as_a_calendar_its_tasks_point_at(
+    monkeypatch,
+):
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    _sprint_site(monkeypatch, [_sprinted("ACME-1", 7), _sprinted("ACME-2", 7, 8)])
+    payload, report = await _bundle(monkeypatch)
+
+    assert (report.sprints, report.sprint_calendars, report.sprints_undated) == (
+        2,
+        1,
+        0,
+    )
+    archive = open_backup_zip(payload)
+    manifest = read_manifest(archive)
+    calendar_entry = next(e for e in manifest.entries if e.tool == "calendar")
+    assert manifest.initiatives[0].tools["calendar"] == "included"
+    calendar = json.loads(archive.read(calendar_entry.path))
+    assert calendar["name"] == "Door team"
+    assert [e["external_ref"] for e in calendar["events"]] == [
+        "jira-sprint:7",
+        "jira-sprint:8",
+    ]
+    project = json.loads(
+        archive.read(next(e for e in manifest.entries if e.tool == "project").path)
+    )
+    links = {t["external_ref"]: t["links"] for t in project["tasks"]}
+    assert {"type": "related_to", "target_external_ref": "jira-sprint:8"} in links[
+        "jira:ACME-2"
+    ]
+
+
+async def test_sprints_blocked_by_the_target_are_counted_and_left_out(monkeypatch):
+    """Counted, so the plan can say what is being left behind; and no task is
+    pointed at a sprint that will not exist."""
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    _sprint_site(monkeypatch, [_sprinted("ACME-1", 7)])
+    payload, report = await _bundle(
+        monkeypatch, sprints_blocked_by="IMPORT_TOOL_DISABLED"
+    )
+
+    assert report.sprints == 1
+    assert report.sprint_calendars == 0
+    assert report.sprints_skipped == "IMPORT_TOOL_DISABLED"
+    manifest = read_manifest(open_backup_zip(payload))
+    assert [e.tool for e in manifest.entries] == ["project"]
+    project = json.loads(open_backup_zip(payload).read(manifest.entries[0].path))
+    assert project["tasks"][0]["links"] == []

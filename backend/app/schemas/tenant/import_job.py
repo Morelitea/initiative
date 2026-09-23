@@ -176,6 +176,16 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     properties: list[AtlassianPlanProperty] = []
     #: Fields something filled that have no home here, so will not come over.
     dropped_fields: list[str] = []
+    #: Sprints the issues were in, and the calendars — one per board — they
+    #: land on as events.
+    sprints: int = 0
+    sprint_calendars: int = 0
+    #: Sprints planned but never started: no dates, so no event.
+    sprints_undated: int = 0
+    #: Why no sprint will come over, as an error code, when none will — the
+    #: target initiative's calendars are off, or the importer cannot create
+    #: one there.
+    sprints_skipped: Optional[str] = None
 
 
 class BackupImportPlan(SanitizedBaseModel):
