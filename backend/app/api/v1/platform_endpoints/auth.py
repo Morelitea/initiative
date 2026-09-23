@@ -1933,8 +1933,8 @@ async def _complete_provider_login(
     await admin_session.refresh(user)
 
     # OIDC claim-to-role sync (the id_token claims are verified upstream now).
-    # There is one sign-in, so this runs for it: a rule grants where it names,
-    # and a community only holds rules for providers it connects to.
+    # A rule grants in the community it names, where that community's
+    # connection counts this arrival as one of its own.
     try:
         claim_path = provider_row.role_claim_path
         if claim_path:
@@ -1947,6 +1947,7 @@ async def _complete_provider_login(
                     user_id=user.id,
                     provider_id=provider_row.id,
                     claim_values=claim_values,
+                    claims=claims,
                 )
                 logger.info(
                     "OIDC sync for user %s: +%d/~%d/-%d guilds, +%d/~%d/-%d initiatives",
