@@ -30,6 +30,7 @@ from app.db.schema_provisioning import (
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.db.tenancy import (
+    MANAGED_TABLES,
     GUILD_LEVEL_TABLES,
     INITIATIVE_SCOPED_TABLES,
     OWN_ROW_TABLES,
@@ -60,7 +61,12 @@ _GID_FUNCTIONS = 990_204
 # to host the guard, with a permissive allow-all (guild_level_open) — isolation is
 # the schema boundary, initiative is the gate, so this is not a membership scope.
 _PURGE_GUARD_TABLES = frozenset(SOFT_DELETE_TABLES)
-_GUILD_LEVEL_PURGE = frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES
+_GUILD_LEVEL_PURGE = (
+    frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES - set(MANAGED_TABLES)
+)
+_MANAGED_POLICIES = frozenset(
+    {"managed_select", "managed_insert", "managed_update", "managed_delete"}
+)
 
 
 @pytest.mark.database
@@ -176,6 +182,50 @@ async def test_every_initiative_scoped_table_has_policies(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_POLICIES)
+
+
+@pytest.mark.database
+async def test_managed_tables_are_written_by_their_managers(engine):
+    """Every ``MANAGED_TABLES`` table gets FORCE RLS, an open read and the
+    three ``managed_*`` write policies in a freshly provisioned schema; the
+    soft-deletable one keeps its purge guard beside them."""
+    gid = 990_031
+    schema = guild_schema_name(gid)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT tablename, policyname, cmd FROM pg_policies "
+                    "WHERE schemaname = :s"
+                ),
+                {"s": schema},
+            )
+            policies: dict[str, dict[str, str]] = {}
+            for tbl, pol, cmd in rows:
+                policies.setdefault(tbl, {})[pol] = cmd
+            rls_rows = await conn.execute(
+                text(
+                    "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity "
+                    "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    "WHERE n.nspname = :s AND c.relkind = 'r'"
+                ),
+                {"s": schema},
+            )
+            rls = {row[0]: (row[1], row[2]) for row in rls_rows}
+        for tbl in sorted(MANAGED_TABLES):
+            assert rls.get(tbl) == (True, True), f"{tbl} must be ENABLED+FORCED"
+            have = policies.get(tbl, {})
+            assert _MANAGED_POLICIES <= set(have), (
+                f"{tbl} is managed but has {sorted(have)}"
+            )
+            assert "guild_level_open" not in have, f"{tbl} still carries the allow-all"
+            if tbl in SOFT_DELETE_TABLES:
+                assert have.get("soft_delete_admin_purge") == "DELETE", tbl
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
 
 
 @pytest.mark.database

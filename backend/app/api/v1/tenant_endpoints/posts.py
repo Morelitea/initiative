@@ -567,7 +567,7 @@ async def set_post_pin(
     )
     if not guild_context.is_admin:
         is_manager = await rls_service.is_initiative_manager(
-            session, initiative_id=post.initiative_id, user=current_user
+            session, initiative_id=post.initiative_id
         )
         if not is_manager:
             raise HTTPException(

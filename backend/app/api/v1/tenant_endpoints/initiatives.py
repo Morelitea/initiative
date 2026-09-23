@@ -175,10 +175,12 @@ async def _require_manager_access(
     """Require that the user has manager-level access to the initiative."""
     if guild_context is not None and guild_context.is_admin:
         return
-    is_manager = await rls_service.is_initiative_manager(
-        session,
-        initiative_id=initiative.id,
-        user=current_user,
+    is_manager = (
+        initiative.id in guild_context.manager_initiatives
+        if guild_context is not None
+        else await rls_service.is_initiative_manager(
+            session, initiative_id=initiative.id
+        )
     )
     if not is_manager:
         raise HTTPException(

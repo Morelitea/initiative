@@ -904,7 +904,6 @@ async def can_administer_project(
         return await rls_service.is_initiative_manager(
             session,
             initiative_id=project.initiative_id,
-            user=user,
         )
     return False
 

@@ -16,6 +16,7 @@ from app.db import base  # noqa: F401  # populates SQLModel.metadata with every 
 from app.db.tenancy import (
     ALL_CLASSIFIED_TABLES,
     GUILD_LEVEL_TABLES,
+    MANAGED_TABLES,
     GUILD_SCOPED_TABLES,
     INITIATIVE_SCOPED_TABLES,
     OWN_ROW_TABLES,
@@ -113,6 +114,13 @@ def test_initiative_scoped_helper():
     )
     assert not is_initiative_scoped("uploads")  # guild-level
     assert not is_initiative_scoped("users")  # shared, not even guild-scoped
+
+
+def test_managed_tables_are_guild_level():
+    """MANAGED_TABLES is a policy overlay, not a placement bucket: every entry
+    must also be classified GUILD_LEVEL, and none may be initiative-scoped."""
+    assert set(MANAGED_TABLES) <= GUILD_LEVEL_TABLES
+    assert not set(MANAGED_TABLES) & INITIATIVE_SCOPED_TABLES
 
 
 def test_own_row_tables_are_guild_level():
