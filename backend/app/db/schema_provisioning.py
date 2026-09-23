@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.config import settings
 from app.db import bootstrap
 from app.db import session as db_session
+from app.models.platform.user import UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -193,17 +194,11 @@ SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
 }
 
 
-# The platform privilege ladder, least -> most. Positional mapping from
-# ``users.role`` (an enum with these exact values). The migration creates one
-# ``platform_<tier>`` NOLOGIN role per entry plus a shared ``platform_base``
-# floor; the public/platform request path assumes ``platform_<users.role>``.
-PLATFORM_TIERS: tuple[str, ...] = (
-    "member",
-    "support",
-    "moderator",
-    "operator",
-    "owner",
-)
+# The platform privilege ladder, least -> most, as ``users.role`` spells it.
+# The migration creates one ``platform_<tier>`` NOLOGIN role per entry plus a
+# shared ``platform_base`` floor; the public/platform request path assumes
+# ``platform_<users.role>``.
+PLATFORM_TIERS: tuple[str, ...] = tuple(role.value for role in UserRole)
 
 
 def platform_role_name(role: str) -> str:
