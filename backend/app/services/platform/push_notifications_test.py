@@ -150,7 +150,23 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     from app.services.platform import push_notifications, push_tokens
     from app.testing import create_user
 
-    monkeypatch.setattr(push_notifications.settings, "FCM_ENABLED", True, raising=False)
+    # FCM's switch moved onto the settings row in 0368, so the gate is the
+    # resolved config rather than the env var. Patched here instead of seeded
+    # through the cache so this test still asserts only what it is about --
+    # which session the device rows are read on.
+    from app.services.platform import push_config
+
+    async def _enabled():
+        return push_config.ResolvedPushConfig(
+            enabled=True,
+            project_id="test-project",
+            application_id=None,
+            api_key=None,
+            sender_id=None,
+            service_account_json=None,
+        )
+
+    monkeypatch.setattr(push_config, "ensure_push_config_fresh", _enabled)
 
     async def _send(
         push_token, title, body, data=None, platform="android", channel_id=None
