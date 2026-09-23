@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/editor/transformers/markdown-excalidraw-transformer";
 import { HR } from "@/components/ui/editor/transformers/markdown-hr-transformer";
 import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transformer";
+import { STATUS } from "@/components/ui/editor/transformers/markdown-status-transformer";
 import { TABLE } from "@/components/ui/editor/transformers/markdown-table-transformer";
 import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer";
 
@@ -34,6 +35,7 @@ export const MARKDOWN_TRANSFORMERS: Transformer[] = [
   EMOJI,
   TWEET,
   CHECK_LIST,
+  STATUS,
   ...ELEMENT_TRANSFORMERS,
   ...MULTILINE_ELEMENT_TRANSFORMERS,
   ...TEXT_FORMAT_TRANSFORMERS,

@@ -258,26 +258,58 @@ def test_an_unknown_macro_keeps_its_body():
     assert [texts(b) for b in out] == ["The gist", "raw words"]
 
 
-def test_a_status_lozenge_is_bold_bracketed_text_in_its_line():
+def test_a_status_lozenge_is_a_status_in_its_colour():
     (p,) = blocks(
         '<p>State: <ac:structured-macro ac:name="status">'
         '<ac:parameter ac:name="colour">Green</ac:parameter>'
         '<ac:parameter ac:name="title">On track</ac:parameter>'
-        "</ac:structured-macro> today</p>"
+        '</ac:structured-macro> and <ac:structured-macro ac:name="status">'
+        '<ac:parameter ac:name="title">Later</ac:parameter></ac:structured-macro></p>'
     )
-    assert runs(p) == [("State: ", 0), ("[On track]", BOLD), (" today", 0)]
+    _state, green, _and, grey = p["children"]
+    assert green == {
+        "type": "status",
+        "version": 1,
+        "text": "On track",
+        "color": "green",
+    }
+    # No colour set is Confluence's grey.
+    assert grey["color"] == "neutral"
 
 
-def test_a_jira_issue_macro_links_to_the_issue():
+def test_a_jira_issue_macro_is_the_task_and_its_status_once_placed():
     (p,) = blocks(
         '<p><ac:structured-macro ac:name="jira">'
         '<ac:parameter ac:name="key">SCRUM-2</ac:parameter></ac:structured-macro></p>',
         site_url="https://acme.atlassian.net/",
     )
-    (link,) = p["children"]
-    assert link["type"] == "link"
-    assert link["url"] == "https://acme.atlassian.net/browse/SCRUM-2"
-    assert texts(link) == "SCRUM-2"
+    mention, space, chip = p["children"]
+    assert mention["type"] == "entity-mention" and mention["entityType"] == "task"
+    assert mention["importJiraKey"] == "SCRUM-2"
+    assert mention["importUrl"] == "https://acme.atlassian.net/browse/SCRUM-2"
+    assert space["text"] == " "
+    assert chip["type"] == "smart-chip" and chip["chipKind"] == "task:status"
+    assert chip["importJiraKey"] == "SCRUM-2"
+
+
+def test_a_jira_macro_with_no_key_is_dropped_and_counted():
+    result = storage_to_lexical(
+        '<p><ac:structured-macro ac:name="jira">'
+        '<ac:parameter ac:name="jqlQuery">project = X</ac:parameter>'
+        "</ac:structured-macro></p>"
+    )
+    assert result.dropped["jira"] == 1
+
+
+def test_a_link_to_an_issue_on_the_site_is_marked_for_the_apply():
+    (p,) = blocks(
+        '<p><a href="https://acme.atlassian.net/browse/SCRUM-3?focus=1">SCRUM-3</a> '
+        '<a href="https://elsewhere.example/browse/SCRUM-4">other</a></p>',
+        site_url="https://acme.atlassian.net",
+    )
+    ours, _space, theirs = p["children"]
+    assert ours["type"] == "link" and ours["importJiraKey"] == "SCRUM-3"
+    assert "importJiraKey" not in theirs
 
 
 def test_a_layout_becomes_the_editors_columns():
@@ -441,7 +473,16 @@ def test_a_block_inside_a_line_is_laid_on_the_line():
 
 FIXTURES = Path(__file__).parent / "fixtures" / "confluence"
 
-_INLINE = {"text", "linebreak", "link", "mention", "entity-mention", "image"}
+_INLINE = {
+    "text",
+    "linebreak",
+    "link",
+    "mention",
+    "entity-mention",
+    "image",
+    "status",
+    "smart-chip",
+}
 _BLOCK = {
     "paragraph",
     "heading",

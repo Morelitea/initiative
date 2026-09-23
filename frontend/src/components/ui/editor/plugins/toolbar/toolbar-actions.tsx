@@ -58,6 +58,7 @@ import {
   SubscriptIcon,
   SuperscriptIcon,
   TableIcon,
+  Tag,
   UnderlineIcon,
 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
@@ -66,10 +67,12 @@ import { useTranslation } from "react-i18next";
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
 import { INSERT_CALLOUT_COMMAND } from "@/components/ui/editor/extensions/callout-extension";
 import { INSERT_EXCALIDRAW_COMMAND } from "@/components/ui/editor/extensions/excalidraw-extension";
+import { INSERT_STATUS_COMMAND } from "@/components/ui/editor/extensions/status-extension";
 import { CalloutIcon } from "@/components/ui/editor/plugins/callout-icon";
 import { EmbedConfigs } from "@/components/ui/editor/plugins/embeds/auto-embed-plugin";
 import { InsertImageDialog } from "@/components/ui/editor/plugins/images-plugin";
 import { InsertLayoutDialog } from "@/components/ui/editor/plugins/layout-plugin";
+import { MERMAID_LANGUAGE } from "@/components/ui/editor/plugins/mermaid-preview-plugin";
 import { SmartChipInsertDialog } from "@/components/ui/editor/plugins/smart-chip-insert-dialog";
 import { InsertTableDialog } from "@/components/ui/editor/plugins/table-plugin";
 import { useBlockTypeToBlockName } from "@/components/ui/editor/plugins/toolbar/block-format/block-format-data";
@@ -368,6 +371,12 @@ export const useBlockInsertActions = ({
 
   if (rich) {
     actions.push({
+      id: "status",
+      label: t("editor.status"),
+      icon: <Tag className="size-4" />,
+      run: () => activeEditor.dispatchCommand(INSERT_STATUS_COMMAND, undefined),
+    });
+    actions.push({
       id: "drawing",
       label: t("editor.drawing"),
       icon: <PenTool className="size-4" />,
@@ -476,7 +485,13 @@ export const FONT_SIZE_PRESETS = [12, 14, 16, 18, 20, 24, 32, 48] as const;
 export const useCodeLanguageActions = (): EditorAction[] => {
   const { activeEditor } = useToolbarContext();
 
-  return Object.entries(CODE_LANGUAGE_FRIENDLY_NAME_MAP).map(([language, friendlyName]) => ({
+  // Mermaid has no highlighting of its own, so it is not in Lexical's list;
+  // it is offered because a block written in it is drawn as its diagram.
+  const languages: Array<[string, string]> = [
+    ...Object.entries(CODE_LANGUAGE_FRIENDLY_NAME_MAP),
+    [MERMAID_LANGUAGE, "Mermaid"],
+  ];
+  return languages.map(([language, friendlyName]) => ({
     id: language,
     label: friendlyName,
     icon: null,

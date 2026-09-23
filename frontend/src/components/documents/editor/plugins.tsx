@@ -33,12 +33,14 @@ import { LegacyNodesPlugin } from "@/components/ui/editor/plugins/legacy-nodes-p
 import { LinkSanitizePlugin } from "@/components/ui/editor/plugins/link-sanitize-plugin";
 import { MentionedPeoplePlugin } from "@/components/ui/editor/plugins/mentioned-people-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
+import { MermaidPreviewPlugin } from "@/components/ui/editor/plugins/mermaid-preview-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
 import { BulletedListPickerPlugin } from "@/components/ui/editor/plugins/picker/bulleted-list-picker-plugin";
 import { CalloutPickerPlugins } from "@/components/ui/editor/plugins/picker/callout-picker-plugin";
 import { CheckListPickerPlugin } from "@/components/ui/editor/plugins/picker/check-list-picker-plugin";
 import { CodePickerPlugin } from "@/components/ui/editor/plugins/picker/code-picker-plugin";
 import { ColumnsLayoutPickerPlugin } from "@/components/ui/editor/plugins/picker/columns-layout-picker-plugin";
+import { DiagramPickerPlugin } from "@/components/ui/editor/plugins/picker/diagram-picker-plugin";
 import { DividerPickerPlugin } from "@/components/ui/editor/plugins/picker/divider-picker-plugin";
 import { DrawingPickerPlugin } from "@/components/ui/editor/plugins/picker/drawing-picker-plugin";
 import { EmbedsPickerPlugin } from "@/components/ui/editor/plugins/picker/embeds-picker-plugin";
@@ -48,6 +50,7 @@ import { NumberedListPickerPlugin } from "@/components/ui/editor/plugins/picker/
 import { ParagraphPickerPlugin } from "@/components/ui/editor/plugins/picker/paragraph-picker-plugin";
 import { QuotePickerPlugin } from "@/components/ui/editor/plugins/picker/quote-picker-plugin";
 import { SmartChipPickerPlugins } from "@/components/ui/editor/plugins/picker/smart-chip-picker-plugin";
+import { StatusPickerPlugin } from "@/components/ui/editor/plugins/picker/status-picker-plugin";
 import {
   DynamicTablePickerPlugin,
   TablePickerPlugin,
@@ -358,6 +361,8 @@ export function Plugins({
         {!readOnly && <TabIndentationPlugin />}
 
         <LegacyNodesPlugin />
+        {/* Ungated: a reader needs the diagram more than a writer does. */}
+        <MermaidPreviewPlugin />
         {!readOnly && <MentionsPlugin initiativeId={initiativeId ?? undefined} />}
         {/* Not gated on `supportsEntityMentions`: that flag says whether this
             editor lets you INSERT a reference, and reading one is a different
@@ -411,6 +416,8 @@ export function Plugins({
               EmbedsPickerPlugin({ embed: "youtube-video" }),
               ImagePickerPlugin(),
               DrawingPickerPlugin(t),
+              DiagramPickerPlugin(t),
+              StatusPickerPlugin(t),
               // Live chips, offered where `#` is: prose only.
               ...(supportsEntityMentions ? SmartChipPickerPlugins(t, initiativeId) : []),
               ColumnsLayoutPickerPlugin(),

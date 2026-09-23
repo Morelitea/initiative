@@ -110,3 +110,86 @@ def test_the_people_a_wiki_names_are_asked_about_most_named_first():
         ("Robin", "Robin Ade"),
         ("Sam", None),
     ]
+
+
+def _jira_mention(key):
+    return {
+        "type": "entity-mention",
+        "version": 1,
+        "entityType": "task",
+        "entityId": 0,
+        "text": key,
+        "importJiraKey": key,
+        "importUrl": f"https://acme.atlassian.net/browse/{key}",
+    }
+
+
+def _jira_chip(key):
+    return {
+        "type": "smart-chip",
+        "version": 1,
+        "chipKind": "task:status",
+        "entityId": 0,
+        "text": key,
+        "importJiraKey": key,
+    }
+
+
+def _jira_link(key, words):
+    return {
+        "type": "link",
+        "url": f"https://acme.atlassian.net/browse/{key}",
+        "children": [{"type": "text", "text": words}],
+        "importJiraKey": key,
+    }
+
+
+def test_a_jira_issue_that_came_over_is_its_task_and_its_live_status():
+    placed = _place_references(
+        _doc(
+            _jira_mention("SCRUM-1"),
+            _jira_chip("SCRUM-1"),
+            _jira_link("SCRUM-1", "see it"),
+        ),
+        page_ids={},
+        mentioned={},
+        jira_tasks={"SCRUM-1": 41},
+    )
+    assert placed is not None
+    mention, chip, link = placed["root"]["children"][0]["children"]
+    assert mention == {
+        "type": "entity-mention",
+        "version": 1,
+        "entityType": "task",
+        "entityId": 41,
+        "text": "SCRUM-1",
+    }
+    assert chip["entityId"] == 41 and "importJiraKey" not in chip
+    assert link == {
+        "type": "entity-mention",
+        "version": 1,
+        "entityType": "task",
+        "entityId": 41,
+        "text": "see it",
+    }
+
+
+def test_a_jira_issue_that_did_not_come_over_links_back_to_jira():
+    placed = _place_references(
+        _doc(
+            _jira_mention("SCRUM-9"),
+            _jira_chip("SCRUM-9"),
+            _jira_link("SCRUM-9", "see it"),
+        ),
+        page_ids={},
+        mentioned={},
+        jira_tasks={},
+    )
+    assert placed is not None
+    link, kept = placed["root"]["children"][0]["children"]
+    # The mention is a link to the issue again, and the chip — with nothing to
+    # read — is gone.
+    assert link["type"] == "link"
+    assert link["url"] == "https://acme.atlassian.net/browse/SCRUM-9"
+    assert link["children"][0]["text"] == "SCRUM-9"
+    assert kept["type"] == "link" and "importJiraKey" not in kept

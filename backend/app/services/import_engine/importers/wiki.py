@@ -200,6 +200,10 @@ class WikiImporter:
             warnings.append(f"missing_parent_pages:{unknown}")
 
         # Pass three: what a page names, now that every page has an id.
+        jira_tasks = await _tasks_by_jira_key(
+            session,
+            {key for page in env.pages for key in _jira_keys(page.content)},
+        )
         by_original = {page.slug.strip(): slug for page, slug in zip(env.pages, slugs)}
         for page_env, row in zip(env.pages, rows):
             mentioned = {
@@ -220,6 +224,7 @@ class WikiImporter:
                     if assigned in page_ids
                 },
                 mentioned=mentioned,
+                jira_tasks=jira_tasks,
             )
             if linked is not None:
                 row.content = linked
@@ -241,8 +246,87 @@ class WikiImporter:
         )
 
 
+def _text_node(text: str) -> dict[str, Any]:
+    return {
+        "type": "text",
+        "version": 1,
+        "text": text,
+        "format": 0,
+        "style": "",
+        "mode": "normal",
+        "detail": 0,
+    }
+
+
+def _jira_keys(content: Any) -> set[str]:
+    """The Jira issue keys a page's content waits to have placed."""
+    keys: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        key = node.get("importJiraKey")
+        if isinstance(key, str) and key:
+            keys.add(key)
+        for child in node.get("children") or []:
+            walk(child)
+
+    walk(content.get("root") if isinstance(content, dict) else None)
+    return keys
+
+
+async def _tasks_by_jira_key(session: AsyncSession, keys: set[str]) -> dict[str, int]:
+    """Which task each Jira issue became, found by the key the Jira import
+    records on every task it writes.
+
+    Anywhere in the community this person can read — a Confluence space and
+    the Jira project its pages talk about are often filed in different
+    initiatives. An issue imported twice points at the newer copy. An issue
+    whose key property was left out at import, or that never came over, is
+    not found, and the page keeps its link to Jira.
+    """
+    if not keys:
+        return {}
+    from sqlalchemy import or_
+
+    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.task import Task
+    from app.services.import_engine.jira_fields import JIRA_KEY_PROPERTY
+
+    rows = (
+        await session.exec(
+            select(TaskPropertyValue.value_text, Task.id)
+            .join(
+                PropertyDefinition,
+                PropertyDefinition.id == TaskPropertyValue.property_id,
+            )
+            .join(Task, Task.id == TaskPropertyValue.task_id)
+            .where(
+                # The name the import gave it, or the one it was renamed to
+                # when that name was already taken by a different kind.
+                or_(
+                    PropertyDefinition.name == JIRA_KEY_PROPERTY,
+                    PropertyDefinition.name.like(f"{JIRA_KEY_PROPERTY} (%"),
+                ),
+                TaskPropertyValue.value_text.in_(sorted(keys)),
+                Task.deleted_at.is_(None),
+            )
+            .order_by(Task.id)
+        )
+    ).all()
+    found: dict[str, int] = {}
+    for key, task_id in rows:
+        if key is not None and task_id is not None:
+            found[key] = task_id
+    return found
+
+
 def _place_references(
-    content: Any, *, page_ids: dict[str, int], mentioned: dict[str, int]
+    content: Any,
+    *,
+    page_ids: dict[str, int],
+    mentioned: dict[str, int],
+    jira_tasks: dict[str, int] | None = None,
 ) -> dict[str, Any] | None:
     """``content`` with its import references resolved, or ``None`` if it
     had none.
@@ -251,35 +335,77 @@ def _place_references(
     slug became; one whose page did not arrive is its text again. A person's
     mention with no account yet gets the one the people step placed its name
     on, and stays a name otherwise.
+
+    A Jira issue the page names by ``importJiraKey`` points at the task that
+    issue became, when it came over: the macro's mention and its live status
+    chip take the task's id, and a link to the issue becomes a mention of the
+    task. When it did not, the mention is a link back to Jira again, the chip
+    is left out, and a link stays the link it was.
     """
     if not isinstance(content, dict):
         return None
+    tasks = jira_tasks or {}
     changed = False
 
     def walk(node: Any) -> Any:
         nonlocal changed
         if not isinstance(node, dict):
             return node
-        if node.get("type") == "entity-mention" and "importSlug" in node:
+        node_type = node.get("type")
+        if node_type == "entity-mention" and "importSlug" in node:
             changed = True
             slug = node.get("importSlug")
             target = page_ids.get(slug) if isinstance(slug, str) else None
             text = str(node.get("text") or "")
             if target is None:
-                return {
-                    "type": "text",
-                    "version": 1,
-                    "text": text,
-                    "format": 0,
-                    "style": "",
-                    "mode": "normal",
-                    "detail": 0,
-                }
+                return _text_node(text)
             placed = {k: v for k, v in node.items() if k != "importSlug"}
             placed["entityId"] = target
             return placed
+        jira_key = node.get("importJiraKey")
+        if isinstance(jira_key, str):
+            changed = True
+            task_id = tasks.get(jira_key)
+            bare = {
+                k: v for k, v in node.items() if k not in ("importJiraKey", "importUrl")
+            }
+            if node_type == "entity-mention":
+                if task_id is not None:
+                    return {**bare, "entityId": task_id}
+                url = node.get("importUrl")
+                text = str(node.get("text") or jira_key)
+                if not isinstance(url, str) or not url:
+                    return _text_node(text)
+                return {
+                    "type": "link",
+                    "version": 1,
+                    "direction": "ltr",
+                    "format": "",
+                    "indent": 0,
+                    "url": url,
+                    "rel": "noopener noreferrer",
+                    "target": "_blank",
+                    "title": None,
+                    "children": [_text_node(text)],
+                }
+            if node_type == "smart-chip":
+                return {**bare, "entityId": task_id} if task_id is not None else None
+            if node_type == "link" and task_id is not None:
+                words = "".join(
+                    str(child.get("text") or "")
+                    for child in node.get("children") or []
+                    if isinstance(child, dict)
+                )
+                return {
+                    "type": "entity-mention",
+                    "version": 1,
+                    "entityType": "task",
+                    "entityId": task_id,
+                    "text": words or jira_key,
+                }
+            node = bare
         if (
-            node.get("type") == "mention"
+            node_type == "mention"
             and node.get("mentionUserId") is None
             and node.get("mentionName") in mentioned
         ):
@@ -287,7 +413,11 @@ def _place_references(
             return {**node, "mentionUserId": mentioned[node["mentionName"]]}
         children = node.get("children")
         if isinstance(children, list):
-            return {**node, "children": [walk(child) for child in children]}
+            walked = [walk(child) for child in children]
+            return {
+                **node,
+                "children": [child for child in walked if child is not None],
+            }
         return node
 
     placed = walk(content.get("root"))

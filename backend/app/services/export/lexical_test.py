@@ -594,3 +594,19 @@ def test_a_drawing_is_left_out_of_word():
     out = render_docx({"title": "", "blocks": blocks}, lambda key: b"")
     texts = [p.text for p in docx.Document(io.BytesIO(out)).paragraphs if p.text]
     assert [text.strip() for text in texts] == ["before", "after"]
+
+
+def test_a_status_exports_as_its_word_set_apart():
+    state = _state(
+        [
+            {
+                "type": "paragraph",
+                "children": [
+                    _text("State: "),
+                    {"type": "status", "text": "In progress", "color": "blue"},
+                ],
+            }
+        ]
+    )
+    (paragraph,) = blocks_from_editor_state(state, guild_id=GUILD)[0]
+    assert paragraph["runs"][-1] == {"text": "IN PROGRESS", "bold": True}

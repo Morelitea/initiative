@@ -157,6 +157,20 @@ _LAYOUT_COLUMNS: dict[str, str] = {
     "four_equal": "1fr 1fr 1fr 1fr",
 }
 
+#: Confluence's status colours, as the editor's status colours.
+_STATUS_COLOURS: dict[str, str] = {
+    "grey": "neutral",
+    "gray": "neutral",
+    "red": "red",
+    "yellow": "yellow",
+    "green": "green",
+    "blue": "blue",
+    "purple": "purple",
+}
+
+#: A Jira issue key, as it appears in a link to the issue.
+_JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
+
 _LINK_SCHEMES = frozenset({"http", "https", "mailto"})
 _WHITESPACE = re.compile(r"[ \t\n\r\f]+")
 _CDATA = re.compile(r"<!\[CDATA\[(.*?)\]\]>", re.DOTALL)
@@ -818,7 +832,24 @@ class _Walker:
 
     def anchor(self, element: _Element, *, fmt: int, in_link: bool) -> list[dict]:
         children = self.inline(element.children, fmt=fmt, in_link=True)
-        return self.link(element.attr("href"), children, in_link)
+        href = element.attr("href")
+        linked = self.link(href, children, in_link)
+        key = self.jira_key_of(href)
+        if key and len(linked) == 1 and linked[0].get("type") == "link":
+            # A link to an issue on this site: the apply points it at the task
+            # the issue became, if it came over, and leaves the link if not.
+            linked[0]["importJiraKey"] = key
+        return linked
+
+    def jira_key_of(self, url: str) -> str | None:
+        """The issue key a URL names, when it is an issue on this site."""
+        if not self.site_url:
+            return None
+        prefix = f"{self.site_url}/browse/"
+        if not url.startswith(prefix):
+            return None
+        key = url.removeprefix(prefix).split("?")[0].split("#")[0].strip("/")
+        return key if _JIRA_KEY.match(key) else None
 
     def link_body(self, element: _Element, fmt: int) -> list[dict]:
         rich = element.first("ac:link-body")
@@ -931,17 +962,53 @@ class _Walker:
         params = _parameters(macro)
         if name == "status":
             title = params.get("title", "").strip()
-            return [_text(f"[{title}]", fmt | BOLD)] if title else []
+            if not title:
+                return []
+            return [
+                {
+                    "type": "status",
+                    "version": 1,
+                    "text": title,
+                    "color": _STATUS_COLOURS.get(
+                        params.get("colour", "").strip().lower(), "neutral"
+                    ),
+                }
+            ]
         if name == "jira":
             key = params.get("key", "").strip()
-            if key and self.site_url:
-                return self.link(
-                    f"{self.site_url}/browse/{key}", [_text(key, fmt)], in_link
+            if not key:
+                self.drop("jira")
+                return []
+            url = f"{self.site_url}/browse/{key}" if self.site_url else None
+            if in_link or not _JIRA_KEY.match(key):
+                return (
+                    self.link(url, [_text(key, fmt)], in_link)
+                    if url
+                    else [_text(key, fmt)]
                 )
-            if key:
-                return [_text(key, fmt)]
-            self.drop("jira")
-            return []
+            # The issue, and its live status beside it — as the macro shows
+            # them — once the apply has found the task the issue became. One
+            # that was not imported goes back to being a link to Jira.
+            return [
+                {
+                    "type": "entity-mention",
+                    "version": 1,
+                    "entityType": "task",
+                    "entityId": 0,
+                    "text": key,
+                    "importJiraKey": key,
+                    **({"importUrl": url} if url else {}),
+                },
+                _text(" "),
+                {
+                    "type": "smart-chip",
+                    "version": 1,
+                    "chipKind": "task:status",
+                    "entityId": 0,
+                    "text": key,
+                    "importJiraKey": key,
+                },
+            ]
         if name == "anchor":
             return []
         rich = macro.first("ac:rich-text-body")

@@ -186,3 +186,23 @@
 .dark .EditorTheme__callout[data-callout="error"] {
   --callout-color: #f87171;
 }
+
+/* A Mermaid code block's diagram, drawn under it by the preview plugin. */
+.mermaid-preview {
+  margin: 0.5rem 0 1rem;
+  display: flex;
+  justify-content: center;
+  user-select: none;
+}
+.mermaid-preview-image {
+  max-width: 100%;
+  height: auto;
+}
+.mermaid-preview-error {
+  font-size: 0.8125rem;
+  color: var(--destructive);
+}
+/* Being read, a drawn diagram is the block: its code steps aside. */
+.ContentEditable__root[contenteditable="false"] .EditorTheme__code[data-mermaid-drawn="true"] {
+  display: none;
+}

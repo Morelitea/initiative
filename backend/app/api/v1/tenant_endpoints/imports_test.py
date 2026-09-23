@@ -3939,3 +3939,102 @@ async def test_starting_a_confluence_import_refuses_what_it_can_up_front(
         client, a, initiative_id=a.initiative.id, keys=("DOCS/../x",)
     )
     assert bad_key.status_code == 422
+
+
+async def test_a_confluence_page_points_its_jira_issues_at_the_tasks_they_became(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """An issue the Jira import already brought over is found by the key it
+    recorded: the page's Jira macro becomes that task and its live status,
+    and a plain link to it a mention of it. One that never came over keeps
+    its link to Jira, and a status lozenge is a status in its colour."""
+    from sqlmodel import select
+
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+    from app.testing import (
+        create_property_definition,
+        create_task,
+        create_task_property_value,
+    )
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    key_property = await create_property_definition(
+        session, a.initiative, name="Jira key"
+    )
+    task = await create_task(session, a.project, title="Task 1")
+    await create_task_property_value(session, task, key_property, value_text="SCRUM-1")
+
+    site = _confluence_site(
+        pages=[
+            _confluence_page(
+                1,
+                "Roadmap",
+                "<table><tr><td>"
+                '<ac:structured-macro ac:name="jira">'
+                '<ac:parameter ac:name="key">SCRUM-1</ac:parameter>'
+                "</ac:structured-macro></td><td>"
+                '<ac:structured-macro ac:name="jira">'
+                '<ac:parameter ac:name="key">SCRUM-9</ac:parameter>'
+                "</ac:structured-macro></td><td>"
+                '<a href="https://acme.atlassian.net/browse/SCRUM-1">see SCRUM-1</a>'
+                '</td><td><ac:structured-macro ac:name="status">'
+                '<ac:parameter ac:name="colour">Green</ac:parameter>'
+                '<ac:parameter ac:name="title">DONE</ac:parameter>'
+                "</ac:structured-macro></td></tr></table>",
+            )
+        ],
+        users={"acc-1": "Robin Ade"},
+    )
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+
+    resp = await _start_confluence(client, a, initiative_id=a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Docs"))).one()
+    page = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+    ).one()
+    (table,) = page.content["root"]["children"]
+    cells = [
+        cell["children"][0]["children"] for cell in table["children"][0]["children"]
+    ]
+    found, missing, linked, lozenge = cells
+
+    mention, _space, chip = found
+    assert (mention["type"], mention["entityType"], mention["entityId"]) == (
+        "entity-mention",
+        "task",
+        task.id,
+    )
+    assert (chip["type"], chip["chipKind"], chip["entityId"]) == (
+        "smart-chip",
+        "task:status",
+        task.id,
+    )
+    assert missing[0]["type"] == "link"
+    assert missing[0]["url"] == "https://acme.atlassian.net/browse/SCRUM-9"
+    assert all(node["type"] != "smart-chip" for node in missing)
+    assert linked == [
+        {
+            "type": "entity-mention",
+            "version": 1,
+            "entityType": "task",
+            "entityId": task.id,
+            "text": "see SCRUM-1",
+        }
+    ]
+    assert lozenge == [
+        {"type": "status", "version": 1, "text": "DONE", "color": "green"}
+    ]
+    assert "importJiraKey" not in str(page.content)

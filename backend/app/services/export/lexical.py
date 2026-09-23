@@ -79,6 +79,12 @@ class _Parser:
             if ntype == "linebreak":
                 runs.append({"text": "\n"})
                 continue
+            if ntype == "status":
+                # A status reads as its word, set apart the way the pill is.
+                label = str(node.get("text") or "").strip()
+                if label:
+                    runs.append({"text": label.upper(), "bold": True})
+                continue
             if ntype == "image":
                 # An inline image splits the paragraph: emit what we have,
                 # then the image as its own block.

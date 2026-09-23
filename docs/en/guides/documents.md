@@ -49,7 +49,7 @@ Four keys do more than they look like they do:
 - `@` mentions a person.
 - `#` links to anything in the initiative. See [Mentions & links](mentions-and-links.md).
 - `[[` links to another document — and offers to make one if the name is new.
-- `/` opens the insert menu: images, tables, callouts, drawings, embeds, and [smart chips](#smart-chips).
+- `/` opens the insert menu: images, tables, callouts, statuses, drawings, diagrams, embeds, and [smart chips](#smart-chips).
 
 ![The document editor](../images/documents/editor.png)
 
@@ -58,8 +58,10 @@ A few pieces are worth knowing by name:
 | | |
 |---|---|
 | **Callouts** | A coloured panel for the thing nobody should miss — **Info**, **Note**, **Tip**, **Success**, **Warning** or **Error**. Unlike a quote it holds anything: lists, code, a table. The little menu in its corner changes the kind or takes the panel away and keeps the words. |
+| **Statuses** | A word in a coloured pill — *Done*, *Blocked*, *Waiting on legal* — set by hand. Click one to change the word or the colour. For a status that keeps *itself* up to date, use a [smart chip](#smart-chips). |
 | **Merged cells** | Drag across cells in a table and **Merge cells** from the table menu joins them into one; **Unmerge cells** splits it back. For the header that sits over three columns, and the row label that runs down two. |
 | **Drawings** | A small whiteboard inside the page. Draw it, save it, and it sits there as a picture. **Edit drawing** opens it again. |
+| **Diagrams** | Flowcharts, sequence diagrams and friends, written as text in [Mermaid](https://mermaid.js.org/) and drawn as you type. **Diagram** in the `/` menu starts one; any code block set to Mermaid is drawn the same way. Someone reading the page sees the picture, and the code stays out of their way. |
 
 The **Markdown** button at the bottom of the editor shows the whole document as markdown and back. Callouts are written the way Obsidian writes them (`> [!warning]`), merged cells the way MultiMarkdown does (`||` and `^^`), columns as Pandoc's fenced divs (`:::: {.columns}`), and a drawing as its scene in an `excalidraw` code block, so all of it survives the round trip — and a file from those tools pastes in and comes out right.
 

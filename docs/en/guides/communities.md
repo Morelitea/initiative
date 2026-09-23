@@ -168,6 +168,8 @@ Each space becomes a wiki with its page tree kept exactly as it was: the home pa
 
 Links from one page to another point at the imported page. Anybody who wrote a page or got @-mentioned in one goes through the same "who is who" step as Jira.
 
+Pages that talk about Jira issues get something better than a link. If the issues came across in a Jira import first, each one a page mentions — through Confluence's Jira macro or a plain link — points at the task it became, with a [smart chip](documents.md#smart-chips) showing that task's status as it is today, not as it was the day the page was written. Import the Jira project before the space and the two arrive already joined up. Confluence's status lozenges come across as statuses in their own colours.
+
 The review names anything with no equivalent here — a table of contents, a draw.io diagram, the macro somebody installed in 2017 and never mentioned again — before you commit to it. Attached files don't come across yet.
 
 Importing a single exported file into one tool is a different, smaller thing, and it stays on that tool's own page.
