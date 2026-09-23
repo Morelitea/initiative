@@ -228,4 +228,40 @@ describe("ImportWizard", () => {
     await waitFor(() => expect(confirmBody).not.toBeNull());
     expect(confirmBody).toEqual({ exclude_properties: ["Priority"] });
   });
+
+  it("reads a Confluence site: the tile asks for the site, and a space fetch resumes on its review", async () => {
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: /^confluence/i }));
+    expect(await screen.findByText(/connect to your confluence site/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/site address/i)).toBeInTheDocument();
+  });
+
+  it("picks a Confluence fetch back up and shows what the spaces hold", async () => {
+    localStorage.setItem("imports:confluence-job:1", "78");
+    server.use(
+      guildHttp.get("/imports/jobs/:jobId", () =>
+        HttpResponse.json({
+          ...STAGED_JOB,
+          id: 78,
+          source: "atlassian",
+          params: { confluence_spaces: ["DOCS"] },
+          plan: {
+            atlassian: {
+              spaces: 1,
+              pages: 12,
+              page_attachments: 3,
+              dropped_macros: [{ name: "toc", count: 2 }],
+            },
+            people: [],
+          },
+        })
+      )
+    );
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    expect(await screen.findByText(/12 pages from 1 spaces/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 attached files don't come over yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/left out: toc ×2/i)).toBeInTheDocument();
+    // No properties to untick: a wiki carries none.
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
 });

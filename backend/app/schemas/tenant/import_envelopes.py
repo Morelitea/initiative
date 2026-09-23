@@ -75,6 +75,13 @@ class WikiPageEnvelope(SanitizedBaseModel):
     #: importer only uses a value it was actually given.
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    #: Who wrote it, where it came from: a handle the people step places, and
+    #: the name to show when nobody answers to it.
+    author_handle: Optional[str] = None
+    author_name: Optional[str] = None
+    #: The handles the body's mention nodes name without an account yet. Each
+    #: one the people step places is linked to that account on apply.
+    mention_handles: list[str] = []
 
 
 class WikiEnvelope(_EnvelopeBase):

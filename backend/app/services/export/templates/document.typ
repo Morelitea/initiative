@@ -94,7 +94,17 @@
   #v(10pt)
 ]
 
-#for b in blocks {
+// Callout colours, by kind: the panel's edge and its wash.
+#let callout_colors = (
+  info: rgb("#2563eb"),
+  note: rgb("#64748b"),
+  tip: rgb("#0d9488"),
+  success: rgb("#16a34a"),
+  warning: rgb("#d97706"),
+  error: rgb("#dc2626"),
+)
+
+#let render_block(b) = {
   let btype = b.at("type", default: "paragraph")
   if btype == "heading" {
     let level = calc.min(b.at("level", default: 1), 4)
@@ -146,7 +156,24 @@
     }
   } else if btype == "table" {
     let rows = b.at("rows", default: ())
-    if rows.len() > 0 {
+    let spans = b.at("spans", default: none)
+    if rows.len() > 0 and spans != none {
+      // Merged cells: each cell says what it spans and the grid places it.
+      table(
+        columns: b.at("width", default: 1),
+        inset: (x: 6pt, y: 5pt),
+        stroke: 0.5pt + luma(210),
+        ..rows
+          .enumerate()
+          .map(((ri, r)) => r
+            .enumerate()
+            .map(((ci, c)) => {
+              let span = spans.at(ri).at(ci)
+              table.cell(colspan: span.at(0), rowspan: span.at(1), render_runs(c))
+            }))
+          .flatten()
+      )
+    } else if rows.len() > 0 {
       let width = calc.max(..rows.map(r => r.len()))
       table(
         columns: width,
@@ -160,7 +187,45 @@
           .flatten()
       )
     }
+  } else if btype == "drawing" {
+    // A drawing's scene needs a browser to draw; a PDF leaves it out.
+  } else if btype == "columns" {
+    let columns = b.at("columns", default: ())
+    if columns.len() > 0 {
+      let widths = b.at("widths", default: ())
+      grid(
+        columns: columns.enumerate().map(((i, _)) => {
+          let w = if i < widths.len() { widths.at(i) } else { 0 }
+          if w > 0 { w * 1fr } else { 1fr }
+        }),
+        gutter: 12pt,
+        ..columns.map(column => {
+          for inner in column {
+            render_block(inner)
+          }
+        }),
+      )
+    }
+  } else if btype == "callout" {
+    let color = callout_colors.at(b.at("variant", default: "note"), default: luma(120))
+    block(
+      width: 100%,
+      fill: color.lighten(90%),
+      stroke: (left: 3pt + color),
+      inset: (left: 10pt, right: 8pt, y: 6pt),
+      radius: 3pt,
+      {
+        text(weight: "bold", fill: color, upper(b.at("variant", default: "note").first()) + b.at("variant", default: "note").slice(1))
+        for inner in b.at("blocks", default: ()) {
+          render_block(inner)
+        }
+      },
+    )
   } else {
     par(render_runs(b.at("runs", default: ())))
   }
+}
+
+#for b in blocks {
+  render_block(b)
 }

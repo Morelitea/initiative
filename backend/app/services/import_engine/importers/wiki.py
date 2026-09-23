@@ -9,12 +9,17 @@ first and filed second, once the whole slug map exists.
 Sharing does not cross, here or in any other envelope: who may read a wiki is
 a fact about the community it was written in. The importer owns what it
 creates.
+
+A page can name people — who wrote it, and anybody its body mentions — and
+other pages, by slug. Those are placed once every page exists: a writer the
+people step placed becomes the page's author, a mention of somebody placed
+links to them, and a mention of a page links to the page it became.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from sqlmodel import select
@@ -25,24 +30,62 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.import_envelopes import WikiEnvelope, WikiPageEnvelope
-from app.services.import_engine.common import ensure_tag, parse_datetime, unique_name
+from app.services.import_engine.common import (
+    ensure_tag,
+    handle_key,
+    load_initiative_member_handles,
+    parse_datetime,
+    unique_name,
+)
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
     grant_ownership,
     parse_envelope,
 )
+from app.services.import_engine.people import PeopleMap, quoted_account
 from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
 
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.schemas.tenant.backup_export import ManifestPerson
 
-class WikiImporter(QuotesNobody):
+
+class WikiImporter:
     envelope_type = "initiative-wiki"
     permission = PermissionKey.create_wikis
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
         return parse_envelope(WikiEnvelope, envelope)
+
+    def people(self, validated: BaseModel) -> list["ManifestPerson"]:
+        """Whoever wrote a page, and whoever a page mentions, most-named
+        first — both are placed through the people step's answer."""
+        from app.schemas.tenant.backup_export import ManifestPerson
+
+        envelope: WikiEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
+        seen: dict[str, ManifestPerson] = {}
+        counts: dict[str, int] = {}
+        for page in envelope.pages:
+            named = [
+                (page.author_handle, page.author_name),
+                *((handle, None) for handle in page.mention_handles),
+            ]
+            for handle, name in named:
+                handle = (handle or "").strip()
+                if not handle:
+                    continue
+                key = handle_key(handle)
+                counts[key] = counts.get(key, 0) + 1
+                person = seen.setdefault(
+                    key, ManifestPerson(handle=handle, name=name, comment_count=0)
+                )
+                if person.name is None:
+                    person.name = name
+        return sorted(
+            seen.values(),
+            key=lambda p: (-counts[handle_key(p.handle)], p.handle.lower()),
+        )
 
     def count(self, validated: BaseModel) -> int:
         envelope: WikiEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
@@ -105,10 +148,23 @@ class WikiImporter(QuotesNobody):
 
         await attach_tags("wiki", wiki.id, env.tags)
 
+        people = context.people if context is not None else PeopleMap()
+        member_handles = (
+            await load_initiative_member_handles(
+                session, initiative_id=target_initiative.id
+            )
+            if any(p.author_handle or p.mention_handles for p in env.pages)
+            else {}
+        )
+
         # Pass one: every page exists before any page is filed.
         slugs = _assign_slugs(env.pages)
         page_ids: dict[str, int] = {}
+        rows: list[WikiPage] = []
         for page_env, slug in zip(env.pages, slugs):
+            author = quoted_account(
+                page_env.author_handle, people=people, member_handles=member_handles
+            )
             row = WikiPage(
                 wiki_id=wiki.id,
                 title=page_env.title,
@@ -116,7 +172,7 @@ class WikiImporter(QuotesNobody):
                 position=page_env.position,
                 is_draft=page_env.is_draft,
                 content=page_env.content or {},
-                created_by=importer.id,
+                created_by=author if author is not None else importer.id,
                 # When it was written, where the envelope says so. Absent
                 # leaves the model's own default — the moment of the import,
                 # which is the only time this row can honestly claim.
@@ -125,6 +181,7 @@ class WikiImporter(QuotesNobody):
             session.add(row)
             await session.flush()
             page_ids[slug] = row.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+            rows.append(row)
             await attach_tags("wiki_page", row.id, page_env.tags)
 
         # Pass two: file each page under its parent, by slug.
@@ -142,6 +199,37 @@ class WikiImporter(QuotesNobody):
         if unknown:
             warnings.append(f"missing_parent_pages:{unknown}")
 
+        # Pass three: what a page names, now that every page has an id.
+        jira_tasks = await _tasks_by_jira_key(
+            session,
+            {key for page in env.pages for key in _jira_keys(page.content)},
+        )
+        by_original = {page.slug.strip(): slug for page, slug in zip(env.pages, slugs)}
+        for page_env, row in zip(env.pages, rows):
+            mentioned = {
+                handle: account
+                for handle in page_env.mention_handles
+                if (
+                    account := quoted_account(
+                        handle, people=people, member_handles=member_handles
+                    )
+                )
+                is not None
+            }
+            linked = _place_references(
+                row.content,
+                page_ids={
+                    original: page_ids[assigned]
+                    for original, assigned in by_original.items()
+                    if assigned in page_ids
+                },
+                mentioned=mentioned,
+                jira_tasks=jira_tasks,
+            )
+            if linked is not None:
+                row.content = linked
+                session.add(row)
+
         if env.home_page and env.home_page in page_ids:
             wiki.home_page_id = page_ids[env.home_page]
             session.add(wiki)
@@ -156,6 +244,186 @@ class WikiImporter(QuotesNobody):
             matched={"tags": tags_matched},
             warnings=warnings,
         )
+
+
+def _text_node(text: str) -> dict[str, Any]:
+    return {
+        "type": "text",
+        "version": 1,
+        "text": text,
+        "format": 0,
+        "style": "",
+        "mode": "normal",
+        "detail": 0,
+    }
+
+
+def _jira_keys(content: Any) -> set[str]:
+    """The Jira issue keys a page's content waits to have placed."""
+    keys: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        key = node.get("importJiraKey")
+        if isinstance(key, str) and key:
+            keys.add(key)
+        for child in node.get("children") or []:
+            walk(child)
+
+    walk(content.get("root") if isinstance(content, dict) else None)
+    return keys
+
+
+async def _tasks_by_jira_key(session: AsyncSession, keys: set[str]) -> dict[str, int]:
+    """Which task each Jira issue became, found by the key the Jira import
+    records on every task it writes.
+
+    Anywhere in the community this person can read — a Confluence space and
+    the Jira project its pages talk about are often filed in different
+    initiatives. An issue imported twice points at the newer copy. An issue
+    whose key property was left out at import, or that never came over, is
+    not found, and the page keeps its link to Jira.
+    """
+    if not keys:
+        return {}
+    from sqlalchemy import or_
+
+    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.task import Task
+    from app.services.import_engine.jira_fields import JIRA_KEY_PROPERTY
+
+    rows = (
+        await session.exec(
+            select(TaskPropertyValue.value_text, Task.id)
+            .join(
+                PropertyDefinition,
+                PropertyDefinition.id == TaskPropertyValue.property_id,
+            )
+            .join(Task, Task.id == TaskPropertyValue.task_id)
+            .where(
+                # The name the import gave it, or the one it was renamed to
+                # when that name was already taken by a different kind.
+                or_(
+                    PropertyDefinition.name == JIRA_KEY_PROPERTY,
+                    PropertyDefinition.name.like(f"{JIRA_KEY_PROPERTY} (%"),
+                ),
+                TaskPropertyValue.value_text.in_(sorted(keys)),
+                Task.deleted_at.is_(None),
+            )
+            .order_by(Task.id)
+        )
+    ).all()
+    found: dict[str, int] = {}
+    for key, task_id in rows:
+        if key is not None and task_id is not None:
+            found[key] = task_id
+    return found
+
+
+def _place_references(
+    content: Any,
+    *,
+    page_ids: dict[str, int],
+    mentioned: dict[str, int],
+    jira_tasks: dict[str, int] | None = None,
+) -> dict[str, Any] | None:
+    """``content`` with its import references resolved, or ``None`` if it
+    had none.
+
+    A wiki-page mention carrying an ``importSlug`` points at the page that
+    slug became; one whose page did not arrive is its text again. A person's
+    mention with no account yet gets the one the people step placed its name
+    on, and stays a name otherwise.
+
+    A Jira issue the page names by ``importJiraKey`` points at the task that
+    issue became, when it came over: the macro's mention and its live status
+    chip take the task's id, and a link to the issue becomes a mention of the
+    task. When it did not, the mention is a link back to Jira again, the chip
+    is left out, and a link stays the link it was.
+    """
+    if not isinstance(content, dict):
+        return None
+    tasks = jira_tasks or {}
+    changed = False
+
+    def walk(node: Any) -> Any:
+        nonlocal changed
+        if not isinstance(node, dict):
+            return node
+        node_type = node.get("type")
+        if node_type == "entity-mention" and "importSlug" in node:
+            changed = True
+            slug = node.get("importSlug")
+            target = page_ids.get(slug) if isinstance(slug, str) else None
+            text = str(node.get("text") or "")
+            if target is None:
+                return _text_node(text)
+            placed = {k: v for k, v in node.items() if k != "importSlug"}
+            placed["entityId"] = target
+            return placed
+        jira_key = node.get("importJiraKey")
+        if isinstance(jira_key, str):
+            changed = True
+            task_id = tasks.get(jira_key)
+            bare = {
+                k: v for k, v in node.items() if k not in ("importJiraKey", "importUrl")
+            }
+            if node_type == "entity-mention":
+                if task_id is not None:
+                    return {**bare, "entityId": task_id}
+                url = node.get("importUrl")
+                text = str(node.get("text") or jira_key)
+                if not isinstance(url, str) or not url:
+                    return _text_node(text)
+                return {
+                    "type": "link",
+                    "version": 1,
+                    "direction": "ltr",
+                    "format": "",
+                    "indent": 0,
+                    "url": url,
+                    "rel": "noopener noreferrer",
+                    "target": "_blank",
+                    "title": None,
+                    "children": [_text_node(text)],
+                }
+            if node_type == "smart-chip":
+                return {**bare, "entityId": task_id} if task_id is not None else None
+            if node_type == "link" and task_id is not None:
+                words = "".join(
+                    str(child.get("text") or "")
+                    for child in node.get("children") or []
+                    if isinstance(child, dict)
+                )
+                return {
+                    "type": "entity-mention",
+                    "version": 1,
+                    "entityType": "task",
+                    "entityId": task_id,
+                    "text": words or jira_key,
+                }
+            node = bare
+        if (
+            node_type == "mention"
+            and node.get("mentionUserId") is None
+            and node.get("mentionName") in mentioned
+        ):
+            changed = True
+            return {**node, "mentionUserId": mentioned[node["mentionName"]]}
+        children = node.get("children")
+        if isinstance(children, list):
+            walked = [walk(child) for child in children]
+            return {
+                **node,
+                "children": [child for child in walked if child is not None],
+            }
+        return node
+
+    placed = walk(content.get("root"))
+    if not changed:
+        return None
+    return {**content, "root": placed}
 
 
 def _page_timestamps(page_env: WikiPageEnvelope) -> dict[str, datetime]:

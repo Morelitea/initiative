@@ -1081,6 +1081,39 @@ export interface ArchiveResponse {
 }
 
 /**
+ * The choose step's answer for Confluence: which spaces, from which
+ * site, into which initiative. Each space becomes one wiki.
+ *
+ * Like the Jira request, it starts a job and reads nothing itself, and it
+ * carries the three values the connect step proved.
+ */
+export interface AtlassianConfluenceImportRequest {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  site_url: string;
+  /**
+   * @minLength 1
+   * @maxLength 320
+   */
+  email: string;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  api_token: string;
+  initiative_id: number;
+  /**
+   * @maxItems 200
+   * @items.minLength 1
+   * @items.maxLength 255
+   * @items.pattern ^~?[A-Za-z0-9_-]+$
+   */
+  space_keys: string[];
+}
+
+/**
  * One Confluence space the token can see.
  */
 export interface AtlassianConfluenceSpace {

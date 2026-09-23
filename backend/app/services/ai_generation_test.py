@@ -102,3 +102,66 @@ async def test_ollama_generation_does_not_allow_private_for_guild_scope(monkeypa
     with pytest.raises(ai_generation.AIGenerationError) as exc:
         await ai_generation.generate_description(None, _User(), 1, _Task())
     assert str(exc.value) == "AI_INVALID_BASE_URL"
+
+
+# --- the editor state as markdown ---------------------------------------------
+
+
+def _lexical_text(text):
+    return {"type": "text", "text": text, "format": 0}
+
+
+def test_a_callout_is_shown_as_its_kind_and_its_blocks():
+    content = {
+        "root": {
+            "type": "root",
+            "children": [
+                {
+                    "type": "callout",
+                    "variant": "warning",
+                    "children": [
+                        {"type": "paragraph", "children": [_lexical_text("Careful")]},
+                        {"type": "paragraph", "children": [_lexical_text("Really")]},
+                    ],
+                }
+            ],
+        }
+    }
+    assert (
+        ai_generation.lexical_to_markdown(content)
+        == "> [!warning]\n> Careful\n>\n> Really"
+    )
+
+
+def test_columns_are_shown_one_after_another():
+    content = {
+        "root": {
+            "type": "root",
+            "children": [
+                {
+                    "type": "layout-container",
+                    "children": [
+                        {
+                            "type": "layout-item",
+                            "children": [
+                                {
+                                    "type": "paragraph",
+                                    "children": [_lexical_text("left")],
+                                }
+                            ],
+                        },
+                        {
+                            "type": "layout-item",
+                            "children": [
+                                {
+                                    "type": "paragraph",
+                                    "children": [_lexical_text("right")],
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+    }
+    assert ai_generation.lexical_to_markdown(content) == "left\n\nright"

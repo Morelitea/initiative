@@ -151,6 +151,15 @@ class AtlassianPlanProperty(SanitizedBaseModel):
     issue_count: int = 0
 
 
+class AtlassianDroppedItem(SanitizedBaseModel):
+    """One kind of thing a page held that will not come over, and how many."""
+
+    #: A Confluence macro's name (``toc``, ``drawio``), or ``image`` for a
+    #: picture that could not be placed.
+    name: str
+    count: int = 0
+
+
 class AtlassianFetchSummary(SanitizedBaseModel):
     """What reading an Atlassian site found, for the review step.
 
@@ -200,6 +209,23 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     images_unreadable: int = 0
     #: Attached files that are not images, which do not come over yet.
     other_attachments: int = 0
+    #: Confluence: spaces read, and the pages they became.
+    spaces: int = 0
+    pages: int = 0
+    #: Folders, and pages with children and nothing of their own, given a
+    #: list of the pages beneath them for a body.
+    page_containers: int = 0
+    #: Space keys that were ticked and could not be read with this token.
+    unreadable_spaces: list[str] = []
+    #: Pages left out because the wiki would have been too large to import
+    #: in one piece.
+    pages_over_limit: int = 0
+    #: Files the pages show or link to, which do not come over yet.
+    page_attachments: int = 0
+    #: Tags the pages' labels will become.
+    labels: int = 0
+    #: What the pages held that will not come over, by kind, most first.
+    dropped_macros: list[AtlassianDroppedItem] = []
 
 
 class BackupImportPlan(SanitizedBaseModel):

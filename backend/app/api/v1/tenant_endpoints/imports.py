@@ -39,6 +39,7 @@ from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.atlassian import (
+    AtlassianConfluenceImportRequest,
     AtlassianConnectRequest,
     AtlassianConnectResponse,
     AtlassianJiraImportRequest,
@@ -334,6 +335,50 @@ async def start_jira_import(
             project_keys=payload.project_keys,
             include_comments=payload.include_comments,
             include_attachments=payload.include_attachments,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
+
+
+@router.post(
+    "/atlassian/confluence",
+    response_model=ImportJobRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_confluence_import(
+    payload: AtlassianConfluenceImportRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ImportJobRead:
+    """Start reading Confluence spaces into an initiative, one wiki each.
+
+    The Jira start's twin: the token rides on the job, encrypted, until the
+    job is over; the worker reads the spaces while the job is ``fetching`` and
+    parks it at ``staged`` with the plan — pages, what will not come over, and
+    the people the pages name — for ``POST /imports/jobs/{id}/confirm``.
+
+    The initiative needs wikis switched on and the caller needs to be able to
+    create them there, checked now, before the site is read, and at apply."""
+    _require_writable(guild_context)
+    if guild_context.grant is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+    try:
+        job = await atlassian_job.start_confluence_import(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            credential=atlassian_service.AtlassianCredential(
+                site_url=atlassian_service.normalize_site_url(payload.site_url),
+                email=payload.email.strip(),
+                api_token=payload.api_token,
+            ),
+            initiative_id=payload.initiative_id,
+            space_keys=payload.space_keys,
         )
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)

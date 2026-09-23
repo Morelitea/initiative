@@ -1,4 +1,10 @@
-import { SiJira, SiTicktick, SiTodoist, SiVikunja } from "@icons-pack/react-simple-icons";
+import {
+  SiConfluence,
+  SiJira,
+  SiTicktick,
+  SiTodoist,
+  SiVikunja,
+} from "@icons-pack/react-simple-icons";
 import { AlertTriangle, CheckCircle2, FileUp, Loader2, XCircle } from "lucide-react";
 import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +20,9 @@ import type { ForeignPreview, ImportJobRead } from "@/api/generated/initiativeAP
 import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
 import { ImportReport } from "@/components/imports/ImportReport";
 import {
+  type AtlassianProduct,
+  ConfluenceChooseStep,
+  ConfluenceReviewSummary,
   JiraChooseStep,
   type JiraConnection,
   JiraConnectStep,
@@ -61,27 +70,34 @@ export interface ImportWizardProps {
  * rest are other products, each read by a mapper on the server that turns
  * the file into the same envelope a project export writes. */
 type ForeignSourceKey = "todoist" | "ticktick" | "vikunja";
-/** ``jira`` reads a site over its API rather than an uploaded file: the
- * server fetches, parks the result for review, then applies it like a
- * backup. */
-type Source = "backup" | "jira" | ForeignSourceKey;
+/** ``jira`` and ``confluence`` read a site over its API rather than an
+ * uploaded file: the server fetches, parks the result for review, then
+ * applies it like a backup. */
+type Source = "backup" | AtlassianProduct | ForeignSourceKey;
+
+const isAtlassian = (source: Source | null): source is AtlassianProduct =>
+  source === "jira" || source === "confluence";
 
 /** Each source's mark on its tile, in its own brand colour. A backup is this
  * app's own archive, so it carries this app's logo. */
 const SOURCE_ICONS: Record<Source, ReactNode> = {
   backup: <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" focusable="false" />,
   jira: <SiJira color="#0052CC" className="h-8 w-8 shrink-0" aria-hidden="true" />,
+  // Atlassian's own blue rather than Simple Icons' near-black, which vanishes
+  // on a dark tile.
+  confluence: <SiConfluence color="#1868DB" className="h-8 w-8 shrink-0" aria-hidden="true" />,
   todoist: <SiTodoist color="#E44332" className="h-8 w-8 shrink-0" aria-hidden="true" />,
   ticktick: <SiTicktick color="#4772FA" className="h-8 w-8 shrink-0" aria-hidden="true" />,
   vikunja: <SiVikunja color="#196AFF" className="h-8 w-8 shrink-0" aria-hidden="true" />,
 };
 
-const SOURCES: Source[] = ["backup", "jira", "todoist", "ticktick", "vikunja"];
+const SOURCES: Source[] = ["backup", "jira", "confluence", "todoist", "ticktick", "vikunja"];
 
-/** A Jira job this wizard started and has not seen the end of. A fetch runs
- * for minutes and outlives the dialog, so reopening picks it up where it is —
- * still reading, or waiting for review — rather than losing it. */
-const jiraJobKey = (guildId: number) => `imports:jira-job:${guildId}`;
+/** An Atlassian job this wizard started and has not seen the end of. A fetch
+ * runs for minutes and outlives the dialog, so reopening picks it up where it
+ * is — still reading, or waiting for review — rather than losing it. */
+const atlassianJobKey = (guildId: number, product: AtlassianProduct) =>
+  `imports:${product}-job:${guildId}`;
 
 type Step =
   | "source"
@@ -93,7 +109,7 @@ type Step =
   // Reading another product's export.
   | "file"
   | "choose"
-  // Reading a Jira site.
+  // Reading an Atlassian site.
   | "connect"
   | "projects"
   | "fetching"
@@ -130,7 +146,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   // The file and choose steps are reachable only from a foreign tile, so the
   // one narrowing here spares every read of it below.
   const foreignSource: ForeignSourceKey | null =
-    source !== null && source !== "backup" && source !== "jira" ? source : null;
+    source !== null && source !== "backup" && !isAtlassian(source) ? source : null;
 
   // Backup branch.
   const [file, setFile] = useState<File | null>(null);
@@ -142,7 +158,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const [selection, setSelection] = useState<string>("");
   const [initiativeId, setInitiativeId] = useState<string>("");
 
-  // Jira branch.
+  // Atlassian branch.
   const [jiraConnection, setJiraConnection] = useState<JiraConnection | null>(null);
   const [jiraJobId, setJiraJobId] = useState<number | null>(null);
   // Properties unticked on the review: not created when the import runs.
@@ -166,10 +182,12 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     if (!initiativesQuery.data) {
       return [];
     }
+    // A Confluence space becomes a wiki; everything else lands as a project.
+    const tool = source === "confluence" ? "wiki" : "project";
     return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).project.create
+      (initiative) => permissionsFor(initiative)[tool].create
     );
-  }, [initiativesQuery.data, filterVisible, permissionsFor]);
+  }, [initiativesQuery.data, filterVisible, permissionsFor, source]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment
   useEffect(() => {
@@ -194,11 +212,14 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       // progress view instead of offering a new flow.
       commit("progress");
     } else {
-      const pendingJira = Number(getItem(jiraJobKey(guildId)));
-      if (Number.isFinite(pendingJira) && pendingJira > 0) {
-        setSource("jira");
-        setJiraJobId(pendingJira);
-        commit("fetching");
+      for (const product of ["jira", "confluence"] as const) {
+        const pending = Number(getItem(atlassianJobKey(guildId, product)));
+        if (Number.isFinite(pending) && pending > 0) {
+          setSource(product);
+          setJiraJobId(pending);
+          commit("fetching");
+          break;
+        }
       }
     }
   }, [open]);
@@ -230,13 +251,18 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const chooseSource = (picked: Source) => {
     setSource(picked);
     setPickError(null);
-    go(picked === "backup" ? "pick" : picked === "jira" ? "connect" : "file");
+    go(picked === "backup" ? "pick" : isAtlassian(picked) ? "connect" : "file");
   };
 
-  const forgetJiraJob = () => removeItem(jiraJobKey(guildId));
+  const forgetJiraJob = () => {
+    removeItem(atlassianJobKey(guildId, "jira"));
+    removeItem(atlassianJobKey(guildId, "confluence"));
+  };
 
   const handleJiraStarted = (job: ImportJobRead) => {
-    setItem(jiraJobKey(guildId), String(job.id));
+    if (isAtlassian(source)) {
+      setItem(atlassianJobKey(guildId, source), String(job.id));
+    }
     setJiraJobId(job.id);
     // Past this point the site is being read; the way out is Cancel.
     commit("fetching");
@@ -464,8 +490,12 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     choose: t("wizard.choose.prompt"),
     plan: t("wizard.plan.prompt"),
     people: t("wizard.people.prompt"),
-    connect: t("wizard.jira.connect.prompt"),
-    projects: t("wizard.jira.choose.prompt"),
+    connect: t(
+      source === "confluence" ? "wizard.confluence.connect.prompt" : "wizard.jira.connect.prompt"
+    ),
+    projects: t(
+      source === "confluence" ? "wizard.confluence.choose.prompt" : "wizard.jira.choose.prompt"
+    ),
     review: t("wizard.jira.review.prompt"),
   };
   const stepDescription = stepDescriptions[step] ?? null;
@@ -473,7 +503,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   // The questions to answer; the upload, the run and the report are what
   // happens afterwards. The people step appears only where the file quotes
   // somebody — one quoting nobody has nothing to ask about.
-  const foreign = source != null && source !== "backup" && source !== "jira";
+  const foreign = source != null && source !== "backup" && !isAtlassian(source);
   const total = (foreign ? 3 : 4) + (people.length > 0 ? 1 : 0);
   const position: Record<Step, number | null> = {
     source: 1,
@@ -654,6 +684,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
 
       {step === "connect" && (
         <JiraConnectStep
+          product={source === "confluence" ? "confluence" : "jira"}
           onConnected={(connection) => {
             setJiraConnection(connection);
             go("projects");
@@ -661,17 +692,26 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
         />
       )}
 
-      {step === "projects" && jiraConnection && (
-        <JiraChooseStep
-          connection={jiraConnection}
-          initiatives={creatableInitiatives}
-          onStarted={handleJiraStarted}
-        />
-      )}
+      {step === "projects" &&
+        jiraConnection &&
+        (source === "confluence" ? (
+          <ConfluenceChooseStep
+            connection={jiraConnection}
+            initiatives={creatableInitiatives}
+            onStarted={handleJiraStarted}
+          />
+        ) : (
+          <JiraChooseStep
+            connection={jiraConnection}
+            initiatives={creatableInitiatives}
+            onStarted={handleJiraStarted}
+          />
+        ))}
 
       {step === "fetching" && jiraJobId != null && (
         <JiraFetchingStep
           jobId={jiraJobId}
+          product={source === "confluence" ? "confluence" : "jira"}
           onStaged={handleJiraStaged}
           onStopped={handleJiraStopped}
         />
@@ -679,11 +719,15 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
 
       {step === "review" && stagedJob && (
         <div className="space-y-4">
-          <JiraReviewSummary
-            job={stagedJob}
-            excluded={excludedProperties}
-            onExcludedChange={setExcludedProperties}
-          />
+          {source === "confluence" ? (
+            <ConfluenceReviewSummary job={stagedJob} />
+          ) : (
+            <JiraReviewSummary
+              job={stagedJob}
+              excluded={excludedProperties}
+              onExcludedChange={setExcludedProperties}
+            />
+          )}
           <p className="text-muted-foreground text-xs">{t("wizard.jira.review.note")}</p>
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={() => void handleCancelStaged()}>
