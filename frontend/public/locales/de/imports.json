@@ -193,6 +193,8 @@
         "containers_other": "{{count}} Ordner oder leere übergeordnete Seiten werden zu Listen der Seiten darunter",
         "labels_one": "{{count}} Label, als Tag",
         "labels_other": "{{count}} Labels, als Tags",
+        "comments_one": "{{count}} Kommentar auf den Seiten, unten und im Text",
+        "comments_other": "{{count}} Kommentare auf den Seiten, unten und im Text",
         "unreadableSpaces": "Nicht lesbar: {{keys}}",
         "overLimit_one": "{{count}} Seite würde das Wiki für einen Import zu groß machen",
         "overLimit_other": "{{count}} Seiten würden das Wiki für einen Import zu groß machen",

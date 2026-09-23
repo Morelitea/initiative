@@ -53,6 +53,29 @@ class DocumentEnvelope(_EnvelopeBase):
     properties: list[EnvelopePropertyValue] = []
 
 
+class WikiPageComment(SanitizedBaseModel):
+    """One thing somebody said on a page.
+
+    ``content`` is the body as an editor state, so it carries references the
+    apply places — a page, an issue, a file, a person — the same way the
+    page's own body does; it is written as the comment's text once they are.
+    The author crosses as a handle and a name, never an id, like every
+    person in an envelope.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    content: dict[str, Any] = {}
+    author_handle: Optional[str] = None
+    author_name: Optional[str] = None
+    created_at: Optional[str] = None
+    #: What this comment was called where it came from, and the one it
+    #: answers, so a thread arrives as a thread. Refs live for one job.
+    external_ref: Optional[str] = None
+    reply_to_ref: Optional[str] = None
+    mention_handles: list[str] = []
+
+
 class WikiPageEnvelope(SanitizedBaseModel):
     """One page: its body, where it sits, and what it is filed under.
 
@@ -85,6 +108,9 @@ class WikiPageEnvelope(SanitizedBaseModel):
     #: What the page was called where it came from — ``confluence:123`` — for
     #: the job's links to point at. Never written to a column.
     external_ref: Optional[str] = None
+    #: What was said on the page, oldest first, so a reply follows what it
+    #: answers.
+    comments: list[WikiPageComment] = []
 
 
 class WikiEnvelope(_EnvelopeBase):

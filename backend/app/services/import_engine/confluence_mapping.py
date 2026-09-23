@@ -19,7 +19,11 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 from urllib.parse import quote
 
-from app.services.import_engine.confluence_attachments import PageMedia, file_ref
+from app.services.import_engine.confluence_attachments import (
+    PageFile,
+    PageMedia,
+    file_ref,
+)
 from app.services.import_engine.confluence_storage import (
     PageTarget,
     storage_to_lexical,
@@ -51,6 +55,21 @@ class SourcePage:
         return self.body is None
 
 
+@dataclass(frozen=True)
+class SourceComment:
+    """One comment on a page as the fetch read it."""
+
+    id: str
+    #: The storage-format body.
+    body: str
+    parent_id: Optional[str] = None
+    author_id: Optional[str] = None
+    created_at: Optional[str] = None
+    #: The words an inline comment was anchored to, quoted above it — the
+    #: wiki's comments sit under the page rather than beside a sentence.
+    selection: Optional[str] = None
+
+
 @dataclass
 class MappedSpace:
     """One space as a wiki envelope, and what converting it cost."""
@@ -69,11 +88,14 @@ class MappedSpace:
     attachments: dict[str, list[str]] = field(default_factory=dict)
     #: The pictures the kept pages show, to travel as uploads.
     uploads: list[StoredImage] = field(default_factory=list)
-    #: Everything else the kept pages had attached, to become file documents.
-    documents: list[StoredImage] = field(default_factory=list)
+    #: Everything else the kept pages had attached, to become file documents
+    #: filed under the page each came from.
+    documents: list[PageFile] = field(default_factory=list)
     #: Pictures a page never shows, left behind because the initiative
     #: cannot take documents.
     documents_blocked: int = 0
+    #: Comments carried onto the kept pages.
+    comments: int = 0
 
 
 def read_page(raw: Any, labels: tuple[str, ...] = ()) -> Optional[SourcePage]:
@@ -124,6 +146,38 @@ def read_folder(raw: Any) -> Optional[SourcePage]:
     )
 
 
+def read_comment(
+    raw: Any, *, parent_id: Optional[str] = None
+) -> Optional[SourceComment]:
+    """A v2 footer or inline comment as a :class:`SourceComment`, or ``None``
+    for one that is malformed or has nothing in it."""
+    if not isinstance(raw, dict):
+        return None
+    comment_id = _id(raw.get("id"))
+    body = raw.get("body")
+    storage = body.get("storage") if isinstance(body, dict) else None
+    value = storage.get("value") if isinstance(storage, dict) else None
+    if comment_id is None or not isinstance(value, str) or not value.strip():
+        return None
+    version = raw.get("version") if isinstance(raw.get("version"), dict) else {}
+    properties = (
+        raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
+    )
+    selection = _text(properties.get("inlineOriginalSelection"))
+    return SourceComment(
+        id=comment_id,
+        body=value,
+        parent_id=parent_id or _id(raw.get("parentCommentId")),
+        author_id=_text(version.get("authorId")),
+        created_at=_text(version.get("createdAt")),
+        selection=selection[:1000] if selection else None,
+    )
+
+
+def comment_ref(comment_id: str) -> str:
+    return f"confluence-comment:{comment_id}"
+
+
 def page_labels(payload: Any) -> tuple[str, ...]:
     """The label names a ``/pages/{id}/labels`` answer lists."""
     results = payload.get("results") if isinstance(payload, dict) else None
@@ -161,6 +215,7 @@ def build_wiki_envelope(
     max_bytes: Optional[int] = None,
     media: Optional[dict[str, PageMedia]] = None,
     documents: bool = True,
+    comments: Optional[dict[str, list[SourceComment]]] = None,
 ) -> MappedSpace:
     """The space's pages as one wiki envelope.
 
@@ -172,6 +227,9 @@ def build_wiki_envelope(
     the page shows renders from its upload; a link to a file becomes a
     mention of the document it will be. ``documents`` false is an initiative
     that cannot take one, and only the shown pictures come.
+
+    ``comments`` is what was said on each page, by page id; each is converted
+    the way a page body is and carried on its page, a thread in reading order.
     """
     space_key = str(space.get("key") or "").strip()
     by_id = {page.id: page for page in pages}
@@ -269,6 +327,17 @@ def build_wiki_envelope(
             if kids:
                 mapped.containers += 1
 
+        page_comments = [
+            _comment_entry(
+                comment,
+                page=resolve_page,
+                users=users,
+                site_url=site_url,
+                files=files,
+                dropped=mapped.dropped,
+            )
+            for comment in _thread_order((comments or {}).get(page.id, []))
+        ]
         entry: dict[str, Any] = {
             "title": page.title,
             "slug": slugs[page.id],
@@ -278,6 +347,7 @@ def build_wiki_envelope(
             "tags": list(page.labels),
             "mention_handles": mentions,
             "external_ref": page_ref(page.id),
+            "comments": page_comments,
         }
         author = users.get(page.author_id or "")
         if author:
@@ -298,13 +368,23 @@ def build_wiki_envelope(
         mapped.pages += 1
         mapped.uploads.extend(files.uploads(shown))
         if documents:
-            mapped.documents.extend(files.documents(shown))
+            mapped.documents.extend(
+                PageFile(stored, slugs[page.id]) for stored in files.documents(shown)
+            )
         else:
             mapped.documents_blocked += len(files.stored_images) - len(
                 files.uploads(shown)
             )
         for name in {name for name in (author, *mentions) if name}:
             mapped.people[name] += 1
+        mapped.comments += len(page_comments)
+        for comment in page_comments:
+            for name in {
+                name
+                for name in (comment.get("author_handle"), *comment["mention_handles"])
+                if name
+            }:
+                mapped.people[name] += 1
 
     home = _id(space.get("homepageId"))
     kept = {entry["slug"] for entry in envelope_pages}
@@ -322,6 +402,93 @@ def build_wiki_envelope(
         "pages": envelope_pages,
     }
     return mapped
+
+
+def _thread_order(comments: list[SourceComment]) -> list[SourceComment]:
+    """Each comment followed by its replies, oldest first at every level, so
+    a reply is written after what it answers. A reply to something that did
+    not come stands at the top of the thread."""
+    known = {comment.id for comment in comments}
+    replies: dict[Optional[str], list[SourceComment]] = {}
+    for comment in comments:
+        parent = comment.parent_id if comment.parent_id in known else None
+        replies.setdefault(parent, []).append(comment)
+    for group in replies.values():
+        group.sort(key=lambda c: (c.created_at or "", int(c.id)))
+
+    ordered: list[SourceComment] = []
+    seen: set[str] = set()
+
+    def walk(parent: Optional[str]) -> None:
+        for comment in replies.get(parent, []):
+            if comment.id in seen:
+                continue
+            seen.add(comment.id)
+            ordered.append(comment)
+            walk(comment.id)
+
+    walk(None)
+    return ordered
+
+
+def _comment_entry(
+    comment: SourceComment,
+    *,
+    page: Any,
+    users: dict[str, str],
+    site_url: str,
+    files: PageMedia,
+    dropped: Counter[str],
+) -> dict[str, Any]:
+    """One comment as its envelope entry: the body converted like a page's,
+    an inline comment's anchor quoted above it."""
+    result = storage_to_lexical(
+        comment.body,
+        page=page,
+        user=lambda account: users.get(account),
+        image=files.images.get,
+        attachment=files.images.get,
+        document=lambda name: (
+            file_ref(files.files[name]) if name in files.files else None
+        ),
+        site_url=site_url,
+    )
+    dropped.update(result.dropped)
+    content = result.content
+    if comment.selection:
+        quote = {
+            "type": "quote",
+            "version": 1,
+            "direction": "ltr",
+            "format": "",
+            "indent": 0,
+            "children": [
+                {
+                    "type": "text",
+                    "version": 1,
+                    "text": comment.selection,
+                    "format": 0,
+                    "detail": 0,
+                    "mode": "normal",
+                    "style": "",
+                }
+            ],
+        }
+        root = content["root"]
+        content = {**content, "root": {**root, "children": [quote, *root["children"]]}}
+    entry: dict[str, Any] = {
+        "content": content,
+        "external_ref": comment_ref(comment.id),
+        "reply_to_ref": comment_ref(comment.parent_id) if comment.parent_id else None,
+        "mention_handles": result.mentions,
+    }
+    author = users.get(comment.author_id or "")
+    if author:
+        entry["author_handle"] = author
+        entry["author_name"] = author
+    if comment.created_at:
+        entry["created_at"] = comment.created_at
+    return entry
 
 
 def _child_list(kids: list[SourcePage], slugs: dict[str, str]) -> dict[str, Any]:

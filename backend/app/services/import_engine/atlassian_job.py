@@ -128,6 +128,7 @@ def confluence_summary_of(
         page_attachment_bytes=report.attachment_bytes,
         page_attachments_skipped=report.attachments_skipped,
         page_files_blocked=report.files_blocked,
+        page_comments=report.comments,
         labels=report.labels,
         dropped_macros=[
             AtlassianDroppedItem(name=name, count=count)
@@ -237,6 +238,7 @@ def combined_summary(
             "page_attachment_bytes",
             "page_attachments_skipped",
             "page_files_blocked",
+            "page_comments",
             "labels",
             "dropped_macros",
         ):
@@ -470,6 +472,7 @@ async def fetch(
                 guild_id=guild_id,
                 asset_budget=asset_budget,
                 documents=documents_allowed,
+                include_comments=params.get("include_comments") is not False,
             )
         except ImportEngineError as exc:
             if (

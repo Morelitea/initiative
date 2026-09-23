@@ -887,7 +887,8 @@ class _ScopeBuilder:
         documents are added before wikis and a path cannot be named before it
         exists. A document in more than one wiki keeps the first: one entry
         carries one placement, and a second copy of the file is not what the
-        edge said.
+        edge said. The page it is filed under in that wiki travels with it, by
+        the page's slug.
         """
         if self.mode != "backup":
             return
@@ -934,12 +935,38 @@ class _ScopeBuilder:
                 )
             )
         ).all()
+        # The page each document is filed under, by the slug its page is
+        # written with in the wiki's envelope.
+        from app.models.tenant.wiki import Wiki, WikiPage
+        from app.services.tenant.wikis import document_parent
+
+        wikis = {
+            wiki.id: wiki
+            for wiki in (
+                await self.session.exec(
+                    select(Wiki).where(Wiki.id.in_(list(wiki_paths)))
+                )
+            ).all()
+        }
+        page_slugs = dict(
+            (
+                await self.session.exec(
+                    select(WikiPage.id, WikiPage.slug).where(
+                        WikiPage.wiki_id.in_(list(wiki_paths))
+                    )
+                )
+            ).all()
+        )
         for edge in edges:
             entry = file_entries.get(edge.source_id)
             path = wiki_paths.get(edge.target_id)
             if entry is None or path is None or entry.attach_to is not None:
                 continue
-            entry.attach_to = ManifestAttachTo(kind="wiki", ref=path)
+            wiki = wikis.get(edge.target_id)
+            parent = document_parent(wiki, edge.source_id) if wiki else None
+            entry.attach_to = ManifestAttachTo(
+                kind="wiki", ref=path, page=page_slugs.get(parent) if parent else None
+            )
 
     async def _add_galleries(self, initiative, folder: str) -> None:
         """Every gallery in this initiative: one envelope each, and its

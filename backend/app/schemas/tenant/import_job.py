@@ -234,6 +234,8 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     page_attachments_skipped: int = 0
     #: Files left behind because the initiative cannot take documents.
     page_files_blocked: int = 0
+    #: Comments on the pages — footer and inline — that will come over.
+    page_comments: int = 0
     #: Tags the pages' labels will become.
     labels: int = 0
     #: What the pages held that will not come over, by kind, most first.

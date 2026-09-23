@@ -1372,11 +1372,11 @@ export const useRemoveDocumentFromWikiApiV1GGuildIdWikisWikiIdDocumentsDocumentI
   );
 };
 /**
- * Put a borrowed document somewhere else in this wiki's list.
+ * File a borrowed document under a page of this wiki, or at its top, and
+ * put it in order there.
  *
- * At the top of it, always: which page a document is filed under would be a
- * fact about a document that belongs to other places too, and this wiki does
- * not get to decide that.
+ * Where it sits is recorded on the wiki, not on the document: the same
+ * document can sit somewhere else entirely in another wiki.
  *
  * Write on the wiki is the whole gate, and read on the document is implied by
  * it already being in a wiki this person may write: where it sits is a

@@ -434,9 +434,39 @@ async def apply_backup(
     # And a link written in a task to a page that came over in the same
     # bundle becomes a mention of that page.
     await resolve_page_links(session, context.links, site_url=context.source_url)
+    await _file_documents_under_pages(session, context)
     await session.commit()
 
     return result
+
+
+async def _file_documents_under_pages(
+    session: AsyncSession, context: ImportContext
+) -> None:
+    """File each document an entry placed under a page of its wiki, now that
+    the document, the wiki and the page all exist. One whose page or wiki did
+    not arrive stays at the top of the wiki, where joining it put it."""
+    from app.models.tenant.wiki import Wiki
+    from app.services.import_engine.links import wiki_page_slug_ref
+    from app.services.tenant import wikis as wikis_service
+
+    wikis: dict[int, Wiki] = {}
+    for document_ref, wiki_ref, page_slug in context.placements:
+        document = context.links.lookup(document_ref)
+        wiki_end = context.links.lookup(wiki_ref)
+        if document is None or wiki_end is None:
+            continue
+        page = context.links.lookup(wiki_page_slug_ref(wiki_end.id, page_slug))
+        if page is None:
+            continue
+        wiki = wikis.get(wiki_end.id)
+        if wiki is None:
+            wiki = await session.get(Wiki, wiki_end.id)
+            if wiki is None:
+                continue
+            wikis[wiki_end.id] = wiki
+        wikis_service.file_document(wiki, document.id, parent_page_id=page.id)
+        session.add(wiki)
 
 
 async def _resolve_target_initiative(
@@ -594,6 +624,14 @@ def _record_entry(
     context.links.link(
         _entry_ref(entry.path), relationship, _entry_ref(entry.attach_to.ref)
     )
+    if entry.attach_to.kind == "wiki" and entry.attach_to.page:
+        context.placements.append(
+            (
+                _entry_ref(entry.path),
+                _entry_ref(entry.attach_to.ref),
+                entry.attach_to.page,
+            )
+        )
 
 
 async def _apply_structural_entry(

@@ -212,9 +212,8 @@ class WikiPageSummary(SanitizedBaseModel):
     #: Which of the two things this row is. A document keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
-    #: What this row is filed under. A document borrowed into a wiki is always
-    #: at the top of it: where it is filed would be a fact about a document
-    #: that belongs to other places too.
+    #: What this row is filed under: a page, or ``None`` for the top. A
+    #: document is filed like a page is, but never holds anything itself.
     parent_page_id: Optional[int] = None
     position: int = 0
     #: A document placed in a wiki is never a draft: it is not this wiki's to
@@ -229,6 +228,13 @@ class WikiPageSummary(SanitizedBaseModel):
     #: opening it.
     headings: List[WikiPageHeading] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
+    #: A document row's kind of document and the facts its icon is drawn
+    #: from — a PDF, a spreadsheet and a link to a design tool each look like
+    #: what they are. ``None`` on a page.
+    document_type: Optional[str] = None
+    file_content_type: Optional[str] = None
+    original_filename: Optional[str] = None
+    smart_link_url: Optional[str] = None
 
 
 class WikiPageRead(WikiPageSummary):
@@ -358,7 +364,12 @@ def serialize_wiki_page_summary(
 
 
 def serialize_document_as_page(
-    document: "Any", *, context: GuildContext, wiki_id: int, position: int
+    document: "Any",
+    *,
+    context: GuildContext,
+    wiki_id: int,
+    position: int,
+    parent_page_id: Optional[int] = None,
 ) -> WikiPageSummary:
     """A document, as the wiki's navigation draws it.
 
@@ -373,6 +384,7 @@ def serialize_document_as_page(
         wiki_id=wiki_id,
         guild_id=context.guild_id,
         kind=WikiPageKind.document,
+        parent_page_id=parent_page_id,
         position=position,
         is_draft=False,
         title=document.name,
@@ -381,7 +393,20 @@ def serialize_document_as_page(
         created_at=document.created_at,
         updated_at=document.updated_at,
         headings=[WikiPageHeading(**h) for h in page_headings(document.content)],
+        document_type=getattr(document.document_type, "value", document.document_type),
+        file_content_type=document.file_content_type,
+        original_filename=document.original_filename,
+        smart_link_url=_smart_link_url(document),
     )
+
+
+def _smart_link_url(document: "Any") -> Optional[str]:
+    """The address a link document points at, for its provider's mark."""
+    if getattr(document.document_type, "value", document.document_type) != "smart_link":
+        return None
+    content = document.content if isinstance(document.content, dict) else {}
+    url = content.get("url")
+    return url if isinstance(url, str) and url else None
 
 
 def serialize_wiki_page(page: "Any", *, context: GuildContext) -> WikiPageRead:

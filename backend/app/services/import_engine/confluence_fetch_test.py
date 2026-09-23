@@ -58,6 +58,7 @@ def _site(
     throttled=False,
     attachments=None,
     files=None,
+    comments=None,
 ):
     """A Confluence site. ``batches`` pages the listing: a list of page lists,
     each followed by a ``next`` link but the last."""
@@ -68,6 +69,7 @@ def _site(
     batches = batches if batches is not None else [pages or []]
     attachments = attachments or {}
     files = files or {}
+    comments = comments or {}
 
     async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
         calls.append({"method": method, "url": url, "json": json, "headers": headers})
@@ -99,6 +101,11 @@ def _site(
                     + f"&cursor={index + 1}"
                 }
             return httpx.Response(200, json=body)
+        if "-comments" in url:
+            # ``/pages/{id}/footer-comments`` and ``/footer-comments/{id}/children``
+            # both answer from one map, keyed by what the path names.
+            path = url.split("/wiki/api/v2/")[1].split("?")[0]
+            return httpx.Response(200, json={"results": comments.get(path, [])})
         if "/attachments?" in url:
             page_id = url.split("/pages/")[1].split("/")[0]
             return httpx.Response(200, json={"results": attachments.get(page_id, [])})
@@ -342,7 +349,11 @@ async def test_a_pages_attachments_come_as_uploads_and_documents_in_its_wiki(
     assert (
         file_entry["title"] == "spec.pdf" and file_entry["path"] == file_entry["asset"]
     )
-    assert file_entry["attach_to"] == {"kind": "wiki", "ref": wiki_entry["path"]}
+    assert file_entry["attach_to"] == {
+        "kind": "wiki",
+        "ref": wiki_entry["path"],
+        "page": "home",
+    }
     assert manifest["initiatives"][0]["tools"] == {
         "wiki": "included",
         "document": "included",
@@ -382,6 +393,50 @@ async def test_without_a_budget_no_attachment_is_asked_for(monkeypatch):
     assert not [c for c in calls if "attachment" in c["url"]]
     # The file the page links to is named as staying behind.
     assert report.attachments == 1
+
+
+def _comment(comment_id, body, author="acc-1"):
+    return {
+        "id": str(comment_id),
+        "version": {"authorId": author, "createdAt": "2024-05-01T10:00:00.000Z"},
+        "body": {"storage": {"value": body}},
+    }
+
+
+async def test_a_pages_comments_come_with_it_replies_and_all(monkeypatch):
+    calls = _site(
+        monkeypatch,
+        pages=[_page(1, "Home")],
+        users={"acc-1": "Robin Ade", "acc-2": "Sam Bee"},
+        comments={
+            "pages/1/footer-comments": [_comment(10, "<p>First</p>")],
+            "footer-comments/10/children": [_comment(11, "<p>Reply</p>", "acc-2")],
+            "pages/1/inline-comments": [
+                {
+                    **_comment(20, "<p>Fix this</p>"),
+                    "properties": {"inlineOriginalSelection": "teh"},
+                }
+            ],
+        },
+    )
+    bundle, report = await _bundle(include_comments=True)
+    _manifest, envelopes = _open(bundle)
+    (wiki,) = envelopes.values()
+    first, reply, inline = wiki["pages"][0]["comments"]
+    assert reply["reply_to_ref"] == first["external_ref"]
+    assert reply["author_handle"] == "Sam Bee"
+    assert inline["content"]["root"]["children"][0]["type"] == "quote"
+    assert report.comments == 3
+    # Both kinds are asked for, with their bodies.
+    asked = [c["url"] for c in calls if "-comments" in c["url"]]
+    assert any("/pages/1/footer-comments?body-format=storage" in u for u in asked)
+    assert any("/pages/1/inline-comments?body-format=storage" in u for u in asked)
+
+
+async def test_comments_are_not_asked_for_unless_wanted(monkeypatch):
+    calls = _site(monkeypatch, pages=[_page(1, "Home")])
+    await _bundle()
+    assert not [c for c in calls if "-comments" in c["url"]]
 
 
 def test_a_next_link_that_is_not_the_listing_is_not_followed():

@@ -8858,6 +8858,10 @@ export interface WikiPageRead {
   updated_at: string;
   headings: WikiPageHeading[];
   tags: TagSummary[];
+  document_type: string | null;
+  file_content_type: string | null;
+  original_filename: string | null;
+  smart_link_url: string | null;
   content: WikiPageReadContent;
   comment_count: number;
 }
@@ -8884,6 +8888,10 @@ export interface WikiPageSummary {
   updated_at: string;
   headings: WikiPageHeading[];
   tags: TagSummary[];
+  document_type: string | null;
+  file_content_type: string | null;
+  original_filename: string | null;
+  smart_link_url: string | null;
 }
 
 /**
