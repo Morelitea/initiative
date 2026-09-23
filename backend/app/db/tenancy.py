@@ -208,10 +208,12 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # at the endpoint (guild admin); what a member may do *inside* an app is
         # decided by that instance's own grants, not by this row.
         "guild_apps",
-        "guild_ai_connections",  # guild admin's AI connections (guild config mode);
-        # guild-wide config, no initiative scope. The api_key ciphertext is never
-        # returned by the API (reads expose only has_key).
-        "webhook_deliveries",  # per-subscription delivery ledger, no initiative of its own
+        "guild_ai_connections",  # the seat's AI connections (guild config mode);
+        # guild-wide config, no initiative scope, written by the seat (SEAT_TABLES
+        # below). The api_key ciphertext is never returned by the API (reads
+        # expose only has_key).
+        "webhook_deliveries",  # per-subscription delivery ledger, no initiative of
+        # its own; read through its subscription (LEDGER_TABLES below).
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         "uploads",  # guild blob store: no FK to any initiative entity (documents
         # reference blobs by file_url string, and a blob can be pinned by
@@ -293,6 +295,27 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_prefs": "user_id",
     "guild_app_user_connections": "user_id",
     "guild_app_user_delegations": "user_id",
+}
+
+# --- Seat overlay on guild-level tables ---------------------------------------
+# Guild-level configuration the community's seat holds. Read within the schema:
+# a member's AI request reads the connection it runs on. Written by the seat —
+# the membership row's superadmin, or a superadmin settings grant beside a
+# read_write content grant — or the system engine; the same answer the routes
+# in front of it ask for. Rendered as ``seat_*`` policies by
+# ``app.db.guild_ddl.render_guild_rls_ddl``. Every entry here MUST also be in
+# ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
+SEAT_TABLES: frozenset[str] = frozenset({"guild_ai_connections"})
+
+# --- Ledger overlay on guild-level tables -------------------------------------
+# Guild-level bookkeeping a system job keeps about a parent row: table ->
+# (parent table, FK column). Read through the parent, so a row is visible to
+# whoever the parent's own policy shows the parent to; written by the system
+# engine alone. Rendered as ``ledger_*`` policies by
+# ``app.db.guild_ddl.render_guild_rls_ddl``. Every entry here MUST also be in
+# ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
+LEDGER_TABLES: dict[str, tuple[str, str]] = {
+    "webhook_deliveries": ("webhook_subscriptions", "subscription_id"),
 }
 
 # --- Row-attribution overlay on guild-schema tables ---------------------------
