@@ -42,7 +42,7 @@ class WebhookSubscription(CreatedByMixin, table=True):
     created_by: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("users.id", ondelete="CASCADE"),
+            ForeignKey("users.id"),
             nullable=False,
         )
     )

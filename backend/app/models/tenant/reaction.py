@@ -61,9 +61,7 @@ class Reaction(CreatedByMixin, table=True):
     #: Who reacted. Part of the unique key, so it is set explicitly by the
     #: service rather than left to the ``created_by`` fill trigger.
     created_by: int = Field(
-        sa_column=Column(
-            Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
+        sa_column=Column(Integer, ForeignKey("users.id"), nullable=False),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

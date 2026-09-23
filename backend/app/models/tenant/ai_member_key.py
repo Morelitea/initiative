@@ -36,7 +36,7 @@ class GuildAIMemberKey(SQLModel, table=True):
     user_id: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("users.id", ondelete="CASCADE"),
+            ForeignKey("users.id"),
             nullable=False,
             index=True,
         )

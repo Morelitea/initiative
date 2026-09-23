@@ -49,9 +49,7 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     content: str = Field(sa_column=Column(Text, nullable=False))
     created_by: int = Field(
-        sa_column=Column(
-            Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
+        sa_column=Column(Integer, ForeignKey("users.id"), nullable=False),
     )
     task_id: Optional[int] = Field(
         default=None,

@@ -142,7 +142,7 @@ class ResourceGrant(CreatedByMixin, table=True):
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("users.id", ondelete="CASCADE"),
+            ForeignKey("users.id"),
             nullable=True,
         ),  # indexed by composite partial ix_resource_grants_user
     )
