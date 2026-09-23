@@ -216,6 +216,17 @@
     "description": "Vous n'êtes pas membre de cette communauté. Demandez à un administrateur un lien d'invitation pour rejoindre.",
     "backToHome": "← Retour à l'accueil"
   },
+  "statusNotice": {
+    "title": "Un problème est survenu",
+    "description": "Contactez l'opérateur de votre plateforme.",
+    "readOnly": "En attendant, les membres peuvent tout lire ici, mais ne peuvent rien modifier.",
+    "suspended": "En attendant, les membres ne peuvent pas ouvrir cette communauté.",
+    "paymentTitle": "Le paiement pour {{name}} a été refusé",
+    "paymentDescription": "Mettez à jour votre carte pour rétablir la communauté.",
+    "updatePayment": "Mettre à jour le moyen de paiement",
+    "notNow": "Pas maintenant",
+    "contactSupport": "Contacter le support"
+  },
   "noGuild": {
     "title": "Aucune appartenance à une communauté",
     "description": "Vous n'êtes encore membre d'aucune communauté. Demandez à un administrateur un lien d'invitation, ou créez un nouvelle communauté pour commencer.",

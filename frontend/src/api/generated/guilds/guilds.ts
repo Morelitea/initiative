@@ -41,6 +41,7 @@ import type {
   GuildNotificationPolicyRead,
   GuildNotificationPolicyUpdate,
   GuildOrderUpdate,
+  GuildPaymentIssueRead,
   GuildRead,
   GuildSecondFactorRead,
   GuildSecondFactorUpdate,
@@ -1911,6 +1912,171 @@ export const useCreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = 
     queryClient
   );
 };
+/**
+ * @summary Read Guild Payment Issue
+ */
+export const readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildPaymentIssueRead>(
+    { url: `/api/v1/guilds/${guildId}/billing/payment-issue`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/guilds/${guildId}/billing/payment-issue`] as const;
+};
+
+export const getReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>
+  > = ({ signal }) =>
+    readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>
+>;
+export type ReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet<
+  TData = Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+          TError,
+          Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet<
+  TData = Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+          TError,
+          Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet<
+  TData = Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Guild Payment Issue
+ */
+
+export function useReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet<
+  TData = Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Read the controls held by this community's superadmin seat.
  * @summary Get Guild Auth Settings

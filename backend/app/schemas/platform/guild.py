@@ -170,6 +170,10 @@ class GuildRead(GuildBase):
     icon_url: Optional[str] = None
 
 
+class GuildPaymentIssueRead(SanitizedBaseModel):
+    payment_failed: bool = False
+
+
 class GuildInviteCreate(SanitizedBaseModel):
     expires_at: Optional[datetime] = None
     max_uses: Optional[int] = Field(default=1, ge=1)

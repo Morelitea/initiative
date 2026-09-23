@@ -216,6 +216,17 @@
     "description": "No eres miembro de esta comunidad. Pide a un administrador de la comunidad un enlace de invitación para unirte.",
     "backToHome": "← Volver al inicio"
   },
+  "statusNotice": {
+    "title": "Algo va mal",
+    "description": "Ponte en contacto con el operador de tu plataforma.",
+    "readOnly": "Hasta que se resuelva, los miembros pueden leer todo aquí, pero no pueden cambiar nada.",
+    "suspended": "Hasta que se resuelva, los miembros no pueden abrir esta comunidad.",
+    "paymentTitle": "Se rechazó el pago de {{name}}",
+    "paymentDescription": "Actualiza tu tarjeta para restablecer la comunidad.",
+    "updatePayment": "Actualizar método de pago",
+    "notNow": "Ahora no",
+    "contactSupport": "Contactar con soporte"
+  },
   "noGuild": {
     "title": "Sin membresía de comunidad",
     "description": "Aún no eres miembro de ninguna comunidad. Pide a un administrador de comunidad un enlace de invitación o crea un nueva comunidad para comenzar.",
