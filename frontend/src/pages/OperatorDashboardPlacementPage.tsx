@@ -21,7 +21,9 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  useAgreePlacementRequest,
   useDeletePlacementRule,
+  usePlacementRequests,
   useProviderPlacement,
   useSetPlacementEverywhere,
 } from "@/hooks/useProviderPlacement";
@@ -134,6 +136,8 @@ export const OperatorDashboardPlacementPage = () => {
           />
         </CardContent>
       </Card>
+
+      <PlacementRequestsCard />
 
       {providers.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t("providerPlacement.noProviders")}</p>
@@ -274,6 +278,72 @@ const ProviderRulesCard = ({
             ))}
           </ul>
         )}
+      </CardContent>
+    </Card>
+  );
+};
+
+/**
+ * Communities waiting for somebody to agree that the domain or tenant they
+ * named on a connection is theirs. Shown only while there are any.
+ */
+const PlacementRequestsCard = () => {
+  const { t } = useTranslation("settings");
+  const requests = usePlacementRequests();
+  const agree = useAgreePlacementRequest();
+  const rows = requests.data ?? [];
+  if (rows.length === 0) return null;
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>{t("providerPlacement.requests.title")}</CardTitle>
+        <CardDescription>{t("providerPlacement.requests.help")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-3">
+          {rows.map((row) => (
+            <li
+              key={row.connection_id}
+              className="flex items-start justify-between gap-3 rounded-md border px-3 py-3"
+            >
+              <div className="min-w-0 space-y-1">
+                <p className="font-medium text-sm">{row.guild_name}</p>
+                <p className="text-sm">
+                  {t("guilds.sheet.narrowings.claims", {
+                    provider: row.provider_display_name,
+                    claim: row.claim,
+                    values: row.claim_values.join(", "),
+                  })}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {row.auto_join
+                    ? t("guilds.sheet.narrowings.joinsOnArrival")
+                    : t("guilds.sheet.narrowings.admitsOnly")}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                disabled={agree.isPending}
+                onClick={() =>
+                  agree.mutate(
+                    { guildId: row.guild_id, connectionId: row.connection_id },
+                    {
+                      onSuccess: () =>
+                        toast.success(
+                          t("providerPlacement.requests.agreed", { community: row.guild_name })
+                        ),
+                      onError: (err: unknown) =>
+                        toast.error(getErrorMessage(err, "settings:guilds.sheet.narrowings.error")),
+                    }
+                  )
+                }
+              >
+                {t("guilds.sheet.narrowings.agree")}
+              </Button>
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );

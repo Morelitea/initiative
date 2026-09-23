@@ -1016,7 +1016,12 @@
     "removeTitle": "Diese Regel löschen?",
     "removeDescription": "Leute, auf die sie zutrifft, werden durch sie nicht mehr {{community}} zugeordnet, und was sie ihnen gegeben hat, wird bei ihrer nächsten Anmeldung über diesen Anbieter aufgehoben.",
     "removed": "Regel gelöscht",
-    "removeError": "Regel konnte nicht gelöscht werden"
+    "removeError": "Regel konnte nicht gelöscht werden",
+    "requests": {
+      "title": "Wartet auf eine Antwort",
+      "help": "Diese Communitys haben bei einer Verbindung eine Domain oder einen Tenant als ihren eigenen angegeben. Stimmst du zu, treten die passenden Personen bei der Ankunft bei, sofern die Community das wünscht.",
+      "agreed": "Für {{community}} zugestimmt"
+    }
   },
   "guilds": {
     "title": "Community-Limits",

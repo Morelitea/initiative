@@ -26,7 +26,7 @@ That second half is the point. A provider like Google vouches for anybody with a
 
 It is both halves or neither, and any one value is enough to count. You never handle an issuer, a client id or a secret: a community connects to a provider, it does not configure one.
 
-**Joining on arrival** is a switch on the connection. Leave it off and you invite people yourself. Turn it on and anybody who counts as yours becomes a member when they sign in. Those are ordinary memberships — turning the switch back off, or disconnecting, removes nobody.
+**Joining on arrival** is a switch on the connection. Leave it off and you invite people yourself. Turn it on and anybody who counts as yours becomes a member when they sign in, once the server's operators have agreed that the domain or tenant you named is yours. Those are ordinary memberships — turning the switch back off, or disconnecting, removes nobody.
 
 **The member sign-in link** offers your community's providers and lands people inside it rather than at the front door. It is a link, not an invite — it grants nothing on its own and never expires.
 

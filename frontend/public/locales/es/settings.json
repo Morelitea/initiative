@@ -1016,7 +1016,12 @@
     "removeTitle": "¿Eliminar esta regla?",
     "removeDescription": "Las personas a las que se aplica dejan de ser asignadas a {{community}} por ella, y lo que les dio se retira la próxima vez que inicien sesión por este proveedor.",
     "removed": "Regla eliminada",
-    "removeError": "No se pudo eliminar esa regla"
+    "removeError": "No se pudo eliminar esa regla",
+    "requests": {
+      "title": "Esperando respuesta",
+      "help": "Estas comunidades indicaron un dominio o inquilino como propio en una conexión. Si aceptas, las personas que coincidan se unirán al llegar, si la comunidad lo pidió.",
+      "agreed": "Aceptado para {{community}}"
+    }
   },
   "guilds": {
     "title": "Límites por comunidad",

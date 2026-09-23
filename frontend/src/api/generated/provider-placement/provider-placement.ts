@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  GuildNarrowingPending,
   HTTPValidationError,
   ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams,
   PlacementCommunityRead,
@@ -190,6 +191,155 @@ export function useListProviderPlacementApiV1SettingsPlacementGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListProviderPlacementApiV1SettingsPlacementGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Communities waiting for somebody to agree that the domain or tenant
+ * they named is theirs. Answered on the community's own narrowing route.
+ * @summary List Placement Requests
+ */
+export const listPlacementRequestsApiV1SettingsPlacementRequestsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildNarrowingPending[]>(
+    { url: `/api/v1/settings/placement/requests`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey = () => {
+  return [`/api/v1/settings/placement/requests`] as const;
+};
+
+export const getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>
+  > = ({ signal }) =>
+    listPlacementRequestsApiV1SettingsPlacementRequestsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>
+>;
+export type ListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
+  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
+  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
+  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Placement Requests
+ */
+
+export function useListPlacementRequestsApiV1SettingsPlacementRequestsGet<
+  TData = Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlacementRequestsApiV1SettingsPlacementRequestsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

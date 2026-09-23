@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import AuthProviderMessages
 from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.guild import Guild
+from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.schemas.platform.settings import GuildNarrowingPending
 from app.services.auth import narrowing_approval
@@ -55,6 +55,29 @@ async def pending_for_guild(
         if provider is not None:
             out.append(_pending(row, guild, provider))
     return out
+
+
+async def unanswered(session: AsyncSession) -> list[GuildNarrowingPending]:
+    """Every community's claim still waiting for an answer, oldest first.
+
+    One list across the deployment, so whoever answers them does not have to
+    visit each community to find out which ones are asking.
+    """
+    rows = (
+        await session.exec(
+            select(GuildProviderConnection, Guild, AuthProvider)
+            .join(Guild, Guild.id == GuildProviderConnection.guild_id)
+            .join(AuthProvider, AuthProvider.id == GuildProviderConnection.provider_id)
+            .where(
+                GuildProviderConnection.enabled.is_(True),
+                GuildProviderConnection.claim.is_not(None),
+                GuildProviderConnection.narrowing_approved_at.is_(None),
+                Guild.status != GuildStatus.deleted,
+            )
+            .order_by(GuildProviderConnection.created_at, GuildProviderConnection.id)
+        )
+    ).all()
+    return [_pending(row, guild, provider) for row, guild, provider in rows]
 
 
 async def agree(

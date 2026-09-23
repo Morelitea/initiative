@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
 from app.db.session import get_admin_session
 from app.schemas.platform.settings import (
+    GuildNarrowingPending,
     PlacementCommunityRead,
     PlacementEverywhereUpdate,
     PlacementInitiativeRead,
@@ -22,6 +23,7 @@ from app.schemas.platform.settings import (
     ProviderPlacementRuleRead,
     ProviderPlacementRuleUpdate,
 )
+from app.services.auth import narrowing_review
 from app.services.platform import provider_placement
 
 router = APIRouter()
@@ -36,6 +38,16 @@ async def list_provider_placement(
 ) -> ProviderPlacementResponse:
     """Every provider, its rules, and whether rules apply everywhere."""
     return await provider_placement.list_rules(session)
+
+
+@router.get("/requests", response_model=List[GuildNarrowingPending])
+async def list_placement_requests(
+    session: AdminSessionDep,
+    _operator: GuildsManageDep,
+) -> List[GuildNarrowingPending]:
+    """Communities waiting for somebody to agree that the domain or tenant
+    they named is theirs. Answered on the community's own narrowing route."""
+    return await narrowing_review.unanswered(session)
 
 
 @router.put("/everywhere", response_model=PlacementEverywhereUpdate)

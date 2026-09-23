@@ -95,6 +95,8 @@ On their side it's one tab, **Settings → Security**, and with nothing connecte
 
 Withdrawing a switch closes the part of their **Security** tab it governs and nothing else. Their connections stay, their members keep signing in, and a requirement they already set stays in force — you're taking away the ability to change the setup, not the setup. Their admins can always lift a requirement, whatever you've granted, so a community is never stuck behind a sign-in nobody can undo.
 
+**Agreeing a community's claim.** A community names its own domain or tenant, and Initiative can't tell whether `acme.com` really is theirs. So before people join it on arrival, somebody outside it agrees. Those claims wait at the top of **Operator dashboard → Sign-in placement**, every community's in one list, with **Agree** beside each. Until then the connection works for the people already in the community; it just doesn't add anybody.
+
 Everybody still has exactly one account however they signed in.
 
 ## Provider quickstarts

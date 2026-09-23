@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
+  GuildNarrowingPending,
   PlacementCommunityRead,
   PlacementInitiativeRead,
   ProviderPlacementResponse,
@@ -11,14 +12,20 @@ import {
   createProviderPlacementRuleApiV1SettingsPlacementRulesPost,
   deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete,
   getListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetQueryKey,
+  getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey,
   getListPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGetQueryKey,
   getListProviderPlacementApiV1SettingsPlacementGetQueryKey,
   listPlacementCommunitiesApiV1SettingsPlacementCommunitiesGet,
+  listPlacementRequestsApiV1SettingsPlacementRequestsGet,
   listPlacementTargetsApiV1SettingsPlacementProvidersProviderIdCommunitiesGuildIdInitiativesGet,
   listProviderPlacementApiV1SettingsPlacementGet,
   setProviderPlacementEverywhereApiV1SettingsPlacementEverywherePut,
   updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch,
 } from "@/api/generated/provider-placement/provider-placement";
+import {
+  agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut,
+  getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey,
+} from "@/api/generated/settings/settings";
 import type { QueryOpts } from "@/types/query";
 
 /** Every provider, the placement rules written on it, and whether they apply
@@ -114,5 +121,35 @@ export const useDeletePlacementRule = () => {
     mutationFn: (ruleId: number) =>
       deleteProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdDelete(ruleId),
     onSuccess: invalidate,
+  });
+};
+
+/** Every community whose claim to a domain or tenant is waiting for an answer. */
+export const usePlacementRequests = (options?: QueryOpts<GuildNarrowingPending[]>) => {
+  return useQuery<GuildNarrowingPending[]>({
+    queryKey: getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey(),
+    queryFn: () => listPlacementRequestsApiV1SettingsPlacementRequestsGet(),
+    ...options,
+  });
+};
+
+/** Agree that a community's claim is its own, from the list of those waiting. */
+export const useAgreePlacementRequest = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guildId, connectionId }: { guildId: number; connectionId: number }) =>
+      agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut(
+        guildId,
+        connectionId,
+        { agreed: true }
+      ),
+    onSuccess: (_data, { guildId }) => {
+      void queryClient.invalidateQueries({
+        queryKey: getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey(guildId),
+      });
+    },
   });
 };

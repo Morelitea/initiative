@@ -1128,7 +1128,12 @@
     "removeTitle": "Delete this rule?",
     "removeDescription": "People it matches stop being placed in {{community}} by it, and what it gave them is released the next time they sign in through this provider.",
     "removed": "Rule deleted",
-    "removeError": "Could not delete that rule"
+    "removeError": "Could not delete that rule",
+    "requests": {
+      "title": "Waiting for an answer",
+      "help": "These communities named a domain or tenant as their own on a connection. Agreeing lets the people it matches join them on arrival, where they asked for that.",
+      "agreed": "Agreed for {{community}}"
+    }
   },
   "storage": {
     "adminOnly": "Only platform owners can configure storage.",

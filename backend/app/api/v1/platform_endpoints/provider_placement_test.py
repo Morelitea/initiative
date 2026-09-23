@@ -276,3 +276,36 @@ async def test_each_surface_edits_only_its_own_rules(
             select(OIDCClaimMapping).where(OIDCClaimMapping.id == rule_id)
         )
     ).one_or_none() is not None
+
+
+async def test_the_page_lists_every_community_waiting_for_an_answer(
+    client: AsyncClient, session: AsyncSession
+):
+    owner = await create_user(session)
+    asking = await create_guild(session, creator=owner, name="Asking")
+    answered = await create_guild(session, creator=owner, name="Answered")
+    provider = await create_auth_provider(session, slug="google")
+    waiting = await create_guild_provider_connection(
+        session,
+        guild=asking,
+        provider=provider,
+        auto_join=True,
+        narrowing_approved_at=None,
+    )
+    await create_guild_provider_connection(session, guild=answered, provider=provider)
+    headers = await _headers(session, UserRole.operator)
+
+    listed = await client.get(f"{BASE}/requests", headers=headers)
+
+    assert listed.status_code == 200, listed.text
+    assert [(row["guild_name"], row["connection_id"]) for row in listed.json()] == [
+        ("Asking", waiting.id)
+    ]
+
+    agreed = await client.put(
+        f"/api/v1/settings/guilds/{asking.id}/narrowings/{waiting.id}",
+        headers=headers,
+        json={"agreed": True},
+    )
+    assert agreed.status_code == 200, agreed.text
+    assert (await client.get(f"{BASE}/requests", headers=headers)).json() == []

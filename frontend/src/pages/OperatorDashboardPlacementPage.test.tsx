@@ -23,6 +23,7 @@ vi.mock("@/lib/chesterToast", () => ({
 import { OperatorDashboardPlacementPage } from "./OperatorDashboardPlacementPage";
 
 const PLACEMENT_URL = "/api/v1/settings/placement/";
+const REQUESTS_URL = "/api/v1/settings/placement/requests";
 
 const rule = (overrides: Partial<ProviderPlacementRuleRead> = {}): ProviderPlacementRuleRead => ({
   id: 1,
@@ -46,7 +47,10 @@ const rule = (overrides: Partial<ProviderPlacementRuleRead> = {}): ProviderPlace
 let placement: ProviderPlacementResponse;
 
 const servePlacement = () => {
-  server.use(http.get(PLACEMENT_URL, () => HttpResponse.json(placement)));
+  server.use(
+    http.get(PLACEMENT_URL, () => HttpResponse.json(placement)),
+    http.get(REQUESTS_URL, () => HttpResponse.json([]))
+  );
 };
 
 const renderPage = (role: "owner" | "operator" = "owner") =>
@@ -175,5 +179,39 @@ describe("OperatorDashboardPlacementPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete rule" }));
     await waitFor(() => expect(deleted).toBe("3"));
+  });
+
+  it("lists the communities waiting for an answer, and agrees to one", async () => {
+    const user = userEvent.setup();
+    let waiting = [
+      {
+        connection_id: 41,
+        guild_id: 7,
+        guild_name: "Engineering",
+        provider_display_name: "Google",
+        claim: "hd",
+        claim_values: ["acme.com"],
+        auto_join: true,
+        agreed: false,
+      },
+    ];
+    let sent: unknown = null;
+    server.use(
+      http.get(REQUESTS_URL, () => HttpResponse.json(waiting)),
+      http.put("/api/v1/settings/guilds/7/narrowings/41", async ({ request }) => {
+        sent = await request.json();
+        waiting = [];
+        return HttpResponse.json({ ...sent, connection_id: 41 });
+      })
+    );
+    renderPage("operator");
+
+    expect(await screen.findByText("Waiting for an answer")).toBeInTheDocument();
+    expect(screen.getByText("Google: hd is acme.com")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Agree" }));
+
+    await waitFor(() => expect(sent).toEqual({ agreed: true }));
+    await waitFor(() => expect(screen.queryByText("Waiting for an answer")).toBeNull());
   });
 });

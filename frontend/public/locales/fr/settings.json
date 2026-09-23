@@ -1016,7 +1016,12 @@
     "removeTitle": "Supprimer cette règle ?",
     "removeDescription": "Les personnes qu'elle vise ne sont plus affectées à {{community}} par elle, et ce qu'elle leur a donné est retiré à leur prochaine connexion par ce fournisseur.",
     "removed": "Règle supprimée",
-    "removeError": "Impossible de supprimer cette règle"
+    "removeError": "Impossible de supprimer cette règle",
+    "requests": {
+      "title": "En attente de réponse",
+      "help": "Ces communautés ont indiqué un domaine ou un locataire comme le leur sur une connexion. Si vous acceptez, les personnes correspondantes les rejoignent à leur arrivée, si la communauté l'a demandé.",
+      "agreed": "Accepté pour {{community}}"
+    }
   },
   "guilds": {
     "title": "Limites par communauté",
