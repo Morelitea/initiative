@@ -124,6 +124,12 @@ Neither status keeps *you* out. A [grant or break-glass](#cross-community-access
 
 Deleted communities are in that list too, marked with the date everything in them is destroyed. **Restore** brings one back as it was — and where nobody is left who could run it, asks you who takes it over. See [How long deleted things are kept](configuration.md#how-long-deleted-things-are-kept).
 
+## Where operations work lands
+
+Security notes, moderation reports, support requests and feedback each open a case in one community: the **operations community**. It's an ordinary community in every respect — pick it under **Settings → Platform → Intake**, and choosing none routes nothing.
+
+Which project each kind lands in is that community's decision, not the platform's. Its superadmin sets it under **Community settings → Intake**, a tab that only appears there, and can have a ready-made project set up for each kind or point it at one they already have. The platform page shows which kinds are receiving and links straight across.
+
 ## Who to contact
 
 Whenever Initiative tells somebody to get in touch, it names an address. You pick those under **Settings → Platform → Intake**, in **Who to contact**: one general address, then one for each kind of work.

@@ -1,7 +1,9 @@
 import { cleanup, screen } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild, buildUser } from "@/__tests__/factories";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { GuildAuthOption, GuildRole } from "@/api/generated/initiativeAPI.schemas";
 import type { GuildEntry } from "@/hooks/useGuilds";
@@ -203,5 +205,49 @@ describe("GuildSettingsLayout", () => {
 
     expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /security/i })).not.toBeInTheDocument();
+  });
+
+  describe("the Intake tab", () => {
+    // Whether this community receives the deployment's operations work is the
+    // server's answer: its intake read succeeds there and is 404 everywhere
+    // else.
+    const intakeAnswers = (status: 200 | 404) => {
+      const seen = vi.fn();
+      server.use(
+        http.get("/api/v1/g/4/intake", () => {
+          seen();
+          return status === 200
+            ? HttpResponse.json({ bindings: [] })
+            : HttpResponse.json({ detail: "INTAKE_NOT_OPERATIONS_GUILD" }, { status: 404 });
+        })
+      );
+      return seen;
+    };
+
+    it("is offered to the seat of the operations community", async () => {
+      intakeAnswers(200);
+      render();
+
+      expect(await screen.findByRole("tab", { name: /intake/i })).toBeInTheDocument();
+    });
+
+    it("is not offered to the seat of any other community", async () => {
+      const seen = intakeAnswers(404);
+      render();
+
+      expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
+      await vi.waitFor(() => expect(seen).toHaveBeenCalled());
+      expect(screen.queryByRole("tab", { name: /intake/i })).not.toBeInTheDocument();
+    });
+
+    it("is not offered, or asked about, for an admin who is not the seat", async () => {
+      const seen = intakeAnswers(200);
+      guildRole = "admin";
+      render();
+
+      expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: /intake/i })).not.toBeInTheDocument();
+      expect(seen).not.toHaveBeenCalled();
+    });
   });
 });

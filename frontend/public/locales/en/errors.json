@@ -605,10 +605,11 @@
   "ADDRESS_TAKEN": "Somebody confirmed that address while your request was waiting.",
   "TOO_MANY_ADDRESSES": "Your account is holding as many addresses as it can.",
   "INTAKE_GUILD_NOT_ACTIVE": "That community is not active, so work cannot be routed to it",
-  "INTAKE_NO_OPERATIONS_GUILD": "Choose the community that receives operations work first",
   "INTAKE_STATUS_NOT_IN_PROJECT": "That status belongs to a different project",
   "INTAKE_PROJECT_NOT_LIVE": "That project is archived or in the trash, so nothing can land in it",
   "INTAKE_UNKNOWN_STREAM": "Unknown intake stream",
+  "INTAKE_NOT_OPERATIONS_GUILD": "This community doesn't receive this deployment's operations work, so it has no intake to set up.",
+  "INTAKE_WRITE_REQUIRED": "Only the community's own superadmin can change its intake, and not while the community is read-only.",
   "MODERATION_REPORT_NOT_FOUND": "Report not found",
   "MODERATION_REPORT_ALREADY_SETTLED": "That report has already been settled",
   "MODERATION_UNKNOWN_TARGET_TYPE": "That is not something that can be reported",
@@ -724,5 +725,5 @@
   "GUILD_STATUS_SET_BY_BILLING": "Billing sets this community's status. You can suspend it, or lift a suspension back to the status billing last set.",
   "ADMIN_USER_NOT_DELETED": "That account has not been deleted, so there is nothing to restore.",
   "CONNECTION_NEEDS_NARROWING": "Say which accounts on this provider are yours before turning the connection on.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Set up support intake before offering help requests — bind the support stream to a project under Settings › Admin › Intake."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Set up support intake before offering help requests — the operations community's superadmin binds the support stream to a project under Community settings › Intake."
 }

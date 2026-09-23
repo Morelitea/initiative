@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
+import { useGuildIntake } from "@/hooks/useGuildIntake";
 import { useGuilds } from "@/hooks/useGuilds";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
 import {
@@ -45,6 +46,13 @@ export const GuildSettingsLayout = () => {
   const params = useParams({ strict: false }) as { guildId?: string };
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
+  // Where the deployment's operations work lands is set in the community that
+  // receives it, by its seat. The server answers whether this is that
+  // community: its intake read is 404 everywhere else.
+  const intake = useGuildIntake(urlGuildId ?? 0, {
+    enabled: isSuperadmin && Boolean(urlGuildId),
+  });
+  const receivesOperations = isSuperadmin && intake.isSuccess && !intake.isPlaceholderData;
 
   // Define tabs with guild-scoped paths
   const guildSettingsTabs = useMemo(() => {
@@ -95,6 +103,15 @@ export const GuildSettingsLayout = () => {
             },
           ]
         : []),
+      ...(receivesOperations
+        ? [
+            {
+              value: "intake",
+              label: t("guildLayout.tabs.intake"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/intake") : "/settings/intake",
+            },
+          ]
+        : []),
       ...(reachesContent
         ? [
             {
@@ -130,7 +147,7 @@ export const GuildSettingsLayout = () => {
       });
     }
     return tabs;
-  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin, reachesContent]);
+  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin, reachesContent, receivesOperations]);
 
   const canViewSettings = administers;
 

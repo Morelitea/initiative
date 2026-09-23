@@ -5212,12 +5212,19 @@ export interface IntakeBindingRead {
 }
 
 /**
- * Route one stream into a project of the operations guild.
+ * Route one stream into a project of this community.
  */
 export interface IntakeBindingUpsert {
   project_id: number;
   default_status_id?: number | null;
   enabled?: boolean;
+}
+
+/**
+ * Every stream, whether bound or not.
+ */
+export interface IntakeBindingsRead {
+  bindings: IntakeBindingRead[];
 }
 
 /**
@@ -5252,7 +5259,7 @@ export interface IntakeProjectOption {
 }
 
 /**
- * One initiative of the operations guild, and the projects in it.
+ * One initiative of this community, and the projects in it.
  */
 export interface IntakeInitiativeOption {
   id: number;
@@ -5261,22 +5268,20 @@ export interface IntakeInitiativeOption {
 }
 
 /**
- * What the settings page offers to bind to.
- *
- * The operations guild alone, names and ids only — enough to fill the
- * pickers. Empty until a guild has been named.
+ * What the settings page offers to bind to: names and ids, enough to fill
+ * the pickers.
  */
 export interface IntakeOptionsRead {
   initiatives: IntakeInitiativeOption[];
 }
 
 /**
- * The pointer, every stream whether bound or not, and who to contact.
+ * The pointer, which streams currently receive, and who to contact.
  */
 export interface IntakeSettingsRead {
   operations_guild_id?: number | null;
   operations_guild_name?: string | null;
-  bindings: IntakeBindingRead[];
+  receiving: IntakeStream[];
   general_contact_email?: string | null;
   contact_emails?: Partial<Record<IntakeStream, string>>;
 }

@@ -36,7 +36,8 @@
       "data": "Data",
       "dangerZone": "Danger zone",
       "security": "Security",
-      "integrations": "Integrations"
+      "integrations": "Integrations",
+      "intake": "Intake"
     }
   },
   "profile": {
@@ -1007,7 +1008,7 @@
       "bannerHelp": "Let them upload a banner image. Without it they pick a banner colour instead, and any banner already uploaded keeps showing.",
       "supportLabel": "Help requests",
       "supportHelp": "Let their members send a help request. Off, the Ask for help control opens the FAQ instead.",
-      "supportNeedsIntake": "Nowhere to send a help request yet. Bind the support stream to a project under Admin › Intake, and this can be switched on.",
+      "supportNeedsIntake": "Nowhere to send a help request yet. The operations community's superadmin binds the support stream to a project under Community settings › Intake, and then this can be switched on.",
       "authOption": {
         "restrictions": {
           "label": "Its own security standard",

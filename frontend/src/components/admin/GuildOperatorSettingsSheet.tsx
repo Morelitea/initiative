@@ -150,9 +150,7 @@ export const GuildOperatorSettingsSheet = ({
   // switch is only meaningful once something is bound to receive them. Read
   // here rather than inferred from the community: the binding is the
   // deployment's, one for all of them.
-  const supportBound = (intake.data?.bindings ?? []).some(
-    (binding) => binding.stream === "support" && binding.enabled && binding.project_id !== null
-  );
+  const supportBound = (intake.data?.receiving ?? []).includes("support");
 
   const options = guild.auth_options ?? [];
   const toggleOption = (option: GuildAuthOption, checked: boolean) =>

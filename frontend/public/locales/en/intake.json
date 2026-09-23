@@ -17,14 +17,21 @@
     "label": "Community",
     "placeholder": "Choose a community",
     "none": "None — route nothing",
-    "helpText": "An ordinary community in every respect. Which project each stream lands in is set below, inside it.",
+    "helpText": "An ordinary community in every respect. Its superadmin chooses which project each stream lands in, from the community's own settings.",
+    "setUpInCommunity": "{{name}}'s superadmin sets which project each stream lands in, under Community settings › Intake.",
+    "openCommunitySettings": "Open {{name}}'s intake settings",
     "saveError": "Could not save the operations community.",
     "clearTitle": "Stop routing operations work?",
     "clearBody": "Every stream stops receiving. The projects and everything in them stay exactly as they are, and choosing this community again restores what was set up.",
     "clearConfirm": "Stop routing"
   },
+  "community": {
+    "title": "Where operations work lands",
+    "description": "This community receives this deployment's security, moderation, support and feedback work. Choose the project each kind lands in.",
+    "seatOnly": "Only this community's superadmin can set up where operations work lands.",
+    "notOperations": "This community doesn't receive this deployment's operations work, so it has no intake to set up."
+  },
   "streams": {
-    "chooseGuildFirst": "Choose a community above, then say where each stream lands.",
     "security": {
       "title": "Security",
       "description": "Cases raised by rules watching this deployment."
@@ -45,6 +52,7 @@
   "stream": {
     "notSetUp": "Not set up",
     "receiving": "Receiving",
+    "notReceiving": "Not receiving",
     "paused": "Paused",
     "setUpHelp": "Set this up and you get a ready-made project with its own statuses and fields, which you can restructure however you like afterwards. Or point the stream at a project you already have.",
     "initiativeLabel": "Initiative",

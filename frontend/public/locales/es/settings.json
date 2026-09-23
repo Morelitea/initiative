@@ -36,7 +36,8 @@
       "data": "Datos",
       "dangerZone": "Zona de peligro",
       "security": "Seguridad",
-      "integrations": "Integraciones"
+      "integrations": "Integraciones",
+      "intake": "Entradas"
     }
   },
   "profile": {
@@ -1017,7 +1018,7 @@
       "bannerHelp": "Permite que suban una imagen de cabecera. Sin esto eligen un color en su lugar, y una cabecera ya subida se sigue mostrando.",
       "supportLabel": "Solicitudes de ayuda",
       "supportHelp": "Permite que sus miembros envíen una solicitud de ayuda. Desactivado, el control Pedir ayuda abre las preguntas frecuentes.",
-      "supportNeedsIntake": "Todavía no hay dónde enviar una solicitud de ayuda. Vincule el flujo de soporte a un proyecto en Administración › Recepción y esto podrá activarse.",
+      "supportNeedsIntake": "Todavía no hay dónde enviar una solicitud de ayuda. Cuando el superadministrador de la comunidad de operaciones vincule el flujo de soporte a un proyecto en Configuración de la comunidad › Entradas, esto podrá activarse.",
       "authOption": {
         "restrictions": {
           "label": "Su propio estándar de seguridad",

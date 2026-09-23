@@ -605,10 +605,11 @@
   "ADDRESS_TAKEN": "Jemand hat diese Adresse bestätigt, während Ihre Anfrage noch offen war.",
   "TOO_MANY_ADDRESSES": "Ihr Konto hat bereits so viele Adressen, wie es haben kann.",
   "INTAKE_GUILD_NOT_ACTIVE": "Diese Community ist nicht aktiv, daher können keine Vorgänge dorthin geleitet werden",
-  "INTAKE_NO_OPERATIONS_GUILD": "Wähle zuerst die Community aus, die Betriebsvorgänge erhält",
   "INTAKE_STATUS_NOT_IN_PROJECT": "Dieser Status gehört zu einem anderen Projekt",
   "INTAKE_PROJECT_NOT_LIVE": "Dieses Projekt ist archiviert oder im Papierkorb, es kann also nichts darin landen",
   "INTAKE_UNKNOWN_STREAM": "Unbekannter Eingangskanal",
+  "INTAKE_NOT_OPERATIONS_GUILD": "Diese Community erhält keine Betriebsvorgänge dieser Installation und hat daher keinen Eingang einzurichten.",
+  "INTAKE_WRITE_REQUIRED": "Nur der eigene Superadmin der Community kann ihren Eingang ändern, und nicht, solange die Community schreibgeschützt ist.",
   "MODERATION_REPORT_NOT_FOUND": "Meldung nicht gefunden",
   "MODERATION_REPORT_ALREADY_SETTLED": "Diese Meldung wurde bereits bearbeitet",
   "MODERATION_UNKNOWN_TARGET_TYPE": "Das lässt sich nicht melden",
@@ -724,5 +725,5 @@
   "GUILD_STATUS_SET_BY_BILLING": "Die Abrechnung legt den Status dieser Community fest. Du kannst sie sperren oder eine Sperre auf den zuletzt von der Abrechnung gesetzten Status aufheben.",
   "ADMIN_USER_NOT_DELETED": "Dieses Konto wurde nicht gelöscht, es gibt also nichts wiederherzustellen.",
   "CONNECTION_NEEDS_NARROWING": "Gib an, welche Konten bei diesem Anbieter deine sind, bevor du die Verbindung einschaltest.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Richten Sie zuerst die Support-Annahme ein, bevor Sie Hilfeanfragen anbieten – verknüpfen Sie den Support-Stream unter Einstellungen › Administration › Annahme mit einem Projekt."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Richten Sie zuerst die Support-Annahme ein, bevor Sie Hilfeanfragen anbieten – der Superadmin der Betriebs-Community verknüpft den Support-Stream unter Community-Einstellungen › Eingang mit einem Projekt."
 }

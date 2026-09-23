@@ -74,6 +74,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdSettingsIndexRouteImport } 
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/danger-zone'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsDataRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/data'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/initiatives'
+import { Route as ServerRequiredAuthenticatedCGuildIdSettingsIntakeRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/intake'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/integrations'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsSecurityRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/security'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsTrashRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/trash'
@@ -541,6 +542,12 @@ const ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute =
   ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRouteImport.update({
     id: '/initiatives',
     path: '/initiatives',
+    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
+  } as any)
+const ServerRequiredAuthenticatedCGuildIdSettingsIntakeRoute =
+  ServerRequiredAuthenticatedCGuildIdSettingsIntakeRouteImport.update({
+    id: '/intake',
+    path: '/intake',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
   } as any)
 const ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute =
@@ -1349,6 +1356,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
+  '/c/$guildId/settings/intake': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntakeRoute
   '/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
   '/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
@@ -1495,6 +1503,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
+  '/c/$guildId/settings/intake': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntakeRoute
   '/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
   '/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
@@ -1639,6 +1648,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
+  '/_serverRequired/_authenticated/c/$guildId/settings/intake': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntakeRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
@@ -1793,6 +1803,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/settings/danger-zone'
     | '/c/$guildId/settings/data'
     | '/c/$guildId/settings/initiatives'
+    | '/c/$guildId/settings/intake'
     | '/c/$guildId/settings/integrations'
     | '/c/$guildId/settings/security'
     | '/c/$guildId/settings/trash'
@@ -1939,6 +1950,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/settings/danger-zone'
     | '/c/$guildId/settings/data'
     | '/c/$guildId/settings/initiatives'
+    | '/c/$guildId/settings/intake'
     | '/c/$guildId/settings/integrations'
     | '/c/$guildId/settings/security'
     | '/c/$guildId/settings/trash'
@@ -2082,6 +2094,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone'
     | '/_serverRequired/_authenticated/c/$guildId/settings/data'
     | '/_serverRequired/_authenticated/c/$guildId/settings/initiatives'
+    | '/_serverRequired/_authenticated/c/$guildId/settings/intake'
     | '/_serverRequired/_authenticated/c/$guildId/settings/integrations'
     | '/_serverRequired/_authenticated/c/$guildId/settings/security'
     | '/_serverRequired/_authenticated/c/$guildId/settings/trash'
@@ -2634,6 +2647,13 @@ declare module '@tanstack/react-router' {
       path: '/initiatives'
       fullPath: '/c/$guildId/settings/initiatives'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/settings/intake': {
+      id: '/_serverRequired/_authenticated/c/$guildId/settings/intake'
+      path: '/intake'
+      fullPath: '/c/$guildId/settings/intake'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIntakeRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
     }
     '/_serverRequired/_authenticated/c/$guildId/settings/integrations': {
@@ -3291,6 +3311,7 @@ interface ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren {
   ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   ServerRequiredAuthenticatedCGuildIdSettingsDataRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
+  ServerRequiredAuthenticatedCGuildIdSettingsIntakeRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIntakeRoute
   ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
   ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
@@ -3306,6 +3327,8 @@ const ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedCGuildIdSettingsDataRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute:
       ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute,
+    ServerRequiredAuthenticatedCGuildIdSettingsIntakeRoute:
+      ServerRequiredAuthenticatedCGuildIdSettingsIntakeRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute:
       ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute:

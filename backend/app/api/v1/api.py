@@ -19,6 +19,7 @@ from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
     moderation,
     support,
+    intake as guild_intake,
     archive,
     query,
     smart_chips,
@@ -242,6 +243,9 @@ guild_router.include_router(moderation.router, tags=["moderation"])
 # Asking whoever runs the deployment for help. Guild-scoped because whether
 # it is offered at all is the community's own setting.
 guild_router.include_router(support.router, prefix="/support", tags=["support"])
+# The operations community's half of intake: which project each stream lands
+# in. The seat's, and only in the community the platform names (404 elsewhere).
+guild_router.include_router(guild_intake.router, prefix="/intake", tags=["intake"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.

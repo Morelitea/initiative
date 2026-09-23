@@ -605,10 +605,11 @@
   "ADDRESS_TAKEN": "Alguien confirmó esa dirección mientras tu solicitud estaba pendiente.",
   "TOO_MANY_ADDRESSES": "Tu cuenta ya tiene todas las direcciones que puede tener.",
   "INTAKE_GUILD_NOT_ACTIVE": "Esa comunidad no está activa, así que no se le puede dirigir trabajo",
-  "INTAKE_NO_OPERATIONS_GUILD": "Elige primero la comunidad que recibe el trabajo de operaciones",
   "INTAKE_STATUS_NOT_IN_PROJECT": "Ese estado pertenece a otro proyecto",
   "INTAKE_PROJECT_NOT_LIVE": "Ese proyecto está archivado o en la papelera, así que nada puede llegar a él",
   "INTAKE_UNKNOWN_STREAM": "Canal de entrada desconocido",
+  "INTAKE_NOT_OPERATIONS_GUILD": "Esta comunidad no recibe el trabajo de operaciones de esta instalación, así que no tiene entradas que configurar.",
+  "INTAKE_WRITE_REQUIRED": "Solo el superadministrador de la propia comunidad puede cambiar sus entradas, y no mientras la comunidad sea de solo lectura.",
   "MODERATION_REPORT_NOT_FOUND": "Denuncia no encontrada",
   "MODERATION_REPORT_ALREADY_SETTLED": "Esa denuncia ya se ha resuelto",
   "MODERATION_UNKNOWN_TARGET_TYPE": "Eso no se puede denunciar",
@@ -724,5 +725,5 @@
   "GUILD_STATUS_SET_BY_BILLING": "La facturación fija el estado de esta comunidad. Puedes suspenderla o levantar una suspensión al estado que la facturación fijó por última vez.",
   "ADMIN_USER_NOT_DELETED": "Esa cuenta no se ha eliminado, así que no hay nada que restaurar.",
   "CONNECTION_NEEDS_NARROWING": "Indica qué cuentas de este proveedor son tuyas antes de activar la conexión.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configure la recepción de soporte antes de ofrecer solicitudes de ayuda: vincule el flujo de soporte a un proyecto en Ajustes › Administración › Recepción."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configure la recepción de soporte antes de ofrecer solicitudes de ayuda: el superadministrador de la comunidad de operaciones vincula el flujo de soporte a un proyecto en Configuración de la comunidad › Entradas."
 }

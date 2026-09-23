@@ -17,14 +17,21 @@
     "label": "Comunidad",
     "placeholder": "Elige una comunidad",
     "none": "Ninguna — no dirigir nada",
-    "helpText": "Una comunidad corriente en todos los aspectos. En qué proyecto llega cada canal se define abajo, dentro de ella.",
+    "helpText": "Una comunidad corriente en todos los aspectos. Su superadministrador elige en qué proyecto llega cada canal, desde la configuración de la propia comunidad.",
+    "setUpInCommunity": "El superadministrador de {{name}} define en qué proyecto llega cada canal, en Configuración de la comunidad › Entradas.",
+    "openCommunitySettings": "Abrir la configuración de entradas de {{name}}",
     "saveError": "No se pudo guardar la comunidad de operaciones.",
     "clearTitle": "¿Dejar de dirigir el trabajo de operaciones?",
     "clearBody": "Todos los canales dejan de recibir. Los proyectos y todo lo que contienen quedan igual, y al elegir esta comunidad de nuevo se restaura lo configurado.",
     "clearConfirm": "Dejar de dirigir"
   },
+  "community": {
+    "title": "Dónde llega el trabajo de operaciones",
+    "description": "Esta comunidad recibe el trabajo de seguridad, moderación, soporte y comentarios de esta instalación. Elige el proyecto en el que llega cada tipo.",
+    "seatOnly": "Solo el superadministrador de esta comunidad puede configurar dónde llega el trabajo de operaciones.",
+    "notOperations": "Esta comunidad no recibe el trabajo de operaciones de esta instalación, así que no tiene entradas que configurar."
+  },
   "streams": {
-    "chooseGuildFirst": "Elige una comunidad arriba y luego indica dónde llega cada canal.",
     "security": {
       "title": "Seguridad",
       "description": "Casos abiertos por reglas que vigilan esta instalación."
@@ -45,6 +52,7 @@
   "stream": {
     "notSetUp": "Sin configurar",
     "receiving": "Recibiendo",
+    "notReceiving": "Sin recibir",
     "paused": "En pausa",
     "setUpHelp": "Al configurarlo obtienes un proyecto listo con sus propios estados y campos, que puedes reorganizar como quieras después. O dirige el canal a un proyecto que ya tengas.",
     "initiativeLabel": "Iniciativa",

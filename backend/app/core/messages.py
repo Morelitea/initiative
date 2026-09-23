@@ -592,10 +592,15 @@ class IntakeMessages:
     """Binding a stream of operations work to a project."""
 
     GUILD_NOT_ACTIVE = "INTAKE_GUILD_NOT_ACTIVE"
-    NO_OPERATIONS_GUILD = "INTAKE_NO_OPERATIONS_GUILD"
     STATUS_NOT_IN_PROJECT = "INTAKE_STATUS_NOT_IN_PROJECT"
     PROJECT_NOT_LIVE = "INTAKE_PROJECT_NOT_LIVE"
     UNKNOWN_STREAM = "INTAKE_UNKNOWN_STREAM"
+    #: The addressed community is not the one the deployment routes its
+    #: operations work to, so it has no intake to configure.
+    NOT_OPERATIONS_GUILD = "INTAKE_NOT_OPERATIONS_GUILD"
+    #: Changing intake is the membership seat's, in a community whose content
+    #: is not read-only.
+    WRITE_REQUIRED = "INTAKE_WRITE_REQUIRED"
 
 
 class AdminMessages:

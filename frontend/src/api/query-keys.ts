@@ -424,10 +424,14 @@ const guildNotificationPolicy = (guildId: number): Spec => ({
   personalExact: [`/api/v1/guilds/${guildId}/notification-policy`],
 });
 
-/** Where each stream of operations work lands, and what it could land in. */
+/** Which community receives operations work, and who to contact. */
 const intakeSettings = (): Spec => ({ personalExact: ["/api/v1/settings/intake"] });
 
-const intakeOptions = (): Spec => ({ personalExact: ["/api/v1/settings/intake/options"] });
+/** The operations community's own half: where each stream lands, and what it
+ *  could land in. */
+const intakeBindings = (): Spec => ({
+  guildExact: ["/api/v1/intake", "/api/v1/intake/options"],
+});
 
 /** One initiative's moderation reports. A prefix, so the open list and the
  *  settled one — which differ only in their params — both move on a write. */
@@ -693,7 +697,7 @@ export const q = {
   guildNotificationPolicy,
   notificationSettings,
   platformAuthSettings,
-  intakeOptions,
+  intakeBindings,
   intakeSettings,
   moderationReports,
   contactGrants,

@@ -605,10 +605,11 @@
   "ADDRESS_TAKEN": "Quelqu'un a confirmé cette adresse pendant que votre demande était en attente.",
   "TOO_MANY_ADDRESSES": "Votre compte contient déjà autant d’adresses qu’il le peut.",
   "INTAKE_GUILD_NOT_ACTIVE": "Cette communauté n'est pas active, le travail ne peut donc pas y être dirigé",
-  "INTAKE_NO_OPERATIONS_GUILD": "Choisissez d'abord la communauté qui reçoit le travail d'exploitation",
   "INTAKE_STATUS_NOT_IN_PROJECT": "Ce statut appartient à un autre projet",
   "INTAKE_PROJECT_NOT_LIVE": "Ce projet est archivé ou dans la corbeille, rien ne peut donc y arriver",
   "INTAKE_UNKNOWN_STREAM": "Canal d'entrée inconnu",
+  "INTAKE_NOT_OPERATIONS_GUILD": "Cette communauté ne reçoit pas le travail d'exploitation de ce déploiement, elle n'a donc aucune réception à configurer.",
+  "INTAKE_WRITE_REQUIRED": "Seul le superadmin de la communauté elle-même peut modifier sa réception, et pas tant que la communauté est en lecture seule.",
   "MODERATION_REPORT_NOT_FOUND": "Signalement introuvable",
   "MODERATION_REPORT_ALREADY_SETTLED": "Ce signalement a déjà été traité",
   "MODERATION_UNKNOWN_TARGET_TYPE": "Cela ne peut pas être signalé",
@@ -724,5 +725,5 @@
   "GUILD_STATUS_SET_BY_BILLING": "La facturation fixe le statut de cette communauté. Vous pouvez la suspendre, ou lever une suspension vers le statut que la facturation a fixé en dernier.",
   "ADMIN_USER_NOT_DELETED": "Ce compte n'a pas été supprimé, il n'y a donc rien à restaurer.",
   "CONNECTION_NEEDS_NARROWING": "Indiquez quels comptes de ce fournisseur sont les vôtres avant d'activer la connexion.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configurez la réception du support avant de proposer les demandes d’aide : reliez le flux de support à un projet dans Réglages › Administration › Réception."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configurez la réception du support avant de proposer les demandes d’aide : le superadmin de la communauté d'exploitation relie le flux de support à un projet dans Paramètres de la communauté › Réception."
 }

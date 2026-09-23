@@ -1,50 +1,30 @@
 /**
- * The owner's intake settings.
+ * The owner's intake settings: which community receives operations work, and
+ * who to contact.
  *
- * Two things matter here and neither is cosmetic: nothing below the community
- * picker is offered until a community is named, because every id in it belongs
- * to that community; and a stream that has never been set up offers both ways
- * of setting one up rather than only the blueprint.
+ * Which project each stream lands in is the community's own setting, so this
+ * page offers nothing to bind: it names the community, says which streams it
+ * currently receives, and links to where its superadmin sets them up.
  */
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
-import { renderWithProviders } from "@/__tests__/helpers/render";
+import { renderPage } from "@/__tests__/helpers/render";
 
-const importMutate = vi.fn();
-const upsertMutate = vi.fn();
-const deleteMutate = vi.fn();
 const guildMutate = vi.fn();
 const generalContactMutate = vi.fn();
 const streamContactMutate = vi.fn();
 
 const state = vi.hoisted(() => ({
   operationsGuildId: null as number | null,
-  bindings: [] as Array<Record<string, unknown>>,
+  receiving: [] as string[],
   isError: false,
-  optionsError: false,
   isFetching: false,
   generalContact: null as string | null,
   contactEmails: {} as Record<string, string>,
 }));
-
-const unbound = (stream: string) => ({
-  stream,
-  binding_id: null,
-  project_id: null,
-  project_name: null,
-  initiative_id: null,
-  initiative_name: null,
-  default_status_id: null,
-  default_status_name: null,
-  enabled: false,
-  last_case_at: null,
-  project_archived: false,
-});
-
-const STREAMS = ["security", "moderation", "support", "feedback"];
 
 vi.mock("@/hooks/useIntakeSettings", () => ({
   useIntakeSettings: () => ({
@@ -53,7 +33,7 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
       : {
           operations_guild_id: state.operationsGuildId,
           operations_guild_name: state.operationsGuildId ? "Operations" : null,
-          bindings: state.bindings,
+          receiving: state.receiving,
           general_contact_email: state.generalContact,
           contact_emails: state.contactEmails,
         },
@@ -62,33 +42,7 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
     isError: state.isError,
     refetch: vi.fn(),
   }),
-  useIntakeOptions: () => ({
-    isFetching: false,
-    isError: state.optionsError,
-    refetch: vi.fn(),
-    data: {
-      initiatives: [
-        {
-          id: 7,
-          name: "Trust and Safety",
-          projects: [
-            {
-              id: 21,
-              name: "Security",
-              statuses: [
-                { id: 31, name: "Triage" },
-                { id: 32, name: "Confirmed" },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  }),
   useUpdateOperationsGuild: () => ({ mutate: guildMutate, isPending: false }),
-  useUpsertIntakeBinding: () => ({ mutate: upsertMutate, isPending: false }),
-  useImportIntakeBlueprint: () => ({ mutate: importMutate, isPending: false }),
-  useDeleteIntakeBinding: () => ({ mutate: deleteMutate, isPending: false }),
   useUpdateIntakeGeneralContact: () => ({ mutateAsync: generalContactMutate, isPending: false }),
   useUpdateIntakeStreamContact: () => ({ mutateAsync: streamContactMutate, isPending: false }),
 }));
@@ -99,163 +53,82 @@ vi.mock("@/hooks/useSettings", () => ({
 
 import { SettingsIntakePage } from "./SettingsIntakePage";
 
-const renderPage = (role: "owner" | "operator" = "owner") =>
-  renderWithProviders(<SettingsIntakePage />, { auth: { user: buildUser({ role }) } });
+const render = (role: "owner" | "operator" = "owner") =>
+  renderPage(SettingsIntakePage, { auth: { user: buildUser({ role }) } });
 
 describe("SettingsIntakePage", () => {
   beforeEach(() => {
-    importMutate.mockClear();
-    upsertMutate.mockClear();
-    deleteMutate.mockClear();
     guildMutate.mockClear();
     generalContactMutate.mockReset().mockResolvedValue({});
     streamContactMutate.mockReset().mockResolvedValue({});
     state.generalContact = null;
     state.contactEmails = {};
     state.operationsGuildId = null;
-    state.bindings = STREAMS.map(unbound);
+    state.receiving = [];
     state.isError = false;
-    state.optionsError = false;
     state.isFetching = false;
   });
 
-  it("offers nothing to bind until a community is named", () => {
-    renderPage();
+  it("names no streams until a community is named", async () => {
+    render();
+    expect(await screen.findByRole("combobox", { name: "Community" })).toBeInTheDocument();
+    expect(screen.queryByText("Receiving")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /intake settings/ })).not.toBeInTheDocument();
+  });
+
+  it("says which streams the named community receives, and links to where they are set up", async () => {
+    state.operationsGuildId = 3;
+    state.receiving = ["security"];
+    render();
+
+    expect(await screen.findByText("Receiving")).toBeInTheDocument();
+    expect(screen.getAllByText("Not receiving")).toHaveLength(3);
     expect(
-      screen.getByText("Choose a community above, then say where each stream lands.")
+      screen.getByText(
+        "Operations's superadmin sets which project each stream lands in, under Community settings › Intake."
+      )
     ).toBeInTheDocument();
-    expect(screen.queryByText("Set this up for me")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Operations's intake settings" })).toHaveAttribute(
+      "href",
+      "/c/3/settings/intake"
+    );
+    // Nothing to bind here: that is the community's own page.
+    expect(screen.queryByRole("button", { name: "Set this up for me" })).not.toBeInTheDocument();
   });
 
-  it("lists every stream once a community is named, bound or not", () => {
-    state.operationsGuildId = 3;
-    renderPage();
-    for (const title of ["Security", "Moderation", "Support", "Feedback"]) {
-      expect(screen.getByRole("region", { name: title })).toBeInTheDocument();
-    }
-    expect(screen.getAllByText("Not set up")).toHaveLength(STREAMS.length);
-  });
-
-  it("sets a stream up from its blueprint", async () => {
-    state.operationsGuildId = 3;
-    renderPage();
-    const user = userEvent.setup();
-
-    // Each stream's card is a region named after the stream, so "the security
-    // one" is unambiguous without reaching into the DOM.
-    const card = screen.getByRole("region", { name: "Security" });
-    const setUp = () => within(card).getByRole("button", { name: "Set this up for me" });
-
-    // Disabled until an initiative is chosen: the import has to land somewhere.
-    expect(setUp()).toBeDisabled();
-    await user.click(within(card).getByRole("combobox", { name: "Initiative" }));
-    await user.click(await screen.findByRole("option", { name: "Trust and Safety" }));
-    await user.click(setUp());
-
-    expect(importMutate).toHaveBeenCalledWith({ stream: "security", initiativeId: 7 });
-  });
-
-  it("shows where a bound stream lands and when it last opened a case", () => {
-    state.operationsGuildId = 3;
-    state.bindings = [
-      {
-        ...unbound("security"),
-        binding_id: 1,
-        project_id: 21,
-        project_name: "Security",
-        initiative_id: 7,
-        initiative_name: "Trust and Safety",
-        default_status_id: 31,
-        default_status_name: "Triage",
-        enabled: true,
-        last_case_at: "2026-09-15T10:00:00Z",
-      },
-      ...STREAMS.slice(1).map(unbound),
-    ];
-    renderPage();
-
-    expect(screen.getByText("Receiving")).toBeInTheDocument();
-    expect(screen.getByText(/Last case opened/)).toBeInTheDocument();
-  });
-
-  it("tells a non-owner this is not theirs to configure", () => {
-    renderPage("operator");
+  it("tells a non-owner this is not theirs to configure", async () => {
+    render("operator");
     expect(
-      screen.getByText("Only platform owners can configure where operations work lands.")
+      await screen.findByText("Only platform owners can configure where operations work lands.")
     ).toBeInTheDocument();
   });
 
-  it("says the read failed rather than showing an unconfigured deployment", () => {
+  it("says the read failed rather than showing an unconfigured deployment", async () => {
     // The page shows the failure and withholds the picker, so a change is only
     // made against a value that was actually read.
     state.isError = true;
     state.operationsGuildId = 3;
-    renderPage();
+    render();
 
-    expect(screen.getByText("Could not load these settings")).toBeInTheDocument();
+    expect(await screen.findByText("Could not load these settings")).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Community" })).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Choose a community above, then say where each stream lands.")
-    ).not.toBeInTheDocument();
   });
 
-  it("offers no destination while the two reads disagree", () => {
-    // Mid-refetch the bindings and the projects they could name can be from
-    // different communities.
+  it("holds the picker while the read is in flight", async () => {
     state.operationsGuildId = 3;
     state.isFetching = true;
-    renderPage();
+    render();
 
-    expect(screen.getByRole("combobox", { name: "Community" })).toBeDisabled();
-    const card = screen.getByRole("region", { name: "Security" });
-    expect(within(card).getByRole("button", { name: "Set this up for me" })).toBeDisabled();
-  });
-
-  it("says so when the options read is the one that failed", () => {
-    // The two reads describe one community between them, so a page that acted
-    // on only one would offer destinations it could not name.
-    state.optionsError = true;
-    state.operationsGuildId = 3;
-    renderPage();
-
-    expect(screen.getByText("Could not load these settings")).toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: "Community" })).not.toBeInTheDocument();
-  });
-
-  it("says a stream whose project was archived receives nothing", () => {
-    state.operationsGuildId = 3;
-    state.bindings = [
-      {
-        ...unbound("security"),
-        binding_id: 1,
-        project_id: 99,
-        project_name: "Old Security",
-        initiative_id: 7,
-        initiative_name: "Trust and Safety",
-        enabled: true,
-        project_archived: true,
-      },
-      ...STREAMS.slice(1).map(unbound),
-    ];
-    renderPage();
-
-    const card = screen.getByRole("region", { name: "Security" });
-    expect(within(card).getByText("Destination archived")).toBeInTheDocument();
-    expect(within(card).queryByText("Receiving")).not.toBeInTheDocument();
-    expect(
-      within(card).getByText(
-        "This project has been archived, so nothing can land in it. Bring it back, or point this stream at a live project."
-      )
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "Community" })).toBeDisabled();
   });
 
   it("says who to contact before any community is named", async () => {
     state.generalContact = "ops@example.com";
     state.contactEmails = { moderation: "trust@example.com" };
-    renderPage();
+    render();
     const user = userEvent.setup();
 
-    const general = screen.getByLabelText("General contact");
+    const general = await screen.findByLabelText("General contact");
     expect(general).toHaveValue("ops@example.com");
     expect(screen.getByLabelText("Moderation")).toHaveValue("trust@example.com");
     expect(screen.getByLabelText("Support")).toHaveValue("");

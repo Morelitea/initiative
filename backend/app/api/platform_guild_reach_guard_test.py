@@ -90,9 +90,6 @@ _WRAPPERS: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"
     ),
-    (f"{_SERVICES}/intake_setup.py", "_route"): (
-        "intake setup's routing helper; moves to /g/{guild_id} next (P5b)"
-    ),
 }
 
 #: Every call site that routes into a community, and why it may.
@@ -164,27 +161,14 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/users.py", "hard_delete_user"): (
         "account erasure: every community the account's content may be in"
     ),
-    # --- Intake (moves to /g/{guild_id} next, P5b) ---------------------------
+    # --- Intake ---------------------------------------------------------------
     (f"{_SERVICES}/intake.py", "stream_is_bound"): (
-        "intake: the operations community; moves to /g/{guild_id} next (P5b)"
+        "opens a case in the operations guild on the deployment's behalf "
+        "(system work, routed with the guild alone)"
     ),
     (f"{_SERVICES}/intake.py", "open_case"): (
-        "intake: the operations community; moves to /g/{guild_id} next (P5b)"
-    ),
-    (f"{_SERVICES}/intake_setup.py", "bind"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
-    ),
-    (f"{_SERVICES}/intake_setup.py", "unbind"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
-    ),
-    (f"{_SERVICES}/intake_setup.py", "list_bindings"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
-    ),
-    (f"{_SERVICES}/intake_setup.py", "list_options"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
-    ),
-    (f"{_SERVICES}/intake_setup.py", "provision_from_blueprint"): (
-        "intake setup; moves to /g/{guild_id} next (P5b)"
+        "opens a case in the operations guild on the deployment's behalf "
+        "(system work, routed with the guild alone)"
     ),
 }
 

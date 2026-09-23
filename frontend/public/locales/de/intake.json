@@ -17,14 +17,21 @@
     "label": "Community",
     "placeholder": "Community auswählen",
     "none": "Keine — nichts weiterleiten",
-    "helpText": "In jeder Hinsicht eine gewöhnliche Community. In welchem Projekt ein Kanal landet, wird unten darin festgelegt.",
+    "helpText": "In jeder Hinsicht eine gewöhnliche Community. Ihr Superadmin legt in den Einstellungen der Community fest, in welchem Projekt jeder Kanal landet.",
+    "setUpInCommunity": "Der Superadmin von {{name}} legt unter Community-Einstellungen › Eingang fest, in welchem Projekt jeder Kanal landet.",
+    "openCommunitySettings": "Eingangseinstellungen von {{name}} öffnen",
     "saveError": "Die Betriebs-Community konnte nicht gespeichert werden.",
     "clearTitle": "Weiterleitung von Betriebsvorgängen beenden?",
     "clearBody": "Alle Kanäle hören auf zu empfangen. Die Projekte und alles darin bleiben unverändert, und wenn du diese Community erneut auswählst, ist alles wieder eingerichtet.",
     "clearConfirm": "Weiterleitung beenden"
   },
+  "community": {
+    "title": "Wo Betriebsvorgänge landen",
+    "description": "Diese Community erhält die Sicherheits-, Moderations-, Support- und Feedback-Vorgänge dieser Installation. Wähle das Projekt, in dem jede Art landet.",
+    "seatOnly": "Nur der Superadmin dieser Community kann festlegen, wo Betriebsvorgänge landen.",
+    "notOperations": "Diese Community erhält keine Betriebsvorgänge dieser Installation und hat daher keinen Eingang einzurichten."
+  },
   "streams": {
-    "chooseGuildFirst": "Wähle oben eine Community und lege dann fest, wo jeder Kanal landet.",
     "security": {
       "title": "Sicherheit",
       "description": "Vorgänge aus Regeln, die diese Installation überwachen."
@@ -45,6 +52,7 @@
   "stream": {
     "notSetUp": "Nicht eingerichtet",
     "receiving": "Empfängt",
+    "notReceiving": "Empfängt nicht",
     "paused": "Pausiert",
     "setUpHelp": "Beim Einrichten erhältst du ein fertiges Projekt mit eigenen Status und Feldern, das du danach beliebig umbauen kannst. Oder richte den Kanal auf ein Projekt, das du schon hast.",
     "initiativeLabel": "Initiative",

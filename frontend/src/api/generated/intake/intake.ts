@@ -24,6 +24,7 @@ import type {
   HTTPValidationError,
   IntakeBindingRead,
   IntakeBindingUpsert,
+  IntakeBindingsRead,
   IntakeBlueprintImport,
   IntakeContactUpdate,
   IntakeOptionsRead,
@@ -52,10 +53,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * Where each stream lands, and when it last opened a case.
- *
- * Every stream is listed whether bound or not, so the page shows the full set
- * rather than only what somebody already configured.
+ * Which community receives operations work, which streams it currently
+ * receives, and who somebody is told to contact.
  * @summary Read Intake Settings
  */
 export const readIntakeSettingsApiV1SettingsIntakeGet = (
@@ -190,156 +189,6 @@ export function useReadIntakeSettingsApiV1SettingsIntakeGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadIntakeSettingsApiV1SettingsIntakeGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * What the settings page can bind a stream to.
- *
- * The operations guild's initiatives, their projects and each project's
- * statuses — names and ids, enough to fill the pickers. Empty before a guild
- * has been named.
- * @summary Read Intake Options
- */
-export const readIntakeOptionsApiV1SettingsIntakeOptionsGet = (
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<IntakeOptionsRead>(
-    { url: `/api/v1/settings/intake/options`, method: "GET", signal },
-    options
-  );
-};
-
-export const getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryKey = () => {
-  return [`/api/v1/settings/intake/options`] as const;
-};
-
-export const getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>
-  > = ({ signal }) => readIntakeOptionsApiV1SettingsIntakeOptionsGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>
->;
-export type ReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
-  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-          TError,
-          Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
-  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-          TError,
-          Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
-  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Read Intake Options
- */
-
-export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
-  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof readIntakeOptionsApiV1SettingsIntakeOptionsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -654,10 +503,339 @@ export const useUpdateStreamContactApiV1SettingsIntakeStreamContactPut = <
   );
 };
 /**
- * Route one stream into a project of the operations guild.
- * @summary Upsert Binding
+ * Where each stream lands, and when it last opened a case.
+ *
+ * Every stream is listed whether bound or not, so the page shows the full set
+ * rather than only what somebody already configured. 404 in any community
+ * other than the operations community, which is how the settings page knows
+ * whether to offer the tab.
+ * @summary Read Intake Bindings
  */
-export const upsertBindingApiV1SettingsIntakeStreamPut = (
+export const readIntakeBindingsApiV1GGuildIdIntakeGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<IntakeBindingsRead>(
+    { url: `/api/v1/g/${guildId}/intake`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadIntakeBindingsApiV1GGuildIdIntakeGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/intake`] as const;
+};
+
+export const getReadIntakeBindingsApiV1GGuildIdIntakeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadIntakeBindingsApiV1GGuildIdIntakeGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>
+  > = ({ signal }) => readIntakeBindingsApiV1GGuildIdIntakeGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadIntakeBindingsApiV1GGuildIdIntakeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>
+>;
+export type ReadIntakeBindingsApiV1GGuildIdIntakeGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadIntakeBindingsApiV1GGuildIdIntakeGet<
+  TData = Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+          TError,
+          Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadIntakeBindingsApiV1GGuildIdIntakeGet<
+  TData = Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+          TError,
+          Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadIntakeBindingsApiV1GGuildIdIntakeGet<
+  TData = Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Intake Bindings
+ */
+
+export function useReadIntakeBindingsApiV1GGuildIdIntakeGet<
+  TData = Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeBindingsApiV1GGuildIdIntakeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadIntakeBindingsApiV1GGuildIdIntakeGetQueryOptions(guildId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * What a stream can be bound to: this community's initiatives, their
+ * projects and each project's statuses — names and ids, enough to fill the
+ * pickers.
+ * @summary Read Intake Options
+ */
+export const readIntakeOptionsApiV1GGuildIdIntakeOptionsGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<IntakeOptionsRead>(
+    { url: `/api/v1/g/${guildId}/intake/options`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadIntakeOptionsApiV1GGuildIdIntakeOptionsGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/intake/options`] as const;
+};
+
+export const getReadIntakeOptionsApiV1GGuildIdIntakeOptionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadIntakeOptionsApiV1GGuildIdIntakeOptionsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>
+  > = ({ signal }) =>
+    readIntakeOptionsApiV1GGuildIdIntakeOptionsGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadIntakeOptionsApiV1GGuildIdIntakeOptionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>
+>;
+export type ReadIntakeOptionsApiV1GGuildIdIntakeOptionsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadIntakeOptionsApiV1GGuildIdIntakeOptionsGet<
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadIntakeOptionsApiV1GGuildIdIntakeOptionsGet<
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadIntakeOptionsApiV1GGuildIdIntakeOptionsGet<
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Intake Options
+ */
+
+export function useReadIntakeOptionsApiV1GGuildIdIntakeOptionsGet<
+  TData = Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readIntakeOptionsApiV1GGuildIdIntakeOptionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadIntakeOptionsApiV1GGuildIdIntakeOptionsGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Route one stream into a project of this community.
+ * @summary Upsert Intake Binding
+ */
+export const upsertIntakeBindingApiV1GGuildIdIntakeStreamPut = (
+  guildId: number,
   stream: string,
   intakeBindingUpsert: BodyType<IntakeBindingUpsert>,
   options?: SecondParameter<typeof apiMutator>,
@@ -665,7 +843,7 @@ export const upsertBindingApiV1SettingsIntakeStreamPut = (
 ) => {
   return apiMutator<IntakeBindingRead>(
     {
-      url: `/api/v1/settings/intake/${stream}`,
+      url: `/api/v1/g/${guildId}/intake/${stream}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: intakeBindingUpsert,
@@ -675,27 +853,27 @@ export const upsertBindingApiV1SettingsIntakeStreamPut = (
   );
 };
 
-export const getUpsertBindingApiV1SettingsIntakeStreamPutMutationKey = () =>
-  ["upsertBindingApiV1SettingsIntakeStreamPut"] as const;
+export const getUpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationKey = () =>
+  ["upsertIntakeBindingApiV1GGuildIdIntakeStreamPut"] as const;
 
-export const getUpsertBindingApiV1SettingsIntakeStreamPutMutationOptions = <
+export const getUpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof upsertBindingApiV1SettingsIntakeStreamPut>>,
+    Awaited<ReturnType<typeof upsertIntakeBindingApiV1GGuildIdIntakeStreamPut>>,
     TError,
-    UpsertBindingApiV1SettingsIntakeStreamPutMutationVariables,
+    UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof upsertBindingApiV1SettingsIntakeStreamPut>>,
+  Awaited<ReturnType<typeof upsertIntakeBindingApiV1GGuildIdIntakeStreamPut>>,
   TError,
-  UpsertBindingApiV1SettingsIntakeStreamPutMutationVariables,
+  UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpsertBindingApiV1SettingsIntakeStreamPutMutationKey();
+  const mutationKey = getUpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -703,91 +881,95 @@ export const getUpsertBindingApiV1SettingsIntakeStreamPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof upsertBindingApiV1SettingsIntakeStreamPut>>,
-    UpsertBindingApiV1SettingsIntakeStreamPutMutationVariables
+    Awaited<ReturnType<typeof upsertIntakeBindingApiV1GGuildIdIntakeStreamPut>>,
+    UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationVariables
   > = (props) => {
-    const { stream, data } = props ?? {};
+    const { guildId, stream, data } = props ?? {};
 
-    return upsertBindingApiV1SettingsIntakeStreamPut(stream, data, requestOptions);
+    return upsertIntakeBindingApiV1GGuildIdIntakeStreamPut(guildId, stream, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpsertBindingApiV1SettingsIntakeStreamPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof upsertBindingApiV1SettingsIntakeStreamPut>>
+export type UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertIntakeBindingApiV1GGuildIdIntakeStreamPut>>
 >;
-export type UpsertBindingApiV1SettingsIntakeStreamPutMutationBody = BodyType<IntakeBindingUpsert>;
-export type UpsertBindingApiV1SettingsIntakeStreamPutMutationError = ErrorType<HTTPValidationError>;
-export type UpsertBindingApiV1SettingsIntakeStreamPutMutationVariables = {
+export type UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationBody =
+  BodyType<IntakeBindingUpsert>;
+export type UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationVariables = {
+  guildId: number;
   stream: string;
   data: BodyType<IntakeBindingUpsert>;
 };
 
 /**
- * @summary Upsert Binding
+ * @summary Upsert Intake Binding
  */
-export const useUpsertBindingApiV1SettingsIntakeStreamPut = <
+export const useUpsertIntakeBindingApiV1GGuildIdIntakeStreamPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof upsertBindingApiV1SettingsIntakeStreamPut>>,
+      Awaited<ReturnType<typeof upsertIntakeBindingApiV1GGuildIdIntakeStreamPut>>,
       TError,
-      UpsertBindingApiV1SettingsIntakeStreamPutMutationVariables,
+      UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof upsertBindingApiV1SettingsIntakeStreamPut>>,
+  Awaited<ReturnType<typeof upsertIntakeBindingApiV1GGuildIdIntakeStreamPut>>,
   TError,
-  UpsertBindingApiV1SettingsIntakeStreamPutMutationVariables,
+  UpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpsertBindingApiV1SettingsIntakeStreamPutMutationOptions(options),
+    getUpsertIntakeBindingApiV1GGuildIdIntakeStreamPutMutationOptions(options),
     queryClient
   );
 };
 /**
  * Stop routing a stream. The project and every case in it stay.
- * @summary Delete Binding
+ * @summary Delete Intake Binding
  */
-export const deleteBindingApiV1SettingsIntakeStreamDelete = (
+export const deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete = (
+  guildId: number,
   stream: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/settings/intake/${stream}`, method: "DELETE", signal },
+    { url: `/api/v1/g/${guildId}/intake/${stream}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteBindingApiV1SettingsIntakeStreamDeleteMutationKey = () =>
-  ["deleteBindingApiV1SettingsIntakeStreamDelete"] as const;
+export const getDeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationKey = () =>
+  ["deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete"] as const;
 
-export const getDeleteBindingApiV1SettingsIntakeStreamDeleteMutationOptions = <
+export const getDeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteBindingApiV1SettingsIntakeStreamDelete>>,
+    Awaited<ReturnType<typeof deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete>>,
     TError,
-    DeleteBindingApiV1SettingsIntakeStreamDeleteMutationVariables,
+    DeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteBindingApiV1SettingsIntakeStreamDelete>>,
+  Awaited<ReturnType<typeof deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete>>,
   TError,
-  DeleteBindingApiV1SettingsIntakeStreamDeleteMutationVariables,
+  DeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteBindingApiV1SettingsIntakeStreamDeleteMutationKey();
+  const mutationKey = getDeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -795,50 +977,53 @@ export const getDeleteBindingApiV1SettingsIntakeStreamDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteBindingApiV1SettingsIntakeStreamDelete>>,
-    DeleteBindingApiV1SettingsIntakeStreamDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete>>,
+    DeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationVariables
   > = (props) => {
-    const { stream } = props ?? {};
+    const { guildId, stream } = props ?? {};
 
-    return deleteBindingApiV1SettingsIntakeStreamDelete(stream, requestOptions);
+    return deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete(guildId, stream, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteBindingApiV1SettingsIntakeStreamDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteBindingApiV1SettingsIntakeStreamDelete>>
+export type DeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete>>
 >;
 
-export type DeleteBindingApiV1SettingsIntakeStreamDeleteMutationError =
+export type DeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteBindingApiV1SettingsIntakeStreamDeleteMutationVariables = { stream: string };
+export type DeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationVariables = {
+  guildId: number;
+  stream: string;
+};
 
 /**
- * @summary Delete Binding
+ * @summary Delete Intake Binding
  */
-export const useDeleteBindingApiV1SettingsIntakeStreamDelete = <
+export const useDeleteIntakeBindingApiV1GGuildIdIntakeStreamDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteBindingApiV1SettingsIntakeStreamDelete>>,
+      Awaited<ReturnType<typeof deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete>>,
       TError,
-      DeleteBindingApiV1SettingsIntakeStreamDeleteMutationVariables,
+      DeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteBindingApiV1SettingsIntakeStreamDelete>>,
+  Awaited<ReturnType<typeof deleteIntakeBindingApiV1GGuildIdIntakeStreamDelete>>,
   TError,
-  DeleteBindingApiV1SettingsIntakeStreamDeleteMutationVariables,
+  DeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteBindingApiV1SettingsIntakeStreamDeleteMutationOptions(options),
+    getDeleteIntakeBindingApiV1GGuildIdIntakeStreamDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -847,9 +1032,10 @@ export const useDeleteBindingApiV1SettingsIntakeStreamDelete = <
  *
  * An ordinary project import. The result is a project the team can rename and
  * restructure; the binding only names it.
- * @summary Import Blueprint
+ * @summary Import Intake Blueprint
  */
-export const importBlueprintApiV1SettingsIntakeStreamBlueprintPost = (
+export const importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost = (
+  guildId: number,
   stream: string,
   intakeBlueprintImport: BodyType<IntakeBlueprintImport>,
   options?: SecondParameter<typeof apiMutator>,
@@ -857,7 +1043,7 @@ export const importBlueprintApiV1SettingsIntakeStreamBlueprintPost = (
 ) => {
   return apiMutator<IntakeBindingRead>(
     {
-      url: `/api/v1/settings/intake/${stream}/blueprint`,
+      url: `/api/v1/g/${guildId}/intake/${stream}/blueprint`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: intakeBlueprintImport,
@@ -867,27 +1053,27 @@ export const importBlueprintApiV1SettingsIntakeStreamBlueprintPost = (
   );
 };
 
-export const getImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationKey = () =>
-  ["importBlueprintApiV1SettingsIntakeStreamBlueprintPost"] as const;
+export const getImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationKey = () =>
+  ["importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost"] as const;
 
-export const getImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationOptions = <
+export const getImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof importBlueprintApiV1SettingsIntakeStreamBlueprintPost>>,
+    Awaited<ReturnType<typeof importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost>>,
     TError,
-    ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationVariables,
+    ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof importBlueprintApiV1SettingsIntakeStreamBlueprintPost>>,
+  Awaited<ReturnType<typeof importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost>>,
   TError,
-  ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationVariables,
+  ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationKey();
+  const mutationKey = getImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -895,54 +1081,60 @@ export const getImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationOpt
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof importBlueprintApiV1SettingsIntakeStreamBlueprintPost>>,
-    ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationVariables
+    Awaited<ReturnType<typeof importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost>>,
+    ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationVariables
   > = (props) => {
-    const { stream, data } = props ?? {};
+    const { guildId, stream, data } = props ?? {};
 
-    return importBlueprintApiV1SettingsIntakeStreamBlueprintPost(stream, data, requestOptions);
+    return importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost(
+      guildId,
+      stream,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof importBlueprintApiV1SettingsIntakeStreamBlueprintPost>>
+export type ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost>>
 >;
-export type ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationBody =
+export type ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationBody =
   BodyType<IntakeBlueprintImport>;
-export type ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationError =
+export type ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationVariables = {
+export type ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationVariables = {
+  guildId: number;
   stream: string;
   data: BodyType<IntakeBlueprintImport>;
 };
 
 /**
- * @summary Import Blueprint
+ * @summary Import Intake Blueprint
  */
-export const useImportBlueprintApiV1SettingsIntakeStreamBlueprintPost = <
+export const useImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof importBlueprintApiV1SettingsIntakeStreamBlueprintPost>>,
+      Awaited<ReturnType<typeof importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost>>,
       TError,
-      ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationVariables,
+      ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof importBlueprintApiV1SettingsIntakeStreamBlueprintPost>>,
+  Awaited<ReturnType<typeof importIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPost>>,
   TError,
-  ImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationVariables,
+  ImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getImportBlueprintApiV1SettingsIntakeStreamBlueprintPostMutationOptions(options),
+    getImportIntakeBlueprintApiV1GGuildIdIntakeStreamBlueprintPostMutationOptions(options),
     queryClient
   );
 };
