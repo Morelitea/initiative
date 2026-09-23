@@ -20,7 +20,6 @@ from app.api.deps import (
     GuildContext,
     SeatContextDep,
     SeatSessionDep,
-    SeatWriteContextDep,
     SeatWriteSessionDep,
     SettingsAdminContextDep,
     SettingsAdminWriteContextDep,
@@ -1172,9 +1171,8 @@ async def get_guild_notification_policy(
 )
 async def set_guild_notification_policy(
     guild_id: int,
-    _guild_context: SeatWriteContextDep,
     payload: GuildNotificationPolicyUpdate,
-    admin_session: AdminSessionDep,
+    seat_session: SeatWriteSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildNotificationPolicyRead:
     """Decide what this community's notifications may leave the app carrying.
@@ -1191,9 +1189,9 @@ async def set_guild_notification_policy(
     itself — a sign-in code and a password reset are not notifications.
     """
     await _require_guild_auth_option(
-        admin_session, guild_id, GuildAuthOption.restrictions
+        seat_session, guild_id, GuildAuthOption.restrictions
     )
-    guild = await admin_session.get(Guild, guild_id)
+    guild = await seat_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
@@ -1202,18 +1200,18 @@ async def set_guild_notification_policy(
     guild.allow_push_notifications = payload.allow_push_notifications
     guild.allow_email_notifications = payload.allow_email_notifications
     guild.redact_notification_content = payload.redact_notification_content
-    admin_session.add(guild)
+    seat_session.add(guild)
     await _record_guild_settings_change(
-        admin_session,
+        seat_session,
         guild_id=guild_id,
         actor_user_id=current_user.id,
         area="notifications",
         before=before,
         after=audit_service.snapshot(guild, _GUILD_NOTIFICATION_FIELDS),
     )
-    await admin_session.commit()
+    await seat_session.commit()
     return _notification_policy_read(
-        guild, await notification_policy.resolve(admin_session, None)
+        guild, await notification_policy.resolve(seat_session, None)
     )
 
 
@@ -1427,9 +1425,8 @@ async def set_guild_auth_policy(
 @router.put("/{guild_id}/api-access", response_model=GuildApiAccessRead)
 async def set_guild_api_access(
     guild_id: int,
-    _guild_context: SeatWriteContextDep,
     payload: GuildApiAccessUpdate,
-    admin_session: AdminSessionDep,
+    seat_session: SeatWriteSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildApiAccessRead:
     """Decide whether this guild accepts personal API keys.
@@ -1445,33 +1442,33 @@ async def set_guild_api_access(
     to mint replacements.
     """
     await _require_guild_auth_option(
-        admin_session, guild_id, GuildAuthOption.restrictions
+        seat_session, guild_id, GuildAuthOption.restrictions
     )
-    guild = await admin_session.get(Guild, guild_id)
+    guild = await seat_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
         )
     before = {"allow_api_keys": guild.allow_api_keys}
     guild.allow_api_keys = payload.allow_api_keys
-    admin_session.add(guild)
+    seat_session.add(guild)
     await _record_guild_settings_change(
-        admin_session,
+        seat_session,
         guild_id=guild_id,
         actor_user_id=current_user.id,
         area="api_access",
         before=before,
         after={"allow_api_keys": guild.allow_api_keys},
     )
-    await admin_session.commit()
+    await seat_session.commit()
     return GuildApiAccessRead(allow_api_keys=guild.allow_api_keys)
 
 
 @router.put("/{guild_id}/second-factor", response_model=GuildSecondFactorRead)
 async def set_guild_second_factor(
     guild_id: int,
-    _guild_context: SeatWriteContextDep,
     payload: GuildSecondFactorUpdate,
+    seat_session: SeatWriteSessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildSecondFactorRead:
@@ -1487,9 +1484,9 @@ async def set_guild_second_factor(
     how the question is answered.
     """
     await _require_guild_auth_option(
-        admin_session, guild_id, GuildAuthOption.restrictions
+        seat_session, guild_id, GuildAuthOption.restrictions
     )
-    guild = await admin_session.get(Guild, guild_id)
+    guild = await seat_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
@@ -1513,16 +1510,16 @@ async def set_guild_second_factor(
         )
     before = {"require_second_factor": guild.require_second_factor}
     guild.require_second_factor = payload.require_second_factor
-    admin_session.add(guild)
+    seat_session.add(guild)
     await _record_guild_settings_change(
-        admin_session,
+        seat_session,
         guild_id=guild_id,
         actor_user_id=current_user.id,
         area="second_factor",
         before=before,
         after={"require_second_factor": guild.require_second_factor},
     )
-    await admin_session.commit()
+    await seat_session.commit()
     return GuildSecondFactorRead(
         require_second_factor=guild.require_second_factor, available=available
     )
@@ -1531,8 +1528,8 @@ async def set_guild_second_factor(
 @router.put("/{guild_id}/session-limit", response_model=GuildSessionLimitRead)
 async def set_guild_session_limit(
     guild_id: int,
-    _guild_context: SeatWriteContextDep,
     payload: GuildSessionLimitUpdate,
+    seat_session: SeatWriteSessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildSessionLimitRead:
@@ -1550,9 +1547,9 @@ async def set_guild_session_limit(
     phone out at once, where it signed in longer ago than the standard allows.
     """
     await _require_guild_auth_option(
-        admin_session, guild_id, GuildAuthOption.restrictions
+        seat_session, guild_id, GuildAuthOption.restrictions
     )
-    guild = await admin_session.get(Guild, guild_id)
+    guild = await seat_session.get(Guild, guild_id)
     if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
@@ -1560,21 +1557,23 @@ async def set_guild_session_limit(
     changed = guild.enforce_compliance_session != payload.enforce_compliance_session
     before = {"enforce_compliance_session": guild.enforce_compliance_session}
     guild.enforce_compliance_session = payload.enforce_compliance_session
-    admin_session.add(guild)
+    seat_session.add(guild)
     await _record_guild_settings_change(
-        admin_session,
+        seat_session,
         guild_id=guild_id,
         actor_user_id=current_user.id,
         area="session_limit",
         before=before,
         after={"enforce_compliance_session": guild.enforce_compliance_session},
     )
+    # Committed before the sweep below, which reads the standard back off the
+    # guild row to find whose phones it applies to — and runs on the system
+    # engine, because a device token belongs to an account rather than to this
+    # community.
+    await seat_session.commit()
     if changed:
-        # Written before the sweep below, which reads the standard back off the
-        # guild row to find whose phones it applies to.
-        await admin_session.flush()
         await session_lifetime.apply_to_device_tokens(admin_session)
-    await admin_session.commit()
+        await admin_session.commit()
     return GuildSessionLimitRead(
         enforce_compliance_session=guild.enforce_compliance_session
     )

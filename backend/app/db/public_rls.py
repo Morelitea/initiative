@@ -237,6 +237,7 @@ KNOWN_ROLES = (
             "app_guild_base_ro",
             "app_dm_reader",
             "app_profile_reader",
+            "app_superadmin",
             "initiative_billing",
             "platform_base",
         }
@@ -702,6 +703,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 SELECT,
                 (
                     "app_guild_base",
+                    "app_superadmin",
                     "app_user",
                     "platform_base",
                 ),
