@@ -22,9 +22,10 @@ Three outcomes appear below, and the distinction is the point:
   placeholder (see ``CreatedByMixin``). A block tombstone stays for a
   neighbouring reason — it outlives the membership it was placed on.
 
-``webhook_subscriptions`` is the one place ``created_by`` is none of those: it
-names the account whose reach the subscription delivers, re-derived on every
-poller pass, so the row goes with it.
+``webhook_subscriptions.created_by`` used to be none of those — it named the
+account a delivery was read as. It is ordinary authorship since
+``history/webhook-scope-not-principal-design.md``, so it belongs to the third
+group with the rest.
 
 The two erasure paths are both exercised, because they do not do the same
 things: ``soft_delete_user`` is what the product runs (the deletion request and
@@ -387,12 +388,14 @@ async def test_the_join_requests_stay_on_both_sides(
     assert ruled.resolved_by == s.victim_id
 
 
-async def test_the_webhook_they_registered_goes(session: AsyncSession, role_session):
-    """``created_by`` on a subscription is not authorship — it is the account
-    whose reach the subscription delivers, re-derived every pass. With the
-    account gone the row can deliver nothing and holds a target URL and the
-    secret its receiver signs with, so erasure takes it. See
-    ``app.services.tenant.webhook_subscriptions_test`` for the lifecycle."""
+async def test_the_webhook_they_registered_stays(session: AsyncSession, role_session):
+    """A subscription is the community's integration configuration, and its
+    reach is the scope it names rather than anyone's standing — so erasing the
+    person who registered it is not a decision about it. ``created_by`` records
+    who that was, like any other author column."""
     s = await _seed(session)
     await user_service.hard_delete_user(await role_session("app_admin"), s.victim_id)
-    assert await _reread(session, s.guild_id, WebhookSubscription, s.webhook) is None
+    row = await _reread(session, s.guild_id, WebhookSubscription, s.webhook)
+    assert row is not None
+    assert row.active is True
+    assert row.created_by == s.victim_id
