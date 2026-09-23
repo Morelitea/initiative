@@ -62,7 +62,7 @@ async def load(
 
     # Imported here: this module is pulled in by request-path services, and the
     # session module reaches back into configuration at import time.
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.models.platform.user_ignore import UserIgnore
 
     statement = select(User).where(User.id.in_(tuple(wanted)))
@@ -76,10 +76,10 @@ async def load(
             .exists()
         )
 
-    async with AdminSessionLocal() as admin_session:
-        rows = list((await admin_session.exec(statement)).all())
+    async with SystemSessionLocal() as system_session:
+        rows = list((await system_session.exec(statement)).all())
         for row in rows:
-            admin_session.expunge(row)
+            system_session.expunge(row)
     return {row.id: row for row in rows if row.id is not None}
 
 
@@ -119,16 +119,16 @@ async def load_event_reminder_optins() -> list[User]:
     account's preferences. The question "who wants reminding" is about accounts
     rather than about any guild, so it is asked here, once, before the walk.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         rows = list(
             (
-                await admin_session.exec(
+                await system_session.exec(
                     select(User).where(User.event_reminder_minutes_before.is_not(None))
                 )
             ).all()
         )
         for row in rows:
-            admin_session.expunge(row)
+            system_session.expunge(row)
     return rows

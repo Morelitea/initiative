@@ -1001,7 +1001,7 @@ async def _drop_login(engine, role: str) -> None:
 
 
 async def test_system_engine_check_passes_on_healthy_posture():
-    # The harness routes the admin engine to the real app_admin (BYPASSRLS)
+    # The harness routes the system engine to the real app_admin (BYPASSRLS)
     # against the test DB — the check must be a silent no-op.
     await schema_provisioning.ensure_system_engine_bypassrls()
 
@@ -1014,7 +1014,7 @@ async def test_system_engine_check_heals_missing_bypassrls(engine, monkeypatch):
 
     role = f"{engine.url.database}_heal_role"
     bound_engine = await _create_policy_bound_login(engine, role, "heal-pw")
-    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
+    monkeypatch.setattr(db_session, "system_engine", bound_engine)
     # provisioning_engine is the (privileged) test engine via the harness.
     try:
         await schema_provisioning.ensure_system_engine_bypassrls()
@@ -1043,7 +1043,7 @@ async def test_system_engine_check_fails_closed_when_it_cannot_heal(
     bound_engine = await _create_policy_bound_login(engine, role, "unheal-pw")
     # Point BOTH engines at the policy-bound login: the provisioning side may
     # not alter BYPASSRLS, so the check must stop boot with instructions.
-    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
+    monkeypatch.setattr(db_session, "system_engine", bound_engine)
     monkeypatch.setattr(db_session, "provisioning_engine", bound_engine)
     try:
         with pytest.raises(SystemExit) as excinfo:
@@ -1259,11 +1259,11 @@ async def test_engine_identities_warn_on_shared_app_and_admin_login(
 ):
     import app.db.session as db_session
 
-    # Point the app engine at the (harness) admin engine: same login, same DB.
+    # Point the app engine at the (harness) system engine: same login, same DB.
     # Working-but-not-recommended wiring warns loudly and boots; it never
     # stops. Contrast reject_privileged_database_url, which does stop --- the
     # difference is a weakened backstop versus no boundary at all.
-    monkeypatch.setattr(db_session, "engine", db_session.admin_engine)
+    monkeypatch.setattr(db_session, "engine", db_session.system_engine)
     with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
         await schema_provisioning.verify_engine_identities()
     joined = "\n".join(r.getMessage() for r in caplog.records)
@@ -1280,9 +1280,9 @@ async def test_engine_identities_warn_on_privileged_app_login(
     # App engine as app_admin (BYPASSRLS) — a swapped-URLs deployment. A
     # DISTINCT engine from a distinct login must be the admin side so the
     # same-login warning doesn't fire instead.
-    swapped_app = create_async_engine(db_session.admin_engine.url, echo=False)
+    swapped_app = create_async_engine(db_session.system_engine.url, echo=False)
     monkeypatch.setattr(db_session, "engine", swapped_app)
-    monkeypatch.setattr(db_session, "admin_engine", engine)
+    monkeypatch.setattr(db_session, "system_engine", engine)
     try:
         with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
             await schema_provisioning.verify_engine_identities()
@@ -1346,7 +1346,7 @@ async def test_effective_grants_fail_closed_for_grantless_admin_login(
 
     role = f"{engine.url.database}_nogrant_role"
     bound_engine = await _create_policy_bound_login(engine, role, "nogrant-pw")
-    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
+    monkeypatch.setattr(db_session, "system_engine", bound_engine)
     monkeypatch.setattr(db_session, "engine", engine)  # app side passes (owner)
     try:
         with pytest.raises(SystemExit) as excinfo:

@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # request path, app_admin for guild creation / seeding / background jobs.
 # (Tightening to per-guild roles + SET ROLE is the fail-closed step.)
 APP_LOGIN_ROLE = make_url(settings.DATABASE_URL_APP).username
-ADMIN_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
+SYSTEM_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
 
 
 def guild_schema_name(guild_id: int) -> str:
@@ -511,15 +511,15 @@ def _grant_statements(
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
         # app_admin login retain BYPASSRLS while it removes embedded names.
-        f'GRANT USAGE ON SCHEMA "{schema}" TO "{ADMIN_LOGIN_ROLE}"',
+        f'GRANT USAGE ON SCHEMA "{schema}" TO "{SYSTEM_LOGIN_ROLE}"',
         *(
             f"GRANT {', '.join(privileges)} ON TABLE "
-            f'"{schema}"."{table}" TO "{ADMIN_LOGIN_ROLE}"'
+            f'"{schema}"."{table}" TO "{SYSTEM_LOGIN_ROLE}"'
             for table, privileges in SYSTEM_GUILD_MAINTENANCE_GRANTS.items()
         ),
         *(
             f"GRANT {', '.join(privileges)} ON SEQUENCE "
-            f'"{schema}"."{sequence}" TO "{ADMIN_LOGIN_ROLE}"'
+            f'"{schema}"."{sequence}" TO "{SYSTEM_LOGIN_ROLE}"'
             for sequence, privileges in (
                 SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS.items()
             )
@@ -532,7 +532,7 @@ def _grant_statements(
         f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{schema}" TO "{role}"',
         f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{role}"',
         f'GRANT app_guild_base TO "{role}"',
-        f'GRANT "{role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" WITH INHERIT FALSE',
+        f'GRANT "{role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" WITH INHERIT FALSE',
         # Read-only role: SELECT only on the schema (PAM read grants, read-only
         # members), and the read-only shared floor.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{ro_role}"',
@@ -541,7 +541,7 @@ def _grant_statements(
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{ro_role}"',
         f'GRANT SELECT ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{ro_role}"',
         f'GRANT app_guild_base_ro TO "{ro_role}"',
-        f'GRANT "{ro_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" WITH INHERIT FALSE',
+        f'GRANT "{ro_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" WITH INHERIT FALSE',
         # Support role: read_write on content, but SELECT-only on the structural /
         # permission tables. Grant broadly (incl. default privileges for future
         # content tables) then REVOKE write on the protected set — coarse by design.
@@ -554,7 +554,7 @@ def _grant_statements(
         f'TO "{support_role}"',
         f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{support_role}"',
         f'GRANT app_guild_base TO "{support_role}"',
-        f'GRANT "{support_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
+        f'GRANT "{support_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
         # Query role: SELECT on the schema's tables and nothing else. No
         # sequences — a read names no sequence — and no DML at any level.
@@ -568,7 +568,7 @@ def _grant_statements(
         f'GRANT SELECT ON TABLES TO "{query_role}"',
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{query_role}"',
         f'GRANT app_guild_base_ro TO "{query_role}"',
-        f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
+        f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
         # Seat role: the full guild role's reach into the schema and the
         # shared floor, plus app_superadmin — the one shared floor carrying
@@ -577,7 +577,7 @@ def _grant_statements(
         # it by the same default privilege that reaches that one.
         f'GRANT "{role}" TO "{seat_role}"',
         f'GRANT app_superadmin TO "{seat_role}"',
-        f'GRANT "{seat_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
+        f'GRANT "{seat_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
     ]
     # Cap the support role: SELECT stays, writes are revoked on the permission
@@ -756,7 +756,7 @@ async def backfill_guild_schemas() -> BackfillSummary:
     # live in the RLS-forced public.guilds, and the provisioner is a pure DDL
     # actor — FORCE RLS filters its unrouted data reads to zero rows (by
     # design). Reading data is the system engine's job (BYPASSRLS).
-    async with db_session.admin_engine.connect() as conn:
+    async with db_session.system_engine.connect() as conn:
         # Pooled connection: shed any guild role a previous checkout assumed
         # (a leaked role would RLS-filter public.guilds to zero rows).
         await conn.execute(text("SELECT set_config('role', 'none', false)"))
@@ -984,7 +984,7 @@ async def backfill_guild_search() -> int:
     total = 0
     for schema in schemas:
         try:
-            total += await reindex_guild_search(db_session.admin_engine, schema)
+            total += await reindex_guild_search(db_session.system_engine, schema)
         except Exception:
             logger.exception("search reindex failed for %s", schema)
     if total:
@@ -1098,7 +1098,7 @@ async def ensure_system_engine_bypassrls() -> None:
     self-healing behavior. Otherwise boot stops with the exact repair command
     instead of the downstream RLS error.
     """
-    async with db_session.admin_engine.connect() as conn:
+    async with db_session.system_engine.connect() as conn:
         admin_login, bypasses = (
             await conn.execute(
                 text(
@@ -1131,7 +1131,7 @@ async def ensure_system_engine_bypassrls() -> None:
             )
 
     if can_heal:
-        async with db_session.admin_engine.connect() as conn:
+        async with db_session.system_engine.connect() as conn:
             healed = (await conn.execute(text(_EFFECTIVE_BYPASS_SQL))).scalar()
         if healed:
             logger.warning(
@@ -1361,7 +1361,7 @@ async def verify_engine_identities() -> None:
                 )
             )
         ).one()
-    async with db_session.admin_engine.connect() as conn:
+    async with db_session.system_engine.connect() as conn:
         admin_login, admin_db = (
             await conn.execute(text("SELECT session_user, current_database()"))
         ).one()
@@ -1487,7 +1487,7 @@ async def _effective_missing_grants(
 
 
 async def verify_effective_shared_grants() -> None:
-    """Verify the CONNECTED app/admin logins effectively hold their audited
+    """Verify the CONNECTED app_user/app_admin logins effectively hold their audited
     shared-table privileges, stopping boot with the exact repair when not.
 
     Companion to :func:`ensure_shared_table_grants`, which heals the canonical
@@ -1502,7 +1502,7 @@ async def verify_effective_shared_grants() -> None:
 
     for engine_, env_var, canonical_role, matrix in (
         (
-            db_session.admin_engine,
+            db_session.system_engine,
             "DATABASE_URL_ADMIN",
             "app_admin",
             system_grants.SHARED_TABLE_SYSTEM_GRANTS,

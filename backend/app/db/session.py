@@ -41,7 +41,7 @@ engine = create_async_engine(
 # The textbook Postgres trusted-batch actor: BYPASSRLS, bounded by
 # enumerated per-table GRANTs (migration 0129). Guild schemas still
 # require SET ROLE guild_<id>, which drops the bypass.
-admin_engine = create_async_engine(
+system_engine = create_async_engine(
     settings.DATABASE_URL_ADMIN,
     echo=False,
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
@@ -129,7 +129,7 @@ def instrument_engine(
 
 
 instrument_engine(engine, "request")
-instrument_engine(admin_engine, "system")
+instrument_engine(system_engine, "system")
 # Schema provisioning is DDL, which is expected to take its time.
 instrument_engine(provisioning_engine, "provisioning", flag_slow=False)
 # What a reader writes is theirs, so its text stays out of the log.
@@ -142,8 +142,8 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
 )
 
-AdminSessionLocal = async_sessionmaker(
-    bind=admin_engine,
+SystemSessionLocal = async_sessionmaker(
+    bind=system_engine,
     autoflush=False,
     expire_on_commit=False,
     class_=AsyncSession,
@@ -159,7 +159,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_system_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a session on the system engine (background jobs, bootstrapping,
     platform lifecycle). ``app_admin`` is the standard Postgres trusted-batch
     actor — BYPASSRLS, bounded by enumerated per-table GRANTs (0129); guild
@@ -167,7 +167,7 @@ async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
     set_rls_context(). Context is transaction-local, so a recycled pooled
     connection starts every session at the login-role/public baseline with
     no reset round-trip."""
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         yield session
 
 

@@ -354,8 +354,8 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     original_id = user.id
     original_token_version = user.token_version
 
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, original_id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, original_id)
 
     stmt = select(User).where(User.id == original_id)
     result = await session.exec(stmt)
@@ -512,8 +512,8 @@ async def test_soft_delete_user_scrubs_addressed_invites(
     assert guild_service.invite_is_active(victim_invite) is True
     await session.commit()
 
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, victim.id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, victim.id)
     session.expunge_all()
 
     scrubbed = (
@@ -574,8 +574,8 @@ async def test_hard_delete_user_scrubs_addressed_invites(
     victim_id = victim.id
     await session.commit()
 
-    admin_session = await role_session("app_admin")
-    await user_service.hard_delete_user(admin_session, victim_id)
+    system_session = await role_session("app_admin")
+    await user_service.hard_delete_user(system_session, victim_id)
     session.expunge_all()
 
     # User row is gone...
@@ -764,8 +764,8 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     ).all()
     assert len(before) == 1
 
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, member.id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, member.id)
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
@@ -872,8 +872,8 @@ async def test_soft_delete_scrubs_embedded_mentions(
     )
     await session.commit()
 
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, victim_id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, victim_id)
 
     session.expunge_all()
     await route_session_to_guild(session, guild.id)
@@ -937,11 +937,11 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(
     task_id = task.id
 
     # Anonymize first — this drops the guild membership rows.
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, victim_id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, victim_id)
     session.expunge_all()
 
-    await user_service.hard_delete_user(admin_session, victim_id)
+    await user_service.hard_delete_user(system_session, victim_id)
     session.expunge_all()
 
     # The users row is gone.

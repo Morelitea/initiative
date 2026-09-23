@@ -62,7 +62,7 @@ from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.services.auth import addresses  # noqa: E402
 from app.services.platform import dm_settings  # noqa: E402
 from app.services.platform.usernames import allocate_from_seed  # noqa: E402
-from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
+from app.db.session import SystemSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
 from app.services.tenant.dashboard_definition import (  # noqa: E402
     normalize_dashboard_definition,
@@ -720,7 +720,7 @@ async def _state_outlived_its_database(state: dict) -> bool:
     recorded = state.get("users") or []
     if not recorded:
         return False
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         survivor = (
             await session.exec(select(User.id).where(User.id.in_(recorded)))
         ).first()
@@ -3363,7 +3363,7 @@ async def _create_access_grants(
 ) -> None:
     """Seed ``public.access_grants`` rows (the PAM / break-glass flow).
 
-    Must run with the session reset to the bare admin engine (no guild
+    Must run with the session reset to the bare system engine (no guild
     routing) — access_grants is a platform-scoped shared table.
 
     Each grant_def has:
@@ -3428,7 +3428,7 @@ async def seed() -> None:
     _mark_seed_incomplete()
     ids = IDTracker()
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         # -- Discover existing entities --
         admin_user = await _find_superuser(session)
         primary_guild = await guilds_service.get_primary_guild(session)
@@ -11590,7 +11590,7 @@ async def clean() -> None:
     # that was listed in it. Put it back to the off state a fresh install has,
     # or the next un-seeded dev database starts with a directory nobody asked
     # for. app_settings is not truncated above, so this is its own write.
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await set_rls_context(session)
         app_settings = await get_app_settings(session)
         app_settings.community_directory_enabled = False

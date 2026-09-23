@@ -460,10 +460,10 @@ async def _account_holds_factor(user: User) -> bool:
     answer changes the moment somebody enrols, and that is exactly the moment
     they are trying to get back in.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
-        return await auth_posture.holds_second_factor(admin_session, user_id=user.id)
+    async with SystemSessionLocal() as system_session:
+        return await auth_posture.holds_second_factor(system_session, user_id=user.id)
 
 
 async def platform_factor_unmet(

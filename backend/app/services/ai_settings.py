@@ -128,7 +128,7 @@ _cache: _PlatformConfig | None = None
 
 async def _load_platform_connections() -> tuple[_ConnRow, ...]:
     """Read the operator connections on the system engine (admin-only table)."""
-    async with db_session.admin_engine.connect() as conn:
+    async with db_session.system_engine.connect() as conn:
         # Pooled connection: shed any guild role a prior checkout assumed.
         await conn.execute(text("SELECT set_config('role', 'none', false)"))
         conn_rows = (
@@ -204,7 +204,7 @@ async def _purge_platform_connection_member_data(connection_id: int) -> None:
     per guild — a failing schema is rolled back and logged; the rows are inert
     once the connection is gone.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         guild_ids = (await session.exec(select(Guild.id).order_by(Guild.id))).all()
         for gid in guild_ids:
             try:

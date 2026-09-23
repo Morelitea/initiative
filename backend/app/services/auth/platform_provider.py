@@ -14,7 +14,7 @@ creates the row once at startup. After that the row is owned by the settings
 UI — the env never overwrites it.
 
 Runs on the system engine (``auth_providers`` / ``auth_provider_secrets``
-carry no request-path grants); callers pass their admin session.
+carry no request-path grants); callers pass their system session.
 """
 
 from __future__ import annotations

@@ -289,11 +289,11 @@ async def _grant_exists_fresh(a, b, kind) -> bool:
     The sweep commits on a session of its own, so the answer is read on one too
     rather than through the test session's identity map.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     low, high = canonical_pair(a.id, b.id)
-    async with AdminSessionLocal() as admin_session:
-        return (await admin_session.get(ContactGrant, (low, high, kind))) is not None
+    async with SystemSessionLocal() as system_session:
+        return (await system_session.get(ContactGrant, (low, high, kind))) is not None
 
 
 async def test_the_sweep_waits_for_the_commit(session):

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.schemas.platform.settings import (
     GuildNarrowingPending,
     PlacementCommunityRead,
@@ -28,12 +28,12 @@ from app.services.platform import provider_placement
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 @router.get("/", response_model=ProviderPlacementResponse)
 async def list_provider_placement(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _operator: GuildsManageDep,
 ) -> ProviderPlacementResponse:
     """Every provider, its rules, and whether rules apply everywhere."""
@@ -42,7 +42,7 @@ async def list_provider_placement(
 
 @router.get("/requests", response_model=List[GuildNarrowingPending])
 async def list_placement_requests(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _operator: GuildsManageDep,
 ) -> List[GuildNarrowingPending]:
     """Communities waiting for somebody to agree that the domain or tenant
@@ -53,7 +53,7 @@ async def list_placement_requests(
 @router.put("/everywhere", response_model=PlacementEverywhereUpdate)
 async def set_provider_placement_everywhere(
     payload: PlacementEverywhereUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     owner: ConfigManageDep,
 ) -> PlacementEverywhereUpdate:
     """Apply provider rules to every community they name, or only to the ones
@@ -66,7 +66,7 @@ async def set_provider_placement_everywhere(
 
 @router.get("/communities", response_model=List[PlacementCommunityRead])
 async def list_placement_communities(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _operator: GuildsManageDep,
     provider_id: int,
     q: Optional[str] = Query(default=None, max_length=100),
@@ -84,7 +84,7 @@ async def list_placement_communities(
 async def list_placement_targets(
     provider_id: int,
     guild_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _operator: GuildsManageDep,
 ) -> List[PlacementInitiativeRead]:
     """The initiatives and roles a rule for this community may place people
@@ -101,7 +101,7 @@ async def list_placement_targets(
 )
 async def create_provider_placement_rule(
     payload: ProviderPlacementRuleCreate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     operator: GuildsManageDep,
 ) -> ProviderPlacementRuleRead:
     return await provider_placement.create_rule(
@@ -113,7 +113,7 @@ async def create_provider_placement_rule(
 async def update_provider_placement_rule(
     rule_id: int,
     payload: ProviderPlacementRuleUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     operator: GuildsManageDep,
 ) -> ProviderPlacementRuleRead:
     return await provider_placement.update_rule(
@@ -124,7 +124,7 @@ async def update_provider_placement_rule(
 @router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_provider_placement_rule(
     rule_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     operator: GuildsManageDep,
 ) -> None:
     await provider_placement.delete_rule(

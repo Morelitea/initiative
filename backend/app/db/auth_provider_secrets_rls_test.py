@@ -4,7 +4,7 @@ Locks in the app_admin-only wall (migration 20260706_0133): the request path
 holds no grant on the table, so a client secret can never be read off an
 authenticated (``platform_<tier>``) request — even the highest tier is denied at
 the grant layer. Secret reads/writes run only on the system engine (provider CRUD
-via ``AdminSessionDep`` + ``config.manage``).
+via ``SystemSessionDep`` + ``config.manage``).
 
 Style mirrors ``auth_sessions_rls_test``: SET ROLE platform_<tier> drops to a
 non-superuser role so table GRANTs are enforced like the request path.

@@ -12,7 +12,7 @@ from sqlalchemy import func, select, delete, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import email_t, translate
-from app.db.session import SYSTEM_SATISFIED, AdminSessionLocal, set_rls_context
+from app.db.session import SYSTEM_SATISFIED, SystemSessionLocal, set_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
 from app.core.tools import Tool
@@ -2109,7 +2109,7 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
 
 
 async def process_task_assignment_digests() -> None:
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
 
 
@@ -2126,7 +2126,7 @@ async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> No
 
 
 async def process_assignment_digest_gc() -> None:
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await set_rls_context(session)
         await _run_assignment_gc_pass(session, now=datetime.now(timezone.utc))
 
@@ -2512,7 +2512,7 @@ async def _run_reaction_digest_pass(session: AsyncSession, *, now: datetime) -> 
 
 
 async def process_reaction_digests() -> None:
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _run_reaction_digest_pass(session, now=datetime.now(timezone.utc))
 
 
@@ -2620,7 +2620,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
     """Send overdue-task digests to opted-in users as of ``now``.
 
     Split out from ``process_overdue_notifications`` so tests can drive it with
-    the test session (the worker opens its own ``AdminSessionLocal``). Each
+    the test session (the worker opens its own ``SystemSessionLocal``). Each
     user's overdue tasks are gathered from their own guild schemas with their
     membership context — no all-guild access.
 
@@ -2742,7 +2742,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
 
 
 async def process_overdue_notifications() -> None:
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
 
@@ -2944,7 +2944,7 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
 
 
 async def process_hold_summaries() -> None:
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _run_hold_summary_pass(session, now=datetime.now(timezone.utc))
 
 
@@ -3051,7 +3051,7 @@ async def process_event_reminders() -> None:
     reschedule re-arms the reminder. Attendees who RSVP'd ``declined`` are
     skipped.
     """
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
 
 

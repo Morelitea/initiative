@@ -192,12 +192,12 @@ async def process_activity_flush() -> None:
     """
     from sqlalchemy import text
 
-    from app.db.session import AdminSessionLocal, set_rls_context
+    from app.db.session import SystemSessionLocal, set_rls_context
 
     user_ids = sorted(online.drain_pending())
     if not user_ids:
         return
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await set_rls_context(session)
         await session.exec(
             text(

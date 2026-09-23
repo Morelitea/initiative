@@ -43,7 +43,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.core.user_display import handle_of
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
 from app.models.tenant.post import Post
@@ -205,5 +205,5 @@ async def process_post_publications() -> None:
     ``published_at IS NULL`` predicate on the UPDATE, so a pass that overlaps
     another (or retries after a crash) publishes each notice exactly once.
     """
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _publish_all_guilds(session, now=datetime.now(timezone.utc))

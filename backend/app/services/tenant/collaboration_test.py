@@ -371,7 +371,7 @@ async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
         async def __aexit__(self, *_a):
             return False
 
-    monkeypatch.setattr(collaboration_module, "AdminSessionLocal", NullSession)
+    monkeypatch.setattr(collaboration_module, "SystemSessionLocal", NullSession)
 
     async def no_context(*_a, **_k):
         return None

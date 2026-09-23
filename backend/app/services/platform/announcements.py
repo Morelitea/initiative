@@ -609,9 +609,9 @@ async def process_announcement_image_purge() -> None:
     writing. This is what collects after an editor that uploaded a screenshot
     and was then closed.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         removed = await prune_unreferenced_images(session)
         if removed:
             await session.commit()

@@ -131,7 +131,7 @@ async def sync_oidc_assignments(
     whole verified set, which says whose tenant the arrival belongs to. A rule
     applies only where its community counts the arrival as one of its own.
 
-    Must be called with an admin session (bypasses RLS).
+    Must be called with a system session.
     """
     result = OIDCSyncResult()
 

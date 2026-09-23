@@ -1053,9 +1053,9 @@ async def process_registry_refresh() -> None:
     """
     if not registry_configured():
         return
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         result = await refresh_registry(session)
     if result.ok and not result.unchanged:
         logger.info(

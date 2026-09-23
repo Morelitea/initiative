@@ -175,7 +175,7 @@ async def process_oidc_refresh_sync() -> None:
     credentials. A membership one provider granted is reconciled by that
     provider's sweep and no other.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         provider_ids = (
             await session.exec(
                 select(AuthProvider.id).where(
@@ -193,7 +193,7 @@ async def process_oidc_refresh_sync() -> None:
     # it querying a session that has nothing to give.
     for provider_id in provider_ids:
         try:
-            async with db_session.AdminSessionLocal() as session:
+            async with db_session.SystemSessionLocal() as session:
                 provider = await session.get(AuthProvider, provider_id)
                 if provider is None:
                     continue

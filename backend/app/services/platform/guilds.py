@@ -547,7 +547,7 @@ async def list_memberships(
       ``None`` and costs no query.
     """
     # lazy: avoids a circular import
-    from app.db.session import AdminSessionLocal, set_rls_context
+    from app.db.session import SystemSessionLocal, set_rls_context
     from app.services.cross_guild import gather_across_guilds
 
     await set_rls_context(session, user_id=user_id)
@@ -598,9 +598,9 @@ async def list_memberships(
             ).all()
         }
 
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         counts = await count_members_by_guild(
-            admin_session, guild_ids=[guild.id for guild, _ in listed]
+            system_session, guild_ids=[guild.id for guild, _ in listed]
         )
 
     retention: dict[int, int | None] = {}

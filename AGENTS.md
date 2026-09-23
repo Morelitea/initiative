@@ -348,14 +348,14 @@ Tenancy is enforced in Postgres, not just app code. See **CLAUDE.md → "Tenancy
 |---|---|---|
 | `RLSSessionDep` (`get_guild_session`) | `app_user` → `SET ROLE guild_<id>`/`_ro` | Guild-scoped data under `/g/{guild_id}/…`. Pair with `GuildContextDep`. |
 | `UserSessionDep` (`get_user_session`) | `app_user` → `platform_<tier>` | Authenticated cross-guild/platform reads with no guild (`/me/*`, list/reorder/leave guilds). |
-| `AdminSessionDep` (`get_admin_session`) | `app_admin` (**BYPASSRLS**) | Bootstrapping (create guild, accept invite), platform user/access-grant mgmt, background jobs, seeding. |
+| `SystemSessionDep` (`get_system_session`) | `app_admin` (**BYPASSRLS**) | Bootstrapping (create guild, accept invite), platform user/access-grant mgmt, background jobs, seeding. |
 | `SessionDep` (`get_session`) | `app_user`, login role | Unauthenticated, or handlers that call `set_rls_context()` themselves after validating. |
 
 ### Rules for writing backend endpoints
 
 1. **Default to `RLSSessionDep`** (+ `GuildContextDep`) for any guild-scoped data; the guild comes from the `/g/{guild_id}` path. Never use `SessionDep` for guild-scoped data.
 2. **After every `session.commit()` followed by a query** (incl. `session.refresh()`), call `await reapply_rls_context(session)` — a commit may release the connection back to the pool.
-3. **Use `UserSessionDep`** for authenticated cross-guild/platform reads; reserve `AdminSessionDep` (BYPASSRLS) for bootstrapping/lifecycle/jobs that can't run under a scoped role.
+3. **Use `UserSessionDep`** for authenticated cross-guild/platform reads; reserve `SystemSessionDep` (BYPASSRLS) for bootstrapping/lifecycle/jobs that can't run under a scoped role.
 4. **Gate platform endpoints on `require_capability(...)`** — never reintroduce a request-path `is_superadmin`.
 5. **`set_rls_context()` uses `set_config()`** so the assumed role/GUCs land on the same pooled connection as subsequent queries.
 

@@ -449,7 +449,7 @@ async def _active_guild_ids(session: AsyncSession) -> list[int]:
 async def process_outbox_deliveries() -> None:
     """One drain pass across every active guild. Idempotent."""
     now = datetime.now(timezone.utc)
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         for guild_id in await _active_guild_ids(session):
             session.expunge_all()
             await _drain_guild(session, guild_id, now=now)
@@ -464,7 +464,7 @@ async def process_outbox_retention() -> None:
     describe, so the pair stays the same size.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=OUTBOX_RETENTION_DAYS)
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         for guild_id in await _active_guild_ids(session):
             session.expunge_all()
             await set_rls_context(session, guild_id=guild_id)

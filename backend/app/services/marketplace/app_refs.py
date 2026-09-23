@@ -68,7 +68,7 @@ async def ensure_app_ref(*, guild_id: int, app_install_id: int, user_id: int) ->
     ``identity_refs.billing_refs``: the table is reachable only there, and the
     caller is a request handler routed into a guild role.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         ref = await identity_refs.ensure_ref(
             session,
             entity_type=IdentityEntity.user,
@@ -88,7 +88,7 @@ async def ensure_app_guild_ref(*, guild_id: int, app_install_id: int) -> str:
     installed in two guilds holds two unrelated values for them — the same
     property the member reference has, applied to the tenant.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         ref = await identity_refs.ensure_ref(
             session,
             entity_type=IdentityEntity.guild,
@@ -112,7 +112,7 @@ async def resolve_app_guild_ref(*, ref: str) -> tuple[int, int] | None:
     install and no later one in the same guild — the sector is what makes the
     reference specific, and dropping it would widen it to the guild.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         row = await identity_refs.resolve_ref(session, ref=ref)
     if row is None:
         return None
@@ -193,7 +193,7 @@ async def guild_for_app_ref(*, ref: str, public_id: str) -> int | None:
         return None
     guild_id, app_install_id = resolved
 
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         try:
             # The install lives in the guild's own schema, so the read is
             # routed there.
@@ -221,7 +221,7 @@ async def drop_install_refs(*, guild_id: int, app_install_id: int) -> int:
     foreign key (``guild_apps`` lives in a guild schema and ``identity_refs``
     does not), so this stands in for the cascade the column cannot carry.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         dropped = await identity_refs.drop_sector_refs(
             session,
             sector_guild_id=guild_id,
@@ -245,7 +245,7 @@ async def drop_guild_app_refs(*, guild_id: int, keep_billing: bool = False) -> i
     reaches this from three call sites holding three different sessions, one of
     them routed into the guild role being deleted.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         dropped = await identity_refs.drop_guild_refs(
             session, guild_id=guild_id, keep_billing=keep_billing
         )

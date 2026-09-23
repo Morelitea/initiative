@@ -278,7 +278,7 @@ async def deliver(payload: str) -> None:
     if guild_id not in set(manager.guild_ids()):
         return
     try:
-        async with db_session.AdminSessionLocal() as session:
+        async with db_session.SystemSessionLocal() as session:
             await set_rls_context(session, guild_id=guild_id)
             rows = await _rows_of_transaction(session, int(txn))
             if guild_id not in _delivered:
@@ -312,7 +312,7 @@ async def process_room_sweep() -> None:
         _delivered.pop(guild_id, None)
     if not watched:
         return
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         for guild_id in watched:
             session.expunge_all()
             try:

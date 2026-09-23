@@ -852,7 +852,7 @@ async def test_a_reference_minted_for_something_else_is_404(
     # Through the module, not a name bound at import: conftest points the
     # factory at this worker's database by setting the attribute, and a name
     # imported before that still refers to the configured one.
-    async with db_session.AdminSessionLocal() as admin:
+    async with db_session.SystemSessionLocal() as admin:
         user_ref = await ensure_ref(
             admin,
             entity_type=IdentityEntity.user,

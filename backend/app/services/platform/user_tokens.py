@@ -153,7 +153,7 @@ async def purge_expired_tokens(session: AsyncSession) -> None:
 
 # ``user_tokens`` and ``auth_challenges`` are read and written on the system
 # engine alone (see app/db/system_grants.py), so the sweep runs on
-# AdminSessionLocal with no guild routing.
+# SystemSessionLocal with no guild routing.
 TOKEN_PURGE_POLL_SECONDS = 3600
 
 
@@ -165,9 +165,9 @@ async def process_expired_token_purge() -> None:
     — and the part-way sign-ins in ``auth_challenges``, which end the same way.
     Without it, those rows accumulate forever.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await purge_expired_tokens(session)
         await challenge_service.purge_expired(session)
         await session.commit()
@@ -329,10 +329,10 @@ async def authenticate_device_token(token: str) -> Optional[UserToken]:
     known, so it opens a system-engine session of its own, as a personal API
     key's lookup does. The row comes back detached, with its columns loaded.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
-        return await get_device_token(admin_session, token=token)
+    async with SystemSessionLocal() as system_session:
+        return await get_device_token(system_session, token=token)
 
 
 async def _record_device_token_use(*, user_id: int) -> None:
@@ -350,13 +350,13 @@ async def _record_device_token_use(*, user_id: int) -> None:
     from app.services import audit as audit_service
 
     try:
-        async with db_session.AdminSessionLocal() as admin_session:
+        async with db_session.SystemSessionLocal() as system_session:
             await audit_service.record(
-                admin_session,
+                system_session,
                 event_type=AuditEventType.AUTH_DEVICE_TOKEN_USED,
                 actor_user_id=user_id,
             )
-            await admin_session.commit()
+            await system_session.commit()
     except Exception:
         logger.exception("Could not record device-token use for user %s", user_id)
 
@@ -452,7 +452,7 @@ async def revoke_other_device_tokens(
 
 
 async def revoke_user_sessions(
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     *,
     user: User,
     commit: bool = True,
@@ -470,7 +470,7 @@ async def revoke_user_sessions(
     password reset so the three paths can't drift.
 
     Every table this writes is the system engine's, so the revocations share
-    ``admin_session``'s transaction. ``token_version`` is bumped on ``user``
+    ``system_session``'s transaction. ``token_version`` is bumped on ``user``
     wherever it is bound, and whoever holds that session commits it. The
     revocations are committed here by default so they can't be forgotten by a
     caller — revoking ahead of a password write that later fails just logs the
@@ -482,11 +482,11 @@ async def revoke_user_sessions(
     open the replacement leaves the account holding everything it had.
     """
     user.token_version += 1
-    await revoke_active_device_tokens(admin_session, user_id=user.id)
-    await api_keys_service.deactivate_user_api_keys(admin_session, user_id=user.id)
-    await session_service.revoke_all_for_user(admin_session, user_id=user.id)
+    await revoke_active_device_tokens(system_session, user_id=user.id)
+    await api_keys_service.deactivate_user_api_keys(system_session, user_id=user.id)
+    await session_service.revoke_all_for_user(system_session, user_id=user.id)
     # A sign-in part-way through rests on the password it proved, so it goes
     # with the rest rather than standing until it expires.
-    await challenge_service.revoke_for_user(admin_session, user_id=user.id)
+    await challenge_service.revoke_for_user(system_session, user_id=user.id)
     if commit:
-        await admin_session.commit()
+        await system_session.commit()

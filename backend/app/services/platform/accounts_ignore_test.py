@@ -29,12 +29,12 @@ async def _inbox(session, user_id: int) -> list[Notification]:
     The endpoint commits on its own session, so this asks the database rather
     than the test session's snapshot.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         return list(
             (
-                await admin_session.exec(
+                await system_session.exec(
                     select(Notification).where(Notification.user_id == user_id)
                 )
             ).all()

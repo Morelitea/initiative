@@ -361,7 +361,7 @@ async def test_upload_row_in_guild_schema_is_served(
 ) -> None:
     """Regression: under schema-per-guild, Upload rows written through a guild
     request live in guild_<id>.uploads — NOT public.uploads. The serve route
-    runs on the admin session (search_path=public) and must still find the row
+    runs on the system session (search_path=public) and must still find the row
     by routing into the requester's ACTIVE guild schema (server-held context),
     otherwise every newly uploaded image 404s (fail-closed SEC-6 turned the
     old silent fail-open into a visible regression)."""

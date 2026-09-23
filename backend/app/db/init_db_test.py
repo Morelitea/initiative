@@ -25,12 +25,12 @@ async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
     subsequent restart ("already seeded"), permanently stranding the primary
     guild without a schema. The cleanup mirrors the API/registration paths.
     """
-    # init_owner uses AdminSessionLocal (bound to the prod admin engine);
+    # init_owner uses SystemSessionLocal (bound to the prod system engine);
     # point it (and provisioning, via the autouse harness) at the test DB.
     test_sessions = async_sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
     )
-    monkeypatch.setattr(init_db, "AdminSessionLocal", test_sessions)
+    monkeypatch.setattr(init_db, "SystemSessionLocal", test_sessions)
 
     email = "init-boot-seedfail@example.com"
     monkeypatch.setattr(settings, "FIRST_OWNER_EMAIL", email)

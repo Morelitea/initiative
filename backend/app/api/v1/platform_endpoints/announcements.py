@@ -229,11 +229,11 @@ async def delete_announcement(
     await session.commit()
     # Receipts are each reader's own rows; the system engine clears them once
     # the notice they name is gone.
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
-        await announcements_service.delete_receipts(admin_session, key=key)
-        await admin_session.commit()
+    async with SystemSessionLocal() as system_session:
+        await announcements_service.delete_receipts(system_session, key=key)
+        await system_session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

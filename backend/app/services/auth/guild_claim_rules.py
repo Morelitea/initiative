@@ -66,12 +66,12 @@ AUDITED_FIELDS: tuple[str, ...] = (
 )
 
 
-async def reset_to_admin_baseline(session: AsyncSession) -> None:
-    """Return the admin session to its neutral public / login-role baseline.
+async def reset_to_system_baseline(session: AsyncSession) -> None:
+    """Return the system session to its neutral public / login-role baseline.
 
     After routing into a guild schema the session has assumed that guild's
     role, which has no write access to shared ``public`` config tables. Reset
-    to the admin login role before writing a rule back to ``public``.
+    to the system login role before writing a rule back to ``public``.
     """
     await set_rls_context(session)
 
@@ -109,7 +109,7 @@ async def lookup_guild_initiative(
             ).one_or_none()
         return initiative, role
     finally:
-        await reset_to_admin_baseline(session)
+        await reset_to_system_baseline(session)
 
 
 async def _connected_provider(

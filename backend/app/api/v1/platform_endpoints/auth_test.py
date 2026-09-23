@@ -971,7 +971,7 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
     """
     import app.api.v1.platform_endpoints.auth as auth_module
 
-    async def _builder(admin_session, row):
+    async def _builder(system_session, row):
         return OidcProvider(
             OidcClientConfig(
                 issuer=row.issuer,

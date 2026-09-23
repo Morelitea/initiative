@@ -193,7 +193,7 @@ async def backfill_uploads_to_s3(
     if cfg.backend != "s3" or not cfg.bucket:
         raise ValueError("backfill requires an S3 backend with S3_BUCKET configured")
     client = build_s3_client(cfg)
-    engine = db_session.admin_engine  # system engine; guild schemas via SET ROLE
+    engine = db_session.system_engine  # system engine; guild schemas via SET ROLE
     async with engine.connect() as conn:
         # Pooled connection: shed any guild role a previous checkout assumed.
         await conn.execute(text("SELECT set_config('role', 'none', false)"))
@@ -239,7 +239,7 @@ async def backfill_uploads_to_s3(
                 backfill_guild_dir(
                     guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run
                 )
-                # The callback persists status via its own admin session, so this
+                # The callback persists status via its own system session, so this
                 # connection's guild role doesn't affect it.
                 if on_progress is not None:
                     await on_progress(summary)

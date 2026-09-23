@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import require_capability
 from app.core.capabilities import Capability
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.user import User
 from app.schemas.platform.app_service import (
@@ -32,7 +32,7 @@ from app.services.marketplace import registrations as registrations_service
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 #: Wiring app services is deployment configuration — owner tier, like the rest
 #: of the platform settings wall.
 AppsManageDep = Annotated[User, Depends(require_capability(Capability.APPS_MANAGE))]
@@ -64,7 +64,7 @@ def _to_read(row: AppServiceRegistration) -> AppServiceRegistrationRead:
 
 @router.get("/", response_model=List[AppServiceRegistrationRead])
 async def list_app_services(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: AppsManageDep,
 ) -> List[AppServiceRegistrationRead]:
     """Every app service this deployment has wired up (``apps.manage``)."""
@@ -79,7 +79,7 @@ async def list_app_services(
 )
 async def create_app_service(
     payload: AppServiceRegistrationCreate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Register an app service, running the handshake on the way in.
@@ -107,7 +107,7 @@ async def create_app_service(
 @router.get("/{registration_id}", response_model=AppServiceRegistrationRead)
 async def read_app_service(
     registration_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     _admin: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     row = await registrations_service.get_registration(session, registration_id)
@@ -118,7 +118,7 @@ async def read_app_service(
 async def update_app_service(
     registration_id: int,
     payload: AppServiceRegistrationUpdate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Enable/disable, rotate the secret, repoint either address, or change the
@@ -143,7 +143,7 @@ async def update_app_service(
 @router.delete("/{registration_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_app_service(
     registration_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: AppsManageDep,
 ) -> None:
     """Remove the registration. Every channel it backed stops with the row."""
@@ -155,7 +155,7 @@ async def delete_app_service(
 @router.post("/{registration_id}/verify", response_model=AppServiceRegistrationRead)
 async def verify_app_service(
     registration_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     admin: AppsManageDep,
     payload: AppServiceVerifyRequest | None = None,
 ) -> AppServiceRegistrationRead:

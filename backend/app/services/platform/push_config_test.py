@@ -76,7 +76,7 @@ async def test_refresh_loads_db_over_env(
 
     await app_settings_service.update_push_settings(
         session,
-        admin_session=session,
+        system_session=session,
         enabled=True,
         project_id="db-project",
         application_id="1:2:android:3",
@@ -108,7 +108,7 @@ async def test_full_service_account_survives_the_round_trip(
 
     await app_settings_service.update_push_settings(
         session,
-        admin_session=session,
+        system_session=session,
         enabled=True,
         project_id="demo-project",
         application_id=None,
@@ -129,7 +129,7 @@ async def test_credential_is_kept_when_not_sent(session: AsyncSession) -> None:
     account = _service_account()
     await app_settings_service.update_push_settings(
         session,
-        admin_session=session,
+        system_session=session,
         enabled=True,
         project_id="p",
         application_id=None,
@@ -140,7 +140,7 @@ async def test_credential_is_kept_when_not_sent(session: AsyncSession) -> None:
     )
     await app_settings_service.update_push_settings(
         session,
-        admin_session=session,
+        system_session=session,
         enabled=False,
         project_id="p",
         application_id=None,

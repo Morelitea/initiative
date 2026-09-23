@@ -59,9 +59,9 @@ async def process_jti_blocklist_purges() -> None:
     active = [b for b in _BLOCKLISTS if b.enabled()]
     if not active:
         return  # self-host default: nothing wired, nothing can have filled
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         for entry in active:
             # Independent per table: one failing sweep must not skip the rest.
             # purge_expired_jtis rolls back its own aborted transaction before

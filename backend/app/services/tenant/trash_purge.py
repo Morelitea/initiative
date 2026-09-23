@@ -1,7 +1,7 @@
 """Auto-purge background worker for trashed entities past their retention.
 
 Polled by ``background_tasks._loop_worker`` once an hour. Connects via
-``AdminSessionLocal`` (the ``app_admin`` login) and routes into each guild's
+``SystemSessionLocal`` (the ``app_admin`` login) and routes into each guild's
 schema on the system engine, whose login the policies' system leg names — it clears
 the ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE guard (and the
 initiative-member policies), since SET ROLE into ``guild_<id>`` drops the
@@ -28,7 +28,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SystemSessionLocal, set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
@@ -182,5 +182,5 @@ async def process_trash_purges() -> None:
        constraints. ``hard_purge_entity`` walks descendants explicitly.
     """
     now = datetime.now(timezone.utc)
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _purge_all_guilds(session, now=now)

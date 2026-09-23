@@ -1072,7 +1072,7 @@ async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
 # ---------------------------------------------------------------------------
 # Which tier each route answers to
 #
-# These handlers read and write through the system admin engine, so the
+# These handlers read and write through the system engine, so the
 # capability gate is what each one is scoped by. Every route is listed here
 # per-endpoint, stated rather than derived from ``capabilities.py``, so that a
 # change to the ladder has to be made here too.

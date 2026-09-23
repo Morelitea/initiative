@@ -10,7 +10,7 @@ schema and purge the blobs. Each pass then reclaims any ``guild_<id>`` schema
 whose row is already gone — a teardown that deleted the row but did not finish
 dropping the schema, here or where a guild's creation was rolled back.
 
-Polled by ``background_tasks._loop_worker`` once an hour on ``AdminSessionLocal``
+Polled by ``background_tasks._loop_worker`` once an hour on ``SystemSessionLocal``
 (the ``app_admin`` login). It works on ``public.guilds`` alone and never routes
 into a guild schema — the schema is dropped wholesale on the provisioning
 engine, so there is nothing here to read inside it.
@@ -27,7 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.db.schema_provisioning import deprovision_guild
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.services import audit as audit_service
 from app.services.marketplace import app_refs
@@ -188,6 +188,6 @@ async def process_guild_purges() -> None:
     """One pass of the guild-purge loop. Idempotent and safe to run on a
     schedule even when nothing is due."""
     now = datetime.now(timezone.utc)
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await purge_due_guilds(session, now=now)
         await reclaim_orphaned_guilds(session)
