@@ -12,6 +12,9 @@ let guildRole: GuildRole = "superadmin";
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let reachesContent = true;
 let authOptions: GuildAuthOption[] = ["restrictions", "providers"];
+// The server's answer to whether the settings may be changed; left unset, the
+// factory answers the way the server does for a member.
+let canWriteSettings: boolean | undefined;
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
@@ -23,6 +26,7 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
         name: "Test Community",
         role: guildRole,
         auth_options: authOptions,
+        ...(canWriteSettings === undefined ? {} : { can_write_settings: canWriteSettings }),
       }),
       grantSettingsLevel,
       reachesContent,
@@ -55,6 +59,7 @@ describe("GuildSettingsLayout", () => {
     grantSettingsLevel = null;
     reachesContent = true;
     authOptions = ["restrictions", "providers"];
+    canWriteSettings = undefined;
   });
 
   it("offers the Security tab to the seat that owns it", async () => {
@@ -157,6 +162,30 @@ describe("GuildSettingsLayout", () => {
     expect(screen.getByRole("tab", { name: /security/i })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /initiatives/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /trash/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the settings for viewing when the server says they are not changed here", async () => {
+    // A settings grant with no read/write grant beside it reads what its rung
+    // reaches; every control on the pages is disabled, and the page says why.
+    guildRole = "superadmin";
+    grantSettingsLevel = "superadmin";
+    canWriteSettings = false;
+    render();
+
+    expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
+    expect(screen.getByText(/read\/write grant/i)).toBeInTheDocument();
+    expect(screen.getByRole("group")).toBeDisabled();
+  });
+
+  it("leaves the settings changeable when the server says so", async () => {
+    guildRole = "superadmin";
+    grantSettingsLevel = "superadmin";
+    canWriteSettings = true;
+    render();
+
+    expect(await screen.findByRole("tab", { name: /security/i })).toBeInTheDocument();
+    expect(screen.queryByText(/read\/write grant/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("group")).toBeEnabled();
   });
 
   it("turns a member with nothing away", async () => {

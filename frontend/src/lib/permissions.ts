@@ -160,5 +160,17 @@ export const administersGuildContent = (
   guild: { role?: string | null; reachesContent?: boolean } | null | undefined
 ): boolean => administersGuild(guild) && reachesGuildContent(guild);
 
+/**
+ * Whether this request may change the community configuration it reaches.
+ *
+ * The server's answer (`GuildRead.can_write_settings`), the same rule the
+ * settings routes refuse a change by: the membership row's administrator
+ * does, and a settings grant does beside a read/write grant. A rung that
+ * reaches the settings without it reads them.
+ */
+export const changesGuildSettings = (
+  guild: { can_write_settings?: boolean } | null | undefined
+): boolean => guild?.can_write_settings === true;
+
 export const hasWriteAccess = (level: string | null | undefined): boolean =>
   level === "owner" || level === "write";

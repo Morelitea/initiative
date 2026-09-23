@@ -117,6 +117,9 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   role: settingsGrantLevel(settingsGrant) ?? "member",
   // A settings grant carries no content access; a content grant is what does.
   reachesContent: grant.purpose === "content",
+  // Answered by the community's own entry (`GET /guilds/{id}`) for a settings
+  // grant; until then, and for a content grant, nothing here is changed.
+  can_write_settings: false,
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
   max_storage_bytes: null,
@@ -153,6 +156,34 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   grantAccessLevel: grant.purpose === "content" ? grant.access_level : null,
   grantSettingsLevel: settingsGrantLevel(settingsGrant),
 });
+
+/**
+ * A settings grant's entry, with the community's own answer laid over it: the
+ * rung, what may be changed, and the administration fields the grant does not
+ * carry. What the grant says about itself stays. Best-effort — without an
+ * answer the entry changes nothing.
+ */
+const withSettingsEntry = async (entry: GuildEntry): Promise<GuildEntry> => {
+  if (!entry.grantSettingsLevel) return entry;
+  try {
+    const response = await apiClient.get<GuildRead>(`/guilds/${entry.id}`);
+    return {
+      ...response.data,
+      icon_url: entry.icon_url,
+      banner: entry.banner,
+      position: entry.position,
+      content_read_only: entry.content_read_only,
+      reachesContent: entry.reachesContent,
+      accessType: entry.accessType,
+      grantExpiresAt: entry.grantExpiresAt,
+      grantAccessLevel: entry.grantAccessLevel,
+      grantSettingsLevel: entry.grantSettingsLevel,
+    };
+  } catch (err) {
+    console.error("Failed to load the settings entry for a granted community", err);
+    return entry;
+  }
+};
 
 export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const { user, refreshUser } = useAuth();
@@ -292,6 +323,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
             return settings ? [grantEntry(settings, settings)] : [];
           }
         );
+        grantGuilds = await Promise.all(grantGuilds.map(withSettingsEntry));
       } catch (grantErr) {
         grantsKnown = false;
         console.error("Failed to load access grants for guild switcher", grantErr);
@@ -537,7 +569,8 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       const next = prev.map((existing) => {
         if (existing.id === guild.id) {
           replaced = true;
-          return guild;
+          // What the entry says about how it was reached is not in the reply.
+          return { ...existing, ...guild };
         }
         return existing;
       });

@@ -3,6 +3,7 @@ import type {
   GuildInviteStatus,
   GuildRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { rungReaches } from "@/lib/permissions";
 
 let counter = 0;
 
@@ -32,6 +33,8 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     banner: buildBanner(),
     online_count: 0,
     role,
+    // A member's entry: the membership row's administrator changes settings.
+    can_write_settings: rungReaches(role, "admin"),
     position: counter - 1,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",

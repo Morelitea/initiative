@@ -21,6 +21,7 @@
     "title": "Community settings",
     "subtitle": "Manage workspace membership and community details.",
     "permissionDenied": "You need additional permissions to view this page.",
+    "viewOnly": "You're viewing these settings on an access grant. Changing them takes a read/write grant beside it.",
     "restricted": {
       "read_only": {
         "label": "Read-only",

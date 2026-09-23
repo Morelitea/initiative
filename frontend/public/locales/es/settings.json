@@ -21,6 +21,7 @@
     "title": "Configuración de la comunidad",
     "subtitle": "Administra la membresía del espacio de trabajo y los detalles de la comunidad.",
     "permissionDenied": "Necesitas permisos adicionales para ver esta página.",
+    "viewOnly": "Estás viendo esta configuración con una concesión de acceso. Para cambiarla hace falta además una concesión de lectura y escritura.",
     "restricted": {
       "read_only": {
         "label": "Solo lectura",
