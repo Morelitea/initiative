@@ -2774,6 +2774,90 @@ async def test_a_jira_import_fetches_then_waits_for_review_then_applies(
     assert titles == {"Wire the thing", "Ship the thing"}
 
 
+async def test_a_jira_import_brings_its_links_across(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """What Jira connected arrives connected: the blocked issue depends on its
+    blocker, the sub-task is part of its parent, and a link to an issue that
+    was not brought over is counted in the plan before anybody confirms and
+    in the report after."""
+    from sqlmodel import select
+
+    from app.models.tenant.relationship import EntityRelationship
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    blocker = _jira_issue("ACME-1", "Fit the frame")
+    blocker["fields"]["issuelinks"] = [
+        {
+            "id": "10",
+            "type": {"name": "Blocks", "outward": "blocks"},
+            "outwardIssue": {"key": "ACME-2"},
+        }
+    ]
+    blocked = _jira_issue("ACME-2", "Hang the door")
+    blocked["fields"]["issuelinks"] = [
+        {
+            "id": "10",
+            "type": {"name": "Blocks", "outward": "blocks"},
+            "inwardIssue": {"key": "ACME-1"},
+        },
+        {
+            "id": "11",
+            "type": {"name": "Relates", "outward": "relates to"},
+            "outwardIssue": {"key": "OPS-9"},
+        },
+    ]
+    step = _jira_issue("ACME-3", "Oil the hinges")
+    step["fields"]["parent"] = {"key": "ACME-2"}
+
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(issues=[blocker, blocked, step]),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    assert staged["plan"]["atlassian"]["links"] == 2
+    assert staged["plan"]["atlassian"]["links_outside_selection"] == 1
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["links_created"] == 2
+    assert done["result"]["links_unresolved"] == 1
+
+    session.expunge_all()
+    ids = {
+        t.title: t.id
+        for t in (await session.exec(select(Task))).all()
+        if t.title in {"Fit the frame", "Hang the door", "Oil the hinges"}
+    }
+    edges = {
+        (row.source_id, row.relationship_type, row.target_id)
+        for row in (
+            await session.exec(
+                select(EntityRelationship).where(
+                    EntityRelationship.source_type == "task",
+                    EntityRelationship.target_type == "task",
+                )
+            )
+        ).all()
+    }
+    assert (ids["Hang the door"], "depends_on", ids["Fit the frame"]) in edges
+    assert (ids["Oil the hinges"], "part_of", ids["Hang the door"]) in edges
+    assert len(edges) == 2
+
+
 async def test_starting_a_jira_import_refuses_what_it_can_up_front(
     client, acting_user, session, monkeypatch
 ):

@@ -426,3 +426,119 @@ async def test_a_throttled_board_lookup_is_not_mistaken_for_no_board(monkeypatch
     with pytest.raises(ImportEngineError) as exc:
         await _bundle(monkeypatch)
     assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED
+
+
+# --- links -------------------------------------------------------------------
+
+
+def _two_projects(monkeypatch, issues_by_project):
+    """A site with a project per key, each answering its own issues."""
+    calls: list[dict] = []
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        calls.append({"url": url, "json": json})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            key = url.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"key": key, "name": key})
+        if "search/jql" in url and json is not None:
+            key = json["jql"].split('"')[1]
+            return httpx.Response(200, json={"issues": issues_by_project[key]})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    return calls
+
+
+def _blocked_by(key, blocker, link_id):
+    return {
+        "id": link_id,
+        "type": {"name": "Blocks", "outward": "blocks"},
+        "inwardIssue": {"key": blocker},
+    }
+
+
+def _blocks_link(key, blocked, link_id):
+    return {
+        "id": link_id,
+        "type": {"name": "Blocks", "outward": "blocks"},
+        "outwardIssue": {"key": blocked},
+    }
+
+
+async def test_links_are_asked_for(monkeypatch):
+    calls = _site(monkeypatch, issues=[_issue("ACME-1", "One")])
+    await _bundle(monkeypatch)
+    search = next(c for c in calls if "search/jql" in c["url"])
+    assert {"issuelinks", "parent"} <= set(search["json"]["fields"])
+
+
+async def test_links_are_counted_once_and_split_by_whether_both_ends_came(
+    monkeypatch,
+):
+    """Both sides of a Jira link report it, so it is counted by id. A link
+    between two ticked projects will be drawn; one to an issue nobody ticked
+    will not, and the plan says how many before anybody confirms."""
+    _two_projects(
+        monkeypatch,
+        {
+            "ACME": [
+                _issue(
+                    "ACME-1",
+                    "Fit it",
+                    issuelinks=[_blocks_link("ACME-1", "ACME-2", "10")],
+                ),
+                _issue(
+                    "ACME-2",
+                    "Hang it",
+                    parent={"key": "ACME-1"},
+                    issuelinks=[
+                        _blocked_by("ACME-2", "ACME-1", "10"),
+                        _blocked_by("ACME-2", "OPS-1", "11"),
+                    ],
+                ),
+            ],
+            "OPS": [
+                _issue(
+                    "OPS-1",
+                    "Order hinges",
+                    issuelinks=[
+                        _blocks_link("OPS-1", "ACME-2", "11"),
+                        _blocked_by("OPS-1", "HR-4", "12"),
+                    ],
+                )
+            ],
+        },
+    )
+
+    _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OPS"])
+
+    # Drawn: 10 (ACME-1 blocks ACME-2), 11 (OPS-1 blocks ACME-2, across the
+    # two projects), and ACME-2's parent. Not: 12, whose far end is in a
+    # project nobody ticked.
+    assert report.links == 3
+    assert report.links_outside_selection == 1
+
+
+async def test_the_links_land_in_the_bundle(monkeypatch):
+    _site(
+        monkeypatch,
+        issues=[
+            _issue("ACME-1", "Fit it"),
+            _issue(
+                "ACME-2",
+                "Hang it",
+                issuelinks=[_blocked_by("ACME-2", "ACME-1", "10")],
+            ),
+        ],
+    )
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    payload, _report = await _bundle(monkeypatch)
+    archive = open_backup_zip(payload)
+    manifest = read_manifest(archive)
+    envelope = json.loads(archive.read(manifest.entries[0].path))
+    assert envelope["tasks"][1]["links"] == [
+        {"type": "depends_on", "target_external_ref": "jira:ACME-1"}
+    ]

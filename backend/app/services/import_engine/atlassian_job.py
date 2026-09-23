@@ -73,6 +73,8 @@ def summary_of(report: jira_fetch.FetchReport) -> AtlassianFetchSummary:
         dropped_nodes=report.dropped_nodes,
         skipped_issues=report.skipped_issues,
         unreadable_projects=list(report.unreadable_projects),
+        links=report.links,
+        links_outside_selection=report.links_outside_selection,
     )
 
 

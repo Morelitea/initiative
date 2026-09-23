@@ -158,6 +158,10 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     skipped_issues: int = 0
     #: Project keys that were ticked and could not be read with this token.
     unreadable_projects: list[str] = []
+    #: Issue links and parents that will become connections between tasks.
+    links: int = 0
+    #: Those whose other end was not brought over, so will not.
+    links_outside_selection: int = 0
 
 
 class BackupImportPlan(SanitizedBaseModel):

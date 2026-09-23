@@ -378,3 +378,139 @@ def test_what_the_mapping_produces_is_a_real_envelope():
     assert parsed.tasks[0].priority is TaskPriority.urgent
     assert parsed.tasks[0].external_ref == "jira:ACME-1"
     assert parsed.task_statuses[0].name == "To Do"
+
+
+# --- links and parents -------------------------------------------------------
+
+
+def _blocks(*, inward=None, outward=None, link_id="10"):
+    link = {
+        "id": link_id,
+        "type": {"name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
+    }
+    if inward:
+        link["inwardIssue"] = {"key": inward}
+    if outward:
+        link["outwardIssue"] = {"key": outward}
+    return link
+
+
+def _relates(*, inward=None, outward=None, link_id="20", name="Relates"):
+    link = {
+        "id": link_id,
+        "type": {"name": name, "inward": "relates to", "outward": "relates to"},
+    }
+    if inward:
+        link["inwardIssue"] = {"key": inward}
+    if outward:
+        link["outwardIssue"] = {"key": outward}
+    return link
+
+
+def test_the_blocked_issue_depends_on_its_blocker():
+    """Jira shows a Blocks link on both issues. The blocked one — which sees
+    its blocker as "is blocked by" — says it; the blocker says nothing, or
+    the edge would be written twice."""
+    blocked = _map(_issue("ACME-2", "Hang it", issuelinks=[_blocks(inward="ACME-1")]))
+    blocker = _map(_issue("ACME-1", "Fit it", issuelinks=[_blocks(outward="ACME-2")]))
+    assert blocked["links"] == [
+        {"type": "depends_on", "target_external_ref": "jira:ACME-1"}
+    ]
+    assert blocker["links"] == []
+
+
+def test_a_renamed_blocking_type_still_blocks():
+    """A site can rename the type; the verb is what says it blocks."""
+    link = _blocks(inward="ACME-1")
+    link["type"]["name"] = "Prerequisite"
+    task = _map(_issue("ACME-2", "Hang it", issuelinks=[link]))
+    assert task["links"] == [
+        {"type": "depends_on", "target_external_ref": "jira:ACME-1"}
+    ]
+
+
+@pytest.mark.parametrize("name", ["Relates", "Duplicate", "Cloners", "Causes"])
+def test_every_other_link_is_related_and_said_once(name):
+    """The finer words have no home here, so each is a plain relation — from
+    the outward side only, since the inward side reports the same link."""
+    outward_side = _map(
+        _issue("ACME-1", "One", issuelinks=[_relates(outward="ACME-2", name=name)])
+    )
+    inward_side = _map(
+        _issue("ACME-2", "Two", issuelinks=[_relates(inward="ACME-1", name=name)])
+    )
+    assert outward_side["links"] == [
+        {"type": "related_to", "target_external_ref": "jira:ACME-2"}
+    ]
+    assert inward_side["links"] == []
+
+
+def test_a_sub_task_or_story_is_part_of_its_parent():
+    """A sub-task's parent and a story's epic arrive the same way: only the
+    child names its parent."""
+    task = _map(_issue("ACME-3", "A step", parent={"key": "ACME-1"}))
+    assert task["links"] == [{"type": "part_of", "target_external_ref": "jira:ACME-1"}]
+
+
+def test_the_same_link_twice_is_one_link():
+    task = _map(
+        _issue(
+            "ACME-2",
+            "Hang it",
+            issuelinks=[
+                _blocks(inward="ACME-1", link_id="10"),
+                _blocks(inward="ACME-1", link_id="11"),
+            ],
+        )
+    )
+    assert len(task["links"]) == 1
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [None, "nope", [None], [{"type": None}], [{"type": {"name": "Blocks"}}]],
+)
+def test_links_that_name_nothing_are_ignored(bad):
+    task = _map(_issue("ACME-2", "Hang it", issuelinks=bad, parent="ACME-1"))
+    assert task["links"] == []
+
+
+def test_link_ends_name_each_link_once_by_id():
+    """For counting: both sides report a link, and the id is what makes them
+    one. The parent is keyed by its child, since only the child names it."""
+    issue = _issue(
+        "ACME-2",
+        "Hang it",
+        parent={"key": "ACME-1"},
+        issuelinks=[_blocks(inward="ACME-1", link_id="10"), _relates(outward="OPS-9")],
+    )
+    assert jm.link_far_ends(issue) == [
+        ("parent:ACME-2", "ACME-1"),
+        ("link:10", "ACME-1"),
+        ("link:20", "OPS-9"),
+    ]
+
+
+def test_links_survive_into_a_real_envelope():
+    """The link shape has to validate as the envelope's own, or the apply
+    refuses the whole project."""
+    from app.schemas.tenant.project_export import ProjectExportEnvelope
+
+    envelope = _envelope(
+        issues=[
+            _issue("ACME-1", "Fit it"),
+            _issue(
+                "ACME-2",
+                "Hang it",
+                parent={"key": "ACME-1"},
+                issuelinks=[_blocks(inward="ACME-1")],
+            ),
+        ]
+    )
+    parsed = ProjectExportEnvelope.model_validate(envelope)
+    assert [
+        (link.type.value, link.target_external_ref) for link in parsed.tasks[1].links
+    ] == [
+        ("part_of", "jira:ACME-1"),
+        ("depends_on", "jira:ACME-1"),
+    ]
