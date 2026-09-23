@@ -271,6 +271,12 @@ async def _load_comments(
                 author_name=display_name(author) if author is not None else None,
                 body=row.content,
                 created_at=row.created_at,
+                external_ref=f"comment:{row.id}",
+                reply_to_ref=(
+                    f"comment:{row.parent_comment_id}"
+                    if row.parent_comment_id is not None
+                    else None
+                ),
             )
         )
     return by_task

@@ -46,8 +46,10 @@ class ProjectExportTaskStatus(SanitizedBaseModel):
     name: str
     category: TaskStatusCategory
     position: int = 0
-    color: str = "#94A3B8"
-    icon: str = "circle-dashed"
+    # Absent from what another tool's export is mapped into: the importer
+    # then gives the column its category's own look.
+    color: Optional[str] = None
+    icon: Optional[str] = None
     is_default: bool = False
 
 
@@ -110,6 +112,14 @@ class ProjectExportComment(SanitizedBaseModel):
     author_name: Optional[str] = None
     body: str
     created_at: Optional[datetime] = None
+    # What this comment was called where it came from, and the comment it
+    # answers, so a thread arrives as a thread. Refs for the reason a task's
+    # are; they live for the length of one job.
+    external_ref: Optional[str] = None
+    reply_to_ref: Optional[str] = None
+    # The handles the body mentions as ``@<handle>``. Each one the people step
+    # places becomes a mention of that account; the rest stay a name.
+    mention_handles: List[str] = []
 
 
 class ProjectExportTaskLink(SanitizedBaseModel):
@@ -164,6 +174,8 @@ class ProjectExportTask(SanitizedBaseModel):
     # exactly what an absent field means here.
     links: List[ProjectExportTaskLink] = []
     comments: List[ProjectExportComment] = []
+    # The handles the description mentions, as a comment's are.
+    mention_handles: List[str] = []
 
 
 class ProjectExportEnvelope(SanitizedBaseModel):

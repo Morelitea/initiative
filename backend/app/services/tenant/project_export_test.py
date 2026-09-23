@@ -413,3 +413,83 @@ async def test_schema_version_unsupported_rejected(session: AsyncSession):
         )
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
+
+
+@pytest.mark.integration
+async def test_a_thread_survives_the_round_trip(session: AsyncSession):
+    """A reply is exported naming the comment it answers, and restored
+    under the copy of that comment."""
+    from app.models.tenant.comment import Comment
+    from app.testing import create_comment
+
+    owner, assignee, guild, initiative, project = await _seed_populated_project(session)
+    task = (await session.exec(select(Task).where(Task.project_id == project.id))).one()
+    question = await create_comment(session, owner, task=task, content="Question")
+    await create_comment(
+        session,
+        assignee,
+        task=task,
+        content="Answer",
+        parent_comment_id=question.id,
+    )
+
+    envelope = await export_service.build_project_export(
+        session, project_id=project.id, exported_by_handle=handle_of(owner)
+    )
+    exported = {c.body: c for c in envelope.tasks[0].comments}
+    assert exported["Answer"].reply_to_ref == exported["Question"].external_ref
+
+    target = await create_initiative(session, guild, owner, name="Target Initiative")
+    result = await import_service.import_project(
+        session, envelope=envelope, target_initiative=target, importer=owner
+    )
+    new_task = (
+        await session.exec(select(Task).where(Task.project_id == result.project_id))
+    ).one()
+    restored = {
+        c.content: c
+        for c in (
+            await session.exec(select(Comment).where(Comment.task_id == new_task.id))
+        ).all()
+    }
+    assert restored["Question"].parent_comment_id is None
+    assert restored["Answer"].parent_comment_id == restored["Question"].id
+
+
+@pytest.mark.integration
+async def test_a_status_with_no_look_gets_its_categorys(session: AsyncSession):
+    """Another tool's columns arrive with a name and a category only; each
+    looks like its category rather than every one like the backlog."""
+    from app.models.tenant.task import TaskStatus
+    from app.schemas.tenant.project_export import ProjectExportEnvelope
+    from app.services.tenant.task_statuses import defaults_for_category
+
+    owner, _assignee, guild, _initiative, _project = await _seed_populated_project(
+        session
+    )
+    envelope = ProjectExportEnvelope.model_validate(
+        {
+            "app_version": "0.0.0-test",
+            "exported_at": "2026-07-15T00:00:00+00:00",
+            "project": {"name": "From elsewhere"},
+            "tags": [],
+            "property_definitions": [],
+            "tasks": [],
+            "task_statuses": [
+                {"name": c.value, "category": c.value, "position": i}
+                for i, c in enumerate(TaskStatusCategory)
+            ],
+        }
+    )
+    target = await create_initiative(session, guild, owner, name="Target Initiative")
+    result = await import_service.import_project(
+        session, envelope=envelope, target_initiative=target, importer=owner
+    )
+    rows = (
+        await session.exec(
+            select(TaskStatus).where(TaskStatus.project_id == result.project_id)
+        )
+    ).all()
+    assert {r.category: (r.color, r.icon) for r in rows} == {
+        c: defaults_for_category(c) for c in TaskStatusCategory
+    }
