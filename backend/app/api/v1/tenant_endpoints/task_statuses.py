@@ -32,7 +32,6 @@ from app.schemas.tenant.task_status import (
 )
 from app.core.messages import InitiativeMessages, TaskStatusMessages
 from app.db.frozen import mark_restructuring
-from app.services import rls as rls_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_completion
@@ -447,7 +446,7 @@ async def _require_initiative_reader(
         )
     # A guild admin reads every initiative in their guild, and a PAM grantee
     # reads the guild for the life of the grant; neither holds a membership row.
-    if rls_service.is_guild_admin(guild_context.role) or guild_context.is_pam:
+    if guild_context.is_admin or guild_context.is_pam:
         return
     membership = await initiatives_service.get_initiative_membership(
         session,

@@ -46,7 +46,7 @@ router = APIRouter()
 # same seat rather than to running the community day to day. A settings grant
 # at the superadmin rung stands in for the seat, as it does everywhere else.
 GuildSeatContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.superadmin))
+    GuildContext, Depends(require_guild_roles(GuildRole.superadmin, settings=True))
 ]
 GuildMemberContext = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUser = Annotated[User, Depends(get_current_active_user)]

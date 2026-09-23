@@ -37,7 +37,6 @@ from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
-from app.services import rls as rls_service
 from app.services.tenant import archive as archive_service
 
 router = APIRouter()
@@ -118,7 +117,7 @@ def _authorize(
     here either way.
     """
     if entity_type == "initiative":
-        if not rls_service.is_guild_admin(guild_context.role):
+        if not guild_context.is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_ADMIN_REQUIRED,

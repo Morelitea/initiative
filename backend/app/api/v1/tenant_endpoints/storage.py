@@ -13,8 +13,9 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.core.messages import GuildMessages
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
@@ -23,7 +24,6 @@ from app.api.deps import (
 )
 from app.models.platform.user import User
 from app.schemas.base import SanitizedBaseModel
-from app.services.rls import require_guild_admin
 from app.services.tenant.attachments import get_guild_storage_usage
 
 router = APIRouter()
@@ -43,7 +43,11 @@ async def read_storage_usage(
     session: RLSSessionDep,
     guild_context: GuildContextDep,
 ) -> GuildStorageUsageRead:
-    require_guild_admin(guild_context.role)
+    if not guild_context.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+        )
     usage_bytes = await get_guild_storage_usage(session)
     return GuildStorageUsageRead(
         guild_id=guild_context.guild_id, usage_bytes=usage_bytes

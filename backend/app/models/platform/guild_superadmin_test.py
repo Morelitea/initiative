@@ -21,22 +21,18 @@ from app.models.platform.guild import (
     GuildRole,
     assignable_roles,
 )
-from app.services import rls as rls_service
 
 pytestmark = pytest.mark.unit
 
 
 def test_a_superadmin_carries_an_admins_authority():
-    assert rls_service.is_guild_admin(GuildRole.superadmin)
+    assert GuildRole.superadmin.reaches(GuildRole.admin)
     assert GuildRole.superadmin in GUILD_ADMIN_ROLES
-    # And the check that raises agrees with the one that answers.
-    rls_service.require_guild_admin(GuildRole.superadmin)
 
 
 def test_a_member_still_does_not():
-    assert not rls_service.is_guild_admin(GuildRole.member)
-    with pytest.raises(Exception):
-        rls_service.require_guild_admin(GuildRole.member)
+    assert not GuildRole.member.reaches(GuildRole.admin)
+    assert GuildRole.member not in GUILD_ADMIN_ROLES
 
 
 def test_the_gate_asks_one_question_about_three_roles():
@@ -121,11 +117,14 @@ async def test_that_guard_still_turns_a_member_away():
     assert caught.value.status_code == 403
 
 
-async def test_a_guard_naming_other_roles_is_left_alone():
-    """Widening applies to the ``admin`` rung, not to every guard."""
+async def test_a_guard_naming_a_rung_admits_the_rungs_above_it():
+    """The ladder answers every guard the same way: a rung asked for is that
+    rung or above, and granted access — no membership row — reaches no rung
+    of the community's own."""
     guard = deps.require_guild_roles(GuildRole.member)
+    await guard(_context(GuildRole.superadmin))
     with pytest.raises(HTTPException):
-        await guard(_context(GuildRole.superadmin))
+        await guard(_context(GuildRole.support))
 
 
 def test_a_claim_rule_cannot_name_the_seat():

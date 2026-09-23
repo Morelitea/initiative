@@ -1,28 +1,21 @@
 """Tests for Mandatory Access Control — RLS and guild/initiative-level security.
 
 Tests cover:
-- Guild-level access checks (is_guild_admin, require_guild_admin)
-- Guild membership lookups (get_guild_membership, require_guild_membership)
 - Initiative manager checks (is_initiative_manager, assert_initiative_manager)
 - Initiative permission checks (check_initiative_permission)
 """
 
 import pytest
-from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildMessages, InitiativeMessages
+from app.core.messages import InitiativeMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 from app.models.platform.user import UserRole
 from app.services.rls import (
     check_initiative_permission,
-    get_guild_membership,
-    is_guild_admin,
     is_initiative_manager,
     assert_initiative_manager,
-    require_guild_admin,
-    require_guild_membership,
 )
 from app.testing import (
     create_guild,
@@ -39,87 +32,6 @@ from app.testing import (
 
 
 @pytest.mark.unit
-def test_is_guild_admin_with_admin_role():
-    assert is_guild_admin(GuildRole.admin) is True
-
-
-@pytest.mark.unit
-def test_is_guild_admin_with_member_role():
-    assert is_guild_admin(GuildRole.member) is False
-
-
-@pytest.mark.unit
-def test_require_guild_admin_passes_for_admin():
-    require_guild_admin(GuildRole.admin)  # should not raise
-
-
-@pytest.mark.unit
-def test_require_guild_admin_raises_for_member():
-    with pytest.raises(HTTPException) as exc_info:
-        require_guild_admin(GuildRole.member)
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == GuildMessages.GUILD_ADMIN_REQUIRED
-
-
-# ---------------------------------------------------------------------------
-# Guild membership lookups (async / service)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.service
-async def test_get_guild_membership_found(session: AsyncSession):
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    membership = await get_guild_membership(session, guild_id=guild.id, user_id=user.id)
-
-    assert membership is not None
-    assert membership.guild_id == guild.id
-    assert membership.user_id == user.id
-
-
-@pytest.mark.service
-async def test_get_guild_membership_not_found(session: AsyncSession):
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-
-    membership = await get_guild_membership(session, guild_id=guild.id, user_id=99999)
-
-    assert membership is None
-
-
-@pytest.mark.service
-async def test_require_guild_membership_found(session: AsyncSession):
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    membership = await require_guild_membership(
-        session, guild_id=guild.id, user_id=user.id
-    )
-
-    assert membership is not None
-    assert membership.user_id == user.id
-
-
-@pytest.mark.service
-async def test_require_guild_membership_raises(session: AsyncSession):
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-
-    with pytest.raises(HTTPException) as exc_info:
-        await require_guild_membership(session, guild_id=guild.id, user_id=99999)
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == GuildMessages.NOT_GUILD_MEMBER
-
-
-# ---------------------------------------------------------------------------
-# Initiative manager checks (async / service)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.service
 async def test_is_initiative_manager_with_pm_role(session: AsyncSession):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)

@@ -26,10 +26,11 @@ from fastapi.responses import JSONResponse
 from sqlmodel import select
 
 from app.api.deps import (
+    GuildContext,
     RLSSessionDep,
     get_current_active_user,
     get_guild_membership,
-    GuildContext,
+    require_seat,
 )
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
@@ -409,21 +410,6 @@ async def cancel_import_job(
 # ---------------------------------------------------------------------------
 
 
-def _require_guild_seat(guild_context: GuildContext) -> None:
-    """Restoring a backup creates initiatives and writes blobs back into the
-    community, so it sits with the seat that exports one.
-
-    Lent as well as held: a ``superadmin`` settings grant is the seat for its
-    window. Content access is a separate axis, and this route writes content —
-    a grant carrying none is refused at the session, before this.
-    """
-    if not guild_context.seat:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED,
-        )
-
-
 @router.post(
     "/backup", response_model=ImportJobRead, status_code=status.HTTP_201_CREATED
 )
@@ -437,7 +423,7 @@ async def upload_backup(
     guild storage and the job parked as ``staged`` (nothing is imported yet);
     ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
     backups expire after IMPORT_STAGED_TTL_HOURS. The community's seat only."""
-    _require_guild_seat(guild_context)
+    require_seat(guild_context, detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED)
     _require_writable(guild_context)
     guild_id = guild_context.guild_id
 
@@ -544,7 +530,9 @@ async def confirm_import(
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
     if job.source == "backup":
-        _require_guild_seat(guild_context)
+        require_seat(
+            guild_context, detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED
+        )
     elif job.created_by != current_user.id:
         # RLS lets a guild admin read the row; answering somebody else's
         # people step is a different thing from being able to see it.
