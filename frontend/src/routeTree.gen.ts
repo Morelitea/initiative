@@ -56,6 +56,7 @@ import { Route as ServerRequiredAuthenticatedSettingsOperatorIndexRouteImport } 
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/access'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/announcements'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/communities'
+import { Route as ServerRequiredAuthenticatedSettingsOperatorPlacementRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/placement'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/users'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/index'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/auth'
@@ -433,6 +434,12 @@ const ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute =
   ServerRequiredAuthenticatedSettingsOperatorCommunitiesRouteImport.update({
     id: '/communities',
     path: '/communities',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsOperatorRoute,
+  } as any)
+const ServerRequiredAuthenticatedSettingsOperatorPlacementRoute =
+  ServerRequiredAuthenticatedSettingsOperatorPlacementRouteImport.update({
+    id: '/placement',
+    path: '/placement',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsOperatorRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsOperatorUsersRoute =
@@ -1331,6 +1338,7 @@ export interface FileRoutesByFullPath {
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
+  '/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
@@ -1478,6 +1486,7 @@ export interface FileRoutesByTo {
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
+  '/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
@@ -1621,6 +1630,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/_serverRequired/_authenticated/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/_serverRequired/_authenticated/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
+  '/_serverRequired/_authenticated/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/_serverRequired/_authenticated/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
   '/_serverRequired/_authenticated/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/_serverRequired/_authenticated/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
@@ -1775,6 +1785,7 @@ export interface FileRouteTypes {
     | '/settings/operator/access'
     | '/settings/operator/announcements'
     | '/settings/operator/communities'
+    | '/settings/operator/placement'
     | '/settings/operator/users'
     | '/settings/platform/auth'
     | '/settings/platform/branding'
@@ -1922,6 +1933,7 @@ export interface FileRouteTypes {
     | '/settings/operator/access'
     | '/settings/operator/announcements'
     | '/settings/operator/communities'
+    | '/settings/operator/placement'
     | '/settings/operator/users'
     | '/settings/platform/auth'
     | '/settings/platform/branding'
@@ -2064,6 +2076,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/operator/access'
     | '/_serverRequired/_authenticated/settings/operator/announcements'
     | '/_serverRequired/_authenticated/settings/operator/communities'
+    | '/_serverRequired/_authenticated/settings/operator/placement'
     | '/_serverRequired/_authenticated/settings/operator/users'
     | '/_serverRequired/_authenticated/settings/platform/auth'
     | '/_serverRequired/_authenticated/settings/platform/branding'
@@ -2508,6 +2521,13 @@ declare module '@tanstack/react-router' {
       path: '/communities'
       fullPath: '/settings/operator/communities'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRoute
+    }
+    '/_serverRequired/_authenticated/settings/operator/placement': {
+      id: '/_serverRequired/_authenticated/settings/operator/placement'
+      path: '/placement'
+      fullPath: '/settings/operator/placement'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRoute
     }
     '/_serverRequired/_authenticated/settings/operator/users': {
@@ -3759,6 +3779,7 @@ interface ServerRequiredAuthenticatedSettingsOperatorRouteChildren {
   ServerRequiredAuthenticatedSettingsOperatorAccessRoute: typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute: typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute: typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
+  ServerRequiredAuthenticatedSettingsOperatorPlacementRoute: typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   ServerRequiredAuthenticatedSettingsOperatorUsersRoute: typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
   ServerRequiredAuthenticatedSettingsOperatorIndexRoute: typeof ServerRequiredAuthenticatedSettingsOperatorIndexRoute
 }
@@ -3771,6 +3792,8 @@ const ServerRequiredAuthenticatedSettingsOperatorRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute,
     ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute:
       ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute,
+    ServerRequiredAuthenticatedSettingsOperatorPlacementRoute:
+      ServerRequiredAuthenticatedSettingsOperatorPlacementRoute,
     ServerRequiredAuthenticatedSettingsOperatorUsersRoute:
       ServerRequiredAuthenticatedSettingsOperatorUsersRoute,
     ServerRequiredAuthenticatedSettingsOperatorIndexRoute:

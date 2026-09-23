@@ -950,8 +950,73 @@
       "users": "Utilisateurs",
       "access": "Accès",
       "guilds": "Communautés",
+      "placement": "Affectation à la connexion",
       "announcements": "Annonces"
     }
+  },
+  "providerPlacement": {
+    "title": "Affectation à la connexion",
+    "description": "Affectez les personnes qu'un fournisseur de connexion connecte — selon le groupe ou l'annuaire qu'il indique — à une communauté, et à une initiative de celle-ci si vous en nommez une.",
+    "loading": "Chargement des règles d'affectation…",
+    "loadError": "Impossible de charger les règles d'affectation. Veuillez réessayer.",
+    "adminOnly": "L'affectation à la connexion est gérée par les opérateurs et propriétaires de la plateforme.",
+    "everywhere": {
+      "label": "Appliquer les règles d'affectation à toutes les communautés",
+      "help": "Activé, une règle affecte les personnes à la communauté qu'elle nomme, que cette communauté ait accepté ou non. Chaque changement est enregistré.",
+      "ownerOnly": "C'est le propriétaire de la plateforme qui règle ce paramètre.",
+      "confirmTitle": "Appliquer les règles d'affectation à toutes les communautés ?",
+      "confirmDescription": "Chaque règle affecte alors les personnes à la communauté qu'elle nomme, y compris les communautés qui n'ont pas accepté les règles de son fournisseur. Le changement est consigné dans le journal d'audit.",
+      "confirm": "Appliquer partout",
+      "enabled": "Les règles d'affectation s'appliquent désormais à toutes les communautés",
+      "disabled": "Les règles d'affectation s'appliquent désormais là où une communauté les a acceptées",
+      "error": "Impossible de changer l'endroit où s'appliquent les règles d'affectation"
+    },
+    "noProviders": "Aucun fournisseur de connexion pour l'instant. Dès qu'un fournisseur est ajouté sur la page Authentification, ses règles d'affectation s'écrivent ici.",
+    "noGroups": "Ce fournisseur n'indique encore aucun groupe : une règle qui nomme un groupe ne s'applique à personne tant qu'un propriétaire n'a pas défini la revendication de groupes du fournisseur sur la page Authentification. Les règles qui ne nomment qu'un annuaire fonctionnent déjà.",
+    "empty": "Aucune règle pour ce fournisseur pour l'instant.",
+    "add": "Ajouter une règle",
+    "addFor": "Ajouter une règle pour {{provider}}",
+    "addTitle": "Ajouter une règle d'affectation",
+    "addDescription": "Indiquez à qui cette règle s'applique sur {{provider}}, et où ces personnes arrivent.",
+    "editTitle": "Modifier la règle d'affectation",
+    "editDescription": "Affecte des personnes de {{provider}} à {{community}}. Une règle garde son fournisseur et sa communauté ; pour d'autres, ajoutez une nouvelle règle.",
+    "editLabel": "Modifier la règle",
+    "match": {
+      "group": "Groupe {{group}}",
+      "groupInDirectory": "Groupe {{group}} dans {{claim}} = {{value}}",
+      "directory": "Tout le monde de {{claim}} = {{value}}"
+    },
+    "landsInCommunity": "Rejoint {{community}} comme {{role}}",
+    "landsInInitiative": "Rejoint {{community}} comme {{role}}, et {{initiative}} comme {{initiativeRole}}",
+    "notApplying": "Non appliquée",
+    "notApplyingHint": "La communauté n'a pas accepté les règles de ce fournisseur, et elles ne s'appliquent pas partout.",
+    "groupLabel": "Groupe",
+    "groupPlaceholder": "eng",
+    "groupHelp": "Exactement comme le fournisseur l'écrit. Laissez vide pour affecter tout le monde de l'annuaire ci-dessous.",
+    "directoryLabel": "Seulement les personnes d'un annuaire",
+    "directoryHelp": "Pour un fournisseur qui connecte des personnes de plusieurs annuaires : la revendication qui nomme l'annuaire, et la valeur de celui-ci.",
+    "directoryClaimLabel": "Revendication",
+    "directoryClaimPlaceholder": "idp",
+    "directoryValueLabel": "Valeur",
+    "directoryValuePlaceholder": "acme-adfs",
+    "needsMatch": "Nommez un groupe, un annuaire ou les deux.",
+    "communityLabel": "Communauté",
+    "communityPlaceholder": "Choisir une communauté",
+    "communitySearch": "Rechercher des communautés",
+    "communityEmpty": "Aucune communauté ne correspond",
+    "notAccepted": "Non acceptées",
+    "communityHelp": "Une communauté marquée « Non acceptées » reprend les règles de ce fournisseur dès qu'elle les accepte sur sa page Sécurité.",
+    "targetsUnavailable": "Les initiatives s'affichent dès que cette communauté reprend les règles de ce fournisseur.",
+    "save": "Enregistrer la règle",
+    "added": "Règle ajoutée",
+    "addError": "Impossible d'ajouter cette règle",
+    "saved": "Règle enregistrée",
+    "saveError": "Impossible d'enregistrer cette règle",
+    "remove": "Supprimer la règle",
+    "removeTitle": "Supprimer cette règle ?",
+    "removeDescription": "Les personnes qu'elle vise ne sont plus affectées à {{community}} par elle, et ce qu'elle leur a donné est retiré à leur prochaine connexion par ce fournisseur.",
+    "removed": "Règle supprimée",
+    "removeError": "Impossible de supprimer cette règle"
   },
   "guilds": {
     "title": "Limites par communauté",
@@ -1202,7 +1267,9 @@
       "makeItOurs": "En faire la nôtre",
       "claimNameLabel": "Nom de la revendication",
       "claimNamePlaceholder": "p. ex. org, realm",
-      "joinsOnceAgreed": "Les arrivées correspondantes rejoindront aussitôt dès que la personne qui gère ce serveur confirme que ces valeurs sont les vôtres. D’ici là, elles sont admises et l’adhésion se fait sur invitation."
+      "joinsOnceAgreed": "Les arrivées correspondantes rejoindront aussitôt dès que la personne qui gère ce serveur confirme que ces valeurs sont les vôtres. D’ici là, elles sont admises et l’adhésion se fait sur invitation.",
+      "acceptsPlacementLabel": "Laisser le déploiement affecter les personnes de ce fournisseur",
+      "acceptsPlacementHelp": "Les règles d'affectation du déploiement pour ce fournisseur peuvent ajouter des personnes ici, en plus de vos propres règles."
     },
     "rules": {
       "title": "Où arrivent vos membres",
@@ -1235,7 +1302,12 @@
       "removed": "Règle supprimée",
       "removeError": "Impossible de supprimer cette règle",
       "removeTitle": "Supprimer cette règle ?",
-      "removeDescription": "Les personnes portant {{group}} ne seront plus affectées ici, et celles qui sont ici grâce à cette règle perdront ce statut à leur prochaine connexion via ce fournisseur."
+      "removeDescription": "Les personnes portant {{group}} ne seront plus affectées ici, et celles qui sont ici grâce à cette règle perdront ce statut à leur prochaine connexion via ce fournisseur.",
+      "deployment": {
+        "title": "Définies par le déploiement",
+        "description": "Règles d'affectation que l'équipe qui gère ce déploiement a écrites pour ses fournisseurs et qui nomment cette communauté. Elles affectent des personnes ici en plus de vos propres règles, dès que vous acceptez les règles d'un fournisseur sur sa connexion.",
+        "everywhere": "Le déploiement applique ses règles d'affectation à toutes les communautés."
+      }
     },
     "sections": {
       "whoGetsIn": "Qui entre",

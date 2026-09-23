@@ -4380,6 +4380,28 @@ export interface GuildClaimRuleUpdate {
 }
 
 /**
+ * One rule the platform wrote for a provider: which arrivals it matches,
+ * and where they land.
+ */
+export interface ProviderPlacementRuleRead {
+  id: number;
+  provider_id: number;
+  provider_display_name: string;
+  provider_icon: string | null;
+  claim_value: string | null;
+  scope_claim: string | null;
+  scope_value: string | null;
+  guild_id: number;
+  guild_name: string;
+  guild_role: string;
+  initiative_id: number | null;
+  initiative_name: string | null;
+  initiative_role_id: number | null;
+  initiative_role_name: string | null;
+  applies: boolean;
+}
+
+/**
  * The rules, and whether the providers behind them report groups at all.
  *
  * Which claim carries groups is the operator's to set per provider. A
@@ -4390,6 +4412,8 @@ export interface GuildClaimRuleUpdate {
 export interface GuildClaimRulesResponse {
   rules: GuildClaimRuleRead[];
   reporting_provider_ids: number[];
+  provider_rules: ProviderPlacementRuleRead[];
+  placement_everywhere: boolean;
 }
 
 export interface GuildCreate {
@@ -4580,6 +4604,7 @@ export interface GuildProviderConnectionCreate {
   claim_values?: string[] | null;
   enabled?: boolean;
   auto_join?: boolean;
+  accepts_provider_placement?: boolean;
 }
 
 /**
@@ -4601,6 +4626,7 @@ export interface GuildProviderConnectionRead {
   enabled: boolean;
   auto_join: boolean;
   narrowing_approved: boolean;
+  accepts_provider_placement: boolean;
   login_ready: boolean;
 }
 
@@ -4614,6 +4640,7 @@ export interface GuildProviderConnectionUpdate {
   claim_values?: string[] | null;
   enabled?: boolean | null;
   auto_join?: boolean | null;
+  accepts_provider_placement?: boolean | null;
 }
 
 /**
@@ -6121,6 +6148,48 @@ export interface PasswordResetSubmit {
   password: string;
 }
 
+/**
+ * A community a rule may name, and whether a rule naming it applies.
+ */
+export interface PlacementCommunityRead {
+  id: number;
+  name: string;
+  placeable: boolean;
+}
+
+/**
+ * Apply the platform's rules to every community they name, or only to
+ * the ones that accepted them.
+ */
+export interface PlacementEverywhereUpdate {
+  enabled: boolean;
+}
+
+export interface PlacementInitiativeRoleRead {
+  id: number;
+  name: string;
+  is_manager: boolean;
+}
+
+/**
+ * An initiative a rule may place people in, with the roles it offers.
+ */
+export interface PlacementInitiativeRead {
+  id: number;
+  name: string;
+  roles: PlacementInitiativeRoleRead[];
+}
+
+/**
+ * A provider rules can be written for, as the placement page lists it.
+ */
+export interface PlacementProviderRead {
+  id: number;
+  display_name: string;
+  icon: string | null;
+  reports_groups: boolean;
+}
+
 export interface PlatformAIModeResponse {
   mode: AIConfigMode;
 }
@@ -6728,6 +6797,44 @@ export interface PropertyValueInput {
  */
 export interface PropertyValuesSetRequest {
   values?: PropertyValueInput[];
+}
+
+/**
+ * Everything the placement page shows.
+ */
+export interface ProviderPlacementResponse {
+  placement_everywhere: boolean;
+  providers: PlacementProviderRead[];
+  rules: ProviderPlacementRuleRead[];
+}
+
+/**
+ * Place the people a provider asserts a group or a directory for.
+ *
+ * Naming an initiative places them there as well as in the community.
+ */
+export interface ProviderPlacementRuleCreate {
+  provider_id: number;
+  claim_value?: string | null;
+  scope_claim?: string | null;
+  scope_value?: string | null;
+  guild_id: number;
+  guild_role?: string;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
+}
+
+/**
+ * Change what a rule matches or where it lands. Its provider and its
+ * community are not editable: a rule pointed elsewhere is a different rule.
+ */
+export interface ProviderPlacementRuleUpdate {
+  claim_value?: string | null;
+  scope_claim?: string | null;
+  scope_value?: string | null;
+  guild_role?: string | null;
+  initiative_id?: number | null;
+  initiative_role_id?: number | null;
 }
 
 export interface PublishTarget {
@@ -9069,6 +9176,11 @@ export const CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdB
   } as const;
 
 export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200 = { [key: string]: unknown };
+
+export type ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams = {
+  provider_id: number;
+  q?: string | null;
+};
 
 export type ListNotificationsApiV1NotificationsGetParams = {
   /**

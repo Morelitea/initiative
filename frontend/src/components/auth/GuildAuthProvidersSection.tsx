@@ -11,6 +11,10 @@
  * Google account, so a community connecting to it says which workspace domain
  * is theirs. A community whose provider is its own identity provider needs
  * none: it already only holds their people.
+ *
+ * A connection of the community's own also says whether the deployment's
+ * placement rules for that provider may place people here, beside the
+ * community's own rules.
  */
 
 import { Plus, Trash2 } from "lucide-react";
@@ -26,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   useConnectableProviders,
@@ -129,6 +134,42 @@ export const GuildAuthProvidersSection = ({
                           ? t("guildAuth.connections.joinsOnArrival")
                           : t("guildAuth.connections.joinsOnceAgreed")}
                       </p>
+                    )}
+                    {/* Only a connection of this community's own carries the
+                        answer; an inherited row has none to change. */}
+                    {!row.inherited && row.id !== null && (
+                      <div className="mt-2 flex items-start gap-2">
+                        <Switch
+                          id={`accepts-placement-${row.id}`}
+                          className="mt-0.5"
+                          checked={row.accepts_provider_placement}
+                          onCheckedChange={(checked) =>
+                            updateConnection.mutate(
+                              {
+                                connectionId: row.id as number,
+                                data: { accepts_provider_placement: Boolean(checked) },
+                              },
+                              {
+                                onError: (error) =>
+                                  toast.error(
+                                    getErrorMessage(
+                                      error,
+                                      "settings:guildAuth.connections.connectError"
+                                    )
+                                  ),
+                              }
+                            )
+                          }
+                        />
+                        <div className="space-y-0.5">
+                          <Label htmlFor={`accepts-placement-${row.id}`} className="text-sm">
+                            {t("guildAuth.connections.acceptsPlacementLabel")}
+                          </Label>
+                          <p className="text-muted-foreground text-xs">
+                            {t("guildAuth.connections.acceptsPlacementHelp")}
+                          </p>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

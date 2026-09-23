@@ -950,8 +950,73 @@
       "users": "Benutzer",
       "access": "Zugriff",
       "guilds": "Communitys",
+      "placement": "Zuordnung bei Anmeldung",
       "announcements": "Ankündigungen"
     }
+  },
+  "providerPlacement": {
+    "title": "Zuordnung bei Anmeldung",
+    "description": "Ordne die Leute, die ein Anmeldeanbieter anmeldet – nach der Gruppe oder dem Verzeichnis, das er meldet –, einer Community zu, und dort einer Initiative, wenn du eine nennst.",
+    "loading": "Zuordnungsregeln werden geladen…",
+    "loadError": "Zuordnungsregeln konnten nicht geladen werden. Bitte versuche es erneut.",
+    "adminOnly": "Die Zuordnung bei Anmeldung verwalten Plattform-Operatoren und -Owner.",
+    "everywhere": {
+      "label": "Zuordnungsregeln auf jede Community anwenden",
+      "help": "Eingeschaltet ordnet eine Regel Leute der genannten Community zu, ob diese zugestimmt hat oder nicht. Jede Änderung wird protokolliert.",
+      "ownerOnly": "Das legt der Plattform-Owner fest.",
+      "confirmTitle": "Zuordnungsregeln auf jede Community anwenden?",
+      "confirmDescription": "Jede Regel ordnet dann Leute der genannten Community zu, auch Communitys, die den Regeln ihres Anbieters nicht zugestimmt haben. Die Änderung wird im Audit-Log festgehalten.",
+      "confirm": "Überall anwenden",
+      "enabled": "Zuordnungsregeln gelten jetzt für jede Community",
+      "disabled": "Zuordnungsregeln gelten jetzt dort, wo eine Community zugestimmt hat",
+      "error": "Konnte nicht ändern, wo Zuordnungsregeln gelten"
+    },
+    "noProviders": "Noch keine Anmeldeanbieter. Sobald einer auf der Seite Authentifizierung hinzugefügt ist, schreibst du hier seine Zuordnungsregeln.",
+    "noGroups": "Dieser Anbieter meldet noch keine Gruppen: Eine Regel mit einer Gruppe trifft auf niemanden zu, bis ein Owner auf der Seite Authentifizierung den Gruppen-Claim des Anbieters festlegt. Regeln, die nur ein Verzeichnis nennen, funktionieren bereits.",
+    "empty": "Noch keine Regeln für diesen Anbieter.",
+    "add": "Regel hinzufügen",
+    "addFor": "Regel für {{provider}} hinzufügen",
+    "addTitle": "Zuordnungsregel hinzufügen",
+    "addDescription": "Lege fest, auf wen bei {{provider}} diese Regel zutrifft und wo diese Leute landen.",
+    "editTitle": "Zuordnungsregel bearbeiten",
+    "editDescription": "Ordnet Leute von {{provider}} {{community}} zu. Eine Regel behält ihren Anbieter und ihre Community; für andere füge eine neue Regel hinzu.",
+    "editLabel": "Regel bearbeiten",
+    "match": {
+      "group": "Gruppe {{group}}",
+      "groupInDirectory": "Gruppe {{group}} in {{claim}} = {{value}}",
+      "directory": "Alle aus {{claim}} = {{value}}"
+    },
+    "landsInCommunity": "Tritt {{community}} bei als {{role}}",
+    "landsInInitiative": "Tritt {{community}} bei als {{role}}, und {{initiative}} als {{initiativeRole}}",
+    "notApplying": "Greift nicht",
+    "notApplyingHint": "Die Community hat den Regeln dieses Anbieters nicht zugestimmt, und sie gelten nicht überall.",
+    "groupLabel": "Gruppe",
+    "groupPlaceholder": "eng",
+    "groupHelp": "Genau so, wie der Anbieter sie schreibt. Leer lassen, um alle aus dem Verzeichnis unten zuzuordnen.",
+    "directoryLabel": "Nur Leute aus einem Verzeichnis",
+    "directoryHelp": "Für einen Anbieter, der Leute aus mehreren Verzeichnissen anmeldet: der Claim, der das Verzeichnis nennt, und der Wert dieses Verzeichnisses.",
+    "directoryClaimLabel": "Claim",
+    "directoryClaimPlaceholder": "idp",
+    "directoryValueLabel": "Wert",
+    "directoryValuePlaceholder": "acme-adfs",
+    "needsMatch": "Nenne eine Gruppe, ein Verzeichnis oder beides.",
+    "communityLabel": "Community",
+    "communityPlaceholder": "Community auswählen",
+    "communitySearch": "Communitys durchsuchen",
+    "communityEmpty": "Keine passenden Communitys",
+    "notAccepted": "Nicht zugestimmt",
+    "communityHelp": "Eine Community mit „Nicht zugestimmt“ übernimmt die Regeln dieses Anbieters, sobald sie ihnen auf ihrer Sicherheitsseite zustimmt.",
+    "targetsUnavailable": "Initiativen erscheinen, sobald diese Community die Regeln dieses Anbieters übernimmt.",
+    "save": "Regel speichern",
+    "added": "Regel hinzugefügt",
+    "addError": "Regel konnte nicht hinzugefügt werden",
+    "saved": "Regel gespeichert",
+    "saveError": "Regel konnte nicht gespeichert werden",
+    "remove": "Regel löschen",
+    "removeTitle": "Diese Regel löschen?",
+    "removeDescription": "Leute, auf die sie zutrifft, werden durch sie nicht mehr {{community}} zugeordnet, und was sie ihnen gegeben hat, wird bei ihrer nächsten Anmeldung über diesen Anbieter aufgehoben.",
+    "removed": "Regel gelöscht",
+    "removeError": "Regel konnte nicht gelöscht werden"
   },
   "guilds": {
     "title": "Community-Limits",
@@ -1202,7 +1267,9 @@
       "makeItOurs": "Zu unserer machen",
       "claimNameLabel": "Claim-Name",
       "claimNamePlaceholder": "z. B. org, realm",
-      "joinsOnceAgreed": "Passende Ankommende treten sofort bei, sobald die Serverbetreiberin bestätigt, dass diese Werte Ihnen gehören. Bis dahin werden sie hereingelassen, und der Beitritt erfolgt per Einladung."
+      "joinsOnceAgreed": "Passende Ankommende treten sofort bei, sobald die Serverbetreiberin bestätigt, dass diese Werte Ihnen gehören. Bis dahin werden sie hereingelassen, und der Beitritt erfolgt per Einladung.",
+      "acceptsPlacementLabel": "Die Installation Leute von diesem Anbieter zuordnen lassen",
+      "acceptsPlacementHelp": "Die Zuordnungsregeln der Installation für diesen Anbieter können hier Leute hinzufügen, neben euren eigenen Regeln."
     },
     "rules": {
       "title": "Wo eure Leute landen",
@@ -1235,7 +1302,12 @@
       "removed": "Regel entfernt",
       "removeError": "Regel konnte nicht entfernt werden",
       "removeTitle": "Diese Regel entfernen?",
-      "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter."
+      "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter.",
+      "deployment": {
+        "title": "Von der Installation festgelegt",
+        "description": "Zuordnungsregeln, die die Betreiber dieser Installation für ihre Anbieter geschrieben haben und die diese Community nennen. Sie ordnen Leute hier neben euren eigenen Regeln zu, sobald ihr die Regeln eines Anbieters in seiner Verbindung zulasst.",
+        "everywhere": "Die Installation wendet ihre Zuordnungsregeln auf jede Community an."
+      }
     },
     "sections": {
       "whoGetsIn": "Wer hereinkommt",
