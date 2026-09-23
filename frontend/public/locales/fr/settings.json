@@ -1017,7 +1017,7 @@
       "bannerHelp": "Leur permet d'envoyer une image de bannière. Sans cela elles choisissent une couleur, et une bannière déjà envoyée reste affichée.",
       "supportLabel": "Demandes d'aide",
       "supportHelp": "Permet à leurs membres d'envoyer une demande d'aide. Désactivé, le bouton Demander de l'aide ouvre la FAQ.",
-      "supportNeedsIntake": "Aucune destination pour une demande d’aide pour l’instant. Reliez le flux de support à un projet dans Administration › Réception, et ceci pourra être activé.",
+      "supportNeedsIntake": "Aucune destination pour une demande d’aide pour l’instant. Reliez le flux de support à un projet dans Paramètres de la plateforme › Réception, et ceci pourra être activé.",
       "authOption": {
         "restrictions": {
           "label": "Son propre standard de sécurité",
