@@ -60,7 +60,23 @@ class AccessGrantCreate(SanitizedBaseModel):
         return asked
 
 
-class BreakGlassCreate(SanitizedBaseModel):
+class SecondFactorAnswer(SanitizedBaseModel):
+    """The account's own second factor, presented with a self-issued grant.
+
+    Asked for once any ``data.bypass`` holder has one. Any of the three
+    answers is accepted: a code from the authenticator, one of the recovery
+    codes, or an assertion from one of the account's passkeys — begun at
+    ``POST /access-grants/break-glass/passkey`` so the challenge it answers
+    belongs to this request.
+    """
+
+    code: Optional[str] = Field(default=None, max_length=64)
+    recovery_code: Optional[str] = Field(default=None, max_length=64)
+    #: ``AuthenticationResponseJSON`` — the assertion as the browser returned it.
+    passkey: Optional[dict[str, Any]] = None
+
+
+class BreakGlassCreate(SecondFactorAnswer):
     """A self-approved, time-bound break-glass grant to one guild.
 
     Issued by a ``data.bypass`` holder who needs emergency access without
@@ -77,15 +93,6 @@ class BreakGlassCreate(SanitizedBaseModel):
     # break-glass maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
     reason: str = Field(min_length=1, max_length=2000)
-    # The account's own second factor, asked for once any ``data.bypass``
-    # holder has one. Any of the three answers is accepted: a code from the
-    # authenticator, one of the recovery codes, or an assertion from one of
-    # the account's passkeys — begun at ``POST /access-grants/break-glass/
-    # passkey`` so the challenge it answers belongs to this request.
-    code: Optional[str] = Field(default=None, max_length=64)
-    recovery_code: Optional[str] = Field(default=None, max_length=64)
-    #: ``AuthenticationResponseJSON`` — the assertion as the browser returned it.
-    passkey: Optional[dict[str, Any]] = None
 
 
 class AccessGrantApprove(SanitizedBaseModel):

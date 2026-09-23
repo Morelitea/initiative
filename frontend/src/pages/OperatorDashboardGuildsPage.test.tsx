@@ -25,6 +25,7 @@ const guildsData: PlatformGuildStorageRead[] = [
     max_users: 10,
     status: "active",
     status_changed_at: null,
+    status_choices: ["active", "read_only", "on_hold", "suspended"],
     purge_at: null,
     has_seat: true,
     auth_options: ["providers", "restrictions"],
@@ -40,6 +41,7 @@ const guildsData: PlatformGuildStorageRead[] = [
     max_users: null,
     status: "active",
     status_changed_at: null,
+    status_choices: ["active", "read_only", "on_hold", "suspended"],
     purge_at: null,
     has_seat: true,
     auth_options: ["providers"],
@@ -55,6 +57,7 @@ const guildsData: PlatformGuildStorageRead[] = [
     max_users: 10,
     status: "suspended",
     status_changed_at: "2026-07-05T00:00:00Z",
+    status_choices: ["active", "read_only", "on_hold", "suspended"],
     purge_at: null,
     has_seat: true,
     auth_options: [],
@@ -70,6 +73,7 @@ const guildsData: PlatformGuildStorageRead[] = [
     max_users: null,
     status: "deleted",
     status_changed_at: "2026-09-01T00:00:00Z",
+    status_choices: [],
     purge_at: "2026-11-30T00:00:00Z",
     has_seat: true,
     auth_options: [],
@@ -80,7 +84,11 @@ const guildsData: PlatformGuildStorageRead[] = [
 
 // The billing column only renders when a portal is configured; flip this to
 // exercise the self-hosted case (no portal, no column).
-let billingConfig: { url: string; operator_handoff: boolean } | null = {
+let billingConfig: {
+  url: string;
+  operator_handoff: boolean;
+  manages_plans?: boolean;
+} | null = {
   url: "https://billing.example.com",
   operator_handoff: true,
 };
@@ -107,8 +115,9 @@ const agreeNarrowing = vi.fn();
 
 vi.mock("@/api/generated/settings/settings", () => ({
   createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost: (
-    guildId: number
-  ) => mintHandoff(guildId),
+    guildId: number,
+    answer: unknown
+  ) => (answer ? mintHandoff(guildId, answer) : mintHandoff(guildId)),
 }));
 
 // Captured so a test can fire the save's own callbacks and check what the
@@ -127,6 +136,12 @@ vi.mock("@/hooks/useSettings", () => ({
   useRestoreGuild: () => ({ mutate: restore, isPending: false }),
   useGuildNarrowings: () => ({ data: narrowings, isLoading: false }),
   useAgreeGuildNarrowing: () => ({ mutate: agreeNarrowing, isPending: false }),
+}));
+
+vi.mock("@/hooks/useAccessGrants", () => ({
+  useBreakGlassRequirements: () => ({
+    data: { second_factor_required: true, totp_enrolled: true, passkey_enrolled: false },
+  }),
 }));
 
 vi.mock("@/hooks/useAdmin", () => ({
@@ -532,6 +547,89 @@ describe("OperatorDashboardGuildsPage", () => {
       expect(tab.location.href).toBe("");
 
       openSpy.mockRestore();
+    });
+  });
+
+  describe("where billing sets plans", () => {
+    beforeEach(() => {
+      billingConfig = {
+        url: "https://billing.example.com",
+        operator_handoff: true,
+        manages_plans: true,
+      };
+    });
+
+    it("shows the plan and does not let it be set", async () => {
+      await openSheet("Capped Community");
+
+      expect(userLimitInput()).toBeDisabled();
+      expect(storageInput()).toBeDisabled();
+      expect(
+        screen.getByText("Billing sets this community's limits and features.")
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Change in billing" })).toBeInTheDocument();
+    });
+
+    it("opens the operator console to change it", async () => {
+      const location = { href: "" };
+      const tab = { opener: {} as unknown, location, close: vi.fn() };
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      mintHandoff.mockResolvedValue({ handoff_token: "tok-9", expires_in_seconds: 60 });
+
+      const user = await openSheet("Capped Community");
+      await user.click(screen.getByRole("button", { name: "Change in billing" }));
+
+      expect(mintHandoff).toHaveBeenCalledWith(7);
+      expect(location.href.split("#")[0]).toBe("https://billing.example.com/operator?lang=en");
+
+      openSpy.mockRestore();
+    });
+  });
+
+  describe("the second factor", () => {
+    it("asks for it when the grant is new, then opens billing with the answer", async () => {
+      const location = { href: "" };
+      const tab = { opener: {} as unknown, location, close: vi.fn() };
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      const refusal = Object.assign(new Error("factor"), {
+        isAxiosError: true,
+        response: { status: 401, data: { detail: "ACCESS_GRANT_SECOND_FACTOR_REQUIRED" } },
+      });
+      mintHandoff
+        .mockRejectedValueOnce(refusal)
+        .mockResolvedValueOnce({ handoff_token: "tok-2", expires_in_seconds: 60 });
+
+      const user = mounted();
+      await user.click(await screen.findByLabelText("Open billing for Capped Community"));
+      expect(tab.close).toHaveBeenCalled();
+
+      await user.type(await screen.findByLabelText("Your authenticator code"), "123 456");
+      await user.click(screen.getByRole("button", { name: "Open billing" }));
+
+      expect(mintHandoff).toHaveBeenLastCalledWith(7, { code: "123456" });
+      expect(location.href).toContain("support_handoff=tok-2");
+
+      openSpy.mockRestore();
+    });
+  });
+
+  describe("the status control", () => {
+    it("offers the statuses the server says the operator may set", async () => {
+      guildsData[0] = { ...guildsData[0], status_choices: ["active", "suspended"] };
+      try {
+        const user = mounted();
+        await user.click(await screen.findByLabelText("Status for Capped Community"));
+
+        expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+          "Active",
+          "Suspended",
+        ]);
+      } finally {
+        guildsData[0] = {
+          ...guildsData[0],
+          status_choices: ["active", "read_only", "on_hold", "suspended"],
+        };
+      }
     });
   });
 

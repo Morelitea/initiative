@@ -17,6 +17,7 @@ from app.api.deps import SessionDep
 from app.core.cookie_categories import active_cookie_categories
 from app.core.config import settings
 from app.core.security import billing_support_handoff_enabled
+from app.services.platform.billing import billing_managed
 from app.core.version import get_min_native_version
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
@@ -55,6 +56,10 @@ class BillingConfig(BaseModel):
     # every click fails. Independent of ``url`` — the guild-admin link-out
     # works without it.
     operator_handoff: bool = False
+    # Whether the billing service sets each community's caps and
+    # entitlements. The Guilds tab then shows them read-only and offers only
+    # a suspension as a status change.
+    manages_plans: bool = False
 
 
 class AppConfig(BaseModel):
@@ -129,6 +134,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         BillingConfig(
             url=settings.BILLING_URL,
             operator_handoff=billing_support_handoff_enabled(),
+            manages_plans=billing_managed(),
         )
         if settings.BILLING_URL
         else None

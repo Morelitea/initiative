@@ -797,6 +797,7 @@
     "promoteSuccess": "Rôle mis à jour",
     "promoteError": "Impossible de mettre à jour le rôle",
     "deleteGuild": "Supprimer la communauté",
+    "deleteGuildThroughCommunity": "Cette communauté est gérée par la facturation. Pour la supprimer, ouvrez-la avec un accès aux paramètres et supprimez-la depuis ses propres paramètres.",
     "deleteGuildConfirm": "Supprimer la communauté « {{guildName}} » ? Cela supprimera définitivement toutes les données de la communauté.",
     "deleteGuildSuccess": "Communauté supprimée",
     "deleteGuildError": "Impossible de supprimer la communauté",
@@ -1014,6 +1015,7 @@
     "filterByName": "Filtrer les communautés par nom",
     "unlimitedPlaceholder": "Illimité",
     "helpText": "Les limites de stockage sont en Go ; les limites d'utilisateurs correspondent à un nombre de membres. Les deux sont enregistrées automatiquement — laissez un champ vide pour illimité.",
+    "helpTextBilling": "La facturation fixe les limites, les fonctionnalités et le statut de chaque communauté. Vous pouvez suspendre une communauté ici ; lever la suspension la ramène au statut que la facturation a fixé en dernier.",
     "saved": "Limite de stockage mise à jour pour {{name}}.",
     "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
     "statusInputLabel": "Statut de {{name}}",
@@ -1049,7 +1051,12 @@
       "openLabel": "Ouvrir la facturation de {{name}}",
       "openError": "Impossible d'ouvrir le portail de facturation.",
       "operatorLabel": "Opérations de facturation pour {{name}}",
-      "operations": "Opérations"
+      "operations": "Opérations",
+      "factor": {
+        "title": "Confirmez votre identité",
+        "description": "Ouvrir la facturation de {{name}} vous accorde un accès à la facturation. Saisissez un code de votre application d'authentification ou un code de récupération.",
+        "submit": "Ouvrir la facturation"
+      }
     },
     "sheet": {
       "open": "Gérer",
@@ -1087,7 +1094,9 @@
         "agree": "Accepter",
         "withdraw": "Retirer",
         "error": "Impossible d’enregistrer cette réponse."
-      }
+      },
+      "setInBilling": "La facturation fixe les limites et les fonctionnalités de cette communauté.",
+      "changeInBilling": "Modifier dans la facturation"
     },
     "unlimited": "Sans limite",
     "restore": {

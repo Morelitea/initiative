@@ -101,3 +101,42 @@ describe("AdminDeleteUserDialog community blocker resolution", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
+
+describe("AdminDeleteUserDialog where billing sets plans", () => {
+  beforeEach(() => {
+    server.use(
+      http.get("/api/v1/admin/users/42/deletion-eligibility", () =>
+        HttpResponse.json(eligibilityWithGuildBlocker)
+      ),
+      http.get("/api/v1/config", () =>
+        HttpResponse.json({
+          max_upload_bytes: 1024,
+          billing: {
+            url: "https://billing.example.com",
+            operator_handoff: true,
+            manages_plans: true,
+          },
+        })
+      )
+    );
+  });
+
+  it("sends the operator to the community to delete it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <AdminDeleteUserDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        onSuccess={vi.fn()}
+        targetUser={targetUser}
+      />,
+      { auth: { user: buildUser({ role: "owner" }) } }
+    );
+
+    await user.click(await screen.findByRole("button", { name: /next/i }));
+    expect(await screen.findByText(/Lone Community/)).toBeInTheDocument();
+
+    expect(await screen.findByText(/delete it from its own settings/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete community/i })).not.toBeInTheDocument();
+  });
+});

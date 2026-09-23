@@ -10,6 +10,10 @@
  * Each control saves on its own, the way the cells did: the operator endpoint
  * takes any subset, so there is no Save button to forget and no dirty state to
  * lose.
+ *
+ * Where the billing service sets each community's plan, the caps and
+ * entitlements are the plan's: they are shown, not set, and a button opens the
+ * community in billing to change them.
  */
 
 import { useState } from "react";
@@ -21,6 +25,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
 import { useReadIntakeSettingsApiV1SettingsIntakeGet } from "@/api/generated/intake/intake";
+import { BillingConsoleButton } from "@/components/admin/BillingConsoleButton";
 import { GuildRestoreWizard } from "@/components/admin/GuildRestoreWizard";
 import { Section, SettingRow } from "@/components/admin/SettingRow";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +39,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   useAgreeGuildNarrowing,
   useGuildNarrowings,
@@ -75,6 +81,8 @@ export const GuildOperatorSettingsSheet = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { t, i18n } = useTranslation("settings");
+  const { billing } = useAppConfig();
+  const planIsBillings = billing?.manages_plans ?? false;
 
   const [storageDraft, setStorageDraft] = useState("");
   const [usersDraft, setUsersDraft] = useState("");
@@ -157,6 +165,9 @@ export const GuildOperatorSettingsSheet = ({
   // rather than hidden — what it was configured as is worth seeing when you
   // are deciding whether to bring it back.
   const deleted = guild.status === GuildStatus.deleted;
+  // What locks the plan's own controls: a community on its way out, or a plan
+  // that billing sets.
+  const planLocked = deleted || planIsBillings;
   const purgeDate = guild.purge_at
     ? new Date(guild.purge_at).toLocaleDateString(i18n.resolvedLanguage ?? i18n.language, {
         year: "numeric",
@@ -193,6 +204,17 @@ export const GuildOperatorSettingsSheet = ({
             </Section>
           ) : null}
 
+          {planIsBillings && !deleted ? (
+            <div className="space-y-3 rounded-md border bg-muted/40 p-4">
+              <p className="text-sm">{t("guilds.sheet.setInBilling")}</p>
+              {billing?.operator_handoff ? (
+                <BillingConsoleButton guild={guild} console="operator" size="sm">
+                  {t("guilds.sheet.changeInBilling")}
+                </BillingConsoleButton>
+              ) : null}
+            </div>
+          ) : null}
+
           <Section title={t("guilds.sheet.limits")}>
             <SettingRow
               label={t("guilds.sheet.usersLabel")}
@@ -213,7 +235,7 @@ export const GuildOperatorSettingsSheet = ({
                     if (event.key === "Enter") event.currentTarget.blur();
                   }}
                   placeholder={t("guilds.unlimitedPlaceholder")}
-                  disabled={update.isPending || deleted}
+                  disabled={update.isPending || planLocked}
                 />
               }
             />
@@ -237,7 +259,7 @@ export const GuildOperatorSettingsSheet = ({
                       if (event.key === "Enter") event.currentTarget.blur();
                     }}
                     placeholder={t("guilds.unlimitedPlaceholder")}
-                    disabled={update.isPending || deleted}
+                    disabled={update.isPending || planLocked}
                   />
                   <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground text-xs">
                     GB
@@ -258,7 +280,7 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-auth-providers"
                   checked={options.includes("providers")}
                   onCheckedChange={(checked) => toggleOption("providers", Boolean(checked))}
-                  disabled={update.isPending || deleted}
+                  disabled={update.isPending || planLocked}
                 />
               }
             />
@@ -271,7 +293,7 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-auth-restrictions"
                   checked={options.includes("restrictions")}
                   onCheckedChange={(checked) => toggleOption("restrictions", Boolean(checked))}
-                  disabled={update.isPending || deleted}
+                  disabled={update.isPending || planLocked}
                 />
               }
             />
@@ -289,7 +311,7 @@ export const GuildOperatorSettingsSheet = ({
                   id="guild-banner-image"
                   checked={guild.banner_image_enabled}
                   onCheckedChange={(checked) => patch({ banner_image_enabled: Boolean(checked) })}
-                  disabled={update.isPending || deleted}
+                  disabled={update.isPending || planLocked}
                 />
               }
             />
@@ -310,7 +332,7 @@ export const GuildOperatorSettingsSheet = ({
                   // deployment that has stopped staffing help stops offering
                   // it, binding or no binding.
                   disabled={
-                    update.isPending || deleted || (!supportBound && !guild.support_enabled)
+                    update.isPending || planLocked || (!supportBound && !guild.support_enabled)
                   }
                 />
               }

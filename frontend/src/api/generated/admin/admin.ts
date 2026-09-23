@@ -1618,6 +1618,9 @@ export const useDeleteUserApiV1AdminUsersUserIdDelete = <
  * memberships, and this endpoint only fires where other people are in it.
  * What unblocks the account is that a deleted community has no seat to
  * protect, not that the seat was taken away.
+ *
+ * Refused where billing sets plans: there a community is deleted from its
+ * own settings, by its seat or under a settings grant.
  * @summary Admin Delete Guild
  */
 export const adminDeleteGuildApiV1AdminGuildsGuildIdDelete = (

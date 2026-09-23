@@ -30,6 +30,7 @@ from app.schemas.platform.access_grant import (
     AccessGrantCreate,
     AccessGrantRead,
     BreakGlassCreate,
+    SecondFactorAnswer,
     BreakGlassRequirements,
 )
 from app.schemas.platform.passkey import PasskeyAuthenticationOptions
@@ -159,10 +160,12 @@ async def _answers_with_a_passkey(
     return True
 
 
-async def _check_second_factor(
-    session: AsyncSession, *, actor: User, payload: BreakGlassCreate
+async def check_second_factor(
+    session: AsyncSession, *, actor: User, answer: SecondFactorAnswer, during: str
 ) -> None:
-    """Take the account's own factor before the glass breaks.
+    """Take the account's own factor before a grant is self-issued.
+
+    ``during`` names the errand in the audit line a refused answer writes.
 
     Asked for the way turning the factor off asks: against the request rather
     than against what the session remembers, so what answers is presented at
@@ -188,19 +191,19 @@ async def _check_second_factor(
             detail=AccessGrantMessages.SECOND_FACTOR_ENROLMENT_REQUIRED,
         )
 
-    if payload.passkey is not None:
+    if answer.passkey is not None:
         accepted = await _answers_with_a_passkey(
-            session, actor=actor, credential=payload.passkey
+            session, actor=actor, credential=answer.passkey
         )
         method, refusal = "passkey", AccessGrantMessages.PASSKEY_INVALID
-    elif payload.recovery_code:
+    elif answer.recovery_code:
         accepted = await totp_service.consume_recovery_code(
-            session, user_id=actor_id, code=payload.recovery_code
+            session, user_id=actor_id, code=answer.recovery_code
         )
         method, refusal = "recovery_code", AuthMessages.RECOVERY_CODE_INVALID
-    elif payload.code:
+    elif answer.code:
         accepted = await totp_service.verify_code(
-            session, user_id=actor_id, code=payload.code
+            session, user_id=actor_id, code=answer.code
         )
         method, refusal = "totp", AuthMessages.TOTP_INVALID
     else:
@@ -214,7 +217,7 @@ async def _check_second_factor(
             session,
             event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
             actor_user_id=actor_id,
-            detail={"method": method, "during": "break_glass"},
+            detail={"method": method, "during": during},
         )
         await session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
@@ -293,7 +296,9 @@ async def break_glass_access(
     content grant is returned, being the one the caller routes in under; both
     are in the list.
     """
-    await _check_second_factor(session, actor=current_user, payload=payload)
+    await check_second_factor(
+        session, actor=current_user, answer=payload, during="break_glass"
+    )
     try:
         replaced = await service.reconcile_break_glass_pair(
             session, actor=current_user, payload=payload

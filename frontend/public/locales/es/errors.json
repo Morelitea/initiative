@@ -727,6 +727,9 @@
   "GUILD_RESTORE_STATUS_INVALID": "Elige el estado en el que vuelve la comunidad.",
   "GUILD_RESTORE_SEAT_REQUIRED": "Elige quién dirigirá la comunidad antes de restaurarla.",
   "GUILD_STATUS_NOT_SETTABLE": "Una comunidad se elimina desde sus propios ajustes, no desde aquí.",
+  "GUILD_PLAN_SET_BY_BILLING": "La facturación fija los límites y funciones de esta comunidad. Cámbialos en facturación.",
+  "GUILD_STATUS_SET_BY_BILLING": "La facturación fija el estado de esta comunidad. Puedes suspenderla o levantar una suspensión al estado que la facturación fijó por última vez.",
+  "GUILD_DELETE_THROUGH_COMMUNITY": "La facturación gestiona esta comunidad. Elimínala desde sus propios ajustes con un permiso de ajustes.",
   "ADMIN_USER_NOT_DELETED": "Esa cuenta no se ha eliminado, así que no hay nada que restaurar.",
   "CONNECTION_NEEDS_NARROWING": "Indica qué cuentas de este proveedor son tuyas antes de activar la conexión.",
   "SUPPORT_INTAKE_NOT_CONFIGURED": "Configure la recepción de soporte antes de ofrecer solicitudes de ayuda: vincule el flujo de soporte a un proyecto en Ajustes › Administración › Recepción."

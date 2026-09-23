@@ -23,6 +23,7 @@ import {
   useAdminPromoteGuildMember,
   useUserDeletionEligibility,
 } from "@/hooks/useAdmin";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -118,6 +119,8 @@ export function AdminDeleteUserDialog({
 
   // State for blocker resolution
   const [guildDeleteConfirm, setGuildDeleteConfirm] = useState<GuildBlockerInfo | null>(null);
+  const { billing } = useAppConfig();
+  const planIsBillings = billing?.manages_plans ?? false;
   const [isResolvingBlocker, setIsResolvingBlocker] = useState(false);
 
   // Reset state when dialog opens/closes. Default action falls back to
@@ -372,17 +375,26 @@ export function AdminDeleteUserDialog({
                         {t("adminDeleteUser.guildBlockerDescription")}
                       </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => setGuildDeleteConfirm(guildBlocker)}
-                      disabled={isResolvingBlocker}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {t("adminDeleteUser.deleteGuild")}
-                    </Button>
+                    {/* Where billing sets plans, a community is deleted from its
+                        own settings, not from here. */}
+                    {planIsBillings ? null : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setGuildDeleteConfirm(guildBlocker)}
+                        disabled={isResolvingBlocker}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t("adminDeleteUser.deleteGuild")}
+                      </Button>
+                    )}
                   </div>
+                  {planIsBillings ? (
+                    <p className="text-muted-foreground text-sm">
+                      {t("adminDeleteUser.deleteGuildThroughCommunity")}
+                    </p>
+                  ) : null}
 
                   {guildBlocker.other_members.length > 0 ? (
                     <div className="space-y-2">

@@ -99,6 +99,30 @@ BILLING_SETTABLE_STATUSES: frozenset[GuildStatus] = frozenset(
     {GuildStatus.active, GuildStatus.read_only, GuildStatus.on_hold}
 )
 
+
+def operator_status_choices(
+    status: GuildStatus,
+    *,
+    billing_status: GuildStatus | None,
+    billing_managed: bool,
+) -> tuple[GuildStatus, ...]:
+    """The statuses the operator may move a guild at ``status`` to.
+
+    Where billing sets plans, the operator's one status is the time out: into
+    ``suspended``, and out of it to the status billing last wrote. Everywhere
+    else, any of :data:`OPERATOR_SETTABLE_STATUSES`. A deleted guild has none;
+    restoring it is not a status change. The triggers of migration 0364 hold
+    the database to the same rule.
+    """
+    if status is GuildStatus.deleted:
+        return ()
+    if not billing_managed:
+        return OPERATOR_SETTABLE_STATUSES
+    if status is GuildStatus.suspended:
+        return (billing_status or GuildStatus.active, GuildStatus.suspended)
+    return (status, GuildStatus.suspended)
+
+
 #: The statuses whose guild is absent from every member's guild list, its
 #: admins' included. A suspended guild is not here: its admins keep a closed
 #: entry.

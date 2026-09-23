@@ -78,11 +78,12 @@ LEVEL_LABEL_KEYS: dict[str, str] = {
     "superadmin": "accessGrant.levelSuperadmin",
 }
 
-#: What ``access_level`` may say, per purpose. The CHECK in migration 0298
-#: mirrors this.
+#: What ``access_level`` may say, per purpose. The CHECK in migration 0364
+#: mirrors this. A billing grant has one level: what its holder may do in the
+#: billing account is the billing service's to decide.
 LEVELS_BY_PURPOSE: dict[str, tuple[str, ...]] = {
     "content": ACCESS_LEVELS,
-    "billing": ACCESS_LEVELS,
+    "billing": (AccessLevel.read.value,),
     "settings": SETTINGS_LEVELS,
 }
 ACCESS_GRANT_STATUSES: tuple[str, ...] = tuple(
