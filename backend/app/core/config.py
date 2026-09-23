@@ -130,6 +130,66 @@ def _validate_strong_key(value: str, var_name: str, *, rotation_hint: bool) -> s
     return value
 
 
+#: Settings whose environment variable is only a FIRST-BOOT SEED.
+#:
+#: Each of these is stored in the database on first start and edited in
+#: Settings -> Admin from then on, so the env var is read once and the row wins
+#: afterwards. ``app/services/platform/app_settings.py`` (``_seed_from_env``) is
+#: the mechanism; the credential-bearing ones are encrypted at rest under a salt
+#: registered in ``app/db/secret_key_rotation.py``, so they rotate with
+#: SECRET_KEY.
+#:
+#: Declared here so the deployment contract can say so out loud: an operator
+#: does not need any of these to bring the app up, and a deployment tool does
+#: not need to carry them as deploy-time secrets. See ``env-contract.json``.
+RUNTIME_SEEDED_SETTINGS = frozenset(
+    {
+        # Outbound mail.
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_SECURE",
+        "SMTP_REJECT_UNAUTHORIZED",
+        "SMTP_USERNAME",
+        "SMTP_PASSWORD",
+        "SMTP_FROM_ADDRESS",
+        "SMTP_TEST_RECIPIENT",
+        # Object storage.
+        "STORAGE_BACKEND",
+        "S3_BUCKET",
+        "S3_REGION",
+        "S3_ENDPOINT_URL",
+        "S3_ACCESS_KEY_ID",
+        "S3_SECRET_ACCESS_KEY",
+        "S3_USE_PATH_STYLE",
+        "S3_KMS_KEY_ID",
+        "S3_LOCAL_FALLBACK",
+        # The platform OIDC provider. Seeded into the provider row by
+        # app/services/auth/platform_provider.py; after that the row holds the
+        # secret, which is why rotating it upstream needs a paste in Settings.
+        "OIDC_ENABLED",
+        "OIDC_ISSUER",
+        "OIDC_CLIENT_ID",
+        "OIDC_CLIENT_SECRET",
+        "OIDC_PROVIDER_NAME",
+        "OIDC_SCOPES",
+    }
+)
+
+#: Settings that are still ENV-ONLY although they are the same kind of thing as
+#: the set above: operator-supplied credentials for an optional feature, with no
+#: database path and so no way to set them after deployment.
+#:
+#: They are the remaining reason a deployment tool needs a free-form secret
+#: passthrough at all. Moving them into the seeded set above is tracked work,
+#: not a statement about how it should be.
+ENV_ONLY_FEATURE_CREDENTIALS = frozenset(
+    {
+        "CAPTCHA_SECRET_KEY",
+        "FCM_SERVICE_ACCOUNT_JSON",
+    }
+)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
