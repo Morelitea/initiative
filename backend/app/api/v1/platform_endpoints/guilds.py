@@ -27,7 +27,9 @@ from app.api.deps import (
     SettingsSeatWriteContextDep,
     UploadUserDep,
     UserSessionDep,
+    GuildAccessError,
     establish_guild_access,
+    raise_for_guild_access,
     get_current_active_user,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
@@ -192,8 +194,9 @@ def _serialize_guild(
         # Display-only plan label (never an enforcement input); the SPA shows
         # it only when a billing portal is configured.
         tier_name=admin_row.tier_name if admin_row else None,
-        # Only guild admins learn the lifecycle status (for the settings-page
-        # chip); members get None so a moderation hold isn't disclosed to them.
+        # Only guild admins learn the lifecycle status (for the closed entry
+        # and the read-only notice); members get None so a moderation hold
+        # isn't disclosed to them.
         status=GuildStatus(guild.status) if is_admin else None,
         # Every member learns the *effect* of a read_only hold (their writes
         # already fail at the DB role level) so the UI can drop write
@@ -2017,8 +2020,12 @@ async def leave_guild(
     # the current guild context. Now that membership is confirmed, set the full
     # context so those writes aren't filtered to zero rows. Leaving is about
     # the membership row rather than the community's content, so it routes the
-    # way its configuration surface does.
-    await establish_guild_access(session, current_user, guild_id, for_settings=True)
+    # way its configuration surface does — and, like that surface, not while
+    # the community is suspended: its membership stays as it was until then.
+    try:
+        await establish_guild_access(session, current_user, guild_id, for_settings=True)
+    except GuildAccessError as exc:
+        raise_for_guild_access(exc)
 
     # Ahead of the check below, so its answer is still true when the departure
     # is written. Counting a guild's seats is a question about the guild rather

@@ -137,6 +137,16 @@ export const administersGuild = (guild: { role?: string | null } | null | undefi
   rungReaches(guild?.role, "admin");
 
 /**
+ * Whether this community is closed to the caller: suspended, and held through
+ * a membership rather than a platform grant. A suspended community is in time
+ * out — nothing inside it answers its own people, settings included, until the
+ * platform lifts it. Only its administrators still see it listed.
+ */
+export const guildIsClosed = (
+  guild: { status?: string | null; accessType?: string } | null | undefined
+): boolean => guild?.status === "suspended" && guild.accessType !== "grant";
+
+/**
  * Whether this request reaches the community's content at all.
  *
  * A member does. Somebody reaching the community by a content grant does. A

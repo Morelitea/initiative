@@ -1,12 +1,5 @@
-import {
-  createFileRoute,
-  Navigate,
-  Outlet,
-  redirect,
-  useLocation,
-  useParams,
-} from "@tanstack/react-router";
-import { ShieldAlert } from "lucide-react";
+import { createFileRoute, Outlet, redirect, useLocation, useParams } from "@tanstack/react-router";
+import { Lock, ShieldAlert } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,24 +7,7 @@ import { GuildStatusNotice, guildStatusNoticeApplies } from "@/components/guilds
 import { StatusMessage } from "@/components/StatusMessage";
 import { GuildHomeSkeleton, PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useGuilds } from "@/hooks/useGuilds";
-import { guildPath } from "@/lib/guildUrl";
-
-/**
- * Whether a suspended guild's layout should redirect this location to the
- * guild's settings page.
- *
- * Scoped to THIS guild's subtree on purpose: the router publishes the pending
- * target location at the START of a navigation while the old layout is still
- * mounted, so an unscoped "not under /settings" check would fire on any
- * attempt to leave (home, another guild) and the Navigate would cancel it —
- * trapping the admin on the settings page.
- */
-export function shouldPinSuspendedGuildToSettings(pathname: string, guildId: number): boolean {
-  const settingsRoot = guildPath(guildId, "/settings");
-  const withinThisGuild = pathname === `/c/${guildId}` || pathname.startsWith(`/c/${guildId}/`);
-  const withinSettings = pathname === settingsRoot || pathname.startsWith(`${settingsRoot}/`);
-  return withinThisGuild && !withinSettings;
-}
+import { guildIsClosed } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId")({
   beforeLoad: async ({ context, params, cause }) => {
@@ -56,6 +32,12 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
     const guild = guildList.find((g) => g.id === guildId);
     if (!guild) {
       // Let the component render a "not a member" message
+      return { urlGuildId: guildId, urlGuild: null };
+    }
+
+    // A closed community is never adopted as this tab's guild: nothing inside
+    // it answers, so nothing should be asked of it. The component says so.
+    if (guildIsClosed(guild)) {
       return { urlGuildId: guildId, urlGuild: null };
     }
 
@@ -92,20 +74,20 @@ export function GuildLayout() {
   const params = useParams({ from: "/_serverRequired/_authenticated/c/$guildId" });
   const guildId = Number(params.guildId);
   const { guilds, activeGuildId, loading, syncGuildFromUrl } = useGuilds();
-  const location = useLocation();
 
   // Verify membership — must happen before syncing guild context
   const guild = !loading ? guilds.find((g) => g.id === guildId) : undefined;
   const isMember = Boolean(guild);
+  const closed = guildIsClosed(guild);
 
   // Sync guild context only after membership is confirmed.
   // This prevents setting an invalid guild ID on the API client,
   // which would cause "unable to load" errors on the redirect target.
   useEffect(() => {
-    if (isMember && Number.isFinite(guildId)) {
+    if (isMember && !closed && Number.isFinite(guildId)) {
       void syncGuildFromUrl(guildId);
     }
-  }, [guildId, isMember, syncGuildFromUrl]);
+  }, [guildId, isMember, closed, syncGuildFromUrl]);
 
   if (loading) {
     return <GuildLoading guildId={guildId} />;
@@ -125,6 +107,23 @@ export function GuildLayout() {
     );
   }
 
+  // A suspended community is in time out: nobody in it reaches anything,
+  // settings included, until the platform lifts it. Its administrators still
+  // see it listed, and land here rather than on a page of refusals.
+  if (closed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <StatusMessage
+          icon={<Lock />}
+          title={t("closed.title")}
+          description={t("closed.description")}
+          backTo="/"
+          backLabel={t("notMember.backToHome")}
+        />
+      </div>
+    );
+  }
+
   // Everything below reads this tab's active guild for its query keys, and that
   // value adopts the URL in the effect above — which runs a render AFTER the
   // guild list arrives, so `beforeLoad` had nothing to adopt on a cold load.
@@ -135,33 +134,9 @@ export function GuildLayout() {
     return <GuildLoading guildId={guildId} />;
   }
 
-  // A suspended guild only stays listed for its guild admins (members lose
-  // the entry entirely and hit the not-a-member screen above), and every
-  // content endpoint refuses it — only the settings surface (billing / data
-  // ownership / danger zone) still works. Keep the admin out of a wall of
-  // 403s by pinning them to settings.
-  //
-  // PAM/break-glass grantees are exempt: the backend's grant path never
-  // consults the lifecycle status (a grantee browses a suspended guild exactly
-  // like an active one — that's what keeps operators from being locked out),
-  // so their content requests succeed and the pin would only strand them on a
-  // settings page their synthesized role can't view.
   const notice = guildStatusNoticeApplies(guild) ? (
     <GuildStatusNotice key={`${guild.id}:${guild.status}`} guild={guild} />
   ) : null;
-
-  if (
-    guild.status === "suspended" &&
-    guild.accessType !== "grant" &&
-    shouldPinSuspendedGuildToSettings(location.pathname, guildId)
-  ) {
-    return (
-      <>
-        {notice}
-        <Navigate to={guildPath(guildId, "/settings")} replace />
-      </>
-    );
-  }
 
   return (
     <>

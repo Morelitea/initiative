@@ -30,6 +30,7 @@ import {
   administersGuild,
   administersGuildContent,
   changesGuildSettings,
+  guildIsClosed,
   holdsGuildSeat,
 } from "@/lib/permissions";
 
@@ -54,6 +55,9 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
   const isAdmin = administersGuild(guild);
+  // A suspended community offers nothing to open, and its membership cannot
+  // change until the platform lifts the suspension.
+  const closed = guildIsClosed(guild);
   const [creatingInvite, setCreatingInvite] = useState(false);
   // A guild at its seat cap mints no invite (the server refuses), so the item
   // says so rather than handing back an error toast. Both fields are
@@ -135,16 +139,20 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
         <ContextMenuTrigger>{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-48">
           <ContextMenuLabel className="truncate">{guild.name}</ContextMenuLabel>
-          <ContextMenuSeparator />
-          <ContextMenuItem onClick={handleViewInitiatives}>
-            <FolderOpen className="mr-2 h-4 w-4" />
-            {t("viewInitiatives")}
-          </ContextMenuItem>
-          <ContextMenuItem onClick={handleViewMembers}>
-            <Users className="mr-2 h-4 w-4" />
-            {t("viewMembers")}
-          </ContextMenuItem>
-          {isAdmin && (
+          {closed ? null : (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem onClick={handleViewInitiatives}>
+                <FolderOpen className="mr-2 h-4 w-4" />
+                {t("viewInitiatives")}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={handleViewMembers}>
+                <Users className="mr-2 h-4 w-4" />
+                {t("viewMembers")}
+              </ContextMenuItem>
+            </>
+          )}
+          {isAdmin && !closed && (
             <>
               <ContextMenuSeparator />
               {changesGuildSettings(guild) && (
@@ -183,14 +191,18 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
             <Copy className="mr-2 h-4 w-4" />
             {t("copyGuildId")}
           </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem
-            onClick={() => setLeaveDialogOpen(true)}
-            className="text-destructive focus:text-destructive"
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            {t("leaveGuild")}
-          </ContextMenuItem>
+          {closed ? null : (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onClick={() => setLeaveDialogOpen(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                {t("leaveGuild")}
+              </ContextMenuItem>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
       <LeaveGuildDialog guild={guild} open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen} />

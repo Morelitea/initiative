@@ -5,9 +5,10 @@ The matrix under test (see history/guild-suspension-design.md):
 - ``read_only``: members keep content READS but writes are denied at the
   Postgres role level (routed into ``guild_<id>_ro``); initiative isolation
   still holds.
-- ``suspended``: members lose all content access (generic 403 — the status is
-  never disclosed) and the guild vanishes from their guild list. Guild ADMINS
-  keep the guild listed and keep the settings surface writable.
+- ``suspended``: the guild is in time out. Members AND admins lose every
+  surface — content, settings, the seat's routes, leaving — with a generic 403
+  (the status is never disclosed to a member). The guild vanishes from
+  members' guild lists; admins keep a closed entry that carries the status.
 - PAM/break-glass grants override the status entirely: a grantee behaves
   byte-identically against a suspended guild and an active one.
 - Joins (invite redemption) are refused for any non-active guild, reported as
@@ -71,7 +72,7 @@ async def _live_grant(
 
 
 # ---------------------------------------------------------------------------
-# suspended: members and admins lose content
+# suspended: members and admins lose every surface
 # ---------------------------------------------------------------------------
 
 
@@ -92,36 +93,45 @@ async def test_member_gets_generic_403_on_suspended_guild(
     assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
 
 
-async def test_admin_suspended_content_blocked_settings_writable(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize("role", [GuildRole.admin, GuildRole.superadmin])
+async def test_admin_of_suspended_guild_reaches_nothing(
+    client: AsyncClient, session: AsyncSession, acting_user, role: GuildRole
 ):
-    """A guild ADMIN of a suspended guild loses content like anyone else but
-    keeps the settings surface fully writable (billing / data ownership)."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    """An administrator of a suspended guild is refused like any member, on
+    content, the settings surface and the seat's routes alike, and cannot
+    leave: the membership is kept as it was until the suspension lifts."""
+    a = await acting_user(guild_role=role, initiative=True)
     await _set_status(session, a.guild, GuildStatus.suspended)
 
-    # Content: blocked, generic code.
-    resp = await client.get(a.g("/initiatives/"), headers=a.headers)
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+    refusals = [
+        await client.get(a.g("/initiatives/"), headers=a.headers),
+        await client.patch(
+            f"/api/v1/guilds/{a.guild.id}",
+            headers=a.headers,
+            json={"name": "Still Ours"},
+        ),
+        await client.get(f"/api/v1/guilds/{a.guild.id}/auth-policy", headers=a.headers),
+        await client.get(
+            f"/api/v1/guilds/{a.guild.id}/billing/payment-issue", headers=a.headers
+        ),
+        await client.delete(f"/api/v1/guilds/{a.guild.id}/leave", headers=a.headers),
+    ]
+    for resp in refusals:
+        assert resp.status_code == 403, (resp.request.url, resp.text)
+        assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
 
-    # Settings: still writable (this endpoint gates on real guild-admin
-    # membership, deliberately outside the content choke point).
-    resp = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
-        headers=a.headers,
-        json={"name": "Still Ours"},
-    )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["name"] == "Still Ours"
+    await session.refresh(a.guild)
+    assert a.guild.name != "Still Ours"
+    resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    assert a.guild.id in [g["id"] for g in resp.json()], "membership is kept"
 
 
 async def test_suspended_guild_hidden_from_members_listed_for_admins(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The guild list drops a suspended guild for members but keeps it for
-    guild admins. The status is serialized to the admin (for their settings-page
-    chip) but never to a member — members don't even see the row here."""
+    guild admins, carrying the status so the app shows it closed. Members don't
+    even see the row."""
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
     await _set_status(session, admin.guild, GuildStatus.suspended)
@@ -172,6 +182,20 @@ async def test_establish_guild_access_refuses_suspended(
 
     with pytest.raises(GuildAccessError):
         await establish_guild_access(session, a.user, a.guild.id)
+
+
+async def test_establish_for_settings_refuses_suspended_admin(
+    session: AsyncSession, acting_user
+):
+    """The settings surface is refused the same way: nobody in a suspended
+    guild is routed into it, whatever the surface."""
+    from app.api.deps import GuildAccessError, establish_guild_access
+
+    a = await acting_user(guild_role=GuildRole.admin)
+    await _set_status(session, a.guild, GuildStatus.suspended)
+
+    with pytest.raises(GuildAccessError):
+        await establish_guild_access(session, a.user, a.guild.id, for_settings=True)
 
 
 # ---------------------------------------------------------------------------
@@ -400,6 +424,11 @@ async def test_break_glass_reads_a_suspended_guild(
         json={"description": "reviewed under a grant"},
     )
     assert resp.status_code == 403, resp.text
+
+    # The settings grant beside it reaches the community's configuration,
+    # which its own administrators no longer do.
+    resp = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
+    assert resp.status_code == 200, resp.text
 
 
 async def test_scoped_read_grant_reads_suspended_guild(

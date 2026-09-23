@@ -583,15 +583,14 @@ async def list_memberships(
         tuple[Guild, GuildMembership, int | None, int, GuildAdministration | None]
     ] = []
     for guild, membership in pairs:
-        # A suspended guild disappears from its members' guild list; guild
-        # ADMINS keep the entry so they can still reach the settings surface
-        # (billing / data ownership / danger zone stay theirs while the guild
-        # is only suspended). No status is serialized either way — the row is
-        # simply absent for members.
+        # A suspended guild disappears from its members' guild list. Guild
+        # ADMINS keep the entry, carrying its status, so the app can show them
+        # a closed community rather than a missing one — they reach nothing
+        # inside it until the platform lifts the suspension. The row is simply
+        # absent for members.
         #
-        # A DELETED guild disappears for everyone, admins included: there is no
-        # billing surface left to reach and the danger zone has already been
-        # used. Only a platform operator sees it, and only to restore it.
+        # A DELETED guild disappears for everyone, admins included. Only a
+        # platform operator sees it, and only to restore it.
         if guild.status == GuildStatus.deleted.value:
             continue
         if (

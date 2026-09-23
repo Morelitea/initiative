@@ -216,11 +216,14 @@
     "description": "Du bist kein Mitglied dieser Community. Bitte einen Community-Administrator um einen Einladungslink, um beizutreten.",
     "backToHome": "← Zurück zur Startseite"
   },
+  "closed": {
+    "title": "Diese Community ist gesperrt",
+    "description": "Niemand kann sie öffnen, bis die Sperre aufgehoben ist. Wende dich an die Betreiber dieses Servers."
+  },
   "statusNotice": {
     "title": "Etwas stimmt nicht",
     "description": "Wende dich an den Betreiber deiner Plattform.",
     "readOnly": "Bis das geklärt ist, können Mitglieder hier alles lesen, aber nichts ändern.",
-    "suspended": "Bis das geklärt ist, können Mitglieder diese Community nicht öffnen.",
     "paymentTitle": "Die Zahlung für {{name}} wurde abgelehnt",
     "paymentDescription": "Aktualisiere deine Karte, um die Community wiederherzustellen.",
     "updatePayment": "Zahlungsmethode aktualisieren",

@@ -133,14 +133,6 @@ export const GuildSettingsLayout = () => {
   }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin, reachesContent]);
 
   const canViewSettings = administers;
-  // A suspended guild refuses every /g content endpoint, so tabs backed by
-  // them (users, initiatives, integrations, trash, security) would only render
-  // errors. Keep the surfaces that stay functional: the general tab (identity,
-  // usage, plan) and the danger zone (deletion / data ownership).
-  const isSuspended = activeGuild?.status === "suspended";
-  const workingTabs = isSuspended
-    ? guildSettingsTabs.filter((tab) => tab.value === "guild" || tab.value === "danger-zone")
-    : guildSettingsTabs;
 
   if (!canViewSettings) {
     return (
@@ -166,24 +158,22 @@ export const GuildSettingsLayout = () => {
     path: extractSubPath(tab.path),
   }));
 
-  const activeTab = matchActiveTab(tabSubPaths, normalizedPath, workingTabs[0]?.value ?? "guild");
+  const activeTab = matchActiveTab(
+    tabSubPaths,
+    normalizedPath,
+    guildSettingsTabs[0]?.value ?? "guild"
+  );
 
-  // A read-only or suspended guild shows the admin a prominent notice pointing
-  // them to the platform operator (the status reaches admins only — see the
-  // backend GuildRead serialization). Static keys per status so the strict i18n
-  // typing stays happy (a `${status}` template would include `active`).
+  // A read-only guild shows the admin a prominent notice pointing them to the
+  // platform operator (the status reaches admins only — see the backend
+  // GuildRead serialization). A suspended one never reaches settings at all.
   const statusNotice =
-    activeGuild?.status === "suspended"
+    activeGuild?.status === "read_only"
       ? {
-          label: t("guildLayout.restricted.suspended.label"),
-          message: t("guildLayout.restricted.suspended.message"),
+          label: t("guildLayout.restricted.read_only.label"),
+          message: t("guildLayout.restricted.read_only.message"),
         }
-      : activeGuild?.status === "read_only"
-        ? {
-            label: t("guildLayout.restricted.read_only.label"),
-            message: t("guildLayout.restricted.read_only.message"),
-          }
-        : null;
+      : null;
 
   return (
     <div className="space-y-6">
@@ -201,7 +191,7 @@ export const GuildSettingsLayout = () => {
         )}
       </div>
       <SettingsTabsNav
-        tabs={workingTabs}
+        tabs={guildSettingsTabs}
         activeTab={activeTab}
         onNavigate={(path) => router.navigate({ to: path })}
       />

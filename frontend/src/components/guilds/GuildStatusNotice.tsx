@@ -38,10 +38,7 @@ const markSeenThisSession = (key: string) => {
 };
 
 export const guildStatusNoticeApplies = (guild: GuildEntry): boolean =>
-  guild.accessType !== "grant" &&
-  holdsGuildSeat(guild) &&
-  !!guild.status &&
-  guild.status !== GuildStatus.active;
+  guild.accessType !== "grant" && holdsGuildSeat(guild) && guild.status === GuildStatus.read_only;
 
 type Stage = "notice" | "help" | "closed";
 
@@ -81,11 +78,6 @@ export const GuildStatusNotice = ({ guild }: { guild: GuildEntry }) => {
     setStage("closed");
   };
 
-  const effect =
-    guild.status === GuildStatus.suspended
-      ? t("statusNotice.suspended")
-      : t("statusNotice.readOnly");
-
   return (
     <AlertDialog open onOpenChange={(open) => !open && dismiss()}>
       <AlertDialogContent>
@@ -98,7 +90,7 @@ export const GuildStatusNotice = ({ guild }: { guild: GuildEntry }) => {
           <AlertDialogDescription>
             {paymentFailed ? t("statusNotice.paymentDescription") : t("statusNotice.description")}
           </AlertDialogDescription>
-          <AlertDialogDescription>{effect}</AlertDialogDescription>
+          <AlertDialogDescription>{t("statusNotice.readOnly")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           {paymentFailed ? (

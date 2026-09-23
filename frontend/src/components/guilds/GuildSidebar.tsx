@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useRouter } from "@tanstack/react-router";
-import { Check, ChevronsLeft, ChevronsRight, Clock, GripVertical, Plus } from "lucide-react";
+import { Check, ChevronsLeft, ChevronsRight, Clock, GripVertical, Lock, Plus } from "lucide-react";
 import type { CSSProperties, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -51,6 +51,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
+import { guildIsClosed } from "@/lib/permissions";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -255,6 +256,7 @@ export const GuildAvatar = ({
   active,
   size = "md",
   unread = false,
+  closed = false,
 }: {
   name: string;
   /** ``GuildRead.icon_url`` — a path this server serves, not the bytes. */
@@ -263,6 +265,8 @@ export const GuildAvatar = ({
   size?: "sm" | "md";
   /** Something in this community is unread. A dot, never a number. */
   unread?: boolean;
+  /** Suspended: listed for its administrators, and closed to them. */
+  closed?: boolean;
 }) => {
   const initials = useMemo(() => getInitials(name, "G"), [name]);
   // Same-origin on web; on native it needs the API origin and a scoped token,
@@ -270,7 +274,7 @@ export const GuildAvatar = ({
   const src = icon ? resolveHeaderlessApiUrl(icon) : null;
   return (
     <span className="relative block">
-      <Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-10 w-10")}>
+      <Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-10 w-10", closed && "opacity-50")}>
         {src ? <AvatarImage src={src} alt={name} /> : null}
         <AvatarFallback
           className={cn(active && "bg-primary text-primary-foreground", size === "sm" && "text-xs")}
@@ -288,6 +292,11 @@ export const GuildAvatar = ({
             size === "sm" ? "size-2" : "size-3"
           )}
         />
+      ) : null}
+      {closed ? (
+        <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
+          <Lock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+        </span>
       ) : null}
     </span>
   );
@@ -369,6 +378,7 @@ const SortableGuildButton = ({
               icon={guild.icon_url}
               active={isActive}
               unread={hasUnread}
+              closed={guildIsClosed(guild)}
             />
           </button>
         </TooltipTrigger>
@@ -497,6 +507,7 @@ const GuildRow = ({
             icon={guild.icon_url}
             active={isActive}
             unread={rowUnread.hasGuild(guild.id)}
+            closed={guildIsClosed(guild)}
           />
           {isGrant ? (
             <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">

@@ -1,11 +1,11 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildGuild } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
-import { GuildLayout, shouldPinSuspendedGuildToSettings } from "./$guildId";
+import { GuildLayout } from "./$guildId";
 
 // The layout is mounted directly rather than through the shipped tree: what is
 // under test is what it renders for a given guild state, and reaching it in the
@@ -16,7 +16,6 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   useParams: () => routeParams,
   useLocation: () => ({ pathname: `/c/${routeParams.guildId}` }),
   Outlet: () => <div data-testid="guild-outlet" />,
-  Navigate: ({ to }: { to: string }) => <div data-testid="navigated-to">{to}</div>,
 }));
 
 const guildEntry = (id: number, name: string, extra: Partial<GuildEntry> = {}): GuildEntry =>
@@ -64,36 +63,24 @@ describe("the guild layout waits for this tab to adopt the URL's guild", () => {
   });
 });
 
-describe("shouldPinSuspendedGuildToSettings", () => {
-  const guildId = 5;
+describe("a suspended community is closed to its own administrators", () => {
+  const show = (guild: GuildEntry, syncGuildFromUrl = vi.fn()) => {
+    renderPage(GuildLayout, {
+      guilds: { guilds: [guild], activeGuildId: null, loading: false, syncGuildFromUrl },
+    });
+    return syncGuildFromUrl;
+  };
 
-  it("pins content pages of the suspended guild to settings", () => {
-    expect(shouldPinSuspendedGuildToSettings("/c/5", guildId)).toBe(true);
-    expect(shouldPinSuspendedGuildToSettings("/c/5/", guildId)).toBe(true);
-    expect(shouldPinSuspendedGuildToSettings("/c/5/tasks", guildId)).toBe(true);
-    expect(shouldPinSuspendedGuildToSettings("/c/5/documents/12", guildId)).toBe(true);
+  it("shows the closed page and never adopts the community", async () => {
+    const sync = show(guildEntry(7, "Beta", { role: "admin", status: "suspended" }));
+    expect(await screen.findByText("This community is suspended")).toBeInTheDocument();
+    expect(screen.queryByTestId("guild-outlet")).not.toBeInTheDocument();
+    expect(sync).not.toHaveBeenCalled();
   });
 
-  it("does not redirect the settings surface itself", () => {
-    expect(shouldPinSuspendedGuildToSettings("/c/5/settings", guildId)).toBe(false);
-    expect(shouldPinSuspendedGuildToSettings("/c/5/settings/danger-zone", guildId)).toBe(false);
-  });
-
-  it("lets pending navigations OUT of the guild through (no redirect trap)", () => {
-    // The router publishes the pending target location while the suspended
-    // guild's layout is still mounted — these must not bounce back to settings.
-    expect(shouldPinSuspendedGuildToSettings("/", guildId)).toBe(false);
-    expect(shouldPinSuspendedGuildToSettings("/my-tools", guildId)).toBe(false);
-    expect(shouldPinSuspendedGuildToSettings("/profile", guildId)).toBe(false);
-    expect(shouldPinSuspendedGuildToSettings("/c/6/", guildId)).toBe(false);
-    expect(shouldPinSuspendedGuildToSettings("/c/6/settings", guildId)).toBe(false);
-  });
-
-  it("does not treat a prefix-overlapping guild id as this guild", () => {
-    expect(shouldPinSuspendedGuildToSettings("/c/55/tasks", guildId)).toBe(false);
-  });
-
-  it("does not exempt a prefix-overlapping settings sibling route", () => {
-    expect(shouldPinSuspendedGuildToSettings("/c/5/settings-admin", guildId)).toBe(true);
+  it("lets a platform grant through", async () => {
+    const sync = show(guildEntry(7, "Beta", { status: "suspended", accessType: "grant" }));
+    await waitFor(() => expect(sync).toHaveBeenCalledWith(7));
+    expect(screen.queryByText("This community is suspended")).not.toBeInTheDocument();
   });
 });

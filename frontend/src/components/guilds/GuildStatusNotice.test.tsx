@@ -39,13 +39,14 @@ const seatGuild = (overrides: Partial<GuildEntry> = {}): GuildEntry =>
   }) as GuildEntry;
 
 describe("guildStatusNoticeApplies", () => {
-  it("applies to the seat of a guild that is not active", () => {
+  it("applies to the seat of a read-only guild", () => {
     expect(guildStatusNoticeApplies(seatGuild())).toBe(true);
-    expect(guildStatusNoticeApplies(seatGuild({ status: "suspended" }))).toBe(true);
   });
 
-  it("does not apply to an active guild, an admin, or a grant", () => {
+  it("does not apply to an active or suspended guild, an admin, or a grant", () => {
     expect(guildStatusNoticeApplies(seatGuild({ status: "active" }))).toBe(false);
+    // A suspended guild is closed rather than noticed: its seat reaches nothing in it.
+    expect(guildStatusNoticeApplies(seatGuild({ status: "suspended" }))).toBe(false);
     expect(guildStatusNoticeApplies(seatGuild({ role: "admin" }))).toBe(false);
     expect(guildStatusNoticeApplies(seatGuild({ accessType: "grant" }))).toBe(false);
   });
@@ -70,7 +71,7 @@ describe("GuildStatusNotice", () => {
   it("offers to update the card when the payment was declined", async () => {
     state.billing = { url: "https://billing.example.com" };
     askMock.mockResolvedValue({ payment_failed: true });
-    renderWithProviders(<GuildStatusNotice guild={seatGuild({ status: "suspended" })} />);
+    renderWithProviders(<GuildStatusNotice guild={seatGuild()} />);
     expect(await screen.findByText("The payment for Acme was declined")).toBeInTheDocument();
     expect(screen.queryByText("Something is wrong")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Update payment method" }));
@@ -115,7 +116,7 @@ describe("GuildStatusNotice", () => {
     expect(await screen.findByText("Something is wrong")).toBeInTheDocument();
   });
 
-  it("shows once per guild and status in a session", async () => {
+  it("shows once per guild in a session", async () => {
     const first = renderWithProviders(<GuildStatusNotice guild={seatGuild()} />);
     await userEvent.click(await screen.findByRole("button", { name: "OK" }));
     await waitFor(() => expect(screen.queryByText("Something is wrong")).toBeNull());
@@ -124,7 +125,7 @@ describe("GuildStatusNotice", () => {
     renderWithProviders(<GuildStatusNotice guild={seatGuild()} />);
     expect(screen.queryByText("Something is wrong")).toBeNull();
 
-    renderWithProviders(<GuildStatusNotice guild={seatGuild({ status: "suspended" })} />);
+    renderWithProviders(<GuildStatusNotice guild={seatGuild({ id: 8 })} />);
     expect(await screen.findByText("Something is wrong")).toBeInTheDocument();
   });
 });

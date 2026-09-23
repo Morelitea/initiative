@@ -26,10 +26,6 @@
       "read_only": {
         "label": "Read-only",
         "message": "This community is read-only. Contact whoever runs this server to restore full access."
-      },
-      "suspended": {
-        "label": "Suspended",
-        "message": "This community is suspended and members can't access it. Contact whoever runs this server."
       }
     },
     "tabs": {
