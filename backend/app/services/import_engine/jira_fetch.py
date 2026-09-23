@@ -26,12 +26,8 @@ applies to an import from Jira without being written twice.
 
 from __future__ import annotations
 
-import io
-import json
 import logging
-import zipfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
 from app.core.config import settings
@@ -83,8 +79,6 @@ COMMENT_PAGE_SIZE = 100
 #: A hard stop on one issue's comment pages, for the same reason the issue
 #: walk has one: the site decides how many pages there are.
 MAX_COMMENT_PAGES = 50
-
-_MANIFEST_NAME = "manifest.json"
 
 
 @dataclass
@@ -470,126 +464,6 @@ async def fetch_project_envelope(
     )
 
 
-def _entry_path(index: int, project_key: str) -> str:
-    """Where a project's envelope sits inside the bundle.
-
-    Mirrors what a backup writes, because the applier reads both and should
-    not be able to tell which it is holding.
-    """
-    safe = "".join(c for c in project_key if c.isalnum() or c in "-_") or "project"
-    return f"initiatives/1-imported/projects/{index}-{safe}.initiative-project.json"
-
-
-def build_bundle(
-    envelopes: list[tuple[str, dict[str, Any]]],
-    *,
-    guild_id: int,
-    guild_name: str,
-    target_initiative_id: int,
-    app_version: str,
-    site_url: str,
-    calendars: list[dict[str, Any]] | None = None,
-    images: list[jira_attachments.StoredImage] | None = None,
-) -> bytes:
-    """The zip the applier reads: a manifest, one envelope per project, and
-    one calendar per board whose sprints came along.
-
-    The manifest names **one** initiative and gives it ``target_initiative_id``
-    — the one the person picked in the wizard. That is the whole reason §8.2
-    exists: a Jira project belongs in an initiative somebody already runs, not
-    in a new one named after somebody else's site.
-    """
-    entries = []
-    files: dict[str, bytes] = {}
-    for index, (project_key, envelope) in enumerate(envelopes, start=1):
-        path = _entry_path(index, project_key)
-        files[path] = json.dumps(envelope).encode("utf-8")
-        entries.append(
-            {
-                "path": path,
-                "tool": "project",
-                "type": "initiative-project",
-                "schema_version": 1,
-                "entity_id": index,
-                "title": envelope["project"]["name"],
-                "initiative_id": 1,
-                "tags": [],
-                "properties": [],
-                "asset": None,
-            }
-        )
-    for index, calendar in enumerate(calendars or [], start=1):
-        safe = "".join(c for c in calendar["name"] if c.isalnum() or c in "-_")
-        path = (
-            f"initiatives/1-imported/calendars/{index}-{safe or 'sprints'}"
-            ".initiative-calendar.json"
-        )
-        files[path] = json.dumps(calendar).encode("utf-8")
-        entries.append(
-            {
-                "path": path,
-                "tool": "calendar",
-                "type": "initiative-calendar",
-                "schema_version": 1,
-                "entity_id": index,
-                "title": calendar["name"],
-                "initiative_id": 1,
-                "tags": [],
-                "properties": [],
-                "asset": None,
-            }
-        )
-
-    assets = []
-    for image in images or []:
-        path = f"assets/{image.storage_key}"
-        files[path] = image.data
-        assets.append(
-            {
-                "path": path,
-                "storage_key": image.storage_key,
-                "original_filename": image.filename,
-                "content_type": image.content_type,
-                "size_bytes": len(image.data),
-            }
-        )
-
-    tools = {"project": "included"}
-    if calendars:
-        tools["calendar"] = "included"
-    manifest = {
-        "type": "initiative-backup",
-        "schema_version": 1,
-        "app_version": app_version,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "source_instance_url": site_url,
-        "guild": {"id": guild_id, "name": guild_name},
-        "include_uploads": bool(assets),
-        "initiatives": [
-            {
-                "id": 1,
-                "name": "Imported from Jira",
-                "tools": tools,
-                # Apply into the initiative the person chose. Without this the
-                # applier would create one, which is the wrong answer for a
-                # fetch: they already said where it goes.
-                "target_initiative_id": target_initiative_id,
-            }
-        ],
-        "entries": entries,
-        "assets": assets,
-        "skipped": [],
-        "people": _people(envelopes),
-    }
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(_MANIFEST_NAME, json.dumps(manifest))
-        for path, blob in files.items():
-            archive.writestr(path, blob)
-    return buffer.getvalue()
-
-
 def _people(envelopes: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
     """Everyone the bundle names, for the wizard's people step.
 
@@ -657,21 +531,60 @@ def _count_links(
             report.links_outside_selection += 1
 
 
+@dataclass
+class JiraFetched:
+    """Everything a Jira fetch read, ready to be written into a bundle."""
+
+    envelopes: list[tuple[str, dict[str, Any]]]
+    calendars: list[dict[str, Any]]
+    images: list[jira_attachments.StoredImage]
+    people: list[dict[str, Any]]
+    report: FetchReport
+    #: Rows the apply will spend on this: tasks, comments, projects and
+    #: sprint calendars — what a fetch after this one has left to use.
+    rows_used: int
+
+
 async def fetch_projects_bundle(
+    credential: AtlassianCredential,
+    *,
+    guild_id: int,
+    guild_name: str,
+    target_initiative_id: int,
+    **kwargs: Any,
+) -> tuple[bytes, FetchReport]:
+    """:func:`fetch_projects`, written into a bundle of its own."""
+    from app.services.import_engine.atlassian_bundle import write_bundle
+
+    fetched = await fetch_projects(credential, guild_id=guild_id, **kwargs)
+    bundle = write_bundle(
+        projects=fetched.envelopes,
+        calendars=fetched.calendars,
+        images=fetched.images,
+        people=fetched.people,
+        guild_id=guild_id,
+        guild_name=guild_name,
+        target_initiative_id=target_initiative_id,
+        app_version=kwargs["app_version"],
+        site_url=credential.site_url,
+    )
+    return bundle, fetched.report
+
+
+async def fetch_projects(
     credential: AtlassianCredential,
     *,
     project_keys: list[str],
     guild_id: int,
-    guild_name: str,
-    target_initiative_id: int,
     app_version: str,
     jql_extra: str | None = None,
     progress: Optional[Callable[[FetchReport], Awaitable[None]]] = None,
     sprints_blocked_by: str | None = None,
     include_comments: bool = True,
     include_attachments: bool = True,
-) -> tuple[bytes, FetchReport]:
-    """Read the chosen projects and return the bundle plus what it found.
+    link_pages: bool = False,
+) -> JiraFetched:
+    """Read the chosen projects and return what was read plus what it found.
 
     ``progress`` hears the running report after every project, read or not.
     It is how the job row shows the fetch moving, and how a cancelled job
@@ -798,17 +711,63 @@ async def fetch_projects_bundle(
         report.sprints_undated = len(all_sprints) - len(placed)
         _link_tasks_to_sprints(envelopes, sprint_membership, placed)
 
-    bundle = build_bundle(
-        envelopes,
-        guild_id=guild_id,
-        guild_name=guild_name,
-        target_initiative_id=target_initiative_id,
-        app_version=app_version,
-        site_url=credential.site_url,
+    if link_pages:
+        await _link_tasks_to_pages(credential, envelopes)
+
+    return JiraFetched(
+        envelopes=envelopes,
         calendars=calendars,
         images=all_images,
+        people=_people(envelopes),
+        report=report,
+        rows_used=settings.IMPORT_MAX_ROWS - remaining + len(calendars),
     )
-    return bundle, report
+
+
+async def _link_tasks_to_pages(
+    credential: AtlassianCredential, envelopes: list[tuple[str, dict[str, Any]]]
+) -> None:
+    """Relate each task to the Confluence pages its issue lists — the
+    "Confluence pages" an issue shows, which Jira keeps as remote links.
+
+    A page that comes over in the same import becomes the far end of a
+    ``related_to`` edge; one that does not is counted as outside the
+    selection, like any other link. An issue whose links will not answer
+    keeps none — not worth failing the import over; being throttled is.
+    """
+    from app.core.relationships import RelationshipType
+    from app.services.import_engine.links import confluence_page_ref
+
+    for _key, envelope in envelopes:
+        for task in envelope["tasks"]:
+            issue_key = str(task.get("external_ref") or "").removeprefix("jira:")
+            if not issue_key:
+                continue
+            try:
+                payload = await get_json(
+                    credential, f"/rest/api/3/issue/{issue_key}/remotelink"
+                )
+            except ImportEngineError as exc:
+                if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
+                    raise
+                continue
+            seen: set[str] = set()
+            for link in payload if isinstance(payload, list) else []:
+                target = link.get("object") if isinstance(link, dict) else None
+                url = target.get("url") if isinstance(target, dict) else None
+                ref = (
+                    confluence_page_ref(url, credential.site_url)
+                    if isinstance(url, str)
+                    else None
+                )
+                if ref and ref not in seen:
+                    seen.add(ref)
+                    task["links"].append(
+                        {
+                            "type": RelationshipType.related_to.value,
+                            "target_external_ref": ref,
+                        }
+                    )
 
 
 async def fetch_board_names(

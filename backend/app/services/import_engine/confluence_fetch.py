@@ -11,14 +11,10 @@ the person picked, carried as ``target_initiative_id``.
 
 from __future__ import annotations
 
-import io
-import json
 import logging
 import re
-import zipfile
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 from urllib.parse import quote
 
@@ -49,7 +45,6 @@ USERS_PER_REQUEST = 100
 #: manifest's own framing.
 _ENVELOPE_RESERVE_BYTES = 256 * 1024
 
-_MANIFEST_NAME = "manifest.json"
 _ACCOUNT_ID = re.compile(r'ri:account-id="([^"]{1,128})"')
 
 
@@ -230,85 +225,48 @@ def _account_ids(pages: list[confluence_mapping.SourcePage]) -> set[str]:
     return ids
 
 
-def _entry_path(index: int, space_key: str) -> str:
-    safe = "".join(c for c in space_key if c.isalnum() or c in "-_") or "space"
-    return f"initiatives/1-imported/wikis/{index}-{safe}.initiative-wiki.json"
+@dataclass
+class ConfluenceFetched:
+    """Everything a Confluence fetch read, ready to be written into a bundle."""
 
-
-def build_bundle(
-    envelopes: list[tuple[str, dict[str, Any]]],
-    *,
-    people: Counter[str],
-    guild_id: int,
-    guild_name: str,
-    target_initiative_id: int,
-    app_version: str,
-    site_url: str,
-) -> bytes:
-    """The zip the applier reads: a manifest naming the chosen initiative,
-    and one wiki envelope per space."""
-    entries = []
-    files: dict[str, bytes] = {}
-    for index, (key, envelope) in enumerate(envelopes, start=1):
-        path = _entry_path(index, key)
-        files[path] = json.dumps(envelope).encode("utf-8")
-        entries.append(
-            {
-                "path": path,
-                "tool": "wiki",
-                "type": "initiative-wiki",
-                "schema_version": 1,
-                "entity_id": index,
-                "title": envelope["name"],
-                "initiative_id": 1,
-                "tags": [],
-                "properties": [],
-                "asset": None,
-            }
-        )
-    manifest = {
-        "type": "initiative-backup",
-        "schema_version": 1,
-        "app_version": app_version,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "source_instance_url": site_url,
-        "guild": {"id": guild_id, "name": guild_name},
-        "include_uploads": False,
-        "initiatives": [
-            {
-                "id": 1,
-                "name": "Imported from Confluence",
-                "tools": {"wiki": "included"},
-                "target_initiative_id": target_initiative_id,
-            }
-        ],
-        "entries": entries,
-        "assets": [],
-        "skipped": [],
-        "people": [
-            {"handle": name, "name": name, "comment_count": 0}
-            for name, _count in sorted(people.items(), key=lambda kv: (-kv[1], kv[0]))
-        ],
-    }
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(_MANIFEST_NAME, json.dumps(manifest))
-        for path, blob in files.items():
-            archive.writestr(path, blob)
-    return buffer.getvalue()
+    envelopes: list[tuple[str, dict[str, Any]]]
+    people: Counter[str]
+    report: ConfluenceFetchReport
 
 
 async def fetch_spaces_bundle(
     credential: AtlassianCredential,
     *,
-    space_keys: list[str],
     guild_id: int,
     guild_name: str,
     target_initiative_id: int,
+    **kwargs: Any,
+) -> tuple[bytes, ConfluenceFetchReport]:
+    """:func:`fetch_spaces`, written into a bundle of its own."""
+    from app.services.import_engine.atlassian_bundle import merge_people, write_bundle
+
+    fetched = await fetch_spaces(credential, **kwargs)
+    bundle = write_bundle(
+        wikis=fetched.envelopes,
+        people=merge_people([], fetched.people),
+        guild_id=guild_id,
+        guild_name=guild_name,
+        target_initiative_id=target_initiative_id,
+        app_version=kwargs["app_version"],
+        site_url=credential.site_url,
+    )
+    return bundle, fetched.report
+
+
+async def fetch_spaces(
+    credential: AtlassianCredential,
+    *,
+    space_keys: list[str],
     app_version: str,
     progress: Optional[Callable[[ConfluenceFetchReport], Awaitable[None]]] = None,
-) -> tuple[bytes, ConfluenceFetchReport]:
-    """Read the chosen spaces and return the bundle plus what it found.
+    max_rows: Optional[int] = None,
+) -> ConfluenceFetched:
+    """Read the chosen spaces and return what was read plus what it found.
 
     A space the token cannot read is counted, not fatal; every one unreadable
     fails the fetch, because then the selection is what is wrong. ``progress``
@@ -319,7 +277,7 @@ async def fetch_spaces_bundle(
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
 
     report = ConfluenceFetchReport()
-    remaining = settings.IMPORT_MAX_ROWS
+    remaining = settings.IMPORT_MAX_ROWS if max_rows is None else max_rows
     envelopes: list[tuple[str, dict[str, Any]]] = []
     people: Counter[str] = Counter()
     labels: set[str] = set()
@@ -382,13 +340,4 @@ async def fetch_spaces_bundle(
     if not envelopes:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
 
-    bundle = build_bundle(
-        envelopes,
-        people=people,
-        guild_id=guild_id,
-        guild_name=guild_name,
-        target_initiative_id=target_initiative_id,
-        app_version=app_version,
-        site_url=credential.site_url,
-    )
-    return bundle, report
+    return ConfluenceFetched(envelopes=envelopes, people=people, report=report)

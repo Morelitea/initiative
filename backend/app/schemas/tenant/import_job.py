@@ -226,6 +226,10 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     labels: int = 0
     #: What the pages held that will not come over, by kind, most first.
     dropped_macros: list[AtlassianDroppedItem] = []
+    #: Links between an issue and a page that were both read — the page's
+    #: Jira macros and issue links, and an issue's links to pages — which the
+    #: import joins up.
+    cross_links: int = 0
 
 
 class BackupImportPlan(SanitizedBaseModel):

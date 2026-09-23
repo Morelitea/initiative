@@ -63,6 +63,7 @@ from app.services.import_engine.contract import (
     ImportEngineError,
 )
 from app.services.import_engine.context import ImportContext, excluded_property_names
+from app.services.import_engine.links import resolve_page_links
 from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
@@ -344,6 +345,7 @@ async def apply_backup(
     context = ImportContext(
         people=await resolve_people_map(session, guild_id=guild_id, raw=people_map),
         excluded_properties=excluded_property_names(exclude_properties),
+        source_url=manifest.source_instance_url,
     )
 
     for mi in manifest.initiatives:
@@ -429,6 +431,9 @@ async def apply_backup(
     resolution = await context.links.resolve(session, created_by=user.id)
     result.links_created = resolution.created
     result.links_unresolved = resolution.unresolved
+    # And a link written in a task to a page that came over in the same
+    # bundle becomes a mention of that page.
+    await resolve_page_links(session, context.links, site_url=context.source_url)
     await session.commit()
 
     return result

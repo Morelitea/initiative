@@ -36,6 +36,10 @@ class ImportContext:
     #: review lists what an import would add to an initiative somebody else
     #: runs, and this is the answer to that list.
     excluded_properties: frozenset[str] = frozenset()
+    #: The site the bundle was read from — an Atlassian site, for a fetch. A
+    #: link in a task to a page there becomes a mention of the page, once the
+    #: page has been written in the same job.
+    source_url: str | None = None
 
 
 def excluded_property_names(raw: Any) -> frozenset[str]:

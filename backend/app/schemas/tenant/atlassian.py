@@ -85,17 +85,24 @@ class AtlassianConfluenceProbe(AtlassianProductProbe):
 JIRA_PROJECT_KEY_PATTERN = r"^[A-Za-z][A-Za-z0-9_]*$"
 
 
-class AtlassianJiraImportRequest(SanitizedBaseModel):
-    """The choose step's answer: which projects, from which site, into which
-    initiative.
+#: A Confluence space key as the site hands one out: letters and digits, or
+#: a personal space's ``~`` and account id. Checked because a key travels
+#: into a request to somebody else's server.
+CONFLUENCE_SPACE_KEY_PATTERN = r"^~?[A-Za-z0-9_-]+$"
 
-    Nothing is read from the site here. The request starts a job, and the
-    worker reads the projects into a bundle and parks it for review — the
-    plan the wizard shows next is filled in as that fetch goes.
+
+class AtlassianImportRequest(SanitizedBaseModel):
+    """The choose step's answer: which Jira projects and Confluence spaces,
+    from which site, into which initiative. Either list may be empty, not
+    both.
+
+    Nothing is read from the site here. The request starts one job, and the
+    worker reads the projects and spaces into one bundle and parks it for
+    review — so a link between an issue and a page read together is joined
+    when it is applied.
 
     It carries the same three values the connect step proved, because the job
-    row is what holds them from here on: the site the projects come from, who
-    the token authenticates as there, and the token itself.
+    row is what holds them from here on.
     """
 
     site_url: str = Field(min_length=1, max_length=2000)
@@ -104,15 +111,21 @@ class AtlassianJiraImportRequest(SanitizedBaseModel):
     email: str = Field(min_length=1, max_length=320)
     #: An Atlassian API token. Stored encrypted on the job and never echoed.
     api_token: str = Field(min_length=1, max_length=2000)
-    #: The initiative the projects land in. It has to exist, have projects
-    #: switched on, and let this person create them — checked now, and again
-    #: when the fetch starts and when the bundle is applied.
+    #: The initiative everything lands in. It has to exist, have projects
+    #: (and, for spaces, wikis) switched on, and let this person create them —
+    #: checked now, and again when the fetch starts and when it is applied.
     initiative_id: int
     project_keys: List[
         Annotated[
             str, Field(min_length=1, max_length=50, pattern=JIRA_PROJECT_KEY_PATTERN)
         ]
-    ] = Field(max_length=200)
+    ] = Field(default=[], max_length=200)
+    space_keys: List[
+        Annotated[
+            str,
+            Field(min_length=1, max_length=255, pattern=CONFLUENCE_SPACE_KEY_PATTERN),
+        ]
+    ] = Field(default=[], max_length=200)
     #: Bring each issue's comments across. On unless somebody turns it off:
     #: it costs a call per issue whose comments run past the first page, which
     #: a large project with long threads will feel.
@@ -121,36 +134,6 @@ class AtlassianJiraImportRequest(SanitizedBaseModel):
     #: description or a comment embedded them. On unless turned off: each is a
     #: download, and they count against the community's storage.
     include_attachments: bool = True
-
-
-#: A Confluence space key as the site hands one out: letters and digits, or
-#: a personal space's ``~`` and account id. Checked because a key travels
-#: into a request to somebody else's server.
-CONFLUENCE_SPACE_KEY_PATTERN = r"^~?[A-Za-z0-9_-]+$"
-
-
-class AtlassianConfluenceImportRequest(SanitizedBaseModel):
-    """The choose step's answer for Confluence: which spaces, from which
-    site, into which initiative. Each space becomes one wiki.
-
-    Like the Jira request, it starts a job and reads nothing itself, and it
-    carries the three values the connect step proved.
-    """
-
-    site_url: str = Field(min_length=1, max_length=2000)
-    email: str = Field(min_length=1, max_length=320)
-    #: An Atlassian API token. Stored encrypted on the job and never echoed.
-    api_token: str = Field(min_length=1, max_length=2000)
-    #: The initiative the wikis land in. It has to exist, have wikis switched
-    #: on, and let this person create them — checked now, and again when the
-    #: fetch starts and when the bundle is applied.
-    initiative_id: int
-    space_keys: List[
-        Annotated[
-            str,
-            Field(min_length=1, max_length=255, pattern=CONFLUENCE_SPACE_KEY_PATTERN),
-        ]
-    ] = Field(max_length=200)
 
 
 class AtlassianConnectResponse(SanitizedBaseModel):

@@ -148,29 +148,26 @@ It arrives as a **new project** and touches nothing that's already here, which m
 !!! note "Todoist leaves out what you finished"
     Its export carries outstanding work only, so completed tasks won't come across. That's Todoist's export rather than our import, and the wizard says so before you upload rather than after.
 
-#### From Jira
+#### From Jira and Confluence
 
-Jira has no file to drop in. Pick **Jira** in the same wizard and it reads your site directly instead:
+Jira and Confluence have no file to drop in. Pick **Jira & Confluence** in the same wizard and it reads your site directly instead — both products in one go, or just the one you want:
 
-1. **Connect** with your site's address, your Atlassian email and an [API token](https://id.atlassian.com/manage-profile/security/api-tokens). The token reads only the projects you pick, and it's deleted as soon as they've been read.
-2. **Tick the projects**, choose the initiative, and decide whether comments and images come along.
+1. **Connect** with your site's address, your Atlassian email and an [API token](https://id.atlassian.com/manage-profile/security/api-tokens). The token reads only what you pick, and it's deleted as soon as it's been read.
+2. **Tick the projects and spaces**, choose the initiative they all land in, and decide whether the issues' comments and images come along.
 3. **Wait while it reads.** A big project takes a few minutes. You can close the window and make a cup of tea — opening the import again picks up exactly where it was.
-4. **Check what it found.** Nothing is written yet. You get the count of tasks, links, sprints, comments and images coming across, the fields that become properties (untick any you don't want), and — just as plainly — anything that won't make it.
-5. **Say who its people are**, then start it.
+4. **Check what it found.** Nothing is written yet. You get the count of everything coming across, the Jira fields that become properties (untick any you don't want), and — just as plainly — anything that won't make it.
+5. **Say who its people are**, then start it. Somebody who's in both products is asked about once.
 
-Each Jira project becomes a new project here: its columns, fields, links between issues, sub-tasks under their parents, and each sprint as an event on a calendar named after its board. Sprints need calendars, so an initiative without them gets everything except the sprints, and the review says so first.
+Each **Jira project** becomes a new project here: its columns, fields, links between issues, sub-tasks under their parents, and each sprint as an event on a calendar named after its board. Sprints need calendars, so an initiative without them gets everything except the sprints, and the review says so first.
 
-#### From Confluence
+Each **Confluence space** becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank. Links from one page to another point at the imported page, and status lozenges come across as statuses in their own colours.
 
-Same wizard, same connection, other half of the site. Pick **Confluence**, connect, tick the spaces, and choose the initiative.
+Bring a project and its space over together and they arrive joined up, whichever way they pointed:
 
-Each space becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank.
+- A page that mentions an issue — through Confluence's Jira macro or a plain link — points at the task it became, with a [smart chip](documents.md#smart-chips) showing that task's status as it is today, not as it was the day the page was written.
+- An issue that links to a page, in its description, a comment or its list of Confluence pages, points at the wiki page.
 
-Links from one page to another point at the imported page. Anybody who wrote a page or got @-mentioned in one goes through the same "who is who" step as Jira.
-
-Pages that talk about Jira issues get something better than a link. If the issues came across in a Jira import first, each one a page mentions — through Confluence's Jira macro or a plain link — points at the task it became, with a [smart chip](documents.md#smart-chips) showing that task's status as it is today, not as it was the day the page was written. Import the Jira project before the space and the two arrive already joined up. Confluence's status lozenges come across as statuses in their own colours.
-
-The review names anything with no equivalent here — a table of contents, a draw.io diagram, the macro somebody installed in 2017 and never mentioned again — before you commit to it. Attached files don't come across yet.
+A page that mentions an issue from an earlier Jira import is joined up too. The review says how many links it's joining, and names anything with no equivalent here — a table of contents, a draw.io diagram, the macro somebody installed in 2017 and never mentioned again — before you commit to it. Attached files on pages don't come across yet.
 
 Importing a single exported file into one tool is a different, smaller thing, and it stays on that tool's own page.
 

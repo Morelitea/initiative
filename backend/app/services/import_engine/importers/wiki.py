@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -182,6 +183,10 @@ class WikiImporter:
             await session.flush()
             page_ids[slug] = row.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             rows.append(row)
+            if context is not None:
+                context.links.register(
+                    page_env.external_ref, SearchEntityType.wiki_page, row.id
+                )
             await attach_tags("wiki_page", row.id, page_env.tags)
 
         # Pass two: file each page under its parent, by slug.
@@ -200,10 +205,17 @@ class WikiImporter:
             warnings.append(f"missing_parent_pages:{unknown}")
 
         # Pass three: what a page names, now that every page has an id.
-        jira_tasks = await _tasks_by_jira_key(
-            session,
-            {key for page in env.pages for key in _jira_keys(page.content)},
-        )
+        wanted = {key for page in env.pages for key in _jira_keys(page.content)}
+        # An issue that came over in this same import is already known by the
+        # ref its task was registered under; anything else is looked up by
+        # the key an earlier Jira import recorded.
+        jira_tasks: dict[str, int] = {}
+        if context is not None:
+            for key in wanted:
+                endpoint = context.links.lookup(f"jira:{key}")
+                if endpoint is not None and endpoint.kind == SearchEntityType.task:
+                    jira_tasks[key] = endpoint.id
+        jira_tasks.update(await _tasks_by_jira_key(session, wanted - jira_tasks.keys()))
         by_original = {page.slug.strip(): slug for page, slug in zip(env.pages, slugs)}
         for page_env, row in zip(env.pages, rows):
             mentioned = {

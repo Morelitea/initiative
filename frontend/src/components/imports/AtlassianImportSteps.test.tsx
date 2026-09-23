@@ -8,12 +8,12 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import {
-  ConfluenceChooseStep,
-  JiraChooseStep,
-  JiraConnectStep,
-  JiraFetchingStep,
+  AtlassianChooseStep,
+  AtlassianConnectStep,
+  AtlassianFetchingStep,
+  AtlassianReviewSummary,
   JiraReviewSummary,
-} from "./JiraImportSteps";
+} from "./AtlassianImportSteps";
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -53,8 +53,20 @@ const CONNECTION = {
   ],
 };
 
-describe("JiraConnectStep", () => {
-  it("proves the token and hands back what the site holds", async () => {
+const TARGETS = [
+  { id: 4, name: "Engineering", canCreateProjects: true, canCreateWikis: true },
+  { id: 5, name: "Docs only", canCreateProjects: false, canCreateWikis: true },
+];
+
+async function fillConnect() {
+  await userEvent.type(screen.getByLabelText(/site address/i), "acme.atlassian.net/jira");
+  await userEvent.type(screen.getByLabelText(/atlassian email/i), "me@example.com");
+  await userEvent.type(screen.getByLabelText(/api token/i), "secret");
+  await userEvent.click(screen.getByRole("button", { name: /^connect$/i }));
+}
+
+describe("AtlassianConnectStep", () => {
+  it("proves the token and hands back both products' lists", async () => {
     let sent: Record<string, unknown> | null = null;
     server.use(
       guildHttp.post("/imports/atlassian/connect", async ({ request }) => {
@@ -63,19 +75,15 @@ describe("JiraConnectStep", () => {
           {
             site_url: "https://acme.atlassian.net",
             jira: { available: true, projects: CONNECTION.projects },
-            confluence: { available: false },
+            confluence: { available: true, spaces: CONNECTION.spaces },
           },
           { status: 201 }
         );
       })
     );
     const onConnected = vi.fn();
-    renderWithProviders(<JiraConnectStep onConnected={onConnected} />);
-
-    await userEvent.type(screen.getByLabelText(/site address/i), "acme.atlassian.net/jira");
-    await userEvent.type(screen.getByLabelText(/atlassian email/i), "me@example.com");
-    await userEvent.type(screen.getByLabelText(/api token/i), "secret");
-    await userEvent.click(screen.getByRole("button", { name: /^connect$/i }));
+    renderWithProviders(<AtlassianConnectStep onConnected={onConnected} />);
+    await fillConnect();
 
     await waitFor(() => expect(onConnected).toHaveBeenCalled());
     expect(sent).toEqual({
@@ -83,40 +91,40 @@ describe("JiraConnectStep", () => {
       email: "me@example.com",
       api_token: "secret",
     });
+    const [connection] = onConnected.mock.calls[0];
     // The site as the server normalised it is what the import will call.
-    expect(onConnected.mock.calls[0][0].credentials.site_url).toBe("https://acme.atlassian.net");
-    expect(onConnected.mock.calls[0][0].projects).toHaveLength(2);
+    expect(connection.credentials.site_url).toBe("https://acme.atlassian.net");
+    expect(connection.projects).toHaveLength(2);
+    expect(connection.spaces).toHaveLength(2);
   });
 
-  it("says so when the site answers but there is no Jira the token can see", async () => {
-    server.use(
-      guildHttp.post("/imports/atlassian/connect", () =>
-        HttpResponse.json(
-          { site_url: "https://acme.atlassian.net", jira: { available: false } },
-          { status: 201 }
-        )
-      )
-    );
-    const onConnected = vi.fn();
-    renderWithProviders(<JiraConnectStep onConnected={onConnected} />);
-    await userEvent.type(screen.getByLabelText(/site address/i), "acme.atlassian.net");
-    await userEvent.type(screen.getByLabelText(/atlassian email/i), "me@example.com");
-    await userEvent.type(screen.getByLabelText(/api token/i), "secret");
-    await userEvent.click(screen.getByRole("button", { name: /^connect$/i }));
-
-    expect(await screen.findByText(/no Jira there/i)).toBeInTheDocument();
-    expect(onConnected).not.toHaveBeenCalled();
-  });
-});
-
-describe("JiraConnectStep for Confluence", () => {
-  it("asks for Confluence, and says so when the token cannot see one", async () => {
+  it("goes on with whichever product the token can see", async () => {
     server.use(
       guildHttp.post("/imports/atlassian/connect", () =>
         HttpResponse.json(
           {
             site_url: "https://acme.atlassian.net",
-            jira: { available: true, projects: CONNECTION.projects },
+            jira: { available: false, reason: "IMPORT_SOURCE_AUTH" },
+            confluence: { available: true, spaces: CONNECTION.spaces },
+          },
+          { status: 201 }
+        )
+      )
+    );
+    const onConnected = vi.fn();
+    renderWithProviders(<AtlassianConnectStep onConnected={onConnected} />);
+    await fillConnect();
+    await waitFor(() => expect(onConnected).toHaveBeenCalled());
+    expect(onConnected.mock.calls[0][0].projects).toEqual([]);
+  });
+
+  it("says so when the token can see neither", async () => {
+    server.use(
+      guildHttp.post("/imports/atlassian/connect", () =>
+        HttpResponse.json(
+          {
+            site_url: "https://acme.atlassian.net",
+            jira: { available: false },
             confluence: { available: false },
           },
           { status: 201 }
@@ -124,80 +132,42 @@ describe("JiraConnectStep for Confluence", () => {
       )
     );
     const onConnected = vi.fn();
-    renderWithProviders(<JiraConnectStep product="confluence" onConnected={onConnected} />);
-    await userEvent.type(screen.getByLabelText(/site address/i), "acme.atlassian.net");
-    await userEvent.type(screen.getByLabelText(/atlassian email/i), "me@example.com");
-    await userEvent.type(screen.getByLabelText(/api token/i), "secret");
-    await userEvent.click(screen.getByRole("button", { name: /^connect$/i }));
-
-    expect(await screen.findByText(/no Confluence there/i)).toBeInTheDocument();
+    renderWithProviders(<AtlassianConnectStep onConnected={onConnected} />);
+    await fillConnect();
+    expect(
+      await screen.findByText(/can't see any Jira projects or Confluence spaces/i)
+    ).toBeInTheDocument();
     expect(onConnected).not.toHaveBeenCalled();
   });
 });
 
-describe("ConfluenceChooseStep", () => {
-  it("starts a job with the ticked spaces and the initiative", async () => {
+describe("AtlassianChooseStep", () => {
+  it("starts one job with the ticked projects and spaces, the initiative and the options", async () => {
     let sent: Record<string, unknown> | null = null;
     server.use(
-      guildHttp.post("/imports/atlassian/confluence", async ({ request }) => {
+      guildHttp.post("/imports/atlassian/import", async ({ request }) => {
         sent = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(job(), { status: 202 });
       })
     );
     const onStarted = vi.fn();
     renderWithProviders(
-      <ConfluenceChooseStep
-        connection={CONNECTION}
-        initiatives={[{ id: 4, name: "Engineering" }]}
-        onStarted={onStarted}
-      />
-    );
-    expect(screen.getByText("40 pages")).toBeInTheDocument();
-    expect(screen.getByText("1 page")).toBeInTheDocument();
-
-    const start = screen.getByRole("button", { name: /read these spaces/i });
-    expect(start).toBeDisabled();
-    await userEvent.click(screen.getByLabelText(/Team Docs/));
-    await userEvent.click(start);
-
-    await waitFor(() => expect(onStarted).toHaveBeenCalled());
-    expect(sent).toEqual({
-      site_url: "https://acme.atlassian.net",
-      email: "me@example.com",
-      api_token: "secret",
-      initiative_id: 4,
-      space_keys: ["DOCS"],
-    });
-  });
-});
-
-describe("JiraChooseStep", () => {
-  it("starts a job with the ticked projects, the initiative and the options", async () => {
-    let sent: Record<string, unknown> | null = null;
-    server.use(
-      guildHttp.post("/imports/atlassian/jira", async ({ request }) => {
-        sent = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(job(), { status: 202 });
-      })
-    );
-    const onStarted = vi.fn();
-    renderWithProviders(
-      <JiraChooseStep
-        connection={CONNECTION}
-        initiatives={[{ id: 4, name: "Engineering" }]}
-        onStarted={onStarted}
-      />
+      <AtlassianChooseStep connection={CONNECTION} initiatives={TARGETS} onStarted={onStarted} />
     );
 
-    // Counted and uncounted projects both read sensibly.
+    // Counted and uncounted lists both read sensibly.
     expect(screen.getByText("12 issues")).toBeInTheDocument();
     expect(screen.getByText(/not counted/i)).toBeInTheDocument();
+    expect(screen.getByText("40 pages")).toBeInTheDocument();
 
-    const start = screen.getByRole("button", { name: /read these projects/i });
+    const start = screen.getByRole("button", { name: /start reading/i });
     expect(start).toBeDisabled();
 
     await userEvent.click(screen.getByLabelText(/Operations/));
+    await userEvent.click(screen.getByLabelText(/Team Docs/));
     await userEvent.click(screen.getByLabelText(/bring images/i));
+    // With projects ticked, only the initiative that takes projects is left,
+    // so it is the one chosen.
     await userEvent.click(start);
 
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
@@ -207,13 +177,24 @@ describe("JiraChooseStep", () => {
       api_token: "secret",
       initiative_id: 4,
       project_keys: ["OPS"],
+      space_keys: ["DOCS"],
       include_comments: true,
       include_attachments: false,
     });
   });
+
+  it("offers every initiative that takes wikis when only spaces are ticked", async () => {
+    renderWithProviders(
+      <AtlassianChooseStep connection={CONNECTION} initiatives={TARGETS} onStarted={vi.fn()} />
+    );
+    await userEvent.click(screen.getByLabelText(/Team Docs/));
+    await userEvent.click(screen.getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "Docs only" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Engineering" })).toBeInTheDocument();
+  });
 });
 
-describe("JiraFetchingStep", () => {
+describe("AtlassianFetchingStep", () => {
   it("shows the fetch climbing, then hands over the staged job", async () => {
     let polls = 0;
     server.use(
@@ -221,7 +202,10 @@ describe("JiraFetchingStep", () => {
         polls += 1;
         return polls < 2
           ? HttpResponse.json(
-              job({ status: "fetching", plan: { atlassian: { projects: 1, tasks: 30 } } })
+              job({
+                status: "fetching",
+                plan: { atlassian: { projects: 1, tasks: 30, spaces: 1, pages: 4 } },
+              })
             )
           : HttpResponse.json(
               job({ status: "staged", plan: { atlassian: { projects: 2, tasks: 55 } } })
@@ -229,9 +213,13 @@ describe("JiraFetchingStep", () => {
       })
     );
     const onStaged = vi.fn();
-    renderWithProviders(<JiraFetchingStep jobId={77} onStaged={onStaged} onStopped={() => {}} />);
+    renderWithProviders(
+      <AtlassianFetchingStep jobId={77} onStaged={onStaged} onStopped={() => {}} />
+    );
 
-    expect(await screen.findByText(/1 projects and 30 tasks/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/30 tasks from 1 projects and 4 pages from 1 spaces/i)
+    ).toBeInTheDocument();
     await waitFor(() => expect(onStaged).toHaveBeenCalled(), { timeout: 4000 });
     expect(onStaged.mock.calls[0][0].status).toBe("staged");
   });
@@ -243,7 +231,9 @@ describe("JiraFetchingStep", () => {
       )
     );
     const onStopped = vi.fn();
-    renderWithProviders(<JiraFetchingStep jobId={77} onStaged={vi.fn()} onStopped={onStopped} />);
+    renderWithProviders(
+      <AtlassianFetchingStep jobId={77} onStaged={vi.fn()} onStopped={onStopped} />
+    );
 
     expect(await screen.findByText(/slow down/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /start over/i }));
@@ -334,5 +324,37 @@ describe("JiraReviewSummary", () => {
     expect(unticked).not.toBeChecked();
     await userEvent.click(unticked);
     expect([...onExcludedChange.mock.calls[1][0]]).toEqual([]);
+  });
+});
+
+describe("AtlassianReviewSummary", () => {
+  it("shows each product that was read, and the links joined between them", () => {
+    renderWithProviders(
+      <AtlassianReviewSummary
+        job={job({
+          status: "staged",
+          plan: {
+            atlassian: { projects: 1, tasks: 9, spaces: 1, pages: 12, cross_links: 3 },
+          },
+        })}
+        excluded={new Set()}
+        onExcludedChange={() => {}}
+      />
+    );
+    expect(screen.getByText(/9 tasks from 1 project/i)).toBeInTheDocument();
+    expect(screen.getByText(/12 pages from 1 spaces/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 links between issues and pages, joined up/i)).toBeInTheDocument();
+  });
+
+  it("leaves out a product nothing was asked of", () => {
+    renderWithProviders(
+      <AtlassianReviewSummary
+        job={job({ status: "staged", plan: { atlassian: { spaces: 1, pages: 2 } } })}
+        excluded={new Set()}
+        onExcludedChange={() => {}}
+      />
+    );
+    expect(screen.queryByText(/tasks from/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/2 pages from 1 spaces/i)).toBeInTheDocument();
   });
 });

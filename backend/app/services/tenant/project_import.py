@@ -53,6 +53,7 @@ from app.schemas.tenant.project_export import (
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
+from app.services.import_engine.links import links_to_pages
 from app.services.import_engine.people import (
     PeopleMap,
     initiative_member_id,
@@ -406,6 +407,9 @@ async def _import_task(
             TaskPropertyValue(task_id=task.id, property_id=prop_id, **column_kwargs)
         )
 
+    if context is not None and links_to_pages(task.description):
+        context.links.note_body(SearchEntityType.task, task.id)
+
     # What this task was called at the source, and what it says it points at.
     # Both are handed to the job's collector and resolved once every entry has
     # been applied — see ``import_engine.links``.
@@ -451,6 +455,9 @@ async def _import_task(
             created_at=envelope_comment.created_at or datetime.now(timezone.utc),
         )
         session.add(comment)
+        if context is not None and links_to_pages(comment.content):
+            await session.flush()
+            context.links.note_body(SearchEntityType.comment, comment.id)
         ref = envelope_comment.external_ref
         if ref is not None and ref in answered and ref not in written:
             await session.flush()

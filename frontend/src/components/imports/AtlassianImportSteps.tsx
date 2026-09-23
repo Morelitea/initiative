@@ -6,8 +6,7 @@ import {
   useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
   useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost,
   useGetImportJobApiV1GGuildIdImportsJobsJobIdGet,
-  useStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost,
-  useStartJiraImportApiV1GGuildIdImportsAtlassianJiraPost,
+  useStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPost,
 } from "@/api/generated/imports/imports";
 import type {
   AtlassianConfluenceSpace,
@@ -42,21 +41,17 @@ const FETCHING = new Set(["queued", "fetching"]);
 /** What the site was reached with. Held in memory for the length of the
  * wizard and sent again when the import starts — the job row is what keeps
  * it from there, and nothing here writes it anywhere. */
-export interface JiraCredentials {
+export interface AtlassianCredentials {
   site_url: string;
   email: string;
   api_token: string;
 }
 
-export interface JiraConnection {
-  credentials: JiraCredentials;
+export interface AtlassianConnection {
+  credentials: AtlassianCredentials;
   projects: AtlassianJiraProject[];
   spaces: AtlassianConfluenceSpace[];
 }
-
-/** Which of the site's products an import reads: Jira projects become
- * projects, Confluence spaces become wikis. One per import. */
-export type AtlassianProduct = "jira" | "confluence";
 
 /** The plan's ``atlassian`` block. Declared here for the same reason
  * ``PlanPerson`` is: a job's plan crosses the wire as a free-form object. */
@@ -81,6 +76,7 @@ export interface AtlassianPlanSummary {
   images_oversize?: number;
   images_unreadable?: number;
   other_attachments?: number;
+  cross_links?: number;
   spaces?: number;
   pages?: number;
   page_containers?: number;
@@ -100,17 +96,14 @@ export function atlassianSummary(job: ImportJobRead | null | undefined): Atlassi
 // Connect
 // ---------------------------------------------------------------------------
 
-export interface JiraConnectStepProps {
-  /** The product being imported from. The site has to have it, and the
-   * token has to reach it, for the next step to have anything to offer. */
-  product?: AtlassianProduct;
-  onConnected: (connection: JiraConnection) => void;
+export interface AtlassianConnectStepProps {
+  onConnected: (connection: AtlassianConnection) => void;
 }
 
 /** The site, the account, and a token for it — proved by using it. The
- * answer is also the list of what the token can see, so connecting and
- * looking around are one request. */
-export function JiraConnectStep({ product = "jira", onConnected }: JiraConnectStepProps) {
+ * answer is also the list of what the token can see in both products, so
+ * connecting and looking around are one request. */
+export function AtlassianConnectStep({ onConnected }: AtlassianConnectStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
   const connect = useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost();
@@ -127,14 +120,13 @@ export function JiraConnectStep({ product = "jira", onConnected }: JiraConnectSt
         guildId,
         data: { site_url: siteUrl.trim(), email: email.trim(), api_token: apiToken },
       });
-      const probe = product === "confluence" ? response.confluence : response.jira;
-      if (!probe?.available) {
+      const projects = response.jira?.available ? (response.jira.projects ?? []) : [];
+      const spaces = response.confluence?.available ? (response.confluence.spaces ?? []) : [];
+      if (projects.length === 0 && spaces.length === 0) {
         setError(
           messageForCode(
-            probe?.reason ?? null,
-            product === "confluence"
-              ? "imports:wizard.confluence.connect.noConfluence"
-              : "imports:wizard.jira.connect.noJira"
+            response.jira?.reason ?? response.confluence?.reason ?? null,
+            "imports:wizard.atlassian.connect.noProducts"
           )
         );
         return;
@@ -142,11 +134,11 @@ export function JiraConnectStep({ product = "jira", onConnected }: JiraConnectSt
       onConnected({
         // The site as the server normalised it — what the import will call.
         credentials: { site_url: response.site_url, email: email.trim(), api_token: apiToken },
-        projects: response.jira?.projects ?? [],
-        spaces: response.confluence?.spaces ?? [],
+        projects,
+        spaces,
       });
     } catch (err) {
-      setError(getErrorMessage(err, "imports:wizard.jira.connect.failed"));
+      setError(getErrorMessage(err, "imports:wizard.atlassian.connect.failed"));
     }
   };
 
@@ -155,17 +147,17 @@ export function JiraConnectStep({ product = "jira", onConnected }: JiraConnectSt
   return (
     <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
       <div className="space-y-2">
-        <Label htmlFor="jira-site">{t("wizard.jira.connect.siteLabel")}</Label>
+        <Label htmlFor="jira-site">{t("wizard.atlassian.connect.siteLabel")}</Label>
         <Input
           id="jira-site"
           value={siteUrl}
-          placeholder={t("wizard.jira.connect.sitePlaceholder")}
+          placeholder={t("wizard.atlassian.connect.sitePlaceholder")}
           autoComplete="url"
           onChange={(event) => setSiteUrl(event.target.value)}
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="jira-email">{t("wizard.jira.connect.emailLabel")}</Label>
+        <Label htmlFor="jira-email">{t("wizard.atlassian.connect.emailLabel")}</Label>
         <Input
           id="jira-email"
           type="email"
@@ -175,7 +167,7 @@ export function JiraConnectStep({ product = "jira", onConnected }: JiraConnectSt
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="jira-token">{t("wizard.jira.connect.tokenLabel")}</Label>
+        <Label htmlFor="jira-token">{t("wizard.atlassian.connect.tokenLabel")}</Label>
         <Input
           id="jira-token"
           type="password"
@@ -189,19 +181,15 @@ export function JiraConnectStep({ product = "jira", onConnected }: JiraConnectSt
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-primary text-xs hover:underline"
         >
-          {t("wizard.jira.connect.tokenLink")}
+          {t("wizard.atlassian.connect.tokenLink")}
           <ExternalLink className="h-3 w-3" />
         </a>
       </div>
-      <p className="text-muted-foreground text-xs">
-        {t(
-          product === "confluence" ? "wizard.confluence.connect.note" : "wizard.jira.connect.note"
-        )}
-      </p>
+      <p className="text-muted-foreground text-xs">{t("wizard.atlassian.connect.note")}</p>
       {error && <p className="text-destructive text-sm">{error}</p>}
       <Button type="submit" className="w-full" disabled={!ready || connect.isPending}>
         {connect.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-        {t("wizard.jira.connect.submit")}
+        {t("wizard.atlassian.connect.submit")}
       </Button>
     </form>
   );
@@ -211,31 +199,23 @@ export function JiraConnectStep({ product = "jira", onConnected }: JiraConnectSt
 // Choose
 // ---------------------------------------------------------------------------
 
-export interface JiraChooseStepProps {
-  connection: JiraConnection;
-  initiatives: Array<{ id: number; name: string }>;
+/** An initiative the import could land in, and what may be made there. */
+export interface AtlassianTarget {
+  id: number;
+  name: string;
+  canCreateProjects: boolean;
+  canCreateWikis: boolean;
+}
+
+export interface AtlassianChooseStepProps {
+  connection: AtlassianConnection;
+  initiatives: AtlassianTarget[];
   onStarted: (job: ImportJobRead) => void;
 }
 
-/** Which projects, into which initiative, and whether their comments and
- * images come too. Starting reads nothing yet — it queues the job that
- * does. */
-export function JiraChooseStep({ connection, initiatives, onStarted }: JiraChooseStepProps) {
-  const { t } = useTranslation("imports");
-  const guildId = useActiveGuildId();
-  const start = useStartJiraImportApiV1GGuildIdImportsAtlassianJiraPost();
+function useTicks() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [initiativeId, setInitiativeId] = useState<string>(
-    initiatives.length === 1 ? String(initiatives[0].id) : ""
-  );
-  const [includeComments, setIncludeComments] = useState(true);
-  const [includeAttachments, setIncludeAttachments] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const { projects } = connection;
-  const allSelected = projects.length > 0 && selected.size === projects.length;
-
-  const toggle = (key: string, on: boolean) => {
+  const toggle = (key: string, on: boolean) =>
     setSelected((current) => {
       const next = new Set(current);
       if (on) {
@@ -245,7 +225,96 @@ export function JiraChooseStep({ connection, initiatives, onStarted }: JiraChoos
       }
       return next;
     });
-  };
+  return { selected, setSelected, toggle };
+}
+
+interface TickListProps {
+  label: string;
+  idPrefix: string;
+  items: Array<{ key: string; name: string; count: string }>;
+  selected: Set<string>;
+  setSelected: (next: Set<string>) => void;
+  toggle: (key: string, on: boolean) => void;
+}
+
+function TickList({ label, idPrefix, items, selected, setSelected, toggle }: TickListProps) {
+  const { t } = useTranslation("imports");
+  const allSelected = items.length > 0 && selected.size === items.length;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        {items.length > 1 && (
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={() => setSelected(allSelected ? new Set() : new Set(items.map((i) => i.key)))}
+          >
+            {allSelected
+              ? t("wizard.atlassian.choose.selectNone")
+              : t("wizard.atlassian.choose.selectAll")}
+          </Button>
+        )}
+      </div>
+      <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-2">
+        {items.map((item) => {
+          const id = `${idPrefix}-${item.key}`;
+          return (
+            <li key={item.key} className="flex items-center gap-2 rounded px-1 py-1.5">
+              <Checkbox
+                id={id}
+                checked={selected.has(item.key)}
+                onCheckedChange={(checked) => toggle(item.key, checked === true)}
+              />
+              <Label htmlFor={id} className="flex flex-1 items-baseline gap-2 font-normal">
+                <span className="text-sm">{item.name}</span>
+                <span className="font-mono text-muted-foreground text-xs">{item.key}</span>
+                <span className="ml-auto text-muted-foreground text-xs">{item.count}</span>
+              </Label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Which projects and which spaces, into which initiative, and whether the
+ * issues' comments and images come too. Starting reads nothing yet — it
+ * queues the one job that reads them all. */
+export function AtlassianChooseStep({
+  connection,
+  initiatives,
+  onStarted,
+}: AtlassianChooseStepProps) {
+  const { t } = useTranslation("imports");
+  const guildId = useActiveGuildId();
+  const start = useStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPost();
+  const projectTicks = useTicks();
+  const spaceTicks = useTicks();
+  const [initiativeId, setInitiativeId] = useState<string>("");
+  const [includeComments, setIncludeComments] = useState(true);
+  const [includeAttachments, setIncludeAttachments] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const { projects, spaces } = connection;
+  const wantsProjects = projectTicks.selected.size > 0;
+  const wantsSpaces = spaceTicks.selected.size > 0;
+  // Somewhere everything ticked can go: projects need an initiative that
+  // lets this person make projects, spaces one that lets them make wikis.
+  const targets = initiatives.filter(
+    (initiative) =>
+      (initiative.canCreateProjects || initiative.canCreateWikis) &&
+      (!wantsProjects || initiative.canCreateProjects) &&
+      (!wantsSpaces || initiative.canCreateWikis)
+  );
+  const chosen = targets.some((initiative) => String(initiative.id) === initiativeId)
+    ? initiativeId
+    : targets.length === 1
+      ? String(targets[0].id)
+      : "";
 
   const handleStart = async () => {
     setError(null);
@@ -254,247 +323,109 @@ export function JiraChooseStep({ connection, initiatives, onStarted }: JiraChoos
         guildId,
         data: {
           ...connection.credentials,
-          initiative_id: Number(initiativeId),
+          initiative_id: Number(chosen),
           // In the order the site listed them, whatever order they were ticked.
-          project_keys: projects.map((p) => p.key).filter((key) => selected.has(key)),
+          project_keys: projects.map((p) => p.key).filter((key) => projectTicks.selected.has(key)),
+          space_keys: spaces.map((s) => s.key).filter((key) => spaceTicks.selected.has(key)),
           include_comments: includeComments,
           include_attachments: includeAttachments,
         },
       });
       onStarted(job);
     } catch (err) {
-      setError(getErrorMessage(err, "imports:wizard.jira.choose.failed"));
+      setError(getErrorMessage(err, "imports:wizard.atlassian.choose.failed"));
     }
   };
 
-  if (projects.length === 0) {
-    return <p className="text-muted-foreground text-sm">{t("wizard.jira.choose.noProjects")}</p>;
-  }
-
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>{t("wizard.jira.choose.projectsLabel")}</Label>
-          {projects.length > 1 && (
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="h-auto p-0 text-xs"
-              onClick={() =>
-                setSelected(allSelected ? new Set() : new Set(projects.map((p) => p.key)))
-              }
-            >
-              {allSelected ? t("wizard.jira.choose.selectNone") : t("wizard.jira.choose.selectAll")}
-            </Button>
-          )}
-        </div>
-        <ul className="max-h-60 space-y-1 overflow-y-auto rounded-lg border p-2">
-          {projects.map((project) => {
-            const id = `jira-project-${project.key}`;
-            return (
-              <li key={project.key} className="flex items-center gap-2 rounded px-1 py-1.5">
-                <Checkbox
-                  id={id}
-                  checked={selected.has(project.key)}
-                  onCheckedChange={(checked) => toggle(project.key, checked === true)}
-                />
-                <Label htmlFor={id} className="flex flex-1 items-baseline gap-2 font-normal">
-                  <span className="text-sm">{project.name}</span>
-                  <span className="font-mono text-muted-foreground text-xs">{project.key}</span>
-                  <span className="ml-auto text-muted-foreground text-xs">
-                    {project.issue_count == null
-                      ? t("wizard.jira.choose.notCounted")
-                      : t("wizard.jira.choose.issues", { count: project.issue_count })}
-                  </span>
-                </Label>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      {projects.length > 0 && (
+        <TickList
+          label={t("wizard.atlassian.choose.projectsLabel")}
+          idPrefix="jira-project"
+          items={projects.map((project) => ({
+            key: project.key,
+            name: project.name,
+            count:
+              project.issue_count == null
+                ? t("wizard.atlassian.choose.notCounted")
+                : t("wizard.atlassian.choose.issues", { count: project.issue_count }),
+          }))}
+          {...projectTicks}
+        />
+      )}
+      {spaces.length > 0 && (
+        <TickList
+          label={t("wizard.atlassian.choose.spacesLabel")}
+          idPrefix="confluence-space"
+          items={spaces.map((space) => ({
+            key: space.key,
+            name: space.name,
+            count:
+              space.page_count == null
+                ? t("wizard.atlassian.choose.notCounted")
+                : t("wizard.atlassian.choose.pages", { count: space.page_count }),
+          }))}
+          {...spaceTicks}
+        />
+      )}
 
       <div className="space-y-2">
-        <Label htmlFor="jira-initiative">{t("wizard.choose.initiativeLabel")}</Label>
-        <Select value={initiativeId} onValueChange={setInitiativeId}>
-          <SelectTrigger id="jira-initiative">
+        <Label htmlFor="atlassian-initiative">{t("wizard.choose.initiativeLabel")}</Label>
+        <Select value={chosen} onValueChange={setInitiativeId}>
+          <SelectTrigger id="atlassian-initiative">
             <SelectValue placeholder={t("wizard.choose.initiativePlaceholder")} />
           </SelectTrigger>
           <SelectContent>
-            {initiatives.map((initiative) => (
+            {targets.map((initiative) => (
               <SelectItem key={initiative.id} value={String(initiative.id)}>
                 {initiative.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {wantsProjects && wantsSpaces && (
+          <p className="text-muted-foreground text-xs">
+            {t("wizard.atlassian.choose.initiativeHint")}
+          </p>
+        )}
       </div>
 
-      <div className="space-y-3 rounded-lg border p-3">
-        <div className="flex items-center justify-between gap-3">
-          <Label htmlFor="jira-comments" className="font-normal text-sm">
-            {t("wizard.jira.choose.includeComments")}
-          </Label>
-          <Switch
-            id="jira-comments"
-            checked={includeComments}
-            onCheckedChange={setIncludeComments}
-          />
+      {projects.length > 0 && (
+        <div className="space-y-3 rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="jira-comments" className="font-normal text-sm">
+              {t("wizard.atlassian.choose.includeComments")}
+            </Label>
+            <Switch
+              id="jira-comments"
+              checked={includeComments}
+              disabled={!wantsProjects}
+              onCheckedChange={setIncludeComments}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="jira-attachments" className="font-normal text-sm">
+              {t("wizard.atlassian.choose.includeAttachments")}
+            </Label>
+            <Switch
+              id="jira-attachments"
+              checked={includeAttachments}
+              disabled={!wantsProjects}
+              onCheckedChange={setIncludeAttachments}
+            />
+          </div>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <Label htmlFor="jira-attachments" className="font-normal text-sm">
-            {t("wizard.jira.choose.includeAttachments")}
-          </Label>
-          <Switch
-            id="jira-attachments"
-            checked={includeAttachments}
-            onCheckedChange={setIncludeAttachments}
-          />
-        </div>
-      </div>
+      )}
 
-      <p className="text-muted-foreground text-xs">{t("wizard.jira.choose.note")}</p>
+      <p className="text-muted-foreground text-xs">{t("wizard.atlassian.choose.note")}</p>
       {error && <p className="text-destructive text-sm">{error}</p>}
       <Button
         className="w-full"
-        disabled={selected.size === 0 || initiativeId === "" || start.isPending}
+        disabled={(!wantsProjects && !wantsSpaces) || chosen === "" || start.isPending}
         onClick={() => void handleStart()}
       >
-        {t("wizard.jira.choose.submit")}
-      </Button>
-    </div>
-  );
-}
-
-export interface ConfluenceChooseStepProps {
-  connection: JiraConnection;
-  initiatives: Array<{ id: number; name: string }>;
-  onStarted: (job: ImportJobRead) => void;
-}
-
-/** Which spaces, into which initiative. Each space becomes one wiki with its
- * page tree; starting queues the job that reads them. */
-export function ConfluenceChooseStep({
-  connection,
-  initiatives,
-  onStarted,
-}: ConfluenceChooseStepProps) {
-  const { t } = useTranslation("imports");
-  const guildId = useActiveGuildId();
-  const start = useStartConfluenceImportApiV1GGuildIdImportsAtlassianConfluencePost();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [initiativeId, setInitiativeId] = useState<string>(
-    initiatives.length === 1 ? String(initiatives[0].id) : ""
-  );
-  const [error, setError] = useState<string | null>(null);
-
-  const { spaces } = connection;
-  const allSelected = spaces.length > 0 && selected.size === spaces.length;
-
-  const toggle = (key: string, on: boolean) => {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (on) {
-        next.add(key);
-      } else {
-        next.delete(key);
-      }
-      return next;
-    });
-  };
-
-  const handleStart = async () => {
-    setError(null);
-    try {
-      const job = await start.mutateAsync({
-        guildId,
-        data: {
-          ...connection.credentials,
-          initiative_id: Number(initiativeId),
-          space_keys: spaces.map((s) => s.key).filter((key) => selected.has(key)),
-        },
-      });
-      onStarted(job);
-    } catch (err) {
-      setError(getErrorMessage(err, "imports:wizard.confluence.choose.failed"));
-    }
-  };
-
-  if (spaces.length === 0) {
-    return (
-      <p className="text-muted-foreground text-sm">{t("wizard.confluence.choose.noSpaces")}</p>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>{t("wizard.confluence.choose.spacesLabel")}</Label>
-          {spaces.length > 1 && (
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="h-auto p-0 text-xs"
-              onClick={() =>
-                setSelected(allSelected ? new Set() : new Set(spaces.map((s) => s.key)))
-              }
-            >
-              {allSelected ? t("wizard.jira.choose.selectNone") : t("wizard.jira.choose.selectAll")}
-            </Button>
-          )}
-        </div>
-        <ul className="max-h-60 space-y-1 overflow-y-auto rounded-lg border p-2">
-          {spaces.map((space) => {
-            const id = `confluence-space-${space.key}`;
-            return (
-              <li key={space.key} className="flex items-center gap-2 rounded px-1 py-1.5">
-                <Checkbox
-                  id={id}
-                  checked={selected.has(space.key)}
-                  onCheckedChange={(checked) => toggle(space.key, checked === true)}
-                />
-                <Label htmlFor={id} className="flex flex-1 items-baseline gap-2 font-normal">
-                  <span className="text-sm">{space.name}</span>
-                  <span className="font-mono text-muted-foreground text-xs">{space.key}</span>
-                  <span className="ml-auto text-muted-foreground text-xs">
-                    {space.page_count == null
-                      ? t("wizard.jira.choose.notCounted")
-                      : t("wizard.confluence.choose.pages", { count: space.page_count })}
-                  </span>
-                </Label>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="confluence-initiative">{t("wizard.choose.initiativeLabel")}</Label>
-        <Select value={initiativeId} onValueChange={setInitiativeId}>
-          <SelectTrigger id="confluence-initiative">
-            <SelectValue placeholder={t("wizard.choose.initiativePlaceholder")} />
-          </SelectTrigger>
-          <SelectContent>
-            {initiatives.map((initiative) => (
-              <SelectItem key={initiative.id} value={String(initiative.id)}>
-                {initiative.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <p className="text-muted-foreground text-xs">{t("wizard.confluence.choose.note")}</p>
-      {error && <p className="text-destructive text-sm">{error}</p>}
-      <Button
-        className="w-full"
-        disabled={selected.size === 0 || initiativeId === "" || start.isPending}
-        onClick={() => void handleStart()}
-      >
-        {t("wizard.confluence.choose.submit")}
+        {t("wizard.atlassian.choose.submit")}
       </Button>
     </div>
   );
@@ -504,9 +435,8 @@ export function ConfluenceChooseStep({
 // Fetching
 // ---------------------------------------------------------------------------
 
-export interface JiraFetchingStepProps {
+export interface AtlassianFetchingStepProps {
   jobId: number;
-  product?: AtlassianProduct;
   /** The site has been read and the job is waiting for review. */
   onStaged: (job: ImportJobRead) => void;
   /** The fetch is over without a bundle — cancelled, or failed and dismissed. */
@@ -516,12 +446,7 @@ export interface JiraFetchingStepProps {
 /** The worker reading the site. Counts climb as each project is read; the
  * job keeps going if the dialog is closed, and the wizard picks it up again
  * when it is reopened. */
-export function JiraFetchingStep({
-  jobId,
-  product = "jira",
-  onStaged,
-  onStopped,
-}: JiraFetchingStepProps) {
+export function AtlassianFetchingStep({ jobId, onStaged, onStopped }: AtlassianFetchingStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
   const cancel = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
@@ -555,17 +480,12 @@ export function JiraFetchingStep({
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           <p>
             {job.status === "failed"
-              ? messageForCode(
-                  job.error,
-                  product === "confluence"
-                    ? "imports:wizard.confluence.fetch.failed"
-                    : "imports:wizard.jira.fetch.failed"
-                )
-              : t("wizard.jira.fetch.stopped")}
+              ? messageForCode(job.error, "imports:wizard.atlassian.fetch.failed")
+              : t("wizard.atlassian.fetch.stopped")}
           </p>
         </div>
         <Button className="w-full" variant="outline" onClick={onStopped}>
-          {t("wizard.jira.fetch.startOver")}
+          {t("wizard.atlassian.fetch.startOver")}
         </Button>
       </div>
     );
@@ -575,23 +495,18 @@ export function JiraFetchingStep({
   return (
     <div className="flex flex-col items-center gap-3 py-6 text-center">
       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      <p className="font-medium text-sm">
-        {t(product === "confluence" ? "wizard.confluence.fetch.title" : "wizard.jira.fetch.title")}
-      </p>
+      <p className="font-medium text-sm">{t("wizard.atlassian.fetch.title")}</p>
       <p className="text-muted-foreground text-xs">
-        {product === "confluence"
-          ? t("wizard.confluence.fetch.progress", {
-              spaces: summary.spaces ?? 0,
-              pages: summary.pages ?? 0,
-            })
-          : t("wizard.jira.fetch.progress", {
-              projects: summary.projects ?? 0,
-              tasks: summary.tasks ?? 0,
-            })}
+        {t("wizard.atlassian.fetch.progress", {
+          projects: summary.projects ?? 0,
+          tasks: summary.tasks ?? 0,
+          spaces: summary.spaces ?? 0,
+          pages: summary.pages ?? 0,
+        })}
       </p>
-      <p className="text-muted-foreground text-xs">{t("wizard.jira.fetch.note")}</p>
+      <p className="text-muted-foreground text-xs">{t("wizard.atlassian.fetch.note")}</p>
       <Button variant="outline" size="sm" onClick={() => void handleCancel()}>
-        {t("wizard.jira.fetch.cancel")}
+        {t("wizard.atlassian.fetch.cancel")}
       </Button>
     </div>
   );
@@ -794,6 +709,32 @@ export function ConfluenceReviewSummary({ job }: { job: ImportJobRead }) {
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** The review for a whole Atlassian import: what each product brings and
+ * leaves behind, and how many links between the two will be joined up. */
+export function AtlassianReviewSummary({
+  job,
+  excluded,
+  onExcludedChange,
+}: JiraReviewSummaryProps) {
+  const { t } = useTranslation("imports");
+  const summary = atlassianSummary(job);
+  const readJira = (summary.projects ?? 0) > 0 || (summary.unreadable_projects?.length ?? 0) > 0;
+  const readConfluence = (summary.spaces ?? 0) > 0 || (summary.unreadable_spaces?.length ?? 0) > 0;
+  return (
+    <div className="space-y-4">
+      {readJira && (
+        <JiraReviewSummary job={job} excluded={excluded} onExcludedChange={onExcludedChange} />
+      )}
+      {readConfluence && <ConfluenceReviewSummary job={job} />}
+      {(summary.cross_links ?? 0) > 0 && (
+        <p className="text-sm">
+          {t("wizard.atlassian.crossLinks", { count: summary.cross_links })}
+        </p>
       )}
     </div>
   );

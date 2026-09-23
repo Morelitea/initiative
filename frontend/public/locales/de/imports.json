@@ -15,16 +15,14 @@
       "prompt": "Woher stammen diese Daten?",
       "names": {
         "backup": "Initiative-Sicherung",
-        "jira": "Jira",
-        "confluence": "Confluence",
+        "atlassian": "Jira & Confluence",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
       },
       "descriptions": {
         "backup": "Eine aus Initiative exportierte .zip-Datei, unverändert zurückgespielt.",
-        "jira": "Projekte direkt aus deiner Jira-Website.",
-        "confluence": "Bereiche direkt aus deiner Confluence-Site, jeweils als Wiki.",
+        "atlassian": "Projekte und Bereiche direkt aus deiner Atlassian-Site.",
         "todoist": "Ein als CSV exportiertes Projekt.",
         "ticktick": "Eine Sicherungs-CSV mit allen Listen.",
         "vikunja": "Die data.json aus einem Vikunja-Export."
@@ -106,21 +104,21 @@
       "failedEntries": "Nicht importierte Elemente:",
       "nothing": "Es wurde nichts importiert."
     },
-    "jira": {
+    "atlassian": {
       "connect": {
-        "prompt": "Verbinde dich mit deiner Jira-Website.",
+        "prompt": "Mit deiner Atlassian-Site verbinden.",
         "siteLabel": "Adresse der Website",
         "sitePlaceholder": "dein-team.atlassian.net",
         "emailLabel": "Deine Atlassian-E-Mail-Adresse",
         "tokenLabel": "API-Token",
         "tokenLink": "API-Token erstellen",
-        "note": "Das Token wird nur zum Lesen der ausgewählten Projekte verwendet und gelöscht, sobald sie gelesen sind.",
+        "note": "Das Token wird nur zum Lesen deiner Auswahl verwendet und gelöscht, sobald sie gelesen ist.",
         "submit": "Verbinden",
         "failed": "Wir konnten keine Verbindung zu dieser Website herstellen.",
-        "noJira": "Die Website ist erreichbar, aber dieses Token sieht dort kein Jira."
+        "noProducts": "Wir haben die Site erreicht, aber dieses Token sieht keine Jira-Projekte und keine Confluence-Bereiche."
       },
       "choose": {
-        "prompt": "Welche Projekte sollen übernommen werden, und wohin?",
+        "prompt": "Was soll übernommen werden, und wohin?",
         "projectsLabel": "Projekte",
         "selectAll": "Alle auswählen",
         "selectNone": "Keine auswählen",
@@ -129,20 +127,27 @@
         "issues_other": "{{count}} Vorgänge",
         "includeComments": "Kommentare übernehmen",
         "includeAttachments": "Bilder übernehmen",
-        "note": "Jedes Projekt wird in dieser Initiative als neues Projekt angelegt, mit Spalten, Aufgaben, Feldern, Verknüpfungen und Sprints. Geschrieben wird erst, nachdem du geprüft hast, was wir gefunden haben.",
-        "submit": "Diese Projekte lesen",
-        "failed": "Wir konnten nicht mit dem Lesen dieser Projekte beginnen.",
-        "noProjects": "Dieses Token sieht keine Jira-Projekte."
+        "note": "Jedes Projekt wird als neues Projekt und jeder Bereich als neues Wiki in dieser Initiative angelegt, mit verknüpften Verweisen zwischen ihnen. Geschrieben wird erst, nachdem du geprüft hast, was wir gefunden haben.",
+        "submit": "Lesen starten",
+        "failed": "Wir konnten nicht mit dem Lesen beginnen.",
+        "spacesLabel": "Bereiche",
+        "pages_one": "{{count}} Seite",
+        "pages_other": "{{count}} Seiten",
+        "initiativeHint": "Aufgeführt sind nur Initiativen, in denen du alles Ausgewählte anlegen darfst."
       },
       "fetch": {
-        "title": "Deine Jira-Website wird gelesen …",
-        "progress": "Bisher {{projects}} Projekte und {{tasks}} Aufgaben gelesen",
+        "title": "Deine Atlassian-Site wird gelesen…",
+        "progress": "Bisher {{tasks}} Aufgaben aus {{projects}} Projekten und {{pages}} Seiten aus {{spaces}} Bereichen gelesen",
         "note": "Bei einem großen Projekt kann das einige Minuten dauern. Du kannst dieses Fenster schließen; wenn du den Import wieder öffnest, geht es hier weiter.",
         "cancel": "Anhalten",
-        "failed": "Wir konnten diese Projekte nicht lesen.",
+        "failed": "Wir konnten deine Auswahl nicht lesen.",
         "stopped": "Das Lesen wurde vor dem Ende angehalten.",
         "startOver": "Neu beginnen"
       },
+      "crossLinks_one": "{{count}} Verweis zwischen einem Vorgang und einer Seite, verknüpft",
+      "crossLinks_other": "{{count}} Verweise zwischen Vorgängen und Seiten, verknüpft"
+    },
+    "jira": {
       "review": {
         "prompt": "Das haben wir gefunden. Noch wurde nichts geschrieben.",
         "tasks_one": "{{count}} Aufgabe aus {{projects}} Projekt(en)",
@@ -181,26 +186,6 @@
       }
     },
     "confluence": {
-      "connect": {
-        "prompt": "Mit deiner Confluence-Site verbinden.",
-        "note": "Das Token wird nur zum Lesen der ausgewählten Bereiche verwendet und gelöscht, sobald sie gelesen sind.",
-        "noConfluence": "Wir haben die Site erreicht, aber dort gibt es kein Confluence, das dieses Token sehen kann."
-      },
-      "choose": {
-        "prompt": "Wähle die Bereiche aus, die übernommen werden, und wohin sie kommen.",
-        "spacesLabel": "Bereiche",
-        "pages_one": "{{count}} Seite",
-        "pages_other": "{{count}} Seiten",
-        "note": "Jeder Bereich wird als neues Wiki in dieser Initiative angelegt, mit seinen Seiten in derselben Baumstruktur. Geschrieben wird erst, nachdem du geprüft hast, was wir gefunden haben.",
-        "submit": "Diese Bereiche lesen",
-        "failed": "Wir konnten nicht mit dem Lesen dieser Bereiche beginnen.",
-        "noSpaces": "Dieses Token sieht auf der Site keine Bereiche."
-      },
-      "fetch": {
-        "title": "Deine Confluence-Site wird gelesen…",
-        "progress": "Bisher {{spaces}} Bereiche und {{pages}} Seiten gelesen",
-        "failed": "Wir konnten diese Bereiche nicht lesen."
-      },
       "review": {
         "pages_one": "{{count}} Seite aus {{spaces}} Bereichen",
         "pages_other": "{{count}} Seiten aus {{spaces}} Bereichen",
