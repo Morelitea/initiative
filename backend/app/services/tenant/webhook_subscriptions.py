@@ -6,7 +6,7 @@ import secrets
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, or_
+from sqlalchemy import delete as sa_delete, func, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -307,6 +307,58 @@ async def deactivate_for_install(
         row.updated_at = datetime.now(timezone.utc)
         session.add(row)
     return len(rows)
+
+
+async def deactivate_for_member(session: AsyncSession, *, user_id: int) -> int:
+    """Stand down one member's subscriptions in the routed guild.
+
+    A subscription delivers what its creator can reach, re-derived on every
+    pass (``app.services.tenant.outbox_poller``), so one whose creator has left
+    the community already reaches nothing. What this adds is saying so: the row
+    stays, because they may come back and because deactivating is reversible,
+    but it stops reading as a working subscription. ``active`` is the only
+    place the list can tell the difference — ``dead_letter_count`` cannot,
+    since the poller stands down before it attempts a delivery to count.
+
+    The same treatment ``deactivate_for_install`` gives a subscription whose
+    app is gone.
+
+    Must run while the member's rows are still in place: on a session routed as
+    the leaver, the policy that admits this write is evaluated against the live
+    membership the caller is about to delete.
+
+    **Staged, not committed** — the caller owns the transaction.
+    """
+    rows = (
+        await session.exec(
+            select(WebhookSubscription).where(
+                WebhookSubscription.created_by == user_id,
+                WebhookSubscription.active.is_(True),
+            )
+        )
+    ).all()
+    now = datetime.now(timezone.utc)
+    for row in rows:
+        row.active = False
+        row.updated_at = now
+        session.add(row)
+    return len(rows)
+
+
+async def delete_for_member(session: AsyncSession, *, user_id: int) -> int:
+    """Take one member's subscriptions in the routed guild, rows and all.
+
+    For erasure, where deactivating is not enough: the account cannot come
+    back, so what a deactivated row would keep is a target URL and the secret
+    its receiver signs deliveries with, held for nobody. Every erasure path
+    routes each guild schema in turn, so this runs once per guild.
+
+    **Staged, not committed** — the caller owns the transaction.
+    """
+    result = await session.exec(
+        sa_delete(WebhookSubscription).where(WebhookSubscription.created_by == user_id)
+    )
+    return result.rowcount or 0
 
 
 def registered_install_is_live():

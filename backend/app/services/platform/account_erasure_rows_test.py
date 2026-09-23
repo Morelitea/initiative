@@ -22,6 +22,10 @@ Three outcomes appear below, and the distinction is the point:
   placeholder (see ``CreatedByMixin``). A block tombstone stays for a
   neighbouring reason — it outlives the membership it was placed on.
 
+``webhook_subscriptions`` is the one place ``created_by`` is none of those: it
+names the account whose reach the subscription delivers, re-derived on every
+poller pass, so the row goes with it.
+
 The two erasure paths are both exercised, because they do not do the same
 things: ``soft_delete_user`` is what the product runs (the deletion request and
 the retention purge; the row stays, emptied), and ``hard_delete_user`` is the
@@ -383,15 +387,12 @@ async def test_the_join_requests_stay_on_both_sides(
     assert ruled.resolved_by == s.victim_id
 
 
-async def test_the_webhook_they_registered_keeps_firing(
-    session: AsyncSession, role_session
-):
-    """A subscription belongs to its initiative, not to the person who added
-    it: ``created_by`` is that person, and it is all the row loses touch with.
-    Turning it off is the initiative's call, so erasure does not make it."""
+async def test_the_webhook_they_registered_goes(session: AsyncSession, role_session):
+    """``created_by`` on a subscription is not authorship — it is the account
+    whose reach the subscription delivers, re-derived every pass. With the
+    account gone the row can deliver nothing and holds a target URL and the
+    secret its receiver signs with, so erasure takes it. See
+    ``app.services.tenant.webhook_subscriptions_test`` for the lifecycle."""
     s = await _seed(session)
     await user_service.hard_delete_user(await role_session("app_admin"), s.victim_id)
-    row = await _reread(session, s.guild_id, WebhookSubscription, s.webhook)
-    assert row is not None
-    assert row.active is True
-    assert row.created_by == s.victim_id
+    assert await _reread(session, s.guild_id, WebhookSubscription, s.webhook) is None
