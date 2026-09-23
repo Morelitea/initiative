@@ -66,6 +66,7 @@ export const InitiativeSettingsDetailsTab = ({
                   id="initiative-name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
+                  maxLength={255}
                   disabled={!canManageMembers || isSaving}
                   required
                 />
