@@ -24,6 +24,7 @@ vi.mock("@/api/client", () => ({
   },
   AUTH_UNAUTHORIZED_EVENT: "initiative:auth:unauthorized",
   AUTH_STEP_UP_EVENT: "initiative:auth:step-up",
+  AUTH_ACCOUNT_SUSPENDED_EVENT: "initiative:auth:account-suspended",
   setApiBaseUrl: vi.fn(),
   setHasActiveSession: vi.fn(),
   setAuthToken: (...args: unknown[]) => setAuthToken(...args),
