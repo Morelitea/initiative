@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.core.security import billing_support_handoff_enabled
 from app.services.platform.billing import billing_managed
 from app.core.version import get_min_native_version
+from app.services import captcha as captcha_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
@@ -108,25 +109,23 @@ class AppConfig(BaseModel):
     min_native_version: str
 
 
-_SUPPORTED_CAPTCHA_PROVIDERS = {"hcaptcha", "turnstile", "recaptcha"}
-
-
 @router.get("/config", response_model=AppConfig)
 async def get_app_config(session: SessionDep) -> AppConfig:
-    # Captcha: only expose when all three of provider / site key / secret
-    # are present and the provider name is one we recognise. The SPA
-    # treats a missing ``captcha`` field as "no captcha for this
-    # deployment" and skips the widget. Mirrors the verifier's
-    # ``is_configured`` predicate in ``app.services.captcha``.
+    # Captcha: exposed only when provider, site key and secret are all
+    # present and the provider is one we recognise. The SPA treats a missing
+    # ``captcha`` field as "no captcha for this deployment" and skips the
+    # widget.
+    #
+    # Asked of ``app.services.captcha`` rather than answered again here. The
+    # predicate used to be duplicated in this endpoint, which is how the
+    # config half and the verifier half could disagree -- a widget rendered
+    # against a secret that no longer verifies, or none rendered while
+    # registration demands one. One function, one answer, and it reads the
+    # settings row rather than the environment.
     captcha: Optional[CaptchaConfig] = None
-    provider = settings.CAPTCHA_PROVIDER
-    if (
-        provider
-        and provider in _SUPPORTED_CAPTCHA_PROVIDERS
-        and settings.CAPTCHA_SITE_KEY
-        and settings.CAPTCHA_SECRET_KEY
-    ):
-        captcha = CaptchaConfig(provider=provider, site_key=settings.CAPTCHA_SITE_KEY)
+    public_captcha = await captcha_service.public_config()
+    if public_captcha is not None:
+        captcha = CaptchaConfig(provider=public_captcha[0], site_key=public_captcha[1])
 
     # Billing portal link-out: exposed only when the operator configured a
     # billing URL. Absent ⇒ the SPA hides every tier/upgrade/manage surface.

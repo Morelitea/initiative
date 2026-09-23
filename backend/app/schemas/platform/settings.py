@@ -783,6 +783,56 @@ class StorageSettingsUpdate(SanitizedBaseModel):
     s3_local_fallback: bool = False
 
 
+class CaptchaSettingsResponse(SanitizedBaseModel):
+    """What the settings page shows for the registration captcha.
+
+    The secret is reported as stored or not, never returned — the same contract
+    as the storage and email pages above.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    provider: Optional[Literal["hcaptcha", "turnstile", "recaptcha"]] = None
+    site_key: Optional[str] = None
+    has_secret_key: bool = False
+    #: Whether enforcement is actually on — all three of provider, site key and
+    #: secret. Shown rather than inferred in the client, because the client
+    #: cannot see the third one.
+    enforcing: bool = False
+
+
+class CaptchaSettingsUpdate(SanitizedBaseModel):
+    provider: Optional[Literal["hcaptcha", "turnstile", "recaptcha"]] = None
+    site_key: Optional[str] = None
+    #: Omit to keep the stored secret; send null or "" to clear it. Raw text:
+    #: a provider secret is opaque and must not be sanitized.
+    secret_key: Optional[RawTextStr] = None
+
+
+class PushSettingsResponse(SanitizedBaseModel):
+    """What the settings page shows for push notifications (FCM)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    enabled: bool = False
+    project_id: Optional[str] = None
+    application_id: Optional[str] = None
+    api_key: Optional[str] = None
+    sender_id: Optional[str] = None
+    has_service_account: bool = False
+
+
+class PushSettingsUpdate(SanitizedBaseModel):
+    enabled: bool = False
+    project_id: Optional[str] = None
+    application_id: Optional[str] = None
+    api_key: Optional[str] = None
+    sender_id: Optional[str] = None
+    #: The service-account JSON. Omit to keep the stored one; send null or ""
+    #: to clear it. Raw text, and long: a Google service account is ~2.4 kB.
+    service_account_json: Optional[RawTextStr] = None
+
+
 class StorageTestResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

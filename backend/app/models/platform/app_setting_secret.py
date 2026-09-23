@@ -43,6 +43,23 @@ class AppSettingSecret(SQLModel, table=True):
         default=None, sa_column=Column(String(2000), nullable=True)
     )
 
+    # The captcha provider's server-side verification secret
+    # (``SALT_CAPTCHA_SECRET_KEY``).
+    captcha_secret_key_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(2000), nullable=True)
+    )
+
+    # The FCM service-account JSON (``SALT_FCM_SERVICE_ACCOUNT``).
+    #
+    # Wider than its neighbours because the plaintext is a whole JSON document
+    # -- a Google service account is around 2.4 kB, which Fernet takes to
+    # roughly 3.3 kB of base64, past the 2000 the columns above are sized for.
+    # Storing it truncated would fail at `json.loads` on the next push, a long
+    # way from the settings page that accepted it.
+    fcm_service_account_json_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(8000), nullable=True)
+    )
+
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(

@@ -349,6 +349,41 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
+    # ── captcha ────────────────────────────────────────────────────────
+    # The registration captcha, moved off env-only configuration in 0368. The
+    # provider name and site key are public — the site key is rendered into the
+    # page — so they sit here; the secret that verifies a token is on
+    # ``app_setting_secrets``. Enforcement needs all three, which is what
+    # ``app.services.captcha_config`` resolves.
+    captcha_provider: Optional[str] = Field(
+        default=None, sa_column=Column(String(50), nullable=True)
+    )
+    captcha_site_key: Optional[str] = Field(
+        default=None, sa_column=Column(String(500), nullable=True)
+    )
+
+    # ── push notifications (FCM) ───────────────────────────────────────
+    # Same move, same split. Everything here reaches a device or a page; the
+    # service-account JSON that mints an access token does not, and is on
+    # ``app_setting_secrets``.
+    fcm_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    fcm_project_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(200), nullable=True)
+    )
+    fcm_application_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(200), nullable=True)
+    )
+    # Firebase's API key is public by design (it ships in the client).
+    fcm_api_key: Optional[str] = Field(
+        default=None, sa_column=Column(String(500), nullable=True)
+    )
+    fcm_sender_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(50), nullable=True)
+    )
+
     # The guild that receives this deployment's operations work — security,
     # moderation, support and feedback cases. NULL on every fresh and existing
     # install, which is what "this deployment routes nothing" looks like: the

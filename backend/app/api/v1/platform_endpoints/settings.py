@@ -50,6 +50,10 @@ from app.schemas.platform.settings import (
     OIDCSettingsResponse,
     PlatformAuthSettingsResponse,
     StorageBackfillStatusResponse,
+    CaptchaSettingsResponse,
+    CaptchaSettingsUpdate,
+    PushSettingsResponse,
+    PushSettingsUpdate,
     StorageSettingsResponse,
     StorageSettingsUpdate,
     StorageTestResponse,
@@ -86,6 +90,9 @@ from app.core.login_methods import (
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import push_config
+from app.services import captcha as captcha_service
+from app.services.captcha_config import ResolvedCaptchaConfig
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform import guild_purge
@@ -723,6 +730,115 @@ async def get_storage_backfill_status(
     return _backfill_payload(await storage_backfill.get_status(session))
 
 
+# --- Registration captcha ---
+
+
+def _captcha_payload(
+    settings_obj: AppSetting, secrets: AppSettingSecret
+) -> CaptchaSettingsResponse:
+    has_secret = bool(secrets.captcha_secret_key_encrypted)
+    provider = settings_obj.captcha_provider
+    return CaptchaSettingsResponse(
+        provider=provider,  # ty: ignore[invalid-argument-type]
+        site_key=settings_obj.captcha_site_key,
+        has_secret_key=has_secret,
+        # The client cannot see the secret, so it cannot work out whether
+        # enforcement is on. Answered here, by the same predicate the verifier
+        # uses, so the page and the register endpoint agree.
+        enforcing=captcha_service.is_configured(
+            ResolvedCaptchaConfig(
+                provider=provider,
+                site_key=settings_obj.captcha_site_key,
+                secret_key="stored" if has_secret else None,
+            )
+        ),
+    )
+
+
+@router.get("/captcha", response_model=CaptchaSettingsResponse)
+async def get_captcha_settings(
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> CaptchaSettingsResponse:
+    settings_obj = await app_settings_service.get_app_settings(session)
+    secrets = await app_settings_service.get_app_setting_secrets(admin_session)
+    return _captcha_payload(settings_obj, secrets)
+
+
+@router.put("/captcha", response_model=CaptchaSettingsResponse)
+async def update_captcha_settings(
+    payload: CaptchaSettingsUpdate,
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    admin: ConfigManageDep,
+) -> CaptchaSettingsResponse:
+    # An absent secret_key keeps the stored one; an explicit null or "" clears
+    # it. Same contract as the storage page, so an owner can edit the site key
+    # without re-typing a secret they cannot read back.
+    data = payload.model_dump(exclude_unset=True)
+    updated, secrets = await app_settings_service.update_captcha_settings(
+        session,
+        admin_session=admin_session,
+        provider=payload.provider,
+        site_key=payload.site_key,
+        secret_key=payload.secret_key,
+        secret_provided="secret_key" in data,
+        actor_user_id=admin.id,
+    )
+    return _captcha_payload(updated, secrets)
+
+
+# --- Push notifications (FCM) ---
+
+
+def _push_payload(
+    settings_obj: AppSetting, secrets: AppSettingSecret
+) -> PushSettingsResponse:
+    return PushSettingsResponse(
+        enabled=settings_obj.fcm_enabled,
+        project_id=settings_obj.fcm_project_id,
+        application_id=settings_obj.fcm_application_id,
+        api_key=settings_obj.fcm_api_key,
+        sender_id=settings_obj.fcm_sender_id,
+        has_service_account=bool(secrets.fcm_service_account_json_encrypted),
+    )
+
+
+@router.get("/push", response_model=PushSettingsResponse)
+async def get_push_settings(
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> PushSettingsResponse:
+    settings_obj = await app_settings_service.get_app_settings(session)
+    secrets = await app_settings_service.get_app_setting_secrets(admin_session)
+    return _push_payload(settings_obj, secrets)
+
+
+@router.put("/push", response_model=PushSettingsResponse)
+async def update_push_settings(
+    payload: PushSettingsUpdate,
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    admin: ConfigManageDep,
+) -> PushSettingsResponse:
+    data = payload.model_dump(exclude_unset=True)
+    updated, secrets = await app_settings_service.update_push_settings(
+        session,
+        admin_session=admin_session,
+        enabled=payload.enabled,
+        project_id=payload.project_id,
+        application_id=payload.application_id,
+        api_key=payload.api_key,
+        sender_id=payload.sender_id,
+        service_account_json=payload.service_account_json,
+        secret_provided="service_account_json" in data,
+        actor_user_id=admin.id,
+    )
+    return _push_payload(updated, secrets)
+
+
 @router.get("/fcm-config", response_model=FCMConfigResponse)
 @limiter.limit("20/minute")
 async def get_fcm_config(request: Request) -> FCMConfigResponse:
@@ -733,15 +849,20 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
     Service account credentials are NOT exposed.
 
     Rate limited to 20 requests per minute to prevent abuse.
+
+    Read from the settings row (``push_config``), not the environment: an owner
+    who turns push on in Settings has the mobile clients pick it up on their
+    next launch rather than on the next redeploy. The resolver opens its own
+    system-engine session, which is what lets this endpoint stay
+    unauthenticated and sessionless.
     """
+    cfg = await push_config.ensure_push_config_fresh()
     return FCMConfigResponse(
-        enabled=app_config.FCM_ENABLED,
-        project_id=app_config.FCM_PROJECT_ID if app_config.FCM_ENABLED else None,
-        application_id=app_config.FCM_APPLICATION_ID
-        if app_config.FCM_ENABLED
-        else None,
-        api_key=app_config.FCM_API_KEY if app_config.FCM_ENABLED else None,
-        sender_id=app_config.FCM_SENDER_ID if app_config.FCM_ENABLED else None,
+        enabled=cfg.enabled,
+        project_id=cfg.project_id if cfg.enabled else None,
+        application_id=cfg.application_id if cfg.enabled else None,
+        api_key=cfg.api_key if cfg.enabled else None,
+        sender_id=cfg.sender_id if cfg.enabled else None,
     )
 
 

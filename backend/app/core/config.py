@@ -172,22 +172,33 @@ RUNTIME_SEEDED_SETTINGS = frozenset(
         "OIDC_CLIENT_SECRET",
         "OIDC_PROVIDER_NAME",
         "OIDC_SCOPES",
-    }
-)
-
-#: Settings that are still ENV-ONLY although they are the same kind of thing as
-#: the set above: operator-supplied credentials for an optional feature, with no
-#: database path and so no way to set them after deployment.
-#:
-#: They are the remaining reason a deployment tool needs a free-form secret
-#: passthrough at all. Moving them into the seeded set above is tracked work,
-#: not a statement about how it should be.
-ENV_ONLY_FEATURE_CREDENTIALS = frozenset(
-    {
+        # The registration captcha (0368). Provider and site key are public;
+        # the verification secret is encrypted on app_setting_secrets.
+        "CAPTCHA_PROVIDER",
+        "CAPTCHA_SITE_KEY",
         "CAPTCHA_SECRET_KEY",
+        # Push notifications (0368). Everything but the service-account JSON
+        # reaches a device or a page; that one is encrypted at rest.
+        "FCM_ENABLED",
+        "FCM_PROJECT_ID",
+        "FCM_APPLICATION_ID",
+        "FCM_API_KEY",
+        "FCM_SENDER_ID",
         "FCM_SERVICE_ACCOUNT_JSON",
     }
 )
+
+#: Operator-supplied credentials with no database path, and so no way to set
+#: them after deployment. The environment would be the only place they could
+#: live, which makes them the only reason a deployment tool needs a free-form
+#: secret passthrough.
+#:
+#: **Empty since 0368**, when the captcha secret and the FCM service account --
+#: the last two -- moved onto the settings singleton. Kept rather than deleted
+#: because it is a claim worth being able to check: anything added here is a
+#: setting an operator can never change without a redeploy, and a deployment
+#: tool has to carry it as a secret. Prefer the seeded set above.
+ENV_ONLY_FEATURE_CREDENTIALS: frozenset[str] = frozenset()
 
 
 class Settings(BaseSettings):

@@ -275,6 +275,15 @@ async def lifespan(app: FastAPI):
         from app.services import storage_config
 
         await storage_config.refresh_storage_config(session)
+        # The same for the captcha secret and the FCM service account: both are
+        # read from paths that hold no usable session (a synchronous predicate,
+        # a background dispatch), so each keeps a process-wide snapshot, and it
+        # has to be primed here or the first request answers from the env seed.
+        from app.services import captcha_config
+        from app.services.platform import push_config
+
+        await captcha_config.refresh_captcha_config(session)
+        await push_config.refresh_push_config(session)
     # First-boot seed: create the platform OIDC provider row from OIDC_* env
     # values (issuer + client id required; no-op once the row exists — after
     # that the settings UI owns it). Runs on the system engine because the

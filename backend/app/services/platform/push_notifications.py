@@ -7,10 +7,12 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.models.platform.notification import NotificationType
 from app.models.platform.push_token import PushToken
 from app.services.platform import notification_policy, push_tokens
+
+from app.services.platform import push_config
+from app.services.platform.push_config import ResolvedPushConfig
 
 logger = logging.getLogger(__name__)
 
@@ -82,17 +84,22 @@ def channel_for(notification_type: Optional[NotificationType]) -> str:
     return PUSH_CHANNELS.get(notification_type, DEFAULT_CHANNEL)
 
 
-def _get_fcm_access_token() -> Optional[str]:
+def _get_fcm_access_token(cfg: ResolvedPushConfig) -> Optional[str]:
     """Get OAuth2 access token from service account credentials.
 
     Returns None if FCM is not configured or credentials are invalid.
+
+    ``cfg`` is passed in rather than read here: the credential lives on
+    ``app_setting_secrets``, which only the system engine may read, so it is
+    resolved by ``push_config`` on a session of its own before this
+    synchronous call.
     """
-    if not settings.FCM_ENABLED or not settings.FCM_SERVICE_ACCOUNT_JSON:
+    if not cfg.enabled or not cfg.service_account_json:
         return None
 
     try:
         # Parse service account JSON
-        service_account_info = json.loads(settings.FCM_SERVICE_ACCOUNT_JSON)
+        service_account_info = json.loads(cfg.service_account_json)
 
         # Create credentials
         credentials = service_account.Credentials.from_service_account_info(
@@ -136,11 +143,12 @@ async def _send_to_fcm(
         - 5xx: Server error, logged as warning
         - Network errors: Logged as warning
     """
-    if not settings.FCM_ENABLED or not settings.FCM_PROJECT_ID:
+    cfg = await push_config.ensure_push_config_fresh()
+    if not cfg.enabled or not cfg.project_id:
         logger.warning("FCM not enabled, skipping push notification")
         return (False, False)
 
-    access_token = _get_fcm_access_token()
+    access_token = _get_fcm_access_token(cfg)
     if not access_token:
         logger.error("Failed to get FCM access token")
         return (False, False)
@@ -168,7 +176,7 @@ async def _send_to_fcm(
         fcm_message["data"] = {k: str(v) for k, v in data.items()}
 
     # Send to FCM
-    url = FCM_API_URL.format(project_id=settings.FCM_PROJECT_ID)
+    url = FCM_API_URL.format(project_id=cfg.project_id)
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
@@ -329,7 +337,7 @@ async def send_push_to_user(
     Returns:
         Number of successful deliveries
     """
-    if not settings.FCM_ENABLED:
+    if not (await push_config.ensure_push_config_fresh()).enabled:
         return 0
 
     tokens = await _recipient_tokens(user_id)

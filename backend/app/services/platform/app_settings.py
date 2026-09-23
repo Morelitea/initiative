@@ -15,6 +15,8 @@ from app.services import audit as audit_service
 from app.core.config import settings as app_config
 from app.core.encryption import (
     encrypt_field,
+    SALT_CAPTCHA_SECRET_KEY,
+    SALT_FCM_SERVICE_ACCOUNT,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
 )
@@ -146,6 +148,13 @@ def _build_default_app_settings() -> AppSetting:
         s3_use_path_style=bool(app_config.S3_USE_PATH_STYLE),
         s3_kms_key_id=_normalize_optional_string(app_config.S3_KMS_KEY_ID),
         s3_local_fallback=bool(app_config.S3_LOCAL_FALLBACK),
+        captcha_provider=_normalize_optional_string(app_config.CAPTCHA_PROVIDER),
+        captcha_site_key=_normalize_optional_string(app_config.CAPTCHA_SITE_KEY),
+        fcm_enabled=bool(app_config.FCM_ENABLED),
+        fcm_project_id=_normalize_optional_string(app_config.FCM_PROJECT_ID),
+        fcm_application_id=_normalize_optional_string(app_config.FCM_APPLICATION_ID),
+        fcm_api_key=_normalize_optional_string(app_config.FCM_API_KEY),
+        fcm_sender_id=_normalize_optional_string(app_config.FCM_SENDER_ID),
     )
 
 
@@ -153,10 +162,13 @@ def _build_default_app_setting_secrets() -> AppSettingSecret:
     """The env-seeded credentials row (id=1), NOT persisted.
 
     What a settings row created on first boot carries for its credentials:
-    the ``SMTP_PASSWORD`` / ``S3_SECRET_ACCESS_KEY`` env values, encrypted.
+    the ``SMTP_PASSWORD`` / ``S3_SECRET_ACCESS_KEY`` / ``CAPTCHA_SECRET_KEY`` /
+    ``FCM_SERVICE_ACCOUNT_JSON`` env values, encrypted.
     """
     smtp_password = _normalize_optional_string(app_config.SMTP_PASSWORD)
     s3_secret = _normalize_optional_string(app_config.S3_SECRET_ACCESS_KEY)
+    captcha_secret = _normalize_optional_string(app_config.CAPTCHA_SECRET_KEY)
+    fcm_account = _normalize_optional_string(app_config.FCM_SERVICE_ACCOUNT_JSON)
     return AppSettingSecret(
         id=GLOBAL_SETTINGS_ID,
         smtp_password_encrypted=encrypt_field(smtp_password, SALT_SMTP_PASSWORD)
@@ -164,6 +176,16 @@ def _build_default_app_setting_secrets() -> AppSettingSecret:
         else None,
         s3_secret_access_key_encrypted=encrypt_field(s3_secret, SALT_S3_SECRET_KEY)
         if s3_secret
+        else None,
+        captcha_secret_key_encrypted=encrypt_field(
+            captcha_secret, SALT_CAPTCHA_SECRET_KEY
+        )
+        if captcha_secret
+        else None,
+        fcm_service_account_json_encrypted=encrypt_field(
+            fcm_account, SALT_FCM_SERVICE_ACCOUNT
+        )
+        if fcm_account
         else None,
     )
 
@@ -418,6 +440,19 @@ STORAGE_FIELDS: tuple[str, ...] = (
     "s3_use_path_style",
     "s3_kms_key_id",
     "s3_local_fallback",
+)
+CAPTCHA_SECRET_FIELD = "captcha_secret_key_encrypted"
+CAPTCHA_FIELDS: tuple[str, ...] = (
+    "captcha_provider",
+    "captcha_site_key",
+)
+PUSH_SECRET_FIELD = "fcm_service_account_json_encrypted"
+PUSH_FIELDS: tuple[str, ...] = (
+    "fcm_enabled",
+    "fcm_project_id",
+    "fcm_application_id",
+    "fcm_api_key",
+    "fcm_sender_id",
 )
 
 
@@ -720,6 +755,121 @@ async def update_storage_settings(
     from app.services import storage_config
 
     await storage_config.refresh_storage_config(session)
+    return settings_row, secrets_row
+
+
+async def update_captcha_settings(
+    session: AsyncSession,
+    *,
+    admin_session: AsyncSession,
+    provider: str | None,
+    site_key: str | None,
+    secret_key: str | None,
+    secret_provided: bool,
+    actor_user_id: int | None = None,
+) -> tuple[AppSetting, AppSettingSecret]:
+    """Save the captcha settings; the verification secret on ``admin_session``.
+
+    The order :func:`update_storage_settings` writes in: the settings row and
+    its record, then the secret on the system engine, then the process-wide
+    resolved config, so the next registration verifies against what was just
+    saved rather than what was saved at boot.
+    """
+    settings_row = await ensure_settings_row(session)
+    secrets_row = await get_app_setting_secrets(admin_session)
+    stored_secret = secrets_row.captcha_secret_key_encrypted
+    before = {
+        **audit_service.snapshot(settings_row, CAPTCHA_FIELDS),
+        CAPTCHA_SECRET_FIELD: stored_secret,
+    }
+    new_secret = stored_secret
+    if secret_provided:
+        normalized = _normalize_optional_string(secret_key)
+        new_secret = (
+            encrypt_field(normalized, SALT_CAPTCHA_SECRET_KEY) if normalized else None
+        )
+    settings_row.captcha_provider = _normalize_optional_string(provider)
+    settings_row.captcha_site_key = _normalize_optional_string(site_key)
+    session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="captcha",
+        before=before,
+        row=settings_row,
+        fields=CAPTCHA_FIELDS,
+        extras={"secret_changed": stored_secret != new_secret},
+        secrets_after={CAPTCHA_SECRET_FIELD: new_secret},
+    )
+    await session.commit()
+    await session.refresh(settings_row)
+    if secret_provided:
+        await _write_secret(
+            admin_session, column=CAPTCHA_SECRET_FIELD, encrypted=new_secret
+        )
+        secrets_row = await get_app_setting_secrets(admin_session)
+    from app.services import captcha_config
+
+    await captcha_config.refresh_captcha_config(session)
+    return settings_row, secrets_row
+
+
+async def update_push_settings(
+    session: AsyncSession,
+    *,
+    admin_session: AsyncSession,
+    enabled: bool,
+    project_id: str | None,
+    application_id: str | None,
+    api_key: str | None,
+    sender_id: str | None,
+    service_account_json: str | None,
+    secret_provided: bool,
+    actor_user_id: int | None = None,
+) -> tuple[AppSetting, AppSettingSecret]:
+    """Save the push settings; the service-account JSON on ``admin_session``.
+
+    Same order and the same reasons as :func:`update_captcha_settings`.
+    """
+    settings_row = await ensure_settings_row(session)
+    secrets_row = await get_app_setting_secrets(admin_session)
+    stored_secret = secrets_row.fcm_service_account_json_encrypted
+    before = {
+        **audit_service.snapshot(settings_row, PUSH_FIELDS),
+        PUSH_SECRET_FIELD: stored_secret,
+    }
+    new_secret = stored_secret
+    if secret_provided:
+        normalized = _normalize_optional_string(service_account_json)
+        new_secret = (
+            encrypt_field(normalized, SALT_FCM_SERVICE_ACCOUNT) if normalized else None
+        )
+    settings_row.fcm_enabled = bool(enabled)
+    settings_row.fcm_project_id = _normalize_optional_string(project_id)
+    settings_row.fcm_application_id = _normalize_optional_string(application_id)
+    settings_row.fcm_api_key = _normalize_optional_string(api_key)
+    settings_row.fcm_sender_id = _normalize_optional_string(sender_id)
+    session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="push",
+        before=before,
+        row=settings_row,
+        fields=PUSH_FIELDS,
+        extras={"secret_changed": stored_secret != new_secret},
+        secrets_after={PUSH_SECRET_FIELD: new_secret},
+    )
+    await session.commit()
+    await session.refresh(settings_row)
+    if secret_provided:
+        await _write_secret(
+            admin_session, column=PUSH_SECRET_FIELD, encrypted=new_secret
+        )
+        secrets_row = await get_app_setting_secrets(admin_session)
+    from app.services.platform import push_config
+
+    await push_config.refresh_push_config(session)
     return settings_row, secrets_row
 
 

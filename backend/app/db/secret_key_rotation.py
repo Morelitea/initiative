@@ -54,6 +54,8 @@ from app.core.encryption import (
     SALT_IMPORT_CREDENTIAL,
     SALT_OIDC_CLIENT_SECRET,
     SALT_OIDC_REFRESH_TOKEN,
+    SALT_CAPTCHA_SECRET_KEY,
+    SALT_FCM_SERVICE_ACCOUNT,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
     SALT_TOTP_SECRET,
@@ -86,6 +88,12 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # The settings singleton's credentials, on their own companion row.
     ("app_setting_secrets", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     ("app_setting_secrets", "s3_secret_access_key_encrypted", SALT_S3_SECRET_KEY),
+    ("app_setting_secrets", "captcha_secret_key_encrypted", SALT_CAPTCHA_SECRET_KEY),
+    (
+        "app_setting_secrets",
+        "fcm_service_account_json_encrypted",
+        SALT_FCM_SERVICE_ACCOUNT,
+    ),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
     # The address a sign-in code was sent to before any account held it. Same
     # ciphertext and same salt as the two address columns above, so it is
