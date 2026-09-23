@@ -63,6 +63,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         ACCOUNT_PURGE_POLL_SECONDS,
         process_account_purges,
     )
+    from app.services.platform.identity_refs import (
+        IDENTITY_REF_SWEEP_POLL_SECONDS,
+        process_identity_ref_sweep,
+    )
     from app.services.tenant.app_updates import (
         AUTO_UPDATE_POLL_SECONDS,
         process_app_auto_updates,
@@ -183,6 +187,13 @@ def start_background_tasks() -> list[asyncio.Task]:
         asyncio.create_task(
             _loop_worker(
                 process_account_purges, ACCOUNT_PURGE_POLL_SECONDS, "account-purge"
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_identity_ref_sweep,
+                IDENTITY_REF_SWEEP_POLL_SECONDS,
+                "identity-ref-sweep",
             )
         ),
         asyncio.create_task(
