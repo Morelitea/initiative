@@ -139,6 +139,7 @@ export const AsyncCombobox = ({
                       // Top-aligned rather than centred: a row with a second
                       // line is taller than the tick and the icon beside it.
                       className="items-start"
+                      disabled={item.disabled}
                       onSelect={() => handleSelect(item.value)}
                     >
                       <Check

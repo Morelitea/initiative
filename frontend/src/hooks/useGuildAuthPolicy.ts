@@ -205,8 +205,13 @@ const useInvalidateConnections = (guildId: number) => {
   // connected is still offered, so it has to know), and the public login
   // listing — which feeds the policy page's "sign in with it first" prompt
   // and the step-up dialog. Without the last one a freshly connected provider
-  // cannot be required until the cache expires.
+  // cannot be required until the cache expires. The rules list reads it too:
+  // whether the deployment's rules for a provider apply here follows the
+  // connection's acceptance.
   return () => {
+    void queryClient.invalidateQueries({
+      queryKey: getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey(guildId),
+    });
     void queryClient.invalidateQueries({
       queryKey:
         getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey(guildId),

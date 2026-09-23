@@ -950,7 +950,77 @@
       "users": "Usuarios",
       "access": "Acceso",
       "guilds": "Comunidades",
+      "placement": "Asignación al iniciar sesión",
       "announcements": "Anuncios"
+    }
+  },
+  "providerPlacement": {
+    "title": "Asignación al iniciar sesión",
+    "description": "Asigna a las personas que inicia sesión un proveedor —según el grupo o el directorio que indique— a una comunidad, y a una iniciativa de ella si nombras una.",
+    "loading": "Cargando reglas de asignación…",
+    "loadError": "No se pudieron cargar las reglas de asignación. Inténtalo de nuevo.",
+    "adminOnly": "La asignación al iniciar sesión la gestionan los operadores y propietarios de la plataforma.",
+    "everywhere": {
+      "label": "Aplicar las reglas de asignación a todas las comunidades",
+      "help": "Activado, una regla asigna a las personas a la comunidad que nombra, la haya aceptado esa comunidad o no. Cada cambio queda registrado.",
+      "ownerOnly": "Esto lo decide el propietario de la plataforma.",
+      "confirmTitle": "¿Aplicar las reglas de asignación a todas las comunidades?",
+      "confirmDescription": "Cada regla asigna entonces a las personas a la comunidad que nombra, incluidas las comunidades que no han aceptado las reglas de su proveedor. El cambio queda registrado en el registro de auditoría.",
+      "confirm": "Aplicar en todas",
+      "enabled": "Las reglas de asignación se aplican ahora a todas las comunidades",
+      "disabled": "Las reglas de asignación se aplican ahora donde una comunidad las aceptó",
+      "error": "No se pudo cambiar dónde se aplican las reglas de asignación"
+    },
+    "noProviders": "Aún no hay proveedores de inicio de sesión. Cuando se añada uno en la página Autenticación, sus reglas de asignación se escriben aquí.",
+    "noGroups": "Este proveedor aún no informa de grupos: una regla que nombra un grupo no se aplica a nadie hasta que un propietario defina la claim de grupos del proveedor en la página Autenticación. Las reglas que solo nombran un directorio ya funcionan.",
+    "empty": "Aún no hay reglas para este proveedor.",
+    "add": "Añadir regla",
+    "addFor": "Añadir una regla para {{provider}}",
+    "addTitle": "Añadir una regla de asignación",
+    "addDescription": "Indica a quién se aplica esta regla en {{provider}} y dónde llegan.",
+    "editTitle": "Editar la regla de asignación",
+    "editDescription": "Asigna personas de {{provider}} a {{community}}. Una regla conserva su proveedor y su comunidad; para otros, añade una regla nueva.",
+    "editLabel": "Editar regla",
+    "match": {
+      "group": "Grupo {{group}}",
+      "groupInDirectory": "Grupo {{group}} en {{claim}} = {{value}}",
+      "directory": "Todas las personas de {{claim}} = {{value}}"
+    },
+    "landsInCommunity": "Entra en {{community}} como {{role}}",
+    "landsInInitiative": "Entra en {{community}} como {{role}}, y en {{initiative}} como {{initiativeRole}}",
+    "notApplying": "No se aplica",
+    "notApplyingHint": "La comunidad no ha aceptado las reglas de este proveedor, y no se aplican en todas partes.",
+    "groupLabel": "Grupo",
+    "groupPlaceholder": "eng",
+    "groupHelp": "Tal como lo escribe el proveedor. Déjalo vacío para asignar a todas las personas del directorio de abajo.",
+    "directoryLabel": "Solo personas de un directorio",
+    "directoryHelp": "Para un proveedor que inicia sesión a personas de varios directorios: la claim que nombra el directorio y el valor de este.",
+    "directoryClaimLabel": "Claim",
+    "directoryClaimPlaceholder": "idp",
+    "directoryValueLabel": "Valor",
+    "directoryValuePlaceholder": "acme-adfs",
+    "needsMatch": "Nombra un grupo, un directorio o ambos.",
+    "communityLabel": "Comunidad",
+    "communityPlaceholder": "Elige una comunidad",
+    "communitySearch": "Buscar comunidades",
+    "communityEmpty": "Ninguna comunidad coincide",
+    "notAccepted": "No aceptadas",
+    "communityHelp": "Una comunidad marcada como «No aceptadas» adopta las reglas de este proveedor en cuanto las acepta en su página de Seguridad.",
+    "targetsUnavailable": "Las iniciativas aparecen en cuanto esta comunidad adopta las reglas de este proveedor.",
+    "save": "Guardar regla",
+    "added": "Regla añadida",
+    "addError": "No se pudo añadir esa regla",
+    "saved": "Regla guardada",
+    "saveError": "No se pudo guardar esa regla",
+    "remove": "Eliminar regla",
+    "removeTitle": "¿Eliminar esta regla?",
+    "removeDescription": "Las personas a las que se aplica dejan de ser asignadas a {{community}} por ella, y lo que les dio se retira la próxima vez que inicien sesión por este proveedor.",
+    "removed": "Regla eliminada",
+    "removeError": "No se pudo eliminar esa regla",
+    "requests": {
+      "title": "Esperando respuesta",
+      "help": "Estas comunidades indicaron un dominio o inquilino como propio en una conexión. Si aceptas, las personas que coincidan se unirán al llegar, si la comunidad lo pidió.",
+      "agreed": "Aceptado para {{community}}"
     }
   },
   "guilds": {
@@ -1202,7 +1272,9 @@
       "makeItOurs": "Hacerla nuestra",
       "claimNameLabel": "Nombre de la reclamación",
       "claimNamePlaceholder": "p. ej. org, realm",
-      "joinsOnceAgreed": "Las llegadas coincidentes ingresarán de inmediato en cuanto quien administra este servidor confirme que estos valores son suyos. Hasta entonces se les admite y el ingreso es por invitación."
+      "joinsOnceAgreed": "Las llegadas coincidentes ingresarán de inmediato en cuanto quien administra este servidor confirme que estos valores son suyos. Hasta entonces se les admite y el ingreso es por invitación.",
+      "acceptsPlacementLabel": "Dejar que la instalación asigne a personas de este proveedor",
+      "acceptsPlacementHelp": "Las reglas de asignación de la instalación para este proveedor pueden añadir personas aquí, junto a vuestras propias reglas."
     },
     "rules": {
       "title": "Dónde llega vuestra gente",
@@ -1235,7 +1307,12 @@
       "removed": "Regla eliminada",
       "removeError": "No se pudo eliminar esa regla",
       "removeTitle": "¿Eliminar esta regla?",
-      "removeDescription": "Quien lleve {{group}} dejará de ser asignado aquí, y quien esté aquí por esta regla perderá esa posición la próxima vez que inicie sesión con ese proveedor."
+      "removeDescription": "Quien lleve {{group}} dejará de ser asignado aquí, y quien esté aquí por esta regla perderá esa posición la próxima vez que inicie sesión con ese proveedor.",
+      "deployment": {
+        "title": "Definidas por la instalación",
+        "description": "Reglas de asignación que quien gestiona esta instalación escribió para sus proveedores y que nombran a esta comunidad. Asignan personas aquí junto a vuestras propias reglas en cuanto dejáis entrar las reglas de un proveedor en su conexión.",
+        "everywhere": "La instalación aplica sus reglas de asignación a todas las comunidades."
+      }
     },
     "sections": {
       "whoGetsIn": "Quién entra",

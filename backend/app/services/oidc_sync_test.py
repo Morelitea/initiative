@@ -14,6 +14,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.models.platform.oidc_claim_mapping import (
+    ClaimRuleAuthor,
     OIDCClaimMapping,
     OIDCMappingTargetType,
 )
@@ -590,3 +591,114 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
         )
     ).one_or_none()
     assert (membership is not None) is admitted
+
+
+async def _provider_rule(
+    session: AsyncSession, *, provider_id: int, guild_id: int, **kw
+):
+    session.add(
+        OIDCClaimMapping(
+            author=ClaimRuleAuthor.provider,
+            provider_id=provider_id,
+            target_type=OIDCMappingTargetType.guild,
+            guild_id=guild_id,
+            guild_role=GuildRole.member.value,
+            **{"claim_value": "staff", **kw},
+        )
+    )
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_places_where_the_community_accepts_it(
+    session: AsyncSession,
+):
+    """The platform's rule reaches a community whose connection accepts the
+    provider's rules, and none that has not."""
+    owner = await create_user(session)
+    accepting = await create_guild(session, creator=owner)
+    declining = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="org")
+    await create_guild_provider_connection(
+        session, guild=accepting, provider=provider, accepts_provider_placement=True
+    )
+    await create_guild_provider_connection(session, guild=declining, provider=provider)
+    newcomer = await create_user(session)
+    for guild_id in (accepting.id, declining.id):
+        await _provider_rule(session, provider_id=provider.id, guild_id=guild_id)
+    await session.commit()
+
+    await _sync(session, user_id=newcomer.id, provider_id=provider.id, claims={})
+
+    assert await _joined(session, newcomer.id) == {accepting.id}
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_places_everywhere_when_the_deployment_says_so(
+    session: AsyncSession,
+):
+    from app.services.platform import app_settings as app_settings_service
+
+    settings_row = await app_settings_service.get_app_settings(session)
+    settings_row.provider_placement_everywhere = True
+    session.add(settings_row)
+    owner = await create_user(session)
+    unconnected = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="org")
+    newcomer = await create_user(session)
+    await _provider_rule(session, provider_id=provider.id, guild_id=unconnected.id)
+    await session.commit()
+
+    await _sync(session, user_id=newcomer.id, provider_id=provider.id, claims={})
+
+    assert await _joined(session, newcomer.id) == {unconnected.id}
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_naming_a_directory_places_only_its_arrivals(
+    session: AsyncSession,
+):
+    """Behind a bridge, one provider signs in several directories. A rule
+    naming one places the people from it — by group, or everybody from it
+    where the rule names no group."""
+    owner = await create_user(session)
+    acme = await create_guild(session, creator=owner)
+    everyone = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="bridge")
+    for guild in (acme, everyone):
+        await create_guild_provider_connection(
+            session, guild=guild, provider=provider, accepts_provider_placement=True
+        )
+    await _provider_rule(
+        session,
+        provider_id=provider.id,
+        guild_id=acme.id,
+        scope_claim="idp",
+        scope_value="acme-adfs",
+    )
+    await _provider_rule(
+        session,
+        provider_id=provider.id,
+        guild_id=everyone.id,
+        claim_value=None,
+        scope_claim="idp",
+        scope_value="acme-adfs",
+    )
+    from_acme = await create_user(session)
+    from_elsewhere = await create_user(session)
+    await session.commit()
+
+    await _sync(
+        session,
+        user_id=from_acme.id,
+        provider_id=provider.id,
+        claims={"idp": "acme-adfs"},
+    )
+    await _sync(
+        session,
+        user_id=from_elsewhere.id,
+        provider_id=provider.id,
+        claims={"idp": "globex-okta"},
+    )
+
+    assert await _joined(session, from_acme.id) == {acme.id, everyone.id}
+    assert await _joined(session, from_elsewhere.id) == set()

@@ -165,6 +165,9 @@ class AuditEventType(str, Enum):
     CLAIM_RULE_CREATED = "claim_rule.created"
     CLAIM_RULE_UPDATED = "claim_rule.updated"
     CLAIM_RULE_DELETED = "claim_rule.deleted"
+    PROVIDER_PLACEMENT_EVERYWHERE_CHANGED = (
+        "platform.provider_placement_everywhere_changed"
+    )
     GUILD_PROVIDER_CONNECTED = "guild.provider_connected"
     GUILD_PROVIDER_CONNECTION_UPDATED = "guild.provider_connection_updated"
     GUILD_PROVIDER_DISCONNECTED = "guild.provider_disconnected"
@@ -444,6 +447,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.CLAIM_RULE_DELETED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.PROVIDER_PLACEMENT_EVERYWHERE_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.GUILD_PROVIDER_CONNECTED: AuditEventMeta(

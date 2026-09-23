@@ -221,6 +221,8 @@ class GuildProviderConnectionRead(SanitizedBaseModel):
     #: to claim. ``auto_join`` waits for it; admitting people the community
     #: already has does not. Changing the values asks again.
     narrowing_approved: bool = False
+    #: Whether the platform's rules for this provider may place people here.
+    accepts_provider_placement: bool = False
     login_ready: bool = True
 
 
@@ -254,6 +256,8 @@ class GuildProviderConnectionCreate(SanitizedBaseModel):
     enabled: bool = True
     #: Whether somebody this connection counts as theirs joins on arrival.
     auto_join: bool = False
+    #: Whether the platform's rules for this provider may place people here.
+    accepts_provider_placement: bool = False
 
 
 class GuildProviderConnectionUpdate(SanitizedBaseModel):
@@ -267,6 +271,7 @@ class GuildProviderConnectionUpdate(SanitizedBaseModel):
     )
     enabled: Optional[bool] = None
     auto_join: Optional[bool] = None
+    accepts_provider_placement: Optional[bool] = None
 
 
 class PlatformProviderDefaultRead(SanitizedBaseModel):
@@ -352,6 +357,131 @@ class GuildClaimRulesResponse(SanitizedBaseModel):
     rules: List[GuildClaimRuleRead] = Field(default_factory=list)
     #: Provider ids this community connects to that report groups.
     reporting_provider_ids: List[int] = Field(default_factory=list)
+    #: The platform's rules that name this community, shown so a community
+    #: always sees who is placed in it. Read-only here.
+    provider_rules: List["ProviderPlacementRuleRead"] = Field(default_factory=list)
+    #: Whether the deployment applies its rules to every community they name.
+    placement_everywhere: bool = False
+
+
+class ProviderPlacementRuleRead(SanitizedBaseModel):
+    """One rule the platform wrote for a provider: which arrivals it matches,
+    and where they land."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    provider_id: int
+    provider_display_name: str
+    provider_icon: Optional[str] = None
+    #: The group it places. Null where it names a directory instead, and
+    #: places everybody arriving from it.
+    claim_value: Optional[str] = None
+    #: The verified claim and value naming which of the provider's directories
+    #: the rule is about. Both or neither.
+    scope_claim: Optional[str] = None
+    scope_value: Optional[str] = None
+    guild_id: int
+    guild_name: str
+    guild_role: str
+    initiative_id: Optional[int] = None
+    initiative_name: Optional[str] = None
+    initiative_role_id: Optional[int] = None
+    initiative_role_name: Optional[str] = None
+    #: Whether it places anybody now: the deployment applies provider rules
+    #: everywhere, or the community accepts them on its connection.
+    applies: bool
+
+
+class ProviderPlacementRuleCreate(SanitizedBaseModel):
+    """Place the people a provider asserts a group or a directory for.
+
+    Naming an initiative places them there as well as in the community.
+    """
+
+    provider_id: int
+    claim_value: Optional[str] = Field(default=None, max_length=500)
+    scope_claim: Optional[str] = Field(default=None, max_length=64)
+    scope_value: Optional[str] = Field(default=None, max_length=256)
+    guild_id: int
+    guild_role: str = "member"
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+
+
+class ProviderPlacementRuleUpdate(SanitizedBaseModel):
+    """Change what a rule matches or where it lands. Its provider and its
+    community are not editable: a rule pointed elsewhere is a different rule."""
+
+    claim_value: Optional[str] = Field(default=None, max_length=500)
+    scope_claim: Optional[str] = Field(default=None, max_length=64)
+    scope_value: Optional[str] = Field(default=None, max_length=256)
+    guild_role: Optional[str] = None
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+
+
+GuildClaimRulesResponse.model_rebuild()
+
+
+class PlacementProviderRead(SanitizedBaseModel):
+    """A provider rules can be written for, as the placement page lists it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    display_name: str
+    icon: Optional[str] = None
+    #: Whether the operator has said which claim carries its groups. Rules
+    #: naming a group match nothing until it has.
+    reports_groups: bool
+
+
+class ProviderPlacementResponse(SanitizedBaseModel):
+    """Everything the placement page shows."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    placement_everywhere: bool
+    providers: List[PlacementProviderRead] = Field(default_factory=list)
+    rules: List[ProviderPlacementRuleRead] = Field(default_factory=list)
+
+
+class PlacementEverywhereUpdate(SanitizedBaseModel):
+    """Apply the platform's rules to every community they name, or only to
+    the ones that accepted them."""
+
+    enabled: bool
+
+
+class PlacementCommunityRead(SanitizedBaseModel):
+    """A community a rule may name, and whether a rule naming it applies."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    #: The deployment applies rules everywhere, or this community accepts the
+    #: provider's rules on its connection.
+    placeable: bool
+
+
+class PlacementInitiativeRoleRead(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    is_manager: bool
+
+
+class PlacementInitiativeRead(SanitizedBaseModel):
+    """An initiative a rule may place people in, with the roles it offers."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    roles: List[PlacementInitiativeRoleRead] = Field(default_factory=list)
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):

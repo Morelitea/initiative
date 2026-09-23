@@ -159,6 +159,7 @@ from app.services import email as email_service
 from app.services.platform import user_tokens
 from app.services.platform import guilds as guilds_service
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
+from app.services.platform import provider_placement
 from app.models.platform.user_token import UserTokenPurpose
 
 router = APIRouter()
@@ -1937,9 +1938,13 @@ async def _complete_provider_login(
     # connection counts this arrival as one of its own.
     try:
         claim_path = provider_row.role_claim_path
-        if claim_path:
-            claim_values = extract_claim_values(
-                userinfo or {}, completion.claims, claim_path
+        if claim_path or await provider_placement.has_directory_rules(
+            admin_session, provider_id=provider_row.id
+        ):
+            claim_values = (
+                extract_claim_values(userinfo or {}, completion.claims, claim_path)
+                if claim_path
+                else set()
             )
             async with AdminSessionLocal() as sync_session:
                 sync_result = await sync_oidc_assignments(

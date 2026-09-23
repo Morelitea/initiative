@@ -233,6 +233,15 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
 
+    # Whether the platform's sign-in placement rules apply to every community
+    # they name, rather than only to the communities that accepted them on
+    # their connection. For a deployment that is one organisation, where the
+    # communities are its teams. Every change is recorded.
+    provider_placement_everywhere: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # Whether this deployment offers direct messages at all -- My Messages,
     # and every connection and message request that feeds it. On by default, so
     # a deployment that upgrades into it keeps the messaging its people are
