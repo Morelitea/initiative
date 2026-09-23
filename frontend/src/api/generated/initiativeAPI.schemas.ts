@@ -1217,8 +1217,7 @@ export type BreakGlassCreatePasskey = { [key: string]: unknown } | null;
  * issues write access to the community's content **and** a settings grant at
  * ``superadmin``, because that is what an emergency is for. Somebody who
  * wants less asks for less through the ordinary request flow. The window is
- * short and capped server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue
- * to extend.
+ * short and capped server-side — re-issue to extend.
  */
 export interface BreakGlassCreate {
   code?: string | null;
@@ -1811,6 +1810,45 @@ export const Capability = {
   configmanage: "config.manage",
   appsmanage: "apps.manage",
 } as const;
+
+export type CaptchaSettingsResponseProvider =
+  | (typeof CaptchaSettingsResponseProvider)[keyof typeof CaptchaSettingsResponseProvider]
+  | null;
+
+export const CaptchaSettingsResponseProvider = {
+  hcaptcha: "hcaptcha",
+  turnstile: "turnstile",
+  recaptcha: "recaptcha",
+} as const;
+
+/**
+ * What the settings page shows for the registration captcha.
+ *
+ * The secret is reported as stored or not, never returned — the same contract
+ * as the storage and email pages above.
+ */
+export interface CaptchaSettingsResponse {
+  provider: CaptchaSettingsResponseProvider;
+  site_key: string | null;
+  has_secret_key: boolean;
+  enforcing: boolean;
+}
+
+export type CaptchaSettingsUpdateProvider =
+  | (typeof CaptchaSettingsUpdateProvider)[keyof typeof CaptchaSettingsUpdateProvider]
+  | null;
+
+export const CaptchaSettingsUpdateProvider = {
+  hcaptcha: "hcaptcha",
+  turnstile: "turnstile",
+  recaptcha: "recaptcha",
+} as const;
+
+export interface CaptchaSettingsUpdate {
+  provider?: CaptchaSettingsUpdateProvider;
+  site_key?: string | null;
+  secret_key?: string | null;
+}
 
 export type CategoryGroup = (typeof CategoryGroup)[keyof typeof CategoryGroup];
 
@@ -6862,6 +6900,27 @@ export interface PublishTarget {
 export interface PublishRequest {
   /** @maxItems 50 */
   resources?: PublishTarget[];
+}
+
+/**
+ * What the settings page shows for push notifications (FCM).
+ */
+export interface PushSettingsResponse {
+  enabled: boolean;
+  project_id: string | null;
+  application_id: string | null;
+  api_key: string | null;
+  sender_id: string | null;
+  has_service_account: boolean;
+}
+
+export interface PushSettingsUpdate {
+  enabled?: boolean;
+  project_id?: string | null;
+  application_id?: string | null;
+  api_key?: string | null;
+  sender_id?: string | null;
+  service_account_json?: string | null;
 }
 
 /**

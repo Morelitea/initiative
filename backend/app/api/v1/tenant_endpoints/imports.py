@@ -33,7 +33,6 @@ from app.api.deps import (
     get_guild_membership,
     require_seat,
 )
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.core.version import get_version
 from app.models.platform.user import User
@@ -70,6 +69,7 @@ from app.services.tenant.attachments import (
     FileTooLargeError,
     read_upload_bounded,
 )
+from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
 
@@ -372,7 +372,7 @@ async def start_confluence_export_import(
         )
     try:
         payload = await read_upload_bounded(
-            file, settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
         )
     except FileTooLargeError:
         raise HTTPException(
@@ -490,7 +490,7 @@ async def upload_backup(
     # in-process backstop.
     try:
         payload = await read_upload_bounded(
-            file, settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
         )
     except FileTooLargeError:
         raise HTTPException(
@@ -524,7 +524,7 @@ async def upload_backup(
         plan=plan.model_dump(mode="json"),
         status=ImportJobStatus.staged,
         expires_at=datetime.now(timezone.utc)
-        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+        + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
     await session.commit()
@@ -664,7 +664,7 @@ async def confirm_import(
     job.status = ImportJobStatus.queued
     # Fresh TTL window: the confirmed job now waits on the worker, and a
     # nearly-elapsed staging TTL must not let GC sweep it out of the queue.
-    job.expires_at = now + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS)
+    job.expires_at = now + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS)
     session.add(job)
     await session.commit()
     await session.refresh(job)

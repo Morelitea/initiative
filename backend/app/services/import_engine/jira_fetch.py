@@ -30,7 +30,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import jira_attachments, jira_mapping, jira_sprints
 from app.services.import_engine.atlassian import (
@@ -39,6 +38,7 @@ from app.services.import_engine.atlassian import (
     get_json,
 )
 from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
 
@@ -601,7 +601,7 @@ async def fetch_projects(
 
     report = FetchReport()
     link_ends: list[tuple[str, str]] = []
-    remaining = settings.IMPORT_MAX_ROWS
+    remaining = import_limits.IMPORT_MAX_ROWS
     envelopes: list[tuple[str, dict[str, Any]]] = []
     field_catalog = await fetch_field_catalog(credential)
     dropped_fields: set[str] = set()
@@ -717,7 +717,7 @@ async def fetch_projects(
         files=all_files,
         people=_people(envelopes),
         report=report,
-        rows_used=settings.IMPORT_MAX_ROWS - remaining + len(calendars),
+        rows_used=import_limits.IMPORT_MAX_ROWS - remaining + len(calendars),
     )
 
 

@@ -33,7 +33,6 @@ from urllib.parse import urlsplit
 from cryptography.fernet import InvalidToken
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.core.version import get_version
 from app.db.session import SYSTEM_SATISFIED
@@ -59,6 +58,7 @@ from app.services.import_engine import (
 from app.services.import_engine.atlassian import AtlassianCredential
 from app.services.import_engine.common import load_guild_member_handles
 from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +221,7 @@ async def start_import(
         secret_encrypted=encrypt_field(credential.api_token, SALT_IMPORT_CREDENTIAL),
         status=ImportJobStatus.queued,
         expires_at=datetime.now(timezone.utc)
-        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+        + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
     await session.commit()
@@ -275,7 +275,7 @@ async def start_export(
         ),
         status=ImportJobStatus.queued,
         expires_at=datetime.now(timezone.utc)
-        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+        + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
     await session.commit()
@@ -633,7 +633,8 @@ async def fetch(
                 app_version=get_version(),
                 progress=report_spaces,
                 # What the issues left of the import's row budget.
-                max_rows=settings.IMPORT_MAX_ROWS - (jira.rows_used if jira else 0),
+                max_rows=import_limits.IMPORT_MAX_ROWS
+                - (jira.rows_used if jira else 0),
                 guild_id=guild_id,
                 asset_budget=asset_budget,
                 documents=documents_allowed,

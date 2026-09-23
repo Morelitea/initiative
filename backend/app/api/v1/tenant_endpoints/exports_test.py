@@ -66,6 +66,7 @@ from app.testing.factories import (
     create_task,
     create_upload,
 )
+from app.services.export import limits as export_limits
 
 pytestmark = pytest.mark.integration
 
@@ -399,7 +400,7 @@ async def test_inline_export_respects_task_filters(
 async def test_export_max_rows_bound(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
-    monkeypatch.setattr(settings, "EXPORT_MAX_ROWS", 1)
+    monkeypatch.setattr(export_limits, "EXPORT_MAX_ROWS", 1)
     a = await _actor_with_tasks(acting_user, session, count=2)
     resp = await _export(client, a, "tasks")
     assert resp.status_code == 400
@@ -409,7 +410,7 @@ async def test_export_max_rows_bound(
 async def test_large_export_becomes_job(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     resp = await _export(client, a, "tasks")
     assert resp.status_code == 202
@@ -431,8 +432,8 @@ async def test_large_export_becomes_job(
 async def test_job_limit_per_user(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
-    monkeypatch.setattr(settings, "EXPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
     a = await _actor_with_tasks(acting_user, session)
     assert (await _export(client, a, "tasks")).status_code == 202
     second = await _export(client, a, "tasks")
@@ -445,7 +446,7 @@ async def test_jobs_are_own_row_isolated(
 ):
     """Another member of the SAME guild sees neither the job nor its download
     (RLS hides the row -> 404); a guild admin sees it via the admin leg."""
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     resp = await _export(client, a, "tasks")
     assert resp.status_code == 202
@@ -475,7 +476,7 @@ async def test_worker_renders_job_and_download_succeeds(
     """The queued job renders in the default format (pdf), downloads once it is
     ``done``, stays off the media route, and leaves the creator an inbox entry
     pointing at it — the recovery path when they navigated away mid-render."""
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     resp = await _export(client, a, "tasks")
     assert resp.status_code == 202
@@ -555,7 +556,7 @@ async def test_project_report_formats_render_the_live_tasks_only(
 async def test_project_export_job_path_renders_json(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     resp = await _export(client, a, "project", project_id=a.project.id)
     assert resp.status_code == 202
@@ -903,7 +904,7 @@ async def test_document_export_file_passthrough(
     assert "Q3%20Report%20Final.pdf" in resp.headers["content-disposition"]
 
     # Job path: the original filename survives via the job-id-prefixed key.
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", -1)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", -1)
     queued = await _export(
         client, a, "document", document_id=file_doc.id, format="file"
     )
@@ -928,7 +929,7 @@ async def test_passthrough_exports_do_not_collide_by_filename(
     """Two members exporting a same-named file each get their own artifact: the
     job id is in the storage basename (the directory a nested key would add is
     stripped by both backends), so the refs stay distinct."""
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", -1)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", -1)
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
 
     async def queue_export(blob_key, blob_bytes):
@@ -1568,7 +1569,7 @@ async def test_bulk_counter_group_pdf_zip_through_job_path(
 ):
     """A bulk selection over the inline threshold becomes a job; the worker
     renders and stores the ZIP, and the download carries the bundle name."""
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     g1 = await create_counter_group(session, a.initiative, a.user, name="Party")
     g2 = await create_counter_group(session, a.initiative, a.user, name="Villains")
@@ -2133,7 +2134,7 @@ async def test_backup_upload_byte_cap(
 ):
     """The uploads byte cap rejects an oversized backup at request time, before
     a job row exists."""
-    monkeypatch.setattr(settings, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
+    monkeypatch.setattr(export_limits, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _file_document(
         session,
@@ -2160,7 +2161,7 @@ async def test_backup_embedded_image_bytes_hit_cap_at_build(
     """Embedded document images aren't visible to the pre-flight count (it only
     sizes file documents), so the cap catches them at build time: the job fails
     closed instead of assembling an over-cap archive."""
-    monkeypatch.setattr(settings, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
+    monkeypatch.setattr(export_limits, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await create_upload(
         session, a.guild, a.user, filename="huge.png", size_bytes=1_000_000
@@ -2289,8 +2290,8 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
     assert body["uploads_approximate"] is True
     # entities (8) + tasks (1) + uploads MiB (0)
     assert body["estimated_rows"] == 9
-    assert body["max_rows"] == settings.EXPORT_MAX_BACKUP_ROWS
-    assert body["max_upload_bytes"] == settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES
+    assert body["max_rows"] == export_limits.EXPORT_MAX_BACKUP_ROWS
+    assert body["max_upload_bytes"] == export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES
 
     without_uploads = await _export(
         client,

@@ -3,7 +3,7 @@
 Everything — one report or ten thousand — is a batch of render jobs. The
 contract is backend-agnostic: it knows nothing about where it runs, which is
 what keeps a future distributed/cloud render backend a no-op addition (a
-second ``RenderBackend`` implementation behind ``EXPORT_BACKEND``, touching
+second ``RenderBackend`` implementation behind ``engine.get_backend``, touching
 no adapter, template, or endpoint).
 
 ``RenderItem.data`` is structured JSON the template reads (Typst

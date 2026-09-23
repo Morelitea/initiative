@@ -22,7 +22,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
@@ -40,6 +39,7 @@ from app.services.import_engine.contract import (
     ImportEngineError,
     InlineImport,
 )
+from app.services.import_engine import limits as import_limits
 
 # Distinct namespace from the export engine's lock so the two caps don't
 # serialize against each other.
@@ -197,7 +197,7 @@ async def start_envelope_import(
     )
 
     rows = importer.count(validated)
-    if rows > settings.IMPORT_MAX_ROWS:
+    if rows > import_limits.IMPORT_MAX_ROWS:
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
 
     people = await plan_envelope_people(
@@ -205,7 +205,7 @@ async def start_envelope_import(
     )
     unplaced = [person for person in people if person.suggested_user_id is None]
 
-    if not unplaced and rows <= settings.IMPORT_INLINE_MAX_ROWS:
+    if not unplaced and rows <= import_limits.IMPORT_INLINE_MAX_ROWS:
         result = await apply_one_envelope(
             session,
             importer=importer,
@@ -234,7 +234,7 @@ async def start_envelope_import(
         else None,
         status=ImportJobStatus.staged if unplaced else ImportJobStatus.queued,
         expires_at=datetime.now(timezone.utc)
-        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+        + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
     await session.commit()
@@ -308,7 +308,7 @@ async def count_active_jobs_locked(session: AsyncSession, *, user: User) -> None
             )
         )
     ).one()
-    if active >= settings.IMPORT_MAX_ACTIVE_JOBS_PER_USER:
+    if active >= import_limits.IMPORT_MAX_ACTIVE_JOBS_PER_USER:
         raise ImportEngineError(
             ImportEngineMessages.IMPORT_JOB_LIMIT_REACHED, status_code=429
         )

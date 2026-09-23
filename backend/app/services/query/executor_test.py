@@ -10,12 +10,12 @@ from __future__ import annotations
 import pytest
 import sqlalchemy as sa
 
-from app.core.config import settings
 from app.core.messages import QueryMessages
 from app.db.guild_standing import GuildContext
 from app.models.platform.guild import Guild
 from app.db.schema_provisioning import drop_guild_schema, provision_guild_schema
 from app.services.fields.spec import FieldType
+from app.services.query import executor
 from app.services.query import (
     QueryColumn,
     QueryError,
@@ -83,7 +83,7 @@ async def test_it_reports_what_the_planner_expected(guild):
 
 
 async def test_a_statement_the_planner_prices_too_high_never_runs(guild, monkeypatch):
-    monkeypatch.setattr(settings, "QUERY_MAX_COST", 0.0)
+    monkeypatch.setattr(executor, "QUERY_MAX_COST", 0.0)
     with pytest.raises(QueryError) as refused:
         await run("SELECT title FROM tasks", context=_context(guild))
     assert refused.value.code == QueryMessages.TOO_EXPENSIVE
@@ -91,7 +91,7 @@ async def test_a_statement_the_planner_prices_too_high_never_runs(guild, monkeyp
 
 async def test_a_slow_statement_is_stopped(guild, monkeypatch):
     """The time bound, exercised through the one function that can spend it."""
-    monkeypatch.setattr(settings, "QUERY_STATEMENT_TIMEOUT_MS", 100)
+    monkeypatch.setattr(executor, "QUERY_STATEMENT_TIMEOUT_MS", 100)
     statement = resolve("SELECT title FROM tasks")
     slow = type(statement)(
         sql="SELECT pg_sleep(3) AS slept", parameters=(), relations=("tasks",)
@@ -120,7 +120,7 @@ async def test_the_transaction_refuses_a_write(guild):
 
 
 async def test_more_rows_than_one_query_returns_are_cut_off(guild, monkeypatch):
-    monkeypatch.setattr(settings, "QUERY_MAX_ROWS", 2)
+    monkeypatch.setattr(executor, "QUERY_MAX_ROWS", 2)
     statement = resolve("SELECT title FROM tasks")
     many = type(statement)(
         sql="SELECT g AS n FROM generate_series(1, 50) AS g",
@@ -175,7 +175,7 @@ async def test_a_guild_runs_only_so_many_at_once(guild, monkeypatch):
     the deployment rather than for each process serving it."""
     import asyncio
 
-    monkeypatch.setattr(settings, "QUERY_MAX_CONCURRENT_PER_GUILD", 1)
+    monkeypatch.setattr(executor, "QUERY_MAX_CONCURRENT_PER_GUILD", 1)
     statement = resolve("SELECT title FROM tasks")
     slow = type(statement)(
         sql="SELECT pg_sleep(2) AS slept", parameters=(), relations=("tasks",)
@@ -197,7 +197,7 @@ async def test_a_description_that_cannot_be_planned_is_stopped(
 ):
     """Preparing plans, and planning waits its turn for the relation. That wait
     spends the same time bound a running statement does, and ends the same way."""
-    monkeypatch.setattr(settings, "QUERY_STATEMENT_TIMEOUT_MS", 250)
+    monkeypatch.setattr(executor, "QUERY_STATEMENT_TIMEOUT_MS", 250)
     async with engine.connect() as holder:
         await holder.execute(
             sa.text(f"LOCK TABLE guild_{_GID}.tasks IN ACCESS EXCLUSIVE MODE")

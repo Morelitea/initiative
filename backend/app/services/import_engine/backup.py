@@ -39,7 +39,6 @@ from app.db.session import routed_guild_id
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.user import User
@@ -65,6 +64,7 @@ from app.services.import_engine.contract import (
 from app.services.import_engine.context import ImportContext, excluded_property_names
 from app.services.import_engine.links import resolve_page_links
 from app.services.tenant import tags as tags_service
+from app.services.import_engine import limits as import_limits
 
 # Apply order within an initiative — convention, not correctness (cross-tool
 # references in envelopes are display text only).
@@ -132,7 +132,7 @@ def open_backup_zip(payload: bytes) -> zipfile.ZipFile:
     except Exception as exc:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
     infos = archive.infolist()
-    if len(infos) > settings.IMPORT_MAX_ZIP_MEMBERS:
+    if len(infos) > import_limits.IMPORT_MAX_ZIP_MEMBERS:
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     declared = 0
     for info in infos:
@@ -144,7 +144,7 @@ def open_backup_zip(payload: bytes) -> zipfile.ZipFile:
         if name.startswith("/") or ".." in name.split("/"):
             raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
         declared += info.file_size
-        if declared > settings.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES:
+        if declared > import_limits.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES:
             raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     return archive
 

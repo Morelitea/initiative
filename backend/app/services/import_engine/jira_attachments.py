@@ -19,9 +19,9 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +67,10 @@ def bundle_budget() -> AssetBudget:
     """A whole bundle's worth, before anything has been spent."""
     return AssetBudget(
         bytes_left=max(
-            0, settings.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES - _BUNDLE_RESERVE_BYTES
+            0,
+            import_limits.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES - _BUNDLE_RESERVE_BYTES,
         ),
-        files_left=max(0, settings.IMPORT_MAX_ZIP_MEMBERS - _BUNDLE_RESERVE_FILES),
+        files_left=max(0, import_limits.IMPORT_MAX_ZIP_MEMBERS - _BUNDLE_RESERVE_FILES),
     )
 
 

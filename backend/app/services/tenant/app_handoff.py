@@ -41,9 +41,9 @@ import jwt
 from fastapi import HTTPException, status
 
 from app.db.session import routed_guild_id
-from app.core.config import settings
 from app.core.messages import AppServiceMessages, GuildAppMessages
 from app.core.security import (
+    APP_PLATFORM_ISSUER,
     AppPlatformSigningNotConfiguredError,
     app_platform_audience,
     resolve_app_platform_signing_material,
@@ -225,7 +225,7 @@ async def mint_embed_handoff(
         # unrelated to what any other sector holds for the same person.
         "sub": subject,
         "aud": audience,
-        "iss": settings.APP_PLATFORM_ISSUER,
+        "iss": APP_PLATFORM_ISSUER,
         "iat": int(now.timestamp()),
         "exp": now + APP_EMBED_HANDOFF_LIFETIME,
         # The guild by reference, for the same reason as the member above: an

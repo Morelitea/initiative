@@ -524,12 +524,22 @@ def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
     return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
 
 
+# Pinned on both sides of the boundary — not deployment knobs.
+#: ``iss`` on the tokens this deployment mints for app services.
+APP_PLATFORM_ISSUER = "initiative"
+#: ``aud`` is this prefix plus the registration's public_id, so a token minted
+#: for one app is not accepted by another.
+APP_PLATFORM_AUDIENCE_PREFIX = "initiative-app:"
+#: The envelope an app's delegation token is checked against.
+AUTO_DELEGATION_AUDIENCE = "initiative:auto-delegation"
+AUTO_DELEGATION_ISSUER = "initiative-auto"
+
+
 def app_platform_audience(public_id: str) -> str:
     """The ``aud`` a token minted for one app service carries."""
-    return f"{settings.APP_PLATFORM_AUDIENCE_PREFIX}{public_id}"
+    return f"{APP_PLATFORM_AUDIENCE_PREFIX}{public_id}"
 
 
-# Pinned on both sides of the boundary — not deployment knobs.
 BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"
 BILLING_SUPPORT_HANDOFF_AUDIENCE = "initiative:billing-support"
 
@@ -709,8 +719,8 @@ def verify_auto_delegation_token(
                 token,
                 key,
                 algorithms=["RS256"],
-                audience=settings.AUTO_DELEGATION_AUDIENCE,
-                issuer=settings.AUTO_DELEGATION_ISSUER,
+                audience=AUTO_DELEGATION_AUDIENCE,
+                issuer=AUTO_DELEGATION_ISSUER,
                 options={"require": ["exp", "iat", "iss", "aud", "sub", "jti"]},
             )
             break

@@ -130,6 +130,10 @@ MAX_IMAGE_BYTES = 1024 * 1024
 MAX_LISTINGS = 500
 MAX_IMAGES_PER_LISTING = 8
 
+#: How old a signed index may be before it is refused. The publish pipeline
+#: re-signs on a schedule well inside this.
+MAX_INDEX_AGE_SECONDS = 7 * 86400
+
 #: Per-request budget for one fetch.
 FETCH_TIMEOUT_SECONDS = 15.0
 
@@ -564,7 +568,7 @@ def _check_freshness(index: _Index, now: datetime) -> None:
     part that stops a correctly signed copy from being served forever after the
     publisher moved on.
     """
-    max_age = timedelta(seconds=settings.MARKETPLACE_REGISTRY_MAX_AGE_SECONDS)
+    max_age = timedelta(seconds=MAX_INDEX_AGE_SECONDS)
     age = now - index.generated_at
     if age > max_age:
         raise RegistryError(

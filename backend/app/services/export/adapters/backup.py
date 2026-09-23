@@ -57,6 +57,7 @@ from app.services.export.engine import ExportError
 from app.services.export import delivery
 from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
+from app.services.export import limits as export_limits
 
 # Tool keys as they appear in the selector's include/formats maps. Derived:
 # a backup covers what the engine can export, so a ninth tool is carried by
@@ -103,7 +104,7 @@ class InitiativeExportAdapter:
 
     @property
     def max_rows(self) -> int:
-        return settings.EXPORT_MAX_BACKUP_ROWS
+        return export_limits.EXPORT_MAX_BACKUP_ROWS
 
     async def count(self, session, *, user, guild_id, params, format) -> int:
         scope = await _resolve_scope(
@@ -326,7 +327,7 @@ async def _count_scope(
             upload_bytes = await get_guild_storage_usage(session)
         else:
             upload_bytes = await _known_upload_bytes(session, ids["document"])
-        if upload_bytes > settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
+        if upload_bytes > export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         total += upload_bytes // _MIB
     return total
@@ -1483,7 +1484,7 @@ class _ScopeBuilder:
                 existing.referenced_by.append(referenced_by)
             return path
         self._asset_bytes += size_bytes
-        if self._asset_bytes > settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
+        if self._asset_bytes > export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         record = ManifestAsset(
             path=path,
@@ -1600,8 +1601,8 @@ async def estimate_backup(
         uploads_bytes=uploads_bytes,
         uploads_approximate=True,
         estimated_rows=estimated_rows,
-        max_rows=settings.EXPORT_MAX_BACKUP_ROWS,
-        max_upload_bytes=settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES,
+        max_rows=export_limits.EXPORT_MAX_BACKUP_ROWS,
+        max_upload_bytes=export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES,
         max_download_bytes=settings.EXPORT_MAX_DOWNLOAD_BYTES,
         delivery_available=delivery.is_configured(),
     )

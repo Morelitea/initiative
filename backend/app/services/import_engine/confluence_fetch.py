@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 from urllib.parse import quote
 
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import confluence_attachments, confluence_mapping
 from app.services.import_engine.atlassian import (
@@ -28,6 +27,7 @@ from app.services.import_engine.atlassian import (
 )
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.jira_attachments import AssetBudget, StoredImage
+from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
 
@@ -445,9 +445,11 @@ async def fetch_spaces(
 
     gathered = Gathered()
     report = gathered.report
-    remaining = settings.IMPORT_MAX_ROWS if max_rows is None else max_rows
+    remaining = import_limits.IMPORT_MAX_ROWS if max_rows is None else max_rows
     downloads = gathered.downloads
-    max_bytes = max(0, settings.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES)
+    max_bytes = max(
+        0, import_limits.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES
+    )
 
     for key in space_keys:
         if remaining <= 1:

@@ -60,7 +60,6 @@ from sqlalchemy import ARRAY, Integer, bindparam, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.db import session as db_session
 from app.db.session import (
     set_rls_context,
@@ -80,6 +79,10 @@ OUTBOX_POLL_SECONDS = 5
 
 #: How often delivered history is swept.
 OUTBOX_RETENTION_POLL_SECONDS = 3600
+
+#: How long delivered change events are kept. A subscriber further behind than
+#: this has stopped consuming and resumes from the current head.
+OUTBOX_RETENTION_DAYS = 7
 
 #: Transactions a subscription may take in one pass. A throughput bound only —
 #: anything not taken remains exactly as visible next pass.
@@ -460,9 +463,7 @@ async def process_outbox_retention() -> None:
     never configures a target at all. Ledger rows go with the events they
     describe, so the pair stays the same size.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(
-        days=settings.WEBHOOK_OUTBOX_RETENTION_DAYS
-    )
+    cutoff = datetime.now(timezone.utc) - timedelta(days=OUTBOX_RETENTION_DAYS)
     async with db_session.AdminSessionLocal() as session:
         for guild_id in await _active_guild_ids(session):
             session.expunge_all()

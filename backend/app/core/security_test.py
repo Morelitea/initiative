@@ -584,8 +584,8 @@ def _mint_delegation(
         {
             "jti": uuid.uuid4().hex,
             "sub": _SUBJECT,
-            "aud": settings.AUTO_DELEGATION_AUDIENCE,
-            "iss": settings.AUTO_DELEGATION_ISSUER,
+            "aud": security.AUTO_DELEGATION_AUDIENCE,
+            "iss": security.AUTO_DELEGATION_ISSUER,
             "iat": int(now.timestamp()),
             "exp": now + timedelta(seconds=expires_in),
             "guild_ref": _GUILD_REF,

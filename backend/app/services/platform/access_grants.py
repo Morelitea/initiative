@@ -22,7 +22,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.login_methods import LoginMethod
-from app.core.config import settings
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
     LEVEL_LABEL_KEYS,
@@ -75,35 +74,41 @@ async def _lock_user_guild_grants(
     )
 
 
+#: The window a grant gets when the request names none.
+DEFAULT_DURATION_MINUTES = 240  # 4 hours
+#: The absolute ceiling on any grant.
+MAX_DURATION_MINUTES = 1440  # 24 hours
+
 # Per-role maximum grant duration (least privilege). Each is clamped to the
 # absolute ceiling. The request and break-glass forms read the caller's figure
 # from the server (``max_minutes_for_role``, ``break_glass_max_minutes``).
 _ROLE_MAX_MINUTES: dict[UserRole, int] = {
-    UserRole.support: settings.PAM_SUPPORT_MAX_MINUTES,
-    UserRole.moderator: settings.PAM_MODERATOR_MAX_MINUTES,
-    UserRole.operator: settings.PAM_OPERATOR_MAX_MINUTES,
+    UserRole.support: 240,  # 4 hours
+    UserRole.moderator: 480,  # 8 hours
+    UserRole.operator: 1440,  # 24 hours
     # Owners/operators reach a guild via the self-approved break-glass path
     # (``data.bypass``) rather than the request→approve flow; their cap applies
     # to that self-issued grant.
-    UserRole.owner: settings.PAM_OPERATOR_MAX_MINUTES,
+    UserRole.owner: 1440,
 }
+
+# Break-glass is self-approved, so its window is short and re-issued to
+# extend. Capped below the role maxima.
+BREAK_GLASS_DEFAULT_MINUTES = 60  # 1 hour
+BREAK_GLASS_MAX_MINUTES = 240  # 4 hours
 
 
 def max_minutes_for_role(role: UserRole) -> int:
     """The longest grant the given role may hold (clamped to the ceiling)."""
-    role_cap = _ROLE_MAX_MINUTES.get(role, settings.PAM_DEFAULT_DURATION_MINUTES)
-    return min(role_cap, settings.PAM_MAX_DURATION_MINUTES)
+    role_cap = _ROLE_MAX_MINUTES.get(role, DEFAULT_DURATION_MINUTES)
+    return min(role_cap, MAX_DURATION_MINUTES)
 
 
 def _capped_duration(requested: Optional[int], role: UserRole) -> int:
     """Resolve a requested duration for a grantee of ``role`` to the effective
     one, or raise if it exceeds that role's maximum."""
     cap = max_minutes_for_role(role)
-    minutes = (
-        requested
-        if requested is not None
-        else min(settings.PAM_DEFAULT_DURATION_MINUTES, cap)
-    )
+    minutes = requested if requested is not None else min(DEFAULT_DURATION_MINUTES, cap)
     if minutes > cap:
         raise AccessGrantError("DURATION_TOO_LONG")
     return minutes
@@ -113,17 +118,15 @@ def break_glass_max_minutes(role: UserRole) -> int:
     """The longest break-glass window the given role may issue itself: the role
     cap, further clamped to the (shorter) break-glass ceiling because a
     self-approved grant has no second-person check."""
-    return min(max_minutes_for_role(role), settings.PAM_BREAK_GLASS_MAX_MINUTES)
+    return min(max_minutes_for_role(role), BREAK_GLASS_MAX_MINUTES)
 
 
 def _break_glass_duration(requested: Optional[int], role: UserRole) -> int:
     """Resolve a break-glass window against ``break_glass_max_minutes``.
-    Defaults to ``PAM_BREAK_GLASS_DEFAULT_MINUTES``."""
+    Defaults to ``BREAK_GLASS_DEFAULT_MINUTES``."""
     cap = break_glass_max_minutes(role)
     minutes = (
-        requested
-        if requested is not None
-        else min(settings.PAM_BREAK_GLASS_DEFAULT_MINUTES, cap)
+        requested if requested is not None else min(BREAK_GLASS_DEFAULT_MINUTES, cap)
     )
     if minutes > cap:
         raise AccessGrantError("DURATION_TOO_LONG")
@@ -813,9 +816,6 @@ async def to_read(
     return out
 
 
-# Convenience aliases for cap values used by callers / docs.
-DEFAULT_DURATION_MINUTES = settings.PAM_DEFAULT_DURATION_MINUTES
-MAX_DURATION_MINUTES = settings.PAM_MAX_DURATION_MINUTES
 __all__ = [
     "AccessGrantError",
     "request_grants",

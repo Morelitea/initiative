@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional, Union
 
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import confluence_attachments, confluence_mapping
 from app.services.import_engine.confluence_fetch import (
@@ -36,6 +35,7 @@ from app.services.import_engine.confluence_fetch import (
 from app.services.import_engine.confluence_storage import _Element, _parse, _text_of
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.jira_attachments import AssetBudget
+from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
 
@@ -742,7 +742,7 @@ async def export_to_fetched(
     file documents: only the pictures the pages show come.
     """
     space = read_export(archive)
-    budget_rows = settings.IMPORT_MAX_ROWS if max_rows is None else max_rows
+    budget_rows = import_limits.IMPORT_MAX_ROWS if max_rows is None else max_rows
     by_file = {page.file: page for page in space.pages}
     pages = [
         confluence_mapping.SourcePage(
@@ -799,7 +799,9 @@ async def export_to_fetched(
         users=space.users,
         site_url=space.site_url,
         app_version=app_version,
-        max_bytes=max(0, settings.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES),
+        max_bytes=max(
+            0, import_limits.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES
+        ),
         media=media,
         documents=documents,
     )
