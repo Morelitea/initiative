@@ -68,4 +68,4 @@ Turning it off discards your recovery codes and signs you out everywhere else, w
 
     Each code is accepted once. Presenting the same code twice — even inside its thirty seconds — gets you in once, which is why signing in immediately after setup may mean waiting for the next code.
 
-    Recovery codes are stored only as hashes, and your key is encrypted at rest. Neither is readable by anybody, including whoever administers the site.
+    Recovery codes are stored only as hashes, and your key is encrypted at rest. Neither is readable by anybody, including whoever runs the server.

@@ -42,7 +42,7 @@ Initiative can expose a small surface to AI assistants through the **Model Conte
 
 Worth knowing:
 
-- It's **off unless your administrator enables it** on the server.
+- It's **off unless whoever runs your server turns it on**.
 - Every action runs **as you**, scoped by your key. An assistant reaches only what *you* could reach.
 - The surface is **curated** — any key can read the initiatives you belong to and every kind of tool they hold (projects and tasks, documents, wikis, queues, counters, calendars, galleries, notices and dashboards), the comments on any of them, and what any of them is linked to. It can also run the same **search** the app's own search page runs, ranked across the lot.
 - A **full-access** key can create and edit those same things, link two of them together, move a task between statuses, and tick a checklist item off. Deleting (a link included), archiving, bulk edits, sharing and AI generation are never exposed, and a read-only key can't write at all.
@@ -51,7 +51,7 @@ Worth knowing:
     That's the right call for most uses. Only reach for a full-access key if you actually want the assistant making changes — and each change is confirmed in the assistant before it runs.
 
 ??? techspec "For the technically minded — connecting a client"
-    With MCP enabled (an administrator sets `ENABLE_MCP=true`), the server is at `<your-server>/api/v1/mcp/`. Register it with your client using your API key as a bearer token — with Claude Code, for example:
+    With MCP enabled (whoever runs the server sets `ENABLE_MCP=true`), the server is at `<your-server>/api/v1/mcp/`. Register it with your client using your API key as a bearer token — with Claude Code, for example:
 
     ```bash
     claude mcp add --transport http initiative \
@@ -59,10 +59,10 @@ Worth knowing:
       --header "Authorization: Bearer ppk_your_key_here"
     ```
 
-    The exposed tools are route-backed: each call goes through the normal API with your authentication and the same row-level-security access rules, so there's no ambient privilege. Administrators: see [Configuration](../admin/configuration.md).
+    The exposed tools are route-backed: each call goes through the normal API with your authentication and the same row-level-security access rules, so there's no ambient privilege. Running the server? See [Configuration](../running-a-server/configuration.md).
 
 ## Related
 
 - [Profile & preferences](profile-and-preferences.md) — the rest of your account.
 - [Security & privacy](../security/index.md) — how access is enforced.
-- [Configuration](../admin/configuration.md) — for administrators enabling MCP.
+- [Configuration](../running-a-server/configuration.md) — for whoever runs the server, enabling MCP.

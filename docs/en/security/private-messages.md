@@ -12,7 +12,7 @@ This page explains what that covers, what it doesn't, and why your messages beha
 
 **Everything you write.** The keys that open a message live on the devices in the conversation, and nowhere else. We don't have them, we can't make them, and there's nowhere for us to ask.
 
-That's worth saying carefully, because plenty of services promise not to look. This isn't a promise about our behaviour — it's a fact about how the thing is built. There's no admin setting that reveals a thread, no support tool that opens one, and no senior enough person to overrule it. When we say we can't read your messages, we mean there's nothing there for us to read.
+That's worth saying carefully, because plenty of services promise not to look. This isn't a promise about our behaviour — it's a fact about how the thing is built. There's no setting, in a community or on the server, that reveals a thread, no support tool that opens one, and no senior enough person to overrule it. When we say we can't read your messages, we mean there's nothing there for us to read.
 
 ## What isn't hidden
 

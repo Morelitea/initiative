@@ -50,7 +50,7 @@ How an initiative lets people in: **invite only** (a manager adds you), **by req
 
 ### Break-glass
 
-A short-lived, recorded, self-issued grant that lets platform staff reach a community they don't belong to — used instead of any standing back door, and it expires on its own. See [Platform roles](../admin/platform-roles.md#cross-community-access-break-glass-and-time-bound-grants).
+A short-lived, recorded, self-issued grant that lets platform staff reach a community they don't belong to — used instead of any standing back door, and it expires on its own. See [Platform roles](../running-a-server/platform-roles.md#cross-community-access-break-glass-and-time-bound-grants).
 
 ### Archive vs. Trash
 
@@ -66,7 +66,7 @@ Who may *ask* to message you: **Private** (nobody), **My communities**, or **Any
 
 Two separate ladders. A **community role** (member or admin) governs one workspace. A **platform role** (member, support, moderator, operator, owner) governs the whole server.
 
-Being an admin of your community gives you no authority over anybody else's. See [Platform roles](../admin/platform-roles.md).
+Being an admin of your community gives you no authority over anybody else's. See [Platform roles](../running-a-server/platform-roles.md).
 
 ## Still hit a word you don't know?
 

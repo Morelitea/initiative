@@ -41,7 +41,7 @@ Two more addresses sit at the top of the page — a post-login redirect and a mo
 Deleting is careful on your behalf. A provider that a community's sign-in requirement points at waits until you change that requirement. So does one that is somebody's only way in — those people need a password or a second provider first. Everyone else keeps their account and every other way they had of reaching it.
 
 !!! screenshot "Settings → Platform → Authentication"
-    Capture the page with two or three providers in the list, and the wizard's address step showing a green Verify result. Save as `docs/en/images/admin/oidc-settings.png`.
+    Capture the page with two or three providers in the list, and the wizard's address step showing a green Verify result. Save as `docs/en/images/running-a-server/oidc-settings.png`.
 
 ## Ways in
 

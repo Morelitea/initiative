@@ -34,7 +34,7 @@ In **Settings → Platform → Email**:
 
 If it doesn't, check the host/port/TLS combination before anything else. It is almost always the host/port/TLS combination. Credentials come second.
 
-![SMTP email settings](../images/admin/email-settings.png)
+![SMTP email settings](../images/running-a-server/email-settings.png)
 
 ## Related
 

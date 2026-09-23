@@ -112,7 +112,7 @@ Every listing in your marketplace arrived one of two ways:
 - It **ships with Initiative** — part of the built-in catalog, credited to Initiative. That credit can't be claimed by anything else.
 - Your **platform owner added it** — they chose that listing and published it to your deployment. If you run Initiative yourself, that's you.
 
-There's no third way. Anyone can write a listing; reaching *your* marketplace is a decision your platform owner makes, one listing at a time. See [Publishing your own listings](../admin/publishing-listings.md).
+There's no third way. Anyone can write a listing; reaching *your* marketplace is a decision your platform owner makes, one listing at a time. See [Publishing your own listings](../running-a-server/publishing-listings.md).
 
 Every listing shows **who published it** — on the card, on its page, and in the dialog where you add it — so the question is answered while you're deciding.
 
@@ -126,4 +126,4 @@ Two things hold whatever you install:
 - [Profile & preferences](../account/profile-and-preferences.md) — wearing what a decoration pack gave you.
 - [Tools](tools.md) — the calendar, queues, counters, dashboards and boards built into every initiative.
 - [Sharing & access](../sharing/index.md) — who can see what you add.
-- [Publishing your own listings](../admin/publishing-listings.md) — for admins adding to their server's marketplace.
+- [Publishing your own listings](../running-a-server/publishing-listings.md) — for whoever runs the server, adding to its marketplace.

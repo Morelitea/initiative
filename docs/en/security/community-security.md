@@ -100,7 +100,7 @@ Nothing here destroys anything on the way out.
 | **Allow mobile notifications again** | Phones receive this community's notifications again, from the next one sent. |
 | **Stop hiding notification details** | The next notification to leave names what it is about. Ones already sent are not revisited. |
 
-If your server's administrator withdraws one of the two switches, that half of the tab closes and nothing else happens: your connections stay, your members keep signing in, nobody is ejected or unlinked, and **a requirement you already set stays in force**. What closed is your ability to change the setup, not the setup — so changing it after that means asking for the switch back.
+If whoever runs your server withdraws one of the two switches, that half of the tab closes and nothing else happens: your connections stay, your members keep signing in, nobody is ejected or unlinked, and **a requirement you already set stays in force**. What closed is your ability to change the setup, not the setup — so changing it after that means asking for the switch back.
 
 ??? techspec "For the technically minded — what each control actually is"
 
@@ -117,6 +117,6 @@ If your server's administrator withdraws one of the two switches, that half of t
 ## Related
 
 - [Working with communities](../guides/communities.md) — the rest of the settings tabs, and what the superadmin seat is for.
-- [Single sign-on](../admin/single-sign-on.md) — for whoever runs the server and registers the providers.
+- [Single sign-on](../running-a-server/single-sign-on.md) — for whoever runs the server and registers the providers.
 - [API keys & integrations](../account/api-keys-and-integrations.md) — what a personal key is, from a member's side.
 - [Two-factor authentication](../account/two-factor-authentication.md) and [Passkeys](../account/passkeys.md) — what you are asking members for.

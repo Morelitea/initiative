@@ -41,7 +41,7 @@ They cascade top-down, and each level chooses whether the one below can override
 2. **Community** — a community admin can set the community's own configuration, if the platform allows.
 3. **You** — personal settings, if your community or platform allows.
 
-Seeing *"AI settings are managed by your administrator"*? Nothing is broken. Somebody above you has already made the decision, which is either a relief or an irritation depending entirely on your day.
+Settings greyed out, or a note that a shared key is in use? Nothing is broken. Somebody above you has already made the decision, which is either a relief or an irritation depending entirely on your day.
 
 ## The privacy bit, which is genuinely worth reading
 
@@ -55,11 +55,11 @@ This is the one place in Initiative where your work deliberately goes somewhere 
 Which is precisely why the buttons are explicit, why nothing generates on its own, and why every level can switch the whole thing off.
 
 !!! tip "Want a hard guarantee? Keep it local."
-    An administrator can configure a **local** provider (Ollama). The text never leaves your server, so there's no third party's terms to read and nothing to take anyone's word for. If your group's work is the kind you wouldn't hand a stranger, this is the option to ask for.
+    Whoever runs your server can configure a **local** provider (Ollama). The text never leaves your server, so there's no third party's terms to read and nothing to take anyone's word for. If your group's work is the kind you wouldn't hand a stranger, this is the option to ask for.
 
-Not sure what's configured on your server? Ask your administrator — or simply never press the buttons. Everything else in Initiative works exactly the same without them, and nobody is keeping score.
+Not sure what's configured on your server? Ask a community admin or whoever runs the server — or simply never press the buttons. Everything else in Initiative works exactly the same without them, and nobody is keeping score.
 
 ## Related
 
 - [Profile & preferences](profile-and-preferences.md) — your other personal settings.
-- [Platform configuration](../admin/configuration.md) — for administrators setting AI defaults.
+- [Platform configuration](../running-a-server/configuration.md) — for whoever runs the server, setting AI defaults.

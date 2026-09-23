@@ -52,7 +52,7 @@ The first time you join a listed community, you'll be asked your date of birth. 
     We work out whether you're old enough and then throw it away. Your account records *that* you answered, never what you said. It isn't sold, shared, or stored anywhere. See [Data and compliance](../security/data-and-compliance.md).
 
 !!! info "Not every server has a directory"
-    It's a server-wide feature that starts switched **off**. If there's no **Join a community** button, this server hasn't turned it on and everything here is invite-only. That's the platform owner's call — see [Configuration](../admin/configuration.md).
+    It's a server-wide feature that starts switched **off**. If there's no **Join a community** button, this server hasn't turned it on and everything here is invite-only. That's the platform owner's call — see [Configuration](../running-a-server/configuration.md).
 
 ## Listing your community (admins)
 
@@ -112,10 +112,10 @@ So the top seat is its own rung, and it's narrow on purpose: the [Security and I
 
 The things a community actually manages: **handle**, **name** (in communities that show real names), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
 
-A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [operator dashboard](../admin/platform-roles.md#managing-platform-users).
+A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [operator dashboard](../running-a-server/platform-roles.md#managing-platform-users).
 
 !!! note "Community admin is not the same as running the server"
-    Being an admin of *your* community gives you total control of that community — and precisely no control over the server or anybody else's community. Server-wide roles are a separate thing entirely: see [Platform roles](../admin/platform-roles.md).
+    Being an admin of *your* community gives you total control of that community — and precisely no control over the server or anybody else's community. Server-wide roles are a separate thing entirely: see [Platform roles](../running-a-server/platform-roles.md).
 
 ## Community settings (admins)
 

@@ -138,7 +138,7 @@ that actually mattered.
   need the room, or it may be two pages, or it may just be padded.
 
 **Reference pages are exempt from the word count, not from the rule.** The FAQ
-and `admin/publishing-listings.md` are looked *up*, never read start to finish,
+and `running-a-server/publishing-listings.md` are looked *up*, never read start to finish,
 so length there costs nothing. Each individual entry still has to be short.
 
 ### Don't restate a definition that already has a home
@@ -245,7 +245,7 @@ the rules for writing one.
 Somebody reading those wants a straight answer. A joke in the middle of a
 retention policy helps nobody, and may end up in front of a lawyer.
 
-Admin pages **do** take the voice, but must stay operationally exact. Being
+Running-a-server pages **do** take the voice, but must stay operationally exact. Being
 funny never costs a command its accuracy.
 
 ### And never describe an attack

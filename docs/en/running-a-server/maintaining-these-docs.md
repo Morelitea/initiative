@@ -22,7 +22,7 @@ docs/
    ├─ sharing/
    ├─ security/
    ├─ account/
-   ├─ admin/
+   ├─ running-a-server/
    ├─ reference/
    └─ images/                 # screenshots, organized by section
 ```
@@ -50,7 +50,7 @@ zensical build     # build the static site into ./site
 
 ## Writing conventions
 
-We write for two audiences at once: people who struggle with technical tools, and the more technical project managers and admins. Two custom callouts keep them separated cleanly.
+We write for two audiences at once: people who struggle with technical tools, and the more technical project managers and the people who run servers. Two custom callouts keep them separated cleanly.
 
 ### Marking where a screenshot goes
 
