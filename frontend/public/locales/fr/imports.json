@@ -15,12 +15,14 @@
       "prompt": "D'où viennent ces données ?",
       "names": {
         "backup": "Sauvegarde Initiative",
+        "jira": "Jira",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
       },
       "descriptions": {
         "backup": "Un .zip exporté depuis Initiative, remis en l'état.",
+        "jira": "Des projets lus directement depuis votre site Jira.",
         "todoist": "Un projet exporté en CSV.",
         "ticktick": "Un CSV de sauvegarde contenant toutes les listes.",
         "vikunja": "Le data.json d'un export Vikunja."
@@ -101,6 +103,79 @@
       "unmatchedHandles": "Certaines personnes n'ont pas pu être associées par identifiant : {{handles}}",
       "failedEntries": "Éléments non importés :",
       "nothing": "Rien n'a été importé."
+    },
+    "jira": {
+      "connect": {
+        "prompt": "Connectez-vous à votre site Jira.",
+        "siteLabel": "Adresse du site",
+        "sitePlaceholder": "votre-equipe.atlassian.net",
+        "emailLabel": "Votre adresse e-mail Atlassian",
+        "tokenLabel": "Jeton d'API",
+        "tokenLink": "Créer un jeton d'API",
+        "note": "Le jeton sert uniquement à lire les projets que vous choisissez, et il est supprimé dès qu'ils ont été lus.",
+        "submit": "Se connecter",
+        "failed": "Nous n'avons pas pu nous connecter à ce site.",
+        "noJira": "Le site répond, mais ce jeton n'y voit aucun Jira."
+      },
+      "choose": {
+        "prompt": "Quels projets importer, et où ?",
+        "projectsLabel": "Projets",
+        "selectAll": "Tout sélectionner",
+        "selectNone": "Ne rien sélectionner",
+        "notCounted": "non compté",
+        "issues_one": "{{count}} ticket",
+        "issues_other": "{{count}} tickets",
+        "includeComments": "Importer les commentaires",
+        "includeAttachments": "Importer les images",
+        "note": "Chaque projet arrive comme un nouveau projet dans cette initiative, avec ses colonnes, tâches, champs, liens et sprints. Rien n'est écrit avant que vous ayez vérifié ce que nous avons trouvé.",
+        "submit": "Lire ces projets",
+        "failed": "Nous n'avons pas pu commencer à lire ces projets.",
+        "noProjects": "Ce jeton ne voit aucun projet Jira."
+      },
+      "fetch": {
+        "title": "Lecture de votre site Jira…",
+        "progress": "{{projects}} projets et {{tasks}} tâches lus jusqu'ici",
+        "note": "Pour un grand projet, cela peut prendre quelques minutes. Vous pouvez fermer cette fenêtre ; rouvrir l'import vous ramène ici.",
+        "cancel": "Arrêter",
+        "failed": "Nous n'avons pas pu lire ces projets.",
+        "stopped": "La lecture s'est arrêtée avant la fin.",
+        "startOver": "Recommencer"
+      },
+      "review": {
+        "prompt": "Voici ce que nous avons trouvé. Rien n'a encore été écrit.",
+        "tasks_one": "{{count}} tâche issue de {{projects}} projet(s)",
+        "tasks_other": "{{count}} tâches issues de {{projects}} projet(s)",
+        "links_one": "{{count}} lien entre tâches",
+        "links_other": "{{count}} liens entre tâches",
+        "comments_one": "{{count}} commentaire",
+        "comments_other": "{{count}} commentaires",
+        "images_one": "{{count}} image ({{size}})",
+        "images_other": "{{count}} images ({{size}})",
+        "sprints_one": "{{count}} sprint dans {{calendars}} calendrier(s)",
+        "sprints_other": "{{count}} sprints dans {{calendars}} calendrier(s)",
+        "propertiesTitle": "Champs qui deviennent des propriétés",
+        "propertyCount_one": "{{count}} tâche",
+        "propertyCount_other": "{{count}} tâches",
+        "leftBehindTitle": "Ne sera pas importé",
+        "unreadableProjects": "Projets que ce jeton ne peut pas lire : {{keys}}",
+        "sprintsSkipped_one": "{{count}} sprint : {{reason}}",
+        "sprintsSkipped_other": "{{count}} sprints : {{reason}}",
+        "noCalendar": "les sprints ont besoin de calendriers, et cette initiative n'en a pas",
+        "sprintsUndated_one": "{{count}} sprint jamais démarré, donc sans dates",
+        "sprintsUndated_other": "{{count}} sprints jamais démarrés, donc sans dates",
+        "linksOutside_one": "{{count}} lien vers un ticket que vous n'avez pas choisi",
+        "linksOutside_other": "{{count}} liens vers des tickets que vous n'avez pas choisis",
+        "commentsRestricted_one": "{{count}} commentaire que seules certaines personnes voyaient dans Jira",
+        "commentsRestricted_other": "{{count}} commentaires que seules certaines personnes voyaient dans Jira",
+        "imagesSkipped_one": "{{count}} image trop volumineuse ou illisible",
+        "imagesSkipped_other": "{{count}} images trop volumineuses ou illisibles",
+        "otherAttachments_one": "{{count}} fichier joint qui n'est pas une image",
+        "otherAttachments_other": "{{count}} fichiers joints qui ne sont pas des images",
+        "droppedFields": "Champs sans destination : {{fields}}",
+        "skippedIssues_one": "{{count}} ticket que nous n'avons pas pu lire",
+        "skippedIssues_other": "{{count}} tickets que nous n'avons pas pu lire",
+        "note": "Lancer l'import écrit tout cela dans l'initiative choisie. Annuler l'abandonne."
+      }
     }
   },
   "envelope": {

@@ -148,6 +148,18 @@ It arrives as a **new project** and touches nothing that's already here, which m
 !!! note "Todoist leaves out what you finished"
     Its export carries outstanding work only, so completed tasks won't come across. That's Todoist's export rather than our import, and the wizard says so before you upload rather than after.
 
+#### From Jira
+
+Jira has no file to drop in. Pick **Jira** in the same wizard and it reads your site directly instead:
+
+1. **Connect** with your site's address, your Atlassian email and an [API token](https://id.atlassian.com/manage-profile/security/api-tokens). The token reads only the projects you pick, and it's deleted as soon as they've been read.
+2. **Tick the projects**, choose the initiative, and decide whether comments and images come along.
+3. **Wait while it reads.** A big project takes a few minutes. You can close the window and make a cup of tea — opening the import again picks up exactly where it was.
+4. **Check what it found.** Nothing is written yet. You get the count of tasks, links, sprints, comments and images coming across, the fields that become properties, and — just as plainly — anything that won't make it.
+5. **Say who its people are**, then start it.
+
+Each Jira project becomes a new project here: its columns, fields, links between issues, sub-tasks under their parents, and each sprint as an event on a calendar named after its board. Sprints need calendars, so an initiative without them gets everything except the sprints, and the review says so first.
+
 Importing a single exported file into one tool is a different, smaller thing, and it stays on that tool's own page.
 
 ### Trash and retention

@@ -15,12 +15,14 @@
       "prompt": "Woher stammen diese Daten?",
       "names": {
         "backup": "Initiative-Sicherung",
+        "jira": "Jira",
         "todoist": "Todoist",
         "ticktick": "TickTick",
         "vikunja": "Vikunja"
       },
       "descriptions": {
         "backup": "Eine aus Initiative exportierte .zip-Datei, unverändert zurückgespielt.",
+        "jira": "Projekte direkt aus deiner Jira-Website.",
         "todoist": "Ein als CSV exportiertes Projekt.",
         "ticktick": "Eine Sicherungs-CSV mit allen Listen.",
         "vikunja": "Die data.json aus einem Vikunja-Export."
@@ -101,6 +103,79 @@
       "unmatchedHandles": "Einige Personen konnten nicht über ihr Handle zugeordnet werden: {{handles}}",
       "failedEntries": "Nicht importierte Elemente:",
       "nothing": "Es wurde nichts importiert."
+    },
+    "jira": {
+      "connect": {
+        "prompt": "Verbinde dich mit deiner Jira-Website.",
+        "siteLabel": "Adresse der Website",
+        "sitePlaceholder": "dein-team.atlassian.net",
+        "emailLabel": "Deine Atlassian-E-Mail-Adresse",
+        "tokenLabel": "API-Token",
+        "tokenLink": "API-Token erstellen",
+        "note": "Das Token wird nur zum Lesen der ausgewählten Projekte verwendet und gelöscht, sobald sie gelesen sind.",
+        "submit": "Verbinden",
+        "failed": "Wir konnten keine Verbindung zu dieser Website herstellen.",
+        "noJira": "Die Website ist erreichbar, aber dieses Token sieht dort kein Jira."
+      },
+      "choose": {
+        "prompt": "Welche Projekte sollen übernommen werden, und wohin?",
+        "projectsLabel": "Projekte",
+        "selectAll": "Alle auswählen",
+        "selectNone": "Keine auswählen",
+        "notCounted": "nicht gezählt",
+        "issues_one": "{{count}} Vorgang",
+        "issues_other": "{{count}} Vorgänge",
+        "includeComments": "Kommentare übernehmen",
+        "includeAttachments": "Bilder übernehmen",
+        "note": "Jedes Projekt wird in dieser Initiative als neues Projekt angelegt, mit Spalten, Aufgaben, Feldern, Verknüpfungen und Sprints. Geschrieben wird erst, nachdem du geprüft hast, was wir gefunden haben.",
+        "submit": "Diese Projekte lesen",
+        "failed": "Wir konnten nicht mit dem Lesen dieser Projekte beginnen.",
+        "noProjects": "Dieses Token sieht keine Jira-Projekte."
+      },
+      "fetch": {
+        "title": "Deine Jira-Website wird gelesen …",
+        "progress": "Bisher {{projects}} Projekte und {{tasks}} Aufgaben gelesen",
+        "note": "Bei einem großen Projekt kann das einige Minuten dauern. Du kannst dieses Fenster schließen; wenn du den Import wieder öffnest, geht es hier weiter.",
+        "cancel": "Anhalten",
+        "failed": "Wir konnten diese Projekte nicht lesen.",
+        "stopped": "Das Lesen wurde vor dem Ende angehalten.",
+        "startOver": "Neu beginnen"
+      },
+      "review": {
+        "prompt": "Das haben wir gefunden. Noch wurde nichts geschrieben.",
+        "tasks_one": "{{count}} Aufgabe aus {{projects}} Projekt(en)",
+        "tasks_other": "{{count}} Aufgaben aus {{projects}} Projekt(en)",
+        "links_one": "{{count}} Verknüpfung zwischen Aufgaben",
+        "links_other": "{{count}} Verknüpfungen zwischen Aufgaben",
+        "comments_one": "{{count}} Kommentar",
+        "comments_other": "{{count}} Kommentare",
+        "images_one": "{{count}} Bild ({{size}})",
+        "images_other": "{{count}} Bilder ({{size}})",
+        "sprints_one": "{{count}} Sprint in {{calendars}} Kalender(n)",
+        "sprints_other": "{{count}} Sprints in {{calendars}} Kalender(n)",
+        "propertiesTitle": "Felder, die zu Eigenschaften werden",
+        "propertyCount_one": "{{count}} Aufgabe",
+        "propertyCount_other": "{{count}} Aufgaben",
+        "leftBehindTitle": "Wird nicht übernommen",
+        "unreadableProjects": "Projekte, die dieses Token nicht lesen kann: {{keys}}",
+        "sprintsSkipped_one": "{{count}} Sprint: {{reason}}",
+        "sprintsSkipped_other": "{{count}} Sprints: {{reason}}",
+        "noCalendar": "Sprints brauchen Kalender, und diese Initiative hat keine",
+        "sprintsUndated_one": "{{count}} Sprint, der nie begonnen hat und daher keine Daten hat",
+        "sprintsUndated_other": "{{count}} Sprints, die nie begonnen haben und daher keine Daten haben",
+        "linksOutside_one": "{{count}} Verknüpfung zu einem Vorgang, den du nicht ausgewählt hast",
+        "linksOutside_other": "{{count}} Verknüpfungen zu Vorgängen, die du nicht ausgewählt hast",
+        "commentsRestricted_one": "{{count}} Kommentar, den in Jira nur bestimmte Personen sehen konnten",
+        "commentsRestricted_other": "{{count}} Kommentare, die in Jira nur bestimmte Personen sehen konnten",
+        "imagesSkipped_one": "{{count}} Bild, das zu groß ist oder nicht gelesen werden konnte",
+        "imagesSkipped_other": "{{count}} Bilder, die zu groß sind oder nicht gelesen werden konnten",
+        "otherAttachments_one": "{{count}} angehängte Datei, die kein Bild ist",
+        "otherAttachments_other": "{{count}} angehängte Dateien, die keine Bilder sind",
+        "droppedFields": "Felder ohne passenden Ort: {{fields}}",
+        "skippedIssues_one": "{{count}} Vorgang, den wir nicht lesen konnten",
+        "skippedIssues_other": "{{count}} Vorgänge, die wir nicht lesen konnten",
+        "note": "Wenn du den Import startest, wird all das in die gewählte Initiative geschrieben. Abbrechen verwirft es."
+      }
     }
   },
   "envelope": {
