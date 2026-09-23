@@ -94,6 +94,7 @@ async def main(space_key: str) -> None:
                     "id": page.get("id"),
                     "title": page.get("title"),
                     "parentId": page.get("parentId"),
+                    "parentType": page.get("parentType"),
                     "position": page.get("position"),
                     "status": page.get("status"),
                     "file": name,

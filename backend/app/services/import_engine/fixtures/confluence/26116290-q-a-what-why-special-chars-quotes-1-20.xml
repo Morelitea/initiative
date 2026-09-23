@@ -1,0 +1,1 @@
+<p>The title has slashes, a question mark, angle brackets, both quote styles, an ampersand, a hash and a percent-encoded-looking sequence. Slugs and filenames derived from it should survive.</p><p>Body with escaped entities: &lt;script&gt;alert(1)&lt;/script&gt; should render as text, not run. Ampersand: &amp;. Non-breaking&nbsp;space. Zero-width​space.</p>

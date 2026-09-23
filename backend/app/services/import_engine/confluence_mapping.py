@@ -219,11 +219,19 @@ def build_wiki_envelope(
         if page.is_folder:
             content = None
         else:
+            kids = children.get(page.id, [])
             result = storage_to_lexical(
                 page.body,
                 page=resolve_page,
                 user=lambda account: users.get(account),
                 site_url=site_url,
+                # Confluence's "children" macro draws the pages beneath this
+                # one; so does this list.
+                children=(
+                    (lambda kids=kids: _child_list(kids, slugs)["root"]["children"][0])
+                    if kids
+                    else None
+                ),
             )
             mapped.dropped.update(result.dropped)
             mentions = result.mentions
