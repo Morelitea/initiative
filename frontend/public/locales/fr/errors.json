@@ -385,6 +385,7 @@
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Cette fiche nécessite une version plus récente de l'application. Demandez à la personne qui gère ce serveur de la mettre à jour, puis réessayez.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Ceci a été créé ici plutôt qu'installé : il n'y a donc aucune fiche depuis laquelle le mettre à jour.",
   "MARKETPLACE_ALREADY_LATEST_VERSION": "Ceci est déjà à la dernière version.",
+  "MARKETPLACE_LISTING_HAS_NO_EXAMPLE": "Cette fiche n'a pas d'exemple à partir duquel commencer.",
   "MARKETPLACE_OPERATOR_CATALOG_NOT_CONFIGURED": "Ce serveur ne publie pas de répertoire de catalogue qui lui soit propre : il n'y a rien à relire.",
   "MARKETPLACE_OPERATOR_CATALOG_DIRECTORY_MISSING": "Le répertoire du catalogue est introuvable. Vérifiez que le volume est bien monté sur le chemin configuré.",
   "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING": "Une analyse du catalogue est déjà en cours. Attendez qu'elle se termine, puis réessayez.",

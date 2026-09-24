@@ -385,6 +385,7 @@
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "This listing needs a newer version of the app. Ask whoever runs this server to update, then try again.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "This was built here rather than installed, so there is no listing to update it from.",
   "MARKETPLACE_ALREADY_LATEST_VERSION": "This is already on the latest version.",
+  "MARKETPLACE_LISTING_HAS_NO_EXAMPLE": "This listing has no example to start from.",
   "MARKETPLACE_OPERATOR_CATALOG_NOT_CONFIGURED": "This server doesn't publish a catalog directory of its own, so there's nothing to rescan.",
   "MARKETPLACE_OPERATOR_CATALOG_DIRECTORY_MISSING": "The catalog directory isn't there. Check that the volume is mounted at the configured path.",
   "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING": "A catalog scan is already running. Wait for it to finish, then try again.",

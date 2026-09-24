@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.marketplace.definitions import LISTING_KINDS, LISTING_SOURCES
 
 if TYPE_CHECKING:
@@ -93,6 +94,36 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: page renders. Installing does not send this back; the server re-reads the
     #: catalog, so nothing a client holds decides what gets stored.
     definition: Optional[Dict[str, Any]] = None
+    #: The same thing filled in, when the listing carries one — what the
+    #: preview's Example toggle shows, and what "start from the example"
+    #: installs. Display data, like the definition above.
+    example: Optional[Dict[str, Any]] = None
+
+
+class ListingStartFrom(str, Enum):
+    """What an install copies: the listing itself, or its example."""
+
+    blank = "blank"
+    example = "example"
+
+
+class MarketplaceInstallRequest(SanitizedBaseModel):
+    """Install a tool listing: import a copy of it into an initiative."""
+
+    initiative_id: int
+    start_from: ListingStartFrom = ListingStartFrom.blank
+
+
+class MarketplaceInstallResult(SanitizedBaseModel):
+    """What installing a tool listing created."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    kind: ListingKind  # type: ignore[valid-type]
+    listing_uid: str
+    listing_version: str
+    #: The import's own report: what was created, under which id and name.
+    result: EnvelopeImportResult
 
 
 class MarketplaceListingPage(SanitizedBaseModel):

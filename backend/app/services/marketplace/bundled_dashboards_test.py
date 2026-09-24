@@ -123,7 +123,9 @@ class TestPublishing:
         version = await service.get_listing_version(
             session, dashboard.latest_version_id
         )
-        definition = version.definition
+        # Stored as the dashboard's envelope, around the canvas it installs.
+        assert version.definition["type"] == "initiative-dashboard"
+        definition = version.definition["definition"]
 
         assert definition["kind"] == "dashboard"
         assert definition["schema_version"] == 1
@@ -161,7 +163,7 @@ class TestPublishing:
         version = await service.get_listing_version(
             session, dashboard.latest_version_id
         )
-        assert version.definition["widgets"][0]["binding"]["params"] == {
+        assert version.definition["definition"]["widgets"][0]["binding"]["params"] == {
             "labels": ["bug", "regression"],
             "state": "open",
         }
@@ -456,7 +458,8 @@ class TestWhoMayInstallOne:
             session, DASH_UID, kind="dashboard"
         )
         assert listing.uid == DASH_UID
-        assert version.definition["widgets"][0]["binding"]["app_uid"] == APP_UID
+        canvas = version.definition["definition"]
+        assert canvas["widgets"][0]["binding"]["app_uid"] == APP_UID
 
     async def test_a_guild_without_the_app_may_not(self, session):
         """The case the browse filter cannot cover on its own. A uid read in a

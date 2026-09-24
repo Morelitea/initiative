@@ -37,6 +37,9 @@ from app.services.export.contract import RenderItem
 class DashboardAdapter(ToolExportAdapter):
     tool = Tool.dashboard
     formats = frozenset({"json"})
+    # A dashboard is queries over the community it sits in, so a listing of one
+    # previews on generated sample data rather than on anybody's results.
+    example_is_generated = True
 
     async def fetch(
         self, session: AsyncSession, user: User, guild_id: int, dashboard_id: int, /

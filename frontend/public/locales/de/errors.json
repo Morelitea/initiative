@@ -385,6 +385,7 @@
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Dieser Eintrag benötigt eine neuere Version der App. Bitte die Person, die diesen Server betreibt, um ein Update und versuche es dann erneut.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Das wurde hier erstellt und nicht installiert – es gibt also keinen Eintrag, von dem aus aktualisiert werden könnte.",
   "MARKETPLACE_ALREADY_LATEST_VERSION": "Das ist bereits auf der neuesten Version.",
+  "MARKETPLACE_LISTING_HAS_NO_EXAMPLE": "Dieser Eintrag hat kein Beispiel, mit dem man beginnen könnte.",
   "MARKETPLACE_OPERATOR_CATALOG_NOT_CONFIGURED": "Dieser Server veröffentlicht kein eigenes Katalogverzeichnis – es gibt also nichts erneut einzulesen.",
   "MARKETPLACE_OPERATOR_CATALOG_DIRECTORY_MISSING": "Das Katalogverzeichnis ist nicht vorhanden. Prüfe, ob das Volume unter dem konfigurierten Pfad eingebunden ist.",
   "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING": "Es läuft bereits ein Katalog-Scan. Warte, bis er abgeschlossen ist, und versuche es dann erneut.",

@@ -94,6 +94,12 @@ class ToolExportAdapter:
     # template. A tool with report formats names its own.
     template_id: str = "data-table"
     formats: frozenset[str] = frozenset({"json"})
+    #: What a marketplace listing of this tool shows beside what it installs.
+    #: A tool made of content previews with an example the publisher filled in;
+    #: a tool made of queries over the community's data previews with sample
+    #: data generated from the queries' shapes, because its results are the
+    #: publisher's community, not something they made for the listing.
+    example_is_generated: bool = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)

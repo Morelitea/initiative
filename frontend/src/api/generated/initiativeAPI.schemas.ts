@@ -3484,6 +3484,30 @@ export interface EnvelopeImportRequest {
   envelope: EnvelopeImportRequestEnvelope;
 }
 
+export type EnvelopeImportResultCreated = { [key: string]: number };
+
+export type EnvelopeImportResultMatched = { [key: string]: number };
+
+export type EnvelopeImportResultFailed = { [key: string]: number };
+
+/**
+ * One envelope's apply outcome — JSON-serializable because it is
+ * persisted verbatim into ``import_jobs.result`` and rendered by the UI.
+ */
+export interface EnvelopeImportResult {
+  entity_id?: number | null;
+  entity_title?: string;
+  created?: EnvelopeImportResultCreated;
+  matched?: EnvelopeImportResultMatched;
+  failed?: EnvelopeImportResultFailed;
+  renamed_properties?: string[];
+  renamed_property_count?: number;
+  links_created?: number;
+  links_unresolved?: number;
+  unmatched_handles?: string[];
+  warnings?: string[];
+}
+
 export type ExportJobReadParams = { [key: string]: unknown };
 
 export type ExportJobStatus = (typeof ExportJobStatus)[keyof typeof ExportJobStatus];
@@ -5287,8 +5311,16 @@ export type ListingKind = (typeof ListingKind)[keyof typeof ListingKind];
 export const ListingKind = {
   app: "app",
   auto: "auto",
+  calendar: "calendar",
+  counter_group: "counter_group",
   dashboard: "dashboard",
+  document: "document",
+  gallery: "gallery",
+  post: "post",
   profile_pack: "profile_pack",
+  project: "project",
+  queue: "queue",
+  wiki: "wiki",
 } as const;
 
 /**
@@ -5300,6 +5332,16 @@ export const ListingSource = {
   builtin: "builtin",
   operator: "operator",
   registry: "registry",
+} as const;
+
+/**
+ * What an install copies: the listing itself, or its example.
+ */
+export type ListingStartFrom = (typeof ListingStartFrom)[keyof typeof ListingStartFrom];
+
+export const ListingStartFrom = {
+  blank: "blank",
+  example: "example",
 } as const;
 
 export type LoginMethod = (typeof LoginMethod)[keyof typeof LoginMethod];
@@ -5350,7 +5392,27 @@ export interface LoginProvidersResponse {
   guild_name: string | null;
 }
 
+/**
+ * Install a tool listing: import a copy of it into an initiative.
+ */
+export interface MarketplaceInstallRequest {
+  initiative_id: number;
+  start_from?: ListingStartFrom;
+}
+
+/**
+ * What installing a tool listing created.
+ */
+export interface MarketplaceInstallResult {
+  kind: ListingKind;
+  listing_uid: string;
+  listing_version: string;
+  result: EnvelopeImportResult;
+}
+
 export type MarketplaceListingDetailDefinition = { [key: string]: unknown } | null;
+
+export type MarketplaceListingDetailExample = { [key: string]: unknown } | null;
 
 /**
  * One published version of a listing.
@@ -5383,6 +5445,7 @@ export interface MarketplaceListingDetail {
   updated_at: string;
   long_description: string | null;
   definition: MarketplaceListingDetailDefinition;
+  example: MarketplaceListingDetailExample;
 }
 
 /**

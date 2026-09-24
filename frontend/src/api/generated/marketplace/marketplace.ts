@@ -23,6 +23,8 @@ import type {
 import type {
   HTTPValidationError,
   ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  MarketplaceInstallRequest,
+  MarketplaceInstallResult,
   MarketplaceListingDetail,
   MarketplaceListingPage,
   OperatorCatalogScanResult,
@@ -31,7 +33,7 @@ import type {
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
-import type { ErrorType } from "../../mutator";
+import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -993,3 +995,141 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+/**
+ * Install a tool's listing: import a copy of it into an initiative.
+ *
+ * Any member who may create that tool in the initiative may install one —
+ * content runs no code and reaches nothing, so this is the importer's own
+ * permission and nothing more. The copy is the member's: it records the
+ * listing and version it came from, and nothing links it back.
+ *
+ * Apps and profile packs install elsewhere; a uid naming one reads as not
+ * found here, as it would from any installer that cannot install it.
+ * @summary Install Marketplace Listing
+ */
+export const installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost = (
+  guildId: number,
+  uid: string,
+  marketplaceInstallRequest: BodyType<MarketplaceInstallRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MarketplaceInstallResult>(
+    {
+      url: `/api/v1/g/${guildId}/marketplace/listings/by-uid/${uid}/install`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: marketplaceInstallRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationKey =
+  () => ["installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost"] as const;
+
+export const getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+        >
+      >,
+      TError,
+      InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+      >
+    >,
+    TError,
+    InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+        >
+      >,
+      InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables
+    > = (props) => {
+      const { guildId, uid, data } = props ?? {};
+
+      return installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost(
+        guildId,
+        uid,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+      >
+    >
+  >;
+export type InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationBody =
+  BodyType<MarketplaceInstallRequest>;
+export type InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables =
+  { guildId: number; uid: string; data: BodyType<MarketplaceInstallRequest> };
+
+/**
+ * @summary Install Marketplace Listing
+ */
+export const useInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+        >
+      >,
+      TError,
+      InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost>
+  >,
+  TError,
+  InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};

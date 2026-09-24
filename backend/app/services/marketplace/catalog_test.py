@@ -180,9 +180,11 @@ class TestDefinitions:
         listing = await service.upsert_listing(session, _manifest(), source="builtin")
         version = await service.get_listing_version(session, listing.latest_version_id)
         assert version is not None
-        # Canonical shape, not whatever the manifest happened to carry.
-        assert version.definition["kind"] == "dashboard"
-        assert version.definition["layout"] == {"columns": 12}
+        # Canonical shape, not whatever the manifest happened to carry: the
+        # dashboard's envelope, around a normalized canvas.
+        assert version.definition["type"] == "initiative-dashboard"
+        assert version.definition["definition"]["kind"] == "dashboard"
+        assert version.definition["definition"]["layout"] == {"columns": 12}
 
     async def test_an_app_listing_must_name_a_mountable_tool(self, session):
         """An app definition is narrow on purpose: a kind, and which of this

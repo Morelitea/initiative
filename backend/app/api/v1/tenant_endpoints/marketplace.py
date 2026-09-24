@@ -12,10 +12,10 @@ install: both run on the guild-routed session, and both read the guild's own
 installs through :func:`installed_app_uids`, so a card and the install behind
 it always agree.
 
-Reading is all that happens here. Listings are written by the system engine
-(boot seeding, the operator's catalog directory, the registry refresh) through
-the platform routes; installing writes the guild's own schema through the
-tool's endpoints.
+Listings are written by the system engine (boot seeding, the operator's
+catalog directory, the registry refresh) through the platform routes. Installing
+writes the guild's own schema: a tool's listing through that tool's importer
+(below), an app through the guild's app routes.
 """
 
 from typing import Annotated, Optional
@@ -28,18 +28,30 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import MarketplaceMessages
+from app.core.messages import ImportEngineMessages, MarketplaceMessages
 from app.models.platform.marketplace import MarketplaceListing
 from app.models.platform.user import User
 from app.schemas.platform.marketplace import (
     ListingKind,
+    ListingStartFrom,
+    MarketplaceInstallRequest,
+    MarketplaceInstallResult,
     MarketplaceListingDetail,
     MarketplaceListingPage,
     serialize_listing_summary,
 )
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
-from app.services.marketplace.installs import installed_app_uids, listing_is_offered
+from app.services.import_engine.contract import ImportEngineError
+from app.services.marketplace.definitions import TOOL_LISTING_KINDS
+from app.services.marketplace.installs import (
+    ListingInstallError,
+    count_install,
+    installed_app_uids,
+    listing_is_offered,
+    resolve_listing_install,
+)
+from app.services.marketplace.tool_listings import install_tool_listing
 
 router = APIRouter()
 
@@ -112,6 +124,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
         # A preview of what installing would produce. The install path re-reads
         # the catalog itself, so this is display data, not an input.
         definition=dict(latest.definition) if latest else None,
+        example=dict(latest.example) if latest and latest.example else None,
     )
 
 
@@ -156,3 +169,79 @@ async def read_marketplace_listing(
             detail=MarketplaceMessages.LISTING_NOT_FOUND,
         )
     return await _detail(session, listing)
+
+
+@router.post(
+    "/listings/by-uid/{uid}/install",
+    response_model=MarketplaceInstallResult,
+    status_code=status.HTTP_201_CREATED,
+)
+async def install_marketplace_listing(
+    uid: str,
+    payload: MarketplaceInstallRequest,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> MarketplaceInstallResult:
+    """Install a tool's listing: import a copy of it into an initiative.
+
+    Any member who may create that tool in the initiative may install one —
+    content runs no code and reaches nothing, so this is the importer's own
+    permission and nothing more. The copy is the member's: it records the
+    listing and version it came from, and nothing links it back.
+
+    Apps and profile packs install elsewhere; a uid naming one reads as not
+    found here, as it would from any installer that cannot install it.
+    """
+    # Installing is authoring, like any import: a community whose content is
+    # frozen takes none, and a grant reaches existing content only.
+    if guild_context.content_read_only or guild_context.is_pam:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+    listing = await catalog_service.get_listing_by_uid(session, uid)
+    tool = TOOL_LISTING_KINDS.get(listing.kind) if listing is not None else None
+    if listing is None or tool is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MarketplaceMessages.LISTING_NOT_FOUND,
+        )
+    try:
+        listing, version = await resolve_listing_install(
+            session, uid, kind=listing.kind
+        )
+    except ListingInstallError as exc:
+        raise HTTPException(
+            status_code=(
+                status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
+            ),
+            detail=exc.code,
+        ) from exc
+    if payload.start_from == ListingStartFrom.example and not version.example:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MarketplaceMessages.LISTING_HAS_NO_EXAMPLE,
+        )
+
+    try:
+        result = await install_tool_listing(
+            session,
+            tool=tool,
+            listing=listing,
+            version=version,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=payload.initiative_id,
+            start_from=payload.start_from.value,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    await session.commit()
+    await count_install(listing.id)
+    return MarketplaceInstallResult(
+        kind=listing.kind,
+        listing_uid=listing.uid,
+        listing_version=version.version,
+        result=result,
+    )
