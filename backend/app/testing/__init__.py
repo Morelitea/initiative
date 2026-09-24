@@ -12,6 +12,7 @@ guild's ``guild_<id>`` schema before touching the database (see
 
 from app.testing.actor import Actor, make_actor
 from app.testing.audit import emitted
+from app.testing.captcha import captcha_switched_on
 from app.testing.app_channel import (
     APP_CHANNEL_SECRET,
     channel_headers,
@@ -91,6 +92,7 @@ from app.testing.routing import route_as, route_system
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
 __all__ = [
+    "captcha_switched_on",
     "assertion_for",
     "create_passkey",
     "registration_for",
