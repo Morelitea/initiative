@@ -21,6 +21,7 @@ from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS
 from app.db.schema_provisioning import platform_role_name
 from app.db.system_grants import (
     SHARED_TABLE_APP_GUILD_BASE_GRANTS,
+    SHARED_TABLE_APP_INSTALL_BASE_GRANTS,
     SHARED_TABLE_APP_SUPERADMIN_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_PLATFORM_BASE_GRANTS,
@@ -96,6 +97,7 @@ def test_registry_records_the_system_engine_alone():
         SHARED_TABLE_APP_GUILD_BASE_GRANTS,
         SHARED_TABLE_PLATFORM_BASE_GRANTS,
         SHARED_TABLE_APP_SUPERADMIN_GRANTS,
+        SHARED_TABLE_APP_INSTALL_BASE_GRANTS,
     ):
         assert matrix[TABLE] is None
     assert TABLE not in SHARED_TABLE_TIER_GRANTS
@@ -144,9 +146,14 @@ async def test_table_forces_row_security_with_no_policy(session):
 
 
 async def test_no_request_role_holds_a_verb(session):
-    """The request floors, the seat floor and every tier holding
-    ``config.manage`` hold nothing on the table."""
-    roles = [*REQUEST_FLOORS, "app_superadmin", *_config_manage_tiers()]
+    """The request floors, the seat floor, the install floor and every tier
+    holding ``config.manage`` hold nothing on the table."""
+    roles = [
+        *REQUEST_FLOORS,
+        "app_superadmin",
+        "app_install_base",
+        *_config_manage_tiers(),
+    ]
     for role in roles:
         for verb in VERBS:
             held = (

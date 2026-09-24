@@ -238,6 +238,7 @@ KNOWN_ROLES = (
             "app_dm_reader",
             "app_profile_reader",
             "app_superadmin",
+            "app_install_base",
             "initiative_billing",
             "platform_base",
             "platform_base_ro",

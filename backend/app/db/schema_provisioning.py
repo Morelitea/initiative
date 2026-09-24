@@ -116,6 +116,18 @@ def guild_query_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_q"
 
 
+def guild_app_role_name(guild_id: int) -> str:
+    """The role an installed app's request assumes, e.g. ``guild_42_app``.
+
+    It holds only what :data:`app.db.app_rls.APP_TABLE_ACCESS` names: ``SELECT``
+    on a table an app reads, DML on a table an app writes or causes to be
+    written, and nothing on any other table in the schema. It takes no default
+    privileges, so a table added later reaches it through an entry there. Its
+    reach into ``public`` is ``app_install_base``, a floor of its own.
+    """
+    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_app"
+
+
 # Permission tables the restricted ``support`` role may READ but never WRITE:
 # what a resource is shared with, and what an installed app may do in
 # somebody's name — access management, which a content grant is not for.
@@ -301,6 +313,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
                     "__stamp_support__",
                     "__stamp_q__",
                     "__stamp_seat__",
+                    "__stamp_app__",
                 )
             ).encode()
         )
@@ -483,6 +496,38 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
     return len(policies) + len(triggers) + functions
 
 
+def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
+    """The app role's grants, rendered from ``APP_TABLE_ACCESS`` in table order.
+
+    A scoped table an app writes, a side-effect table and the subscriptions
+    table take DML (the row policies decide which rows); a scoped read-only
+    table takes ``SELECT``. Every other table in the schema takes nothing.
+    The role's table grants are cleared first, so a re-provision leaves it
+    holding what the registry says now.
+    """
+    from app.db.app_rls import APP_TABLE_ACCESS, AppTableKind
+
+    stmts = [
+        f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{app_role}"',
+        f'GRANT USAGE ON SCHEMA "{schema}" TO "{app_role}"',
+    ]
+    for table in sorted(APP_TABLE_ACCESS):
+        access = APP_TABLE_ACCESS[table]
+        if access.writable or access.kind is AppTableKind.side_effect:
+            verbs = "SELECT, INSERT, UPDATE, DELETE"
+        else:
+            verbs = "SELECT"
+        stmts.append(f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{app_role}"')
+    stmts += [
+        # Ids of the rows it writes come from the schema's sequences.
+        f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{app_role}"',
+        f'GRANT app_install_base TO "{app_role}"',
+        f'GRANT "{app_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
+        f"WITH INHERIT FALSE",
+    ]
+    return stmts
+
+
 def _grant_statements(
     schema: str,
     role: str,
@@ -490,6 +535,7 @@ def _grant_statements(
     support_role: str,
     query_role: str,
     seat_role: str,
+    app_role: str,
 ) -> list[str]:
     """Fail-closed grants tying a guild's ``role`` (read/write), ``ro_role``
     (read-only) and ``support_role`` (restricted read/write) to its ``schema``.
@@ -506,7 +552,8 @@ def _grant_statements(
     role (assumed by PAM read grants) gets SELECT only, so a write is denied.
     The support role (scoped read_write grants) gets DML on content but is
     revoked write on the structural/permission tables — the DB-enforced
-    "no member/permission management" line.
+    "no member/permission management" line. The app role (an installed app's
+    requests) holds only what ``_app_role_grant_statements`` renders.
     """
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
@@ -587,6 +634,9 @@ def _grant_statements(
             f'REVOKE INSERT, UPDATE, DELETE ON "{schema}"."{table}" '
             f'FROM "{support_role}"'
         )
+    # App role: table by table from the app registry, with no default
+    # privileges and no guild role composed in.
+    stmts.extend(_app_role_grant_statements(schema, app_role))
     return stmts
 
 
@@ -628,16 +678,20 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     support_role = guild_support_role_name(guild_id)
     query_role = guild_query_role_name(guild_id)
     seat_role = guild_superadmin_role_name(guild_id)
+    app_role = guild_app_role_name(guild_id)
     await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
     await _ensure_role(conn, role)
     await _ensure_role(conn, ro_role)
     await _ensure_role(conn, support_role)
     await _ensure_role(conn, query_role)
     await _ensure_role(conn, seat_role)
+    await _ensure_role(conn, app_role)
     await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
     await _exec_batch(
         conn,
-        _grant_statements(schema, role, ro_role, support_role, query_role, seat_role),
+        _grant_statements(
+            schema, role, ro_role, support_role, query_role, seat_role, app_role
+        ),
     )
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
     await apply_guild_capture(conn, schema)  # change-capture triggers
@@ -666,6 +720,7 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
         guild_support_role_name(guild_id),
         guild_query_role_name(guild_id),
         guild_superadmin_role_name(guild_id),
+        guild_app_role_name(guild_id),
     ):
         if await _role_exists(conn, role):
             # DROP OWNED requires the role's PRIVILEGES, not just ADMIN OPTION

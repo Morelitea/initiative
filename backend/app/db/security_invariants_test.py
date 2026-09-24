@@ -35,6 +35,7 @@ from app.db.user_columns import (
 from app.db.public_rls import PUBLIC_RLS
 from app.db.system_grants import (
     SHARED_TABLE_APP_GUILD_BASE_GRANTS,
+    SHARED_TABLE_APP_INSTALL_BASE_GRANTS,
     SHARED_TABLE_APP_SUPERADMIN_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_PLATFORM_BASE_GRANTS,
@@ -75,6 +76,7 @@ def _app_role_family() -> list[str]:
         "app_guild_base",
         f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
         "app_superadmin",
+        "app_install_base",
         *(platform_role_name(t) for t in PLATFORM_TIERS),
         billing_role_name(),
     ]
@@ -181,6 +183,15 @@ async def test_app_superadmin_grants_match_audited_matrix(engine):
     registry does not name arrived by a hand-written grant."""
     live = await _table_grants_for(engine, "app_superadmin")
     _assert_matrix("app_superadmin", live, SHARED_TABLE_APP_SUPERADMIN_GRANTS)
+
+
+async def test_app_install_base_grants_match_audited_matrix(engine):
+    """The install floor holds what the registry says and nothing more.
+
+    ``app_install_base`` takes no default privileges, so anything here that
+    the registry does not name arrived by a hand-written grant."""
+    live = await _table_grants_for(engine, "app_install_base")
+    _assert_matrix("app_install_base", live, SHARED_TABLE_APP_INSTALL_BASE_GRANTS)
 
 
 async def test_platform_tier_grants_match_the_tier_registry(engine):
