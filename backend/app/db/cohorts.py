@@ -178,12 +178,15 @@ def fans_out(session: AsyncSession) -> bool:
 
 
 @asynccontextmanager
-async def community_session(guild_id: int) -> AsyncIterator[AsyncSession]:
-    """A read-only request-path session from ``guild_id``'s cohort, for one
-    community's part of a read across several. It is closed without a commit,
-    so what it reads is all it is for."""
+async def community_session(
+    guild_id: int, *, read_only: bool = True
+) -> AsyncIterator[AsyncSession]:
+    """A request-path session from ``guild_id``'s cohort, for one community's
+    part of work across several. Read-only unless ``read_only`` is False, in
+    which case the caller commits what it wrote."""
     async with request_sessionmaker(guild_id)() as session:
-        session.info[READ_ONLY_INFO_KEY] = True
+        if read_only:
+            session.info[READ_ONLY_INFO_KEY] = True
         yield session
 
 
