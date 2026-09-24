@@ -626,6 +626,7 @@
   "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "Este despliegue no permite iniciar sesión de esa forma.",
   "SETTINGS_LOGIN_METHODS_GUILD_POLICIES": "Una comunidad todavía exige iniciar sesión mediante un proveedor propio. Retira antes ese requisito.",
   "OPERATOR_ALREADY_ANONYMIZED": "Esa cuenta ya ha sido anonimizada.",
+  "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE": "No puedes suspender ni restablecer una cuenta cuyo rol es superior al tuyo.",
   "OPERATOR_CANNOT_SUSPEND_INACTIVE": "Esa cuenta ya está inactiva, así que no hay nada que suspender.",
   "OPERATOR_CANNOT_SUSPEND_SELF": "No puedes suspender tu propia cuenta.",
   "CANNOT_REACTIVATE_ANONYMIZED": "Una cuenta anonimizada no se puede reactivar.",

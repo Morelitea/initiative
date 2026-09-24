@@ -626,6 +626,7 @@
   "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "Ce déploiement n'autorise pas ce mode de connexion.",
   "SETTINGS_LOGIN_METHODS_GUILD_POLICIES": "Une communauté exige encore une connexion via un fournisseur qui lui est propre. Levez d'abord cette exigence.",
   "OPERATOR_ALREADY_ANONYMIZED": "Ce compte a déjà été anonymisé.",
+  "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE": "Vous ne pouvez pas suspendre ni rétablir un compte dont le rôle est supérieur au vôtre.",
   "OPERATOR_CANNOT_SUSPEND_INACTIVE": "Ce compte est déjà inactif, il n'y a donc rien à suspendre.",
   "OPERATOR_CANNOT_SUSPEND_SELF": "Vous ne pouvez pas suspendre votre propre compte.",
   "CANNOT_REACTIVATE_ANONYMIZED": "Un compte anonymisé ne peut pas être réactivé.",
