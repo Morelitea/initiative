@@ -1275,7 +1275,6 @@ async def _set_guild_images(
     session: AsyncSession,
     guild: Guild,
     *,
-    uploader: User,
     icon: tuple[tuple[int, int, int], tuple[int, int, int]],
     banner: tuple[tuple[int, int, int], tuple[int, int, int]],
 ) -> None:
@@ -1300,9 +1299,7 @@ async def _set_guild_images(
             GuildImageVariant.card, _gradient_png(1040, 260, *banner), None
         ),
     ]
-    await guild_images.set_images(
-        session, guild_id=guild.id, user_id=uploader.id, renditions=renditions
-    )
+    await guild_images.set_images(session, guild_id=guild.id, renditions=renditions)
 
 
 async def _list_guild_in_directory(
@@ -1372,7 +1369,7 @@ async def _create_community_guild(
         creator=admin,
     )
     await _list_guild_in_directory(session, guild, categories=categories)
-    await _set_guild_images(session, guild, uploader=admin, icon=icon, banner=banner)
+    await _set_guild_images(session, guild, icon=icon, banner=banner)
     guild_id = guild.id
 
     # Same order the community sections above use: commit the shared rows,
@@ -3624,7 +3621,6 @@ async def seed() -> None:
         await _set_guild_images(
             session,
             g1,
-            uploader=owner_user,
             icon=((190, 18, 60), (136, 19, 55)),
             banner=((69, 10, 30), (190, 18, 60)),
         )
@@ -6889,7 +6885,6 @@ async def seed() -> None:
         await _set_guild_images(
             session,
             g2,
-            uploader=owner_user,
             icon=((37, 99, 235), (30, 58, 138)),
             banner=((15, 23, 42), (37, 99, 235)),
         )
@@ -8893,7 +8888,6 @@ async def seed() -> None:
         await _set_guild_images(
             session,
             g3,
-            uploader=admin3,
             icon=((13, 148, 136), (15, 118, 110)),
             banner=((4, 47, 46), (20, 184, 166)),
         )
