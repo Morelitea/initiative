@@ -627,7 +627,7 @@ async def test_a_provider_rule_places_where_the_community_accepts_it(
         await _provider_rule(session, provider_id=provider.id, guild_id=guild_id)
     await session.commit()
 
-    await _sync(session, user_id=newcomer.id, provider_id=provider.id, claims={})
+    await _sync(session, user_id=newcomer.id, provider_id=provider.id, claims=_ADMITTED)
 
     assert await _joined(session, newcomer.id) == {accepting.id}
 
@@ -691,14 +691,83 @@ async def test_a_provider_rule_naming_a_directory_places_only_its_arrivals(
         session,
         user_id=from_acme.id,
         provider_id=provider.id,
-        claims={"idp": "acme-adfs"},
+        claims={**_ADMITTED, "idp": "acme-adfs"},
     )
     await _sync(
         session,
         user_id=from_elsewhere.id,
         provider_id=provider.id,
-        claims={"idp": "globex-okta"},
+        claims={**_ADMITTED, "idp": "globex-okta"},
     )
 
     assert await _joined(session, from_acme.id) == {acme.id, everyone.id}
     assert await _joined(session, from_elsewhere.id) == set()
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_counts_only_arrivals_the_communitys_narrowing_admits(
+    session: AsyncSession,
+):
+    """A community that narrows a shared provider and accepts its rules is
+    placed into only for the arrivals its narrowing counts as its own, even by
+    a rule that names no directory."""
+    owner = await create_user(session)
+    accepting = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="shared")
+    await create_guild_provider_connection(
+        session, guild=accepting, provider=provider, accepts_provider_placement=True
+    )
+    await _provider_rule(session, provider_id=provider.id, guild_id=accepting.id)
+    in_tenant = await create_user(session)
+    out_of_tenant = await create_user(session)
+    await session.commit()
+
+    await _sync(
+        session, user_id=in_tenant.id, provider_id=provider.id, claims=_ADMITTED
+    )
+    await _sync(
+        session,
+        user_id=out_of_tenant.id,
+        provider_id=provider.id,
+        claims={NARROWED_CLAIM: "elsewhere.example"},
+    )
+
+    assert await _joined(session, in_tenant.id) == {accepting.id}
+    assert await _joined(session, out_of_tenant.id) == set()
+
+
+@pytest.mark.integration
+async def test_placing_everywhere_still_honours_a_communitys_own_narrowing(
+    session: AsyncSession,
+):
+    """With provider rules applied everywhere, a community with no connection
+    to the provider is placed into for anybody the rule matches, and one that
+    narrows the provider only for the arrivals it counts as its own."""
+    from app.services.platform import app_settings as app_settings_service
+
+    settings_row = await app_settings_service.get_app_settings(session)
+    settings_row.provider_placement_everywhere = True
+    session.add(settings_row)
+    owner = await create_user(session)
+    unconnected = await create_guild(session, creator=owner)
+    narrowed = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="shared")
+    await create_guild_provider_connection(session, guild=narrowed, provider=provider)
+    for guild_id in (unconnected.id, narrowed.id):
+        await _provider_rule(session, provider_id=provider.id, guild_id=guild_id)
+    in_tenant = await create_user(session)
+    out_of_tenant = await create_user(session)
+    await session.commit()
+
+    await _sync(
+        session, user_id=in_tenant.id, provider_id=provider.id, claims=_ADMITTED
+    )
+    await _sync(
+        session,
+        user_id=out_of_tenant.id,
+        provider_id=provider.id,
+        claims={NARROWED_CLAIM: "elsewhere.example"},
+    )
+
+    assert await _joined(session, in_tenant.id) == {unconnected.id, narrowed.id}
+    assert await _joined(session, out_of_tenant.id) == {unconnected.id}
