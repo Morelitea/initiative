@@ -6,16 +6,16 @@ community's pictures are the community's, and a notice or its screenshots are
 the deployment's. The columns go, and with them the one foreign key without a
 delete rule, on ``guild_images``, that stopped an account from being removed.
 
-Revision ID: 20260924_0373
-Revises: 20260923_0372
+Revision ID: 20260924_0374
+Revises: 20260924_0373
 Create Date: 2026-09-24
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260924_0373"
-down_revision = "20260923_0372"
+revision = "20260924_0374"
+down_revision = "20260924_0373"
 branch_labels = None
 depends_on = None
 

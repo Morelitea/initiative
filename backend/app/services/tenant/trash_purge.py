@@ -46,6 +46,8 @@ from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.services import audit as audit_service
+from app.services.storage import get_guild_storage
+from app.services.tenant.attachments import release_unclaimed_pasted_images
 from app.services.tenant.soft_delete import hard_purge_entity
 
 
@@ -166,7 +168,13 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
         session.expunge_all()
         await set_rls_context(session, guild_id=guild_id)
         await _run_purge_pass(session, now=now, guild_id=guild_id)
+        # Pictures pasted and never saved — the tab was closed rather than
+        # left — go once their grace period is over.
+        unclaimed = await release_unclaimed_pasted_images(session, now=now)
         await session.commit()
+        storage = get_guild_storage(guild_id)
+        for name in unclaimed:
+            storage.delete(name)
 
 
 async def process_trash_purges() -> None:

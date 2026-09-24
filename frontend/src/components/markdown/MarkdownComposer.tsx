@@ -1,22 +1,33 @@
+import { Camera, ImagePlus, Images } from "lucide-react";
 import {
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
   type KeyboardEvent,
   type ReactNode,
   type RefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Markdown } from "@/components/Markdown";
+import { usePhotoCapture } from "@/components/ui/image-picker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   continueList,
+  imageMarkdown,
+  imagesIn,
   type MarkdownSelection,
   type MarkdownTransform,
 } from "@/lib/markdownEditing";
+import { canCapturePhoto } from "@/lib/nativeCamera";
 import { cn } from "@/lib/utils";
 
 import { MARKDOWN_SHORTCUTS, MarkdownToolbar, type ToolbarItem } from "./MarkdownToolbar";
@@ -45,6 +56,9 @@ interface MarkdownComposerProps {
   /** A surface's own toolbar actions, which share the row's overflow menu.
    *  A comment's mention triggers are these. */
   tools?: ToolbarItem[];
+  /** Stores a pasted, dropped or chosen picture and answers with its address.
+   *  Without it, the field takes text only. */
+  onUploadImage?: (file: File) => Promise<string>;
   /** Shrinks the chrome for a reply box or an inline edit. */
   compact?: boolean;
   /** Which tab the field opens on. A surface whose text is usually read
@@ -78,6 +92,7 @@ export const MarkdownComposer = ({
   overlay,
   actions,
   tools,
+  onUploadImage,
   compact = false,
   defaultMode = "write",
   className,
@@ -138,6 +153,117 @@ export const MarkdownComposer = ({
     },
     [commit, disabled, value]
   );
+
+  // The text as it stands now, for an upload finishing after renders that
+  // came since it started — its placeholder has to be found in *that* text.
+  const latestValue = useRef(value);
+  latestValue.current = value;
+  const uploadCount = useRef(0);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /** Put a picture where the caret is: a placeholder at once, the picture
+   *  when it has been stored, and nothing at all if it could not be. */
+  const insertImages = useCallback(
+    (files: File[]) => {
+      const field = innerRef.current;
+      if (!onUploadImage || !field || disabled || files.length === 0) return;
+      const placeholders = files.map((file) => {
+        uploadCount.current += 1;
+        return {
+          file,
+          text: `![${t("markdownEditor.uploadingImage", {
+            name: file.name.replace(/[[\]()]/g, ""),
+          })}](uploading:${uploadCount.current})`,
+        };
+      });
+      const start = field.selectionStart;
+      const end = field.selectionEnd;
+      const before = value.slice(0, start);
+      // A picture is a block of its own, so it starts on a fresh line.
+      const lead = before === "" || before.endsWith("\n") ? "" : "\n";
+      const written = lead + placeholders.map((p) => p.text).join("\n");
+      const caret = start + written.length;
+      const withPlaceholders = before + written + value.slice(end);
+      // Known now rather than at the next render: an upload that finishes
+      // first has to find its placeholder in this text, not the one before it.
+      latestValue.current = withPlaceholders;
+      commit({ value: withPlaceholders, start: caret, end: caret });
+
+      const settle = (text: string, replacement: string) => {
+        const next = latestValue.current.replace(text, replacement);
+        latestValue.current = next;
+        onChange(next);
+      };
+      for (const { file, text } of placeholders) {
+        onUploadImage(file).then(
+          (url) => settle(text, imageMarkdown(file.name, url)),
+          (error: unknown) => {
+            settle(text, "");
+            toast.error(getErrorMessage(error, "common:markdownEditor.imageUploadFailed"));
+          }
+        );
+      }
+    },
+    [commit, disabled, onChange, onUploadImage, t, value]
+  );
+
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onUploadImage) return;
+    const files = imagesIn(event.clipboardData);
+    if (files.length === 0) return;
+    event.preventDefault();
+    insertImages(files);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLTextAreaElement>) => {
+    if (!onUploadImage) return;
+    const files = imagesIn(event.dataTransfer);
+    if (files.length === 0) return;
+    event.preventDefault();
+    insertImages(files);
+  };
+
+  const handleChosen = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    // Cleared so choosing the same picture twice in a row still fires.
+    event.target.value = "";
+    insertImages(files);
+  };
+
+  const { capture } = usePhotoCapture((file) => insertImages([file]));
+
+  // Paste and drop need a keyboard and a pointer; the button is how a phone
+  // gets a picture in — and on the app it offers the camera first, as every
+  // other picture control there does.
+  const allTools = useMemo<ToolbarItem[] | undefined>(() => {
+    if (!onUploadImage) return tools;
+    const chooseFile = () => fileInput.current?.click();
+    return [
+      ...(tools ?? []),
+      {
+        id: "image",
+        label: t("markdownEditor.image"),
+        icon: ImagePlus,
+        onClick: chooseFile,
+        choices: canCapturePhoto()
+          ? [
+              {
+                id: "camera",
+                label: t("imagePicker.takePhoto"),
+                icon: Camera,
+                onSelect: () => void capture("camera"),
+              },
+              {
+                id: "library",
+                label: t("imagePicker.chooseFromLibrary"),
+                icon: Images,
+                onSelect: () => void capture("library"),
+              },
+            ]
+          : undefined,
+      },
+    ];
+  }, [capture, onUploadImage, t, tools]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     onKeyDown?.(event);
@@ -202,7 +328,7 @@ export const MarkdownComposer = ({
           onApply={apply}
           disabled={toolbarDisabled}
           className="min-w-0 flex-1"
-          tools={tools}
+          tools={allTools}
         />
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
@@ -218,6 +344,8 @@ export const MarkdownComposer = ({
             value={value}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onDrop={handleDrop}
             onSelect={onSelect}
             onBlur={onBlur}
             placeholder={placeholder}
@@ -227,6 +355,18 @@ export const MarkdownComposer = ({
             className="resize-y rounded-none rounded-b-md border-0 shadow-none focus-visible:ring-0"
           />
           {overlay}
+          {onUploadImage && (
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              tabIndex={-1}
+              aria-hidden
+              onChange={handleChosen}
+            />
+          )}
         </div>
       </TabsContent>
 

@@ -364,6 +364,7 @@ async def hard_purge_entity(
     from app.services.tenant.attachments import (
         purge_document_uploads,
         purge_gallery_image_uploads,
+        purge_pasted_images,
     )
     from app.services.tenant.reactions import purge_comment_reactions
 
@@ -388,6 +389,12 @@ async def hard_purge_entity(
     doomed_images = [i for i in all_doomed if isinstance(i, GalleryImage)]
     if doomed_images:
         await purge_gallery_image_uploads(session, doomed_images)
+
+    # Pictures pasted into a task's description or a comment go with it,
+    # unless something that stays still shows them.
+    await purge_pasted_images(
+        session, [row for row in all_doomed if isinstance(row, (Task, Comment))]
+    )
 
     doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:

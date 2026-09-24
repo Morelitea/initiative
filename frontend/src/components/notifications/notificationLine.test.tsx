@@ -103,3 +103,24 @@ describe("notificationLink — a target_path without a guild", () => {
     expect(notificationLink(notice("username_changed", {}))).toBeNull();
   });
 });
+
+describe("notificationText — mentions", () => {
+  it("names the task whose description mentioned you", () => {
+    const line = notificationText(
+      notice("mention", { task_id: 7, task_title: "Ship it", mentioned_by_name: "ada" }),
+      t
+    );
+
+    expect(line).toContain("notifications.mentionTaskDescription");
+    expect(line).toContain("Ship it");
+  });
+
+  it("still reads a mention in a comment on a task as a comment mention", () => {
+    const line = notificationText(
+      notice("mention", { task_id: 7, comment_id: 3, context_title: "Ship it" }),
+      t
+    );
+
+    expect(line).toContain("notifications.mentionComment");
+  });
+});

@@ -44,6 +44,13 @@ DEFAULT_GUILD_RETENTION_DAYS = 90
 #: people in it, and what it owes the person leaving.
 DEFAULT_ACCOUNT_RETENTION_DAYS = 30
 
+#: How long a community sits on hold before it is deleted, in days.
+#:
+#: Deleted, not destroyed: once this runs out the community moves to
+#: ``deleted`` and the retention window above starts, so an operator can still
+#: put it back. The figure is the deployment's, like the retention window.
+DEFAULT_HOLD_DELETION_DAYS = 30
+
 #: The shortest window a deployment may set, for either. A day, because a
 #: window measured in hours is not one somebody notices their mistake inside
 #: of.
@@ -151,6 +158,15 @@ class AppSetting(SQLModel, table=True):
         default=DEFAULT_GUILD_RETENTION_DAYS,
         sa_column=Column(
             Integer, nullable=True, server_default=str(DEFAULT_GUILD_RETENTION_DAYS)
+        ),
+    )
+    # How long a community stays on hold before it is deleted, in days, counted
+    # from when it was put there. NULL means never: a held community waits for
+    # somebody to lift the hold or delete it.
+    on_hold_community_deletion_days: Optional[int] = Field(
+        default=DEFAULT_HOLD_DELETION_DAYS,
+        sa_column=Column(
+            Integer, nullable=True, server_default=str(DEFAULT_HOLD_DELETION_DAYS)
         ),
     )
     login_methods: list[str] = Field(

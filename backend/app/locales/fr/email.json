@@ -69,6 +69,11 @@
       "title": "Votre tâche a été mentionnée",
       "body": "<strong>{{actor}}</strong> a mentionné <strong>{{task}}</strong> dans <strong>{{context}}</strong>"
     },
+    "taskDescription": {
+      "subject": "Vous avez été mentionné(e) dans {{task}}",
+      "title": "Vous avez été mentionné(e)",
+      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans la description de <strong>{{task}}</strong>"
+    },
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "buttonLabel": "Voir"
   },
@@ -369,9 +374,11 @@
     "title": "{{community}} est en attente",
     "greeting": "Bonjour,",
     "body": "<strong>{{community}}</strong> est en attente : personne ne peut l’ouvrir pour le moment, ni ses membres ni ses administrateurs. Rien n’y a été modifié ni supprimé.",
+    "deletion": "Si elle est toujours en attente le <strong>{{date}}</strong>, elle sera supprimée.",
     "contact": "Contactez <strong>{{contact}}</strong> pour régler la situation.",
     "contactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
     "textBody": "{{community}} est en attente : personne ne peut l’ouvrir pour le moment. Rien n’y a été modifié ni supprimé.",
+    "textDeletion": "Si elle est toujours en attente le {{date}}, elle sera supprimée.",
     "textContact": "Contactez {{contact}} pour régler la situation.",
     "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation."
   }

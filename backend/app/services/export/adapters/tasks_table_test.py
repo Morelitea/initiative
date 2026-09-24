@@ -57,3 +57,39 @@ def test_flatten_mentions_keeps_display_text():
     assert _flatten_mentions("#doc[Map](3) and #project[Arc](4)") == "Map and Arc"
     # Plain markdown links are NOT mentions — untouched.
     assert _flatten_mentions("[text](5)") == "[text](5)"
+    # Every kind the app can mention, not only the first few.
+    assert _flatten_mentions("#counter-group[Q1](9), #wiki-page[Home](2)") == (
+        "Q1, Home"
+    )
+    # A `#` word naming no kind is not a mention, here or on screen.
+    assert _flatten_mentions("#nope[x](1)") == "#nope[x](1)"
+    # A pasted picture prints as its alt text.
+    assert _flatten_mentions("see ![shot](/uploads/9/pasted-a.png)") == "see shot"
+    assert _flatten_mentions("![](/uploads/9/pasted-a.png)") == "[image]"
+
+
+def test_detail_flattens_mentions_in_the_description():
+    from types import SimpleNamespace
+
+    from app.services.export.adapters.tasks_table import _detail
+
+    # Only the fields the report reads; the loader supplies the rest.
+    task = SimpleNamespace(
+        title="Ship it",
+        description="Pair with @[Ada L](7) on **#task[Fix boss](12)**",
+        project=None,
+        task_status=None,
+        priority=None,
+        due_date=None,
+        start_date=None,
+        assignees=[],
+        tags=[],
+        checklist=[],
+    )
+
+    blocks = str(_detail(task, [], "en")["description_blocks"])  # type: ignore[arg-type]
+
+    assert "@Ada L" in blocks
+    assert "Fix boss" in blocks
+    assert "](7)" not in blocks
+    assert "#task[" not in blocks

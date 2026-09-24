@@ -134,6 +134,8 @@ Open a document's **Comments** to talk about it without touching the actual cont
 
 To pull somebody in, type `@`. To point at a *thing* rather than a person, type `#` and pick any project, task, document, queue, counter, calendar event, dashboard or post in the initiative. See [Mentions & links](mentions-and-links.md).
 
+A screenshot says it faster than three paragraphs. Paste or drag one into a comment, or tap the picture button — on the app it offers your camera. Take it back out and it's gone from storage too. A picture linked from some other website shows up as a link you click, not an image that loads itself.
+
 ### Reactions
 
 Every comment gets a row of **reactions** and a button to add one — a way to answer without writing a whole reply. Agreement, thanks, or the universally understood "I have read this and have nothing to add."

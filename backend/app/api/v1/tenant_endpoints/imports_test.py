@@ -2876,13 +2876,17 @@ async def test_a_restored_reference_points_at_the_restored_copy(
         return {(row.target_type, row.target_id) for row in rows.all()}
 
     # A chip is a reading rather than a link, so the document's edges are its
-    # mention and its ``[[ ]]`` link; a task's come from what is said on it.
+    # mention and its ``[[ ]]`` link; a task's come from its description and
+    # from what is said on it.
     assert await references(Endpoint(SearchEntityType.document, plan.id)) == {
         ("task", fix.id),
         ("document", spec.id),
     }
     assert await references(Endpoint(SearchEntityType.task, ship.id)) == {
-        ("wiki_page", r["page"].id)
+        ("task", fix.id),
+        ("document", spec.id),
+        ("document", outside.id),
+        ("wiki_page", r["page"].id),
     }
     assert await references(Endpoint(SearchEntityType.wiki_page, r["page"].id)) == {
         ("post", r["post"].id)

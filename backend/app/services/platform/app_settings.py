@@ -418,6 +418,7 @@ COMMUNITY_FIELDS: tuple[str, ...] = (
     "direct_messages_enabled",
     "deleted_community_retention_days",
     "deleted_account_retention_days",
+    "on_hold_community_deletion_days",
 )
 MARKETPLACE_FIELDS: tuple[str, ...] = ("marketplace_members_publish_directly",)
 EMAIL_FIELDS: tuple[str, ...] = (
@@ -602,6 +603,8 @@ async def update_community_settings(
     retention_provided: bool = False,
     deleted_account_retention_days: int | None = None,
     account_retention_provided: bool = False,
+    on_hold_community_deletion_days: int | None = None,
+    hold_deletion_provided: bool = False,
     actor_user_id: int | None = None,
 ) -> AppSetting:
     """Turn the community directory on or off for the whole deployment.
@@ -632,6 +635,11 @@ async def update_community_settings(
     ``retention_provided``. Changing it changes when everything already deleted
     is destroyed, because the date is counted from each deletion rather than
     stamped at the time.
+
+    ``on_hold_community_deletion_days`` is the seventh and reads the same way:
+    ``None`` means a held community is never deleted on a timer. It too is
+    counted from each hold, so changing it moves the date for every community
+    already on hold.
     """
     settings_row = await ensure_settings_row(session)
     before = audit_service.snapshot(settings_row, COMMUNITY_FIELDS)
@@ -646,6 +654,8 @@ async def update_community_settings(
         settings_row.deleted_community_retention_days = deleted_community_retention_days
     if account_retention_provided:
         settings_row.deleted_account_retention_days = deleted_account_retention_days
+    if hold_deletion_provided:
+        settings_row.on_hold_community_deletion_days = on_hold_community_deletion_days
     session.add(settings_row)
     await _record_settings_area(
         session,

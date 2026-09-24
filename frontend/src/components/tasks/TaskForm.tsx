@@ -10,12 +10,13 @@ import type {
   TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { MarkdownComposer } from "@/components/markdown/MarkdownComposer";
+import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { type MemberLike, MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyFields, propertyStubFromDefinition } from "@/components/properties/PropertyFields";
 import { TagPicker } from "@/components/tags";
+import { TaskDescription } from "@/components/tasks/TaskDescription";
 import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
 import {
@@ -34,12 +35,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { usePastedImages } from "@/hooks/usePastedImages";
 import { dateRangeBounds } from "@/lib/dateRange";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 
 /** The full editable state of a task form, owned by the parent so it can
  *  build a create/update payload, compare against a snapshot for dirty
  *  tracking, and reset on success. TaskForm mutates it only via ``onChange``. */
+/** A description's preview reads the way the saved one will. */
+const renderDescription = (draft: string) => <TaskDescription content={draft} />;
+
 export interface TaskFormValue {
   title: string;
   description: string;
@@ -160,6 +165,7 @@ export const TaskForm = ({
   autoFocusTitle = false,
 }: TaskFormProps) => {
   const { t } = useTranslation(["tasks", "properties", "dates", "common"]);
+  const uploadImage = usePastedImages();
 
   const set = (patch: Partial<TaskFormValue>) => onChange({ ...value, ...patch });
 
@@ -340,12 +346,15 @@ export const TaskForm = ({
   const descriptionField = descriptionSlot ?? (
     <div className="space-y-2">
       <Label htmlFor="task-description">{t("taskForm.descriptionLabel")}</Label>
-      <MarkdownComposer
+      <MentionComposer
         id="task-description"
         rows={3}
         compact
         value={value.description}
         onChange={(description) => set({ description })}
+        initiativeId={initiativeId ?? 0}
+        renderPreview={renderDescription}
+        onUploadImage={uploadImage}
         placeholder={t("taskForm.descriptionPlaceholder")}
         disabled={disabled}
       />

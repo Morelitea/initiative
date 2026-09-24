@@ -119,8 +119,9 @@ Deleting an account or a community hides it immediately and erases it later. How
 |---|---|---|
 | **Keep accounts for** | 30 days | The person has gone as far as everyone else is concerned. If they sign back in during the window, the deletion is called off entirely — communities, roles and documents where they left them. You can also restore one. |
 | **Keep communities for** | 90 days | It has vanished for its members. An operator can restore it from **Settings → Platform → Communities**, choosing what it comes back as and, where nobody is left who could run it, who takes it over. |
+| **Delete after (days on hold)** | 30 days | The community sits [on hold](platform-roles.md#a-communitys-status). If nobody lifts the hold by the end of the window, it's deleted, and **Keep communities for** starts counting from there. Its superadmins get the date by email the moment it goes on hold. |
 
-Leave either blank and **nothing is erased on a timer** — the right answer for a deployment required to keep records rather than shed them. Both are counted from the moment each thing was deleted, so changing the number moves the date for things already in the queue.
+Leave any of them blank and **nothing happens on a timer** — the right answer for a deployment required to keep records rather than shed them. Each is counted from the moment each thing was deleted or put on hold, so changing the number moves the date for things already in the queue.
 
 A restored community reconnects its installed apps itself. It authorised those connections in the first place, so it authorises them again.
 

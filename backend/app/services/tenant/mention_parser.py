@@ -1,6 +1,6 @@
 """Mention syntax: parsing and anonymization.
 
-Mention patterns in comment text:
+Mention patterns in comment text and task descriptions:
 - Users: @[Display Name](id) - e.g., @[John Doe](42)
 - Anything else: #kind[Title](id) - e.g., #task[Fix bug](123). That half is the
   reference vocabulary, read by ``app.core.references``.
@@ -18,16 +18,18 @@ import re
 from copy import deepcopy
 from typing import Any, Set
 
-from sqlalchemy import cast, func, Text
+from sqlalchemy import cast, func, text, Text
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.references import references_in_text
 from app.core.search import SearchEntityType
+from app.db.frozen import PURGE_GUC
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.post import Post
+from app.models.tenant.task import Task
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.session import routed_guild_id
 
@@ -92,6 +94,15 @@ def _scrub_mention_nodes(content: dict[str, Any], user_id: int) -> bool:
     return changed
 
 
+async def _set_purging(session: AsyncSession, on: bool) -> None:
+    """Raise or lower the transaction-local purge flag."""
+    await session.exec(
+        text("SELECT set_config(:name, :value, true)").bindparams(
+            name=PURGE_GUC, value="true" if on else "false"
+        )
+    )
+
+
 async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> None:
     """Scrub ``user_id``'s display name out of the CURRENTLY ROUTED guild schema.
 
@@ -99,6 +110,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     ``users`` row (which the anonymize wipe already handles):
 
     - comment text: ``@[Display Name](id)`` → ``@[Deleted user](id)``
+    - task descriptions: the same markdown syntax, rewritten the same way
     - native-document Lexical ``mention`` nodes: ``mentionName``/``text``
       → the placeholder (``yjs_state`` cleared so collaboration bootstraps
       from the rewritten content, mirroring the wikilink-unresolve path)
@@ -114,15 +126,30 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     from app.db.soft_delete_filter import select_including_deleted
     from app.services.tenant.collaboration import collaboration_manager
 
-    # Comment text — one UPDATE, filtered and rewritten by the same pattern.
-    # (POSIX regex, applied in Postgres; parameterized, nothing interpolated
-    # except the numeric id.)
+    # Comment text and task descriptions — the same markdown syntax, so one
+    # UPDATE each, filtered and rewritten by the same pattern. (POSIX regex,
+    # applied in Postgres; parameterized, nothing interpolated except the
+    # numeric id.)
     pattern = rf"@\[[^\]]+\]\({user_id}\)"
     replacement = f"@[{ANONYMIZED_MENTION_NAME}]({user_id})"
+    # Finished work is scrubbed too: an archived task, or a comment in the
+    # trash, keeps its words and so would keep the name. Taking something that
+    # has to go out of frozen content is the purge's kind of write, so the
+    # scrub runs under the purge flag and lowers it again before the rest of
+    # the erasure (see ``app.db.frozen.PURGE_GUC``).
+    await _set_purging(session, True)
     await session.exec(
         update(Comment)
         .where(Comment.content.op("~")(pattern))
         .values(content=func.regexp_replace(Comment.content, pattern, replacement, "g"))
+        .execution_options(include_deleted=True, synchronize_session=False)
+    )
+    await session.exec(
+        update(Task)
+        .where(Task.description.op("~")(pattern))  # type: ignore[union-attr]
+        .values(
+            description=func.regexp_replace(Task.description, pattern, replacement, "g")
+        )
         .execution_options(include_deleted=True, synchronize_session=False)
     )
 
@@ -173,6 +200,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     )
 
     await session.flush()
+    await _set_purging(session, False)
 
     # Drop idle collaboration rooms so persist_room can't overwrite the
     # scrubbed content with a stale in-memory copy on next disconnect. Rooms are

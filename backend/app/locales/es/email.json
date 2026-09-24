@@ -69,6 +69,11 @@
       "title": "Tu tarea fue mencionada",
       "body": "<strong>{{actor}}</strong> mencionó <strong>{{task}}</strong> en <strong>{{context}}</strong>"
     },
+    "taskDescription": {
+      "subject": "Te mencionaron en {{task}}",
+      "title": "Te mencionaron",
+      "body": "<strong>{{actor}}</strong> te mencionó en la descripción de <strong>{{task}}</strong>"
+    },
     "greeting": "Hola <strong>{{name}}</strong>,",
     "buttonLabel": "Ver"
   },
@@ -369,9 +374,11 @@
     "title": "{{community}} está en pausa",
     "greeting": "Hola:",
     "body": "<strong>{{community}}</strong> está en pausa, así que por ahora nadie puede abrirla, ni sus miembros ni sus administradores. No se ha cambiado ni eliminado nada.",
+    "deletion": "Si sigue en pausa el <strong>{{date}}</strong>, se eliminará.",
     "contact": "Ponte en contacto con <strong>{{contact}}</strong> para resolverlo.",
     "contactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
     "textBody": "{{community}} está en pausa, así que por ahora nadie puede abrirla. No se ha cambiado ni eliminado nada.",
+    "textDeletion": "Si sigue en pausa el {{date}}, se eliminará.",
     "textContact": "Ponte en contacto con {{contact}} para resolverlo.",
     "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo."
   }

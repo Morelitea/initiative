@@ -1335,10 +1335,12 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     told are its superadmins: the hold is about paying for it, which is the
     seat's errand. Each gets one line in their bell — an account notice, not
     one filed under the community, which none of them can open now — and one
-    letter at every proved address. Neither is allowed to fail the hold.
+    letter at every proved address, which names the day the community is
+    deleted if the hold is still in place. Neither is allowed to fail the hold.
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
+    from app.services.platform import guild_purge
     from app.services.platform import intake as intake_service
     from app.services.platform import user_notifications
 
@@ -1349,6 +1351,12 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     if guild is None or guild.status != GuildStatus.on_hold.value:
         return
     contact = await intake_service.contact_for(session, IntakeStream.support)
+    days = await guild_purge.hold_deletion_days(session)
+    delete_at = (
+        guild_purge.hold_deletes_at(guild.status_changed_at, days)
+        if days is not None and guild.status_changed_at is not None
+        else None
+    )
     seat_holders = (
         await session.exec(
             select(GuildMembership.user_id).where(
@@ -1375,6 +1383,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
             recipients=sorted(set(recipients)),
             community=guild.name,
             contact=contact,
+            delete_at=delete_at,
         )
     except email_service.EmailNotConfiguredError:
         logger.info("no mail configured; community hold not announced by letter")
@@ -1389,6 +1398,7 @@ async def soft_delete_guild(
     actor_user_id: int | None = None,
     via: str = "admin",
     target_user_id: int | None = None,
+    keep_roster: bool = False,
 ) -> CommunityDeletionNotice:
     """Delete a guild by moving it to ``deleted``, keeping everything.
 
@@ -1416,6 +1426,8 @@ async def soft_delete_guild(
     like any other. Every larger community keeps its roster, because those rows
     describe other people, and bringing the community back without them would
     make a restore into a different community with the same name.
+    ``keep_roster`` keeps even that one row, for a deletion nobody asked for:
+    a hold that ran out.
 
     Everyone is poked first, for the same reason :func:`delete_guild` does it:
     by the time this returns, every one of those people has an account that
@@ -1426,18 +1438,17 @@ async def soft_delete_guild(
     notice = await _deletion_notice(session, guild)
     await _signal_members_present(session, guild_id=guild_id, action="membership")
     members = await count_members(session, guild_id=guild_id)
-    clear_roster = members <= 1
-    if actor_user_id is not None:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.GUILD_DELETED,
-            actor_user_id=actor_user_id,
-            target_user_id=target_user_id,
-            guild_id=guild_id,
-            target_type="guild",
-            target_id=guild_id,
-            detail={"via": via, "roster_cleared": clear_roster},
-        )
+    clear_roster = not keep_roster and members <= 1
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_DELETED,
+        actor_user_id=actor_user_id,
+        target_user_id=target_user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"via": via, "roster_cleared": clear_roster},
+    )
     if clear_roster:
         await session.exec(
             delete(GuildMembership).where(GuildMembership.guild_id == guild_id)

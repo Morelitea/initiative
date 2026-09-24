@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
 import { formatDateTime } from "@/lib/formatDate";
+import { mentionsAsText } from "@/lib/mentions";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 
@@ -214,7 +215,9 @@ const TaskDragOverlay = ({
       <div className="space-y-1">
         <p className="font-medium">{task.title}</p>
         {shows("description") && task.description ? (
-          <p className="text-muted-foreground text-xs">{truncateText(task.description, 80)}</p>
+          <p className="text-muted-foreground text-xs">
+            {truncateText(mentionsAsText(task.description), 80)}
+          </p>
         ) : null}
       </div>
       <div className="space-y-1 text-muted-foreground text-xs">

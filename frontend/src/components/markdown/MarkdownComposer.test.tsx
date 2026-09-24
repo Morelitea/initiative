@@ -1,7 +1,7 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
@@ -235,5 +235,66 @@ describe("MarkdownComposer", () => {
     await user.click(screen.getByRole("tab", { name: "Write" }));
 
     expect(field()).toHaveValue("## Plan");
+  });
+});
+
+describe("pictures", () => {
+  const png = () => new File(["x"], "shot.png", { type: "image/png" });
+
+  const PictureHost = ({ upload }: { upload: (file: File) => Promise<string> }) => {
+    const [value, setValue] = useState("See:");
+    return (
+      <>
+        <MarkdownComposer value={value} onChange={setValue} onUploadImage={upload} />
+        <output>{value}</output>
+      </>
+    );
+  };
+
+  const paste = (file: File) =>
+    fireEvent.paste(field(), { clipboardData: { files: [file], types: ["Files"] } });
+
+  it("puts a pasted picture where the caret is, once it has been stored", async () => {
+    let finish: (url: string) => void = () => {};
+    const upload = vi.fn(() => new Promise<string>((resolve) => (finish = resolve)));
+    renderWithProviders(<PictureHost upload={upload} />);
+    select(4, 4);
+
+    paste(png());
+
+    // A placeholder at once, so the writer can see something is happening.
+    expect(field().value).toMatch(/^See:\n!\[.*shot\.png.*\]\(uploading:\d+\)$/);
+    expect(upload).toHaveBeenCalledOnce();
+
+    finish("/uploads/9/task-a.png");
+    await waitFor(() => expect(field()).toHaveValue("See:\n![shot](/uploads/9/task-a.png)"));
+  });
+
+  it("takes the placeholder back out when the picture could not be stored", async () => {
+    const upload = vi.fn(() => Promise.reject(new Error("nope")));
+    renderWithProviders(<PictureHost upload={upload} />);
+    select(4, 4);
+
+    paste(png());
+
+    await waitFor(() => expect(field()).toHaveValue("See:\n"));
+  });
+
+  it("leaves pasted text to the field", () => {
+    const upload = vi.fn();
+    renderWithProviders(<PictureHost upload={upload} />);
+
+    fireEvent.paste(field(), { clipboardData: { files: [], types: ["text/plain"] } });
+
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it("offers a button for a picture only where one can be stored", () => {
+    const { unmount } = renderWithProviders(<Host />);
+    expect(screen.queryByRole("button", { name: "Image" })).toBeNull();
+    unmount();
+
+    renderWithProviders(<PictureHost upload={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Image" })).toBeInTheDocument();
   });
 });

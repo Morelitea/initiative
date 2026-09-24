@@ -56,6 +56,7 @@ from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.services import rls as rls_service
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references
 from app.services import notifications
 from app.services import permissions as permissions_service
@@ -1082,8 +1083,12 @@ async def update_comment(
     user: User,
     guild_id: int,
     content: str,
-) -> Comment:
-    """Update a comment's content. Only the original author can edit."""
+) -> tuple[Comment, set[str]]:
+    """Update a comment's content. Only the original author can edit.
+
+    Also returns the pasted pictures the edit took out that nothing else shows,
+    now released; their files are the caller's to delete once it has committed.
+    """
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
@@ -1102,10 +1107,17 @@ async def update_comment(
     await _ensure_parent_access(session, ctx, user=user, access="read")
     _stamp_task_project(ctx, comment)
 
+    previous_content = comment.content
     comment.content = content
     comment.updated_at = datetime.now(timezone.utc)
     session.add(comment)
     await session.flush()
+    released = await attachments_service.release_pasted_images(
+        session,
+        attachments_service.upload_urls_in_markdown(previous_content)
+        - attachments_service.upload_urls_in_markdown(content),
+        leaving={Comment: {cast(int, comment.id)}},
+    )
     await content_references.sync_for_comment(
         session, comment, author_id=cast(int, user.id)
     )
@@ -1114,4 +1126,4 @@ async def update_comment(
     # carry the reactions the comment still has — serializing without them
     # would blank the chips until the next refetch.
     await attach_reactions(session, comment)
-    return comment
+    return comment, released

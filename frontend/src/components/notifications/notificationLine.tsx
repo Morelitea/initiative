@@ -261,11 +261,17 @@ export const notificationText = (
         email: data.email ?? t("notifications.plain.user"),
       });
     case "mention":
-      // Check if it's a comment mention or document mention
+      // A comment, a task's description, or a document.
       if (data.comment_id) {
         return t("notifications.mentionComment", {
           mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
           contextTitle: data.context_title ?? t("notifications.plain.item"),
+        });
+      }
+      if (data.task_id) {
+        return t("notifications.mentionTaskDescription", {
+          mentionedBy: data.mentioned_by_name ?? t("notifications.someone"),
+          taskTitle: data.task_title ?? t("notifications.plain.item"),
         });
       }
       return t("notifications.mentionDocument", {

@@ -4,6 +4,8 @@ import {
   BULLET_LIST,
   continueList,
   cycleHeading,
+  imageMarkdown,
+  imagesIn,
   insertLink,
   type MarkdownSelection,
   type MarkdownTransform,
@@ -193,5 +195,27 @@ describe("continueList", () => {
 
   it("leaves a selection to Enter, which replaces it", () => {
     expect(carry("- |one|")).toBe(null);
+  });
+});
+
+describe("a pasted picture", () => {
+  it("is written with its file name as its alt text", () => {
+    expect(imageMarkdown("screenshot.png", "/uploads/9/task-a.png")).toBe(
+      "![screenshot](/uploads/9/task-a.png)"
+    );
+  });
+
+  it("keeps the brackets its syntax is built from out of the alt text", () => {
+    expect(imageMarkdown("plan [v2] (final).jpg", "/u")).toBe("![plan v2 final](/u)");
+    expect(imageMarkdown(".png", "/u")).toBe("![image](/u)");
+  });
+
+  it("takes only the pictures out of what was pasted", () => {
+    const png = new File(["x"], "a.png", { type: "image/png" });
+    const pdf = new File(["x"], "b.pdf", { type: "application/pdf" });
+    const data = { files: [png, pdf] } as unknown as DataTransfer;
+
+    expect(imagesIn(data)).toEqual([png]);
+    expect(imagesIn(null)).toEqual([]);
   });
 });

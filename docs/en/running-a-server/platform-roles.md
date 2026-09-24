@@ -113,9 +113,9 @@ Each row on **Operator dashboard → Communities** has a status, and there are f
 | **On hold** | Nothing. | Nothing. | Gone, for everyone. |
 | **Suspended** | Nothing. | Nothing, settings included. | Gone for members. Admins see it with a lock. |
 
-On hold and suspended both ask you to confirm first, because each takes everybody out in one click. Neither changes or deletes anything inside, and setting a community back to **Active** puts it all back.
+On hold and suspended both ask you to confirm first, because each takes everybody out in one click. Neither changes anything inside, and setting a community back to **Active** puts it all back.
 
-- **On hold** tells the community's superadmins once, by email and in the app, that it's on hold and [who to contact](#who-to-contact).
+- **On hold** tells the community's superadmins once, by email and in the app, that it's on hold and [who to contact](#who-to-contact). The email also gives the date it's deleted if the hold is never lifted: 30 days on, unless you've [changed the window](configuration.md#how-long-deleted-things-are-kept).
 - **Suspended** tells nobody directly. Its admins find the lock on their rail, and opening it says the community is suspended and gives them the address.
 
 Neither status keeps *you* out. A [grant or break-glass](#cross-community-access-break-glass-and-time-bound-grants) reaches a community whatever its status, which is how you look inside before deciding what happens to it.

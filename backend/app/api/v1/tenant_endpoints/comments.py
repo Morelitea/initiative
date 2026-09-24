@@ -27,6 +27,7 @@ from app.schemas.tenant.comment import (
     CommentUpdate,
     RecentActivityEntry,
 )
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import reactions as reactions_service
 
@@ -377,7 +378,7 @@ async def update_comment(
 ) -> CommentRead:
     """Update a comment. Only the original author can edit."""
     try:
-        comment = await comments_service.update_comment(
+        comment, released_images = await comments_service.update_comment(
             session,
             comment_id=comment_id,
             user=current_user,
@@ -399,6 +400,8 @@ async def update_comment(
     # author, and a bare refresh() expires every attribute including that
     # relationship — serializing would then lazy-load it mid-request.
     await session.commit()
+    # A picture taken out of the comment goes once the edit has landed.
+    attachments_service.delete_uploads_by_urls(released_images)
     response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
     return response
 

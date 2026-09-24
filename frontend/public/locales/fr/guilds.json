@@ -261,6 +261,7 @@
     "userPendingApproval": "{{email}} attend une approbation.",
     "mentionComment": "{{mentionedBy}} vous a mentionné dans un commentaire sur {{contextTitle}}.",
     "mentionDocument": "{{mentionedBy}} vous a mentionné dans {{documentTitle}}.",
+    "mentionTaskDescription": "{{mentionedBy}} vous a mentionné dans {{taskTitle}}.",
     "commentOnTask": "{{commenterName}} a commenté sur {{taskTitle}}.",
     "commentOnResource": "{{commenterName}} a commenté sur {{entityName}}.",
     "postPublished": "{{authorName}} a publié {{postName}}.",
