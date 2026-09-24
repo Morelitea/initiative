@@ -590,7 +590,9 @@ async def test_the_pushed_ceiling_is_the_one_uploads_are_held_to(
     # Cleared: no ceiling to hit.
     assert (
         await _post(
-            client, "community-tier", await _tier_payload(guild.id, max_storage_bytes=None)
+            client,
+            "community-tier",
+            await _tier_payload(guild.id, max_storage_bytes=None),
         )
     ).status_code == 200
     await route_session_to_guild(session, guild.id)
@@ -599,7 +601,9 @@ async def test_the_pushed_ceiling_is_the_one_uploads_are_held_to(
     # Same upload, against a cap billing pushed after it.
     assert (
         await _post(
-            client, "community-tier", await _tier_payload(guild.id, max_storage_bytes=1000)
+            client,
+            "community-tier",
+            await _tier_payload(guild.id, max_storage_bytes=1000),
         )
     ).status_code == 200
     await route_session_to_guild(session, guild.id)
@@ -1057,7 +1061,9 @@ async def test_the_name_read_burns_its_jti(client: AsyncClient, session: AsyncSe
 async def test_a_reference_naming_no_guild_has_no_name(client: AsyncClient):
     """404 with the jti unredeemed, so the call stays retryable — the same
     shape the other reads give a guild that is not there."""
-    response = await _post(client, "community-name", {"guild_ref": "gbil_notoneweminted"})
+    response = await _post(
+        client, "community-name", {"guild_ref": "gbil_notoneweminted"}
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
