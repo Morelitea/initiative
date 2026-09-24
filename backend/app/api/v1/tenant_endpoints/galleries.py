@@ -293,7 +293,7 @@ async def _read_picture(
     return contents, header.content_type, extension, width, height, thumbnail
 
 
-def _store_blob(
+async def _store_blob(
     session: RLSSessionDep,
     guild_context: GuildContext,
     user: User,
@@ -301,24 +301,18 @@ def _store_blob(
     extension: str,
     content_type: str,
 ) -> str:
-    """Write one blob to the guild's storage and record it in ``uploads``, the
-    row the storage quota is summed from. Returns the served URL."""
-    file_url = attachments_service.save_document_file(
-        contents, extension, guild_context.guild_id, content_type=content_type
+    """Store one blob in the guild and return its served URL."""
+    return await attachments_service.store_upload(
+        session,
+        guild_id=guild_context.guild_id,
+        filename=attachments_service.new_upload_filename(extension),
+        data=contents,
+        content_type=content_type,
+        created_by=user.id,
     )
-    session.add(
-        Upload(
-            filename=file_url.split("/")[-1],
-            created_by=user.id,
-            size_bytes=len(contents),
-            content_type=content_type,
-            content_hash=attachments_service.compute_content_hash(contents),
-        )
-    )
-    return file_url
 
 
-def _store_thumbnail(
+async def _store_thumbnail(
     session: RLSSessionDep,
     guild_context: GuildContext,
     user: User,
@@ -326,7 +320,7 @@ def _store_thumbnail(
 ) -> str | None:
     if thumbnail is None:
         return None
-    return _store_blob(
+    return await _store_blob(
         session,
         guild_context,
         user,
@@ -678,10 +672,10 @@ async def upload_gallery_image(
     contents, mime, extension, width, height, thumb = await _read_picture(
         session, guild_context, file
     )
-    file_url = _store_blob(
+    file_url = await _store_blob(
         session, guild_context, current_user, contents, extension, mime
     )
-    thumbnail_url = _store_thumbnail(session, guild_context, current_user, thumb)
+    thumbnail_url = await _store_thumbnail(session, guild_context, current_user, thumb)
 
     now = datetime.now(timezone.utc)
     image = GalleryImage(
@@ -896,10 +890,10 @@ async def upload_gallery_image_version(
     contents, mime, extension, width, height, thumb = await _read_picture(
         session, guild_context, file
     )
-    file_url = _store_blob(
+    file_url = await _store_blob(
         session, guild_context, current_user, contents, extension, mime
     )
-    thumbnail_url = _store_thumbnail(session, guild_context, current_user, thumb)
+    thumbnail_url = await _store_thumbnail(session, guild_context, current_user, thumb)
 
     version = GalleryImageVersion(
         gallery_image_id=image.id,

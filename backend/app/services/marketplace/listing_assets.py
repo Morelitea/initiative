@@ -16,9 +16,7 @@ copy there. That is how an owner-published gallery arrives with its pictures.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any, Callable
-from uuid import uuid4
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -133,11 +131,10 @@ async def copy_assets_in(
     missing.
     """
     from app.db import session as db_session
-    from app.models.tenant.upload import Upload
-    from app.services.storage import get_guild_storage
     from app.services.tenant.attachments import (
-        compute_content_hash,
         enforce_storage_quota,
+        new_upload_filename,
+        store_upload,
     )
 
     paths = media_paths_in(envelope)
@@ -160,22 +157,18 @@ async def copy_assets_in(
         incoming_bytes=sum(len(data) for data, _ in kept.values()),
     )
 
-    storage = get_guild_storage(guild_id)
     to_url: dict[str, str] = {}
     to_key: dict[str, str] = {}
     for path, (data, content_type) in kept.items():
-        key = f"{uuid4().hex}{_EXTENSIONS.get(content_type, '')}"
-        await asyncio.to_thread(storage.write, key, data, content_type=content_type)
-        session.add(
-            Upload(
-                filename=key,
-                created_by=user_id,
-                size_bytes=len(data),
-                content_type=content_type,
-                content_hash=compute_content_hash(data),
-            )
+        key = new_upload_filename(_EXTENSIONS.get(content_type, ""))
+        to_url[path] = await store_upload(
+            session,
+            guild_id=guild_id,
+            filename=key,
+            data=data,
+            content_type=content_type,
+            created_by=user_id,
         )
-        to_url[path] = f"/uploads/{guild_id}/{key}"
         to_key[path] = key
     await session.flush()
 

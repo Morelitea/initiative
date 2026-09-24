@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import re
@@ -696,31 +697,48 @@ def validate_document_file(
     return detected_mime, extension
 
 
-def save_document_file(
-    content: bytes,
-    extension: str,
+def new_upload_filename(extension: str, *, prefix: str = "") -> str:
+    """A fresh stored name: ``prefix``, a random hex id, then ``extension``
+    (with or without its dot; empty for none)."""
+    if extension and not extension.startswith("."):
+        extension = f".{extension}"
+    return f"{prefix}{uuid4().hex}{extension}"
+
+
+async def store_upload(
+    session,
+    *,
     guild_id: int,
-    content_type: str | None = None,
+    filename: str,
+    data: bytes,
+    content_type: str | None,
+    created_by: int,
 ) -> str:
-    """Save document file content to storage for ``guild_id``.
+    """Write ``data`` to the guild's storage as ``filename`` and record it in
+    ``uploads``. Returns the served URL, ``/uploads/{guild_id}/{filename}``.
 
-    Args:
-        content: File content bytes
-        extension: File extension (including dot)
-        guild_id: Guild the file belongs to — encoded into the URL path so the
-            served media self-describes its guild (e.g. /uploads/7/abc123.pdf),
-            and used to route the write to the guild's storage namespace.
-        content_type: MIME type recorded on the object (so S3 GetObject can serve
-            it without re-sniffing); ignored by the local filesystem backend.
-
-    Returns:
-        URL path to the uploaded file (e.g., /uploads/7/abc123.pdf)
+    Every upload a person or an import brings into a guild is stored here.
+    The ``uploads`` row is what the serve route requires and what the storage
+    quota is summed from; the caller owns naming, validation, the quota check
+    and the commit.
     """
-    safe_extension = extension if extension.startswith(".") else f".{extension}"
-    filename = f"{uuid4().hex}{safe_extension}"
+    from app.models.tenant.upload import Upload
 
-    get_guild_storage(guild_id).write(filename, content, content_type=content_type)
-
+    await asyncio.to_thread(
+        get_guild_storage(guild_id).write,
+        filename,
+        data,
+        content_type=content_type or "application/octet-stream",
+    )
+    session.add(
+        Upload(
+            filename=filename,
+            created_by=created_by,
+            size_bytes=len(data),
+            content_type=content_type,
+            content_hash=compute_content_hash(data),
+        )
+    )
     return f"{UPLOADS_URL_PREFIX}{guild_id}/{filename}"
 
 
