@@ -127,6 +127,10 @@ describe("AppsSection", () => {
         tool: null,
         artifacts: [],
         definition: { embeds: [{ id: "automations", path: "/embed" }] },
+        // The server's answer for this reader: the surface opens guild-wide.
+        surface_access: [
+          { surface_id: "automations", openable_guild_wide: true, openable_initiatives: [] },
+        ],
       }),
     ];
     render(false);

@@ -62,7 +62,6 @@ const CATALOG = {
       endpoints: [
         {
           id: ORDERS,
-          visibility: "member",
           cache_ttl_seconds: 60,
           params: [
             {
@@ -99,7 +98,7 @@ const CATALOG = {
             },
           ],
         },
-        { id: REVENUE, visibility: "member", cache_ttl_seconds: 0, params: [] },
+        { id: REVENUE, cache_ttl_seconds: 0, params: [] },
       ],
     },
   ],

@@ -339,7 +339,7 @@ TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 #
 # The binding names a listing and a source; it never names an address, and there
 # is still nowhere in a definition to put one. What that source *is* — its
-# parameters, its visibility, its freshness — lives in the installed app's
+# parameters, its credentials, its freshness — lives in the installed app's
 # pinned definition and is enforced when the data is fetched, under the caller's
 # own session.
 #
@@ -665,8 +665,8 @@ def _normalize_binding(
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
         # It has no module of its own to be one app's, so it names the app it
         # reads rather than inheriting one. What it may see is decided exactly
-        # where an app widget's is: the dashboard's gates, the binding the
-        # definition stores, and the endpoint's own visibility.
+        # where an app widget's is: the dashboard's gates and the binding the
+        # definition stores.
         return _normalize_app_binding(
             binding,
             _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID),

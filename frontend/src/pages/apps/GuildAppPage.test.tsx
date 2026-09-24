@@ -29,6 +29,15 @@ vi.mock("@/api/generated/apps/apps", () => ({
   ) => mint(surfaceId, { scope: "initiative", initiativeId }),
 }));
 
+/** Where the server says this reader may open each surface. */
+const ADMIN_ACCESS = [
+  { surface_id: "one", openable_guild_wide: true, openable_initiatives: [] },
+  { surface_id: "two", openable_guild_wide: true, openable_initiatives: [] },
+  { surface_id: "inside", openable_guild_wide: false, openable_initiatives: [4] },
+];
+
+let surfaceAccess = ADMIN_ACCESS;
+
 const detail = {
   id: 1,
   name: "Automations",
@@ -43,17 +52,17 @@ const detail = {
         path: "/embed/inside",
         name: { en: "Inside" },
         scopes: ["initiative"],
-        visibility: "initiative_manager",
+        admin_only: true,
       },
     ],
   },
 };
 
-/** A guild admin, who clears every rung wherever they are looking. */
-const ADMIN = { isGuildAdmin: true };
-
 vi.mock("@/hooks/useGuildAppDetail", () => ({
-  useGuildAppDetail: () => ({ data: detail, isLoading: false }),
+  useGuildAppDetail: () => ({
+    data: { ...detail, surface_access: surfaceAccess },
+    isLoading: false,
+  }),
 }));
 
 vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 3 }));
@@ -79,6 +88,7 @@ let frameWindow: { postMessage: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   mint.mockReset();
+  surfaceAccess = ADMIN_ACCESS;
   postSpy = vi.fn();
   // Every iframe in the page reports the same window, which is the worst case:
   // nothing about the target distinguishes one surface's frame from another's.
@@ -127,7 +137,7 @@ describe("GuildAppPage", () => {
   it("hands the first surface's token to the frame that asked", async () => {
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
+    renderPage(() => <GuildAppPage appId={1} />);
 
     await screen.findByTitle("Automations");
     await announceReady();
@@ -139,7 +149,7 @@ describe("GuildAppPage", () => {
     // origin cannot read this document's custom properties.
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
+    renderPage(() => <GuildAppPage appId={1} />);
 
     await screen.findByTitle("Automations");
     await announceReady();
@@ -160,7 +170,7 @@ describe("GuildAppPage", () => {
     // origin. The token stays unspent for the frame that does ask.
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
+    renderPage(() => <GuildAppPage appId={1} />);
 
     await screen.findByTitle("Automations");
     await waitFor(() => expect(mint).toHaveBeenCalledWith("one", expect.anything()));
@@ -189,7 +199,7 @@ describe("GuildAppPage", () => {
       .mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
 
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
+    renderPage(() => <GuildAppPage appId={1} />);
 
     await screen.findByTitle("Automations");
     await announceReady(); // spends the first token
@@ -216,7 +226,7 @@ describe("GuildAppPage, read inside an initiative", () => {
 
   it("offers the surfaces that asked to render here, and no others", async () => {
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} initiativeId={4} viewer={ADMIN} />);
+    renderPage(() => <GuildAppPage appId={1} initiativeId={4} />);
 
     await screen.findByTitle("Automations");
     // The two guild-wide tabs belong to the other page. One surface left means
@@ -228,7 +238,7 @@ describe("GuildAppPage, read inside an initiative", () => {
 
   it("mints through the route that names the initiative", async () => {
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} initiativeId={4} viewer={ADMIN} />);
+    renderPage(() => <GuildAppPage appId={1} initiativeId={4} />);
 
     await screen.findByTitle("Automations");
     await waitFor(() =>
@@ -237,10 +247,13 @@ describe("GuildAppPage, read inside an initiative", () => {
   });
 
   it("says so plainly when nothing here is for this reader", async () => {
-    // A plain member of the initiative: the only surface here names its
-    // managers, so there is nothing to open and nothing to mint.
+    // A plain member of the initiative: the only surface here is for admins,
+    // so the server lists no initiative for it — nothing to open or mint.
+    surfaceAccess = ADMIN_ACCESS.map((one) =>
+      one.surface_id === "inside" ? { ...one, openable_initiatives: [] } : one
+    );
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} initiativeId={4} viewer={{ isGuildAdmin: false }} />);
+    renderPage(() => <GuildAppPage appId={1} initiativeId={4} />);
 
     await screen.findByText(/nothing to show|no page of its own|has no page/i);
     expect(mint).not.toHaveBeenCalled();

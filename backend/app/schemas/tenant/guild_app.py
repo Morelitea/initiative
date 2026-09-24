@@ -18,7 +18,12 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import SanitizedBaseModel
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
-from app.services.tenant.guild_apps import app_artifacts
+from app.services.tenant.guild_apps import (
+    app_artifacts,
+    grantable_scopes,
+    requested_scopes,
+    surface_openability,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import GuildContext
@@ -122,6 +127,43 @@ class AppPlacementRead(SanitizedBaseModel):
     role_ids: List[int] = []
 
 
+class AppPlacementUpdate(SanitizedBaseModel):
+    """Who may open an app's surfaces in one initiative.
+
+    The whole set: a role left out is no longer allowed. Every id must be a
+    role of that initiative. An empty list places the app with no role, so
+    only guild admins open it there.
+    """
+
+    role_ids: List[int] = Field(default_factory=list, max_length=200)
+
+
+class GuildAppScopesUpdate(SanitizedBaseModel):
+    """The scopes the seat grants an install, as the whole set.
+
+    Each must be one the app's manifest requests and one this deployment
+    allows the app. An empty list withdraws every grant.
+    """
+
+    granted: List[str] = Field(default_factory=list, max_length=64)
+
+
+class AppSurfaceAccessRead(SanitizedBaseModel):
+    """Where the viewer may open one of an app's surfaces.
+
+    Computed on the server by the same decision the handoff makes, so the
+    client offers exactly the doors that open.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    surface_id: str
+    #: Whether the viewer may open it at the community level.
+    openable_guild_wide: bool = False
+    #: The initiatives the viewer may open it in.
+    openable_initiatives: List[int] = []
+
+
 class GuildAppRead(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -172,9 +214,12 @@ class GuildAppRead(SanitizedBaseModel):
     #: rather than permission: it is the community's own answer to where an
     #: app belongs, so it reads the same for everyone.
     placements: List[AppPlacementRead] = []
-    #: The scopes the community's seat granted this install. Read-only here:
-    #: empty until the seat grants some, and never wider than what the manifest
-    #: requests or the registration allows.
+    #: Each embedded surface the pinned definition declares, with where the
+    #: viewer may open it.
+    surface_access: List[AppSurfaceAccessRead] = []
+    #: The scopes the community's seat granted this install: empty until the
+    #: seat grants some, and never wider than what the manifest requests or
+    #: the registration allows.
     granted_scopes: List[str] = []
     #: The deployment provides this app to every guild, and a guild admin
     #: neither removes nor disables it. The affordances are absent rather than
@@ -256,6 +301,11 @@ class GuildAppDetail(GuildAppRead):
     #: it costs a catalog lookup, and it is the page offering the Update button
     #: that needs the answer.
     update_version: Optional[str] = None
+    #: The scopes the pinned manifest asks for, in vocabulary order.
+    requested_scopes: List[str] = []
+    #: The requested scopes this deployment allows the seat to grant. A
+    #: requested scope missing here is one the server would refuse.
+    grantable_scopes: List[str] = []
 
 
 class GuildAppListResponse(SanitizedBaseModel):
@@ -372,6 +422,12 @@ def serialize_guild_app(
     """
     definition = app.definition or {}
     state = app_config_service.config_state(app)
+    openability = surface_openability(
+        definition,
+        placements=placements,
+        is_guild_admin=context.is_admin,
+        member_role_ids=context.member_role_ids,
+    )
     features = definition.get("features")
     service_state = install_state or InstallState()
     return GuildAppRead(
@@ -396,6 +452,14 @@ def serialize_guild_app(
                 initiative_id=row.initiative_id, role_ids=list(row.role_ids or [])
             )
             for row in sorted(placements, key=lambda row: row.initiative_id)
+        ],
+        surface_access=[
+            AppSurfaceAccessRead(
+                surface_id=one.surface_id,
+                openable_guild_wide=one.openable_guild_wide,
+                openable_initiatives=list(one.openable_initiatives),
+            )
+            for one in openability
         ],
         granted_scopes=sorted(app.granted_scopes or []),
         mandatory=service_state.mandatory,
@@ -486,6 +550,10 @@ def serialize_guild_app_detail(
         connections=connections,
         delegation=serialize_delegation(delegation_row),
         update_version=update_version,
+        requested_scopes=requested_scopes(app.definition),
+        grantable_scopes=grantable_scopes(
+            app.definition, (install_state or InstallState()).scope_ceiling
+        ),
     )
 
 

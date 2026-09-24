@@ -148,7 +148,15 @@
     "description": "Cette application propose une page à l'intérieur des initiatives. Choisissez dans lesquelles elle apparaît.",
     "all": "Toutes les initiatives actuelles",
     "some": "Uniquement les initiatives que je choisis",
-    "none": "Aucune initiative choisie : cette application n'apparaît qu'à l'échelle de la communauté."
+    "none": "Aucune initiative choisie : cette application n'apparaît qu'à l'échelle de la communauté.",
+    "roles": {
+      "open": "Qui peut l'ouvrir dans {{name}}",
+      "title": "Qui peut l'ouvrir ici",
+      "adminsAlways": "Les administrateurs de la communauté peuvent toujours l'ouvrir.",
+      "adminsOnly": "Administrateurs de la communauté uniquement",
+      "count_one": "{{count}} rôle",
+      "count_other": "{{count}} rôles"
+    }
   },
   "connected": {
     "connected": {
@@ -172,5 +180,21 @@
       "body": "L'autre service a demandé à une personne propriétaire de cette organisation d'approuver cette app. Rien n'a échoué et rien n'est encore configuré : une fois approuvée, reconnectez-vous depuis les réglages de l'app."
     },
     "closeTab": "Vous pouvez fermer cet onglet."
+  },
+  "scopes": {
+    "title": "Ce à quoi cette application a accès",
+    "description": "Choisissez ce que cette application peut lire et modifier dans cette communauté.",
+    "read": "Lire",
+    "write": "Lire et modifier",
+    "notAllowed": "Ce serveur ne l'autorise pas",
+    "saved": "Accès enregistré",
+    "error": "Impossible d'enregistrer les accès de cette application.",
+    "resources": {
+      "comments": "Commentaires",
+      "relationships": "Liens",
+      "tags": "Étiquettes",
+      "members": "Membres",
+      "initiatives": "Initiatives"
+    }
   }
 }

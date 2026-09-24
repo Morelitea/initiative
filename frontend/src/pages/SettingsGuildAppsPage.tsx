@@ -33,6 +33,8 @@ import { useTranslation } from "react-i18next";
 import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { AppConnectionsPanel } from "@/components/apps/AppConnectionsPanel";
 import { AppMembersPanel } from "@/components/apps/AppMembersPanel";
+import { AppPlacementPanel } from "@/components/apps/AppPlacementPanel";
+import { AppScopesPanel } from "@/components/apps/AppScopesPanel";
 import { AppUpdatesPanel } from "@/components/apps/AppUpdatesPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
 import { useGuildApps, useUninstallGuildApp, useUpdateGuildApp } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
+import { declaredEmbeds } from "@/lib/appSurfaces";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -232,8 +235,9 @@ function AppRow({ app, canManage }: { app: AppListItem; canManage: boolean }) {
 }
 
 /**
- * The app's connections, and — for an admin — who has connected to it and how
- * it takes new versions.
+ * The app's connections, and — for the seat — where it appears and who opens
+ * it there, what it can reach, who has connected to it and how it takes new
+ * versions.
  */
 function AppDetailPanels({ appId, canManage }: { appId: number; canManage: boolean }) {
   const { t } = useTranslation(["apps", "common"]);
@@ -252,6 +256,13 @@ function AppDetailPanels({ appId, canManage }: { appId: number; canManage: boole
 
       {canManage && (
         <>
+          {/* Only an app with an initiative surface has somewhere to place. */}
+          {declaredEmbeds(detail.data.definition, "initiative").length > 0 && (
+            <AppPlacementPanel app={detail.data} />
+          )}
+
+          {(detail.data.requested_scopes ?? []).length > 0 && <AppScopesPanel app={detail.data} />}
+
           <section className="space-y-2">
             <h3 className="font-medium text-sm">{t("apps:members.title")}</h3>
             <AppMembersPanel appId={appId} enabled={canManage} />

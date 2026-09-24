@@ -20,8 +20,8 @@ What a member may *do* inside an app is not decided here. The content an app
 creates carries its own grants, and the tool that owns it enforces them exactly
 as it does for initiative content. An app's *embedded* surfaces are the
 exception, because they have no local content to carry grants: the handoff mint
-is where who-may-open-this is settled, against the visibility the manifest
-declared.
+is where who-may-open-this is settled, against where the seat placed the app
+and which roles it allowed there.
 
 Two things a guild admin does not govern. An app the deployment marks mandatory
 is installed everywhere and is neither removable nor disableable here — the
@@ -62,6 +62,9 @@ from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.guild_app import (
+    AppPlacementRead,
+    AppPlacementUpdate,
+    GuildAppScopesUpdate,
     GuildAppServiceRead,
     GuildAppConfigUpdate,
     GuildAppConnectionSummary,
@@ -82,7 +85,6 @@ from app.schemas.tenant.guild_app import (
     serialize_member_delegation,
 )
 from app.services import audit as audit_service
-from app.services import rls as rls_service
 from app.services.marketplace import app_refs
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
@@ -810,6 +812,189 @@ async def update_guild_app_config(
 
 
 # ---------------------------------------------------------------------------
+# Placement and scopes, set by the seat
+# ---------------------------------------------------------------------------
+
+
+def _placement_reads(rows) -> list[AppPlacementRead]:
+    return [
+        AppPlacementRead(
+            initiative_id=row.initiative_id, role_ids=list(row.role_ids or [])
+        )
+        for row in sorted(rows, key=lambda row: row.initiative_id)
+    ]
+
+
+@router.get("/{app_id}/placements", response_model=list[AppPlacementRead])
+async def list_guild_app_placements(
+    app_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> list[AppPlacementRead]:
+    """Where this app appears, and which roles open it in each initiative.
+
+    Readable by every member, as the same rows are on the app read itself:
+    placement is the community's answer to where an app belongs.
+    """
+    app = await _load(session, app_id)
+    return _placement_reads(await _placements(session, app))
+
+
+@router.put("/{app_id}/placements/{initiative_id}", response_model=AppPlacementRead)
+async def put_guild_app_placement(
+    app_id: int,
+    initiative_id: int,
+    payload: AppPlacementUpdate,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> AppPlacementRead:
+    """Place the app in one initiative with exactly these roles.
+
+    Creates the placement or replaces its roles. Every role must be one of that
+    initiative's; guild admins open the app there whatever the roles say.
+    """
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
+    app = await _load(session, app_id)
+    before = await guild_apps_service.placement_role_ids(session, app.id, initiative_id)
+    try:
+        placement = await guild_apps_service.set_placement_roles(
+            session, app, initiative_id, payload.role_ids
+        )
+    except guild_apps_service.PlacementRoleError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.PLACEMENT_ROLE_INVALID,
+        ) from exc
+    except guild_apps_service.PlacementError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.PLACEMENT_INVALID,
+        ) from exc
+    after = list(placement.role_ids or [])
+    changed = audit_service.changed_fields(
+        {"placed": before is not None, "role_ids": before},
+        {"placed": True, "role_ids": after},
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_UPDATED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="app",
+            target_id=app.id,
+            detail={"area": "placement", "initiative_id": initiative_id, **changed},
+        )
+    await session.commit()
+    return AppPlacementRead(initiative_id=initiative_id, role_ids=after)
+
+
+@router.delete(
+    "/{app_id}/placements/{initiative_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_guild_app_placement(
+    app_id: int,
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> None:
+    """Take the app out of one initiative.
+
+    Allowed for a mandatory app too: the deployment decides that the app
+    exists, and the seat still decides where it appears. The removal stays;
+    only an initiative created later is placed automatically.
+    """
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
+    app = await _load(session, app_id)
+    before = await guild_apps_service.placement_role_ids(session, app.id, initiative_id)
+    if await guild_apps_service.remove_placement(session, app, initiative_id):
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_UPDATED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="app",
+            target_id=app.id,
+            detail={
+                "area": "placement",
+                "initiative_id": initiative_id,
+                **audit_service.changed_fields(
+                    {"placed": True, "role_ids": before},
+                    {"placed": False, "role_ids": None},
+                ),
+            },
+        )
+    await session.commit()
+
+
+@router.put("/{app_id}/scopes", response_model=GuildAppRead)
+async def put_guild_app_scopes(
+    app_id: int,
+    payload: GuildAppScopesUpdate,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> GuildAppRead:
+    """Grant the install exactly these scopes.
+
+    Each must be one the app's manifest requests and one the deployment's
+    registration allows the app (its ceiling). The whole set is replaced: a
+    scope left out is withdrawn.
+    """
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
+    app = await _load(session, app_id, for_update=True)
+
+    granted = set(payload.granted)
+    if not granted <= set(guild_apps_service.requested_scopes(app.definition)):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.SCOPE_NOT_REQUESTED,
+        )
+    registration = await registration_lookup.registration_for_definition(app.definition)
+    ceiling = set(registration.scope_ceiling) if registration is not None else set()
+    if not granted <= ceiling:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.SCOPE_ABOVE_CEILING,
+        )
+
+    before = sorted(app.granted_scopes or [])
+    after = sorted(granted)
+    if before != after:
+        app.granted_scopes = after
+        app.updated_at = datetime.now(timezone.utc)
+        session.add(app)
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_UPDATED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="app",
+            target_id=app.id,
+            detail={
+                "area": "scopes",
+                "changed": ["granted_scopes"],
+                # Scope names are the platform's own vocabulary, so the values
+                # are recorded rather than only the fact that they moved.
+                "values": {"granted_scopes": {"from": before, "to": after}},
+            },
+        )
+    await session.commit()
+    await session.refresh(app)
+    return serialize_guild_app(
+        app,
+        install_state=await registration_lookup.install_state(app.definition),
+        avatar_url=await _app_avatar(session, app),
+        context=guild_context,
+        placements=await _placements(session, app),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Embedded surfaces
 # ---------------------------------------------------------------------------
 
@@ -826,10 +1011,8 @@ async def create_guild_app_handoff(
 
     Whether the surface may be opened is decided here, under the caller's real
     session, so the app never makes that call and never sees a request from
-    somebody who failed it. What the manifest declared as ``visibility``
-    governs, read guild-wide: a surface naming any audience narrower than
-    ``member`` is reachable here only by the guild's admins, and everything
-    else is open to every member of the installing guild.
+    somebody who failed it. At the community level only the guild's admins open
+    a surface.
 
     The token goes to the iframe by ``postMessage`` — never a query string —
     and expires in a minute.
@@ -839,12 +1022,10 @@ async def create_guild_app_handoff(
         session,
         app,
         surface_id=surface_id,
-        user_id=current_user.id,
-        is_guild_admin=guild_context.is_admin,
+        context=guild_context,
         # This route reaches a guild and names no initiative. A surface that
         # renders only inside one is not offered here.
         initiative_id=None,
-        is_initiative_manager=False,
     )
     # The mint records this member's subject the first time it is needed, and
     # the token naming it is about to leave — so it is committed before then.
@@ -871,10 +1052,10 @@ async def create_initiative_app_handoff(
     but the surface is being opened somewhere narrower, and the token says so.
 
     Three gates, outermost first. The initiative must be one this caller can
-    reach. The manifest must declare the surface for this scope. And the
-    surface's ``visibility`` is then read *here*, where ``member`` means this
-    initiative's members and ``initiative_manager`` means its managers — a
-    guild admin clears both, as they do everywhere in their own guild.
+    reach. The manifest must declare the surface for this scope, and the seat
+    must have placed the app here. And the caller must hold one of the roles
+    that placement allows — or be a guild admin, as everywhere in their own
+    guild. A surface marked ``admin_only`` is for the admins alone.
 
     The initiative in the minted token is this route's, never the caller's to
     supply, so an app can scope what it shows without asking a second question
@@ -886,12 +1067,8 @@ async def create_initiative_app_handoff(
         session,
         app,
         surface_id=surface_id,
-        user_id=current_user.id,
-        is_guild_admin=guild_context.is_admin,
+        context=guild_context,
         initiative_id=initiative.id,
-        is_initiative_manager=await rls_service.is_initiative_manager(
-            session, initiative_id=initiative.id
-        ),
     )
     await session.commit()
     return _handoff_response(handoff)

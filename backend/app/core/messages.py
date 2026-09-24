@@ -1189,14 +1189,20 @@ class GuildAppMessages:
     SERVICE_NOT_REGISTERED = "GUILD_APP_SERVICE_NOT_REGISTERED"
     #: The pinned definition declares no surface under that id.
     SURFACE_NOT_FOUND = "GUILD_APP_SURFACE_NOT_FOUND"
-    #: The surface is declared for the guild's admins, or for an initiative's
-    #: managers and opened guild-wide, where only admins clear that rung.
+    #: The surface is opened at the community level, or is marked
+    #: ``admin_only``, and the caller is not a guild admin.
     SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
-    #: The surface is declared for an initiative's managers, was opened in an
-    #: initiative, and the caller does not manage it.
-    SURFACE_MANAGER_ONLY = "GUILD_APP_SURFACE_MANAGER_ONLY"
+    #: The surface was opened in an initiative the app is placed in, and the
+    #: caller holds none of the roles that placement allows.
+    SURFACE_ROLE_NOT_ALLOWED = "GUILD_APP_SURFACE_ROLE_NOT_ALLOWED"
     #: The placement sent names an initiative that is not one of this guild's.
     PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
+    #: The placement names a role that is not one of its initiative's.
+    PLACEMENT_ROLE_INVALID = "GUILD_APP_PLACEMENT_ROLE_INVALID"
+    #: A scope granted to an install that its manifest does not request.
+    SCOPE_NOT_REQUESTED = "GUILD_APP_SCOPE_NOT_REQUESTED"
+    #: A scope granted to an install beyond what this deployment allows the app.
+    SCOPE_ABOVE_CEILING = "GUILD_APP_SCOPE_ABOVE_CEILING"
 
 
 class DelegationExchangeMessages:
@@ -1312,7 +1318,7 @@ class AppDataMessages:
     #: The install names no such data source, or the pinned definition is not a
     #: service app's at all.
     ENDPOINT_NOT_FOUND = "APP_DATA_ENDPOINT_NOT_FOUND"
-    #: The source is declared for guild admins and the caller is a member.
+    #: The endpoint is marked ``admin_only`` and the caller is not a guild admin.
     ADMIN_ONLY = "APP_DATA_ADMIN_ONLY"
     #: The source declares no such parameter, so there is nothing to fill in.
     PARAM_NOT_FOUND = "APP_DATA_PARAM_NOT_FOUND"

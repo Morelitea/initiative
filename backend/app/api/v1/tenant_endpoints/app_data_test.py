@@ -68,6 +68,8 @@ PUBLIC_ID = "acme.shop"
 #: what every endpoint id has to be.
 ORDERS_SUMMARY = f"app.{PUBLIC_ID}.orders-summary"
 REVENUE = f"app.{PUBLIC_ID}.revenue"
+#: Pinned before ``admin_only`` existed, under the earlier contract's term.
+LEGACY_REPORT = f"app.{PUBLIC_ID}.legacy-report"
 MY_PRS = f"app.{PUBLIC_ID}.my-prs"
 REFUND = f"app.{PUBLIC_ID}.refund"
 #: The two reads that exist to fill a menu rather than a tile. Which shops
@@ -104,8 +106,9 @@ GITHUB_CONNECTION = {
 
 
 def _definition() -> dict:
-    """A service app offering three sources: one open, one for guild admins, one
-    that runs on the caller's own vendor account."""
+    """A service app offering several sources: one for guild admins (and one
+    pinned as such under the earlier contract), one that runs on the caller's
+    own vendor account, and ordinary ones."""
     return {
         "app_kind": "service",
         "service": {"public_id": PUBLIC_ID, "protocol": 1},
@@ -115,7 +118,6 @@ def _definition() -> dict:
             {
                 "id": ORDERS_SUMMARY,
                 "direction": "read",
-                "visibility": "member",
                 "cache_ttl_seconds": 60,
                 "params": [
                     _field("range", "select", options=["7d", "30d"]),
@@ -137,7 +139,7 @@ def _definition() -> dict:
                             "needs": {"shop": "shop"},
                         },
                     ),
-                    # Sourced from the guild-admin read, so a member asking for
+                    # Sourced from the admin-only read, so a member asking for
                     # its values is a case rather than a hypothetical.
                     _field(
                         "tier",
@@ -165,21 +167,25 @@ def _definition() -> dict:
             {
                 "id": REVENUE,
                 "direction": "read",
-                "visibility": "guild_admin",
+                "admin_only": True,
                 "cache_ttl_seconds": 0,
                 "returns": [{"key": "tiers", "type": "string", "list": True}],
             },
             {
+                "id": LEGACY_REPORT,
+                "direction": "read",
+                "visibility": "guild_admin",
+                "cache_ttl_seconds": 0,
+            },
+            {
                 "id": LIST_SHOPS,
                 "direction": "read",
-                "visibility": "member",
                 "cache_ttl_seconds": 300,
                 "returns": [{"key": "names", "type": "string", "list": True}],
             },
             {
                 "id": LIST_AISLES,
                 "direction": "read",
-                "visibility": "member",
                 "cache_ttl_seconds": 300,
                 "params": [_field("shop", "string")],
                 "returns": [
@@ -190,7 +196,6 @@ def _definition() -> dict:
             {
                 "id": MY_PRS,
                 "direction": "read",
-                "visibility": "member",
                 "cache_ttl_seconds": 60,
                 "requires": {"all_of": ["github"]},
             },
@@ -431,21 +436,25 @@ class TestGates:
         assert upstream.count == 0
 
 
-class TestVisibility:
-    async def test_a_guild_admin_source_is_open_to_an_admin(
-        self, client, acting_user, session, upstream
+class TestAdminOnly:
+    @pytest.mark.parametrize("source", [REVENUE, LEGACY_REPORT])
+    async def test_an_admin_only_source_is_open_to_an_admin(
+        self, client, acting_user, session, upstream, source
     ):
-        a, app, dashboard = await _workspace(session, acting_user, REVENUE)
+        a, app, dashboard = await _workspace(session, acting_user, source)
 
-        response = await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
+        response = await client.get(_url(a, app, source, dashboard), headers=a.headers)
         assert response.status_code == 200, response.text
 
-    async def test_a_guild_admin_source_is_refused_to_a_member(
-        self, client, acting_user, session, upstream
+    @pytest.mark.parametrize("source", [REVENUE, LEGACY_REPORT])
+    async def test_an_admin_only_source_is_refused_to_a_member(
+        self, client, acting_user, session, upstream, source
     ):
         """Checked against the caller's real guild role, on the pinned
-        definition — not against anything the request supplied."""
-        a, app, dashboard = await _workspace(session, acting_user, REVENUE)
+        definition — including one pinned under the earlier contract's
+        ``visibility: "guild_admin"`` — not against anything the request
+        supplied."""
+        a, app, dashboard = await _workspace(session, acting_user, source)
         member = await acting_user(
             guild_role=GuildRole.member,
             guild=a.guild,
@@ -454,7 +463,7 @@ class TestVisibility:
         )
 
         response = await client.get(
-            _url(member, app, REVENUE, dashboard), headers=member.headers
+            _url(member, app, source, dashboard), headers=member.headers
         )
         assert response.status_code == 403
         assert response.json()["detail"] == AppDataMessages.ADMIN_ONLY
@@ -906,7 +915,10 @@ class TestWidgetCatalog:
         }
 
         sources = {source["id"]: source for source in entry["endpoints"]}
-        assert sources[REVENUE]["visibility"] == "guild_admin"
+        assert sources[REVENUE]["admin_only"] is True
+        assert sources[LEGACY_REPORT]["admin_only"] is True
+        assert sources[ORDERS_SUMMARY]["admin_only"] is False
+        assert "visibility" not in sources[LEGACY_REPORT]
         assert sources[ORDERS_SUMMARY]["cache_ttl_seconds"] == 60
 
     async def test_a_disabled_install_offers_no_widgets(
@@ -1081,15 +1093,12 @@ class TestParamOptions:
         assert response.status_code == 200, response.text
         assert response.json() == {"options": [], "unavailable": "unresolved"}
 
-    async def test_a_member_is_told_nothing_by_a_guild_admin_source(
+    async def test_a_member_is_told_nothing_by_an_admin_only_source(
         self, client, acting_user, session, upstream
     ):
-        """The source's own visibility decides, exactly as it does for a tile.
-
-        A member asking for the values of a parameter sourced from a guild-admin
-        read gets the same answer as one whose app is down — no options and no
-        indication of which of the two it was.
-        """
+        """The source's own ``admin_only`` decides, exactly as it does for a
+        tile. A member asking for the values of a parameter sourced from an
+        admin-only read gets the same answer as one whose app is down."""
         a, app, _ = await _workspace(session, acting_user)
         member = await acting_user(guild=a.guild, guild_role=GuildRole.member)
 
@@ -1098,6 +1107,21 @@ class TestParamOptions:
         )
         assert response.status_code == 200, response.text
         assert response.json() == {"options": [], "unavailable": "unresolved"}
+        assert upstream.count == 0
+
+    async def test_a_member_fills_in_no_form_for_an_admin_only_endpoint(
+        self, client, acting_user, session, upstream
+    ):
+        """Refused before the parameter is looked for: the form belongs to an
+        endpoint this caller may not read."""
+        a, app, _ = await _workspace(session, acting_user)
+        member = await acting_user(guild=a.guild, guild_role=GuildRole.member)
+
+        response = await client.get(
+            _options_url(member, app, REVENUE, "anything"), headers=member.headers
+        )
+        assert response.status_code == 403
+        assert response.json()["detail"] == AppDataMessages.ADMIN_ONLY
         assert upstream.count == 0
 
     async def test_a_guild_admin_reads_that_same_source(

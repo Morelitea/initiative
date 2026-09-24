@@ -64,13 +64,11 @@ __all__ = [
     "FEATURES",
     "FEATURE_BLOCKS",
     "FIELD_TYPES",
-    "GUILD_WIDE_VISIBILITIES",
     "PARAM_TYPES",
+    "SCOPES",
     "SURFACE_SCOPES",
-    "VISIBILITIES",
-    "VISIBILITY_LADDER",
     "app_widget_type",
-    "clears_visibility",
+    "is_admin_only",
     "normalize_service_app_definition",
 ]
 
@@ -119,31 +117,33 @@ PARAM_TYPES: frozenset[str] = contract.enum("paramType")
 #: nothing keeps the placement it already had.
 SURFACE_SCOPES: frozenset[str] = contract.enum("surfaceScope")
 
-#: Who may open a surface, in order. A ladder rather than a set: a value names
-#: the floor an audience has to clear, and each rung clears the ones below it.
-#: ``guild_admin`` is the guild's admins, who clear every rung — an admin's
-#: reach over their own guild is the same rule here as it is everywhere else.
-#:
-#: A rung is read against *where* the surface was opened, which is what lets one
-#: value serve a surface in both scopes:
-#:
-#: * ``member`` guild-wide is every member of the installing guild; inside an
-#:   initiative it is that initiative's members, and no one else's — the
-#:   initiative gate is what answers that, not a claim in a manifest.
-#: * ``initiative_manager`` inside an initiative is that initiative's managers;
-#:   guild-wide, where there is no initiative to manage, only the guild's
-#:   admins reach it.
-#:
-#: Deliberately coarser than a tool's permissions. A surface has no grants and
-#: no permission key to hang a per-role dial on, so it names one of three
-#: audiences rather than an arbitrary initiative role.
-VISIBILITY_LADDER: tuple[str, ...] = contract.ladder("visibility")
-VISIBILITIES: frozenset[str] = frozenset(VISIBILITY_LADDER)
+#: The scopes a service may ask a community to grant: what its installation
+#: and member tokens act with. The contract's vocabulary, which is the same one
+#: ``app.core.app_scopes`` derives (``app_scopes_test`` holds the two equal).
+SCOPES: frozenset[str] = contract.enum("scope")
 
-#: The rungs something opened without an initiative may ask for.
-#: ``initiative_manager`` is absent: outside an initiative there is nothing to
-#: manage, so the value would be stored as a claim nothing could ever evaluate.
-GUILD_WIDE_VISIBILITIES: frozenset[str] = contract.enum("endpointVisibility")
+#: A term an earlier contract used to say who opens a surface or reads an
+#: endpoint. Who opens a surface is now the community's to choose, per
+#: initiative and role. A manifest still naming it is refused with a reason,
+#: unlike other unknown terms, so its author moves to what replaced it rather
+#: than finding the term quietly gone.
+RETIRED_AUDIENCE_TERM = "visibility"
+
+
+def is_admin_only(declared: Any) -> bool:
+    """Whether a stored surface or endpoint is for the community's admins alone.
+
+    Read off a *pinned* definition, which may predate ``admin_only``: one
+    normalized under the earlier contract says ``visibility: "guild_admin"``
+    instead, and it means the same thing until the install moves to a version
+    published under this one.
+    """
+    if not isinstance(declared, dict):
+        return False
+    if declared.get("admin_only") is True:
+        return True
+    return declared.get(RETIRED_AUDIENCE_TERM) == "guild_admin"
+
 
 #: Browser features an embedded surface may ask its frame for.
 #:
@@ -313,45 +313,29 @@ def _requires(
     return {key: cleaned}
 
 
-def _visibility(raw: Any, *, what: str, allowed: frozenset[str] = VISIBILITIES) -> str:
-    """One rung of the ladder, or the default.
+def _admin_only(raw: dict[str, Any], *, what: str) -> bool:
+    """``admin_only``, defaulting to false; absent and null read the same."""
+    value = raw.get("admin_only")
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        fail(f"{what}: admin_only must be true or false")
+    return value
 
-    ``allowed`` narrows it for something with no initiative to name, so a value
-    is refused where it could not be evaluated rather than stored and quietly
-    read as something else later.
+
+def _refuse_retired_audience(raw: dict[str, Any], *, what: str) -> None:
+    """Refuse the audience term an earlier contract used.
+
+    Every other unknown term is dropped and reported. This one narrowed who
+    could reach something, so it is refused by name and the author is told
+    what replaced it.
     """
-    if raw is None:
-        return "member"
-    if raw not in VISIBILITIES:
-        fail(f"{what}: unknown visibility {raw!r}")
-    if raw not in allowed:
+    if RETIRED_AUDIENCE_TERM in raw:
         fail(
-            f"{what}: visibility {raw!r} names an initiative audience, and this "
-            "surface is not opened in an initiative"
+            f"{what}: {RETIRED_AUDIENCE_TERM!r} is not a term this contract "
+            "declares; who opens a surface is chosen by the community, and "
+            "'admin_only' limits one to its admins"
         )
-    return raw
-
-
-def clears_visibility(
-    required: Any,
-    *,
-    is_guild_admin: bool,
-    is_initiative_manager: bool = False,
-) -> bool:
-    """Whether a caller reaches something declaring ``required``.
-
-    The ladder's ordering is written once, here, so what a manifest may declare
-    and what a request is measured against cannot drift apart. A caller with no
-    initiative in hand leaves ``is_initiative_manager`` false and is measured on
-    the rungs that remain. Anything unrecognized is refused.
-    """
-    if is_guild_admin:
-        return True
-    if required is None or required == "member":
-        return True
-    if required == "initiative_manager":
-        return is_initiative_manager
-    return False
 
 
 def _field(
@@ -662,6 +646,7 @@ def _endpoint(
         endpoint.get("id"), service_public_id=service_public_id, what="endpoint id"
     )
     what = f"endpoint {endpoint_id!r}"
+    _refuse_retired_audience(endpoint, what=what)
 
     direction = endpoint.get("direction")
     if direction not in DIRECTIONS:
@@ -738,12 +723,16 @@ def _endpoint(
             "params",
             "requires",
             "cache_ttl_seconds",
-            "visibility",
             "actors",
+            "admin_only",
         ):
             if endpoint.get(absent) is not None:
                 fail(f"{what}: an emit endpoint has no {absent}")
         return cleaned
+
+    # Whoever the call is for, stored whichever way it was declared so every
+    # pinned endpoint answers the question the same way.
+    cleaned["admin_only"] = _admin_only(endpoint, what=what)
 
     if params:
         cleaned["params"] = params
@@ -752,22 +741,13 @@ def _endpoint(
     if actors:
         cleaned["actors"] = actors
 
-    # Only a read is answered from cache, and only a read is reached by an
-    # audience wide enough to need a rung. A write is authorized by the token
-    # that carried it.
+    # Only a read is answered from cache.
     if direction == "read":
-        # A read is answered for a guild, not for an initiative, so the rungs
-        # that need one are not on offer here.
-        cleaned["visibility"] = _visibility(
-            endpoint.get("visibility"), what=what, allowed=GUILD_WIDE_VISIBILITIES
-        )
         cleaned["cache_ttl_seconds"] = _cache_ttl(
             endpoint.get("cache_ttl_seconds"), what=what
         )
-    else:
-        for absent in ("cache_ttl_seconds", "visibility"):
-            if endpoint.get(absent) is not None:
-                fail(f"{what}: only a read endpoint has {absent}")
+    elif endpoint.get("cache_ttl_seconds") is not None:
+        fail(f"{what}: only a read endpoint has cache_ttl_seconds")
 
     requires = _requires(
         endpoint.get("requires"), connection_ids=connection_ids, what=what
@@ -1166,20 +1146,17 @@ def _embed(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
     embed_id = check_identifier(embed.get("id"), what="embed id")
     what = f"embed {embed_id!r}"
 
-    scopes = _scopes(embed.get("scopes"), what=what)
+    _refuse_retired_audience(embed, what=what)
+
+    admin_only = _admin_only(embed, what=what)
+
     cleaned: dict[str, Any] = {
         "id": embed_id,
         "path": check_path(embed.get("path"), what=f"{what} path"),
-        "scopes": scopes,
-        "visibility": _visibility(
-            embed.get("visibility"),
-            what=what,
-            # An initiative audience is only namable by a surface that renders
-            # in one.
-            allowed=(
-                VISIBILITIES if "initiative" in scopes else GUILD_WIDE_VISIBILITIES
-            ),
-        ),
+        "scopes": _scopes(embed.get("scopes"), what=what),
+        # Stored whichever way it was declared, so every pinned surface answers
+        # the question the same way.
+        "admin_only": admin_only,
         "name": _label(embed.get("name"), what=what),
     }
     capabilities = _capabilities(embed.get("capabilities"), what=what)
@@ -1221,7 +1198,32 @@ def _service_block(raw: Any) -> dict[str, Any]:
             f"service app: protocol {protocol} is not one this build speaks "
             f"({sorted(APP_PROTOCOL_VERSIONS)})"
         )
-    return {"public_id": public_id, "protocol": protocol}
+    cleaned: dict[str, Any] = {"public_id": public_id, "protocol": protocol}
+    scopes = _requested_scopes(service.get("scopes"))
+    if scopes:
+        cleaned["scopes"] = scopes
+    return cleaned
+
+
+def _requested_scopes(raw: Any) -> list[str]:
+    """The scopes a service asks a community to grant, canonically.
+
+    Absent means none. Each must be in the vocabulary and named once; stored
+    sorted, so re-publishing the same manifest produces the same document.
+    """
+    if raw is None:
+        return []
+    declared = require_list(raw, "service app: service.scopes", len(SCOPES))
+    scopes: set[str] = set()
+    for entry in declared:
+        # Typed before it is looked up: set membership is defined only for a
+        # hashable value.
+        if not isinstance(entry, str) or entry not in SCOPES:
+            fail(f"service app: {entry!r} is not a scope an app may request")
+        if entry in scopes:
+            fail(f"service app: service.scopes names {entry!r} twice")
+        scopes.add(entry)
+    return sorted(scopes)
 
 
 def _features(raw: Any) -> list[str]:

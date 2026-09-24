@@ -5,7 +5,7 @@ An operator says so on the registration (``mandatory``), and this is what that
 statement does — every guild has the app, already there, with no admin
 discovering it in a catalog and no admin able to remove it.
 
-Five properties, and each one is a deliberate choice:
+Six properties, and each one is a deliberate choice:
 
 * **A guild gets it at creation, and an existing guild gets it at boot.** The
   same sweep pattern that reprovisions stale schemas, so the flag reaches guilds
@@ -16,6 +16,11 @@ Five properties, and each one is a deliberate choice:
   next boot tries again.
 * **The kill switch outranks the flag.** A registration the operator turned off
   installs nowhere new — deactivating an app stops it exactly like any other.
+* **It is granted what it asks for, within the ceiling.** The manifest's
+  requested scopes, capped by the registration's ``scope_ceiling``: the
+  operator's registration is the consent a seat would otherwise give. An
+  install already there that holds no grant is given the same on the next
+  sweep; one the seat has granted something is left as the seat set it.
 * **It is placed in every initiative.** Each one that exists when it is
   installed, and each one created afterwards (``follows_new_initiatives``). The
   seat may still remove it from any single initiative, and that stays removed:
@@ -55,6 +60,7 @@ __all__ = [
     "BackfillResult",
     "backfill_mandatory_apps",
     "install_mandatory_apps",
+    "mandatory_grant",
 ]
 
 
@@ -65,6 +71,19 @@ class BackfillResult:
     guilds: int = 0
     installed: int = 0
     failed: int = 0
+
+
+def mandatory_grant(
+    definition: dict, registration: registration_lookup.RegistrationSnapshot
+) -> list[str]:
+    """The scopes a mandatory install is granted: what its manifest requests
+    and its registration's ceiling allows, sorted.
+
+    Written on the system engine, which the install's grant guard admits.
+    """
+    return sorted(
+        guild_apps_service.grantable_scopes(definition, registration.scope_ceiling)
+    )
 
 
 async def _installer_user_id(
@@ -152,6 +171,13 @@ async def install_mandatory_apps(
             if not existing.follows_new_initiatives:
                 existing.follows_new_initiatives = True
                 session.add(existing)
+            # One that holds no grant yet gets what a new install would. A
+            # grant the seat already set is theirs and is left as it is.
+            if not existing.granted_scopes:
+                granted = mandatory_grant(existing.definition or {}, registration)
+                if granted:
+                    existing.granted_scopes = granted
+                    session.add(existing)
             continue
 
         try:
@@ -188,6 +214,7 @@ async def install_mandatory_apps(
         )
         # Placed in every initiative there is, and in each one created later.
         app.follows_new_initiatives = True
+        app.granted_scopes = mandatory_grant(definition, registration)
         session.add(app)
         await session.flush()
         await guild_apps_service.place_in_every_initiative(session, app)

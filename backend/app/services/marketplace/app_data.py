@@ -9,10 +9,10 @@ guild and the operator already own, never from the request.
 **Authorization happens before this module caches anything.** The route runs
 under the caller's own guild session, so the install row is reachable only from
 inside that guild and a guild admin's wider reach is inherited rather than
-re-implemented. What is left here is the app-shaped part of the decision: the
-endpoint's declared visibility, the two kill switches (the guild's install and
-the operator's registration), and whether the credentials the endpoint declared
-it needs are actually present.
+re-implemented. What is left here is the app-shaped part of the decision:
+whether the endpoint is for the community's admins alone, the two kill switches
+(the guild's install and the operator's registration), and whether the
+credentials the endpoint declared it needs are actually present.
 
 **The cache key contains every credential the response depended on.** That is
 the whole rule, and it is what makes a stored body safe to replay:
@@ -72,7 +72,7 @@ from app.services.fields.spec import FieldType
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.context_jwt import mint_context_token
 from app.services.query.rows import RowColumn
-from app.services.marketplace.service_apps import clears_visibility
+from app.services.marketplace.service_apps import is_admin_only
 from app.services.safe_http import build_validated_request
 from app.services.tenant import app_config as app_config_service
 from app.services.webhook_target_url import (
@@ -830,17 +830,15 @@ async def fetch_app_source(
     The install has already been loaded under the caller's own guild session, so
     the guild boundary and a guild admin's wider reach are settled before this
     runs. What is decided here is the app's own vocabulary: the endpoint exists,
-    the caller is allowed to see it, both kill switches are open, the parameters
-    are ones the endpoint declared, and the credentials it named are present.
+    the caller may read it, both kill switches are open, the parameters are ones
+    the endpoint declared, and the credentials it named are present.
     """
     endpoint = find_read_endpoint(app.definition, endpoint_id)
     public_id = service_public_id(app.definition)
     if endpoint is None or public_id is None:
         raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
 
-    # Measured against the same ladder a manifest declares on, so the two
-    # cannot come to mean different things.
-    if not clears_visibility(endpoint.get("visibility"), is_guild_admin=is_guild_admin):
+    if is_admin_only(endpoint) and not is_guild_admin:
         raise AppDataError(AppDataMessages.ADMIN_ONLY, 403)
     if not app.enabled:
         raise AppDataError(AppDataMessages.APP_DISABLED, 409)
@@ -918,9 +916,9 @@ async def fetch_app_source(
 # * the parameters that source is called with are the ones its ``needs`` names,
 #   mapped from answers the same form already holds, so a caller cannot shape
 #   the upstream request;
-# * the source's own ``visibility`` is enforced by ``fetch_app_source`` exactly
-#   as it is for a placed tile, on the caller's own credentials. What comes back
-#   is what this caller may see, or nothing.
+# * the source is fetched by ``fetch_app_source`` exactly as it is for a placed
+#   tile, on the caller's own credentials and with its own ``admin_only``
+#   enforced. What comes back is what this caller may see, or nothing.
 
 #: The most values one menu hands back. A picker is a control somebody reads,
 #: and an app answering with thousands is answering a different question.
@@ -1030,6 +1028,9 @@ async def resolve_param_options(
     endpoint = find_read_endpoint(app.definition, endpoint_id)
     if endpoint is None:
         raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
+    # A form for an endpoint the caller may not read is not theirs to fill in.
+    if is_admin_only(endpoint) and not is_guild_admin:
+        raise AppDataError(AppDataMessages.ADMIN_ONLY, 403)
 
     param = find_param(endpoint, param_key)
     if param is None:

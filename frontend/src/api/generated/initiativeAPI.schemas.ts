@@ -685,7 +685,7 @@ export interface AppDataReturn {
  */
 export interface AppEndpointRead {
   id: string;
-  visibility?: string;
+  admin_only?: boolean;
   cache_ttl_seconds?: number;
   params?: AppDataParam[];
   returns?: AppDataReturn[];
@@ -736,6 +736,18 @@ export interface AppParamOptionsResponse {
 export interface AppPlacementRead {
   initiative_id: number;
   role_ids: number[];
+}
+
+/**
+ * Who may open an app's surfaces in one initiative.
+ *
+ * The whole set: a role left out is no longer allowed. Every id must be a
+ * role of that initiative. An empty list places the app with no role, so
+ * only guild admins open it there.
+ */
+export interface AppPlacementUpdate {
+  /** @maxItems 200 */
+  role_ids?: number[];
 }
 
 export type AppServiceRegistrationCreateJwks = { [key: string]: unknown } | null;
@@ -822,6 +834,18 @@ export interface AppServiceRegistrationUpdate {
  */
 export interface AppServiceVerifyRequest {
   accept_manifest_change?: boolean;
+}
+
+/**
+ * Where the viewer may open one of an app's surfaces.
+ *
+ * Computed on the server by the same decision the handoff makes, so the
+ * client offers exactly the doors that open.
+ */
+export interface AppSurfaceAccessRead {
+  surface_id: string;
+  openable_guild_wide: boolean;
+  openable_initiatives: number[];
 }
 
 export type AppWidgetReadMeta = { [key: string]: unknown };
@@ -4165,6 +4189,7 @@ export interface GuildAppDetail {
   features: string[];
   definition: GuildAppDetailDefinition;
   placements: AppPlacementRead[];
+  surface_access: AppSurfaceAccessRead[];
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
@@ -4175,6 +4200,8 @@ export interface GuildAppDetail {
   connections: GuildAppConnectionRead[];
   delegation: GuildAppDelegationRead | null;
   update_version: string | null;
+  requested_scopes: string[];
+  grantable_scopes: string[];
 }
 
 /**
@@ -4225,6 +4252,7 @@ export interface GuildAppRead {
   features: string[];
   definition: GuildAppReadDefinition;
   placements: AppPlacementRead[];
+  surface_access: AppSurfaceAccessRead[];
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
@@ -4274,6 +4302,17 @@ export interface GuildAppMembersResponse {
   summary: GuildAppConnectionSummary[];
   items: GuildAppMemberConnection[];
   delegations: GuildAppMemberDelegation[];
+}
+
+/**
+ * The scopes the seat grants an install, as the whole set.
+ *
+ * Each must be one the app's manifest requests and one this deployment
+ * allows the app. An empty list withdraws every grant.
+ */
+export interface GuildAppScopesUpdate {
+  /** @maxItems 64 */
+  granted?: string[];
 }
 
 export interface GuildAppUpdate {

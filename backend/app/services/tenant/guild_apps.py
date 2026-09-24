@@ -37,8 +37,10 @@ uninstall quietly leaves a row behind.
 
 from __future__ import annotations
 
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Awaitable, Callable, Iterable, Optional
 
 from sqlalchemy import cast, delete, update
@@ -46,6 +48,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.app_scopes import ALL_SCOPES
 from app.core.audit_events import AuditEventType
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.calendar import Calendar
@@ -53,13 +56,18 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import audit as audit_service
+from app.services.marketplace.service_apps import is_admin_only
 from app.services.tenant.soft_delete import soft_delete_entity
 
 __all__ = [
     "ARTIFACT_HANDLERS",
     "ArtifactHandler",
     "PlacementError",
+    "PlacementRoleError",
+    "SurfaceAccess",
+    "SurfaceOpenability",
     "app_artifacts",
+    "declared_surfaces",
     "create_app_artifacts",
     "find_mounting_app",
     "get_app_content_id",
@@ -69,10 +77,16 @@ __all__ = [
     "lock_install",
     "place_in_every_initiative",
     "placed_initiative_ids",
+    "placement_role_ids",
     "placements_by_install",
     "record_artifact",
     "remove_app_artifacts",
+    "remove_placement",
     "set_placed_initiatives",
+    "set_placement_roles",
+    "surface_access",
+    "surface_openability",
+    "surface_renders_in",
     "touch",
 ]
 
@@ -426,12 +440,16 @@ def touch(app: GuildApp) -> None:
 # per initiative, carrying the initiative roles allowed to open the app there.
 # An initiative with no row is one the app is not placed in. Placement is the
 # seat's answer to "where does this belong", so it applies to everyone
-# including guild admins — unlike a surface's ``visibility``, which names an
-# audience floor an admin always clears.
+# including guild admins — unlike the roles on a row, which an admin always
+# clears.
 
 
 class PlacementError(ValueError):
     """A placement that names something this guild cannot place an app in."""
+
+
+class PlacementRoleError(PlacementError):
+    """A placement naming a role that is not one of its initiative's."""
 
 
 async def _moderator_role_ids(
@@ -508,6 +526,100 @@ async def is_placed(
     return row is not None
 
 
+async def placement_role_ids(
+    session: AsyncSession, install_id: int, initiative_id: int
+) -> Optional[list[int]]:
+    """The roles allowed to open this install's surfaces in one initiative.
+
+    ``None`` when the install is not placed there, which is a different answer
+    from a placement allowing no role: the first has no surface to open, the
+    second has one that only admins open.
+    """
+    row = (
+        await session.exec(
+            select(AppPlacement.role_ids).where(
+                AppPlacement.install_id == install_id,
+                AppPlacement.initiative_id == initiative_id,
+            )
+        )
+    ).first()
+    return None if row is None else list(row or [])
+
+
+async def set_placement_roles(
+    session: AsyncSession, app: GuildApp, initiative_id: int, role_ids: Iterable[int]
+) -> AppPlacement:
+    """Place the install in one initiative with exactly these roles.
+
+    Creates the placement or replaces its roles. The initiative must be one of
+    this guild's, and every role one of *that* initiative's, both read on the
+    same routed session; anything else raises :class:`PlacementError`.
+    """
+    wanted: set[int] = set()
+    for entry in role_ids:
+        if isinstance(entry, bool) or not isinstance(entry, int):
+            raise PlacementError("roles must be a list of role ids")
+        wanted.add(entry)
+    initiative = (
+        await session.exec(select(Initiative.id).where(Initiative.id == initiative_id))
+    ).first()
+    if initiative is None:
+        raise PlacementError(f"initiative {initiative_id} is not one of this guild's")
+    if wanted:
+        known = set(
+            (
+                await session.exec(
+                    select(InitiativeRoleModel.id).where(
+                        InitiativeRoleModel.initiative_id == initiative_id,
+                        InitiativeRoleModel.id.in_(sorted(wanted)),
+                    )
+                )
+            ).all()
+        )
+        foreign = sorted(wanted - known)
+        if foreign:
+            raise PlacementRoleError(
+                f"role {foreign[0]} is not a role of initiative {initiative_id}"
+            )
+
+    placement = (
+        await session.exec(
+            select(AppPlacement).where(
+                AppPlacement.install_id == app.id,
+                AppPlacement.initiative_id == initiative_id,
+            )
+        )
+    ).first()
+    if placement is None:
+        placement = AppPlacement(
+            install_id=app.id, initiative_id=initiative_id, role_ids=sorted(wanted)
+        )
+    else:
+        placement.role_ids = sorted(wanted)
+        placement.updated_at = datetime.now(timezone.utc)
+    session.add(placement)
+    await session.flush()
+    return placement
+
+
+async def remove_placement(
+    session: AsyncSession, app: GuildApp, initiative_id: int
+) -> bool:
+    """Take the install out of one initiative. Answers whether it was there.
+
+    A mandatory install may be removed from an initiative like any other; it
+    stays removed, since only a new initiative is placed automatically.
+    """
+    result = await session.exec(
+        delete(AppPlacement).where(
+            AppPlacement.install_id == app.id,
+            AppPlacement.initiative_id == initiative_id,
+        )
+    )
+    await session.flush()
+    return bool(result.rowcount)
+
+
 async def set_placed_initiatives(
     session: AsyncSession, app: GuildApp, initiative_ids: set[int]
 ) -> None:
@@ -568,3 +680,157 @@ async def place_in_every_initiative(session: AsyncSession, app: GuildApp) -> Non
             )
         )
     await session.flush()
+
+
+# --- opening a surface ------------------------------------------------------
+#
+# One decision, read by both the handoff mint and the app read that tells the
+# client where each surface may be opened, so the two cannot disagree.
+
+
+class SurfaceAccess(str, Enum):
+    """What one viewer gets when opening one surface somewhere."""
+
+    #: The surface may be opened here.
+    open = "open"
+    #: There is no such surface here: it does not render in this scope, or the
+    #: install is not placed in this initiative.
+    not_here = "not_here"
+    #: The surface is here, and this viewer may not open it.
+    refused = "refused"
+
+
+def requested_scopes(definition: Any) -> list[str]:
+    """The scopes a pinned definition's service asks for, in vocabulary order.
+
+    Only scopes in the vocabulary are returned, each once.
+    """
+    service = definition.get("service") if isinstance(definition, dict) else None
+    scopes = service.get("scopes") if isinstance(service, dict) else None
+    if not isinstance(scopes, list):
+        return []
+    asked = {scope for scope in scopes if isinstance(scope, str)}
+    return [scope for scope in ALL_SCOPES if scope in asked]
+
+
+def grantable_scopes(definition: Any, ceiling: Iterable[str]) -> list[str]:
+    """The requested scopes the deployment's ceiling allows, in vocabulary order."""
+    allowed = set(ceiling)
+    return [scope for scope in requested_scopes(definition) if scope in allowed]
+
+
+def declared_surfaces(definition: Any) -> list[dict[str, Any]]:
+    """The embedded surfaces a pinned definition declares, well-formed ones only."""
+    if not isinstance(definition, dict):
+        return []
+    embeds = definition.get("embeds")
+    if not isinstance(embeds, list):
+        return []
+    return [
+        embed
+        for embed in embeds
+        if isinstance(embed, dict) and isinstance(embed.get("id"), str)
+    ]
+
+
+def surface_renders_in(embed: dict[str, Any], scope: str) -> bool:
+    """Whether a surface asked to render in ``scope``.
+
+    Definitions pinned before a surface could say where it belongs carry no
+    ``scopes``, and every one of those is guild-wide.
+    """
+    scopes = embed.get("scopes")
+    return scope in scopes if isinstance(scopes, list) else scope == "guild"
+
+
+def surface_access(
+    embed: dict[str, Any],
+    *,
+    initiative_id: Optional[int],
+    placement_role_ids: Optional[Collection[int]],
+    is_guild_admin: bool,
+    member_role_ids: Collection[int],
+) -> SurfaceAccess:
+    """Whether a viewer may open ``embed`` where it is being opened.
+
+    ``initiative_id`` is where: ``None`` is the community level. For an
+    initiative, ``placement_role_ids`` is that placement's roles, or ``None``
+    when the install is not placed there.
+
+    * In an initiative, the install must be placed there, and the viewer is a
+      guild admin or holds one of the placement's roles.
+    * At the community level, the viewer is a guild admin.
+    * A surface marked ``admin_only`` is opened by guild admins alone,
+      wherever it is (read by :func:`is_admin_only`, which also honours the
+      earlier contract's term on a definition pinned before it).
+
+    ``member_role_ids`` are the viewer's initiative roles across the community.
+    A role belongs to one initiative and a placement names only its own
+    initiative's roles, so meeting one of them here is holding it here.
+    """
+    scope = "guild" if initiative_id is None else "initiative"
+    if not surface_renders_in(embed, scope):
+        return SurfaceAccess.not_here
+    if initiative_id is not None and placement_role_ids is None:
+        return SurfaceAccess.not_here
+    if is_guild_admin:
+        return SurfaceAccess.open
+    if initiative_id is None or is_admin_only(embed):
+        return SurfaceAccess.refused
+    allowed = set(placement_role_ids or ())
+    if allowed.intersection(member_role_ids):
+        return SurfaceAccess.open
+    return SurfaceAccess.refused
+
+
+@dataclass(frozen=True)
+class SurfaceOpenability:
+    """Where one viewer may open one surface."""
+
+    surface_id: str
+    openable_guild_wide: bool
+    openable_initiatives: tuple[int, ...]
+
+
+def surface_openability(
+    definition: Any,
+    *,
+    placements: Sequence[AppPlacement],
+    is_guild_admin: bool,
+    member_role_ids: Collection[int],
+) -> list[SurfaceOpenability]:
+    """Every declared surface, with where this viewer may open it.
+
+    Measured with :func:`surface_access` against each placement the install
+    has, which is the same decision the handoff makes.
+    """
+    ordered = sorted(placements, key=lambda row: row.initiative_id)
+    answers: list[SurfaceOpenability] = []
+    for embed in declared_surfaces(definition):
+        guild_wide = surface_access(
+            embed,
+            initiative_id=None,
+            placement_role_ids=None,
+            is_guild_admin=is_guild_admin,
+            member_role_ids=member_role_ids,
+        )
+        initiatives = tuple(
+            row.initiative_id
+            for row in ordered
+            if surface_access(
+                embed,
+                initiative_id=row.initiative_id,
+                placement_role_ids=list(row.role_ids or []),
+                is_guild_admin=is_guild_admin,
+                member_role_ids=member_role_ids,
+            )
+            is SurfaceAccess.open
+        )
+        answers.append(
+            SurfaceOpenability(
+                surface_id=embed["id"],
+                openable_guild_wide=guild_wide is SurfaceAccess.open,
+                openable_initiatives=initiatives,
+            )
+        )
+    return answers

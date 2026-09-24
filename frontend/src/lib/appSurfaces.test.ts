@@ -4,32 +4,36 @@
  * Two readings that are easy to get wrong. A definition pinned before surfaces
  * could say where they belong carries no scopes, and every one of those is
  * guild-wide — getting that wrong would empty the app pages of every install
- * that predates it. And a rung is read against *where* a surface was opened, so
- * one declaration deliberately admits different people in each place.
+ * that predates it. And who may open a surface is the server's answer
+ * (`surface_access`), so a surface the server did not say opens here is not
+ * offered, whatever the definition declares.
  */
 
 import { describe, expect, it } from "vitest";
 
 import {
   appEmbeds,
-  clearsVisibility,
+  declaredEmbeds,
   embedAllow,
   guildAppPath,
   initiativeAppPath,
   placedIn,
+  type SurfaceAccess,
 } from "./appSurfaces";
 
-const ADMIN = { isGuildAdmin: true };
-const MANAGER = { isGuildAdmin: false, isInitiativeManager: true };
-const MEMBER = { isGuildAdmin: false };
-
-const embed = (id: string, scopes?: string[], visibility?: string) => ({
+const embed = (id: string, scopes?: string[], adminOnly?: boolean) => ({
   id,
   path: `/embed/${id}`,
   name: { en: id },
   ...(scopes ? { scopes } : {}),
-  ...(visibility ? { visibility } : {}),
+  ...(adminOnly !== undefined ? { admin_only: adminOnly } : {}),
 });
+
+const access = (
+  surface_id: string,
+  openable_guild_wide: boolean,
+  openable_initiatives: number[] = []
+): SurfaceAccess => ({ surface_id, openable_guild_wide, openable_initiatives });
 
 describe("embedAllow", () => {
   it("grants a surface exactly what it asked for", () => {
@@ -51,106 +55,97 @@ describe("embedAllow", () => {
   });
 });
 
-describe("clearsVisibility", () => {
-  it("lets a guild admin past every rung", () => {
-    for (const rung of [undefined, "member", "initiative_manager", "guild_admin"]) {
-      expect(clearsVisibility(rung, ADMIN)).toBe(true);
-    }
-  });
-
-  it("reads the manager rung against the reader's own standing", () => {
-    expect(clearsVisibility("initiative_manager", MANAGER)).toBe(true);
-    expect(clearsVisibility("initiative_manager", MEMBER)).toBe(false);
-  });
-
-  it("keeps a manager off the rung above them", () => {
-    expect(clearsVisibility("guild_admin", MANAGER)).toBe(false);
-  });
-
-  it("admits everyone where nothing was named", () => {
-    expect(clearsVisibility(undefined, MEMBER)).toBe(true);
-    expect(clearsVisibility("member", MEMBER)).toBe(true);
-  });
-
-  it("does not offer a rung it cannot read", () => {
-    expect(clearsVisibility("everyone", MEMBER)).toBe(false);
-  });
-});
-
-describe("appEmbeds", () => {
+describe("declaredEmbeds", () => {
   it("reads a surface that says nothing as guild-wide", () => {
     const definition = { embeds: [embed("board")] };
-    expect(appEmbeds(definition, "guild", MEMBER).map((e) => e.id)).toEqual(["board"]);
-    expect(appEmbeds(definition, "initiative", MEMBER)).toEqual([]);
+    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["board"]);
+    expect(declaredEmbeds(definition, "initiative")).toEqual([]);
   });
 
   it("offers a surface in both places when it asked for both", () => {
     const definition = { embeds: [embed("runs", ["guild", "initiative"])] };
-    expect(appEmbeds(definition, "guild", MEMBER).map((e) => e.id)).toEqual(["runs"]);
-    expect(appEmbeds(definition, "initiative", MEMBER).map((e) => e.id)).toEqual(["runs"]);
-  });
-
-  it("keeps an initiative-only surface off the guild page", () => {
-    const definition = { embeds: [embed("runs", ["initiative"])] };
-    expect(appEmbeds(definition, "guild", ADMIN)).toEqual([]);
-    expect(appEmbeds(definition, "initiative", ADMIN).map((e) => e.id)).toEqual(["runs"]);
-  });
-
-  it("offers one declaration to different people in each place", () => {
-    // The automation shape: managers inside their initiative, admins guild-wide.
-    const definition = {
-      embeds: [embed("runs", ["guild", "initiative"], "initiative_manager")],
-    };
-    expect(appEmbeds(definition, "initiative", MANAGER).map((e) => e.id)).toEqual(["runs"]);
-    // Still described as a manager, but guild-wide there is nothing to manage,
-    // so the rung falls through to the admins — the mint reads it the same way.
-    expect(appEmbeds(definition, "guild", MANAGER)).toEqual([]);
-    expect(appEmbeds(definition, "guild", ADMIN).map((e) => e.id)).toEqual(["runs"]);
-    expect(appEmbeds(definition, "initiative", MEMBER)).toEqual([]);
-  });
-
-  it("does not offer a member an admin surface", () => {
-    const definition = { embeds: [embed("console", ["guild"], "guild_admin")] };
-    expect(appEmbeds(definition, "guild", MEMBER)).toEqual([]);
-    expect(appEmbeds(definition, "guild", ADMIN).map((e) => e.id)).toEqual(["console"]);
+    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["runs"]);
+    expect(declaredEmbeds(definition, "initiative").map((e) => e.id)).toEqual(["runs"]);
   });
 
   it("ignores entries that are not surfaces", () => {
     const definition = { embeds: [{ id: "no-path" }, null, "board", embed("real")] };
-    expect(appEmbeds(definition, "guild", MEMBER).map((e) => e.id)).toEqual(["real"]);
+    expect(declaredEmbeds(definition, "guild").map((e) => e.id)).toEqual(["real"]);
   });
 
-  it("has nothing to offer when the app declares no embeds", () => {
-    expect(appEmbeds({}, "guild", ADMIN)).toEqual([]);
-    expect(appEmbeds(null, "guild", ADMIN)).toEqual([]);
+  it("has nothing when the app declares no embeds", () => {
+    expect(declaredEmbeds({}, "guild")).toEqual([]);
+    expect(declaredEmbeds(null, "guild")).toEqual([]);
+  });
+});
+
+describe("appEmbeds", () => {
+  it("offers a guild-wide surface only where the server says it opens", () => {
+    const definition = { embeds: [embed("board")] };
+    expect(
+      appEmbeds({ definition, surface_access: [access("board", true)] }).map((e) => e.id)
+    ).toEqual(["board"]);
+    expect(appEmbeds({ definition, surface_access: [access("board", false)] })).toEqual([]);
+  });
+
+  it("offers an initiative surface in the initiatives the server listed", () => {
+    const definition = { embeds: [embed("runs", ["guild", "initiative"])] };
+    const app = { definition, surface_access: [access("runs", false, [4])] };
+    expect(appEmbeds(app, 4).map((e) => e.id)).toEqual(["runs"]);
+    expect(appEmbeds(app, 5)).toEqual([]);
+    expect(appEmbeds(app)).toEqual([]);
+  });
+
+  it("keeps an initiative-only surface off the guild page", () => {
+    // Even if an answer said otherwise, the surface never asked to render there.
+    const definition = { embeds: [embed("runs", ["initiative"])] };
+    const app = { definition, surface_access: [access("runs", true, [4])] };
+    expect(appEmbeds(app)).toEqual([]);
+    expect(appEmbeds(app, 4).map((e) => e.id)).toEqual(["runs"]);
+  });
+
+  it("offers nothing the server gave no answer for", () => {
+    const definition = { embeds: [embed("board")] };
+    expect(appEmbeds({ definition })).toEqual([]);
+    expect(appEmbeds({ definition, surface_access: null })).toEqual([]);
+    expect(appEmbeds(null)).toEqual([]);
   });
 });
 
 describe("guildAppPath", () => {
-  it("gives an app with a guild-wide surface a page", () => {
-    expect(guildAppPath({ id: 7, definition: { embeds: [embed("board")] } }, MEMBER)).toBe(
-      "/apps/7"
-    );
+  it("gives an app with a surface this reader opens a page", () => {
+    expect(
+      guildAppPath({
+        id: 7,
+        definition: { embeds: [embed("board")] },
+        surface_access: [access("board", true)],
+      })
+    ).toBe("/apps/7");
+  });
+
+  it("gives a reader no page when no surface opens for them", () => {
+    expect(
+      guildAppPath({
+        id: 7,
+        definition: { embeds: [embed("console", ["guild"], true)] },
+        surface_access: [access("console", false)],
+      })
+    ).toBeNull();
   });
 
   it("gives an app with only initiative surfaces no guild page", () => {
     expect(
-      guildAppPath({ id: 7, definition: { embeds: [embed("runs", ["initiative"])] } }, ADMIN)
+      guildAppPath({
+        id: 7,
+        definition: { embeds: [embed("runs", ["initiative"])] },
+        surface_access: [access("runs", false, [4])],
+      })
     ).toBeNull();
-  });
-
-  it("gives a member no page when every surface is for admins", () => {
-    const app = {
-      id: 7,
-      definition: { embeds: [embed("console", ["guild"], "guild_admin")] },
-    };
-    expect(guildAppPath(app, MEMBER)).toBeNull();
-    expect(guildAppPath(app, ADMIN)).toBe("/apps/7");
   });
 
   it("sends a tool-instance app to the tool it mounted", () => {
     expect(
-      guildAppPath({ id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] }, MEMBER)
+      guildAppPath({ id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] })
     ).toBe("/calendars");
   });
 
@@ -165,36 +160,41 @@ describe("guildAppPath", () => {
         { type: "calendar", id: 4 },
       ],
     };
-    expect(guildAppPath(app, MEMBER)).toBe("/calendars");
+    expect(guildAppPath(app)).toBe("/calendars");
   });
 });
 
 describe("initiativeAppPath", () => {
-  const app = (embeds: ReturnType<typeof embed>[]) => ({
+  const app = (openIn: number[]) => ({
     id: 7,
-    definition: { embeds },
+    definition: { embeds: [embed("runs", ["initiative"])] },
     placements: [{ initiative_id: 4 }],
+    surface_access: [access("runs", false, openIn)],
   });
 
-  it("gives a manager a row inside their initiative", () => {
-    const declaration = app([embed("runs", ["initiative"], "initiative_manager")]);
-    expect(initiativeAppPath(declaration, 4, MANAGER)).toBe("/i/4/apps/7");
-    expect(initiativeAppPath(declaration, 4, MEMBER)).toBeNull();
-    expect(initiativeAppPath(declaration, 4, ADMIN)).toBe("/i/4/apps/7");
+  it("gives a row where the server says the reader opens a surface", () => {
+    expect(initiativeAppPath(app([4]), 4)).toBe("/i/4/apps/7");
+    expect(initiativeAppPath(app([]), 4)).toBeNull();
   });
 
   it("gives no row to an app with only a guild-wide surface", () => {
-    expect(initiativeAppPath(app([embed("board")]), 4, ADMIN)).toBeNull();
+    expect(
+      initiativeAppPath(
+        {
+          id: 7,
+          definition: { embeds: [embed("board")] },
+          placements: [{ initiative_id: 4 }],
+          surface_access: [access("board", true)],
+        },
+        4
+      )
+    ).toBeNull();
   });
 
   it("gives a tool-instance app no row of its own", () => {
     // The tool it mounted already lives in an initiative.
     expect(
-      initiativeAppPath(
-        { id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] },
-        4,
-        ADMIN
-      )
+      initiativeAppPath({ id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] }, 4)
     ).toBeNull();
   });
 });
@@ -220,9 +220,9 @@ describe("placedIn", () => {
       definition: {
         embeds: [{ id: "runs", path: "/embed", name: { en: "Runs" }, scopes: ["initiative"] }],
       },
+      surface_access: [access("runs", false, [9])],
     };
-    expect(initiativeAppPath(app, 9, ADMIN)).toBe("/i/9/apps/7");
-    expect(initiativeAppPath(app, 4, ADMIN)).toBeNull();
-    expect(initiativeAppPath(app, 4, MANAGER)).toBeNull();
+    expect(initiativeAppPath(app, 9)).toBe("/i/9/apps/7");
+    expect(initiativeAppPath(app, 4)).toBeNull();
   });
 });
