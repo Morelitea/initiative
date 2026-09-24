@@ -1238,3 +1238,34 @@ class TestListingAudience:
     def test_an_unknown_audience_is_named_rather_than_empty(self):
         with pytest.raises(ValueError):
             kinds_for_audience("initiative")
+
+
+class TestAPacksOwnArt:
+    DIGEST = "b" * 64
+
+    def _pack(self, **decoration) -> dict:
+        return {
+            "schema_version": 1,
+            "kind": "profile_pack",
+            "decorations": [
+                {"id": "acme.star", "slot": "banner", "name": "Star", **decoration}
+            ],
+        }
+
+    def test_a_decoration_may_name_its_picture_in_the_marketplace(self):
+        from app.services.marketplace.media import media_path
+
+        stored = normalize_listing_definition(
+            "profile_pack", self._pack(image=media_path(self.DIGEST))
+        )
+        assert stored["decorations"][0]["image"] == media_path(self.DIGEST)
+
+    def test_a_picture_from_anywhere_else_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="image"):
+            normalize_listing_definition(
+                "profile_pack", self._pack(image="https://example.invalid/star.png")
+            )
+
+    def test_a_pack_without_art_keeps_the_shape_it_was_published_in(self):
+        stored = normalize_listing_definition("profile_pack", self._pack())
+        assert "image" not in stored["decorations"][0]

@@ -77,6 +77,7 @@ from app.schemas.platform.user import (
     UserEmailRead,
     AgeConfirmation,
     DecorationPack,
+    DecorationArtResponse,
     DecorationPackListResponse,
     OwnedDecoration,
     OwnedDecorationsResponse,
@@ -446,10 +447,34 @@ def _pack_entry(
         description=listing.description,
         avatar_url=listing.avatar_url,
         contents=[
-            OwnedDecoration(id=decoration_id, kind=kind, name=None, source=listing.uid)
+            OwnedDecoration(
+                id=decoration_id,
+                kind=kind,
+                name=None,
+                source=listing.uid,
+                image_url=pack.images.get(decoration_id),
+            )
             for decoration_id, kind in pack.decorations.items()
         ],
         installed=installed,
+    )
+
+
+@router.get("/decoration-art", response_model=DecorationArtResponse)
+async def read_decoration_art(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    ids: Annotated[List[str], Query(max_length=64)] = [],  # noqa: B006 — FastAPI reads the default, never mutates it
+) -> DecorationArtResponse:
+    """The pictures packs carry for these decorations.
+
+    A profile names the decorations its owner wears by id. The client draws the
+    ones it ships art for; for any other, this answers with the picture the
+    pack carries, served by the marketplace. Ids nothing carries art for are
+    left out.
+    """
+    return DecorationArtResponse(
+        art=await profile_decorations_service.decoration_art(session, ids)
     )
 
 

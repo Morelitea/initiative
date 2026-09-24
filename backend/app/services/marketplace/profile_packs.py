@@ -5,11 +5,12 @@ trophy its community recognises. The listing carries the words (name, publisher,
 description) like any other; this validates the part that is particular to a
 pack: which decorations it grants, and which slot each one goes in.
 
-The artwork is deliberately not here. A decoration is an **id**, and what it
-looks like is resolved by whoever renders it — the client ships art for the
-ids this build knows, and an id it has no art for is simply not drawn. That is
-what lets a catalog name a decoration without every deployment having to hold
-its picture.
+A decoration is an **id**. The client ships art for the ids this build knows;
+a pack from anywhere else carries its own, as an ``image`` per decoration: a
+picture in the marketplace's own media, named by the path it is served from.
+The owner uploads it for a listing file, and a registry's index names it for
+the refresh to copy. A decoration with neither is drawn only where the client
+has art for its id.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.profile_decorations import DECORATION_KINDS, validate_decoration_id
+from app.services.marketplace.media import digest_of
 from app.services.marketplace.manifest_values import (
     MAX_NAME_LENGTH,
     ListingDefinitionError,
@@ -62,11 +64,22 @@ def _decoration(raw: Any, *, index: int, seen: set[str]) -> dict[str, str]:
         limit=MAX_NAME_LENGTH,
         required=True,
     )
-    return {
+    cleaned = {
         "id": decoration_id,
         "slot": slot,
         "name": check_single_line(name, what=f"decorations[{index}].name"),
     }
+    # Written only when there is one, so a pack whose art ships with the client
+    # keeps exactly the shape it was published in.
+    image = entry.get("image")
+    if image is not None:
+        if digest_of(image) is None:
+            fail(
+                f"decorations[{index}].image: a decoration's picture is one in "
+                "the marketplace's media, named by the path it is served from"
+            )
+        cleaned["image"] = image
+    return cleaned
 
 
 def normalize_profile_pack_definition(definition: Any) -> dict[str, Any]:

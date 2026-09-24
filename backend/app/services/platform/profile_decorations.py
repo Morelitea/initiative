@@ -13,7 +13,7 @@ this pack on every deployment carrying the catalog.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -82,15 +82,16 @@ async def _as_the_packs_stand(
 
 async def _granted_names(
     session: AsyncSession, sources: set[str]
-) -> tuple[dict[str, str], dict[str, str]]:
-    """``decoration id -> its name``, and ``decoration id -> its pack's name``.
+) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    """``decoration id -> its name``, ``decoration id -> its pack's name``, and
+    ``decoration id -> the picture its pack carries for it``.
 
     A pack from outside this build has no translation here, so the name its
     publisher wrote is the only one there is. One lookup for the packs an
     account holds, rather than one per decoration.
     """
     if not sources:
-        return {}, {}
+        return {}, {}, {}
     listings = [
         listing
         for listing in [
@@ -110,7 +111,7 @@ async def _granted_names(
             if isinstance(entry, dict) and entry.get("id") and entry.get("name"):
                 names[str(entry["id"])] = str(entry["name"])
                 packs[str(entry["id"])] = listing.name
-    return names, packs
+    return names, packs, _decoration_images(versions.values())
 
 
 async def owned_decorations(
@@ -145,7 +146,7 @@ async def owned_decorations(
     # means now — so a piece added in a later version is in the library on the
     # next read rather than only for whoever installs it after today.
     granted = await _as_the_packs_stand(session, granted)
-    names, packs = await _granted_names(
+    names, packs, images = await _granted_names(
         session, {row.source for row in granted if row.source}
     )
     # By theme, alphabetically, then by what the pack called the piece: a
@@ -165,6 +166,7 @@ async def owned_decorations(
             kind=row.kind,
             name=names.get(row.decoration_id),
             source=row.source,
+            image_url=images.get(row.decoration_id),
         )
         for row in granted
     )
@@ -204,10 +206,23 @@ class Pack:
 
     listing: MarketplaceListing
     decorations: dict[str, str]
+    #: ``id -> picture`` for the decorations whose art the pack carries.
+    images: dict[str, str] = field(default_factory=dict)
 
     @property
     def uid(self) -> str:
         return self.listing.uid
+
+
+def _decoration_images(versions: Iterable) -> dict[str, str]:
+    """``id -> picture`` for every decoration these versions carry art for."""
+    images: dict[str, str] = {}
+    for version in versions:
+        definition = (version.definition if version is not None else None) or {}
+        for entry in definition.get("decorations", []):
+            if isinstance(entry, dict) and entry.get("id") and entry.get("image"):
+                images.setdefault(str(entry["id"]), str(entry["image"]))
+    return images
 
 
 def _decorations_of(version) -> dict[str, str]:
@@ -240,8 +255,33 @@ async def available_packs(session: AsyncSession) -> list[Pack]:
         # A listing whose published version grants nothing is not offered:
         # there would be nothing to take.
         if decorations:
-            packs.append(Pack(listing=listing, decorations=decorations))
+            packs.append(
+                Pack(
+                    listing=listing,
+                    decorations=decorations,
+                    images=_decoration_images([version]),
+                )
+            )
     return packs
+
+
+async def decoration_art(session: AsyncSession, ids: Iterable[str]) -> dict[str, str]:
+    """The pictures packs on this deployment carry for these decorations.
+
+    What a profile needs to draw somebody else's decorations: the profile
+    names ids, and an id whose art the client does not ship is drawn from the
+    picture its pack carries. Read from the packs on offer, so art stays
+    current with the pack.
+    """
+    wanted = {decoration_id for decoration_id in ids if decoration_id}
+    if not wanted:
+        return {}
+    art: dict[str, str] = {}
+    for pack in await available_packs(session):
+        for decoration_id, image in pack.images.items():
+            if decoration_id in wanted:
+                art.setdefault(decoration_id, image)
+    return art
 
 
 async def pack_by_uid(session: AsyncSession, uid: str) -> Pack | None:
@@ -253,7 +293,13 @@ async def pack_by_uid(session: AsyncSession, uid: str) -> Pack | None:
         session, listing.latest_version_id
     )
     decorations = _decorations_of(version)
-    return Pack(listing=listing, decorations=decorations) if decorations else None
+    if not decorations:
+        return None
+    return Pack(
+        listing=listing,
+        decorations=decorations,
+        images=_decoration_images([version]),
+    )
 
 
 async def installed_pack_ids(session: AsyncSession, user_id: int) -> set[str]:
