@@ -31,6 +31,7 @@ job that is over needs neither.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -331,9 +332,6 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
 
     if not job.payload_ref:
         raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
-    payload = import_engine.read_payload(guild_id, job.payload_ref)
-    if payload is None:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
 
     if job.source in ("backup", atlassian_job.SOURCE):
         # A fetched bundle is a backup-shaped zip filing into an initiative
@@ -341,25 +339,34 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
         # create permission there rather than by the community's seat.
         from app.services.import_engine import backup as backup_service
 
-        async with _open_user_session() as user_session:
-            # Route as the creator; apply_backup re-verifies REAL guild
-            # adminship and owns its own per-chunk commits + refreshes. As
-            # user-attributed system work whose enqueueing request already
-            # passed the guild auth-policy gate, it carries the system sentinel.
-            await establish_guild_access(
-                user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-            )
-            backup_result = await backup_service.apply_backup(
-                user_session,
-                user=user,
-                guild_id=guild_id,
-                payload=payload,
-                include=(job.params or {}).get("include"),
-                people_map=(job.params or {}).get("people_map"),
-                exclude_properties=(job.params or {}).get("exclude_properties"),
-            )
+        async with import_engine.open_payload(guild_id, job.payload_ref) as bundle:
+            if bundle is None:
+                raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
+            async with _open_user_session() as user_session:
+                # Route as the creator; apply_backup re-verifies REAL guild
+                # adminship and owns its own per-chunk commits + refreshes. As
+                # user-attributed system work whose enqueueing request already
+                # passed the guild auth-policy gate, it carries the system
+                # sentinel.
+                await establish_guild_access(
+                    user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+                )
+                backup_result = await backup_service.apply_backup(
+                    user_session,
+                    user=user,
+                    guild_id=guild_id,
+                    payload=bundle,
+                    include=(job.params or {}).get("include"),
+                    people_map=(job.params or {}).get("people_map"),
+                    exclude_properties=(job.params or {}).get("exclude_properties"),
+                )
         return backup_result.model_dump(mode="json")
 
+    payload = await asyncio.to_thread(
+        import_engine.read_payload, guild_id, job.payload_ref
+    )
+    if payload is None:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
     importer = import_engine.get_importer(job.source)
     envelope = importer.validate(json.loads(payload))
 

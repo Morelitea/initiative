@@ -23,10 +23,13 @@ dropped — the review step can sit for hours without a live secret behind it.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import zipfile
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, AsyncContextManager, Awaitable, Callable
 from urllib.parse import urlsplit
 
@@ -56,6 +59,7 @@ from app.services.import_engine import (
     jira_fetch,
 )
 from app.services.import_engine.atlassian import AtlassianCredential
+from app.services.import_engine.atlassian_bundle import BundleWriter, merge_people
 from app.services.import_engine.common import load_guild_member_handles
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
@@ -291,22 +295,45 @@ async def _fetch_export(
     progress: Callable[[AtlassianFetchSummary], Awaitable[None]] | None,
 ) -> StagedFetch:
     """Convert an uploaded HTML export into the bundle a site fetch writes."""
+    from app.services.import_engine.backup import open_backup_zip
+
+    raw_ref = job.payload_ref
+    if not raw_ref:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
+    async with import_engine.open_payload(guild_id, raw_ref) as upload:
+        try:
+            archive = open_backup_zip(upload) if upload is not None else None
+        finally:
+            # The upload is read once. A conversion interrupted after this
+            # starts over from nothing, and says so, rather than finding half
+            # of one. The open archive keeps reading the file it opened.
+            await asyncio.to_thread(import_engine.delete_payload, guild_id, raw_ref)
+            job.payload_ref = None
+        if archive is None:
+            raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
+        with archive:
+            return await _convert_export(
+                job,
+                archive,
+                guild_id=guild_id,
+                open_user_session=open_user_session,
+                progress=progress,
+            )
+
+
+async def _convert_export(
+    job: ImportJob,
+    archive: zipfile.ZipFile,
+    *,
+    guild_id: int,
+    open_user_session: Callable[[], AsyncContextManager[AsyncSession]],
+    progress: Callable[[AtlassianFetchSummary], Awaitable[None]] | None,
+) -> StagedFetch:
     from app.api.deps import establish_guild_access
     from app.services.import_engine import confluence_export
-    from app.services.import_engine.atlassian_bundle import merge_people, write_bundle
-    from app.services.import_engine.backup import open_backup_zip
     from app.services.platform import accounts as accounts_service
 
     params = job.params or {}
-    raw_ref = job.payload_ref
-    payload = import_engine.read_payload(guild_id, raw_ref) if raw_ref else None
-    # The upload is read once. A conversion interrupted after this starts
-    # over from nothing, and says so, rather than finding half of one.
-    import_engine.delete_payload(guild_id, raw_ref)
-    job.payload_ref = None
-    if payload is None:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
-
     user = await accounts_service.load_one(job.created_by)
     if user is None or user.status != UserStatus.active:
         raise ImportEngineError(ImportEngineMessages.IMPORT_CREATOR_INACTIVE)
@@ -339,37 +366,34 @@ async def _fetch_export(
                 documents_allowed = False
         roster = await load_guild_member_handles(user_session, guild_id=guild_id)
 
-    fetched, site_url = await confluence_export.export_to_fetched(
-        open_backup_zip(payload),
-        guild_id=guild_id,
-        app_version=get_version(),
-        asset_budget=jira_attachments.bundle_budget() if include_attachments else None,
-        documents=documents_allowed,
-    )
-    summary = combined_summary(None, fetched.report)
-    if progress is not None:
-        await progress(summary)
+    with BundleWriter() as writer:
+        fetched, site_url = await confluence_export.export_to_fetched(
+            archive,
+            guild_id=guild_id,
+            app_version=get_version(),
+            asset_budget=jira_attachments.bundle_budget()
+            if include_attachments
+            else None,
+            store=writer.put_asset,
+            documents=documents_allowed,
+        )
+        summary = combined_summary(None, fetched.report)
+        if progress is not None:
+            await progress(summary)
 
-    bundle = write_bundle(
-        images=fetched.images,
-        wikis=fetched.envelopes,
-        wiki_files=fetched.files,
-        people=merge_people([], fetched.people),
-        guild_id=guild_id,
-        guild_name="Confluence export",
-        target_initiative_id=initiative.id,
-        app_version=get_version(),
-        site_url=site_url,
-    )
-
-    from app.services.import_engine import backup as backup_service
-
-    plan: BackupImportPlan = backup_service.plan_backup(
-        bundle, existing_initiative_names=set(), member_ids_by_handle=roster
-    )
-    plan.atlassian = summary
-    payload_ref = import_engine.stage_payload(guild_id, bundle, suffix="zip")
-    return StagedFetch(payload_ref=payload_ref, plan=plan.model_dump(mode="json"))
+        path = await asyncio.to_thread(
+            writer.finish,
+            images=fetched.images,
+            wikis=fetched.envelopes,
+            wiki_files=fetched.files,
+            people=merge_people([], fetched.people),
+            guild_id=guild_id,
+            guild_name="Confluence export",
+            target_initiative_id=initiative.id,
+            app_version=get_version(),
+            site_url=site_url,
+        )
+        return await _stage(path, guild_id=guild_id, roster=roster, summary=summary)
 
 
 def combined_summary(
@@ -599,94 +623,111 @@ async def fetch(
 
     # One bundle, so one budget for everything attached, issues and pages.
     asset_budget = jira_attachments.bundle_budget() if include_attachments else None
-    if projects:
-        try:
-            jira = await jira_fetch.fetch_projects(
-                credential,
-                project_keys=projects,
-                guild_id=guild_id,
-                app_version=get_version(),
-                progress=report_issues,
-                sprints_blocked_by=sprints_blocked_by,
-                # A job started before the option existed brought comments
-                # across.
-                include_comments=params.get("include_comments") is not False,
-                include_attachments=include_attachments,
-                asset_budget=asset_budget,
-                documents=documents_allowed,
-                # An issue's "Confluence pages" are worth asking for only when
-                # the pages are coming too.
-                link_pages=bool(spaces),
-            )
-            jira_report = jira.report
-        except ImportEngineError as exc:
-            # Nothing readable on the Jira side is the whole import's failure
-            # only when there is no other side to bring.
-            if exc.code != ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE or not spaces:
-                raise
-            jira_report = jira_fetch.FetchReport(unreadable_projects=list(projects))
-    if spaces:
-        try:
-            pages = await confluence_fetch.fetch_spaces(
-                credential,
-                space_keys=spaces,
-                app_version=get_version(),
-                progress=report_spaces,
-                # What the issues left of the import's row budget.
-                max_rows=import_limits.IMPORT_MAX_ROWS
-                - (jira.rows_used if jira else 0),
-                guild_id=guild_id,
-                asset_budget=asset_budget,
-                documents=documents_allowed,
-                include_comments=params.get("include_comments") is not False,
-            )
-        except ImportEngineError as exc:
-            if (
-                exc.code != ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
-                or jira is None
-            ):
-                raise
-    space_report = (
-        pages.report
-        if pages is not None
-        else confluence_fetch.ConfluenceFetchReport(unreadable_spaces=list(spaces))
-        if spaces
-        else None
-    )
+    with BundleWriter() as writer:
+        if projects:
+            try:
+                jira = await jira_fetch.fetch_projects(
+                    credential,
+                    project_keys=projects,
+                    guild_id=guild_id,
+                    app_version=get_version(),
+                    progress=report_issues,
+                    sprints_blocked_by=sprints_blocked_by,
+                    # A job started before the option existed brought
+                    # comments across.
+                    include_comments=params.get("include_comments") is not False,
+                    include_attachments=include_attachments,
+                    asset_budget=asset_budget,
+                    store=writer.put_asset,
+                    documents=documents_allowed,
+                    # An issue's "Confluence pages" are worth asking for only
+                    # when the pages are coming too.
+                    link_pages=bool(spaces),
+                )
+                jira_report = jira.report
+            except ImportEngineError as exc:
+                # Nothing readable on the Jira side is the whole import's
+                # failure only when there is no other side to bring.
+                if (
+                    exc.code != ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+                    or not spaces
+                ):
+                    raise
+                jira_report = jira_fetch.FetchReport(unreadable_projects=list(projects))
+        if spaces:
+            try:
+                pages = await confluence_fetch.fetch_spaces(
+                    credential,
+                    space_keys=spaces,
+                    app_version=get_version(),
+                    progress=report_spaces,
+                    # What the issues left of the import's row budget.
+                    max_rows=import_limits.IMPORT_MAX_ROWS
+                    - (jira.rows_used if jira else 0),
+                    guild_id=guild_id,
+                    asset_budget=asset_budget,
+                    store=writer.put_asset,
+                    documents=documents_allowed,
+                    include_comments=params.get("include_comments") is not False,
+                )
+            except ImportEngineError as exc:
+                if (
+                    exc.code != ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+                    or jira is None
+                ):
+                    raise
+        space_report = (
+            pages.report
+            if pages is not None
+            else confluence_fetch.ConfluenceFetchReport(unreadable_spaces=list(spaces))
+            if spaces
+            else None
+        )
 
-    from app.services.import_engine.atlassian_bundle import merge_people, write_bundle
+        project_envelopes = jira.envelopes if jira else []
+        wiki_envelopes = pages.envelopes if pages else []
+        path = await asyncio.to_thread(
+            writer.finish,
+            projects=project_envelopes,
+            calendars=jira.calendars if jira else [],
+            images=[*(jira.images if jira else []), *(pages.images if pages else [])],
+            wikis=wiki_envelopes,
+            wiki_files=pages.files if pages else {},
+            task_files=jira.files if jira else [],
+            people=merge_people(
+                jira.people if jira else [], pages.people if pages else Counter()
+            ),
+            guild_id=guild_id,
+            guild_name=source_name,
+            target_initiative_id=target_initiative_id,
+            app_version=get_version(),
+            site_url=site_url,
+        )
+        cross_links = await asyncio.to_thread(
+            count_cross_links, project_envelopes, wiki_envelopes, site_url=site_url
+        )
+        summary = combined_summary(jira_report, space_report, cross_links=cross_links)
+        return await _stage(path, guild_id=guild_id, roster=roster, summary=summary)
 
-    project_envelopes = jira.envelopes if jira else []
-    wiki_envelopes = pages.envelopes if pages else []
-    bundle = write_bundle(
-        projects=project_envelopes,
-        calendars=jira.calendars if jira else [],
-        images=[*(jira.images if jira else []), *(pages.images if pages else [])],
-        wikis=wiki_envelopes,
-        wiki_files=pages.files if pages else {},
-        task_files=jira.files if jira else [],
-        people=merge_people(
-            jira.people if jira else [], pages.people if pages else Counter()
-        ),
-        guild_id=guild_id,
-        guild_name=source_name,
-        target_initiative_id=target_initiative_id,
-        app_version=get_version(),
-        site_url=site_url,
-    )
-    summary = combined_summary(
-        jira_report,
-        space_report,
-        cross_links=count_cross_links(
-            project_envelopes, wiki_envelopes, site_url=site_url
-        ),
-    )
 
+async def _stage(
+    path: Path,
+    *,
+    guild_id: int,
+    roster: dict[str, int],
+    summary: AtlassianFetchSummary,
+) -> StagedFetch:
+    """Plan a finished bundle and put it where the apply will find it."""
     from app.services.import_engine import backup as backup_service
 
-    plan: BackupImportPlan = backup_service.plan_backup(
-        bundle, existing_initiative_names=set(), member_ids_by_handle=roster
+    plan: BackupImportPlan = await asyncio.to_thread(
+        backup_service.plan_backup,
+        path,
+        existing_initiative_names=set(),
+        member_ids_by_handle=roster,
     )
     plan.atlassian = summary
-    payload_ref = import_engine.stage_payload(guild_id, bundle, suffix="zip")
+    payload_ref = await asyncio.to_thread(
+        import_engine.stage_payload_file, guild_id, path, suffix="zip"
+    )
     return StagedFetch(payload_ref=payload_ref, plan=plan.model_dump(mode="json"))

@@ -28,6 +28,7 @@ from app.services.import_engine.jira_attachments import (
     MAX_IMAGE_BYTES,
     REFUSED_TYPES,
     AssetBudget,
+    AssetSink,
     StoredImage,
     file_extension,
 )
@@ -141,13 +142,15 @@ async def download_page_attachments(
     *,
     guild_id: int,
     download: Downloader,
+    store: AssetSink,
     budget: AssetBudget,
     report: AttachmentReport,
     documents: bool = True,
 ) -> PageMedia:
     """Fetch one page's attachments, within the caps and the shared budget.
 
-    ``download(attachment, max_bytes)`` is the site call. One file that will
+    ``download(attachment, max_bytes)`` is the site call, and ``store``
+    takes each file as it arrives. One file that will
     not come is counted and skipped — a broken attachment is not a reason to
     lose the space — but being throttled stops the fetch, as it does
     everywhere else.
@@ -188,8 +191,10 @@ async def download_page_attachments(
             filename=attachment.filename,
             storage_key=storage_key(attachment),
             content_type=attachment.media_type or "application/octet-stream",
-            data=data,
+            size_bytes=len(data),
         )
+        await store(stored, data)
+        del data
         if attachment.is_image:
             media.stored_images.setdefault(attachment.filename, stored)
             media.images.setdefault(

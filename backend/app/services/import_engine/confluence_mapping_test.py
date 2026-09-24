@@ -277,7 +277,7 @@ def stored(name, content_type="application/pdf"):
         filename=name,
         storage_key=f"key-{name}",
         content_type=content_type,
-        data=b"12345",
+        size_bytes=5,
     )
 
 

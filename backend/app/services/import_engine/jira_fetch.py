@@ -26,6 +26,7 @@ applies to an import from Jira without being written twice.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
@@ -342,6 +343,7 @@ async def fetch_project_envelope(
     field_catalog: Any = None,
     include_comments: bool = False,
     image_budget: Optional[jira_attachments.AssetBudget] = None,
+    store: Optional[jira_attachments.AssetSink] = None,
     guild_id: Optional[int] = None,
     documents: bool = False,
 ) -> FetchedProject:
@@ -391,6 +393,8 @@ async def fetch_project_envelope(
 
     images = jira_attachments.ImageReport()
     if image_budget is not None and guild_id is not None:
+        if store is None:
+            raise ValueError("attachments need somewhere to be stored")
 
         async def download(attachment_id: str, max_bytes: int) -> bytes:
             # redirect=false: the content itself, not a hop to a media host
@@ -404,6 +408,7 @@ async def fetch_project_envelope(
         images = await jira_attachments.download_images(
             issues,
             download=download,
+            store=store,
             budget_bytes=image_budget.bytes_left,
             max_files=image_budget.files_left,
             documents=documents,
@@ -411,7 +416,8 @@ async def fetch_project_envelope(
         image_budget.bytes_left -= images.image_bytes + images.file_bytes
         image_budget.files_left -= images.images + images.files
 
-    mapped = jira_mapping.build_project_envelope(
+    mapped = await asyncio.to_thread(
+        jira_mapping.build_project_envelope,
         project=project,
         issue_type_statuses=statuses,
         issues=issues,
@@ -544,22 +550,26 @@ async def fetch_projects_bundle(
     target_initiative_id: int,
     **kwargs: Any,
 ) -> tuple[bytes, FetchReport]:
-    """:func:`fetch_projects`, written into a bundle of its own."""
-    from app.services.import_engine.atlassian_bundle import write_bundle
+    """:func:`fetch_projects`, written into a bundle of its own and read back
+    whole — a convenience for small reads, not the job's path."""
+    from app.services.import_engine.atlassian_bundle import BundleWriter
 
-    fetched = await fetch_projects(credential, guild_id=guild_id, **kwargs)
-    bundle = write_bundle(
-        projects=fetched.envelopes,
-        task_files=fetched.files,
-        calendars=fetched.calendars,
-        images=fetched.images,
-        people=fetched.people,
-        guild_id=guild_id,
-        guild_name=guild_name,
-        target_initiative_id=target_initiative_id,
-        app_version=kwargs["app_version"],
-        site_url=credential.site_url,
-    )
+    with BundleWriter() as writer:
+        fetched = await fetch_projects(
+            credential, guild_id=guild_id, store=writer.put_asset, **kwargs
+        )
+        bundle = writer.finish(
+            projects=fetched.envelopes,
+            task_files=fetched.files,
+            calendars=fetched.calendars,
+            images=fetched.images,
+            people=fetched.people,
+            guild_id=guild_id,
+            guild_name=guild_name,
+            target_initiative_id=target_initiative_id,
+            app_version=kwargs["app_version"],
+            site_url=credential.site_url,
+        ).read_bytes()
     return bundle, fetched.report
 
 
@@ -576,6 +586,7 @@ async def fetch_projects(
     include_attachments: bool = True,
     link_pages: bool = False,
     asset_budget: Optional[jira_attachments.AssetBudget] = None,
+    store: Optional[jira_attachments.AssetSink] = None,
     documents: bool = False,
 ) -> JiraFetched:
     """Read the chosen projects and return what was read plus what it found.
@@ -634,6 +645,7 @@ async def fetch_projects(
                 field_catalog=field_catalog,
                 include_comments=include_comments,
                 image_budget=image_budget,
+                store=store,
                 guild_id=guild_id,
                 documents=documents,
             )
