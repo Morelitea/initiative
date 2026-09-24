@@ -997,6 +997,59 @@ async def notify_document_mention(
     )
 
 
+async def notify_task_description_mention(
+    session: AsyncSession,
+    *,
+    mentioned_user: User,
+    mentioned_by: User,
+    task_id: int,
+    task_title: str,
+    guild_id: int,
+    initiative_id: int | None = None,
+) -> None:
+    """Notify a user they were mentioned in a task's description."""
+    if mentioned_user.id == mentioned_by.id:
+        return
+    target_path = _task_target_path(task_id, None)
+    mentioned_by_name = handle_of(mentioned_by)
+    locale = _recipient_locale(mentioned_user)
+    await _deliver_rolled_up_comment(
+        session,
+        recipient=mentioned_user,
+        actor=mentioned_by,
+        notification_type=NotificationType.mention,
+        data={
+            "task_id": task_id,
+            "task_title": task_title,
+            "mentioned_by_name": mentioned_by_name,
+            "mentioned_by_id": mentioned_by.id,
+            "guild_id": guild_id,
+            "initiative_id": initiative_id,
+            "tool": Tool.project.value,
+            "target_path": target_path,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
+        email_subject=email_t(
+            "mention.taskDescription.subject", locale, task=task_title, escape=False
+        ),
+        email_headline=email_t("mention.taskDescription.title", locale),
+        email_body=email_t(
+            "mention.taskDescription.body",
+            locale,
+            actor=mentioned_by_name,
+            task=task_title,
+        ),
+        push_title=_nt("mention.taskDescription.title", locale),
+        push_body=_nt(
+            "mention.taskDescription.body",
+            locale,
+            actor=mentioned_by_name,
+            task=task_title,
+        ),
+        push_data={"task_id": str(task_id)},
+    )
+
+
 def _comment_context_path(
     *,
     task_id: int | None,

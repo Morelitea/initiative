@@ -69,6 +69,11 @@
       "title": "Your task was mentioned",
       "body": "<strong>{{actor}}</strong> mentioned <strong>{{task}}</strong> in <strong>{{context}}</strong>"
     },
+    "taskDescription": {
+      "subject": "You were mentioned in {{task}}",
+      "title": "You were mentioned",
+      "body": "<strong>{{actor}}</strong> mentioned you in the description of <strong>{{task}}</strong>"
+    },
     "greeting": "Hi <strong>{{name}}</strong>,",
     "buttonLabel": "View"
   },

@@ -794,6 +794,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
     (issue #794)."""
     from app.models.tenant.comment import Comment
     from app.models.tenant.document import Document
+    from app.models.tenant.task import Task
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
     from app.services.tenant.mention_parser import ANONYMIZED_MENTION_NAME
     from app.testing.factories import (
@@ -813,10 +814,33 @@ async def test_soft_delete_scrubs_embedded_mentions(
     initiative = await create_initiative(session, guild, author)
     await create_initiative_member(session, initiative=initiative, user=victim)
     project = await create_project(session, initiative, author)
-    task = await create_task(session, project)
+    task = await create_task(
+        session, project, description=f"pair with @[Vic Tim]({victim.id})"
+    )
+    # Finished work is scrubbed too: an archived task keeps its words, so it
+    # would keep the name.
+    archived_task = await create_task(
+        session,
+        project,
+        description=f"was @[Vic Tim]({victim.id})'s",
+        archived_at=datetime.now(timezone.utc),
+    )
 
     comment = await create_comment(
         session, author, task=task, content=f"ping @[Vic Tim]({victim.id}) thanks"
+    )
+    archived_comment = await create_comment(
+        session,
+        author,
+        task=archived_task,
+        content=f"ask @[Vic Tim]({victim.id})",
+    )
+    trashed_comment = await create_comment(
+        session,
+        author,
+        task=task,
+        content=f"bin @[Vic Tim]({victim.id})",
+        deleted_at=datetime.now(timezone.utc),
     )
     document = await create_document(
         session,
@@ -885,6 +909,38 @@ async def test_soft_delete_scrubs_embedded_mentions(
         refreshed_comment.content
         == f"ping @[{ANONYMIZED_MENTION_NAME}]({victim_id}) thanks"
     )
+
+    refreshed_archived_comment = (
+        await session.exec(select(Comment).where(Comment.id == archived_comment.id))
+    ).one()
+    assert refreshed_archived_comment.content == (
+        f"ask @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+    )
+
+    refreshed_trashed_comment = (
+        await session.exec(
+            select(Comment)
+            .where(Comment.id == trashed_comment.id)
+            .execution_options(include_deleted=True)
+        )
+    ).one()
+    assert refreshed_trashed_comment.content == (
+        f"bin @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+    )
+
+    descriptions = dict(
+        (
+            await session.exec(
+                select(Task.id, Task.description)
+                .where(Task.id.in_([task.id, archived_task.id]))  # type: ignore[union-attr]
+                .execution_options(include_archived=True)
+            )
+        ).all()
+    )
+    assert descriptions == {
+        task.id: f"pair with @[{ANONYMIZED_MENTION_NAME}]({victim_id})",
+        archived_task.id: f"was @[{ANONYMIZED_MENTION_NAME}]({victim_id})'s",
+    }
 
     refreshed_doc = (
         await session.exec(select(Document).where(Document.id == document.id))

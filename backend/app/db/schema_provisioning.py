@@ -148,11 +148,12 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     "comments": ("SELECT", "UPDATE"),
     "documents": ("SELECT", "UPDATE"),
     "posts": ("SELECT", "UPDATE"),
+    # A task's description carries the same mention markup as a comment.
+    "tasks": ("SELECT", "UPDATE"),
     "task_assignment_digest_items": ("SELECT", "UPDATE"),
     # The frozen-ancestor guard reads each supported parent into a composite
     # record (``SELECT *``) before capture/search triggers resolve identifiers.
     # PostgreSQL therefore requires table-level SELECT for these dependencies.
-    "tasks": ("SELECT",),
     "projects": ("SELECT",),
     "queues": ("SELECT",),
     "counter_groups": ("SELECT",),
