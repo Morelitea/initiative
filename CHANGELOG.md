@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Request size limits** — a request can now be at most 4 MiB, a file upload 51 MiB, and saving a document 64 MiB, which leaves room for whiteboards with pictures in them. Imports keep their own, larger limits.
 - **The update check asks Docker Hub less often** — the server asks at most every six hours, and every visitor shares the answer, instead of asking on every page load. A server without internet access logs that once and stops trying for 15 minutes at a time.
+- **Who can open an app's pages follows where it is placed** — in each initiative an app is placed in, choose which initiative roles can open it, under **Community settings → Integrations**. Moderators can unless you change it, and community admins can always open every page. Pages an app marks for admins, and pages for the whole community, open only for community admins. The same entry chooses what the app may read and change in your community, from what it asks for.
 - **Password sign-in switches off after wrong answers** — five wrong passwords or codes within 15 minutes turn off password and code sign-in for that account for 15 minutes, and its email addresses are told. Three of those in a day and it stays off until a moderator turns it back on from **Operator dashboard → Users**. Passkeys, and anywhere already signed in, keep working throughout.
 
 ### Fixed

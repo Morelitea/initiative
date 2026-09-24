@@ -91,6 +91,9 @@ class RegistrationSnapshot:
     #: The operator's kill switch. False stops every channel this app has.
     enabled: bool
     status: str
+    #: The most any install of this app may be granted, as the operator set it.
+    #: Not secret: it bounds what a community's seat may grant.
+    scope_ceiling: tuple[str, ...] = ()
 
     @property
     def live(self) -> bool:
@@ -172,6 +175,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
             status=row.status,
+            scope_ceiling=tuple(sorted(row.scope_ceiling or [])),
         )
         for row in rows
     }
@@ -255,6 +259,8 @@ class InstallState:
     #: each of them to authorize. An operator clearing the grant takes the
     #: question away everywhere the app is installed.
     delegates: bool = False
+    #: The most the operator allows any install of this app to be granted.
+    scope_ceiling: tuple[str, ...] = ()
 
 
 async def install_state(definition: dict[str, Any] | None) -> InstallState:
@@ -275,6 +281,7 @@ async def install_state(definition: dict[str, Any] | None) -> InstallState:
         mandatory=snapshot.mandatory,
         available=snapshot.live,
         delegates="delegation" in snapshot.grants,
+        scope_ceiling=snapshot.scope_ceiling,
     )
 
 

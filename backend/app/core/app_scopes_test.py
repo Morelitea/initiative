@@ -58,3 +58,13 @@ def test_read_only_resources_have_no_write_scope():
     assert "members:read" in ALL_SCOPES
     assert "initiatives:read" in ALL_SCOPES
     assert "members:write" not in ALL_SCOPES
+
+
+def test_the_app_kit_contract_names_the_same_scopes():
+    """Two sources in two repositories: the kit's contract, which an author
+    requests scopes from, and this vocabulary, which grants and enforces them.
+    A scope in one and not the other is either one no app can ask for or one
+    an app can ask for and never be granted."""
+    from app.services.marketplace import contract
+
+    assert contract.enum("scope") == frozenset(ALL_SCOPES)

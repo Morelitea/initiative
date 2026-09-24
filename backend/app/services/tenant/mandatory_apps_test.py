@@ -329,3 +329,145 @@ class TestPlacement:
                 select(AppPlacement).where(AppPlacement.install_id == app.id)
             )
         ).all() == []
+
+
+class TestScopes:
+    async def test_it_is_granted_what_it_asks_for_within_the_ceiling(
+        self, session: AsyncSession
+    ):
+        """The operator's registration is the consent a seat would otherwise
+        give, so a mandatory install lands holding the manifest's scopes that
+        the registration's ceiling allows — and nothing beyond it."""
+        public_id = "platform.scoped"
+        uid = marketplace_uid("scoped")
+        await create_marketplace_listing(
+            session,
+            uid=uid,
+            public_id=public_id,
+            kind="app",
+            name="Scoped app",
+            definition={
+                "app_kind": "service",
+                "service": {
+                    "public_id": public_id,
+                    "protocol": 1,
+                    "scopes": ["comments:read", "projects:read", "projects:write"],
+                },
+                "features": [],
+                "default_name": "Scoped app",
+            },
+        )
+        await create_app_service_registration(
+            session,
+            public_id=public_id,
+            base_url="https://scoped.example.test",
+            listing_uid=uid,
+            mandatory=True,
+            scope_ceiling=["projects:read", "projects:write", "tags:read"],
+        )
+        creator = await create_user(session, email="scoped@example.com")
+        guild = await create_guild(session, creator=creator, name="Scoped guild")
+        await create_guild_membership(
+            session, user=creator, guild=guild, role=GuildRole.admin
+        )
+
+        await backfill_mandatory_apps()
+
+        [app] = await _installed_apps(session, guild.id)
+        assert app.granted_scopes == ["projects:read", "projects:write"]
+
+    async def test_a_manifest_asking_for_nothing_is_granted_nothing(
+        self, session: AsyncSession, mandatory_registration
+    ):
+        creator = await create_user(session, email="unscoped@example.com")
+        guild = await create_guild(session, creator=creator, name="Unscoped guild")
+        await create_guild_membership(
+            session, user=creator, guild=guild, role=GuildRole.admin
+        )
+
+        await backfill_mandatory_apps()
+
+        [app] = await _installed_apps(session, guild.id)
+        assert app.granted_scopes == []
+
+
+class TestScopesOnAnInstallAlreadyThere:
+    """The sweep gives an existing mandatory install that holds no grant what a
+    new one would get, and leaves a grant the seat set alone."""
+
+    PUBLIC_ID = "platform.scoped-later"
+    UID = marketplace_uid("scopedlater")
+    DEFINITION = {
+        "app_kind": "service",
+        "service": {
+            "public_id": "platform.scoped-later",
+            "protocol": 1,
+            "scopes": ["comments:read", "projects:read"],
+        },
+        "features": [],
+        "default_name": "Scoped later",
+    }
+
+    async def _guild_with_install(
+        self, session: AsyncSession, email: str, *, granted: list[str] | None = None
+    ):
+        await create_marketplace_listing(
+            session,
+            uid=self.UID,
+            public_id=self.PUBLIC_ID,
+            kind="app",
+            name="Scoped later",
+            definition=self.DEFINITION,
+        )
+        await create_app_service_registration(
+            session,
+            public_id=self.PUBLIC_ID,
+            base_url="https://scoped-later.example.test",
+            listing_uid=self.UID,
+            mandatory=True,
+            scope_ceiling=["comments:read", "projects:read"],
+        )
+        creator = await create_user(session, email=email)
+        guild = await create_guild(session, creator=creator, name=email)
+        await create_guild_membership(
+            session, user=creator, guild=guild, role=GuildRole.admin
+        )
+        app = await create_guild_app(
+            session,
+            guild,
+            creator,
+            definition=self.DEFINITION,
+            listing_uid=self.UID,
+        )
+        if granted:
+            # Written on the system engine, which the grant guard admits, as a
+            # stand-in for the seat having granted it.
+            from app.db import session as db_session
+
+            async with db_session.SystemSessionLocal() as system:
+                await db_session.set_rls_context(system, guild_id=guild.id)
+                row = (
+                    await system.exec(select(GuildApp).where(GuildApp.id == app.id))
+                ).one()
+                row.granted_scopes = granted
+                system.add(row)
+                await system.commit()
+        return guild
+
+    async def test_an_empty_grant_is_filled_in(self, session: AsyncSession):
+        guild = await self._guild_with_install(session, "empty-grant@example.com")
+
+        await backfill_mandatory_apps()
+
+        [app] = await _installed_apps(session, guild.id)
+        assert app.granted_scopes == ["comments:read", "projects:read"]
+
+    async def test_a_grant_the_seat_set_is_left_alone(self, session: AsyncSession):
+        guild = await self._guild_with_install(
+            session, "seat-grant@example.com", granted=["comments:read"]
+        )
+
+        await backfill_mandatory_apps()
+
+        [app] = await _installed_apps(session, guild.id)
+        assert app.granted_scopes == ["comments:read"]

@@ -453,26 +453,28 @@ class TestEndpoints:
         with pytest.raises(ListingDefinitionError, match="direction"):
             _with_source(direction="sideways")
 
-    def test_an_unknown_visibility_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="unknown visibility"):
-            _with_source(visibility="everyone")
+    def test_the_retired_audience_term_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="visibility"):
+            _with_source(visibility="member")
 
-    def test_visibility_defaults_to_members_of_the_installing_guild(self):
-        assert _with_source()["endpoints"][0]["visibility"] == "member"
+    def test_a_read_endpoint_stores_no_audience(self):
+        endpoint = _with_source()["endpoints"][0]
+        assert "visibility" not in endpoint
+        assert endpoint["admin_only"] is False
+
+    def test_a_write_endpoint_may_be_admin_only(self):
+        endpoint = _with_source(direction="write", admin_only=True)["endpoints"][0]
+        assert endpoint["admin_only"] is True
 
     def test_a_cache_window_is_clamped_rather_than_refused(self):
         definition = _with_source(cache_ttl_seconds=10_000_000)
         ttl = definition["endpoints"][0]["cache_ttl_seconds"]
         assert ttl == service_apps.MAX_CACHE_TTL_SECONDS
 
-    def test_only_a_read_is_cached_or_gated(self):
-        # A write is authorized by the token that carried it and answers once,
-        # so neither a rung nor a window means anything on one.
-        for absent in ("cache_ttl_seconds", "visibility"):
-            with pytest.raises(ListingDefinitionError, match="only a read"):
-                _with_source(
-                    direction="write", **{absent: 60 if "cache" in absent else "member"}
-                )
+    def test_only_a_read_is_cached(self):
+        # A write answers once, so a window means nothing on one.
+        with pytest.raises(ListingDefinitionError, match="only a read"):
+            _with_source(direction="write", cache_ttl_seconds=60)
 
     def test_an_emission_carries_nothing_a_caller_would_send(self):
         # Nobody calls it, so there is nothing to send, nothing to cache and
@@ -647,7 +649,7 @@ class TestEmbeds:
         embed = {
             "id": "orders",
             "path": "/embed/orders",
-            "visibility": "guild_admin",
+            "admin_only": True,
             "name": _label("Orders"),
         }
         embed.update(overrides)
@@ -668,7 +670,7 @@ class TestEmbeds:
                 "id": "orders",
                 "path": "/embed/orders",
                 "scopes": ["guild"],
-                "visibility": "guild_admin",
+                "admin_only": True,
                 "name": {"en": "Orders"},
             }
         ]
@@ -763,12 +765,11 @@ class TestWhereASurfaceRenders:
         assert self._embed(scopes=["guild", "guild"])["scopes"] == ["guild"]
 
 
-class TestVisibilityIsALadder:
-    """A rung names the floor an audience clears, read against where it opens.
+class TestAdminOnlySurfaces:
+    """``admin_only`` is the one audience a manifest may still name.
 
-    The ordering is declared once so a manifest and a request cannot come to
-    mean different things by the same word, and every rung is exercised here so
-    adding one forces a decision rather than defaulting to "refused".
+    Who else opens a surface is the community's to choose, per initiative and
+    role, so the manifest says only whether a surface is for admins alone.
     """
 
     def _embed(self, **overrides) -> dict:
@@ -781,67 +782,27 @@ class TestVisibilityIsALadder:
         embed.update(overrides)
         return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
 
-    def test_the_ladder_and_the_vocabulary_are_the_same_values(self):
-        assert set(service_apps.VISIBILITY_LADDER) == service_apps.VISIBILITIES
-        assert len(service_apps.VISIBILITY_LADDER) == len(service_apps.VISIBILITIES)
+    def test_saying_nothing_is_not_admin_only(self):
+        assert self._embed()["admin_only"] is False
 
-    @pytest.mark.parametrize("rung", service_apps.VISIBILITY_LADDER)
-    def test_a_guild_admin_clears_every_rung(self, rung):
-        assert service_apps.clears_visibility(rung, is_guild_admin=True)
+    @pytest.mark.parametrize(
+        "scopes", [["guild"], ["initiative"], ["guild", "initiative"]]
+    )
+    def test_any_surface_may_be_admin_only(self, scopes):
+        assert self._embed(scopes=scopes, admin_only=True)["admin_only"] is True
 
-    def test_a_member_clears_only_the_bottom_rung(self):
-        assert service_apps.clears_visibility("member", is_guild_admin=False)
-        assert not service_apps.clears_visibility(
-            "initiative_manager", is_guild_admin=False
-        )
-        assert not service_apps.clears_visibility("guild_admin", is_guild_admin=False)
+    @pytest.mark.parametrize("value", ["true", 1, None, []])
+    def test_anything_but_a_boolean_is_refused(self, value):
+        if value is None:
+            # Absent and null read the same: the default.
+            assert self._embed(admin_only=value)["admin_only"] is False
+            return
+        with pytest.raises(ListingDefinitionError, match="admin_only"):
+            self._embed(admin_only=value)
 
-    def test_a_manager_clears_the_rung_named_for_them(self):
-        assert service_apps.clears_visibility(
-            "initiative_manager", is_guild_admin=False, is_initiative_manager=True
-        )
-
-    def test_managing_one_initiative_does_not_open_the_admin_rung(self):
-        assert not service_apps.clears_visibility(
-            "guild_admin", is_guild_admin=False, is_initiative_manager=True
-        )
-
-    def test_a_caller_with_no_initiative_in_hand_is_measured_without_it(self):
-        # The guild-wide route: nobody is a manager of nothing, so the rung
-        # falls through to the admins.
-        assert not service_apps.clears_visibility(
-            "initiative_manager", is_guild_admin=False
-        )
-        assert service_apps.clears_visibility("initiative_manager", is_guild_admin=True)
-
-    @pytest.mark.parametrize("required", [None, "member"])
-    def test_saying_nothing_admits_everyone_who_got_this_far(self, required):
-        assert service_apps.clears_visibility(required, is_guild_admin=False)
-
-    def test_a_value_this_build_does_not_know_is_refused(self):
-        # Nothing stores one today; the predicate fails closed anyway, so a
-        # rung added to the vocabulary and forgotten here denies rather than
-        # admits.
-        assert not service_apps.clears_visibility("everyone", is_guild_admin=False)
-
-    def test_an_unknown_visibility_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="unknown visibility"):
-            self._embed(visibility="everyone")
-
-    def test_an_initiative_surface_may_name_an_initiative_audience(self):
-        assert self._embed(visibility="initiative_manager")["visibility"] == (
-            "initiative_manager"
-        )
-
-    def test_a_guild_wide_surface_may_not(self):
-        # There is nothing to manage out here, so the value would be stored as
-        # a claim nothing could evaluate.
-        with pytest.raises(ListingDefinitionError, match="initiative audience"):
-            self._embed(scopes=["guild"], visibility="initiative_manager")
-
-    def test_a_read_endpoint_may_not_either(self):
-        with pytest.raises(ListingDefinitionError, match="initiative audience"):
-            _with_source(visibility="initiative_manager")
+    def test_the_retired_audience_term_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="visibility"):
+            self._embed(visibility="initiative_manager")
 
 
 class TestEmissions:

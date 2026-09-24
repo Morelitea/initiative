@@ -157,3 +157,70 @@ def test_granted_scopes_are_reported_sorted_and_empty_by_default():
         _app(granted_scopes=["projects:write", "comments:read"]), context=CONTEXT
     )
     assert payload.granted_scopes == ["comments:read", "projects:write"]
+
+
+def test_surface_access_is_computed_for_the_viewer():
+    """Each declared surface, with where this viewer opens it: the placement's
+    roles inside an initiative, admins alone at the community level and on an
+    ``admin_only`` surface."""
+    definition = {
+        **DEFINITION,
+        "embeds": [
+            {"id": "board", "path": "/b", "scopes": ["guild", "initiative"]},
+            {
+                "id": "settings",
+                "path": "/s",
+                "scopes": ["initiative"],
+                "admin_only": True,
+            },
+        ],
+    }
+    rows = [
+        SimpleNamespace(initiative_id=2, role_ids=[40]),
+        SimpleNamespace(initiative_id=5, role_ids=[41]),
+    ]
+    member = GuildContext(
+        guild=Guild(id=7, name="g"),
+        user_id=12,
+        guild_id=7,
+        standing_guild_id=7,
+        member_role_ids=(40,),
+    )
+    admin = GuildContext(
+        guild=Guild(id=7, name="g"),
+        user_id=11,
+        guild_id=7,
+        standing_guild_id=7,
+        admin=True,
+    )
+
+    def access(context):
+        payload = serialize_guild_app(
+            _app(definition=definition), context=context, placements=rows
+        )
+        return {one.surface_id: one.model_dump() for one in payload.surface_access}
+
+    assert access(member) == {
+        "board": {
+            "surface_id": "board",
+            "openable_guild_wide": False,
+            "openable_initiatives": [2],
+        },
+        "settings": {
+            "surface_id": "settings",
+            "openable_guild_wide": False,
+            "openable_initiatives": [],
+        },
+    }
+    assert access(admin) == {
+        "board": {
+            "surface_id": "board",
+            "openable_guild_wide": True,
+            "openable_initiatives": [2, 5],
+        },
+        "settings": {
+            "surface_id": "settings",
+            "openable_guild_wide": False,
+            "openable_initiatives": [2, 5],
+        },
+    }

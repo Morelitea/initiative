@@ -411,7 +411,7 @@ def test_config_for_a_removed_widget_is_dropped():
 # vendor's module at another vendor's data, and never resolve an app's widget to
 # a built-in renderer.
 #
-# What a source *is* — its parameters, its visibility, its freshness — lives in
+# What a source *is* — its parameters, its credentials, its freshness — lives in
 # the installed app's pinned definition and is enforced when the data is
 # fetched. The validator's job here is shape, not authority.
 

@@ -8,9 +8,12 @@ the audience names one registration, and why the lifetime is a minute.
 **Authorization is settled here, before a token exists.** The member's real
 session decides whether the surface may be opened at all — the install must be
 enabled, its app service must be registered and live, the manifest must declare
-that surface, and the surface's own ``visibility`` must admit the caller. An app
-never has to make that decision, and never sees a request from somebody who
-failed it.
+that surface, and the community's own choice must admit the caller: inside an
+initiative, the install is placed there and the caller holds one of the roles
+the placement allows; at the community level, and for a surface marked
+``admin_only``, the caller is a guild admin. A guild admin opens any surface
+that is there. An app never has to make that decision, and never sees a request
+from somebody who failed it.
 
 **The token carries the minimum.** Guild, install, surface, who is opening it,
 and — where the surface was opened inside an initiative — which one. Nothing
@@ -21,9 +24,7 @@ anything it can read out of a claim set.
 **Where a surface was opened is the route's to say.** A surface declares the
 scopes it renders in, and the caller names none of them: the initiative in the
 token is the one whose route was taken and whose gate the caller passed, never a
-value they supplied. That is also what makes ``visibility`` readable in two
-places at once — the same rung means an initiative's members inside it and the
-whole guild outside it.
+value they supplied.
 
 This generalizes the advanced tool's mint: same shape, but target, origins and
 audience come from the registration row rather than from deployment settings, so
@@ -40,6 +41,7 @@ from typing import Any, Optional
 import jwt
 from fastapi import HTTPException, status
 
+from app.db.guild_standing import GuildContext
 from app.db.session import routed_guild_id
 from app.core.messages import AppServiceMessages, GuildAppMessages
 from app.core.security import (
@@ -52,8 +54,14 @@ from app.models.tenant.guild_app import GuildApp
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.marketplace import app_refs, registration_lookup
-from app.services.marketplace.service_apps import clears_visibility
-from app.services.tenant.guild_apps import is_placed
+from app.services.marketplace.service_apps import is_admin_only
+from app.services.tenant.guild_apps import (
+    SurfaceAccess,
+    declared_surfaces,
+    placement_role_ids,
+    surface_access,
+    surface_renders_in,
+)
 
 __all__ = [
     "APP_EMBED_HANDOFF_LIFETIME",
@@ -95,53 +103,18 @@ def embed_by_id(
     a surface could say where it belongs carry no ``scopes``, and every one of
     those is guild-wide.
     """
-    if not isinstance(definition, dict):
-        return None
-    embeds = definition.get("embeds")
-    if not isinstance(embeds, list):
-        return None
-    for embed in embeds:
-        if not isinstance(embed, dict) or embed.get("id") != surface_id:
+    for embed in declared_surfaces(definition):
+        if embed.get("id") != surface_id:
             continue
-        scopes = embed.get("scopes")
-        renders = scope in scopes if isinstance(scopes, list) else scope == "guild"
-        return embed if renders else None
+        return embed if surface_renders_in(embed, scope) else None
     return None
 
 
-def _require_visibility(
-    embed: dict[str, Any],
-    *,
-    is_guild_admin: bool,
-    in_initiative: bool = False,
-    is_initiative_manager: bool = False,
-) -> None:
-    """A surface is opened by the audience the app declared for it.
-
-    ``member`` is the default the manifest validator applies, so an embed that
-    says nothing is open to every member of the installing guild. The ordering
-    lives with the vocabulary that defines it, so this cannot drift from what a
-    manifest is allowed to say.
-
-    The refusal names the audience the caller missed: an initiative's managers
-    when the surface was opened in an initiative and declared for them, the
-    guild's admins otherwise — guild-wide, a manager floor admits only admins.
-    """
-    visibility = embed.get("visibility")
-    if not clears_visibility(
-        visibility,
-        is_guild_admin=is_guild_admin,
-        is_initiative_manager=is_initiative_manager,
-    ):
-        manager_floor = in_initiative and visibility == "initiative_manager"
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                GuildAppMessages.SURFACE_MANAGER_ONLY
-                if manager_floor
-                else GuildAppMessages.SURFACE_ADMIN_ONLY
-            ),
-        )
+def _refusal(embed: dict[str, Any], *, initiative_id: int | None) -> str:
+    """The code a refused viewer is given: which audience they missed."""
+    if initiative_id is None or is_admin_only(embed):
+        return GuildAppMessages.SURFACE_ADMIN_ONLY
+    return GuildAppMessages.SURFACE_ROLE_NOT_ALLOWED
 
 
 async def require_live_registration(
@@ -167,10 +140,8 @@ async def mint_embed_handoff(
     app: GuildApp,
     *,
     surface_id: str,
-    user_id: int,
-    is_guild_admin: bool,
+    context: GuildContext,
     initiative_id: int | None,
-    is_initiative_manager: bool,
 ) -> EmbedHandoff:
     """Authorize the caller for one surface, then mint its handoff.
 
@@ -180,9 +151,10 @@ async def mint_embed_handoff(
     mint to do when they do. It comes from a route whose gate the caller already
     passed, so by the time it is a claim it is a fact.
 
-    Resolving the surface is scoped to that, so the visibility rung — read
-    against where a surface was opened — is only ever measured somewhere the
-    surface agreed to appear.
+    Who may open it is :func:`~app.services.tenant.guild_apps.surface_access`,
+    the same decision the app read reports to the client, measured on the
+    viewer's standing (``context``). An initiative handoff reads the
+    placement's roles in one query.
     """
     if not app.enabled:
         raise HTTPException(
@@ -194,17 +166,32 @@ async def mint_embed_handoff(
     # scope, or the guild placed its initiative surfaces somewhere else. Same
     # answer, because from this route both mean the same thing.
     embed = embed_by_id(app.definition, surface_id, scope=scope)
-    if embed is None or not await is_placed(session, app.id, initiative_id):
+    if embed is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildAppMessages.SURFACE_NOT_FOUND,
         )
-    _require_visibility(
+    access = surface_access(
         embed,
-        is_guild_admin=is_guild_admin,
-        in_initiative=initiative_id is not None,
-        is_initiative_manager=is_initiative_manager,
+        initiative_id=initiative_id,
+        placement_role_ids=(
+            None
+            if initiative_id is None
+            else await placement_role_ids(session, app.id, initiative_id)
+        ),
+        is_guild_admin=context.is_admin,
+        member_role_ids=context.member_role_ids,
     )
+    if access is SurfaceAccess.not_here:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildAppMessages.SURFACE_NOT_FOUND,
+        )
+    if access is SurfaceAccess.refused:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=_refusal(embed, initiative_id=initiative_id),
+        )
 
     registration = await require_live_registration(app)
 
@@ -220,7 +207,9 @@ async def mint_embed_handoff(
         ) from exc
 
     subject = await app_refs.ensure_app_ref(
-        guild_id=routed_guild_id(session), app_install_id=app.id, user_id=user_id
+        guild_id=routed_guild_id(session),
+        app_install_id=app.id,
+        user_id=context.user_id,
     )
     guild_ref = await app_refs.ensure_app_guild_ref(
         guild_id=routed_guild_id(session), app_install_id=app.id

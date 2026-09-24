@@ -7,7 +7,7 @@ contract declares a field, the normalizer does not read it, and the field is
 dropped on publish.
 
 It matters because several of them are not descriptions — they are restrictions
-an author is asking this build to enforce. ``visibility``, ``requires``,
+an author is asking this build to enforce. ``admin_only``, ``requires``,
 ``actors`` and ``connection.scope`` all narrow who or what reaches something,
 and a narrowing that is dropped does not fail loudly at the moment it is lost.
 
@@ -41,7 +41,11 @@ def maximal_manifest() -> dict:
     """
     return {
         "app_kind": "service",
-        "service": {"public_id": "acme.tracker", "protocol": 1},
+        "service": {
+            "public_id": "acme.tracker",
+            "protocol": 1,
+            "scopes": ["projects:write", "comments:read"],
+        },
         "features": ["endpoints", "widgets", "embeds", "dashboards"],
         "default_name": "Acme Tracker",
         "connections": [
@@ -119,7 +123,7 @@ def maximal_manifest() -> dict:
                 "actors": ["member", "installation"],
                 "requires": {"all_of": ["vendor"]},
                 "cache_ttl_seconds": 60,
-                "visibility": "guild_admin",
+                "admin_only": True,
             },
             {
                 "id": "app.acme.tracker.written",
@@ -157,7 +161,7 @@ def maximal_manifest() -> dict:
                 "path": "/panel",
                 "name": {"en": "Panel"},
                 "scopes": ["guild", "initiative"],
-                "visibility": "initiative_manager",
+                "admin_only": True,
                 "capabilities": ["camera"],
                 "requires": {"all_of": ["other"]},
             }
@@ -244,6 +248,15 @@ def test_nothing_is_stored_that_the_contract_does_not_declare(published):
 
 
 @pytest.mark.unit
+def test_every_service_field_survives_a_publish(published):
+    """``service`` is written inline rather than as a named object, so the
+    inventory above does not reach it; its fields are measured here."""
+    declared = contract.manifest_schema()["properties"]["service"]["properties"]
+    assert set(declared) == set(published["service"])
+    assert published["service"]["scopes"] == ["comments:read", "projects:write"]
+
+
+@pytest.mark.unit
 def test_the_maximal_manifest_really_is_maximal(published):
     """The two tests above pass trivially if the fixture stopped covering
     something, so the fixture itself is checked: every object the contract
@@ -265,8 +278,8 @@ def test_an_emitting_endpoint_keeps_what_describes_it(published):
         "params",
         "requires",
         "cache_ttl_seconds",
-        "visibility",
         "actors",
+        "admin_only",
     ):
         assert caller_side not in emitted
 

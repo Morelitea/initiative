@@ -30,7 +30,6 @@ ORDERS = "app.acme.shop.orders"
 SOURCE = {
     "id": ORDERS,
     "direction": "read",
-    "visibility": "member",
     "cache_ttl_seconds": 60,
     "params": [
         {"key": "range", "type": "select", "options": ["7d", "30d"], "label": {}},
