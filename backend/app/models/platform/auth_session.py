@@ -55,6 +55,9 @@ class AuthSession(SQLModel, table=True):
         Index("ix_auth_sessions_user_id", "user_id"),
         # Supports the background expiry sweep (GC of past-expiry sessions).
         Index("ix_auth_sessions_expires_at", "expires_at"),
+        # The chain walks go from a row to its children: revoking a chain, and
+        # finding the live row a chain has reached.
+        Index("ix_auth_sessions_parent_id", "parent_id"),
     )
 
     id: uuid.UUID = Field(

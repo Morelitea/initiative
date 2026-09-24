@@ -221,6 +221,8 @@ async def clear_second_factor(
         target_id=user_id,
     )
     await session.commit()
+    # Connections opened on the ended sessions close now.
+    await stream_authority.revoke_user_everywhere(user_id)
     await email_service.announce_second_factor_change(session, user, enabled=False)
 
 
