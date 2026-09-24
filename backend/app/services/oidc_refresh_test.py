@@ -1,16 +1,43 @@
 """The scheduled sweep that re-reads group claims.
 
-One test, about the thing that is invisible when it breaks: the sweep visits
-every provider that asserts a claim path, and a provider it cannot finish is
-skipped rather than taking the rest of the run with it.
+About the things that are invisible when they break: the sweep visits every
+provider sign-in reconciles, a provider it cannot finish is skipped rather than
+taking the rest of the run with it, and a refresh that cannot say what a rule is
+decided by leaves memberships where they are.
 """
 
+import base64
+import json
+
+import httpx
 import pytest
 from sqlalchemy import text
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
+from app.db.session import set_rls_context
+from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.auth_provider_secret import AuthProviderSecret
+from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.oidc_claim_mapping import (
+    ClaimRuleAuthor,
+    OIDCClaimMapping,
+    OIDCMappingTargetType,
+)
 from app.services import oidc_refresh
-from app.testing.factories import create_auth_provider
+from app.services.auth.identity import set_identity_refresh_token
+from app.services.oidc_sync import sync_oidc_assignments
+from app.testing.factories import (
+    NARROWED_CLAIM,
+    NARROWED_VALUE,
+    create_auth_provider,
+    create_federated_identity,
+    create_guild,
+    create_guild_provider_connection,
+    create_user,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -34,6 +61,18 @@ async def test_every_configured_provider_is_visited(session, monkeypatch):
     await create_auth_provider(
         session, slug="social", enabled=True, role_claim_path=None
     )
+    # Asserts no groups either, but a rule of its own places by directory.
+    bridge = await create_auth_provider(
+        session,
+        slug="bridge",
+        enabled=True,
+        issuer="https://bridge.example.com",
+        client_id="bridge-client",
+        role_claim_path=None,
+    )
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    session.add(_directory_rule(provider_id=bridge.id, guild_id=guild.id))
     await session.commit()
 
     seen: list[str] = []
@@ -44,7 +83,7 @@ async def test_every_configured_provider_is_visited(session, monkeypatch):
     monkeypatch.setattr(oidc_refresh, "_sweep_provider", _record)
     await oidc_refresh.process_oidc_refresh_sync()
 
-    assert sorted(seen) == ["corp", "partner"]
+    assert sorted(seen) == ["bridge", "corp", "partner"]
 
 
 async def test_a_provider_that_fails_does_not_take_the_others_with_it(
@@ -72,3 +111,183 @@ async def test_a_provider_that_fails_does_not_take_the_others_with_it(
     await oidc_refresh.process_oidc_refresh_sync()
 
     assert finished == ["zzz-healthy"]
+
+
+# ── A directory-only rule, re-checked by the sweep ───────────────────────────
+
+_TOKEN_ENDPOINT = "https://bridge.example.com/token"
+_USERINFO_ENDPOINT = "https://bridge.example.com/userinfo"
+_REAL_ASYNC_CLIENT = httpx.AsyncClient
+
+
+def _directory_rule(*, provider_id: int, guild_id: int) -> OIDCClaimMapping:
+    """A provider rule that places everybody from one upstream directory."""
+    return OIDCClaimMapping(
+        author=ClaimRuleAuthor.provider,
+        provider_id=provider_id,
+        claim_value=None,
+        scope_claim="idp",
+        scope_value="acme-adfs",
+        target_type=OIDCMappingTargetType.guild,
+        guild_id=guild_id,
+        guild_role=GuildRole.member.value,
+    )
+
+
+def _unsigned_jwt(claims: dict) -> str:
+    def _part(data: dict) -> str:
+        raw = json.dumps(data).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+    return f"{_part({'alg': 'none'})}.{_part(claims)}.sig"
+
+
+def _idp(monkeypatch, *, id_token_claims: dict | None, userinfo: dict) -> None:
+    """Answer the sweep's discovery, token and userinfo calls."""
+
+    async def _metadata(_issuer: str) -> dict:
+        return {
+            "token_endpoint": _TOKEN_ENDPOINT,
+            "userinfo_endpoint": _USERINFO_ENDPOINT,
+        }
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == _TOKEN_ENDPOINT:
+            body: dict = {"access_token": "access"}
+            if id_token_claims is not None:
+                body["id_token"] = _unsigned_jwt(id_token_claims)
+            return httpx.Response(200, json=body)
+        return httpx.Response(200, json=userinfo)
+
+    def _client(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(_handler)
+        return _REAL_ASYNC_CLIENT(*args, **kwargs)
+
+    monkeypatch.setattr(oidc_refresh, "_fetch_oidc_metadata", _metadata)
+    monkeypatch.setattr(oidc_refresh.httpx, "AsyncClient", _client)
+
+
+async def _placed_by_directory(session: AsyncSession):
+    """A bridge provider reporting no groups, a community that accepts its
+    rules, and somebody its directory-only rule placed there at sign-in."""
+    provider = await create_auth_provider(
+        session,
+        slug="bridge",
+        issuer="https://bridge.example.com",
+        client_id="bridge-client",
+        role_claim_path=None,
+    )
+    session.add(
+        AuthProviderSecret(
+            provider_id=provider.id,
+            client_secret_encrypted=encrypt_field("secret", SALT_OIDC_CLIENT_SECRET),
+        )
+    )
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_provider_connection(
+        session, guild=guild, provider=provider, accepts_provider_placement=True
+    )
+    session.add(_directory_rule(provider_id=provider.id, guild_id=guild.id))
+    person = await create_user(session)
+    identity = await create_federated_identity(session, person, provider=provider)
+    identity_id = identity.id
+    await set_identity_refresh_token(
+        session, identity_id=identity_id, refresh_token="refresh"
+    )
+    await session.commit()
+
+    await set_rls_context(session)
+    await sync_oidc_assignments(
+        session,
+        user_id=person.id,
+        provider_id=provider.id,
+        claim_values=set(),
+        claims={NARROWED_CLAIM: NARROWED_VALUE, "idp": "acme-adfs"},
+    )
+    await session.commit()
+    assert await _joined(session, person.id) == {guild.id}
+    return provider, guild, person, identity_id
+
+
+async def _joined(session: AsyncSession, user_id: int) -> set[int]:
+    session.expunge_all()
+    await set_rls_context(session)
+    return set(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id
+                )
+            )
+        ).all()
+    )
+
+
+async def _sweep(session: AsyncSession, provider_id: int) -> None:
+    session.expunge_all()
+    await set_rls_context(session)
+    provider = await session.get(AuthProvider, provider_id)
+    await oidc_refresh._sweep_provider(session, provider)
+
+
+async def test_the_sweep_releases_somebody_who_left_the_directory(session, monkeypatch):
+    """A provider that reports no groups is still swept when a rule of its own
+    places by directory, and an arrival now from another directory hands back
+    what that rule gave them."""
+    provider, _guild, person, _identity_id = await _placed_by_directory(session)
+    _idp(
+        monkeypatch,
+        id_token_claims={NARROWED_CLAIM: NARROWED_VALUE, "idp": "globex-okta"},
+        userinfo={"sub": "someone"},
+    )
+
+    await _sweep(session, provider.id)
+
+    assert await _joined(session, person.id) == set()
+
+
+async def test_the_sweep_keeps_somebody_still_in_the_directory(session, monkeypatch):
+    provider, guild, person, _identity_id = await _placed_by_directory(session)
+    _idp(
+        monkeypatch,
+        id_token_claims={NARROWED_CLAIM: NARROWED_VALUE, "idp": "acme-adfs"},
+        userinfo={"sub": "someone"},
+    )
+
+    await _sweep(session, provider.id)
+
+    assert await _joined(session, person.id) == {guild.id}
+
+
+async def test_a_refresh_without_an_id_token_leaves_memberships_alone(
+    session, monkeypatch
+):
+    """The directory and the community's narrowing are read from the id_token.
+    A refresh that returns none, with userinfo that carries neither, is not
+    reconciled this pass — and the link is stamped, so it waits its turn."""
+    provider, guild, person, identity_id = await _placed_by_directory(session)
+    _idp(monkeypatch, id_token_claims=None, userinfo={"sub": "someone"})
+
+    await _sweep(session, provider.id)
+
+    assert await _joined(session, person.id) == {guild.id}
+    identity = await session.get(FederatedIdentity, identity_id)
+    assert identity is not None and identity.last_synced_at is not None
+
+
+async def test_a_refresh_without_an_id_token_reads_userinfo_when_it_has_them(
+    session, monkeypatch
+):
+    """Userinfo carrying the claims the rules are decided by is enough to
+    reconcile on."""
+    provider, _guild, person, _identity_id = await _placed_by_directory(session)
+    _idp(
+        monkeypatch,
+        id_token_claims=None,
+        userinfo={NARROWED_CLAIM: NARROWED_VALUE, "idp": "globex-okta"},
+    )
+
+    await _sweep(session, provider.id)
+
+    assert await _joined(session, person.id) == set()

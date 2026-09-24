@@ -49,6 +49,7 @@ from app.services.auth import email_otp as email_otp_service
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
 from app.services.platform import user_tokens
+from app.services.stream_authz import authority as stream_authority
 
 logger = logging.getLogger(__name__)
 
@@ -274,12 +275,14 @@ async def verify_sign_in_code(
 
     # Arriving at the address is what proves it, so an address the account had
     # never proved is proved now — and what the account held before that goes.
+    retired = False
     if challenge.user_email_id is not None:
         first_proof = await addresses.mark_proved(
             system_session, address_id=challenge.user_email_id
         )
         if first_proof:
             await _retire_credentials_predating_proof(system_session, user=user)
+            retired = True
         row = await system_session.get(UserEmail, challenge.user_email_id)
         if row is not None:
             row.last_login_at = datetime.now(timezone.utc)
@@ -301,6 +304,8 @@ async def verify_sign_in_code(
             ),
         )
         await system_session.commit()
+        if retired:
+            await stream_authority.revoke_user_everywhere(user_id)
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={
@@ -309,7 +314,7 @@ async def verify_sign_in_code(
             },
         )
 
-    return await open_session(
+    opened = await open_session(
         request,
         response,
         system_session,
@@ -319,6 +324,10 @@ async def verify_sign_in_code(
         audit_detail={"method": "email_otp"},
         return_refresh_token=native,
     )
+    if retired:
+        # Connections opened on the credentials retired above close now.
+        await stream_authority.revoke_user_everywhere(user_id)
+    return opened
 
 
 @router.post(

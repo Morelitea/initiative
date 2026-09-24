@@ -76,7 +76,6 @@ async def enqueue(
     guild_id: int | None = None,
     notification_id: int | None = None,
     prefs: Mapping[str, Any] | None = None,
-    policy: notification_policy.NotificationPolicy | None = None,
 ) -> bool:
     """Write one notification email down.
 
@@ -91,11 +90,10 @@ async def enqueue(
     what it was about — so the row carries no more than the mail will.
 
     ``prefs`` is the recipient's settings document, which the caller has
-    already loaded to decide the email was wanted at all. ``policy`` is the same
-    idea for the two switches, for a caller resolving them once across a batch.
+    already loaded to decide the email was wanted at all. The switches are read
+    once per transaction of ``session``, so a fan-out asks once.
     """
-    if policy is None:
-        policy = await notification_policy.load(guild_id)
+    policy = await notification_policy.for_send(session, guild_id)
     if not policy.email:
         return False
     if policy.redact:

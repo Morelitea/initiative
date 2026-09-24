@@ -561,6 +561,63 @@
     "saveSuccess": "Paramètres e-mail enregistrés",
     "saveError": "Impossible d'enregistrer les paramètres e-mail"
   },
+  "push": {
+    "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres des notifications push.",
+    "loading": "Chargement des paramètres des notifications push…",
+    "loadError": "Impossible de charger les paramètres des notifications push.",
+    "title": "Firebase Cloud Messaging",
+    "description": "Le projet Firebase auprès duquel les applications mobiles s'enregistrent, et par lequel le serveur envoie les notifications push.",
+    "enabledLabel": "Envoyer des notifications push",
+    "enabledHelp": "Les applications mobiles le prennent en compte à leur prochaine ouverture. Aucun redémarrage nécessaire.",
+    "fields": {
+      "project_id": {
+        "label": "ID du projet",
+        "help": "Paramètres du projet → Général → ID du projet."
+      },
+      "application_id": {
+        "label": "ID de l'application",
+        "help": "Paramètres du projet → Général → Vos applications → ID de l'application."
+      },
+      "api_key": {
+        "label": "Clé API Web",
+        "help": "Paramètres du projet → Général → Clé API Web."
+      },
+      "sender_id": {
+        "label": "ID de l'expéditeur",
+        "help": "Paramètres du projet → Cloud Messaging → ID de l'expéditeur."
+      }
+    },
+    "serviceAccountLabel": "Clé du compte de service",
+    "serviceAccountSet": "Une clé est enregistrée. Collez-en une nouvelle pour la remplacer.",
+    "serviceAccountHelp": "Le fichier JSON complet de Paramètres du projet → Comptes de service → Générer une nouvelle clé privée. Laissez vide pour conserver la clé enregistrée.",
+    "serviceAccountInvalid": "Collez le fichier de clé complet : un objet JSON, accolades comprises.",
+    "save": "Enregistrer les paramètres push",
+    "saving": "Enregistrement…",
+    "saved": "Paramètres push enregistrés",
+    "error": "Impossible d'enregistrer les paramètres push"
+  },
+  "captcha": {
+    "title": "Captcha",
+    "description": "Une vérification que la personne qui s'inscrit, ou qui demande un code de connexion par e-mail, n'est pas un robot.",
+    "on": "Activé",
+    "off": "Désactivé",
+    "providerLabel": "Fournisseur",
+    "providers": {
+      "off": "Aucun",
+      "hcaptcha": "hCaptcha",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA v2"
+    },
+    "siteKeyLabel": "Clé du site",
+    "secretKeyLabel": "Clé secrète",
+    "secretKeySet": "••••••••",
+    "secretKeyHelp": "Laissez vide pour conserver la clé secrète enregistrée.",
+    "incomplete": "Le captcha s'active une fois le fournisseur, la clé du site et la clé secrète enregistrés.",
+    "save": "Enregistrer les paramètres du captcha",
+    "saving": "Enregistrement…",
+    "saved": "Paramètres du captcha enregistrés",
+    "error": "Impossible d'enregistrer les paramètres du captcha"
+  },
   "auth": {
     "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'authentification.",
     "loading": "Chargement des paramètres d'authentification…",
@@ -836,11 +893,12 @@
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
-    "subtitle": "Connexion, sécurité, image de marque, e-mail, l'annuaire des communautés, intégrations, stockage et réception pour l'ensemble du déploiement.",
+    "subtitle": "Connexion, sécurité, image de marque, e-mail, notifications push, l'annuaire des communautés, intégrations, stockage et réception pour l'ensemble du déploiement.",
     "tabs": {
       "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
+      "push": "Notifications push",
       "community": "Communauté",
       "storage": "Stockage",
       "intake": "Réception",
@@ -1746,7 +1804,7 @@
   },
   "platformSecurity": {
     "title": "Sécurité",
-    "description": "Combien de temps quelqu'un peut rester connecté, et ce qu'une notification emporte en quittant l'application."
+    "description": "Combien de temps quelqu'un peut rester connecté, le captcha demandé aux nouveaux venus, et ce qu'une notification emporte en quittant l'application."
   },
   "notificationDelivery": {
     "title": "Notifications qui quittent l'application",

@@ -400,6 +400,16 @@ const guildNarrowings = (guildId: number): Spec => ({
 
 const storageSettings = (): Spec => ({ personalExact: ["/api/v1/settings/storage"] });
 
+/** The registration captcha: provider, site key, and whether a secret is stored. */
+const captchaSettings = (): Spec => ({ personalExact: ["/api/v1/settings/captcha"] });
+
+/** The Firebase connection push notifications are sent through. */
+const pushSettings = (): Spec => ({ personalExact: ["/api/v1/settings/push"] });
+
+// The public half of the Firebase connection, which the app reads to register
+// for push. An owner's write to the push settings changes what it answers.
+const fcmConfig = (): Spec => ({ personalExact: ["/api/v1/settings/fcm-config"] });
+
 // The community-directory switch is written under /settings but read from the
 // SPA's boot config, so an owner's write has to reach the config key rather
 // than a settings one.
@@ -686,6 +696,7 @@ export const q = {
   guildNarrowings,
   authSettings,
   calendar,
+  captchaSettings,
   calendarEvent,
   commentsOnResource,
   communitySettings,
@@ -707,6 +718,7 @@ export const q = {
   documentVersions,
   emailSettings,
   favoriteProjects,
+  fcmConfig,
   guildAIConnections,
   guildContent,
   guildInvites,
@@ -734,6 +746,7 @@ export const q = {
   projectActivity,
   projectFilterPresets,
   projectTaskStatuses,
+  pushSettings,
   queue,
   recentComments,
   recents,

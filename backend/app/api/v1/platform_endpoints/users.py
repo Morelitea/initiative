@@ -1269,6 +1269,10 @@ async def update_users_me(
         )
     await session.commit()
     await session.refresh(current_user)
+    if password:
+        # Open connections stand on the credentials the change has just ended,
+        # this device's included; its replacement session reconnects them.
+        await stream_authority.revoke_user_everywhere(current_user.id)
     if "presence" in update_data:
         # A change made from an open tab takes effect for readers immediately,
         # rather than at the next reconnect. Told after the commit, so nothing

@@ -303,7 +303,6 @@ async def send_push_to_user(
     only_device_token_ids: Optional[set[int]] = None,
     guild_id: Optional[int] = None,
     locale: Optional[str] = None,
-    policy: Optional["notification_policy.NotificationPolicy"] = None,
 ) -> int:
     """Send push notification to all of a user's devices.
 
@@ -314,7 +313,8 @@ async def send_push_to_user(
 
     The recipient's device rows are read and written on the system engine
     rather than on ``session``, which is the caller's and often routed into a
-    community; ``session`` is kept for the callers that pass it.
+    community; ``session`` carries the resolved answers, so a fan-out on it
+    reads them once per transaction.
 
     Args:
         session: The caller's session (not used for the device rows)
@@ -331,8 +331,6 @@ async def send_push_to_user(
             notice — which the deployment alone answers for.
         locale: The recipient's language, for a redacted line. Read from their
             account when a redacted line is needed and this was not given.
-        policy: An answer the caller already resolved, for a fan-out that would
-            otherwise ask once per recipient.
 
     Returns:
         Number of successful deliveries
@@ -350,8 +348,7 @@ async def send_push_to_user(
         logger.debug(f"No push tokens found for user {user_id}")
         return 0
 
-    if policy is None:
-        policy = await notification_policy.load(guild_id)
+    policy = await notification_policy.for_send(session, guild_id)
     if not policy.push:
         return 0
     if policy.redact:

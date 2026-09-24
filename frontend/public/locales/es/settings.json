@@ -561,6 +561,63 @@
     "saveSuccess": "Configuración de email guardada",
     "saveError": "No se pudo guardar la configuración de email"
   },
+  "push": {
+    "platformOnly": "Solo el propietario de la plataforma puede gestionar los ajustes de notificaciones push.",
+    "loading": "Cargando ajustes de notificaciones push…",
+    "loadError": "No se pudieron cargar los ajustes de notificaciones push.",
+    "title": "Firebase Cloud Messaging",
+    "description": "El proyecto de Firebase con el que se registran las aplicaciones móviles y a través del cual el servidor envía las notificaciones push.",
+    "enabledLabel": "Enviar notificaciones push",
+    "enabledHelp": "Las aplicaciones móviles lo aplican la próxima vez que se abren. No hace falta reiniciar.",
+    "fields": {
+      "project_id": {
+        "label": "ID del proyecto",
+        "help": "Configuración del proyecto → General → ID del proyecto."
+      },
+      "application_id": {
+        "label": "ID de la app",
+        "help": "Configuración del proyecto → General → Tus apps → ID de la app."
+      },
+      "api_key": {
+        "label": "Clave de API web",
+        "help": "Configuración del proyecto → General → Clave de API web."
+      },
+      "sender_id": {
+        "label": "ID del remitente",
+        "help": "Configuración del proyecto → Cloud Messaging → ID del remitente."
+      }
+    },
+    "serviceAccountLabel": "Clave de la cuenta de servicio",
+    "serviceAccountSet": "Hay una clave guardada. Pega una nueva para sustituirla.",
+    "serviceAccountHelp": "El archivo JSON completo de Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada. Déjalo en blanco para conservar la clave guardada.",
+    "serviceAccountInvalid": "Pega el archivo de clave completo: un objeto JSON, llaves incluidas.",
+    "save": "Guardar ajustes push",
+    "saving": "Guardando…",
+    "saved": "Ajustes push guardados",
+    "error": "No se pudieron guardar los ajustes push"
+  },
+  "captcha": {
+    "title": "Captcha",
+    "description": "Una comprobación de que quien se registra, o pide un código de inicio de sesión por correo, no es un bot.",
+    "on": "Activado",
+    "off": "Desactivado",
+    "providerLabel": "Proveedor",
+    "providers": {
+      "off": "Ninguno",
+      "hcaptcha": "hCaptcha",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA v2"
+    },
+    "siteKeyLabel": "Clave del sitio",
+    "secretKeyLabel": "Clave secreta",
+    "secretKeySet": "••••••••",
+    "secretKeyHelp": "Déjalo en blanco para conservar la clave secreta guardada.",
+    "incomplete": "El captcha se activa cuando el proveedor, la clave del sitio y la clave secreta están guardados.",
+    "save": "Guardar ajustes del captcha",
+    "saving": "Guardando…",
+    "saved": "Ajustes del captcha guardados",
+    "error": "No se pudieron guardar los ajustes del captcha"
+  },
   "auth": {
     "platformOnly": "Solo el propietario de la plataforma puede gestionar la configuración de autenticación.",
     "loading": "Cargando configuración de autenticación…",
@@ -836,11 +893,12 @@
   },
   "platformLayout": {
     "title": "Configuración de la plataforma",
-    "subtitle": "Inicio de sesión, seguridad, marca, correo, el directorio de comunidades, integraciones, almacenamiento y entrada para toda la instalación.",
+    "subtitle": "Inicio de sesión, seguridad, marca, correo, notificaciones push, el directorio de comunidades, integraciones, almacenamiento y entrada para toda la instalación.",
     "tabs": {
       "auth": "Autenticación",
       "branding": "Personalización",
       "email": "Email",
+      "push": "Notificaciones push",
       "community": "Comunidad",
       "storage": "Almacenamiento",
       "intake": "Entradas",
@@ -1746,7 +1804,7 @@
   },
   "platformSecurity": {
     "title": "Seguridad",
-    "description": "Cuánto tiempo puede alguien seguir con la sesión iniciada y qué lleva una notificación al salir de la aplicación."
+    "description": "Cuánto tiempo puede alguien seguir con la sesión iniciada, el captcha que se pide a quien llega por primera vez y qué lleva una notificación al salir de la aplicación."
   },
   "notificationDelivery": {
     "title": "Notificaciones que salen de la aplicación",
