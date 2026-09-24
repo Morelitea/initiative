@@ -19,6 +19,7 @@ from sqlalchemy import event
 from sqlmodel import select
 from starlette.requests import Request
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
     APP_SCOPE_ATTRIBUTE,
     ActorContext,
@@ -27,6 +28,7 @@ from app.api.deps import (
     route_app_scope,
 )
 from app.core.app_access_token import seal_app_token, seal_install_token
+from app.core.identity_boundary import boundary_scope
 from app.core.messages import AppMessages, AuthMessages
 from app.db.guild_standing import GuildContext, InstallContext
 from app.main import app
@@ -38,7 +40,7 @@ from app.testing.app_clients import CLIENT, install_app, share_with_members
 _PROBE_PATH = "/api/v1/g/{guild_id}/app-scope-probe/documents"
 _read_documents = app_scope("documents:read")
 
-_probe = APIRouter()
+_probe = APIRouter(route_class=ActorRoute)
 
 
 @_probe.get(_PROBE_PATH)
@@ -266,6 +268,7 @@ async def test_an_install_request_spends_two_statements_before_its_handler(
             "type": "http",
             "method": "GET",
             "path": _url(installed.guild.id),
+            "query_string": b"",
             "headers": [(b"authorization", f"Bearer {token}".encode())],
             "client": ("198.51.100.7", 40404),
         }
@@ -281,9 +284,11 @@ async def test_an_install_request_spends_two_statements_before_its_handler(
     engine = s.bind.sync_engine
     event.listen(engine, "before_cursor_execute", count)
     try:
-        context = await _read_documents(
-            request, s, installed.guild.id, bearer_token=token, session_cookie=None
-        )
+        # The slot ActorRoute opens for every request it serves.
+        with boundary_scope():
+            context = await _read_documents(
+                request, s, installed.guild.id, bearer_token=token, session_cookie=None
+            )
     finally:
         event.remove(engine, "before_cursor_execute", count)
 

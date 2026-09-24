@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Annotated, Any, NoReturn, Optional
+from typing import Annotated, Any, NoReturn, Optional, Sequence
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -66,7 +66,9 @@ from app.core.security import (
     verify_auto_delegation_token,
     verify_upload_token,
 )
-from app.db.guild_standing import GuildContext, InstallContext
+from app.core.identity_boundary import InstallBoundary, admit_install
+from app.db.guild_standing import GuildContext, InstallContext, named_ref_candidates
+from app.models.platform.identity_ref import IdentityEntity
 from app.db.schema_provisioning import PLATFORM_SUSPENDED
 from app.db.session import (
     SYSTEM_SATISFIED,
@@ -1508,7 +1510,9 @@ class InstallAccessError(Exception):
 
 
 async def establish_install_access(
-    session: AsyncSession, install: VerifiedInstall
+    session: AsyncSession,
+    install: VerifiedInstall,
+    named_refs: Sequence[str] = (),
 ) -> InstallContext:
     """Route ``session`` as an installed app and compute its standing — the
     establishment seam for an install, beside :func:`establish_guild_access`.
@@ -1519,6 +1523,11 @@ async def establish_install_access(
     statement, which reads everything else from rows. The context it returns
     is what that statement computed, and is stored with the routing for the
     replay hook.
+
+    ``named_refs`` are the references the request names. The standing
+    statement resolves them in the install's own sector and returns them on
+    the context (``named_refs``), with the install's community reference; they
+    choose rows to look up and decide nothing about access.
 
     Raises :class:`InstallAccessError` when the standing is not live — the
     community is not in use, the install or its registration is off, or the
@@ -1549,7 +1558,7 @@ async def establish_install_access(
             token_scopes=pending.token_scopes,
             scope_initiative_id=pending.scope_initiative_id,
         )
-        completed = await apply_install_standing(session, pending)
+        completed = await apply_install_standing(session, pending, named_refs)
     except DBAPIError as exc:
         # A community that was deleted has no role left to assume and no schema
         # to read, which is the same answer as an install that may not act.
@@ -1588,6 +1597,42 @@ def scope_covers(scopes: frozenset[str], scope: str) -> bool:
     return resource in (write if access is AppScopeAccess.write else read)
 
 
+def _strings_in(value: Any) -> list[str]:
+    """Every string in a parsed JSON document, keys included."""
+    found: list[str] = []
+    pending = [value]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, str):
+            found.append(current)
+        elif isinstance(current, dict):
+            pending.extend(current.keys())
+            pending.extend(current.values())
+        elif isinstance(current, list):
+            pending.extend(current)
+    return found
+
+
+async def _named_refs(request: Request) -> list[str]:
+    """The references an installed app's request names: in its path, its query
+    string and its JSON body.
+
+    Read before FastAPI validates any of them, so the standing statement can
+    resolve them in the same round trip. Starlette keeps the body it read, so
+    the route reads the same bytes after this. A body that is not JSON names
+    nobody here; FastAPI answers for it.
+    """
+    values: list[str] = [str(v) for v in request.path_params.values()]
+    values.extend(v for _, v in request.query_params.multi_items())
+    content_type = request.headers.get("content-type", "")
+    if "json" in content_type and await request.body():
+        try:
+            values.extend(_strings_in(await request.json()))
+        except ValueError:
+            pass
+    return named_ref_candidates(values)
+
+
 async def _establish_install_request(
     request: Request, session: AsyncSession, token: str, scope: str
 ) -> InstallContext:
@@ -1596,7 +1641,9 @@ async def _establish_install_request(
     The token is read locally; nothing reaches the database until it has been
     unsealed and found to be an installation token. Then the seam routes the
     request's session as the install and computes its standing, the two
-    statements an install pays before its handler.
+    statements an install pays before its handler. The standing statement also
+    resolves the references the request names, which the route's identity
+    types read while FastAPI validates it (``app.core.identity_boundary``).
     """
     try:
         unsealed = unseal_access_token(token)
@@ -1612,8 +1659,9 @@ async def _establish_install_request(
         scopes=unsealed.scopes,
         initiative_id=unsealed.initiative_id,
     )
+    named = await _named_refs(request)
     try:
-        context = await establish_install_access(session, install)
+        context = await establish_install_access(session, install, named)
     except InstallAccessError as exc:
         raise _refuse_install_credential() from exc
 
@@ -1630,6 +1678,18 @@ async def _establish_install_request(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AppMessages.SCOPE_REQUIRED,
         )
+    admit_install(
+        InstallBoundary(
+            guild_id=context.guild_id,
+            install_id=context.install_id,
+            guild_ref=context.guild_ref,
+            named={
+                ref: (IdentityEntity(entity_type), entity_id)
+                for ref, entity_type, entity_id in context.named_refs
+            },
+            session=session,
+        )
+    )
     return context
 
 
@@ -1647,6 +1707,11 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
     Either way the request's session — the one :data:`SessionDep` hands out,
     which FastAPI resolves once per request — is routed before the handler
     runs. A scoped route reads it through :data:`ActorSessionDep`.
+
+    A scoped route's router uses ``app.api.actor_route.ActorRoute``. For an
+    install, this dependency hands that route class the boundary its
+    ``PersonId`` and ``GuildId`` fields translate through; an install's request
+    on a route served by any other class is refused.
 
     The returned callable carries ``scope`` on :data:`APP_SCOPE_ATTRIBUTE`.
     A route names it the way the type checker reads, as a module-level alias

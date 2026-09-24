@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.exc import SQLAlchemyError
@@ -28,6 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.identity_ref import (
     REF_ENTROPY_BYTES,
+    REF_GRACE_PERIOD,
     REF_MAX_LENGTH,
     IdentityEntity,
     IdentityPurpose,
@@ -61,10 +62,6 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
-
-#: How long a replaced reference keeps resolving. Long enough for the other
-#: party to pick up the new value and for anything already in flight to land.
-REF_GRACE_PERIOD = timedelta(days=30)
 
 IDENTITY_REF_SWEEP_POLL_SECONDS = 3600
 

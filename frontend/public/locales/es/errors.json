@@ -417,6 +417,7 @@
   "APP_SERVICE_INVALID_BASE_URL": "Esa dirección no es válida. Indica la URL base de la aplicación, sin parámetros de consulta.",
   "APP_SERVICE_INVALID_ORIGIN": "Uno de los orígenes permitidos no es válido. Usa esquema://host con un puerto opcional y sin ruta.",
   "APP_SERVICE_INVALID_JWKS": "Ese conjunto de claves no sirve a esta instalación para verificar una firma.",
+  "APP_REFERENCE_UNKNOWN": "Esta aplicación ha indicado una persona o comunidad que no conoce.",
   "APP_SCOPE_REQUIRED": "El token de esta aplicación no incluye el ámbito que necesita esta acción.",
   "APP_SERVICE_UNKNOWN_GRANT": "Ese permiso no se le puede conceder a un servicio de aplicación.",
   "APP_SERVICE_UNKNOWN_SCOPE": "Ese ámbito no se le puede conceder a una aplicación.",

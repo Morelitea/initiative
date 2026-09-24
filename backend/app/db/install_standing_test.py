@@ -15,7 +15,9 @@ from sqlalchemy import event, text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
-from app.api.deps import InstallAccessError
+from datetime import datetime, timezone
+
+from app.api.deps import InstallAccessError, VerifiedInstall, establish_install_access
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.request_context import ContextShapeError, InstallScoped, classify
@@ -27,12 +29,14 @@ from app.db.session import (
     install_context,
 )
 from app.models.platform.guild import GuildRole, GuildStatus
+from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.document import Document
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import PermissionKey
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.services.platform.identity_refs import ensure_ref
 from app.testing import (
     create_app_service_registration,
     create_document,
@@ -571,6 +575,145 @@ async def test_the_install_floor_reads_only_what_its_standing_needs(
         )
     ).all()
     assert {name for name, held in rows if held} == readable
+
+
+async def _sector_refs(session, install: _Install) -> dict[str, str]:
+    """References in and around the install's sector, minted as the system
+    engine would: the seat's and the community's in its own sector, the seat's
+    at another install, and the seat's for billing."""
+    guild_id, install_id, user_id = (
+        install.guild.id,
+        install.app.id,
+        install.seat.user.id,
+    )
+    refs = {
+        "own": await ensure_ref(
+            session,
+            entity_type=IdentityEntity.user,
+            entity_id=user_id,
+            purpose=IdentityPurpose.app,
+            sector_guild_id=guild_id,
+            sector_id=install_id,
+        ),
+        "guild": await ensure_ref(
+            session,
+            entity_type=IdentityEntity.guild,
+            entity_id=guild_id,
+            purpose=IdentityPurpose.app,
+            sector_guild_id=guild_id,
+            sector_id=install_id,
+        ),
+        "other_install": await ensure_ref(
+            session,
+            entity_type=IdentityEntity.user,
+            entity_id=user_id,
+            purpose=IdentityPurpose.app,
+            sector_guild_id=guild_id,
+            sector_id=install_id + 1000,
+        ),
+        "billing": await ensure_ref(
+            session,
+            entity_type=IdentityEntity.user,
+            entity_id=user_id,
+            purpose=IdentityPurpose.billing,
+        ),
+    }
+    await session.commit()
+    return refs
+
+
+@pytest.mark.integration
+async def test_the_standing_resolves_only_the_install_s_own_references(
+    session, acting_user, role_session
+):
+    install = await _install(
+        session, acting_user, role_session, granted=["documents:read"]
+    )
+    refs = await _sector_refs(session, install)
+
+    s = await role_session("app_user")
+    context = await establish_install_access(
+        s,
+        VerifiedInstall(
+            guild_id=install.guild.id,
+            install_id=install.app.id,
+            client_id=CLIENT,
+            scopes=frozenset({"documents:read"}),
+        ),
+        [*refs.values(), "uapp_nobody-at-all", "plain text"],
+    )
+
+    assert context.guild_ref == refs["guild"]
+    assert context.named_refs == tuple(
+        sorted(
+            [
+                (refs["own"], IdentityEntity.user.value, install.seat.user.id),
+                (refs["guild"], IdentityEntity.guild.value, install.guild.id),
+            ]
+        )
+    )
+    await s.rollback()
+
+
+@pytest.mark.integration
+async def test_the_install_role_reads_and_mints_in_its_own_sector_only(
+    session, acting_user, role_session
+):
+    install = await _install(
+        session, acting_user, role_session, granted=["documents:read"]
+    )
+    refs = await _sector_refs(session, install)
+    s, _context = await _route(role_session, install, ["documents:read"])
+
+    visible = set(
+        (await s.exec(text("SELECT ref FROM public.identity_refs"))).scalars().all()
+    )
+    assert visible == {refs["own"], refs["guild"]}
+
+    insert = text(
+        "INSERT INTO public.identity_refs "
+        "(ref, entity_type, entity_id, purpose, sector_guild_id, sector_id, "
+        "created_at, retired_at) "
+        "VALUES (:ref, :kind, :entity, :purpose, :g, :i, now(), :retired)"
+    )
+    own_sector = dict(
+        kind="user",
+        entity=install.seat.user.id + 1,
+        purpose="app",
+        g=install.guild.id,
+        i=install.app.id,
+        retired=None,
+    )
+
+    async def attempt(sql, **values) -> bool:
+        try:
+            async with s.begin_nested():
+                await s.exec(sql.bindparams(**values))
+        except DBAPIError:
+            return False
+        return True
+
+    assert await attempt(insert, ref="uapp_minted-here", **own_sector)
+    for n, refused in enumerate(
+        (
+            {"i": install.app.id + 1000},
+            {"g": install.guild.id + 1000},
+            {"purpose": "billing"},
+            {"kind": "guild", "entity": install.guild.id + 1000},
+            {"retired": datetime.now(timezone.utc)},
+        )
+    ):
+        assert not await attempt(
+            insert, ref=f"uapp_refused-{n}", **{**own_sector, **refused}
+        ), refused
+    assert not await attempt(
+        text("UPDATE public.identity_refs SET retired_at = now() WHERE ref = :r"),
+        r=refs["own"],
+    )
+    assert not await attempt(
+        text("DELETE FROM public.identity_refs WHERE ref = :r"), r=refs["own"]
+    )
+    await s.rollback()
 
 
 # ---------------------------------------------------------------------------

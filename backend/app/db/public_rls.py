@@ -101,6 +101,9 @@ NOTIFY_TARGET = "NULLIF(current_setting('app.notify_target_user_id', true), ''):
 #: The client an installed app's token was issued to, written by the install
 #: routing from the verified token.
 TOKEN_CLIENT_ID = "NULLIF(current_setting('app.token_client_id', true), '')"
+#: The install an installed app's request is routed as, written by the same
+#: routing.
+INSTALL_ID = "NULLIF(current_setting('app.current_install_id', true), '')::int"
 
 # --- Predicate builders -------------------------------------------------------
 # Each returns the SQL of a policy predicate. ``{table}`` is replaced with the
@@ -208,6 +211,17 @@ LIVE_WINDOW = (
     " AND ((expires_at IS NULL) OR (expires_at > now()))"
 )
 CLIENT_SECTOR = "purpose = 'client' AND entity_type = 'user'"
+#: A reference in the routed install's own sector: what an installed app's
+#: request calls somebody, and nothing any other install or purpose holds.
+INSTALL_SECTOR = (
+    f"purpose = 'app' AND sector_guild_id = {GID} AND sector_id = {INSTALL_ID}"
+)
+#: A reference an installed app's request mints: in its own sector, live, and
+#: naming a person or its own community.
+INSTALL_SECTOR_MINT = (
+    f"{INSTALL_SECTOR} AND retired_at IS NULL"
+    f" AND (entity_type = 'user' OR (entity_type = 'guild' AND entity_id = {GID}))"
+)
 MEMBER_ROLE_ONLY = f"role = '{UserRole.member.value}'"
 
 # --- The registry ---------------------------------------------------------------
@@ -858,6 +872,21 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 SELECT,
                 ("app_user",),
                 using=CLIENT_SECTOR,
+            ),
+            # An installed app's request reads what its install calls people and
+            # its community, and mints what it has not been told yet — in its
+            # own sector only (app_refs.install_refs; migration 20260924_0383).
+            Policy(
+                "install_reads_its_sector",
+                SELECT,
+                ("app_install_base",),
+                using=INSTALL_SECTOR,
+            ),
+            Policy(
+                "install_mints_in_its_sector",
+                INSERT,
+                ("app_install_base",),
+                check=INSTALL_SECTOR_MINT,
             ),
         ),
     ),

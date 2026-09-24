@@ -417,6 +417,7 @@
   "APP_SERVICE_INVALID_BASE_URL": "That address isn't valid. Give the app's base URL, with no query string.",
   "APP_SERVICE_INVALID_ORIGIN": "An allowed origin isn't valid. Use scheme://host with an optional port, and no path.",
   "APP_SERVICE_INVALID_JWKS": "That key set isn't one this deployment can verify a signature against.",
+  "APP_REFERENCE_UNKNOWN": "This app named a person or community it doesn't know.",
   "APP_SCOPE_REQUIRED": "This app's token doesn't carry the scope this action needs.",
   "APP_SERVICE_UNKNOWN_GRANT": "That permission isn't one an app service can be granted.",
   "APP_SERVICE_UNKNOWN_SCOPE": "That scope isn't one an app can be granted.",

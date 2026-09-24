@@ -28,7 +28,9 @@ from app.core.profile_decorations import (
     validate_decoration_id,
     validate_tint,
 )
+from app.core.identity_boundary import PersonId
 from app.models.platform.user import Presence, UserRole, UserStatus
+from app.services.platform.user_avatars import is_avatar_url
 from app.core.config import settings
 
 # ``avatar_url`` is where a user's picture is: either a path this API serves
@@ -131,6 +133,36 @@ class UserPublic(UserIdentity):
     the guild being read renders one."""
 
     full_name: Optional[str] = None
+
+
+class AppMemberRead(SanitizedBaseModel):
+    """A member, as an installed app reads them under ``members:read``.
+
+    What its install calls them (``id``, a :data:`PersonId`), their handle,
+    the name where the guild renders one, and their picture. Built from the
+    shape the guild's own roster serves, so it carries no address to drop.
+    A picture this API serves is addressed by the member's row id, so only a
+    picture hosted elsewhere comes along.
+    """
+
+    id: PersonId
+    username: str
+    discriminator: int
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+    @classmethod
+    def from_public(cls, user: UserIdentity) -> "AppMemberRead":
+        avatar = user.avatar_url
+        if avatar is not None and is_avatar_url(avatar):
+            avatar = None
+        return cls(
+            id=user.id,
+            username=user.username,
+            discriminator=user.discriminator,
+            full_name=getattr(user, "full_name", None),
+            avatar_url=avatar,
+        )
 
 
 class UserGuildRead(UserIdentity):

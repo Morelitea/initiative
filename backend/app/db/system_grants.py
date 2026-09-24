@@ -802,7 +802,11 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "guild_memberships": None,
     "guild_invites": None,
     "access_grants": None,
-    "identity_refs": None,
+    # Its own install's sector, read and minted on the request's session: what
+    # the install calls the people and the community a request or response
+    # names (install_reads_its_sector / install_mints_in_its_sector; migration
+    # 20260924_0383).
+    "identity_refs": frozenset({"SELECT", "INSERT"}),
     "app_settings": None,
     "app_setting_secrets": None,
     "marketplace_listings": None,
