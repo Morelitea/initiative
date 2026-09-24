@@ -229,16 +229,16 @@ async def test_withdrawing_sso_closes_a_guilds_provider_routes_too(
     theirs = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=theirs)
 
-    listed = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
+    listed = await client.get(f"/api/v1/auth/c/{guild.id}/providers")
     assert any(p["slug"] == "corp" for p in listed.json()["providers"])
 
     put = await client.put(METHODS_URL, headers=headers, json={"methods": ["password"]})
     assert put.status_code == 200
 
-    after = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
+    after = await client.get(f"/api/v1/auth/c/{guild.id}/providers")
     assert after.json()["providers"] == []
     login = await client.get(
-        f"/api/v1/auth/g/{guild.id}/corp/login", follow_redirects=False
+        f"/api/v1/auth/c/{guild.id}/corp/login", follow_redirects=False
     )
     assert login.status_code == 404
 

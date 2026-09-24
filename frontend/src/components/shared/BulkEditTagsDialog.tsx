@@ -2,7 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import type { TagSummary, TagTarget } from "@/api/generated/initiativeAPI.schemas";
-import { bulkEditTagsApiV1GGuildIdTagsBulkPost } from "@/api/generated/tags/tags";
+import { bulkEditTagsApiV1CGuildIdTagsBulkPost } from "@/api/generated/tags/tags";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import {
@@ -102,7 +102,7 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
       // One atomic server-side call: adds/removals are computed against
       // current DB state, so a stale client cache can't corrupt the merge,
       // and a mid-batch failure can't leave items half-edited.
-      await bulkEditTagsApiV1GGuildIdTagsBulkPost(guildId, {
+      await bulkEditTagsApiV1CGuildIdTagsBulkPost(guildId, {
         target_type: targetType,
         target_ids: items.map((item) => item.id),
         add_tag_ids: mode === "add" ? tagsToAdd.map((t) => t.id) : [],

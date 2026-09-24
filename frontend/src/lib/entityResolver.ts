@@ -16,49 +16,49 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import {
-  getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey,
-  readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet,
+  getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey,
+  readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet,
 } from "@/api/generated/calendar-events/calendar-events";
 import {
-  getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryKey,
-  readCalendarApiV1GGuildIdCalendarsCalendarIdGet,
+  getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
+  readCalendarApiV1CGuildIdCalendarsCalendarIdGet,
 } from "@/api/generated/calendars/calendars";
 import {
-  getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey,
-  readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet,
+  getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
+  readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet,
 } from "@/api/generated/counters/counters";
 import {
-  getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey,
-  readDashboardApiV1GGuildIdDashboardsDashboardIdGet,
+  getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
+  readDashboardApiV1CGuildIdDashboardsDashboardIdGet,
 } from "@/api/generated/dashboards/dashboards";
 import {
-  getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey,
-  readDocumentApiV1GGuildIdDocumentsDocumentIdGet,
+  getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
+  readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
 } from "@/api/generated/documents/documents";
 import {
-  getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey,
-  readGalleryApiV1GGuildIdGalleriesGalleryIdGet,
+  getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
+  readGalleryApiV1CGuildIdGalleriesGalleryIdGet,
 } from "@/api/generated/galleries/galleries";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getReadPostApiV1GGuildIdPostsPostIdGetQueryKey,
-  readPostApiV1GGuildIdPostsPostIdGet,
+  getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
+  readPostApiV1CGuildIdPostsPostIdGet,
 } from "@/api/generated/posts/posts";
 import {
-  getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
-  readProjectApiV1GGuildIdProjectsProjectIdGet,
+  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
+  readProjectApiV1CGuildIdProjectsProjectIdGet,
 } from "@/api/generated/projects/projects";
 import {
-  getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey,
-  readQueueApiV1GGuildIdQueuesQueueIdGet,
+  getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
+  readQueueApiV1CGuildIdQueuesQueueIdGet,
 } from "@/api/generated/queues/queues";
 import {
-  getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
-  readTaskApiV1GGuildIdTasksTaskIdGet,
+  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
+  readTaskApiV1CGuildIdTasksTaskIdGet,
 } from "@/api/generated/tasks/tasks";
 import {
-  getReadWikiApiV1GGuildIdWikisWikiIdGetQueryKey,
-  readWikiApiV1GGuildIdWikisWikiIdGet,
+  getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
+  readWikiApiV1CGuildIdWikisWikiIdGet,
 } from "@/api/generated/wikis/wikis";
 import { eventRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
 
@@ -135,43 +135,43 @@ export async function resolveEntityPath(
     switch (refType) {
       case "project": {
         const project = await fetch(
-          getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, entityId),
-          () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, entityId)
+          getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, entityId),
+          () => readProjectApiV1CGuildIdProjectsProjectIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.project, project.initiative_id, entityId);
       }
       case "document": {
         const document = await fetch(
-          getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, entityId),
-          () => readDocumentApiV1GGuildIdDocumentsDocumentIdGet(guildId, entityId)
+          getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey(guildId, entityId),
+          () => readDocumentApiV1CGuildIdDocumentsDocumentIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.document, document.initiative_id, entityId);
       }
       case "queue": {
         const queue = await fetch(
-          getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey(guildId, entityId),
-          () => readQueueApiV1GGuildIdQueuesQueueIdGet(guildId, entityId)
+          getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey(guildId, entityId),
+          () => readQueueApiV1CGuildIdQueuesQueueIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.queue, queue.initiative_id, entityId);
       }
       case "counter-group": {
         const group = await fetch(
-          getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, entityId),
-          () => readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet(guildId, entityId)
+          getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, entityId),
+          () => readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.counter_group, group.initiative_id, entityId);
       }
       case "dashboard": {
         const dashboard = await fetch(
-          getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, entityId),
-          () => readDashboardApiV1GGuildIdDashboardsDashboardIdGet(guildId, entityId)
+          getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey(guildId, entityId),
+          () => readDashboardApiV1CGuildIdDashboardsDashboardIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.dashboard, dashboard.initiative_id, entityId);
       }
       case "calendar": {
         const calendar = await fetch(
-          getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryKey(guildId, entityId),
-          () => readCalendarApiV1GGuildIdCalendarsCalendarIdGet(guildId, entityId)
+          getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey(guildId, entityId),
+          () => readCalendarApiV1CGuildIdCalendarsCalendarIdGet(guildId, entityId)
         );
         // A null initiative is an app-installed calendar, which keeps a guild
         // address — not a failure to resolve.
@@ -179,29 +179,29 @@ export async function resolveEntityPath(
       }
       case "post": {
         const post = await fetch(
-          getReadPostApiV1GGuildIdPostsPostIdGetQueryKey(guildId, entityId),
-          () => readPostApiV1GGuildIdPostsPostIdGet(guildId, entityId)
+          getReadPostApiV1CGuildIdPostsPostIdGetQueryKey(guildId, entityId),
+          () => readPostApiV1CGuildIdPostsPostIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.post, post.initiative_id, entityId);
       }
       case "gallery": {
         const gallery = await fetch(
-          getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey(guildId, entityId),
-          () => readGalleryApiV1GGuildIdGalleriesGalleryIdGet(guildId, entityId)
+          getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey(guildId, entityId),
+          () => readGalleryApiV1CGuildIdGalleriesGalleryIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.gallery, gallery.initiative_id, entityId);
       }
       case "wiki": {
         const wiki = await fetch(
-          getReadWikiApiV1GGuildIdWikisWikiIdGetQueryKey(guildId, entityId),
-          () => readWikiApiV1GGuildIdWikisWikiIdGet(guildId, entityId)
+          getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey(guildId, entityId),
+          () => readWikiApiV1CGuildIdWikisWikiIdGet(guildId, entityId)
         );
         return toolDetailRoute(Tool.wiki, wiki.initiative_id, entityId);
       }
       case "task": {
         const task = await fetch(
-          getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, entityId),
-          () => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, entityId)
+          getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, entityId),
+          () => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, entityId)
         );
         // The embedded project summary usually names the initiative; when the
         // task read omits it, the project itself is the authority.
@@ -209,16 +209,16 @@ export async function resolveEntityPath(
           task.project?.initiative_id ??
           (
             await fetch(
-              getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, task.project_id),
-              () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, task.project_id)
+              getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, task.project_id),
+              () => readProjectApiV1CGuildIdProjectsProjectIdGet(guildId, task.project_id)
             )
           ).initiative_id;
         return taskRoute(initiativeId, task.project_id, entityId);
       }
       case "event": {
         const event = await fetch(
-          getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey(guildId, entityId),
-          () => readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet(guildId, entityId)
+          getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey(guildId, entityId),
+          () => readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet(guildId, entityId)
         );
         return eventRoute(event.initiative_id, event.calendar_id, entityId);
       }

@@ -106,12 +106,14 @@ async def test_a_settings_grant_reaches_settings_and_no_content(
     headers = get_auth_headers(support)
 
     # The community's own configuration: reachable.
-    policy = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
+    policy = await client.get(
+        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+    )
     assert policy.status_code == 200, policy.text
 
     # Its content: not. A settings grant carries no content level at all, so
     # the guild's initiatives are not this grantee's to read.
-    content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code in (403, 404), content.text
 
 
@@ -127,7 +129,7 @@ async def test_a_settings_only_superadmin_grant_reaches_ai_configuration(
     )
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/settings/ai/connections",
+        f"/api/v1/c/{guild.id}/settings/ai/connections",
         headers=get_auth_headers(support),
     )
 
@@ -155,7 +157,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
     assert mode.status_code == 200, mode.text
 
     created = await client.post(
-        f"/api/v1/g/{guild.id}/settings/ai/connections",
+        f"/api/v1/c/{guild.id}/settings/ai/connections",
         headers=get_auth_headers(owner),
         json={"label": "Team", "provider": "openai"},
     )
@@ -164,7 +166,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
 
     member_headers = get_auth_headers(member)
     key = await client.put(
-        f"/api/v1/g/{guild.id}/settings/ai/me/key",
+        f"/api/v1/c/{guild.id}/settings/ai/me/key",
         headers=member_headers,
         json={
             "scope": "guild",
@@ -174,7 +176,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
     )
     assert key.status_code == 200, key.text
     pref = await client.put(
-        f"/api/v1/g/{guild.id}/settings/ai/me/pref",
+        f"/api/v1/c/{guild.id}/settings/ai/me/pref",
         headers=member_headers,
         json={
             "scope": "guild",
@@ -194,7 +196,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
         rung="superadmin",
     )
     deleted = await client.delete(
-        f"/api/v1/g/{guild.id}/settings/ai/connections/{connection_id}",
+        f"/api/v1/c/{guild.id}/settings/ai/connections/{connection_id}",
         headers=get_auth_headers(support),
     )
     assert deleted.status_code == 204, deleted.text
@@ -235,7 +237,7 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
     )
 
     response = await client.get(
-        f"/api/v1/guilds/{guild.id}/auth-settings",
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=get_auth_headers(support),
     )
 
@@ -265,13 +267,15 @@ async def test_the_admin_rung_does_not_reach_the_seat(
     headers = get_auth_headers(support)
 
     refused = await client.put(
-        f"/api/v1/guilds/{guild.id}/api-access",
+        f"/api/v1/communities/{guild.id}/api-access",
         headers=headers,
         json={"allow_api_keys": False},
     )
     assert refused.status_code == 403, refused.text
 
-    read = await client.get(f"/api/v1/guilds/{guild.id}/auth-settings", headers=headers)
+    read = await client.get(
+        f"/api/v1/communities/{guild.id}/auth-settings", headers=headers
+    )
     assert read.status_code == 403, read.text
 
 
@@ -439,24 +443,24 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
     )
     headers = get_auth_headers(support)
 
-    entry = await client.get(f"/api/v1/guilds/{guild.id}", headers=headers)
+    entry = await client.get(f"/api/v1/communities/{guild.id}", headers=headers)
     assert entry.status_code == 200, entry.text
     assert entry.json()["role"] == "admin"
     assert entry.json()["can_write_settings"] is False
 
     renamed = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=headers,
         json={"name": "Renamed By Support"},
     )
     assert renamed.status_code == 403, renamed.text
     assert renamed.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
 
-    roster = await client.get(f"/api/v1/g/{guild.id}/users/", headers=headers)
+    roster = await client.get(f"/api/v1/c/{guild.id}/users/", headers=headers)
     assert roster.status_code == 200, roster.text
     assert {row["id"] for row in roster.json()} == {owner.id}
 
-    content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code in (403, 404), content.text
 
 
@@ -482,7 +486,7 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
     headers = get_auth_headers(support)
 
     renamed = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=headers,
         json={"name": "Renamed By Support"},
     )
@@ -490,10 +494,10 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
     assert renamed.json()["name"] == "Renamed By Support"
     assert renamed.json()["can_write_settings"] is True
 
-    entry = await client.get(f"/api/v1/guilds/{guild.id}", headers=headers)
+    entry = await client.get(f"/api/v1/communities/{guild.id}", headers=headers)
     assert entry.json()["can_write_settings"] is True
 
-    content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code == 200, content.text
 
 
@@ -522,7 +526,7 @@ async def test_the_lent_seat_lifts_the_communitys_sign_in_requirement(
     )
 
     cleared = await client.put(
-        f"/api/v1/guilds/{guild.id}/auth-policy",
+        f"/api/v1/communities/{guild.id}/auth-policy",
         headers=get_auth_headers(support),
         json={"policy": "open"},
     )
@@ -533,7 +537,7 @@ async def test_the_lent_seat_lifts_the_communitys_sign_in_requirement(
     # Read back through the surface rather than the setup session, which is
     # holding its own view of the row this just removed.
     after = await client.get(
-        f"/api/v1/guilds/{guild.id}/auth-policy", headers=get_auth_headers(support)
+        f"/api/v1/communities/{guild.id}/auth-policy", headers=get_auth_headers(support)
     )
     assert after.status_code == 200, after.text
     assert after.json()["policy"] == "open"
@@ -554,12 +558,14 @@ async def test_a_lent_seat_reads_the_sign_in_rule_and_does_not_change_it(
     )
     headers = get_auth_headers(support)
 
-    read = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
+    read = await client.get(
+        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+    )
     assert read.status_code == 200, read.text
     assert read.json()["policy"] != "open"
 
     refused = await client.put(
-        f"/api/v1/guilds/{guild.id}/auth-policy",
+        f"/api/v1/communities/{guild.id}/auth-policy",
         headers=headers,
         json={"policy": "open"},
     )
@@ -581,7 +587,8 @@ async def test_the_admin_rung_does_not_reach_the_seats_own_surface(
     )
 
     response = await client.get(
-        f"/api/v1/guilds/{guild.id}/auth-settings", headers=get_auth_headers(support)
+        f"/api/v1/communities/{guild.id}/auth-settings",
+        headers=get_auth_headers(support),
     )
 
     assert response.status_code == 403, response.text
@@ -617,7 +624,7 @@ async def test_the_pair_one_request_asks_for_reaches_both_axes(
     # The settings axis: the rule this session cannot itself satisfy is still
     # theirs to lift, which is the errand.
     cleared = await client.put(
-        f"/api/v1/guilds/{guild.id}/auth-policy",
+        f"/api/v1/communities/{guild.id}/auth-policy",
         headers=headers,
         json={"policy": "open"},
     )
@@ -625,14 +632,14 @@ async def test_the_pair_one_request_asks_for_reaches_both_axes(
     assert cleared.json()["policy"] == "open"
 
     # And the content axis, which the same request asked for separately.
-    content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code == 200, content.text
     assert [row["name"] for row in content.json()] == ["Private Wing"]
 
     # The seat's own surfaces come with the rung, lent as well as held: taking
     # the community out in one file is one of the things that seat does.
     export = await client.get(
-        f"/api/v1/g/{guild.id}/exports/guild/status", headers=headers
+        f"/api/v1/c/{guild.id}/exports/community/status", headers=headers
     )
     assert export.status_code == 200, export.text
 
@@ -648,7 +655,9 @@ async def test_a_members_guild_list_says_whether_they_change_its_settings(
     await create_guild_membership(session, user=member, guild=guild)
 
     for user, expected in ((admin, True), (member, False)):
-        listed = await client.get("/api/v1/guilds/", headers=get_auth_headers(user))
+        listed = await client.get(
+            "/api/v1/communities/", headers=get_auth_headers(user)
+        )
         assert listed.status_code == 200, listed.text
         (entry,) = [row for row in listed.json() if row["id"] == guild.id]
         assert entry["can_write_settings"] is expected
@@ -664,6 +673,6 @@ async def test_a_member_does_not_read_the_settings_entry(
     await create_guild_membership(session, user=member, guild=guild)
 
     refused = await client.get(
-        f"/api/v1/guilds/{guild.id}", headers=get_auth_headers(member)
+        f"/api/v1/communities/{guild.id}", headers=get_auth_headers(member)
     )
     assert refused.status_code == 403, refused.text

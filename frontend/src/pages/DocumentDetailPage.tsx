@@ -21,7 +21,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
-import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
+import { notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import {
@@ -74,7 +74,7 @@ const SmartLinkDocumentViewer = lazy(() =>
 import type { ProviderAwareness } from "@lexical/yjs";
 import type * as Y from "yjs";
 
-import { importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost } from "@/api/generated/documents/documents";
+import { importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost } from "@/api/generated/documents/documents";
 import type {
   PropertyDefinitionRead,
   PropertySummary,
@@ -484,7 +484,7 @@ export const DocumentDetailPage = () => {
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {
-        notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost(guildId, parsedId, {
+        notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost(guildId, parsedId, {
           mentioned_user_ids: newMentionIds,
         }).catch((err) => console.error("Failed to notify mentions:", err));
       }
@@ -766,9 +766,9 @@ export const DocumentDetailPage = () => {
       if (!pending || !tokenRef.current || !activeGuildIdRef.current) return;
       const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
       const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
-      // The guild rides in the path (`/g/{guildId}/`) — guild context is per-tab
+      // The guild rides in the path (`/c/{guildId}/`) — guild context is per-tab
       // from the URL; the page required entering this document's guild.
-      const url = `${baseUrl}/g/${activeGuildIdRef.current}/documents/${pending.documentId}`;
+      const url = `${baseUrl}/c/${activeGuildIdRef.current}/documents/${pending.documentId}`;
       fetch(url, {
         method: "PATCH",
         headers: {
@@ -873,9 +873,9 @@ export const DocumentDetailPage = () => {
 
       // Build the sync URL. Header-less auth (cookie on web, scoped upload
       // token on native) — the long-lived session JWT must never ride in a URL.
-      // The guild rides in the path (`/g/{guildId}/`).
+      // The guild rides in the path (`/c/{guildId}/`).
       const syncUrl = resolveHeaderlessApiUrl(
-        `/api/v1/g/${activeGuildId}/collaboration/documents/${parsedId}/sync-content`
+        `/api/v1/c/${activeGuildId}/collaboration/documents/${parsedId}/sync-content`
       );
 
       // Push it to the room first, over the socket that is still open. The
@@ -927,7 +927,7 @@ export const DocumentDetailPage = () => {
     async (file: File) => {
       if (!activeGuildId || !Number.isFinite(parsedId)) return [];
       const result =
-        await importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost(
+        await importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost(
           activeGuildId,
           parsedId,
           { file }

@@ -14,9 +14,9 @@ import type {
   SupportRequestCreate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  askForHelpApiV1GGuildIdSupportPost,
-  getSupportAvailabilityApiV1GGuildIdSupportGetQueryKey,
-  supportAvailabilityApiV1GGuildIdSupportGet,
+  askForHelpApiV1CGuildIdSupportPost,
+  getSupportAvailabilityApiV1CGuildIdSupportGetQueryKey,
+  supportAvailabilityApiV1CGuildIdSupportGet,
 } from "@/api/generated/support/support";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { docsUrl } from "@/lib/links";
@@ -38,8 +38,8 @@ export const useSupportAvailability = (
   options?: QueryOpts<SupportAvailability>
 ) =>
   useQuery<SupportAvailability>({
-    queryKey: getSupportAvailabilityApiV1GGuildIdSupportGetQueryKey(guildId ?? 0),
-    queryFn: () => supportAvailabilityApiV1GGuildIdSupportGet(guildId as number),
+    queryKey: getSupportAvailabilityApiV1CGuildIdSupportGetQueryKey(guildId ?? 0),
+    queryFn: () => supportAvailabilityApiV1CGuildIdSupportGet(guildId as number),
     enabled: guildId != null,
     staleTime: 5 * 60 * 1000,
     ...options,
@@ -53,7 +53,7 @@ export const useAskForHelp = (
     {
       // Nothing of the reader's is changed by asking, so nothing is invalidated:
       // the case lands in a project they have no part in.
-      mutationFn: (body) => askForHelpApiV1GGuildIdSupportPost(guildId, body),
+      mutationFn: (body) => askForHelpApiV1CGuildIdSupportPost(guildId, body),
     },
     options
   );

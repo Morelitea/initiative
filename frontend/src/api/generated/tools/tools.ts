@@ -30,7 +30,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * provided list and returns the entity's new tags. Requires write access.
  * @summary Set Tool Tags
  */
-export const setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut = (
+export const setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut = (
   guildId: number,
   tool: Tool,
   toolId: number,
@@ -40,7 +40,7 @@ export const setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut = (
 ) => {
   return apiMutator<TagSummary[]>(
     {
-      url: `/api/v1/g/${guildId}/tools/${tool}/${toolId}/tags`,
+      url: `/api/v1/c/${guildId}/tools/${tool}/${toolId}/tags`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: tagSetRequest,
@@ -50,27 +50,27 @@ export const setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut = (
   );
 };
 
-export const getSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationKey = () =>
-  ["setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut"] as const;
+export const getSetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationKey = () =>
+  ["setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut"] as const;
 
-export const getSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationOptions = <
+export const getSetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut>>,
+    Awaited<ReturnType<typeof setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut>>,
     TError,
-    SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationVariables,
+    SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut>>,
+  Awaited<ReturnType<typeof setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut>>,
   TError,
-  SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationVariables,
+  SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationKey();
+  const mutationKey = getSetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -78,12 +78,12 @@ export const getSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationOptions = 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut>>,
-    SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationVariables
+    Awaited<ReturnType<typeof setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut>>,
+    SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationVariables
   > = (props) => {
     const { guildId, tool, toolId, data } = props ?? {};
 
-    return setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut(
+    return setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut(
       guildId,
       tool,
       toolId,
@@ -95,13 +95,13 @@ export const getSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationOptions = 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut>>
+export type SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut>>
 >;
-export type SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationBody = BodyType<TagSetRequest>;
-export type SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationError =
+export type SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationBody = BodyType<TagSetRequest>;
+export type SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationVariables = {
+export type SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationVariables = {
   guildId: number;
   tool: Tool;
   toolId: number;
@@ -111,28 +111,28 @@ export type SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationVariables = {
 /**
  * @summary Set Tool Tags
  */
-export const useSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPut = <
+export const useSetToolTagsApiV1CGuildIdToolsToolToolIdTagsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut>>,
+      Awaited<ReturnType<typeof setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut>>,
       TError,
-      SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationVariables,
+      SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut>>,
+  Awaited<ReturnType<typeof setToolTagsApiV1CGuildIdToolsToolToolIdTagsPut>>,
   TError,
-  SetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationVariables,
+  SetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationOptions(options),
+    getSetToolTagsApiV1CGuildIdToolsToolToolIdTagsPutMutationOptions(options),
     queryClient
   );
 };
@@ -146,7 +146,7 @@ export const useSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPut = <
  * switch.
  * @summary Set Tool Comment Settings
  */
-export const setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut = (
+export const setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut = (
   guildId: number,
   tool: Tool,
   toolId: number,
@@ -156,7 +156,7 @@ export const setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut = (
 ) => {
   return apiMutator<ToolCommentSettings>(
     {
-      url: `/api/v1/g/${guildId}/tools/${tool}/${toolId}/comments`,
+      url: `/api/v1/c/${guildId}/tools/${tool}/${toolId}/comments`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: toolCommentSettings,
@@ -166,27 +166,27 @@ export const setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut = (
   );
 };
 
-export const getSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationKey = () =>
-  ["setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut"] as const;
+export const getSetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationKey = () =>
+  ["setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut"] as const;
 
-export const getSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationOptions = <
+export const getSetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+    Awaited<ReturnType<typeof setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut>>,
     TError,
-    SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationVariables,
+    SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+  Awaited<ReturnType<typeof setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut>>,
   TError,
-  SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationVariables,
+  SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationKey();
+  const mutationKey = getSetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -194,12 +194,12 @@ export const getSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMut
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
-    SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationVariables
+    Awaited<ReturnType<typeof setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut>>,
+    SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationVariables
   > = (props) => {
     const { guildId, tool, toolId, data } = props ?? {};
 
-    return setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut(
+    return setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut(
       guildId,
       tool,
       toolId,
@@ -211,15 +211,15 @@ export const getSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMut
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationResult =
+export type SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>
+    Awaited<ReturnType<typeof setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut>>
   >;
-export type SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationBody =
+export type SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationBody =
   BodyType<ToolCommentSettings>;
-export type SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationError =
+export type SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationVariables = {
+export type SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationVariables = {
   guildId: number;
   tool: Tool;
   toolId: number;
@@ -229,28 +229,28 @@ export type SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutatio
 /**
  * @summary Set Tool Comment Settings
  */
-export const useSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut = <
+export const useSetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+      Awaited<ReturnType<typeof setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut>>,
       TError,
-      SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationVariables,
+      SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+  Awaited<ReturnType<typeof setToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPut>>,
   TError,
-  SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationVariables,
+  SetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationOptions(options),
+    getSetToolCommentSettingsApiV1CGuildIdToolsToolToolIdCommentsPutMutationOptions(options),
     queryClient
   );
 };

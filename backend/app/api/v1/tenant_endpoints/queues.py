@@ -933,7 +933,7 @@ async def websocket_queue(
 
     Protocol:
     1. Client connects and sends JSON: {"token": "..."} — the guild comes
-       from the ``/g/{guild_id}`` path segment
+       from the ``/c/{guild_id}`` path segment
     2. Server validates auth and initiative membership
     3. Server broadcasts JSON events as queue state changes
     4. Client keeps connection alive; no client-to-server data expected

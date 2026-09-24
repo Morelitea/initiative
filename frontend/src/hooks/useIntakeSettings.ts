@@ -26,7 +26,7 @@ import {
   readIntakeOptionsApiV1SettingsIntakeOptionsGet,
   readIntakeSettingsApiV1SettingsIntakeGet,
   updateGeneralContactApiV1SettingsIntakeContactPut,
-  updateOperationsGuildApiV1SettingsIntakeGuildPut,
+  updateOperationsGuildApiV1SettingsIntakeCommunityPut,
   updateStreamContactApiV1SettingsIntakeStreamContactPut,
   upsertBindingApiV1SettingsIntakeStreamPut,
 } from "@/api/generated/intake/intake";
@@ -62,7 +62,7 @@ export const useUpdateOperationsGuild = (
 ) =>
   useApiMutation<IntakeSettingsRead, OperationsGuildUpdate>(
     {
-      mutationFn: (data) => updateOperationsGuildApiV1SettingsIntakeGuildPut(data),
+      mutationFn: (data) => updateOperationsGuildApiV1SettingsIntakeCommunityPut(data),
       invalidate: refreshIntake,
     },
     options

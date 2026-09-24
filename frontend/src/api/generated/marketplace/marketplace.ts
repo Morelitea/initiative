@@ -21,10 +21,10 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost,
+  BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost,
   BodyUploadListingPictureApiV1MarketplaceLocalMediaPost,
   HTTPValidationError,
-  ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   ListingMediaRead,
   ListingUploadRequest,
   ListingUploadResult,
@@ -1464,35 +1464,35 @@ export const useUploadListingPictureApiV1MarketplaceLocalMediaPost = <
  * the apps themselves, and the dashboards that stand alone.
  * @summary List Marketplace Listings
  */
-export const listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet = (
+export const listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet = (
   guildId: number,
-  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  params?: ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<MarketplaceListingPage>(
-    { url: `/api/v1/g/${guildId}/marketplace/listings`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/marketplace/listings`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryKey = (
+export const getListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryKey = (
   guildId: number,
-  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams
+  params?: ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/marketplace/listings`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/marketplace/listings`, ...(params ? [params] : [])] as const;
 };
 
-export const getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+export const getListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  params?: ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
         TError,
         TData
       >
@@ -1504,12 +1504,12 @@ export const getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryO
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryKey(guildId, params);
+    getListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>
+    Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>
   > = ({ signal }) =>
-    listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet(
+    listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet(
       guildId,
       params,
       requestOptions,
@@ -1522,37 +1522,37 @@ export const getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryO
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+    Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>
+export type ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>
 >;
-export type ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryError =
+export type ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+export function useListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet<
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  params: undefined | ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+          Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
           TError,
-          Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>
+          Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>
         >,
         "initialData"
       >;
@@ -1560,25 +1560,25 @@ export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+export function useListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet<
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  params?: ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+          Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
           TError,
-          Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>
+          Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>
         >,
         "initialData"
       >;
@@ -1586,16 +1586,16 @@ export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+export function useListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet<
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  params?: ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
         TError,
         TData
       >
@@ -1608,16 +1608,16 @@ export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
  * @summary List Marketplace Listings
  */
 
-export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+export function useListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet<
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  params?: ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet>>,
         TError,
         TData
       >
@@ -1626,7 +1626,7 @@ export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryOptions(
+  const queryOptions = getListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryOptions(
     guildId,
     params,
     options
@@ -1649,28 +1649,28 @@ export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
  * stops an update being offered that the install would refuse.
  * @summary Resolve Marketplace Listing
  */
-export const resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet = (
+export const resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet = (
   guildId: number,
   uid: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<MarketplaceListingDetail>(
-    { url: `/api/v1/g/${guildId}/marketplace/listings/by-uid/${uid}`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/marketplace/listings/by-uid/${uid}`, method: "GET", signal },
     options
   );
 };
 
-export const getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGetQueryKey = (
+export const getResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryKey = (
   guildId: number,
   uid: string
 ) => {
-  return [`/api/v1/g/${guildId}/marketplace/listings/by-uid/${uid}`] as const;
+  return [`/api/v1/c/${guildId}/marketplace/listings/by-uid/${uid}`] as const;
 };
 
-export const getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGetQueryOptions = <
+export const getResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+    ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1680,7 +1680,7 @@ export const getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+          ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
         >,
         TError,
         TData
@@ -1693,12 +1693,12 @@ export const getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
 
   const queryKey =
     queryOptions?.queryKey ??
-    getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGetQueryKey(guildId, uid);
+    getResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryKey(guildId, uid);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>>
+    Awaited<ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>>
   > = ({ signal }) =>
-    resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet(
+    resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet(
       guildId,
       uid,
       requestOptions,
@@ -1712,23 +1712,23 @@ export const getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
     ...queryOptions,
   } as UseQueryOptions<
     Awaited<
-      ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+      ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
     >,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGetQueryResult =
+export type ResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>>
+    Awaited<ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>>
   >;
-export type ResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGetQueryError =
+export type ResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet<
+export function useResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet<
   TData = Awaited<
-    ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+    ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1738,7 +1738,7 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+          ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
         >,
         TError,
         TData
@@ -1747,11 +1747,11 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+            ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+            ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
           >
         >,
         "initialData"
@@ -1760,9 +1760,9 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet<
+export function useResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet<
   TData = Awaited<
-    ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+    ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1772,7 +1772,7 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+          ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
         >,
         TError,
         TData
@@ -1781,11 +1781,11 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+            ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+            ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
           >
         >,
         "initialData"
@@ -1794,9 +1794,9 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet<
+export function useResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet<
   TData = Awaited<
-    ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+    ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1806,7 +1806,7 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+          ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
         >,
         TError,
         TData
@@ -1820,9 +1820,9 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
  * @summary Resolve Marketplace Listing
  */
 
-export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet<
+export function useResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet<
   TData = Awaited<
-    ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+    ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1832,7 +1832,7 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet>
+          ReturnType<typeof resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet>
         >,
         TError,
         TData
@@ -1843,7 +1843,7 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGetQueryOptions(
+    getResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryOptions(
       guildId,
       uid,
       options
@@ -1860,28 +1860,28 @@ export function useResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUi
  * One listing, with what it would install and every version it has.
  * @summary Read Marketplace Listing
  */
-export const readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet = (
+export const readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet = (
   guildId: number,
   publicId: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<MarketplaceListingDetail>(
-    { url: `/api/v1/g/${guildId}/marketplace/listings/${publicId}`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/marketplace/listings/${publicId}`, method: "GET", signal },
     options
   );
 };
 
-export const getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGetQueryKey = (
+export const getReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryKey = (
   guildId: number,
   publicId: string
 ) => {
-  return [`/api/v1/g/${guildId}/marketplace/listings/${publicId}`] as const;
+  return [`/api/v1/c/${guildId}/marketplace/listings/${publicId}`] as const;
 };
 
-export const getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGetQueryOptions = <
+export const getReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+    ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1891,7 +1891,7 @@ export const getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGe
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+          ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
         >,
         TError,
         TData
@@ -1904,12 +1904,12 @@ export const getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGe
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGetQueryKey(guildId, publicId);
+    getReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryKey(guildId, publicId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>>
+    Awaited<ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>>
   > = ({ signal }) =>
-    readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet(
+    readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet(
       guildId,
       publicId,
       requestOptions,
@@ -1923,22 +1923,22 @@ export const getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGe
       guildId !== null && guildId !== undefined && publicId !== null && publicId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>>,
+    Awaited<ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGetQueryResult =
+export type ReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>>
+    Awaited<ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>>
   >;
-export type ReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGetQueryError =
+export type ReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet<
+export function useReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet<
   TData = Awaited<
-    ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+    ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1948,7 +1948,7 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+          ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
         >,
         TError,
         TData
@@ -1957,11 +1957,11 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+            ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+            ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
           >
         >,
         "initialData"
@@ -1970,9 +1970,9 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet<
+export function useReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet<
   TData = Awaited<
-    ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+    ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1982,7 +1982,7 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+          ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
         >,
         TError,
         TData
@@ -1991,11 +1991,11 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+            ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+            ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
           >
         >,
         "initialData"
@@ -2004,9 +2004,9 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet<
+export function useReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet<
   TData = Awaited<
-    ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+    ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -2016,7 +2016,7 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+          ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
         >,
         TError,
         TData
@@ -2030,9 +2030,9 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
  * @summary Read Marketplace Listing
  */
 
-export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet<
+export function useReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet<
   TData = Awaited<
-    ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+    ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -2042,7 +2042,7 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet>
+          ReturnType<typeof readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet>
         >,
         TError,
         TData
@@ -2053,7 +2053,7 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGetQueryOptions(
+    getReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryOptions(
       guildId,
       publicId,
       options
@@ -2078,7 +2078,7 @@ export function useReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicI
  * found here, as it would from any installer that cannot install it.
  * @summary Install Marketplace Listing
  */
-export const installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost = (
+export const installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost = (
   guildId: number,
   uid: string,
   marketplaceInstallRequest: BodyType<MarketplaceInstallRequest>,
@@ -2087,7 +2087,7 @@ export const installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidIn
 ) => {
   return apiMutator<MarketplaceInstallResult>(
     {
-      url: `/api/v1/g/${guildId}/marketplace/listings/by-uid/${uid}/install`,
+      url: `/api/v1/c/${guildId}/marketplace/listings/by-uid/${uid}/install`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: marketplaceInstallRequest,
@@ -2097,34 +2097,34 @@ export const installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidIn
   );
 };
 
-export const getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationKey =
-  () => ["installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost"] as const;
+export const getInstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationKey =
+  () => ["installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost"] as const;
 
-export const getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationOptions =
+export const getInstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+          typeof installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost
         >
       >,
       TError,
-      InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
+      InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+        typeof installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost
       >
     >,
     TError,
-    InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
+    InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationKey();
+      getInstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -2134,14 +2134,14 @@ export const getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+          typeof installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost
         >
       >,
-      InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables
+      InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables
     > = (props) => {
       const { guildId, uid, data } = props ?? {};
 
-      return installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost(
+      return installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost(
         guildId,
         uid,
         data,
@@ -2152,25 +2152,25 @@ export const getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
     return { mutationFn, ...mutationOptions };
   };
 
-export type InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationResult =
+export type InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+        typeof installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost
       >
     >
   >;
-export type InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationBody =
+export type InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationBody =
   BodyType<MarketplaceInstallRequest>;
-export type InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationError =
+export type InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationError =
   ErrorType<HTTPValidationError>;
-export type InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables =
+export type InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables =
   { guildId: number; uid: string; data: BodyType<MarketplaceInstallRequest> };
 
 /**
  * @summary Install Marketplace Listing
  */
-export const useInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost = <
+export const useInstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -2178,11 +2178,11 @@ export const useInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost
+          typeof installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost
         >
       >,
       TError,
-      InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
+      InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2190,14 +2190,14 @@ export const useInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof installMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPost>
+    ReturnType<typeof installMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPost>
   >,
   TError,
-  InstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
+  InstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationOptions(
+    getInstallMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidInstallPostMutationOptions(
       options
     ),
     queryClient
@@ -2218,68 +2218,68 @@ export const useInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
  * it has. A new version keeps the listing's pictures, like its name.
  * @summary Share To Marketplace
  */
-export const shareToMarketplaceApiV1GGuildIdMarketplaceSharePost = (
+export const shareToMarketplaceApiV1CGuildIdMarketplaceSharePost = (
   guildId: number,
-  bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost: BodyType<BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost>,
+  bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost: BodyType<BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`kind`, bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.kind);
+  formData.append(`kind`, bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.kind);
   formData.append(
     `entity_id`,
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.entity_id.toString()
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.entity_id.toString()
   );
-  formData.append(`name`, bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.name);
+  formData.append(`name`, bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.name);
   formData.append(
     `description`,
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.description
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.description
   );
   if (
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.example_entity_id !== undefined &&
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.example_entity_id !== null
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.example_entity_id !== undefined &&
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.example_entity_id !== null
   ) {
     formData.append(
       `example_entity_id`,
-      bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.example_entity_id.toString()
+      bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.example_entity_id.toString()
     );
   }
   if (
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.long_description !== undefined &&
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.long_description !== null
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.long_description !== undefined &&
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.long_description !== null
   ) {
     formData.append(
       `long_description`,
-      bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.long_description
+      bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.long_description
     );
   }
   if (
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.release_notes !== undefined &&
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.release_notes !== null
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.release_notes !== undefined &&
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.release_notes !== null
   ) {
     formData.append(
       `release_notes`,
-      bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.release_notes
+      bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.release_notes
     );
   }
   if (
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.listing_uid !== undefined &&
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.listing_uid !== null
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.listing_uid !== undefined &&
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.listing_uid !== null
   ) {
     formData.append(
       `listing_uid`,
-      bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.listing_uid
+      bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.listing_uid
     );
   }
-  if (bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.images !== undefined) {
-    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.images.forEach((value) =>
+  if (bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.images !== undefined) {
+    bodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost.images.forEach((value) =>
       formData.append(`images`, value)
     );
   }
 
   return apiMutator<MarketplaceShareResult>(
     {
-      url: `/api/v1/g/${guildId}/marketplace/share`,
+      url: `/api/v1/c/${guildId}/marketplace/share`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -2289,27 +2289,27 @@ export const shareToMarketplaceApiV1GGuildIdMarketplaceSharePost = (
   );
 };
 
-export const getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationKey = () =>
-  ["shareToMarketplaceApiV1GGuildIdMarketplaceSharePost"] as const;
+export const getShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationKey = () =>
+  ["shareToMarketplaceApiV1CGuildIdMarketplaceSharePost"] as const;
 
-export const getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationOptions = <
+export const getShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+    Awaited<ReturnType<typeof shareToMarketplaceApiV1CGuildIdMarketplaceSharePost>>,
     TError,
-    ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables,
+    ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+  Awaited<ReturnType<typeof shareToMarketplaceApiV1CGuildIdMarketplaceSharePost>>,
   TError,
-  ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables,
+  ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationKey();
+  const mutationKey = getShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2317,54 +2317,54 @@ export const getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
-    ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables
+    Awaited<ReturnType<typeof shareToMarketplaceApiV1CGuildIdMarketplaceSharePost>>,
+    ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return shareToMarketplaceApiV1GGuildIdMarketplaceSharePost(guildId, data, requestOptions);
+    return shareToMarketplaceApiV1CGuildIdMarketplaceSharePost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>
+export type ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof shareToMarketplaceApiV1CGuildIdMarketplaceSharePost>>
 >;
-export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationBody =
-  BodyType<BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost>;
-export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationError =
+export type ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationBody =
+  BodyType<BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost>;
+export type ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationError =
   ErrorType<HTTPValidationError>;
-export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables = {
+export type ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationVariables = {
   guildId: number;
-  data: BodyType<BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost>;
+  data: BodyType<BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost>;
 };
 
 /**
  * @summary Share To Marketplace
  */
-export const useShareToMarketplaceApiV1GGuildIdMarketplaceSharePost = <
+export const useShareToMarketplaceApiV1CGuildIdMarketplaceSharePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+      Awaited<ReturnType<typeof shareToMarketplaceApiV1CGuildIdMarketplaceSharePost>>,
       TError,
-      ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables,
+      ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+  Awaited<ReturnType<typeof shareToMarketplaceApiV1CGuildIdMarketplaceSharePost>>,
   TError,
-  ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables,
+  ShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationOptions(options),
+    getShareToMarketplaceApiV1CGuildIdMarketplaceSharePostMutationOptions(options),
     queryClient
   );
 };

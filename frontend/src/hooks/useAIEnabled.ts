@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryKey,
-  getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet,
+  getGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGetQueryKey,
+  getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet,
 } from "@/api/generated/ai-settings/ai-settings";
 import type { ResolvedAISettingsResponse } from "@/api/generated/initiativeAPI.schemas";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -12,15 +12,15 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
  *
  * AI resolution is guild-scoped: the backend collapses the global mode, the
  * connection the member selected, and any key they attached into a single
- * `enabled` flag on `GET /g/{guildId}/settings/ai/resolved`. The member is AI
+ * `enabled` flag on `GET /c/{guildId}/settings/ai/resolved`. The member is AI
  * enabled exactly when that endpoint returns `enabled: true`, so we trust it
  * directly rather than re-deriving credential state on the client.
  */
 export const useAIEnabled = () => {
   const guildId = useActiveGuildId();
   const query = useQuery<ResolvedAISettingsResponse>({
-    queryKey: getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryKey(guildId),
-    queryFn: () => getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet(guildId),
+    queryKey: getGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGetQueryKey(guildId),
+    queryFn: () => getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet(guildId),
     enabled: guildId > 0,
     staleTime: 5 * 60 * 1000,
   });

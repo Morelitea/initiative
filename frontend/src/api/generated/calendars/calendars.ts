@@ -27,8 +27,8 @@ import type {
   CalendarUpdate,
   HTTPValidationError,
   InitiativeGroupedCountsResponse,
-  ListCalendarsApiV1GGuildIdCalendarsGetParams,
-  ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
+  ListCalendarsApiV1CGuildIdCalendarsGetParams,
+  ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
@@ -62,27 +62,27 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * outside every group here — the sidebar rows are initiative rows.
  * @summary Get Calendar Counts By Initiative
  */
-export const getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet = (
+export const getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeGroupedCountsResponse>(
-    { url: `/api/v1/g/${guildId}/calendars/counts/by-initiative`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/calendars/counts/by-initiative`, method: "GET", signal },
     options
   );
 };
 
-export const getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGetQueryKey = (
+export const getGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/calendars/counts/by-initiative`] as const;
+  return [`/api/v1/c/${guildId}/calendars/counts/by-initiative`] as const;
 };
 
-export const getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGetQueryOptions =
+export const getGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet>
+      ReturnType<typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet>
     >,
     TError = ErrorType<HTTPValidationError>,
   >(
@@ -92,7 +92,7 @@ export const getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIniti
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+              typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
             >
           >,
           TError,
@@ -106,14 +106,14 @@ export const getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIniti
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGetQueryKey(guildId);
+      getGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGetQueryKey(guildId);
 
     const queryFn: QueryFunction<
       Awaited<
-        ReturnType<typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet>
+        ReturnType<typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet>
       >
     > = ({ signal }) =>
-      getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet(
+      getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet(
         guildId,
         requestOptions,
         signal
@@ -126,25 +126,25 @@ export const getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIniti
       ...queryOptions,
     } as UseQueryOptions<
       Awaited<
-        ReturnType<typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet>
+        ReturnType<typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet>
       >,
       TError,
       TData
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGetQueryResult =
+export type GetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet>
+      ReturnType<typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet>
     >
   >;
-export type GetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGetQueryError =
+export type GetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet<
+export function useGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet>
+    ReturnType<typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -154,7 +154,7 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+            typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
           >
         >,
         TError,
@@ -165,13 +165,13 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+              typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+              typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
             >
           >
         >,
@@ -181,9 +181,9 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet<
+export function useGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet>
+    ReturnType<typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -193,7 +193,7 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+            typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
           >
         >,
         TError,
@@ -204,13 +204,13 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+              typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+              typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
             >
           >
         >,
@@ -220,9 +220,9 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet<
+export function useGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet>
+    ReturnType<typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -232,7 +232,7 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+            typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
           >
         >,
         TError,
@@ -247,9 +247,9 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
  * @summary Get Calendar Counts By Initiative
  */
 
-export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet<
+export function useGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet>
+    ReturnType<typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -259,7 +259,7 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet
+            typeof getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet
           >
         >,
         TError,
@@ -271,7 +271,7 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGetQueryOptions(
+    getGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGetQueryOptions(
       guildId,
       options
     );
@@ -292,35 +292,35 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
  * rather than inferred from an absent ``initiative_id``.
  * @summary List Calendars
  */
-export const listCalendarsApiV1GGuildIdCalendarsGet = (
+export const listCalendarsApiV1CGuildIdCalendarsGet = (
   guildId: number,
-  params?: ListCalendarsApiV1GGuildIdCalendarsGetParams,
+  params?: ListCalendarsApiV1CGuildIdCalendarsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CalendarListResponse>(
-    { url: `/api/v1/g/${guildId}/calendars/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/calendars/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListCalendarsApiV1GGuildIdCalendarsGetQueryKey = (
+export const getListCalendarsApiV1CGuildIdCalendarsGetQueryKey = (
   guildId: number,
-  params?: ListCalendarsApiV1GGuildIdCalendarsGetParams
+  params?: ListCalendarsApiV1CGuildIdCalendarsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/calendars/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/calendars/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListCalendarsApiV1GGuildIdCalendarsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+export const getListCalendarsApiV1CGuildIdCalendarsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarsApiV1GGuildIdCalendarsGetParams,
+  params?: ListCalendarsApiV1CGuildIdCalendarsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+        Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
         TError,
         TData
       >
@@ -331,12 +331,12 @@ export const getListCalendarsApiV1GGuildIdCalendarsGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListCalendarsApiV1GGuildIdCalendarsGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getListCalendarsApiV1CGuildIdCalendarsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>
+    Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>
   > = ({ signal }) =>
-    listCalendarsApiV1GGuildIdCalendarsGet(guildId, params, requestOptions, signal);
+    listCalendarsApiV1CGuildIdCalendarsGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -344,36 +344,36 @@ export const getListCalendarsApiV1GGuildIdCalendarsGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+    Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListCalendarsApiV1GGuildIdCalendarsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>
+export type ListCalendarsApiV1CGuildIdCalendarsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>
 >;
-export type ListCalendarsApiV1GGuildIdCalendarsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListCalendarsApiV1CGuildIdCalendarsGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListCalendarsApiV1GGuildIdCalendarsGet<
-  TData = Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+export function useListCalendarsApiV1CGuildIdCalendarsGet<
+  TData = Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListCalendarsApiV1GGuildIdCalendarsGetParams,
+  params: undefined | ListCalendarsApiV1CGuildIdCalendarsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+        Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+          Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
           TError,
-          Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>
+          Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>
         >,
         "initialData"
       >;
@@ -381,25 +381,25 @@ export function useListCalendarsApiV1GGuildIdCalendarsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCalendarsApiV1GGuildIdCalendarsGet<
-  TData = Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+export function useListCalendarsApiV1CGuildIdCalendarsGet<
+  TData = Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarsApiV1GGuildIdCalendarsGetParams,
+  params?: ListCalendarsApiV1CGuildIdCalendarsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+        Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+          Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
           TError,
-          Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>
+          Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>
         >,
         "initialData"
       >;
@@ -407,16 +407,16 @@ export function useListCalendarsApiV1GGuildIdCalendarsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCalendarsApiV1GGuildIdCalendarsGet<
-  TData = Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+export function useListCalendarsApiV1CGuildIdCalendarsGet<
+  TData = Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarsApiV1GGuildIdCalendarsGetParams,
+  params?: ListCalendarsApiV1CGuildIdCalendarsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+        Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
         TError,
         TData
       >
@@ -429,16 +429,16 @@ export function useListCalendarsApiV1GGuildIdCalendarsGet<
  * @summary List Calendars
  */
 
-export function useListCalendarsApiV1GGuildIdCalendarsGet<
-  TData = Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+export function useListCalendarsApiV1CGuildIdCalendarsGet<
+  TData = Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarsApiV1GGuildIdCalendarsGetParams,
+  params?: ListCalendarsApiV1CGuildIdCalendarsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarsApiV1GGuildIdCalendarsGet>>,
+        Awaited<ReturnType<typeof listCalendarsApiV1CGuildIdCalendarsGet>>,
         TError,
         TData
       >
@@ -447,7 +447,7 @@ export function useListCalendarsApiV1GGuildIdCalendarsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListCalendarsApiV1GGuildIdCalendarsGetQueryOptions(
+  const queryOptions = getListCalendarsApiV1CGuildIdCalendarsGetQueryOptions(
     guildId,
     params,
     options
@@ -477,7 +477,7 @@ export function useListCalendarsApiV1GGuildIdCalendarsGet<
  * trigger writes; it sets no initial sharing.
  * @summary Create Calendar
  */
-export const createCalendarApiV1GGuildIdCalendarsPost = (
+export const createCalendarApiV1CGuildIdCalendarsPost = (
   guildId: number,
   calendarCreate: BodyType<CalendarCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -485,7 +485,7 @@ export const createCalendarApiV1GGuildIdCalendarsPost = (
 ) => {
   return apiMutator<CalendarRead>(
     {
-      url: `/api/v1/g/${guildId}/calendars/`,
+      url: `/api/v1/c/${guildId}/calendars/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: calendarCreate,
@@ -495,27 +495,27 @@ export const createCalendarApiV1GGuildIdCalendarsPost = (
   );
 };
 
-export const getCreateCalendarApiV1GGuildIdCalendarsPostMutationKey = () =>
-  ["createCalendarApiV1GGuildIdCalendarsPost"] as const;
+export const getCreateCalendarApiV1CGuildIdCalendarsPostMutationKey = () =>
+  ["createCalendarApiV1CGuildIdCalendarsPost"] as const;
 
-export const getCreateCalendarApiV1GGuildIdCalendarsPostMutationOptions = <
+export const getCreateCalendarApiV1CGuildIdCalendarsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createCalendarApiV1GGuildIdCalendarsPost>>,
+    Awaited<ReturnType<typeof createCalendarApiV1CGuildIdCalendarsPost>>,
     TError,
-    CreateCalendarApiV1GGuildIdCalendarsPostMutationVariables,
+    CreateCalendarApiV1CGuildIdCalendarsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createCalendarApiV1GGuildIdCalendarsPost>>,
+  Awaited<ReturnType<typeof createCalendarApiV1CGuildIdCalendarsPost>>,
   TError,
-  CreateCalendarApiV1GGuildIdCalendarsPostMutationVariables,
+  CreateCalendarApiV1CGuildIdCalendarsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateCalendarApiV1GGuildIdCalendarsPostMutationKey();
+  const mutationKey = getCreateCalendarApiV1CGuildIdCalendarsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -523,23 +523,23 @@ export const getCreateCalendarApiV1GGuildIdCalendarsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createCalendarApiV1GGuildIdCalendarsPost>>,
-    CreateCalendarApiV1GGuildIdCalendarsPostMutationVariables
+    Awaited<ReturnType<typeof createCalendarApiV1CGuildIdCalendarsPost>>,
+    CreateCalendarApiV1CGuildIdCalendarsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createCalendarApiV1GGuildIdCalendarsPost(guildId, data, requestOptions);
+    return createCalendarApiV1CGuildIdCalendarsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateCalendarApiV1GGuildIdCalendarsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createCalendarApiV1GGuildIdCalendarsPost>>
+export type CreateCalendarApiV1CGuildIdCalendarsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCalendarApiV1CGuildIdCalendarsPost>>
 >;
-export type CreateCalendarApiV1GGuildIdCalendarsPostMutationBody = BodyType<CalendarCreate>;
-export type CreateCalendarApiV1GGuildIdCalendarsPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateCalendarApiV1GGuildIdCalendarsPostMutationVariables = {
+export type CreateCalendarApiV1CGuildIdCalendarsPostMutationBody = BodyType<CalendarCreate>;
+export type CreateCalendarApiV1CGuildIdCalendarsPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateCalendarApiV1CGuildIdCalendarsPostMutationVariables = {
   guildId: number;
   data: BodyType<CalendarCreate>;
 };
@@ -547,66 +547,66 @@ export type CreateCalendarApiV1GGuildIdCalendarsPostMutationVariables = {
 /**
  * @summary Create Calendar
  */
-export const useCreateCalendarApiV1GGuildIdCalendarsPost = <
+export const useCreateCalendarApiV1CGuildIdCalendarsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createCalendarApiV1GGuildIdCalendarsPost>>,
+      Awaited<ReturnType<typeof createCalendarApiV1CGuildIdCalendarsPost>>,
       TError,
-      CreateCalendarApiV1GGuildIdCalendarsPostMutationVariables,
+      CreateCalendarApiV1CGuildIdCalendarsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createCalendarApiV1GGuildIdCalendarsPost>>,
+  Awaited<ReturnType<typeof createCalendarApiV1CGuildIdCalendarsPost>>,
   TError,
-  CreateCalendarApiV1GGuildIdCalendarsPostMutationVariables,
+  CreateCalendarApiV1CGuildIdCalendarsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateCalendarApiV1GGuildIdCalendarsPostMutationOptions(options),
+    getCreateCalendarApiV1CGuildIdCalendarsPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Read Calendar
  */
-export const readCalendarApiV1GGuildIdCalendarsCalendarIdGet = (
+export const readCalendarApiV1CGuildIdCalendarsCalendarIdGet = (
   guildId: number,
   calendarId: number,
-  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
+  params?: ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CalendarRead>(
-    { url: `/api/v1/g/${guildId}/calendars/${calendarId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/calendars/${calendarId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryKey = (
+export const getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey = (
   guildId: number,
   calendarId: number,
-  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams
+  params?: ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/calendars/${calendarId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/calendars/${calendarId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+export const getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   calendarId: number,
-  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
+  params?: ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+        Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
         TError,
         TData
       >
@@ -618,12 +618,12 @@ export const getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryKey(guildId, calendarId, params);
+    getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey(guildId, calendarId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>
+    Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>
   > = ({ signal }) =>
-    readCalendarApiV1GGuildIdCalendarsCalendarIdGet(
+    readCalendarApiV1CGuildIdCalendarsCalendarIdGet(
       guildId,
       calendarId,
       params,
@@ -638,38 +638,38 @@ export const getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryOptions = <
       guildId !== null && guildId !== undefined && calendarId !== null && calendarId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+    Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>
+export type ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>
 >;
-export type ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryError =
+export type ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
-  TData = Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+export function useReadCalendarApiV1CGuildIdCalendarsCalendarIdGet<
+  TData = Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   calendarId: number,
-  params: undefined | ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
+  params: undefined | ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+        Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+          Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>
+          Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>
         >,
         "initialData"
       >;
@@ -677,26 +677,26 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
-  TData = Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+export function useReadCalendarApiV1CGuildIdCalendarsCalendarIdGet<
+  TData = Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   calendarId: number,
-  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
+  params?: ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+        Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+          Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>
+          Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>
         >,
         "initialData"
       >;
@@ -704,17 +704,17 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
-  TData = Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+export function useReadCalendarApiV1CGuildIdCalendarsCalendarIdGet<
+  TData = Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   calendarId: number,
-  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
+  params?: ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+        Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
         TError,
         TData
       >
@@ -727,17 +727,17 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
  * @summary Read Calendar
  */
 
-export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
-  TData = Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+export function useReadCalendarApiV1CGuildIdCalendarsCalendarIdGet<
+  TData = Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   calendarId: number,
-  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
+  params?: ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>,
+        Awaited<ReturnType<typeof readCalendarApiV1CGuildIdCalendarsCalendarIdGet>>,
         TError,
         TData
       >
@@ -746,7 +746,7 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryOptions(
+  const queryOptions = getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryOptions(
     guildId,
     calendarId,
     params,
@@ -764,7 +764,7 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
  * Rename/update a calendar. Requires write access.
  * @summary Update Calendar
  */
-export const updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch = (
+export const updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch = (
   guildId: number,
   calendarId: number,
   calendarUpdate: BodyType<CalendarUpdate>,
@@ -773,7 +773,7 @@ export const updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch = (
 ) => {
   return apiMutator<CalendarRead>(
     {
-      url: `/api/v1/g/${guildId}/calendars/${calendarId}`,
+      url: `/api/v1/c/${guildId}/calendars/${calendarId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: calendarUpdate,
@@ -783,27 +783,27 @@ export const updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch = (
   );
 };
 
-export const getUpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationKey = () =>
-  ["updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch"] as const;
+export const getUpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationKey = () =>
+  ["updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch"] as const;
 
-export const getUpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationOptions = <
+export const getUpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch>>,
+    Awaited<ReturnType<typeof updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch>>,
     TError,
-    UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationVariables,
+    UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch>>,
+  Awaited<ReturnType<typeof updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch>>,
   TError,
-  UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationVariables,
+  UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationKey();
+  const mutationKey = getUpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -811,12 +811,12 @@ export const getUpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch>>,
-    UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch>>,
+    UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationVariables
   > = (props) => {
     const { guildId, calendarId, data } = props ?? {};
 
-    return updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch(
+    return updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch(
       guildId,
       calendarId,
       data,
@@ -827,14 +827,14 @@ export const getUpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationOptio
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch>>
+export type UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch>>
 >;
-export type UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationBody =
+export type UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationBody =
   BodyType<CalendarUpdate>;
-export type UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationError =
+export type UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationVariables = {
+export type UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationVariables = {
   guildId: number;
   calendarId: number;
   data: BodyType<CalendarUpdate>;
@@ -843,28 +843,28 @@ export type UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationVariables
 /**
  * @summary Update Calendar
  */
-export const useUpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatch = <
+export const useUpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch>>,
+      Awaited<ReturnType<typeof updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch>>,
       TError,
-      UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationVariables,
+      UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateCalendarApiV1GGuildIdCalendarsCalendarIdPatch>>,
+  Awaited<ReturnType<typeof updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch>>,
   TError,
-  UpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationVariables,
+  UpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatchMutationOptions(options),
+    getUpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatchMutationOptions(options),
     queryClient
   );
 };
@@ -873,39 +873,39 @@ export const useUpdateCalendarApiV1GGuildIdCalendarsCalendarIdPatch = <
  * permission or guild admin.
  * @summary Delete Calendar
  */
-export const deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete = (
+export const deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete = (
   guildId: number,
   calendarId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/calendars/${calendarId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/calendars/${calendarId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationKey = () =>
-  ["deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete"] as const;
+export const getDeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationKey = () =>
+  ["deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete"] as const;
 
-export const getDeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationOptions = <
+export const getDeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete>>,
+    Awaited<ReturnType<typeof deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete>>,
     TError,
-    DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationVariables,
+    DeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete>>,
+  Awaited<ReturnType<typeof deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete>>,
   TError,
-  DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationVariables,
+  DeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationKey();
+  const mutationKey = getDeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -913,12 +913,12 @@ export const getDeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationOpti
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete>>,
-    DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete>>,
+    DeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationVariables
   > = (props) => {
     const { guildId, calendarId } = props ?? {};
 
-    return deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete(
+    return deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete(
       guildId,
       calendarId,
       requestOptions
@@ -928,13 +928,13 @@ export const getDeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationOpti
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete>>
+export type DeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete>>
 >;
 
-export type DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationError =
+export type DeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationVariables = {
+export type DeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationVariables = {
   guildId: number;
   calendarId: number;
 };
@@ -942,28 +942,28 @@ export type DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationVariable
 /**
  * @summary Delete Calendar
  */
-export const useDeleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete = <
+export const useDeleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete>>,
+      Awaited<ReturnType<typeof deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete>>,
       TError,
-      DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationVariables,
+      DeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete>>,
+  Awaited<ReturnType<typeof deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete>>,
   TError,
-  DeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationVariables,
+  DeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteCalendarApiV1GGuildIdCalendarsCalendarIdDeleteMutationOptions(options),
+    getDeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -974,39 +974,39 @@ export const useDeleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete = <
  * grantee's browsing is transient by design and is not stored.
  * @summary Record Calendar View
  */
-export const recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost = (
+export const recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost = (
   guildId: number,
   calendarId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/g/${guildId}/calendars/${calendarId}/view`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/calendars/${calendarId}/view`, method: "POST", signal },
     options
   );
 };
 
-export const getRecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationKey = () =>
-  ["recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost"] as const;
+export const getRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationKey = () =>
+  ["recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost"] as const;
 
-export const getRecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationOptions = <
+export const getRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost>>,
+    Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
     TError,
-    RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationVariables,
+    RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost>>,
+  Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
   TError,
-  RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationVariables,
+  RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getRecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationKey();
+  const mutationKey = getRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1014,12 +1014,12 @@ export const getRecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost>>,
-    RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationVariables
+    Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
+    RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables
   > = (props) => {
     const { guildId, calendarId } = props ?? {};
 
-    return recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost(
+    return recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost(
       guildId,
       calendarId,
       requestOptions
@@ -1029,13 +1029,13 @@ export const getRecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutati
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost>>
+export type RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>
 >;
 
-export type RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationError =
+export type RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationError =
   ErrorType<HTTPValidationError>;
-export type RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationVariables = {
+export type RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables = {
   guildId: number;
   calendarId: number;
 };
@@ -1043,28 +1043,28 @@ export type RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationVa
 /**
  * @summary Record Calendar View
  */
-export const useRecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost = <
+export const useRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost>>,
+      Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
       TError,
-      RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationVariables,
+      RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost>>,
+  Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
   TError,
-  RecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationVariables,
+  RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPostMutationOptions(options),
+    getRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationOptions(options),
     queryClient
   );
 };
@@ -1074,39 +1074,39 @@ export const useRecordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost = <
  * Idempotent — a tab that is not open stays closed.
  * @summary Clear Calendar View
  */
-export const clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete = (
+export const clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete = (
   guildId: number,
   calendarId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/calendars/${calendarId}/view`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/calendars/${calendarId}/view`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationKey = () =>
-  ["clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete"] as const;
+export const getClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationKey = () =>
+  ["clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete"] as const;
 
-export const getClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationOptions = <
+export const getClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete>>,
+    Awaited<ReturnType<typeof clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete>>,
     TError,
-    ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationVariables,
+    ClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete>>,
+  Awaited<ReturnType<typeof clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete>>,
   TError,
-  ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationVariables,
+  ClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationKey();
+  const mutationKey = getClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1114,12 +1114,12 @@ export const getClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete>>,
-    ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationVariables
+    Awaited<ReturnType<typeof clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete>>,
+    ClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationVariables
   > = (props) => {
     const { guildId, calendarId } = props ?? {};
 
-    return clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete(
+    return clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete(
       guildId,
       calendarId,
       requestOptions
@@ -1129,13 +1129,13 @@ export const getClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete>>
+export type ClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete>>
 >;
 
-export type ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationError =
+export type ClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationVariables = {
+export type ClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationVariables = {
   guildId: number;
   calendarId: number;
 };
@@ -1143,28 +1143,28 @@ export type ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationV
 /**
  * @summary Clear Calendar View
  */
-export const useClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete = <
+export const useClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete>>,
+      Awaited<ReturnType<typeof clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete>>,
       TError,
-      ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationVariables,
+      ClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete>>,
+  Awaited<ReturnType<typeof clearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDelete>>,
   TError,
-  ClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationVariables,
+  ClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDeleteMutationOptions(options),
+    getClearCalendarViewApiV1CGuildIdCalendarsCalendarIdViewDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -1174,7 +1174,7 @@ export const useClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete = <
  * Every non-owner grant is rebuilt from it; the owner is always preserved.
  * @summary Set Calendar Grants
  */
-export const setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut = (
+export const setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut = (
   guildId: number,
   calendarId: number,
   resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
@@ -1183,7 +1183,7 @@ export const setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut = (
 ) => {
   return apiMutator<CalendarRead>(
     {
-      url: `/api/v1/g/${guildId}/calendars/${calendarId}/grants`,
+      url: `/api/v1/c/${guildId}/calendars/${calendarId}/grants`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: resourceGrantSchema,
@@ -1193,27 +1193,27 @@ export const setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut = (
   );
 };
 
-export const getSetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationKey = () =>
-  ["setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut"] as const;
+export const getSetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationKey = () =>
+  ["setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut"] as const;
 
-export const getSetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationOptions = <
+export const getSetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut>>,
+    Awaited<ReturnType<typeof setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut>>,
     TError,
-    SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationVariables,
+    SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut>>,
+  Awaited<ReturnType<typeof setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut>>,
   TError,
-  SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationVariables,
+  SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationKey();
+  const mutationKey = getSetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1221,12 +1221,12 @@ export const getSetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut>>,
-    SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationVariables
+    Awaited<ReturnType<typeof setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut>>,
+    SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationVariables
   > = (props) => {
     const { guildId, calendarId, data } = props ?? {};
 
-    return setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut(
+    return setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut(
       guildId,
       calendarId,
       data,
@@ -1237,15 +1237,15 @@ export const getSetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutati
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut>>
+export type SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut>>
 >;
-export type SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationBody = BodyType<
+export type SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationBody = BodyType<
   ResourceGrantSchema[]
 >;
-export type SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationError =
+export type SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationVariables = {
+export type SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationVariables = {
   guildId: number;
   calendarId: number;
   data: BodyType<ResourceGrantSchema[]>;
@@ -1254,28 +1254,28 @@ export type SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationVa
 /**
  * @summary Set Calendar Grants
  */
-export const useSetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut = <
+export const useSetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut>>,
+      Awaited<ReturnType<typeof setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut>>,
       TError,
-      SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationVariables,
+      SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPut>>,
+  Awaited<ReturnType<typeof setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut>>,
   TError,
-  SetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationVariables,
+  SetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetCalendarGrantsApiV1GGuildIdCalendarsCalendarIdGrantsPutMutationOptions(options),
+    getSetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationOptions(options),
     queryClient
   );
 };

@@ -181,8 +181,8 @@ export const toolPascalSingular = (tool: Tool): string =>
 export const toolPascalPlural = (tool: Tool): string =>
   toolPlural(tool).replace(/(?:^|_)(\w)/g, (_, c: string) => c.toUpperCase());
 
-/** Resource-relative API path (WITHOUT the `/g/{guildId}` segment), e.g. "/api/v1/counter-groups".
- *  Callers must prepend `/api/v1/g/${guildId}` when building guild-scoped requests. */
+/** Resource-relative API path (WITHOUT the `/c/{guildId}` segment), e.g. "/api/v1/counter-groups".
+ *  Callers must prepend `/api/v1/c/${guildId}` when building guild-scoped requests. */
 export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(tool)}`;
 
 // ---------------------------------------------------------------------------
@@ -336,7 +336,7 @@ export const toolParamName = (tool: Tool): string => `${toolCamelSingular(tool)}
  * name, envelope discriminator, and entity-ref segment. */
 export const toolKebabSingular = (tool: Tool): string => tool.replaceAll("_", "-");
 
-/** Export-engine endpoint (relative to /g/{guildId}), e.g. "/exports/counter-group"
+/** Export-engine endpoint (relative to /c/{guildId}), e.g. "/exports/counter-group"
  * — the engine's source name is the KEBAB SINGULAR of the tool. */
 export const toolExportEndpoint = (tool: Tool): string => `/exports/${toolKebabSingular(tool)}`;
 

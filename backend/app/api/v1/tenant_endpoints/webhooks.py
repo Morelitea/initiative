@@ -17,12 +17,12 @@ personal property of whoever registered it, and it outlives their membership,
 their role and their account. See
 ``history/webhook-scope-not-principal-design.md``.
 
-  POST   /api/v1/g/{guild_id}/webhooks/subscriptions
+  POST   /api/v1/c/{guild_id}/webhooks/subscriptions
     body: {target_url, event_types, fields?, initiative_id?}
     → returns subscription + plaintext hmac_secret (one-time)
-  GET    /api/v1/g/{guild_id}/webhooks/subscriptions
-  PATCH  /api/v1/g/{guild_id}/webhooks/subscriptions/{id}
-  DELETE /api/v1/g/{guild_id}/webhooks/subscriptions/{id}
+  GET    /api/v1/c/{guild_id}/webhooks/subscriptions
+  PATCH  /api/v1/c/{guild_id}/webhooks/subscriptions/{id}
+  DELETE /api/v1/c/{guild_id}/webhooks/subscriptions/{id}
 
 Every read includes ``dead_letter_count`` — how many of the poller's ledger
 rows for that subscription (``app.services.tenant.outbox_poller``) gave up

@@ -1,4 +1,4 @@
-"""`/api/v1/g/{guild_id}/search` — one query across everything in a guild.
+"""`/api/v1/c/{guild_id}/search` — one query across everything in a guild.
 
 Guild-scoped like any other content endpoint: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so the index answers under the same

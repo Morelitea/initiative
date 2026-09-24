@@ -966,7 +966,7 @@ async def _member_tallies() -> tuple[dict[int, int], set[int]]:
     return counts, seated
 
 
-@router.get("/guilds", response_model=list[PlatformGuildStorageRead])
+@router.get("/communities", response_model=list[PlatformGuildStorageRead])
 async def list_platform_guild_storage(
     session: UserSessionDep,
     _operator: GuildsManageDep,
@@ -1005,7 +1005,7 @@ async def list_platform_guild_storage(
     ]
 
 
-@router.patch("/guilds/{guild_id}", response_model=PlatformGuildStorageRead)
+@router.patch("/communities/{guild_id}", response_model=PlatformGuildStorageRead)
 async def update_platform_guild_storage(
     guild_id: int,
     payload: PlatformGuildStorageUpdate,
@@ -1150,7 +1150,9 @@ async def update_platform_guild_storage(
     )
 
 
-@router.get("/guilds/{guild_id}/narrowings", response_model=list[GuildNarrowingPending])
+@router.get(
+    "/communities/{guild_id}/narrowings", response_model=list[GuildNarrowingPending]
+)
 async def read_guild_narrowings(
     guild_id: int,
     session: SystemSessionDep,
@@ -1169,7 +1171,7 @@ async def read_guild_narrowings(
 
 
 @router.put(
-    "/guilds/{guild_id}/narrowings/{connection_id}",
+    "/communities/{guild_id}/narrowings/{connection_id}",
     response_model=GuildNarrowingPending,
 )
 async def agree_guild_narrowing(
@@ -1194,7 +1196,7 @@ async def agree_guild_narrowing(
     )
 
 
-@router.post("/guilds/{guild_id}/restore", response_model=PlatformGuildStorageRead)
+@router.post("/communities/{guild_id}/restore", response_model=PlatformGuildStorageRead)
 async def restore_platform_guild(
     guild_id: int,
     payload: PlatformGuildRestore,
@@ -1259,7 +1261,7 @@ async def restore_platform_guild(
 
 
 @router.post(
-    "/guilds/{guild_id}/billing/service-handoff",
+    "/communities/{guild_id}/billing/service-handoff",
     response_model=BillingPortalHandoffResponse,
 )
 async def create_platform_guild_billing_service_handoff(

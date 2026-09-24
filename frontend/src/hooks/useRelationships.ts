@@ -22,7 +22,7 @@ import {
   SearchEntityType,
   type Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import { getListRelationshipsApiV1GGuildIdRelationshipsGetQueryKey } from "@/api/generated/relationships/relationships";
+import { getListRelationshipsApiV1CGuildIdRelationshipsGetQueryKey } from "@/api/generated/relationships/relationships";
 import { invalidate, q } from "@/api/query-keys";
 import { createRelationship, listRelated, removeRelationship } from "@/api/relationships";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -45,7 +45,7 @@ export const useRelationshipsFor = (entity: EndpointRef, options?: { enabled?: b
     direction: "both" as const,
   };
   return useQuery<RelationshipRead[]>({
-    queryKey: getListRelationshipsApiV1GGuildIdRelationshipsGetQueryKey(guildId, params),
+    queryKey: getListRelationshipsApiV1CGuildIdRelationshipsGetQueryKey(guildId, params),
     queryFn: () => listRelated(guildId, entity, null, null, "both"),
     ...options,
   });
@@ -192,7 +192,7 @@ export const useRelationsNeighbourhood = (
 
   /** One entity's edges, as a query `useQueries` can be handed. */
   const ask = (ref: EndpointRef, active: boolean) => ({
-    queryKey: getListRelationshipsApiV1GGuildIdRelationshipsGetQueryKey(guildId, {
+    queryKey: getListRelationshipsApiV1CGuildIdRelationshipsGetQueryKey(guildId, {
       entity: keyOf(ref),
       relationship_type: null,
       other_type: null,

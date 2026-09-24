@@ -200,7 +200,7 @@ describe("GuildHomePage", () => {
     renderHomeFor({
       name: "Ravenloft Chronicle",
       description: "A long campaign in the mists",
-      banner: buildBanner({ image_url: "/api/v1/guilds/1/image/abc" }),
+      banner: buildBanner({ image_url: "/api/v1/communities/1/image/abc" }),
     });
 
     const heading = await screen.findByRole("heading", { name: "Ravenloft Chronicle" });

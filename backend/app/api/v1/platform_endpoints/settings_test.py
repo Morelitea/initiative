@@ -36,7 +36,7 @@ from app.testing import (
 )
 from sqlmodel import select
 
-GUILDS = "/api/v1/settings/guilds"
+GUILDS = "/api/v1/settings/communities"
 
 
 @pytest.fixture
@@ -340,7 +340,7 @@ async def test_guild_auth_options_are_operator_only(
     guild_id = guild.id
 
     resp = await client.patch(
-        f"/api/v1/guilds/{guild_id}",
+        f"/api/v1/communities/{guild_id}",
         json={"auth_options": ["providers"]},
         headers=a.headers,
     )
@@ -397,7 +397,7 @@ async def test_raising_cap_reopens_joins(
     # Full (1/1) — the invite is refused, and it is NOT consumed (the cap check
     # runs before the invite's use count is incremented).
     blocked = await client.post(
-        "/api/v1/guilds/invite/accept",
+        "/api/v1/communities/invite/accept",
         headers=invitee.headers,
         json={"code": invite.code},
     )
@@ -410,7 +410,7 @@ async def test_raising_cap_reopens_joins(
     assert patched.status_code == 200
 
     accepted = await client.post(
-        "/api/v1/guilds/invite/accept",
+        "/api/v1/communities/invite/accept",
         headers=invitee.headers,
         json={"code": invite.code},
     )
@@ -904,7 +904,7 @@ async def test_billing_grant_confers_no_access_to_the_guild(
     guild = await create_guild(session)  # the owner is not a member
 
     before = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=owner.headers
+        f"/api/v1/c/{guild.id}/initiatives/", headers=owner.headers
     )
     assert before.status_code == 403
 
@@ -914,7 +914,7 @@ async def test_billing_grant_confers_no_access_to_the_guild(
     # Still refused: the live grant is a billing one, so the guild resolver
     # does not accept it.
     after = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=owner.headers
+        f"/api/v1/c/{guild.id}/initiatives/", headers=owner.headers
     )
     assert after.status_code == 403
 

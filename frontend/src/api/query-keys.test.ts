@@ -27,8 +27,8 @@ describe("query-keys guild scoping", () => {
   });
 
   it("invalidates only the active guild's queries", async () => {
-    const activeGuild = seed(["/api/v1/g/5/tasks/"]);
-    const otherGuild = seed(["/api/v1/g/7/tasks/"]);
+    const activeGuild = seed(["/api/v1/c/5/tasks/"]);
+    const otherGuild = seed(["/api/v1/c/7/tasks/"]);
 
     setInvalidationGuild(5);
     await invalidate(q.allTasks());
@@ -38,7 +38,7 @@ describe("query-keys guild scoping", () => {
   });
 
   it("still invalidates the cross-guild /me aggregate", async () => {
-    const guildScoped = seed(["/api/v1/g/5/tasks/"]);
+    const guildScoped = seed(["/api/v1/c/5/tasks/"]);
     const meAggregate = seed(["/api/v1/me/tasks"]);
 
     setInvalidationGuild(5);
@@ -49,8 +49,8 @@ describe("query-keys guild scoping", () => {
   });
 
   it("falls back to plain matching when no active guild is set", async () => {
-    const guildA = seed(["/api/v1/g/5/tasks/"]);
-    const guildB = seed(["/api/v1/g/7/tasks/"]);
+    const guildA = seed(["/api/v1/c/5/tasks/"]);
+    const guildB = seed(["/api/v1/c/7/tasks/"]);
 
     // No setInvalidationGuild call (personal mode / pre-mount): scoping is skipped.
     await invalidate(q.allTasks());
@@ -61,7 +61,7 @@ describe("query-keys guild scoping", () => {
 
   describe("boundaries do not cross", () => {
     it("guild invalidation never touches personal / platform keys", async () => {
-      const guildScoped = seed(["/api/v1/g/5/initiatives/"]);
+      const guildScoped = seed(["/api/v1/c/5/initiatives/"]);
       const meTasks = seed(["/api/v1/me/tasks"]);
       const notifications = seed(["/api/v1/notifications/"]);
       const recents = seed(["/api/v1/recents/"]);
@@ -77,7 +77,7 @@ describe("query-keys guild scoping", () => {
 
     it("personal invalidation never touches guild keys", async () => {
       const notifications = seed(["/api/v1/notifications/"]);
-      const guildTasks = seed(["/api/v1/g/5/tasks/"]);
+      const guildTasks = seed(["/api/v1/c/5/tasks/"]);
 
       setInvalidationGuild(5);
       await invalidate(q.notifications());
@@ -86,12 +86,12 @@ describe("query-keys guild scoping", () => {
       expect(guildTasks()).toBe(false);
     });
 
-    // The guild member roster is guild-scoped (`/api/v1/g/{id}/users/`) even though
-    // its mutations go through the platform `/api/v1/guilds/...` path — a role change
+    // The guild member roster is guild-scoped (`/api/v1/c/{id}/users/`) even though
+    // its mutations go through the platform `/api/v1/communities/...` path — a role change
     // must refresh the active guild's roster without a manual reload.
     it("guild member invalidation hits the active guild roster only", async () => {
-      const activeRoster = seed(["/api/v1/g/5/users/"]);
-      const otherRoster = seed(["/api/v1/g/7/users/"]);
+      const activeRoster = seed(["/api/v1/c/5/users/"]);
+      const otherRoster = seed(["/api/v1/c/7/users/"]);
 
       setInvalidationGuild(5);
       await invalidate(q.guildMembers());
@@ -104,8 +104,8 @@ describe("query-keys guild scoping", () => {
     // settings, but still never another guild's.
     it("all-AI-settings spans both families without crossing guilds", async () => {
       const platform = seed(["/api/v1/settings/ai/platform"]);
-      const guildAI = seed(["/api/v1/g/5/settings/ai/resolved"]);
-      const otherGuildAI = seed(["/api/v1/g/7/settings/ai/resolved"]);
+      const guildAI = seed(["/api/v1/c/5/settings/ai/resolved"]);
+      const otherGuildAI = seed(["/api/v1/c/7/settings/ai/resolved"]);
 
       setInvalidationGuild(5);
       await invalidate(q.allAISettings());
@@ -125,8 +125,8 @@ describe("query-keys guild scoping", () => {
     };
 
     it("drops guild-scoped data but keeps the cross-guild personal keys", async () => {
-      const guildScoped = survives(["/api/v1/g/5/projects/"]);
-      const guildList = survives(["/api/v1/guilds/"]);
+      const guildScoped = survives(["/api/v1/c/5/projects/"]);
+      const guildList = survives(["/api/v1/communities/"]);
       const currentUser = survives(["/api/v1/users/me"]);
       const version = survives(["/api/v1/version"]);
       // The recents bar spans every community, so a switch must not blank it.
@@ -142,9 +142,9 @@ describe("query-keys guild scoping", () => {
     });
 
     it("keeps the arriving guild's own data — it is not the departing guild's", async () => {
-      const arriving = survives(["/api/v1/g/5/projects/"]);
-      const arrivingDetail = survives(["/api/v1/g/5/tasks/12"]);
-      const departing = survives(["/api/v1/g/4/projects/"]);
+      const arriving = survives(["/api/v1/c/5/projects/"]);
+      const arrivingDetail = survives(["/api/v1/c/5/tasks/12"]);
+      const departing = survives(["/api/v1/c/4/projects/"]);
 
       await resetGuildScopedQueries(5);
 
@@ -154,7 +154,7 @@ describe("query-keys guild scoping", () => {
     });
 
     it("still drops everything guild-scoped when no arriving guild is named", async () => {
-      const five = survives(["/api/v1/g/5/projects/"]);
+      const five = survives(["/api/v1/c/5/projects/"]);
 
       await resetGuildScopedQueries();
 
@@ -186,7 +186,7 @@ describe("patchCachedPost", () => {
   const markRead = (post: Record<string, unknown>) => ({ ...post, is_read: true });
 
   it("patches a post inside an infinite feed's pages", () => {
-    const key = ["/api/v1/g/5/posts/", { initiative_id: 1 }];
+    const key = ["/api/v1/c/5/posts/", { initiative_id: 1 }];
     queryClient.setQueryData(key, {
       pageParams: [1, 2],
       pages: [
@@ -205,7 +205,7 @@ describe("patchCachedPost", () => {
   });
 
   it("leaves untouched pages identical, so their cards do not re-render", () => {
-    const key = ["/api/v1/g/5/posts/"];
+    const key = ["/api/v1/c/5/posts/"];
     const untouched = { items: [{ id: 1, is_read: false }], page: 1 };
     queryClient.setQueryData(key, {
       pageParams: [1, 2],
@@ -219,8 +219,8 @@ describe("patchCachedPost", () => {
   });
 
   it("still patches a single page of items and a single post", () => {
-    const listKey = ["/api/v1/g/5/posts/"];
-    const postKey = ["/api/v1/g/5/posts/7"];
+    const listKey = ["/api/v1/c/5/posts/"];
+    const postKey = ["/api/v1/c/5/posts/7"];
     queryClient.setQueryData(listKey, { items: [{ id: 7, is_read: false }] });
     queryClient.setQueryData(postKey, { id: 7, is_read: false });
 

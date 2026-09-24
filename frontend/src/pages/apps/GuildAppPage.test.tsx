@@ -16,12 +16,12 @@ import { renderPage } from "@/__tests__/helpers/render";
 const mint = vi.fn();
 
 vi.mock("@/api/generated/apps/apps", () => ({
-  createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost: (
+  createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost: (
     _guildId: number,
     _appId: number,
     surfaceId: string
   ) => mint(surfaceId, { scope: "guild" }),
-  createInitiativeAppHandoffApiV1GGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost: (
+  createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost: (
     _guildId: number,
     initiativeId: number,
     _appId: number,

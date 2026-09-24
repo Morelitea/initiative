@@ -1,7 +1,7 @@
 """
 Integration tests for guild endpoints.
 
-Tests the guild API endpoints at /api/v1/guilds including:
+Tests the guild API endpoints at /api/v1/communities including:
 - Listing guilds
 - Creating guilds
 - Updating guilds
@@ -56,7 +56,7 @@ async def test_an_account_in_no_guild_lists_nothing(
     """The list is memberships, so an account with none gets an empty one."""
     a = await acting_user("member")
 
-    response = await client.get("/api/v1/guilds/", headers=a.headers)
+    response = await client.get("/api/v1/communities/", headers=a.headers)
 
     assert response.status_code == 200
     assert response.json() == []
@@ -79,7 +79,7 @@ async def test_the_guild_list_is_the_callers_memberships_with_their_roles(
     elsewhere = await create_guild(session, name="Somebody Else's Guild")
     await acting_user(guild_role=GuildRole.admin, guild=elsewhere)
 
-    response = await client.get("/api/v1/guilds/", headers=a.headers)
+    response = await client.get("/api/v1/communities/", headers=a.headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -124,7 +124,7 @@ async def test_list_guilds_administration_fields_are_admin_only(
     )
 
     async def entry(headers: dict[str, str]) -> dict:
-        resp = await client.get("/api/v1/guilds/", headers=headers)
+        resp = await client.get("/api/v1/communities/", headers=headers)
         assert resp.status_code == 200, resp.text
         return next(g for g in resp.json() if g["id"] == admin.guild.id)
 
@@ -160,13 +160,13 @@ async def test_accepting_an_invite_answers_with_the_member_tier_guild(
     await guild_administration(session, guild, max_users=25, tier_name="Bespoke Plan")
 
     invite = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites", headers=admin.headers, json={}
+        f"/api/v1/communities/{guild.id}/invites", headers=admin.headers, json={}
     )
     assert invite.status_code == 201, invite.text
 
     joiner = await acting_user("member")
     resp = await client.post(
-        "/api/v1/guilds/invite/accept",
+        "/api/v1/communities/invite/accept",
         headers=joiner.headers,
         json={"code": invite.json()["code"]},
     )
@@ -185,11 +185,11 @@ async def test_creating_a_guild_seats_its_creator_and_leaves_the_icon_unset(
     client: AsyncClient, acting_user
 ):
     """Whoever makes a community holds its seat. An icon is a picture rather
-    than a field, so a new guild has none until ``PUT /guilds/{id}/icon``."""
+    than a field, so a new guild has none until ``PUT /communities/{id}/icon``."""
     a = await acting_user("member")
 
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=a.headers,
         json={"name": "New Guild", "description": "A test guild"},
     )
@@ -208,7 +208,7 @@ async def test_create_guild_requires_name(client: AsyncClient, acting_user):
     a = await acting_user("member")
 
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=a.headers,
         json={"name": "   ", "description": "No name"},
     )
@@ -244,12 +244,12 @@ async def test_a_second_free_community_is_refused_before_it_is_made(
     """
     a = await acting_user("member")
     first = await client.post(
-        "/api/v1/guilds/", headers=a.headers, json={"name": "My notebook"}
+        "/api/v1/communities/", headers=a.headers, json={"name": "My notebook"}
     )
     assert first.status_code == 201, first.text
 
     second = await client.post(
-        "/api/v1/guilds/", headers=a.headers, json={"name": "One more"}
+        "/api/v1/communities/", headers=a.headers, json={"name": "One more"}
     )
     assert second.status_code == 402
     assert second.json()["detail"] == "FREE_COMMUNITY_ALREADY_HELD"
@@ -270,7 +270,7 @@ async def test_a_paid_community_does_not_use_up_the_free_one(
     """
     a = await acting_user("member")
     paid = await client.post(
-        "/api/v1/guilds/", headers=a.headers, json={"name": "Acme"}
+        "/api/v1/communities/", headers=a.headers, json={"name": "Acme"}
     )
     assert paid.status_code == 201, paid.text
 
@@ -281,7 +281,7 @@ async def test_a_paid_community_does_not_use_up_the_free_one(
     await session.commit()
 
     free = await client.post(
-        "/api/v1/guilds/", headers=a.headers, json={"name": "My notebook"}
+        "/api/v1/communities/", headers=a.headers, json={"name": "My notebook"}
     )
     assert free.status_code == 201, free.text
 
@@ -295,7 +295,7 @@ async def test_a_deployment_without_billing_never_counts_communities(
     a = await acting_user("member")
     for name in ("One", "Two", "Three"):
         created = await client.post(
-            "/api/v1/guilds/", headers=a.headers, json={"name": name}
+            "/api/v1/communities/", headers=a.headers, json={"name": name}
         )
         assert created.status_code == 201, created.text
 
@@ -310,12 +310,14 @@ async def test_staff_standing_a_community_up_for_somebody_are_not_refused(
     staff = await acting_user(UserRole.owner)
     customer = await acting_user("member")
     theirs = await client.post(
-        "/api/v1/guilds/", headers=customer.headers, json={"name": "Their notebook"}
+        "/api/v1/communities/",
+        headers=customer.headers,
+        json={"name": "Their notebook"},
     )
     assert theirs.status_code == 201, theirs.text
 
     for_them = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=staff.headers,
         json={"name": "Acme", "owner_user_id": customer.user.id},
     )
@@ -336,7 +338,7 @@ async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
     customer = await acting_user("member")
 
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=staff.headers,
         json={"name": "Acme", "owner_user_id": customer.user.id},
     )
@@ -377,7 +379,9 @@ async def test_a_new_guild_is_created_with_no_initiatives(
     if for_another_account:
         body["owner_user_id"] = (await acting_user("member")).user.id
 
-    response = await client.post("/api/v1/guilds/", headers=creator.headers, json=body)
+    response = await client.post(
+        "/api/v1/communities/", headers=creator.headers, json=body
+    )
     assert response.status_code == 201, response.text
 
     await route_session_to_guild(session, response.json()["id"])
@@ -394,7 +398,7 @@ async def test_an_ordinary_user_cannot_name_another_owner(
     other = await acting_user("member")
 
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=a.headers,
         json={"name": "Not yours", "owner_user_id": other.user.id},
     )
@@ -413,7 +417,7 @@ async def test_naming_yourself_needs_no_capability(client: AsyncClient, acting_u
     a = await acting_user("member")
 
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=a.headers,
         json={"name": "Mine", "owner_user_id": a.user.id},
     )
@@ -441,7 +445,7 @@ async def test_an_unusable_owner_is_refused(
         owner_id = deactivated.id
 
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=staff.headers,
         json={"name": "Acme", "owner_user_id": owner_id},
     )
@@ -459,7 +463,7 @@ async def test_update_guild_as_admin(
     admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=admin.headers,
         json={"name": "New Name", "description": "New description"},
     )
@@ -481,7 +485,7 @@ async def test_an_ordinary_admin_cannot_delete_the_community(
 
     refused = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=admin.headers,
         json={
             "password": "testpassword123",
@@ -535,7 +539,7 @@ async def test_deleting_a_guild_asks_for_the_password_and_the_phrase(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=admin.headers,
         json={"password": password, "confirmation_text": confirmation},
     )
@@ -577,7 +581,7 @@ async def test_an_admin_holding_no_password_confirms_with_a_recent_sign_in(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=await _just_signed_in(session, admin.user),
         json={"confirmation_text": "DELETE COMMUNITY TO DELETE"},
     )
@@ -597,7 +601,7 @@ async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=admin.headers,
         json={
             "password": "wrongpassword",
@@ -634,12 +638,12 @@ async def test_reorder_guilds(
 
     wanted = [guild3.id, a.guild.id, guild2.id]
     response = await client.put(
-        "/api/v1/guilds/order", headers=a.headers, json={"guild_ids": wanted}
+        "/api/v1/communities/order", headers=a.headers, json={"guild_ids": wanted}
     )
 
     assert response.status_code == 204
 
-    listing = await client.get("/api/v1/guilds/", headers=a.headers)
+    listing = await client.get("/api/v1/communities/", headers=a.headers)
     assert [g["id"] for g in listing.json()] == wanted
 
 
@@ -649,7 +653,7 @@ async def test_create_guild_invite_as_admin(client: AsyncClient, acting_user):
     admin = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.post(
-        f"/api/v1/guilds/{admin.guild.id}/invites",
+        f"/api/v1/communities/{admin.guild.id}/invites",
         headers=admin.headers,
         json={
             "max_uses": 5,
@@ -698,7 +702,7 @@ async def test_minting_an_invite_respects_the_seat_cap(
         await acting_user(guild_role=GuildRole.member, guild=guild)
 
     response = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites",
+        f"/api/v1/communities/{guild.id}/invites",
         headers=admin.headers,
         json={"max_uses": 1},
     )
@@ -726,7 +730,7 @@ async def test_an_admin_lists_and_revokes_the_guilds_invites(
         for max_uses in (1, 2)
     ]
     await session.commit()
-    url = f"/api/v1/guilds/{admin.guild.id}/invites"
+    url = f"/api/v1/communities/{admin.guild.id}/invites"
 
     listed = await client.get(url, headers=admin.headers)
     assert listed.status_code == 200
@@ -753,7 +757,7 @@ async def test_get_invite_status_valid(
     )
     await session.commit()
 
-    response = await client.get(f"/api/v1/guilds/invite/{invite.code}")
+    response = await client.get(f"/api/v1/communities/invite/{invite.code}")
 
     assert response.status_code == 200
     data = response.json()
@@ -768,7 +772,7 @@ async def test_get_invite_status_valid(
 @pytest.mark.integration
 async def test_get_invite_status_invalid_code(client: AsyncClient):
     """Test getting status of invalid invite code."""
-    response = await client.get("/api/v1/guilds/invite/invalidcode123")
+    response = await client.get("/api/v1/communities/invite/invalidcode123")
 
     assert response.status_code == 200
     data = response.json()
@@ -796,7 +800,7 @@ async def test_accept_invite_blocked_when_guild_full(
     await session.commit()
 
     response = await client.post(
-        "/api/v1/guilds/invite/accept",
+        "/api/v1/communities/invite/accept",
         headers=invitee.headers,
         json={"code": invite.code},
     )
@@ -839,7 +843,9 @@ async def test_an_invite_that_cannot_be_redeemed_is_refused(
         code = invite.code
 
     response = await client.post(
-        "/api/v1/guilds/invite/accept", headers=invitee.headers, json={"code": code}
+        "/api/v1/communities/invite/accept",
+        headers=invitee.headers,
+        json={"code": code},
     )
 
     assert response.status_code == 400
@@ -853,34 +859,34 @@ async def test_an_invite_that_cannot_be_redeemed_is_refused(
 #: well-formed request carries, so the status is the gate's answer rather than
 #: the schema's.
 ADMIN_ONLY_ROUTES = (
-    ("PATCH", "/api/v1/guilds/{guild}", {"name": "Renamed"}),
+    ("PATCH", "/api/v1/communities/{guild}", {"name": "Renamed"}),
     (
         "DELETE",
-        "/api/v1/guilds/{guild}",
+        "/api/v1/communities/{guild}",
         {"password": "testpassword123", "confirmation_text": "DELETE COMMUNITY X"},
     ),
-    ("POST", "/api/v1/guilds/{guild}/invites", {"max_uses": 1}),
-    ("GET", "/api/v1/guilds/{guild}/invites", None),
-    ("DELETE", "/api/v1/guilds/{guild}/invites/{invite}", None),
-    ("POST", "/api/v1/guilds/{guild}/billing/handoff", None),
+    ("POST", "/api/v1/communities/{guild}/invites", {"max_uses": 1}),
+    ("GET", "/api/v1/communities/{guild}/invites", None),
+    ("DELETE", "/api/v1/communities/{guild}/invites/{invite}", None),
+    ("POST", "/api/v1/communities/{guild}/billing/handoff", None),
 )
 
 #: Surfaces any signed-in account may call, listed here for the one caller they
 #: all turn away.
 SIGNED_IN_ROUTES = (
-    ("GET", "/api/v1/guilds/", None),
-    ("POST", "/api/v1/guilds/", {"name": "Fresh"}),
-    ("PUT", "/api/v1/guilds/order", {"guild_ids": []}),
-    ("POST", "/api/v1/guilds/invite/accept", {"code": "notarealcode000000"}),
-    ("GET", "/api/v1/guilds/{guild}/leave/eligibility", None),
-    ("DELETE", "/api/v1/guilds/{guild}/leave", None),
+    ("GET", "/api/v1/communities/", None),
+    ("POST", "/api/v1/communities/", {"name": "Fresh"}),
+    ("PUT", "/api/v1/communities/order", {"guild_ids": []}),
+    ("POST", "/api/v1/communities/invite/accept", {"code": "notarealcode000000"}),
+    ("GET", "/api/v1/communities/{guild}/leave/eligibility", None),
+    ("DELETE", "/api/v1/communities/{guild}/leave", None),
 )
 
 #: Leaving is about a membership, so an account holding none in this guild is
 #: told there is none rather than refused.
 MEMBERSHIP_ROUTES = (
-    ("GET", "/api/v1/guilds/{guild}/leave/eligibility", None),
-    ("DELETE", "/api/v1/guilds/{guild}/leave", None),
+    ("GET", "/api/v1/communities/{guild}/leave/eligibility", None),
+    ("DELETE", "/api/v1/communities/{guild}/leave", None),
 )
 
 
@@ -1004,7 +1010,7 @@ async def test_the_billing_handoff_needs_a_portal_and_a_signing_key(
     seat = await acting_user(guild_role=GuildRole.superadmin)
 
     response = await client.post(
-        f"/api/v1/guilds/{seat.guild.id}/billing/handoff", headers=seat.headers
+        f"/api/v1/communities/{seat.guild.id}/billing/handoff", headers=seat.headers
     )
 
     assert response.status_code == expected_status, response.text
@@ -1024,7 +1030,7 @@ async def test_guild_billing_handoff_succeeds_for_admin(
     seat = await acting_user(guild_role=GuildRole.superadmin)
 
     response = await client.post(
-        f"/api/v1/guilds/{seat.guild.id}/billing/handoff", headers=seat.headers
+        f"/api/v1/communities/{seat.guild.id}/billing/handoff", headers=seat.headers
     )
     assert response.status_code == 200
     body = response.json()
@@ -1093,7 +1099,8 @@ async def test_a_departure_is_counted_against_the_communitys_last_seat(
         await acting_user(guild_role=role, guild=leaver.guild)
 
     eligibility = await client.get(
-        f"/api/v1/guilds/{leaver.guild.id}/leave/eligibility", headers=leaver.headers
+        f"/api/v1/communities/{leaver.guild.id}/leave/eligibility",
+        headers=leaver.headers,
     )
     assert eligibility.status_code == 200, eligibility.text
     assert eligibility.json() == {
@@ -1102,7 +1109,7 @@ async def test_a_departure_is_counted_against_the_communitys_last_seat(
     }
 
     response = await client.delete(
-        f"/api/v1/guilds/{leaver.guild.id}/leave", headers=leaver.headers
+        f"/api/v1/communities/{leaver.guild.id}/leave", headers=leaver.headers
     )
     assert response.status_code == expected_status, response.text
     if expected_detail is not None:
@@ -1117,12 +1124,12 @@ async def test_a_second_seat_frees_the_first(client: AsyncClient, acting_user):
     await acting_user(guild_role=GuildRole.member, guild=first.guild)
 
     left = await client.delete(
-        f"/api/v1/guilds/{first.guild.id}/leave", headers=second.headers
+        f"/api/v1/communities/{first.guild.id}/leave", headers=second.headers
     )
     assert left.status_code == 204, left.text
 
     refused = await client.delete(
-        f"/api/v1/guilds/{first.guild.id}/leave", headers=first.headers
+        f"/api/v1/communities/{first.guild.id}/leave", headers=first.headers
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
@@ -1163,7 +1170,7 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
     leaving = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
 
     response = await client.delete(
-        f"/api/v1/guilds/{seat.guild.id}/leave", headers=leaving.headers
+        f"/api/v1/communities/{seat.guild.id}/leave", headers=leaving.headers
     )
     assert response.status_code == 204, response.text
     assert order == ["lock", "last seat"]

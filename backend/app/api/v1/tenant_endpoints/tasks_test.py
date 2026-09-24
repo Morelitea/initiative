@@ -1168,7 +1168,7 @@ async def test_task_guild_isolation(
 
     # Cannot access guild1 task with guild2 context
     response2 = await client.get(
-        f"/api/v1/g/{guild2.id}/tasks/{task1.id}", headers=a.headers
+        f"/api/v1/c/{guild2.id}/tasks/{task1.id}", headers=a.headers
     )
 
     assert response2.status_code == 404

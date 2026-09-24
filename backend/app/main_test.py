@@ -165,7 +165,7 @@ async def test_only_the_wasm_worker_assets_carry_their_policy(
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "route",
-    ["/g/7/apps/12", "/g/7/initiatives/3/apps/12", "/"],
+    ["/c/7/apps/12", "/c/7/initiatives/3/apps/12", "/"],
 )
 async def test_every_document_frames_the_registered_apps(
     client: AsyncClient, session: AsyncSession, route: str

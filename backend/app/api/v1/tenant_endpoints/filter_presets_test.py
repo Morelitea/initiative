@@ -19,7 +19,7 @@ pytestmark = pytest.mark.integration
 
 
 def _url(project, suffix: str = "/") -> str:
-    return f"/api/v1/g/{guild_of(project)}/projects/{project.id}/filter-presets{suffix}"
+    return f"/api/v1/c/{guild_of(project)}/projects/{project.id}/filter-presets{suffix}"
 
 
 async def _grant(session: AsyncSession, project, user, level: ResourceAccessLevel):
@@ -407,7 +407,7 @@ async def test_presets_are_scoped_to_their_project(
     presets = await _seed(session, a.project)
 
     response = await client.patch(
-        f"/api/v1/g/{a.guild.id}/projects/{other.id}/filter-presets/{presets[0].id}",
+        f"/api/v1/c/{a.guild.id}/projects/{other.id}/filter-presets/{presets[0].id}",
         json={"name": "Stolen"},
         headers=a.headers,
     )

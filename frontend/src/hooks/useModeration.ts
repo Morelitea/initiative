@@ -17,11 +17,11 @@ import type {
   ReportSettle,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryKey,
-  getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryKey,
-  listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet,
-  readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet,
-  settleReportApiV1GGuildIdReportsReportIdSettlePost,
+  getListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryKey,
+  getReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryKey,
+  listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet,
+  readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet,
+  settleReportApiV1CGuildIdReportsReportIdSettlePost,
 } from "@/api/generated/moderation/moderation";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -43,13 +43,13 @@ export const useModerationReports = (
   options?: QueryOpts<ModerationReportList>
 ) =>
   useQuery<ModerationReportList>({
-    queryKey: getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryKey(
+    queryKey: getListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryKey(
       guildId,
       initiativeId,
       { settled, limit: REPORTS_PAGE_SIZE, offset }
     ),
     queryFn: () =>
-      listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet(guildId, initiativeId, {
+      listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet(guildId, initiativeId, {
         settled,
         limit: REPORTS_PAGE_SIZE,
         offset,
@@ -65,7 +65,7 @@ export const useSettleReport = (
   useApiMutation<ModerationReportRead, { reportId: number; body: ReportSettle }>(
     {
       mutationFn: ({ reportId, body }) =>
-        settleReportApiV1GGuildIdReportsReportIdSettlePost(guildId, reportId, body),
+        settleReportApiV1CGuildIdReportsReportIdSettlePost(guildId, reportId, body),
       // Both lists move: the report leaves the open one and joins the settled.
       invalidate: () => invalidate(q.moderationReports(initiativeId)),
     },
@@ -102,11 +102,11 @@ export const useInitiativeSharing = (
   options?: QueryOpts<InitiativeSharingRead>
 ) =>
   useQuery<InitiativeSharingRead>({
-    queryKey: getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryKey(
+    queryKey: getReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryKey(
       guildId,
       initiativeId
     ),
     queryFn: () =>
-      readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet(guildId, initiativeId),
+      readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet(guildId, initiativeId),
     ...options,
   });

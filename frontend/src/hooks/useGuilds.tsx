@@ -34,7 +34,7 @@ import {
 } from "@/lib/offlineSession";
 
 /**
- * A guild entry in the switcher. Member guilds come from `/guilds/`; entries
+ * A guild entry in the switcher. Member guilds come from `/communities/`; entries
  * the user can only reach via a live, time-bound PAM access grant are
  * synthesized from `/access-grants/` and flagged with `accessType: "grant"`
  * so the UI can mark them temporary and enforce read-only.
@@ -117,7 +117,7 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   role: settingsGrantLevel(settingsGrant) ?? "member",
   // A settings grant carries no content access; a content grant is what does.
   reachesContent: grant.purpose === "content",
-  // Answered by the community's own entry (`GET /guilds/{id}`) for a settings
+  // Answered by the community's own entry (`GET /communities/{id}`) for a settings
   // grant; until then, and for a content grant, nothing here is changed.
   can_write_settings: false,
   position: Number.MAX_SAFE_INTEGER,
@@ -168,7 +168,7 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
 const withSettingsEntry = async (entry: GuildEntry): Promise<GuildEntry> => {
   if (!entry.grantSettingsLevel) return entry;
   try {
-    const response = await apiClient.get<GuildRead>(`/guilds/${entry.id}`);
+    const response = await apiClient.get<GuildRead>(`/communities/${entry.id}`);
     return {
       ...response.data,
       icon_url: entry.icon_url,
@@ -290,7 +290,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     const forUser = userId;
     try {
-      const response = await apiClient.get<GuildRead[]>("/guilds/");
+      const response = await apiClient.get<GuildRead[]>("/communities/");
       if (userIdRef.current !== forUser) return [];
       hasFetchedRef.current = true;
 
@@ -396,7 +396,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     const payload = pendingOrderRef.current;
     pendingOrderRef.current = null;
     try {
-      await apiClient.put("/guilds/order", { guildIds: payload });
+      await apiClient.put("/communities/order", { guildIds: payload });
     } catch (err) {
       console.error("Failed to save guild order", err);
       toast.error("Unable to save community order. Refreshing…");
@@ -553,7 +553,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Community name is required.");
       }
 
-      const response = await apiClient.post<GuildRead>("/guilds/", {
+      const response = await apiClient.post<GuildRead>("/communities/", {
         name: trimmedName,
         description: description?.trim() || undefined,
       });

@@ -213,7 +213,7 @@ async def test_an_app_acts_only_where_it_was_installed(
     subject = await delegate_subject(session, guild, user)
 
     refused = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers={
             "Authorization": (
                 f"Bearer {mint_delegation_token(subject=subject, guild_ref=await delegate_guild_ref(session, guild))}"
@@ -225,7 +225,7 @@ async def test_an_app_acts_only_where_it_was_installed(
     await authorize_delegate(session, guild, user)
 
     allowed = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers={
             "Authorization": (
                 f"Bearer {mint_delegation_token(subject=subject, guild_ref=await delegate_guild_ref(session, guild))}"
@@ -253,7 +253,7 @@ async def test_a_switched_off_install_stops_the_app(
     await session.commit()
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers={
             "Authorization": (
                 f"Bearer {mint_delegation_token(subject=subject, guild_ref=await delegate_guild_ref(session, guild))}"

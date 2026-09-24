@@ -12,24 +12,24 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeListScope } from "@/api/generated/initiativeAPI.schemas";
 import {
-  addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost,
-  approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost,
-  createInitiativeApiV1GGuildIdInitiativesPost,
-  createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost,
-  deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete,
-  denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost,
-  getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey,
-  getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet,
-  getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryKey,
-  getListInitiativesApiV1GGuildIdInitiativesGetQueryKey,
-  getListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey,
-  joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost,
-  listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet,
-  listInitiativesApiV1GGuildIdInitiativesGet,
-  listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet,
-  removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete,
-  updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch,
-  updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch,
+  addInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersPost,
+  approveJoinRequestApiV1CGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost,
+  createInitiativeApiV1CGuildIdInitiativesPost,
+  createJoinRequestApiV1CGuildIdInitiativesInitiativeIdJoinRequestsPost,
+  deleteInitiativeApiV1CGuildIdInitiativesInitiativeIdDelete,
+  denyJoinRequestApiV1CGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost,
+  getGetInitiativeApiV1CGuildIdInitiativesInitiativeIdGetQueryKey,
+  getInitiativeApiV1CGuildIdInitiativesInitiativeIdGet,
+  getListInitiativeDirectoryApiV1CGuildIdInitiativesDirectoryGetQueryKey,
+  getListInitiativesApiV1CGuildIdInitiativesGetQueryKey,
+  getListJoinRequestsApiV1CGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey,
+  joinInitiativeApiV1CGuildIdInitiativesInitiativeIdJoinPost,
+  listInitiativeDirectoryApiV1CGuildIdInitiativesDirectoryGet,
+  listInitiativesApiV1CGuildIdInitiativesGet,
+  listJoinRequestsApiV1CGuildIdInitiativesInitiativeIdJoinRequestsGet,
+  removeInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersUserIdDelete,
+  updateInitiativeApiV1CGuildIdInitiativesInitiativeIdPatch,
+  updateInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersUserIdPatch,
 } from "@/api/generated/initiatives/initiatives";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -51,8 +51,8 @@ import type { QueryOpts } from "@/types/query";
 export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
   const guildId = useActiveGuildId();
   return useQuery<InitiativeRead[]>({
-    queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId),
-    queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId),
+    queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId),
+    queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId),
     ...options,
   });
 };
@@ -66,8 +66,8 @@ const GUILD_SCOPE = { scope: InitiativeListScope.guild } as const;
 export const useGuildInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
   const guildId = useActiveGuildId();
   return useQuery<InitiativeRead[]>({
-    queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId, GUILD_SCOPE),
-    queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId, GUILD_SCOPE),
+    queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId, GUILD_SCOPE),
+    queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId, GUILD_SCOPE),
     ...options,
   });
 };
@@ -84,8 +84,8 @@ export const useInitiativesForGuild = (
 ) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeRead[]>({
-    queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId!),
-    queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId!),
+    queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId!),
+    queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId!),
     enabled: !!guildId && userEnabled,
     ...rest,
   });
@@ -103,8 +103,8 @@ export const useInitiativeDirectory = (options?: QueryOpts<InitiativeDirectoryEn
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeDirectoryEntry[]>({
-    queryKey: getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryKey(guildId),
-    queryFn: () => listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet(guildId),
+    queryKey: getListInitiativeDirectoryApiV1CGuildIdInitiativesDirectoryGetQueryKey(guildId),
+    queryFn: () => listInitiativeDirectoryApiV1CGuildIdInitiativesDirectoryGet(guildId),
     enabled: guildId > 0 && userEnabled,
     ...rest,
   });
@@ -129,13 +129,13 @@ export const useInitiativeJoinRequests = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeJoinRequestRead[]>({
-    queryKey: getListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey(
+    queryKey: getListJoinRequestsApiV1CGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey(
       guildId,
       initiativeId!,
       params
     ),
     queryFn: () =>
-      listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet(
+      listJoinRequestsApiV1CGuildIdInitiativesInitiativeIdJoinRequestsGet(
         guildId,
         initiativeId!,
         params
@@ -149,11 +149,11 @@ export const useInitiative = (initiativeId: number | null, options?: QueryOpts<I
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeRead>({
-    queryKey: getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey(
+    queryKey: getGetInitiativeApiV1CGuildIdInitiativesInitiativeIdGetQueryKey(
       guildId,
       initiativeId!
     ),
-    queryFn: () => getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet(guildId, initiativeId!),
+    queryFn: () => getInitiativeApiV1CGuildIdInitiativesInitiativeIdGet(guildId, initiativeId!),
     enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
     ...rest,
   });
@@ -189,7 +189,7 @@ export const useCreateInitiative = (options?: MutationOpts<InitiativeRead, Initi
     // The generated InitiativeCreate carries one `{plural}_enabled` field per
     // toggleable tool — no hand-maintained field list to drift.
     mutationFn: async (data: InitiativeCreate) => {
-      return createInitiativeApiV1GGuildIdInitiativesPost(guildId, data);
+      return createInitiativeApiV1CGuildIdInitiativesPost(guildId, data);
     },
     onSuccess: (...args) => {
       toast.success(t("createDialog.created", { name: args[0].name }));
@@ -209,7 +209,7 @@ export const useUpdateInitiative = (
     InitiativeRead,
     {
       initiativeId: number;
-      data: Parameters<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>[2];
+      data: Parameters<typeof updateInitiativeApiV1CGuildIdInitiativesInitiativeIdPatch>[2];
     }
   >
 ) =>
@@ -217,12 +217,12 @@ export const useUpdateInitiative = (
     InitiativeRead,
     {
       initiativeId: number;
-      data: Parameters<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>[2];
+      data: Parameters<typeof updateInitiativeApiV1CGuildIdInitiativesInitiativeIdPatch>[2];
     }
   >(
     {
       mutationFn: (guildId, { initiativeId, data }) =>
-        updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch(guildId, initiativeId, data),
+        updateInitiativeApiV1CGuildIdInitiativesInitiativeIdPatch(guildId, initiativeId, data),
       invalidate: (_data, { initiativeId }) =>
         invalidate(q.allInitiatives(), q.initiative(initiativeId)),
       errorKey: "initiatives:settings.updateError",
@@ -243,7 +243,7 @@ export const useJoinInitiative = (
   useGuildMutation<InitiativeRead, { initiativeId: number }>(
     {
       mutationFn: (guildId, { initiativeId }) =>
-        joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost(guildId, initiativeId),
+        joinInitiativeApiV1CGuildIdInitiativesInitiativeIdJoinPost(guildId, initiativeId),
       invalidate: () => invalidate(q.guildContent()),
       errorKey: "initiatives:directory.joinError",
     },
@@ -270,7 +270,7 @@ export const useRequestToJoinInitiative = (
   >(
     {
       mutationFn: (guildId, { initiativeId, data }) =>
-        createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost(
+        createJoinRequestApiV1CGuildIdInitiativesInitiativeIdJoinRequestsPost(
           guildId,
           initiativeId,
           data
@@ -301,12 +301,12 @@ export const useResolveJoinRequest = (
     {
       mutationFn: (guildId, { initiativeId, requestId, approved }) =>
         approved
-          ? approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost(
+          ? approveJoinRequestApiV1CGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost(
               guildId,
               initiativeId,
               requestId
             )
-          : denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost(
+          : denyJoinRequestApiV1CGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost(
               guildId,
               initiativeId,
               requestId
@@ -326,7 +326,7 @@ export const useDeleteInitiative = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, initiativeId) =>
-        deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete(guildId, initiativeId),
+        deleteInitiativeApiV1CGuildIdInitiativesInitiativeIdDelete(guildId, initiativeId),
       invalidate: () => invalidate(q.allInitiatives()),
       errorKey: "initiatives:settings.deleteError",
     },
@@ -342,7 +342,7 @@ export const useAddInitiativeMember = (
     {
       initiativeId: number;
       data: Parameters<
-        typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost
+        typeof addInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersPost
       >[2];
     }
   >
@@ -352,13 +352,13 @@ export const useAddInitiativeMember = (
     {
       initiativeId: number;
       data: Parameters<
-        typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost
+        typeof addInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersPost
       >[2];
     }
   >(
     {
       mutationFn: (guildId, { initiativeId, data }) =>
-        addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost(
+        addInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersPost(
           guildId,
           initiativeId,
           data
@@ -374,7 +374,7 @@ export const useRemoveInitiativeMember = (
   useGuildMutation<void, { initiativeId: number; userId: number }>(
     {
       mutationFn: async (guildId, { initiativeId, userId }) => {
-        await removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete(
+        await removeInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersUserIdDelete(
           guildId,
           initiativeId,
           userId
@@ -392,7 +392,7 @@ export const useUpdateInitiativeMember = (
       initiativeId: number;
       userId: number;
       data: Parameters<
-        typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch
+        typeof updateInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersUserIdPatch
       >[3];
     }
   >
@@ -403,13 +403,13 @@ export const useUpdateInitiativeMember = (
       initiativeId: number;
       userId: number;
       data: Parameters<
-        typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch
+        typeof updateInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersUserIdPatch
       >[3];
     }
   >(
     {
       mutationFn: (guildId, { initiativeId, userId, data }) =>
-        updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch(
+        updateInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersUserIdPatch(
           guildId,
           initiativeId,
           userId,

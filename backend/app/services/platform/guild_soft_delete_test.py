@@ -59,7 +59,7 @@ async def _delete_via_danger_zone(
 ) -> None:
     response = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=headers,
         json={
             "password": PASSWORD,
@@ -154,15 +154,15 @@ async def test_a_deleted_community_is_gone_for_its_admin_too(
     await create_guild_membership(session, user=await create_user(session), guild=guild)
     headers = get_auth_headers(admin)
 
-    listed = await client.get("/api/v1/guilds/", headers=headers)
+    listed = await client.get("/api/v1/communities/", headers=headers)
     assert [g["id"] for g in listed.json()] == [guild.id]
 
     await _delete_via_danger_zone(client, guild=guild, headers=headers)
 
-    listed = await client.get("/api/v1/guilds/", headers=headers)
+    listed = await client.get("/api/v1/communities/", headers=headers)
     assert listed.json() == []
     # And it is refused on the path, not merely hidden from the list.
-    refused = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    refused = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert refused.status_code == 403
 
 
@@ -209,7 +209,7 @@ async def test_restore_brings_it_back_at_the_status_the_operator_names(
     await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
 
     response = await client.post(
-        f"/api/v1/settings/guilds/{guild.id}/restore",
+        f"/api/v1/settings/communities/{guild.id}/restore",
         headers=operator.headers,
         json={"status": "read_only"},
     )
@@ -218,7 +218,7 @@ async def test_restore_brings_it_back_at_the_status_the_operator_names(
     assert response.json()["purge_at"] is None
 
     # And its admin has it back.
-    listed = await client.get("/api/v1/guilds/", headers=get_auth_headers(admin))
+    listed = await client.get("/api/v1/communities/", headers=get_auth_headers(admin))
     assert [g["id"] for g in listed.json()] == [guild.id]
 
 
@@ -261,7 +261,7 @@ async def test_billing_keeps_its_name_for_a_deleted_community_and_hears_both_way
     assert lifecycle_pings == [guild.id]
 
     response = await client.post(
-        f"/api/v1/settings/guilds/{guild.id}/restore",
+        f"/api/v1/settings/communities/{guild.id}/restore",
         headers=operator.headers,
         json={"status": "active"},
     )
@@ -295,7 +295,7 @@ async def test_restore_refuses_a_community_that_is_not_deleted(
     guild = await create_guild(session, creator=await create_user(session))
 
     response = await client.post(
-        f"/api/v1/settings/guilds/{guild.id}/restore",
+        f"/api/v1/settings/communities/{guild.id}/restore",
         headers=operator.headers,
         json={"status": "active"},
     )
@@ -310,7 +310,7 @@ async def test_restore_needs_a_capability(
     guild = await create_guild(session, creator=await create_user(session))
 
     response = await client.post(
-        f"/api/v1/settings/guilds/{guild.id}/restore",
+        f"/api/v1/settings/communities/{guild.id}/restore",
         headers=plain.headers,
         json={"status": "active"},
     )
@@ -333,13 +333,13 @@ async def test_restore_asks_for_a_seat_when_the_roster_holds_none(
     await session.commit()
     session.expunge_all()
 
-    listed = await client.get("/api/v1/settings/guilds", headers=operator.headers)
+    listed = await client.get("/api/v1/settings/communities", headers=operator.headers)
     entry = next(g for g in listed.json() if g["id"] == guild.id)
     assert entry["has_seat"] is False
     assert entry["purge_at"] is not None
 
     refused = await client.post(
-        f"/api/v1/settings/guilds/{guild.id}/restore",
+        f"/api/v1/settings/communities/{guild.id}/restore",
         headers=operator.headers,
         json={"status": "active"},
     )
@@ -348,7 +348,7 @@ async def test_restore_asks_for_a_seat_when_the_roster_holds_none(
 
     seated = await create_user(session)
     response = await client.post(
-        f"/api/v1/settings/guilds/{guild.id}/restore",
+        f"/api/v1/settings/communities/{guild.id}/restore",
         headers=operator.headers,
         json={"status": "active", "seat_user_id": seated.id},
     )
@@ -376,7 +376,7 @@ async def test_the_status_control_cannot_delete_a_community(
     guild = await create_guild(session, creator=await create_user(session))
 
     response = await client.patch(
-        f"/api/v1/settings/guilds/{guild.id}",
+        f"/api/v1/settings/communities/{guild.id}",
         headers=operator.headers,
         json={"status": "deleted"},
     )
@@ -500,7 +500,7 @@ async def test_a_deployment_can_keep_deleted_communities_forever(
     ).one_or_none() is not None
 
     # And the operator's list says there is no date, rather than inventing one.
-    listed = await client.get("/api/v1/settings/guilds", headers=operator.headers)
+    listed = await client.get("/api/v1/settings/communities", headers=operator.headers)
     entry = next(g for g in listed.json() if g["id"] == guild.id)
     assert entry["status"] == "deleted"
     assert entry["purge_at"] is None

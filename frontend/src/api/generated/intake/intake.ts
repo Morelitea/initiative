@@ -355,14 +355,14 @@ export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
  * guild, so pointing back restores exactly what was there.
  * @summary Update Operations Guild
  */
-export const updateOperationsGuildApiV1SettingsIntakeGuildPut = (
+export const updateOperationsGuildApiV1SettingsIntakeCommunityPut = (
   operationsGuildUpdate: BodyType<OperationsGuildUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<IntakeSettingsRead>(
     {
-      url: `/api/v1/settings/intake/guild`,
+      url: `/api/v1/settings/intake/community`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: operationsGuildUpdate,
@@ -372,27 +372,27 @@ export const updateOperationsGuildApiV1SettingsIntakeGuildPut = (
   );
 };
 
-export const getUpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationKey = () =>
-  ["updateOperationsGuildApiV1SettingsIntakeGuildPut"] as const;
+export const getUpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationKey = () =>
+  ["updateOperationsGuildApiV1SettingsIntakeCommunityPut"] as const;
 
-export const getUpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationOptions = <
+export const getUpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeGuildPut>>,
+    Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeCommunityPut>>,
     TError,
-    UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationVariables,
+    UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeGuildPut>>,
+  Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeCommunityPut>>,
   TError,
-  UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationVariables,
+  UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationKey();
+  const mutationKey = getUpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -400,53 +400,53 @@ export const getUpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeGuildPut>>,
-    UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationVariables
+    Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeCommunityPut>>,
+    UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateOperationsGuildApiV1SettingsIntakeGuildPut(data, requestOptions);
+    return updateOperationsGuildApiV1SettingsIntakeCommunityPut(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeGuildPut>>
+export type UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeCommunityPut>>
 >;
-export type UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationBody =
+export type UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationBody =
   BodyType<OperationsGuildUpdate>;
-export type UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationError =
+export type UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationVariables = {
+export type UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationVariables = {
   data: BodyType<OperationsGuildUpdate>;
 };
 
 /**
  * @summary Update Operations Guild
  */
-export const useUpdateOperationsGuildApiV1SettingsIntakeGuildPut = <
+export const useUpdateOperationsGuildApiV1SettingsIntakeCommunityPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeGuildPut>>,
+      Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeCommunityPut>>,
       TError,
-      UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationVariables,
+      UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeGuildPut>>,
+  Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeCommunityPut>>,
   TError,
-  UpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationVariables,
+  UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateOperationsGuildApiV1SettingsIntakeGuildPutMutationOptions(options),
+    getUpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationOptions(options),
     queryClient
   );
 };

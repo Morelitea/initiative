@@ -125,7 +125,7 @@ async def test_a_live_delegate_is_told_where_the_app_answers(
     app = await _install_target(session, guild, installer)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/apps/{app.id}/service",
+        f"/api/v1/c/{guild.id}/apps/{app.id}/service",
         headers=_headers(
             subject, await delegate_guild_ref(session, guild), "svc-ok-001"
         ),
@@ -151,7 +151,7 @@ async def test_the_answer_says_nothing_about_the_person(
     app = await _install_target(session, guild, installer)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/apps/{app.id}/service",
+        f"/api/v1/c/{guild.id}/apps/{app.id}/service",
         headers=_headers(
             subject, await delegate_guild_ref(session, guild), "svc-shape-001"
         ),
@@ -177,7 +177,7 @@ async def test_a_switched_off_install_still_answers_and_says_so(
     app = await _install_target(session, guild, installer, enabled=False)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/apps/{app.id}/service",
+        f"/api/v1/c/{guild.id}/apps/{app.id}/service",
         headers=_headers(
             subject, await delegate_guild_ref(session, guild), "svc-disabled-001"
         ),
@@ -203,7 +203,7 @@ async def test_a_first_party_session_is_refused(
     app = await _install_target(session, guild, installer)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/apps/{app.id}/service", headers=actor.headers
+        f"/api/v1/c/{guild.id}/apps/{app.id}/service", headers=actor.headers
     )
 
     assert response.status_code == 404
@@ -251,7 +251,7 @@ async def test_a_delegate_that_may_not_act_is_refused(
     await register_delegate(session, grants=grants, enabled=enabled)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/apps/{app.id}/service", headers=headers
+        f"/api/v1/c/{guild.id}/apps/{app.id}/service", headers=headers
     )
 
     assert response.status_code == 401
@@ -289,7 +289,7 @@ async def test_a_delegate_without_the_directory_grant_is_refused(
     await register_delegate(session, grants=("delegation",))
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/apps/{app.id}/service", headers=headers
+        f"/api/v1/c/{guild.id}/apps/{app.id}/service", headers=headers
     )
 
     # The route's own gate, not the auth layer's: this token authenticated.
@@ -316,7 +316,7 @@ async def test_an_app_with_no_service_behind_it_has_no_address(
     )
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/apps/{app.id}/service",
+        f"/api/v1/c/{guild.id}/apps/{app.id}/service",
         headers=_headers(
             subject, await delegate_guild_ref(session, guild), "svc-no-service-001"
         ),
@@ -336,7 +336,7 @@ async def test_a_service_this_deployment_never_wired_up_has_no_address(
     app = await _install_target(session, guild, installer)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/apps/{app.id}/service",
+        f"/api/v1/c/{guild.id}/apps/{app.id}/service",
         headers=_headers(
             subject, await delegate_guild_ref(session, guild), "svc-unregistered-001"
         ),

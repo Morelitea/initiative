@@ -61,6 +61,6 @@ async def test_storage_usage_requires_membership(
 
     outsider = await acting_user(guild_role=GuildRole.member)  # a different guild
     response = await client.get(
-        f"/api/v1/g/{owner.guild.id}/storage/usage", headers=outsider.headers
+        f"/api/v1/c/{owner.guild.id}/storage/usage", headers=outsider.headers
     )
     assert response.status_code in (403, 404)

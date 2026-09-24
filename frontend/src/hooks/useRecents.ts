@@ -1,16 +1,16 @@
 import { type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-query";
 
-import { recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost } from "@/api/generated/calendars/calendars";
-import { recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost } from "@/api/generated/counters/counters";
-import { recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost } from "@/api/generated/dashboards/dashboards";
-import { recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
-import { recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost } from "@/api/generated/galleries/galleries";
+import { recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost } from "@/api/generated/calendars/calendars";
+import { recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost } from "@/api/generated/counters/counters";
+import { recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost } from "@/api/generated/dashboards/dashboards";
+import { recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
+import { recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost } from "@/api/generated/galleries/galleries";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
-import { recordPostViewApiV1GGuildIdPostsPostIdViewPost } from "@/api/generated/posts/posts";
-import { recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost } from "@/api/generated/projects/projects";
-import { recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost } from "@/api/generated/queues/queues";
+import { recordPostViewApiV1CGuildIdPostsPostIdViewPost } from "@/api/generated/posts/posts";
+import { recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost } from "@/api/generated/projects/projects";
+import { recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost } from "@/api/generated/queues/queues";
 import {
-  clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete,
+  clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete,
   getListRecentsApiV1RecentsGetQueryKey,
   listRecentsApiV1RecentsGet,
 } from "@/api/generated/recents/recents";
@@ -36,18 +36,18 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
   });
 };
 
-import { recordWikiViewApiV1GGuildIdWikisWikiIdViewPost } from "@/api/generated/wikis/wikis";
+import { recordWikiViewApiV1CGuildIdWikisWikiIdViewPost } from "@/api/generated/wikis/wikis";
 
 const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promise<unknown>> = {
-  project: recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost,
-  document: recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost,
-  queue: recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost,
-  counter_group: recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost,
-  calendar: recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost,
-  dashboard: recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost,
-  post: recordPostViewApiV1GGuildIdPostsPostIdViewPost,
-  gallery: recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost,
-  wiki: recordWikiViewApiV1GGuildIdWikisWikiIdViewPost,
+  project: recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost,
+  document: recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost,
+  queue: recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost,
+  counter_group: recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost,
+  calendar: recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost,
+  dashboard: recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost,
+  post: recordPostViewApiV1CGuildIdPostsPostIdViewPost,
+  gallery: recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost,
+  wiki: recordWikiViewApiV1CGuildIdWikisWikiIdViewPost,
 };
 
 /**
@@ -89,7 +89,7 @@ export const useClearRecentView = () => {
       entityId: number;
       guildId: number;
     }) => {
-      await clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete(guildId, entityType, entityId);
+      await clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete(guildId, entityType, entityId);
     },
     onSuccess: () => {
       void invalidate(q.recents());
@@ -119,7 +119,7 @@ export const useClearRecentViews = () => {
     mutationFn: async (targets: ClearRecentTarget[]) => {
       await Promise.all(
         targets.map(({ entityType, entityId, guildId }) =>
-          clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete(guildId, entityType, entityId)
+          clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete(guildId, entityType, entityId)
         )
       );
     },

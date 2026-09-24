@@ -115,14 +115,14 @@ async def test_a_deleted_account_is_gone_from_the_roster(
     await create_guild_membership(session, user=leaver, guild=guild)
 
     listed = await client.get(
-        f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+        f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
     )
     assert leaver.id in [u["id"] for u in listed.json()]
 
     await _delete_own_account(client, leaver)
 
     listed = await client.get(
-        f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+        f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
     )
     assert leaver.id not in [u["id"] for u in listed.json()]
 

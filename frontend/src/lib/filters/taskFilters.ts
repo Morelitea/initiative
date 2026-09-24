@@ -14,7 +14,7 @@ import type {
   TaskFilterSpec as ApiTaskFilterSpec,
   FilterCondition,
   FilterGroup,
-  ListTasksApiV1GGuildIdTasksGetParams,
+  ListTasksApiV1CGuildIdTasksGetParams,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { DueFilterOption } from "@/components/projects/projectTasksConfig";
@@ -246,7 +246,7 @@ export function buildTaskConditions(
 export function buildTaskListParams(
   spec: TaskFilterSpec,
   options: { projectId: number }
-): ListTasksApiV1GGuildIdTasksGetParams {
+): ListTasksApiV1CGuildIdTasksGetParams {
   return {
     conditions: buildTaskConditions(spec, options),
     page_size: 0,

@@ -22,7 +22,7 @@ import type {
 
 import type {
   HTTPValidationError,
-  ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams,
+  ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams,
   PropertyDefinitionCreate,
   PropertyDefinitionRead,
   PropertyDefinitionUpdate,
@@ -59,35 +59,35 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * views (My Tasks, Created Tasks, global Documents list).
  * @summary List Property Definitions
  */
-export const listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet = (
+export const listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet = (
   guildId: number,
-  params?: ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams,
+  params?: ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PropertyDefinitionRead[]>(
-    { url: `/api/v1/g/${guildId}/property-definitions/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/property-definitions/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryKey = (
+export const getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryKey = (
   guildId: number,
-  params?: ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams
+  params?: ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/property-definitions/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/property-definitions/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+export const getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams,
+  params?: ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
         TError,
         TData
       >
@@ -99,12 +99,12 @@ export const getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryO
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryKey(guildId, params);
+    getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>
+    Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>
   > = ({ signal }) =>
-    listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet(
+    listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet(
       guildId,
       params,
       requestOptions,
@@ -117,37 +117,37 @@ export const getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryO
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+    Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>
+export type ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>
 >;
-export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryError =
+export type ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
-  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+export function useListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet<
+  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams,
+  params: undefined | ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+          Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>
+          Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>
         >,
         "initialData"
       >;
@@ -155,25 +155,25 @@ export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
-  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+export function useListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet<
+  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams,
+  params?: ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+          Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>
+          Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>
         >,
         "initialData"
       >;
@@ -181,16 +181,16 @@ export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
-  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+export function useListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet<
+  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams,
+  params?: ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
         TError,
         TData
       >
@@ -203,16 +203,16 @@ export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
  * @summary List Property Definitions
  */
 
-export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
-  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+export function useListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet<
+  TData = Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams,
+  params?: ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet>>,
+        Awaited<ReturnType<typeof listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet>>,
         TError,
         TData
       >
@@ -221,7 +221,7 @@ export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryOptions(
+  const queryOptions = getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryOptions(
     guildId,
     params,
     options
@@ -244,7 +244,7 @@ export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
  * schema-per-guild.
  * @summary Create Property Definition
  */
-export const createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost = (
+export const createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost = (
   guildId: number,
   propertyDefinitionCreate: BodyType<PropertyDefinitionCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -252,7 +252,7 @@ export const createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost = (
 ) => {
   return apiMutator<PropertyDefinitionRead>(
     {
-      url: `/api/v1/g/${guildId}/property-definitions/`,
+      url: `/api/v1/c/${guildId}/property-definitions/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: propertyDefinitionCreate,
@@ -262,27 +262,27 @@ export const createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost = (
   );
 };
 
-export const getCreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationKey = () =>
-  ["createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost"] as const;
+export const getCreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationKey = () =>
+  ["createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost"] as const;
 
-export const getCreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationOptions = <
+export const getCreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost>>,
+    Awaited<ReturnType<typeof createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost>>,
     TError,
-    CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationVariables,
+    CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost>>,
+  Awaited<ReturnType<typeof createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost>>,
   TError,
-  CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationVariables,
+  CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationKey();
+  const mutationKey = getCreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -290,12 +290,12 @@ export const getCreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMuta
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost>>,
-    CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationVariables
+    Awaited<ReturnType<typeof createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost>>,
+    CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost(
+    return createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost(
       guildId,
       data,
       requestOptions
@@ -305,15 +305,15 @@ export const getCreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMuta
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationResult =
+export type CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost>>
+    Awaited<ReturnType<typeof createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost>>
   >;
-export type CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationBody =
+export type CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationBody =
   BodyType<PropertyDefinitionCreate>;
-export type CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationError =
+export type CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationVariables = {
+export type CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationVariables = {
   guildId: number;
   data: BodyType<PropertyDefinitionCreate>;
 };
@@ -321,28 +321,28 @@ export type CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutation
 /**
  * @summary Create Property Definition
  */
-export const useCreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost = <
+export const useCreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost>>,
+      Awaited<ReturnType<typeof createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost>>,
       TError,
-      CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationVariables,
+      CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost>>,
+  Awaited<ReturnType<typeof createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost>>,
   TError,
-  CreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationVariables,
+  CreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPostMutationOptions(options),
+    getCreatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsPostMutationOptions(options),
     queryClient
   );
 };
@@ -350,28 +350,28 @@ export const useCreatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost = <
  * Fetch a single property definition.
  * @summary Get Property Definition
  */
-export const getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet = (
+export const getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet = (
   guildId: number,
   definitionId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PropertyDefinitionRead>(
-    { url: `/api/v1/g/${guildId}/property-definitions/${definitionId}`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/property-definitions/${definitionId}`, method: "GET", signal },
     options
   );
 };
 
-export const getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryKey = (
+export const getGetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGetQueryKey = (
   guildId: number,
   definitionId: number
 ) => {
-  return [`/api/v1/g/${guildId}/property-definitions/${definitionId}`] as const;
+  return [`/api/v1/c/${guildId}/property-definitions/${definitionId}`] as const;
 };
 
-export const getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryOptions = <
+export const getGetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+    ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -381,7 +381,7 @@ export const getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionI
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+          ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
         >,
         TError,
         TData
@@ -394,15 +394,15 @@ export const getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionI
 
   const queryKey =
     queryOptions?.queryKey ??
-    getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryKey(
+    getGetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGetQueryKey(
       guildId,
       definitionId
     );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>>
+    Awaited<ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>>
   > = ({ signal }) =>
-    getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet(
+    getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet(
       guildId,
       definitionId,
       requestOptions,
@@ -420,23 +420,23 @@ export const getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionI
     ...queryOptions,
   } as UseQueryOptions<
     Awaited<
-      ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+      ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
     >,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryResult =
+export type GetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>>
+    Awaited<ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>>
   >;
-export type GetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryError =
+export type GetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet<
+export function useGetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet<
   TData = Awaited<
-    ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+    ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -446,7 +446,7 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+          ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
         >,
         TError,
         TData
@@ -455,11 +455,11 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+            ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+            ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
           >
         >,
         "initialData"
@@ -468,9 +468,9 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet<
+export function useGetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet<
   TData = Awaited<
-    ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+    ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -480,7 +480,7 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+          ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
         >,
         TError,
         TData
@@ -489,11 +489,11 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+            ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+            ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
           >
         >,
         "initialData"
@@ -502,9 +502,9 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet<
+export function useGetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet<
   TData = Awaited<
-    ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+    ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -514,7 +514,7 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+          ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
         >,
         TError,
         TData
@@ -528,9 +528,9 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
  * @summary Get Property Definition
  */
 
-export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet<
+export function useGetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet<
   TData = Awaited<
-    ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+    ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -540,7 +540,7 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet>
+          ReturnType<typeof getPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGet>
         >,
         TError,
         TData
@@ -551,7 +551,7 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryOptions(
+    getGetPropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdGetQueryOptions(
       guildId,
       definitionId,
       options
@@ -573,7 +573,7 @@ export function useGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
  * the SPA can warn about dangling values.
  * @summary Update Property Definition
  */
-export const updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch = (
+export const updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch = (
   guildId: number,
   definitionId: number,
   propertyDefinitionUpdate: BodyType<PropertyDefinitionUpdate>,
@@ -582,7 +582,7 @@ export const updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionI
 ) => {
   return apiMutator<PropertyDefinitionUpdateResponse>(
     {
-      url: `/api/v1/g/${guildId}/property-definitions/${definitionId}`,
+      url: `/api/v1/c/${guildId}/property-definitions/${definitionId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: propertyDefinitionUpdate,
@@ -592,30 +592,30 @@ export const updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionI
   );
 };
 
-export const getUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationKey =
-  () => ["updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch"] as const;
+export const getUpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationKey =
+  () => ["updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch"] as const;
 
-export const getUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationOptions =
+export const getUpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch>
+        ReturnType<typeof updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch>
       >,
       TError,
-      UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables,
+      UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch>
+      ReturnType<typeof updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch>
     >,
     TError,
-    UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables,
+    UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationKey();
+      getUpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -624,13 +624,13 @@ export const getUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch>
+        ReturnType<typeof updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch>
       >,
-      UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables
+      UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables
     > = (props) => {
       const { guildId, definitionId, data } = props ?? {};
 
-      return updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch(
+      return updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
         guildId,
         definitionId,
         data,
@@ -641,33 +641,33 @@ export const getUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
     return { mutationFn, ...mutationOptions };
   };
 
-export type UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationResult =
+export type UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch>
+      ReturnType<typeof updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch>
     >
   >;
-export type UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationBody =
+export type UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationBody =
   BodyType<PropertyDefinitionUpdate>;
-export type UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationError =
+export type UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables =
+export type UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables =
   { guildId: number; definitionId: number; data: BodyType<PropertyDefinitionUpdate> };
 
 /**
  * @summary Update Property Definition
  */
-export const useUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch = <
+export const useUpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch>
+        ReturnType<typeof updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch>
       >,
       TError,
-      UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables,
+      UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -675,14 +675,14 @@ export const useUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch>
+    ReturnType<typeof updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch>
   >,
   TError,
-  UpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables,
+  UpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatchMutationOptions(
+    getUpdatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatchMutationOptions(
       options
     ),
     queryClient
@@ -692,44 +692,44 @@ export const useUpdatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
  * Delete a property definition. Cascades to remove all attached values.
  * @summary Delete Property Definition
  */
-export const deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete = (
+export const deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete = (
   guildId: number,
   definitionId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/property-definitions/${definitionId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/property-definitions/${definitionId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationKey =
-  () => ["deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete"] as const;
+export const getDeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationKey =
+  () => ["deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete"] as const;
 
-export const getDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationOptions =
+export const getDeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete
+          typeof deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete
         >
       >,
       TError,
-      DeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables,
+      DeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete>
+      ReturnType<typeof deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete>
     >,
     TError,
-    DeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables,
+    DeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationKey();
+      getDeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -739,14 +739,14 @@ export const getDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete
+          typeof deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete
         >
       >,
-      DeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables
+      DeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables
     > = (props) => {
       const { guildId, definitionId } = props ?? {};
 
-      return deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete(
+      return deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete(
         guildId,
         definitionId,
         requestOptions
@@ -756,22 +756,22 @@ export const getDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationResult =
+export type DeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete>
+      ReturnType<typeof deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete>
     >
   >;
 
-export type DeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationError =
+export type DeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables =
+export type DeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables =
   { guildId: number; definitionId: number };
 
 /**
  * @summary Delete Property Definition
  */
-export const useDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete = <
+export const useDeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -779,11 +779,11 @@ export const useDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete
+          typeof deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete
         >
       >,
       TError,
-      DeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables,
+      DeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -791,14 +791,14 @@ export const useDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete>
+    ReturnType<typeof deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete>
   >,
   TError,
-  DeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables,
+  DeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDeleteMutationOptions(
+    getDeletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDeleteMutationOptions(
       options
     ),
     queryClient
@@ -810,7 +810,7 @@ export const useDeletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefiniti
  * Results are constrained by the user's project / document visibility.
  * @summary Get Property Entities
  */
-export const getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet = (
+export const getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet = (
   guildId: number,
   definitionId: number,
   options?: SecondParameter<typeof apiMutator>,
@@ -818,7 +818,7 @@ export const getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEnti
 ) => {
   return apiMutator<PropertyEntitiesResult>(
     {
-      url: `/api/v1/g/${guildId}/property-definitions/${definitionId}/entities`,
+      url: `/api/v1/c/${guildId}/property-definitions/${definitionId}/entities`,
       method: "GET",
       signal,
     },
@@ -826,15 +826,15 @@ export const getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEnti
   );
 };
 
-export const getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryKey =
+export const getGetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryKey =
   (guildId: number, definitionId: number) => {
-    return [`/api/v1/g/${guildId}/property-definitions/${definitionId}/entities`] as const;
+    return [`/api/v1/c/${guildId}/property-definitions/${definitionId}/entities`] as const;
   };
 
-export const getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryOptions =
+export const getGetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
+      ReturnType<typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
     >,
     TError = ErrorType<HTTPValidationError>,
   >(
@@ -845,7 +845,7 @@ export const getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdE
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+              typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
             >
           >,
           TError,
@@ -859,7 +859,7 @@ export const getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdE
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryKey(
+      getGetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryKey(
         guildId,
         definitionId
       );
@@ -867,11 +867,11 @@ export const getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdE
     const queryFn: QueryFunction<
       Awaited<
         ReturnType<
-          typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+          typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
         >
       >
     > = ({ signal }) =>
-      getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet(
+      getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet(
         guildId,
         definitionId,
         requestOptions,
@@ -890,7 +890,7 @@ export const getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdE
     } as UseQueryOptions<
       Awaited<
         ReturnType<
-          typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+          typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
         >
       >,
       TError,
@@ -898,18 +898,18 @@ export const getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdE
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryResult =
+export type GetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
+      ReturnType<typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
     >
   >;
-export type GetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryError =
+export type GetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet<
+export function useGetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet<
   TData = Awaited<
-    ReturnType<typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
+    ReturnType<typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -920,7 +920,7 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+            typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
           >
         >,
         TError,
@@ -931,13 +931,13 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+              typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+              typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
             >
           >
         >,
@@ -947,9 +947,9 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet<
+export function useGetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet<
   TData = Awaited<
-    ReturnType<typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
+    ReturnType<typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -960,7 +960,7 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+            typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
           >
         >,
         TError,
@@ -971,13 +971,13 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+              typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+              typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
             >
           >
         >,
@@ -987,9 +987,9 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet<
+export function useGetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet<
   TData = Awaited<
-    ReturnType<typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
+    ReturnType<typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1000,7 +1000,7 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+            typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
           >
         >,
         TError,
@@ -1015,9 +1015,9 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
  * @summary Get Property Entities
  */
 
-export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet<
+export function useGetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet<
   TData = Awaited<
-    ReturnType<typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
+    ReturnType<typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1028,7 +1028,7 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
+            typeof getPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGet
           >
         >,
         TError,
@@ -1040,7 +1040,7 @@ export function useGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinition
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryOptions(
+    getGetPropertyEntitiesApiV1CGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryOptions(
       guildId,
       definitionId,
       options

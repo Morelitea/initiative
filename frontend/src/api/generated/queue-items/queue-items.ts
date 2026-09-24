@@ -20,7 +20,7 @@ import type {
 import type {
   HTTPValidationError,
   QueueItemRead,
-  ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams,
+  ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -50,38 +50,38 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * own id is the whole address, so there is no parent to mismatch.
  * @summary Read Queue Item
  */
-export const readQueueItemApiV1GGuildIdQueueItemsItemIdGet = (
+export const readQueueItemApiV1CGuildIdQueueItemsItemIdGet = (
   guildId: number,
   itemId: number,
-  params?: ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams,
+  params?: ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueItemRead>(
-    { url: `/api/v1/g/${guildId}/queue-items/${itemId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/queue-items/${itemId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadQueueItemApiV1GGuildIdQueueItemsItemIdGetQueryKey = (
+export const getReadQueueItemApiV1CGuildIdQueueItemsItemIdGetQueryKey = (
   guildId: number,
   itemId: number,
-  params?: ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams
+  params?: ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/queue-items/${itemId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/queue-items/${itemId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadQueueItemApiV1GGuildIdQueueItemsItemIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+export const getReadQueueItemApiV1CGuildIdQueueItemsItemIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   itemId: number,
-  params?: ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams,
+  params?: ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+        Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
         TError,
         TData
       >
@@ -93,12 +93,12 @@ export const getReadQueueItemApiV1GGuildIdQueueItemsItemIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadQueueItemApiV1GGuildIdQueueItemsItemIdGetQueryKey(guildId, itemId, params);
+    getReadQueueItemApiV1CGuildIdQueueItemsItemIdGetQueryKey(guildId, itemId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>
+    Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>
   > = ({ signal }) =>
-    readQueueItemApiV1GGuildIdQueueItemsItemIdGet(guildId, itemId, params, requestOptions, signal);
+    readQueueItemApiV1CGuildIdQueueItemsItemIdGet(guildId, itemId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -106,38 +106,38 @@ export const getReadQueueItemApiV1GGuildIdQueueItemsItemIdGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined && itemId !== null && itemId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+    Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>
+export type ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>
 >;
-export type ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetQueryError =
+export type ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadQueueItemApiV1GGuildIdQueueItemsItemIdGet<
-  TData = Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+export function useReadQueueItemApiV1CGuildIdQueueItemsItemIdGet<
+  TData = Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   itemId: number,
-  params: undefined | ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams,
+  params: undefined | ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+        Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+          Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>
+          Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>
         >,
         "initialData"
       >;
@@ -145,26 +145,26 @@ export function useReadQueueItemApiV1GGuildIdQueueItemsItemIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadQueueItemApiV1GGuildIdQueueItemsItemIdGet<
-  TData = Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+export function useReadQueueItemApiV1CGuildIdQueueItemsItemIdGet<
+  TData = Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   itemId: number,
-  params?: ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams,
+  params?: ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+        Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+          Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>
+          Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>
         >,
         "initialData"
       >;
@@ -172,17 +172,17 @@ export function useReadQueueItemApiV1GGuildIdQueueItemsItemIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadQueueItemApiV1GGuildIdQueueItemsItemIdGet<
-  TData = Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+export function useReadQueueItemApiV1CGuildIdQueueItemsItemIdGet<
+  TData = Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   itemId: number,
-  params?: ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams,
+  params?: ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+        Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
         TError,
         TData
       >
@@ -195,17 +195,17 @@ export function useReadQueueItemApiV1GGuildIdQueueItemsItemIdGet<
  * @summary Read Queue Item
  */
 
-export function useReadQueueItemApiV1GGuildIdQueueItemsItemIdGet<
-  TData = Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+export function useReadQueueItemApiV1CGuildIdQueueItemsItemIdGet<
+  TData = Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   itemId: number,
-  params?: ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams,
+  params?: ReadQueueItemApiV1CGuildIdQueueItemsItemIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readQueueItemApiV1GGuildIdQueueItemsItemIdGet>>,
+        Awaited<ReturnType<typeof readQueueItemApiV1CGuildIdQueueItemsItemIdGet>>,
         TError,
         TData
       >
@@ -214,7 +214,7 @@ export function useReadQueueItemApiV1GGuildIdQueueItemsItemIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadQueueItemApiV1GGuildIdQueueItemsItemIdGetQueryOptions(
+  const queryOptions = getReadQueueItemApiV1CGuildIdQueueItemsItemIdGetQueryOptions(
     guildId,
     itemId,
     params,

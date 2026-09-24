@@ -391,12 +391,12 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
     key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
 
     # Reaches its own guild.
-    own = await client.get(f"/api/v1/g/{guild_a.id}/initiatives/", headers=key_headers)
+    own = await client.get(f"/api/v1/c/{guild_a.id}/initiatives/", headers=key_headers)
     assert own.status_code == 200
 
     # Refused on a different guild the user *is* a member of.
     other = await client.get(
-        f"/api/v1/g/{guild_b.id}/initiatives/", headers=key_headers
+        f"/api/v1/c/{guild_b.id}/initiatives/", headers=key_headers
     )
     assert other.status_code == 403
     assert other.json()["detail"] == "GUILD_ACCESS_DENIED"
@@ -404,7 +404,7 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
     # The same user's session JWT reaches guild B — so the block was the key
     # pin, not a membership problem.
     jwt_other = await client.get(
-        f"/api/v1/g/{guild_b.id}/initiatives/", headers=headers
+        f"/api/v1/c/{guild_b.id}/initiatives/", headers=headers
     )
     assert jwt_other.status_code == 200
 

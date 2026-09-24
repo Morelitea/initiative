@@ -221,7 +221,7 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 
 | Metric | What it tells you |
 |---|---|
-| `initiative_http_requests_total` | Requests answered, by `method`, `route` and `status`. `route` is the pattern (`/api/v1/g/{guild_id}/initiatives/`), so every community shares one line. |
+| `initiative_http_requests_total` | Requests answered, by `method`, `route` and `status`. `route` is the pattern (`/api/v1/c/{guild_id}/initiatives/`), so every community shares one line. |
 | `initiative_http_request_duration_seconds` | How long those took, as a histogram. |
 | `initiative_http_requests_in_progress` | Requests being answered right now. |
 | `initiative_websocket_connections` | Live connections: notifications, live editing, queues and counters. One open tab holds several. |

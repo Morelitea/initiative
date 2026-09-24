@@ -20,7 +20,7 @@ import type {
 import type {
   CalendarEntriesResponse,
   HTTPValidationError,
-  ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
 } from "../initiativeAPI.schemas";
 
@@ -57,35 +57,35 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * at once, and a list of ids it had to assemble first would be a page of them.
  * @summary List Calendar Entries
  */
-export const listCalendarEntriesApiV1GGuildIdCalendarEntriesGet = (
+export const listCalendarEntriesApiV1CGuildIdCalendarEntriesGet = (
   guildId: number,
-  params?: ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CalendarEntriesResponse>(
-    { url: `/api/v1/g/${guildId}/calendar-entries/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/calendar-entries/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryKey = (
+export const getListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryKey = (
   guildId: number,
-  params?: ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams
+  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/calendar-entries/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/calendar-entries/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+export const getListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+        Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
         TError,
         TData
       >
@@ -97,12 +97,12 @@ export const getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryOptions =
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryKey(guildId, params);
+    getListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>
+    Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>
   > = ({ signal }) =>
-    listCalendarEntriesApiV1GGuildIdCalendarEntriesGet(guildId, params, requestOptions, signal);
+    listCalendarEntriesApiV1CGuildIdCalendarEntriesGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -110,37 +110,37 @@ export const getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryOptions =
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+    Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>
+export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>
 >;
-export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryError =
+export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
-  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
+  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  params: undefined | ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+        Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+          Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
           TError,
-          Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>
+          Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>
         >,
         "initialData"
       >;
@@ -148,25 +148,25 @@ export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
-  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
+  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+        Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+          Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
           TError,
-          Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>
+          Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>
         >,
         "initialData"
       >;
@@ -174,16 +174,16 @@ export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
-  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
+  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+        Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
         TError,
         TData
       >
@@ -196,16 +196,16 @@ export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
  * @summary List Calendar Entries
  */
 
-export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
-  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
+  TData = Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCalendarEntriesApiV1GGuildIdCalendarEntriesGet>>,
+        Awaited<ReturnType<typeof listCalendarEntriesApiV1CGuildIdCalendarEntriesGet>>,
         TError,
         TData
       >
@@ -214,7 +214,7 @@ export function useListCalendarEntriesApiV1GGuildIdCalendarEntriesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryOptions(
+  const queryOptions = getListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryOptions(
     guildId,
     params,
     options

@@ -26,7 +26,7 @@ import type {
   CaptchaSettingsUpdate,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
-  CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams,
+  CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   EmailTestRequest,
@@ -3036,27 +3036,27 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
  * (``_member_tallies``), one grouped query each rather than per guild.
  * @summary List Platform Guild Storage
  */
-export const listPlatformGuildStorageApiV1SettingsGuildsGet = (
+export const listPlatformGuildStorageApiV1SettingsCommunitiesGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PlatformGuildStorageRead[]>(
-    { url: `/api/v1/settings/guilds`, method: "GET", signal },
+    { url: `/api/v1/settings/communities`, method: "GET", signal },
     options
   );
 };
 
-export const getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey = () => {
-  return [`/api/v1/settings/guilds`] as const;
+export const getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey = () => {
+  return [`/api/v1/settings/communities`] as const;
 };
 
-export const getListPlatformGuildStorageApiV1SettingsGuildsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+export const getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
     UseQueryOptions<
-      Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+      Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
       TError,
       TData
     >
@@ -3066,42 +3066,42 @@ export const getListPlatformGuildStorageApiV1SettingsGuildsGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey();
+    queryOptions?.queryKey ?? getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>
-  > = ({ signal }) => listPlatformGuildStorageApiV1SettingsGuildsGet(requestOptions, signal);
+    Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
+  > = ({ signal }) => listPlatformGuildStorageApiV1SettingsCommunitiesGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+    Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListPlatformGuildStorageApiV1SettingsGuildsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>
+export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
 >;
-export type ListPlatformGuildStorageApiV1SettingsGuildsGetQueryError =
+export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
           TError,
-          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>
+          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
         >,
         "initialData"
       >;
@@ -3109,23 +3109,23 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
           TError,
-          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>
+          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
         >,
         "initialData"
       >;
@@ -3133,14 +3133,14 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
         TError,
         TData
       >
@@ -3153,14 +3153,14 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
  * @summary List Platform Guild Storage
  */
 
-export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
-  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
         TError,
         TData
       >
@@ -3169,7 +3169,7 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListPlatformGuildStorageApiV1SettingsGuildsGetQueryOptions(options);
+  const queryOptions = getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -3198,7 +3198,7 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
  * same rule.
  * @summary Update Platform Guild Storage
  */
-export const updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = (
+export const updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch = (
   guildId: number,
   platformGuildStorageUpdate: BodyType<PlatformGuildStorageUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -3206,7 +3206,7 @@ export const updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = (
 ) => {
   return apiMutator<PlatformGuildStorageRead>(
     {
-      url: `/api/v1/settings/guilds/${guildId}`,
+      url: `/api/v1/settings/communities/${guildId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: platformGuildStorageUpdate,
@@ -3216,27 +3216,28 @@ export const updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = (
   );
 };
 
-export const getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationKey = () =>
-  ["updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch"] as const;
+export const getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationKey = () =>
+  ["updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch"] as const;
 
-export const getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationOptions = <
+export const getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
     TError,
-    UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationVariables,
+    UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
   TError,
-  UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationVariables,
+  UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationKey();
+  const mutationKey =
+    getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -3244,25 +3245,30 @@ export const getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
-    UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationVariables
+    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
+    UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch(guildId, data, requestOptions);
+    return updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch(
+      guildId,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>
->;
-export type UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationBody =
+export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>
+  >;
+export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationBody =
   BodyType<PlatformGuildStorageUpdate>;
-export type UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationError =
+export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationVariables = {
+export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables = {
   guildId: number;
   data: BodyType<PlatformGuildStorageUpdate>;
 };
@@ -3270,28 +3276,28 @@ export type UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationVar
 /**
  * @summary Update Platform Guild Storage
  */
-export const useUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = <
+export const useUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+      Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
       TError,
-      UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationVariables,
+      UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>,
   TError,
-  UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationVariables,
+  UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationOptions(options),
+    getUpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationOptions(options),
     queryClient
   );
 };
@@ -3306,32 +3312,34 @@ export const useUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = <
  * no intake, and the place to withdraw an answer either way.
  * @summary Read Guild Narrowings
  */
-export const readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet = (
+export const readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GuildNarrowingPending[]>(
-    { url: `/api/v1/settings/guilds/${guildId}/narrowings`, method: "GET", signal },
+    { url: `/api/v1/settings/communities/${guildId}/narrowings`, method: "GET", signal },
     options
   );
 };
 
-export const getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey = (
+export const getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/settings/guilds/${guildId}/narrowings`] as const;
+  return [`/api/v1/settings/communities/${guildId}/narrowings`] as const;
 };
 
-export const getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+export const getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
         TError,
         TData
       >
@@ -3343,12 +3351,16 @@ export const getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryO
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey(guildId);
+    getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>
+    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>
   > = ({ signal }) =>
-    readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet(guildId, requestOptions, signal);
+    readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet(
+      guildId,
+      requestOptions,
+      signal
+    );
 
   return {
     queryKey,
@@ -3356,36 +3368,43 @@ export const getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryO
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>
->;
-export type ReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryError =
+export type ReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>
+  >;
+export type ReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
-  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet<
+  TData = Awaited<
+    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+          Awaited<
+            ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>
+          Awaited<
+            ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+          >
         >,
         "initialData"
       >;
@@ -3393,24 +3412,30 @@ export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
-  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet<
+  TData = Awaited<
+    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+          Awaited<
+            ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>
+          Awaited<
+            ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+          >
         >,
         "initialData"
       >;
@@ -3418,15 +3443,17 @@ export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
-  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet<
+  TData = Awaited<
+    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
         TError,
         TData
       >
@@ -3439,15 +3466,17 @@ export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
  * @summary Read Guild Narrowings
  */
 
-export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
-  TData = Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet<
+  TData = Awaited<
+    ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet>>,
+        Awaited<ReturnType<typeof readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet>>,
         TError,
         TData
       >
@@ -3456,10 +3485,11 @@ export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryOptions(
-    guildId,
-    options
-  );
+  const queryOptions =
+    getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryOptions(
+      guildId,
+      options
+    );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -3476,7 +3506,7 @@ export function useReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet<
  * as they are; what stops is joining people on arrival.
  * @summary Agree Guild Narrowing
  */
-export const agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut = (
+export const agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut = (
   guildId: number,
   connectionId: number,
   guildNarrowingAgreement: BodyType<GuildNarrowingAgreement>,
@@ -3485,7 +3515,7 @@ export const agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionId
 ) => {
   return apiMutator<GuildNarrowingPending>(
     {
-      url: `/api/v1/settings/guilds/${guildId}/narrowings/${connectionId}`,
+      url: `/api/v1/settings/communities/${guildId}/narrowings/${connectionId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: guildNarrowingAgreement,
@@ -3495,30 +3525,32 @@ export const agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionId
   );
 };
 
-export const getAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationKey =
-  () => ["agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut"] as const;
+export const getAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationKey =
+  () => ["agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut"] as const;
 
-export const getAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationOptions =
+export const getAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+        ReturnType<
+          typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut
+        >
       >,
       TError,
-      AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationVariables,
+      AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+      ReturnType<typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut>
     >,
     TError,
-    AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationVariables,
+    AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationKey();
+      getAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -3527,13 +3559,15 @@ export const getAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectio
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+        ReturnType<
+          typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut
+        >
       >,
-      AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationVariables
+      AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables
     > = (props) => {
       const { guildId, connectionId, data } = props ?? {};
 
-      return agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut(
+      return agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut(
         guildId,
         connectionId,
         data,
@@ -3544,33 +3578,35 @@ export const getAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectio
     return { mutationFn, ...mutationOptions };
   };
 
-export type AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationResult =
+export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+      ReturnType<typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut>
     >
   >;
-export type AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationBody =
+export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationBody =
   BodyType<GuildNarrowingAgreement>;
-export type AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationError =
+export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationError =
   ErrorType<HTTPValidationError>;
-export type AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationVariables =
+export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables =
   { guildId: number; connectionId: number; data: BodyType<GuildNarrowingAgreement> };
 
 /**
  * @summary Agree Guild Narrowing
  */
-export const useAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut = <
+export const useAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+        ReturnType<
+          typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut
+        >
       >,
       TError,
-      AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationVariables,
+      AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3578,14 +3614,14 @@ export const useAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectio
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut>
+    ReturnType<typeof agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut>
   >,
   TError,
-  AgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationVariables,
+  AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPutMutationOptions(
+    getAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationOptions(
       options
     ),
     queryClient
@@ -3611,7 +3647,7 @@ export const useAgreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectio
  * ``guild_memberships``), so no guild-schema routing is needed.
  * @summary Restore Platform Guild
  */
-export const restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = (
+export const restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost = (
   guildId: number,
   platformGuildRestore: BodyType<PlatformGuildRestore>,
   options?: SecondParameter<typeof apiMutator>,
@@ -3619,7 +3655,7 @@ export const restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = (
 ) => {
   return apiMutator<PlatformGuildStorageRead>(
     {
-      url: `/api/v1/settings/guilds/${guildId}/restore`,
+      url: `/api/v1/settings/communities/${guildId}/restore`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: platformGuildRestore,
@@ -3629,27 +3665,28 @@ export const restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = (
   );
 };
 
-export const getRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationKey = () =>
-  ["restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost"] as const;
+export const getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationKey = () =>
+  ["restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost"] as const;
 
-export const getRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationOptions = <
+export const getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
     TError,
-    RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationVariables,
+    RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
   TError,
-  RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationVariables,
+  RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationKey();
+  const mutationKey =
+    getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -3657,25 +3694,30 @@ export const getRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
-    RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationVariables
+    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
+    RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost(guildId, data, requestOptions);
+    return restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost(
+      guildId,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>
->;
-export type RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationBody =
+export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>
+  >;
+export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationBody =
   BodyType<PlatformGuildRestore>;
-export type RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationError =
+export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationError =
   ErrorType<HTTPValidationError>;
-export type RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationVariables = {
+export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables = {
   guildId: number;
   data: BodyType<PlatformGuildRestore>;
 };
@@ -3683,28 +3725,28 @@ export type RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationVar
 /**
  * @summary Restore Platform Guild
  */
-export const useRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = <
+export const useRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+      Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
       TError,
-      RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationVariables,
+      RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost>>,
+  Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>,
   TError,
-  RestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationVariables,
+  RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePostMutationOptions(options),
+    getRestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationOptions(options),
     queryClient
   );
 };
@@ -3720,17 +3762,17 @@ export const useRestorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost = <
  * decide.
  * @summary Create Platform Guild Billing Service Handoff
  */
-export const createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost =
+export const createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost =
   (
     guildId: number,
     secondFactorAnswerNull?: BodyType<SecondFactorAnswer | null> | null,
-    params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams,
+    params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams,
     options?: SecondParameter<typeof apiMutator>,
     signal?: AbortSignal
   ) => {
     return apiMutator<BillingPortalHandoffResponse>(
       {
-        url: `/api/v1/settings/guilds/${guildId}/billing/service-handoff`,
+        url: `/api/v1/settings/communities/${guildId}/billing/service-handoff`,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         data: secondFactorAnswerNull,
@@ -3741,37 +3783,37 @@ export const createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdB
     );
   };
 
-export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationKey =
+export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationKey =
   () =>
     [
-      "createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost",
+      "createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost",
     ] as const;
 
-export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationOptions =
+export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost
+          typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
         >
       >,
       TError,
-      CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationVariables,
+      CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost
+        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
       >
     >,
     TError,
-    CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationVariables,
+    CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationKey();
+      getCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -3781,14 +3823,14 @@ export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost
+          typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
         >
       >,
-      CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationVariables
+      CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables
     > = (props) => {
       const { guildId, data, params } = props ?? {};
 
-      return createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost(
+      return createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost(
         guildId,
         data,
         params,
@@ -3799,40 +3841,40 @@ export const getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
     return { mutationFn, ...mutationOptions };
   };
 
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationResult =
+export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost
+        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
       >
     >
   >;
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationBody =
+export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationBody =
   | BodyType<SecondFactorAnswer | null>
   | undefined;
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationError =
+export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationVariables =
+export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables =
   {
     guildId: number;
     data?: BodyType<SecondFactorAnswer | null>;
-    params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostParams;
+    params?: CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams;
   };
 
 /**
  * @summary Create Platform Guild Billing Service Handoff
  */
-export const useCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost =
+export const useCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
     options?: {
       mutation?: UseMutationOptions<
         Awaited<
           ReturnType<
-            typeof createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost
+            typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
           >
         >,
         TError,
-        CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationVariables,
+        CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables,
         TContext
       >;
       request?: SecondParameter<typeof apiMutator>;
@@ -3841,15 +3883,15 @@ export const useCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuild
   ): UseMutationResult<
     Awaited<
       ReturnType<
-        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost
+        typeof createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost
       >
     >,
     TError,
-    CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationVariables,
+    CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationVariables,
     TContext
   > => {
     return useMutation(
-      getCreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPostMutationOptions(
+      getCreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostMutationOptions(
         options
       ),
       queryClient

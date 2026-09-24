@@ -616,7 +616,7 @@ async def test_my_calendar_events_leaves_out_what_was_never_shared(
     # Named directly, the initiative answers in full — this moved navigation,
     # not authority.
     within = await client.get(
-        f"/api/v1/g/{admin.guild.id}/calendar-events/?initiative_id={initiative.id}",
+        f"/api/v1/c/{admin.guild.id}/calendar-events/?initiative_id={initiative.id}",
         headers=get_auth_headers(admin.user),
     )
     assert within.status_code == 200, within.text

@@ -8,7 +8,7 @@ import type {
   CalendarSummary,
   FilterCondition,
   FilterGroup,
-  ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -324,7 +324,7 @@ export const CalendarsView = ({
   }, [calendars]);
 
   // --- One request: events + task markers over the visible window. ---
-  const entriesParams = useMemo((): ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams => {
+  const entriesParams = useMemo((): ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams => {
     // A guild surface: guild-level events, and nothing task- or
     // initiative-shaped at all. The app asks by scope rather than by naming its
     // calendars — the calendars below arrive one page at a time, and an event

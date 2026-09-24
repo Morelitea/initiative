@@ -22,10 +22,10 @@ import type {
 
 import type {
   HTTPValidationError,
-  ListRelationshipsApiV1GGuildIdRelationshipsGetParams,
+  ListRelationshipsApiV1CGuildIdRelationshipsGetParams,
   RelationshipCreate,
   RelationshipRead,
-  ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutParams,
+  ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -55,35 +55,35 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * rather than the things it names.
  * @summary List Relationships
  */
-export const listRelationshipsApiV1GGuildIdRelationshipsGet = (
+export const listRelationshipsApiV1CGuildIdRelationshipsGet = (
   guildId: number,
-  params: ListRelationshipsApiV1GGuildIdRelationshipsGetParams,
+  params: ListRelationshipsApiV1CGuildIdRelationshipsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RelationshipRead[]>(
-    { url: `/api/v1/g/${guildId}/relationships/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/relationships/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListRelationshipsApiV1GGuildIdRelationshipsGetQueryKey = (
+export const getListRelationshipsApiV1CGuildIdRelationshipsGetQueryKey = (
   guildId: number,
-  params?: ListRelationshipsApiV1GGuildIdRelationshipsGetParams
+  params?: ListRelationshipsApiV1CGuildIdRelationshipsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/relationships/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/relationships/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListRelationshipsApiV1GGuildIdRelationshipsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+export const getListRelationshipsApiV1CGuildIdRelationshipsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ListRelationshipsApiV1GGuildIdRelationshipsGetParams,
+  params: ListRelationshipsApiV1CGuildIdRelationshipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+        Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
         TError,
         TData
       >
@@ -95,12 +95,12 @@ export const getListRelationshipsApiV1GGuildIdRelationshipsGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListRelationshipsApiV1GGuildIdRelationshipsGetQueryKey(guildId, params);
+    getListRelationshipsApiV1CGuildIdRelationshipsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>
+    Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>
   > = ({ signal }) =>
-    listRelationshipsApiV1GGuildIdRelationshipsGet(guildId, params, requestOptions, signal);
+    listRelationshipsApiV1CGuildIdRelationshipsGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -108,37 +108,37 @@ export const getListRelationshipsApiV1GGuildIdRelationshipsGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+    Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListRelationshipsApiV1GGuildIdRelationshipsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>
+export type ListRelationshipsApiV1CGuildIdRelationshipsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>
 >;
-export type ListRelationshipsApiV1GGuildIdRelationshipsGetQueryError =
+export type ListRelationshipsApiV1CGuildIdRelationshipsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
-  TData = Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+export function useListRelationshipsApiV1CGuildIdRelationshipsGet<
+  TData = Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ListRelationshipsApiV1GGuildIdRelationshipsGetParams,
+  params: ListRelationshipsApiV1CGuildIdRelationshipsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+        Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+          Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
           TError,
-          Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>
+          Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>
         >,
         "initialData"
       >;
@@ -146,25 +146,25 @@ export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
-  TData = Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+export function useListRelationshipsApiV1CGuildIdRelationshipsGet<
+  TData = Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ListRelationshipsApiV1GGuildIdRelationshipsGetParams,
+  params: ListRelationshipsApiV1CGuildIdRelationshipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+        Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+          Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
           TError,
-          Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>
+          Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>
         >,
         "initialData"
       >;
@@ -172,16 +172,16 @@ export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
-  TData = Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+export function useListRelationshipsApiV1CGuildIdRelationshipsGet<
+  TData = Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ListRelationshipsApiV1GGuildIdRelationshipsGetParams,
+  params: ListRelationshipsApiV1CGuildIdRelationshipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+        Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
         TError,
         TData
       >
@@ -194,16 +194,16 @@ export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
  * @summary List Relationships
  */
 
-export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
-  TData = Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+export function useListRelationshipsApiV1CGuildIdRelationshipsGet<
+  TData = Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ListRelationshipsApiV1GGuildIdRelationshipsGetParams,
+  params: ListRelationshipsApiV1CGuildIdRelationshipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listRelationshipsApiV1GGuildIdRelationshipsGet>>,
+        Awaited<ReturnType<typeof listRelationshipsApiV1CGuildIdRelationshipsGet>>,
         TError,
         TData
       >
@@ -212,7 +212,7 @@ export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListRelationshipsApiV1GGuildIdRelationshipsGetQueryOptions(
+  const queryOptions = getListRelationshipsApiV1CGuildIdRelationshipsGetQueryOptions(
     guildId,
     params,
     options
@@ -229,7 +229,7 @@ export function useListRelationshipsApiV1GGuildIdRelationshipsGet<
  * Record one edge. 409 if it is already there.
  * @summary Create Relationship
  */
-export const createRelationshipApiV1GGuildIdRelationshipsPost = (
+export const createRelationshipApiV1CGuildIdRelationshipsPost = (
   guildId: number,
   relationshipCreate: BodyType<RelationshipCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -237,7 +237,7 @@ export const createRelationshipApiV1GGuildIdRelationshipsPost = (
 ) => {
   return apiMutator<RelationshipRead>(
     {
-      url: `/api/v1/g/${guildId}/relationships/`,
+      url: `/api/v1/c/${guildId}/relationships/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: relationshipCreate,
@@ -247,27 +247,27 @@ export const createRelationshipApiV1GGuildIdRelationshipsPost = (
   );
 };
 
-export const getCreateRelationshipApiV1GGuildIdRelationshipsPostMutationKey = () =>
-  ["createRelationshipApiV1GGuildIdRelationshipsPost"] as const;
+export const getCreateRelationshipApiV1CGuildIdRelationshipsPostMutationKey = () =>
+  ["createRelationshipApiV1CGuildIdRelationshipsPost"] as const;
 
-export const getCreateRelationshipApiV1GGuildIdRelationshipsPostMutationOptions = <
+export const getCreateRelationshipApiV1CGuildIdRelationshipsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createRelationshipApiV1GGuildIdRelationshipsPost>>,
+    Awaited<ReturnType<typeof createRelationshipApiV1CGuildIdRelationshipsPost>>,
     TError,
-    CreateRelationshipApiV1GGuildIdRelationshipsPostMutationVariables,
+    CreateRelationshipApiV1CGuildIdRelationshipsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createRelationshipApiV1GGuildIdRelationshipsPost>>,
+  Awaited<ReturnType<typeof createRelationshipApiV1CGuildIdRelationshipsPost>>,
   TError,
-  CreateRelationshipApiV1GGuildIdRelationshipsPostMutationVariables,
+  CreateRelationshipApiV1CGuildIdRelationshipsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateRelationshipApiV1GGuildIdRelationshipsPostMutationKey();
+  const mutationKey = getCreateRelationshipApiV1CGuildIdRelationshipsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -275,25 +275,25 @@ export const getCreateRelationshipApiV1GGuildIdRelationshipsPostMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createRelationshipApiV1GGuildIdRelationshipsPost>>,
-    CreateRelationshipApiV1GGuildIdRelationshipsPostMutationVariables
+    Awaited<ReturnType<typeof createRelationshipApiV1CGuildIdRelationshipsPost>>,
+    CreateRelationshipApiV1CGuildIdRelationshipsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createRelationshipApiV1GGuildIdRelationshipsPost(guildId, data, requestOptions);
+    return createRelationshipApiV1CGuildIdRelationshipsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateRelationshipApiV1GGuildIdRelationshipsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createRelationshipApiV1GGuildIdRelationshipsPost>>
+export type CreateRelationshipApiV1CGuildIdRelationshipsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRelationshipApiV1CGuildIdRelationshipsPost>>
 >;
-export type CreateRelationshipApiV1GGuildIdRelationshipsPostMutationBody =
+export type CreateRelationshipApiV1CGuildIdRelationshipsPostMutationBody =
   BodyType<RelationshipCreate>;
-export type CreateRelationshipApiV1GGuildIdRelationshipsPostMutationError =
+export type CreateRelationshipApiV1CGuildIdRelationshipsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CreateRelationshipApiV1GGuildIdRelationshipsPostMutationVariables = {
+export type CreateRelationshipApiV1CGuildIdRelationshipsPostMutationVariables = {
   guildId: number;
   data: BodyType<RelationshipCreate>;
 };
@@ -301,28 +301,28 @@ export type CreateRelationshipApiV1GGuildIdRelationshipsPostMutationVariables = 
 /**
  * @summary Create Relationship
  */
-export const useCreateRelationshipApiV1GGuildIdRelationshipsPost = <
+export const useCreateRelationshipApiV1CGuildIdRelationshipsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createRelationshipApiV1GGuildIdRelationshipsPost>>,
+      Awaited<ReturnType<typeof createRelationshipApiV1CGuildIdRelationshipsPost>>,
       TError,
-      CreateRelationshipApiV1GGuildIdRelationshipsPostMutationVariables,
+      CreateRelationshipApiV1CGuildIdRelationshipsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createRelationshipApiV1GGuildIdRelationshipsPost>>,
+  Awaited<ReturnType<typeof createRelationshipApiV1CGuildIdRelationshipsPost>>,
   TError,
-  CreateRelationshipApiV1GGuildIdRelationshipsPostMutationVariables,
+  CreateRelationshipApiV1CGuildIdRelationshipsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateRelationshipApiV1GGuildIdRelationshipsPostMutationOptions(options),
+    getCreateRelationshipApiV1CGuildIdRelationshipsPostMutationOptions(options),
     queryClient
   );
 };
@@ -335,19 +335,19 @@ export const useCreateRelationshipApiV1GGuildIdRelationshipsPost = <
  * one link back.
  * @summary Replace Relationship Slice
  */
-export const replaceRelationshipSliceApiV1GGuildIdRelationshipsPut = (
+export const replaceRelationshipSliceApiV1CGuildIdRelationshipsPut = (
   guildId: number,
-  replaceRelationshipSliceApiV1GGuildIdRelationshipsPutBody: BodyType<number[]>,
-  params: ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutParams,
+  replaceRelationshipSliceApiV1CGuildIdRelationshipsPutBody: BodyType<number[]>,
+  params: ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RelationshipRead[]>(
     {
-      url: `/api/v1/g/${guildId}/relationships/`,
+      url: `/api/v1/c/${guildId}/relationships/`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: replaceRelationshipSliceApiV1GGuildIdRelationshipsPutBody,
+      data: replaceRelationshipSliceApiV1CGuildIdRelationshipsPutBody,
       params,
       signal,
     },
@@ -355,27 +355,27 @@ export const replaceRelationshipSliceApiV1GGuildIdRelationshipsPut = (
   );
 };
 
-export const getReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationKey = () =>
-  ["replaceRelationshipSliceApiV1GGuildIdRelationshipsPut"] as const;
+export const getReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationKey = () =>
+  ["replaceRelationshipSliceApiV1CGuildIdRelationshipsPut"] as const;
 
-export const getReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationOptions = <
+export const getReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof replaceRelationshipSliceApiV1GGuildIdRelationshipsPut>>,
+    Awaited<ReturnType<typeof replaceRelationshipSliceApiV1CGuildIdRelationshipsPut>>,
     TError,
-    ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationVariables,
+    ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof replaceRelationshipSliceApiV1GGuildIdRelationshipsPut>>,
+  Awaited<ReturnType<typeof replaceRelationshipSliceApiV1CGuildIdRelationshipsPut>>,
   TError,
-  ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationVariables,
+  ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationKey();
+  const mutationKey = getReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -383,12 +383,12 @@ export const getReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationOpt
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof replaceRelationshipSliceApiV1GGuildIdRelationshipsPut>>,
-    ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationVariables
+    Awaited<ReturnType<typeof replaceRelationshipSliceApiV1CGuildIdRelationshipsPut>>,
+    ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationVariables
   > = (props) => {
     const { guildId, data, params } = props ?? {};
 
-    return replaceRelationshipSliceApiV1GGuildIdRelationshipsPut(
+    return replaceRelationshipSliceApiV1CGuildIdRelationshipsPut(
       guildId,
       data,
       params,
@@ -399,43 +399,43 @@ export const getReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationOpt
   return { mutationFn, ...mutationOptions };
 };
 
-export type ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof replaceRelationshipSliceApiV1GGuildIdRelationshipsPut>>
+export type ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replaceRelationshipSliceApiV1CGuildIdRelationshipsPut>>
 >;
-export type ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationBody = BodyType<number[]>;
-export type ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationError =
+export type ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationBody = BodyType<number[]>;
+export type ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationError =
   ErrorType<HTTPValidationError>;
-export type ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationVariables = {
+export type ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationVariables = {
   guildId: number;
   data: BodyType<number[]>;
-  params: ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutParams;
+  params: ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutParams;
 };
 
 /**
  * @summary Replace Relationship Slice
  */
-export const useReplaceRelationshipSliceApiV1GGuildIdRelationshipsPut = <
+export const useReplaceRelationshipSliceApiV1CGuildIdRelationshipsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof replaceRelationshipSliceApiV1GGuildIdRelationshipsPut>>,
+      Awaited<ReturnType<typeof replaceRelationshipSliceApiV1CGuildIdRelationshipsPut>>,
       TError,
-      ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationVariables,
+      ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof replaceRelationshipSliceApiV1GGuildIdRelationshipsPut>>,
+  Awaited<ReturnType<typeof replaceRelationshipSliceApiV1CGuildIdRelationshipsPut>>,
   TError,
-  ReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationVariables,
+  ReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getReplaceRelationshipSliceApiV1GGuildIdRelationshipsPutMutationOptions(options),
+    getReplaceRelationshipSliceApiV1CGuildIdRelationshipsPutMutationOptions(options),
     queryClient
   );
 };
@@ -451,40 +451,40 @@ export const useReplaceRelationshipSliceApiV1GGuildIdRelationshipsPut = <
  * is what a body says, and the way to change that is to edit the body.
  * @summary Remove Relationship
  */
-export const removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete = (
+export const removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete = (
   guildId: number,
   relationshipId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/relationships/${relationshipId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/relationships/${relationshipId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getRemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationKey = () =>
-  ["removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete"] as const;
+export const getRemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationKey = () =>
+  ["removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete"] as const;
 
-export const getRemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationOptions = <
+export const getRemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete>>,
+    Awaited<ReturnType<typeof removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete>>,
     TError,
-    RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationVariables,
+    RemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete>>,
+  Awaited<ReturnType<typeof removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete>>,
   TError,
-  RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationVariables,
+  RemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getRemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationKey();
+    getRemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -492,12 +492,12 @@ export const getRemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete>>,
-    RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationVariables
+    Awaited<ReturnType<typeof removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete>>,
+    RemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationVariables
   > = (props) => {
     const { guildId, relationshipId } = props ?? {};
 
-    return removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete(
+    return removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete(
       guildId,
       relationshipId,
       requestOptions
@@ -507,14 +507,14 @@ export const getRemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete
   return { mutationFn, ...mutationOptions };
 };
 
-export type RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationResult =
+export type RemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete>>
+    Awaited<ReturnType<typeof removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete>>
   >;
 
-export type RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationError =
+export type RemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationVariables = {
+export type RemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationVariables = {
   guildId: number;
   relationshipId: number;
 };
@@ -522,28 +522,28 @@ export type RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMuta
 /**
  * @summary Remove Relationship
  */
-export const useRemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete = <
+export const useRemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete>>,
+      Awaited<ReturnType<typeof removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete>>,
       TError,
-      RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationVariables,
+      RemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete>>,
+  Awaited<ReturnType<typeof removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete>>,
   TError,
-  RemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationVariables,
+  RemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRemoveRelationshipApiV1GGuildIdRelationshipsRelationshipIdDeleteMutationOptions(options),
+    getRemoveRelationshipApiV1CGuildIdRelationshipsRelationshipIdDeleteMutationOptions(options),
     queryClient
   );
 };

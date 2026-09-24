@@ -351,7 +351,7 @@ def test_platform_routes_into_a_community_only_where_listed():
     assert unlisted == [], (
         "the platform surface routes into a community here, and the list of "
         "places it may does not name it. Reach guild content from a "
-        "/g/{guild_id} route through the seam instead, or add the site to "
+        "/c/{guild_id} route through the seam instead, or add the site to "
         "_ALLOWED with the reason it belongs to the platform: " + ", ".join(unlisted)
     )
 

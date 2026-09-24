@@ -10,13 +10,13 @@ import type {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost,
-  deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete,
-  getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey,
-  getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey,
-  getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet,
-  listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet,
-  updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch,
+  createInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesPost,
+  deleteInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdDelete,
+  getGetMyInitiativePermissionsApiV1CGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey,
+  getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
+  getMyInitiativePermissionsApiV1CGuildIdInitiativesInitiativeIdMyPermissionsGet,
+  listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet,
+  updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch,
 } from "@/api/generated/initiatives/initiatives";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -34,12 +34,12 @@ import {
 export const useInitiativeRoles = (initiativeId: number | null) => {
   const guildId = useActiveGuildId();
   return useQuery<InitiativeRoleRead[]>({
-    queryKey: getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey(
+    queryKey: getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey(
       guildId,
       initiativeId!
     ),
     queryFn: () =>
-      listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(guildId, initiativeId!),
+      listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(guildId, initiativeId!),
     enabled: !!initiativeId,
     staleTime: 30 * 1000,
   });
@@ -49,12 +49,12 @@ export const useMyInitiativePermissions = (initiativeId: number | null) => {
   const guildId = useActiveGuildId();
   return useQuery<MyInitiativePermissions>({
     queryKey:
-      getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey(
+      getGetMyInitiativePermissionsApiV1CGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey(
         guildId,
         initiativeId!
       ),
     queryFn: () =>
-      getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet(
+      getMyInitiativePermissionsApiV1CGuildIdInitiativesInitiativeIdMyPermissionsGet(
         guildId,
         initiativeId!
       ),
@@ -69,7 +69,7 @@ export const useCreateRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async (data: InitiativeRoleCreate) => {
-      return createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost(
+      return createInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesPost(
         guildId,
         initiativeId,
         data
@@ -91,7 +91,7 @@ export const useUpdateRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async ({ roleId, data }: { roleId: number; data: InitiativeRoleUpdate }) => {
-      return updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+      return updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
         guildId,
         initiativeId,
         roleId,
@@ -137,7 +137,7 @@ export const useGrantToolToRoles = (initiativeId: number) => {
   return useMutation({
     mutationFn: async ({ tool }: { tool: Tool }) => {
       const key = toolViewPermission(tool);
-      const roles = await listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+      const roles = await listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
         guildId,
         initiativeId
       );
@@ -146,7 +146,7 @@ export const useGrantToolToRoles = (initiativeId: number) => {
       );
       const results = await Promise.allSettled(
         needsGrant.map((role) =>
-          updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+          updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
             guildId,
             initiativeId,
             role.id,
@@ -205,14 +205,14 @@ export const useGrantToolsToMembers = () => {
         permissions[toolViewPermission(tool)] = audience !== "managers";
         permissions[toolCreatePermission(tool)] = audience === "create";
       }
-      const roles = await listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+      const roles = await listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
         guildId,
         initiativeId
       );
       const ordinary = roles.filter((role) => !role.is_manager);
       const results = await Promise.allSettled(
         ordinary.map((role) =>
-          updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+          updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
             guildId,
             initiativeId,
             role.id,
@@ -239,7 +239,7 @@ export const useDeleteRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async (roleId: number) => {
-      await deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete(
+      await deleteInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdDelete(
         guildId,
         initiativeId,
         roleId

@@ -159,7 +159,7 @@ describe("DashboardWidget with an app source", () => {
       string,
       { params: Record<string, unknown> },
     ];
-    expect(url).toBe("/g/2/apps/3/endpoints/app.acme.shop.orders-summary");
+    expect(url).toBe("/c/2/apps/3/endpoints/app.acme.shop.orders-summary");
     expect(config.params.dashboard_id).toBe(11);
   });
 

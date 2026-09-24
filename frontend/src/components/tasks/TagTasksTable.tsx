@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   type FilterCondition,
-  type ListTasksApiV1GGuildIdTasksGetParams,
+  type ListTasksApiV1CGuildIdTasksGetParams,
   type SortField,
   type TaskListRead,
   type TaskPriority,
@@ -15,7 +15,7 @@ import {
   type TaskStatusRead,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
@@ -163,7 +163,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
       ? [{ field: "priority", op: "in_" as const, value: priorityFilters }]
       : []),
   ];
-  const taskParams: ListTasksApiV1GGuildIdTasksGetParams = {
+  const taskParams: ListTasksApiV1CGuildIdTasksGetParams = {
     conditions: taskConditions,
     page,
     page_size: pageSize,
@@ -184,7 +184,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           ? [{ field: "priority", op: "in_" as const, value: priorityFilters }]
           : []),
       ];
-      const params: ListTasksApiV1GGuildIdTasksGetParams = {
+      const params: ListTasksApiV1CGuildIdTasksGetParams = {
         conditions,
         page: targetPage,
         page_size: pageSize,
@@ -230,7 +230,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     if (!guildId) {
       return cached?.statuses ?? [];
     }
-    const statuses = await (listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+    const statuses = await (listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(
       guildId,
       projectId
     ) as unknown as Promise<TaskStatusRead[]>);

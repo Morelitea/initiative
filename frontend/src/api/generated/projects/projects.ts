@@ -23,8 +23,8 @@ import type {
 import type {
   HTTPValidationError,
   InitiativeGroupedCountsResponse,
-  ListProjectsApiV1GGuildIdProjectsGetParams,
-  ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
+  ListProjectsApiV1CGuildIdProjectsGetParams,
+  ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams,
   ProjectActivityResponse,
   ProjectCreate,
   ProjectDuplicateRequest,
@@ -33,10 +33,10 @@ import type {
   ProjectRead,
   ProjectReorderRequest,
   ProjectUpdate,
-  ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
+  ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
-  SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams,
   UserSummaryListResponse,
 } from "../initiativeAPI.schemas";
 
@@ -68,27 +68,27 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * non-template), one GROUP BY instead of walking the full corpus.
  * @summary Get Project Counts By Initiative
  */
-export const getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet = (
+export const getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeGroupedCountsResponse>(
-    { url: `/api/v1/g/${guildId}/projects/counts/by-initiative`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/projects/counts/by-initiative`, method: "GET", signal },
     options
   );
 };
 
-export const getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryKey = (
+export const getGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/projects/counts/by-initiative`] as const;
+  return [`/api/v1/c/${guildId}/projects/counts/by-initiative`] as const;
 };
 
-export const getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryOptions =
+export const getGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+      ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
     >,
     TError = ErrorType<HTTPValidationError>,
   >(
@@ -98,7 +98,7 @@ export const getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiat
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet
+              typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet
             >
           >,
           TError,
@@ -112,14 +112,14 @@ export const getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiat
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryKey(guildId);
+      getGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGetQueryKey(guildId);
 
     const queryFn: QueryFunction<
       Awaited<
-        ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+        ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
       >
     > = ({ signal }) =>
-      getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet(
+      getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet(
         guildId,
         requestOptions,
         signal
@@ -132,25 +132,25 @@ export const getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiat
       ...queryOptions,
     } as UseQueryOptions<
       Awaited<
-        ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+        ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
       >,
       TError,
       TData
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryResult =
+export type GetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+      ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
     >
   >;
-export type GetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryError =
+export type GetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet<
+export function useGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+    ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -159,7 +159,7 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+          ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
         >,
         TError,
         TData
@@ -169,13 +169,13 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet
+              typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet
+              typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet
             >
           >
         >,
@@ -185,9 +185,9 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet<
+export function useGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+    ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -196,7 +196,7 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+          ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
         >,
         TError,
         TData
@@ -206,13 +206,13 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet
+              typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet
+              typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet
             >
           >
         >,
@@ -222,9 +222,9 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet<
+export function useGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+    ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -233,7 +233,7 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+          ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
         >,
         TError,
         TData
@@ -247,9 +247,9 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
  * @summary Get Project Counts By Initiative
  */
 
-export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet<
+export function useGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+    ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -258,7 +258,7 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet>
+          ReturnType<typeof getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet>
         >,
         TError,
         TData
@@ -269,7 +269,7 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryOptions(
+    getGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGetQueryOptions(
       guildId,
       options
     );
@@ -284,35 +284,35 @@ export function useGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInit
 /**
  * @summary List Projects
  */
-export const listProjectsApiV1GGuildIdProjectsGet = (
+export const listProjectsApiV1CGuildIdProjectsGet = (
   guildId: number,
-  params?: ListProjectsApiV1GGuildIdProjectsGetParams,
+  params?: ListProjectsApiV1CGuildIdProjectsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ProjectListResponse>(
-    { url: `/api/v1/g/${guildId}/projects/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/projects/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListProjectsApiV1GGuildIdProjectsGetQueryKey = (
+export const getListProjectsApiV1CGuildIdProjectsGetQueryKey = (
   guildId: number,
-  params?: ListProjectsApiV1GGuildIdProjectsGetParams
+  params?: ListProjectsApiV1CGuildIdProjectsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/projects/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/projects/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListProjectsApiV1GGuildIdProjectsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+export const getListProjectsApiV1CGuildIdProjectsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListProjectsApiV1GGuildIdProjectsGetParams,
+  params?: ListProjectsApiV1CGuildIdProjectsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+        Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
         TError,
         TData
       >
@@ -323,11 +323,11 @@ export const getListProjectsApiV1GGuildIdProjectsGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getListProjectsApiV1CGuildIdProjectsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>
-  > = ({ signal }) => listProjectsApiV1GGuildIdProjectsGet(guildId, params, requestOptions, signal);
+    Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>
+  > = ({ signal }) => listProjectsApiV1CGuildIdProjectsGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -335,36 +335,36 @@ export const getListProjectsApiV1GGuildIdProjectsGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+    Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListProjectsApiV1GGuildIdProjectsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>
+export type ListProjectsApiV1CGuildIdProjectsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>
 >;
-export type ListProjectsApiV1GGuildIdProjectsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListProjectsApiV1CGuildIdProjectsGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListProjectsApiV1GGuildIdProjectsGet<
-  TData = Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+export function useListProjectsApiV1CGuildIdProjectsGet<
+  TData = Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListProjectsApiV1GGuildIdProjectsGetParams,
+  params: undefined | ListProjectsApiV1CGuildIdProjectsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+        Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+          Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
           TError,
-          Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>
+          Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>
         >,
         "initialData"
       >;
@@ -372,25 +372,25 @@ export function useListProjectsApiV1GGuildIdProjectsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListProjectsApiV1GGuildIdProjectsGet<
-  TData = Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+export function useListProjectsApiV1CGuildIdProjectsGet<
+  TData = Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListProjectsApiV1GGuildIdProjectsGetParams,
+  params?: ListProjectsApiV1CGuildIdProjectsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+        Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+          Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
           TError,
-          Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>
+          Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>
         >,
         "initialData"
       >;
@@ -398,16 +398,16 @@ export function useListProjectsApiV1GGuildIdProjectsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListProjectsApiV1GGuildIdProjectsGet<
-  TData = Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+export function useListProjectsApiV1CGuildIdProjectsGet<
+  TData = Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListProjectsApiV1GGuildIdProjectsGetParams,
+  params?: ListProjectsApiV1CGuildIdProjectsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+        Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
         TError,
         TData
       >
@@ -420,16 +420,16 @@ export function useListProjectsApiV1GGuildIdProjectsGet<
  * @summary List Projects
  */
 
-export function useListProjectsApiV1GGuildIdProjectsGet<
-  TData = Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+export function useListProjectsApiV1CGuildIdProjectsGet<
+  TData = Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListProjectsApiV1GGuildIdProjectsGetParams,
+  params?: ListProjectsApiV1CGuildIdProjectsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listProjectsApiV1GGuildIdProjectsGet>>,
+        Awaited<ReturnType<typeof listProjectsApiV1CGuildIdProjectsGet>>,
         TError,
         TData
       >
@@ -438,7 +438,7 @@ export function useListProjectsApiV1GGuildIdProjectsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListProjectsApiV1GGuildIdProjectsGetQueryOptions(
+  const queryOptions = getListProjectsApiV1CGuildIdProjectsGetQueryOptions(
     guildId,
     params,
     options
@@ -454,7 +454,7 @@ export function useListProjectsApiV1GGuildIdProjectsGet<
 /**
  * @summary Create Project
  */
-export const createProjectApiV1GGuildIdProjectsPost = (
+export const createProjectApiV1CGuildIdProjectsPost = (
   guildId: number,
   projectCreate: BodyType<ProjectCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -462,7 +462,7 @@ export const createProjectApiV1GGuildIdProjectsPost = (
 ) => {
   return apiMutator<ProjectRead>(
     {
-      url: `/api/v1/g/${guildId}/projects/`,
+      url: `/api/v1/c/${guildId}/projects/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: projectCreate,
@@ -472,27 +472,27 @@ export const createProjectApiV1GGuildIdProjectsPost = (
   );
 };
 
-export const getCreateProjectApiV1GGuildIdProjectsPostMutationKey = () =>
-  ["createProjectApiV1GGuildIdProjectsPost"] as const;
+export const getCreateProjectApiV1CGuildIdProjectsPostMutationKey = () =>
+  ["createProjectApiV1CGuildIdProjectsPost"] as const;
 
-export const getCreateProjectApiV1GGuildIdProjectsPostMutationOptions = <
+export const getCreateProjectApiV1CGuildIdProjectsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createProjectApiV1GGuildIdProjectsPost>>,
+    Awaited<ReturnType<typeof createProjectApiV1CGuildIdProjectsPost>>,
     TError,
-    CreateProjectApiV1GGuildIdProjectsPostMutationVariables,
+    CreateProjectApiV1CGuildIdProjectsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createProjectApiV1GGuildIdProjectsPost>>,
+  Awaited<ReturnType<typeof createProjectApiV1CGuildIdProjectsPost>>,
   TError,
-  CreateProjectApiV1GGuildIdProjectsPostMutationVariables,
+  CreateProjectApiV1CGuildIdProjectsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateProjectApiV1GGuildIdProjectsPostMutationKey();
+  const mutationKey = getCreateProjectApiV1CGuildIdProjectsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -500,23 +500,23 @@ export const getCreateProjectApiV1GGuildIdProjectsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createProjectApiV1GGuildIdProjectsPost>>,
-    CreateProjectApiV1GGuildIdProjectsPostMutationVariables
+    Awaited<ReturnType<typeof createProjectApiV1CGuildIdProjectsPost>>,
+    CreateProjectApiV1CGuildIdProjectsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createProjectApiV1GGuildIdProjectsPost(guildId, data, requestOptions);
+    return createProjectApiV1CGuildIdProjectsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateProjectApiV1GGuildIdProjectsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createProjectApiV1GGuildIdProjectsPost>>
+export type CreateProjectApiV1CGuildIdProjectsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProjectApiV1CGuildIdProjectsPost>>
 >;
-export type CreateProjectApiV1GGuildIdProjectsPostMutationBody = BodyType<ProjectCreate>;
-export type CreateProjectApiV1GGuildIdProjectsPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateProjectApiV1GGuildIdProjectsPostMutationVariables = {
+export type CreateProjectApiV1CGuildIdProjectsPostMutationBody = BodyType<ProjectCreate>;
+export type CreateProjectApiV1CGuildIdProjectsPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateProjectApiV1CGuildIdProjectsPostMutationVariables = {
   guildId: number;
   data: BodyType<ProjectCreate>;
 };
@@ -524,60 +524,60 @@ export type CreateProjectApiV1GGuildIdProjectsPostMutationVariables = {
 /**
  * @summary Create Project
  */
-export const useCreateProjectApiV1GGuildIdProjectsPost = <
+export const useCreateProjectApiV1CGuildIdProjectsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createProjectApiV1GGuildIdProjectsPost>>,
+      Awaited<ReturnType<typeof createProjectApiV1CGuildIdProjectsPost>>,
       TError,
-      CreateProjectApiV1GGuildIdProjectsPostMutationVariables,
+      CreateProjectApiV1CGuildIdProjectsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createProjectApiV1GGuildIdProjectsPost>>,
+  Awaited<ReturnType<typeof createProjectApiV1CGuildIdProjectsPost>>,
   TError,
-  CreateProjectApiV1GGuildIdProjectsPostMutationVariables,
+  CreateProjectApiV1CGuildIdProjectsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateProjectApiV1GGuildIdProjectsPostMutationOptions(options),
+    getCreateProjectApiV1CGuildIdProjectsPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary List Writable Projects
  */
-export const listWritableProjectsApiV1GGuildIdProjectsWritableGet = (
+export const listWritableProjectsApiV1CGuildIdProjectsWritableGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ProjectRead[]>(
-    { url: `/api/v1/g/${guildId}/projects/writable`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/projects/writable`, method: "GET", signal },
     options
   );
 };
 
-export const getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryKey = (
+export const getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/projects/writable`] as const;
+  return [`/api/v1/c/${guildId}/projects/writable`] as const;
 };
 
-export const getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+export const getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+        Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
         TError,
         TData
       >
@@ -589,12 +589,12 @@ export const getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryOptions
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryKey(guildId);
+    getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>
+    Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>
   > = ({ signal }) =>
-    listWritableProjectsApiV1GGuildIdProjectsWritableGet(guildId, requestOptions, signal);
+    listWritableProjectsApiV1CGuildIdProjectsWritableGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -602,36 +602,36 @@ export const getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryOptions
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+    Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>
+export type ListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>
 >;
-export type ListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryError =
+export type ListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
-  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+export function useListWritableProjectsApiV1CGuildIdProjectsWritableGet<
+  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+        Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+          Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
           TError,
-          Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>
+          Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>
         >,
         "initialData"
       >;
@@ -639,24 +639,24 @@ export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
-  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+export function useListWritableProjectsApiV1CGuildIdProjectsWritableGet<
+  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+        Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+          Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
           TError,
-          Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>
+          Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>
         >,
         "initialData"
       >;
@@ -664,15 +664,15 @@ export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
-  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+export function useListWritableProjectsApiV1CGuildIdProjectsWritableGet<
+  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+        Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
         TError,
         TData
       >
@@ -685,15 +685,15 @@ export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
  * @summary List Writable Projects
  */
 
-export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
-  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+export function useListWritableProjectsApiV1CGuildIdProjectsWritableGet<
+  TData = Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listWritableProjectsApiV1GGuildIdProjectsWritableGet>>,
+        Awaited<ReturnType<typeof listWritableProjectsApiV1CGuildIdProjectsWritableGet>>,
         TError,
         TData
       >
@@ -702,7 +702,7 @@ export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryOptions(
+  const queryOptions = getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryOptions(
     guildId,
     options
   );
@@ -717,7 +717,7 @@ export function useListWritableProjectsApiV1GGuildIdProjectsWritableGet<
 /**
  * @summary Duplicate Project
  */
-export const duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost = (
+export const duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost = (
   guildId: number,
   projectId: number,
   projectDuplicateRequest: BodyType<ProjectDuplicateRequest>,
@@ -726,7 +726,7 @@ export const duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost = (
 ) => {
   return apiMutator<ProjectRead>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/duplicate`,
+      url: `/api/v1/c/${guildId}/projects/${projectId}/duplicate`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: projectDuplicateRequest,
@@ -736,27 +736,27 @@ export const duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost = (
   );
 };
 
-export const getDuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationKey = () =>
-  ["duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost"] as const;
+export const getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationKey = () =>
+  ["duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost"] as const;
 
-export const getDuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationOptions = <
+export const getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>>,
+    Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
     TError,
-    DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationVariables,
+    DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>>,
+  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
   TError,
-  DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationVariables,
+  DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getDuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationKey();
+  const mutationKey = getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -764,12 +764,12 @@ export const getDuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>>,
-    DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationVariables
+    Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
+    DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables
   > = (props) => {
     const { guildId, projectId, data } = props ?? {};
 
-    return duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost(
+    return duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost(
       guildId,
       projectId,
       data,
@@ -780,14 +780,14 @@ export const getDuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>>
+export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>
 >;
-export type DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationBody =
+export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationBody =
   BodyType<ProjectDuplicateRequest>;
-export type DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationError =
+export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationError =
   ErrorType<HTTPValidationError>;
-export type DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationVariables = {
+export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables = {
   guildId: number;
   projectId: number;
   data: BodyType<ProjectDuplicateRequest>;
@@ -796,58 +796,58 @@ export type DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationV
 /**
  * @summary Duplicate Project
  */
-export const useDuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost = <
+export const useDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>>,
+      Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
       TError,
-      DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationVariables,
+      DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>>,
+  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
   TError,
-  DuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationVariables,
+  DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDuplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePostMutationOptions(options),
+    getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Favorite Projects
  */
-export const favoriteProjectsApiV1GGuildIdProjectsFavoritesGet = (
+export const favoriteProjectsApiV1CGuildIdProjectsFavoritesGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ProjectRead[]>(
-    { url: `/api/v1/g/${guildId}/projects/favorites`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/projects/favorites`, method: "GET", signal },
     options
   );
 };
 
-export const getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/projects/favorites`] as const;
+export const getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey = (guildId: number) => {
+  return [`/api/v1/c/${guildId}/projects/favorites`] as const;
 };
 
-export const getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+export const getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+        Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
         TError,
         TData
       >
@@ -858,12 +858,12 @@ export const getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryOptions = 
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>
+    Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>
   > = ({ signal }) =>
-    favoriteProjectsApiV1GGuildIdProjectsFavoritesGet(guildId, requestOptions, signal);
+    favoriteProjectsApiV1CGuildIdProjectsFavoritesGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -871,36 +871,36 @@ export const getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryOptions = 
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+    Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type FavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>
+export type FavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>
 >;
-export type FavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryError =
+export type FavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
-  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+export function useFavoriteProjectsApiV1CGuildIdProjectsFavoritesGet<
+  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+        Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+          Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
           TError,
-          Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>
+          Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>
         >,
         "initialData"
       >;
@@ -908,24 +908,24 @@ export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
-  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+export function useFavoriteProjectsApiV1CGuildIdProjectsFavoritesGet<
+  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+        Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+          Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
           TError,
-          Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>
+          Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>
         >,
         "initialData"
       >;
@@ -933,15 +933,15 @@ export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
-  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+export function useFavoriteProjectsApiV1CGuildIdProjectsFavoritesGet<
+  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+        Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
         TError,
         TData
       >
@@ -954,15 +954,15 @@ export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
  * @summary Favorite Projects
  */
 
-export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
-  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+export function useFavoriteProjectsApiV1CGuildIdProjectsFavoritesGet<
+  TData = Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof favoriteProjectsApiV1GGuildIdProjectsFavoritesGet>>,
+        Awaited<ReturnType<typeof favoriteProjectsApiV1CGuildIdProjectsFavoritesGet>>,
         TError,
         TData
       >
@@ -971,7 +971,7 @@ export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryOptions(
+  const queryOptions = getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryOptions(
     guildId,
     options
   );
@@ -986,39 +986,39 @@ export function useFavoriteProjectsApiV1GGuildIdProjectsFavoritesGet<
 /**
  * @summary Favorite Project
  */
-export const favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost = (
+export const favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost = (
   guildId: number,
   projectId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ProjectFavoriteStatus>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}/favorite`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/projects/${projectId}/favorite`, method: "POST", signal },
     options
   );
 };
 
-export const getFavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationKey = () =>
-  ["favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost"] as const;
+export const getFavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationKey = () =>
+  ["favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost"] as const;
 
-export const getFavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationOptions = <
+export const getFavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost>>,
+    Awaited<ReturnType<typeof favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost>>,
     TError,
-    FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationVariables,
+    FavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost>>,
+  Awaited<ReturnType<typeof favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost>>,
   TError,
-  FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationVariables,
+  FavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getFavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationKey();
+  const mutationKey = getFavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1026,12 +1026,12 @@ export const getFavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost>>,
-    FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationVariables
+    Awaited<ReturnType<typeof favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost>>,
+    FavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationVariables
   > = (props) => {
     const { guildId, projectId } = props ?? {};
 
-    return favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost(
+    return favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost(
       guildId,
       projectId,
       requestOptions
@@ -1041,13 +1041,13 @@ export const getFavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutatio
   return { mutationFn, ...mutationOptions };
 };
 
-export type FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost>>
+export type FavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost>>
 >;
 
-export type FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationError =
+export type FavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationError =
   ErrorType<HTTPValidationError>;
-export type FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationVariables = {
+export type FavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationVariables = {
   guildId: number;
   projectId: number;
 };
@@ -1055,67 +1055,67 @@ export type FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationVar
 /**
  * @summary Favorite Project
  */
-export const useFavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost = <
+export const useFavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost>>,
+      Awaited<ReturnType<typeof favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost>>,
       TError,
-      FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationVariables,
+      FavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost>>,
+  Awaited<ReturnType<typeof favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost>>,
   TError,
-  FavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationVariables,
+  FavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getFavoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePostMutationOptions(options),
+    getFavoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Unfavorite Project
  */
-export const unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete = (
+export const unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete = (
   guildId: number,
   projectId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ProjectFavoriteStatus>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}/favorite`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/projects/${projectId}/favorite`, method: "DELETE", signal },
     options
   );
 };
 
-export const getUnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationKey = () =>
-  ["unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete"] as const;
+export const getUnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationKey = () =>
+  ["unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete"] as const;
 
-export const getUnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationOptions = <
+export const getUnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete>>,
+    Awaited<ReturnType<typeof unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete>>,
     TError,
-    UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationVariables,
+    UnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete>>,
+  Awaited<ReturnType<typeof unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete>>,
   TError,
-  UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationVariables,
+  UnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getUnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationKey();
+  const mutationKey = getUnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1123,12 +1123,12 @@ export const getUnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMut
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete>>,
-    UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationVariables
+    Awaited<ReturnType<typeof unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete>>,
+    UnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationVariables
   > = (props) => {
     const { guildId, projectId } = props ?? {};
 
-    return unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete(
+    return unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete(
       guildId,
       projectId,
       requestOptions
@@ -1138,14 +1138,14 @@ export const getUnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMut
   return { mutationFn, ...mutationOptions };
 };
 
-export type UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationResult =
+export type UnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete>>
+    Awaited<ReturnType<typeof unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete>>
   >;
 
-export type UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationError =
+export type UnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationVariables = {
+export type UnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationVariables = {
   guildId: number;
   projectId: number;
 };
@@ -1153,69 +1153,69 @@ export type UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutatio
 /**
  * @summary Unfavorite Project
  */
-export const useUnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete = <
+export const useUnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete>>,
+      Awaited<ReturnType<typeof unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete>>,
       TError,
-      UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationVariables,
+      UnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete>>,
+  Awaited<ReturnType<typeof unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete>>,
   TError,
-  UnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationVariables,
+  UnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUnfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDeleteMutationOptions(options),
+    getUnfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDeleteMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Project Activity Feed
  */
-export const projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet = (
+export const projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet = (
   guildId: number,
   projectId: number,
-  params?: ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
+  params?: ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ProjectActivityResponse>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}/activity`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/projects/${projectId}/activity`, method: "GET", params, signal },
     options
   );
 };
 
-export const getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey = (
+export const getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryKey = (
   guildId: number,
   projectId: number,
-  params?: ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams
+  params?: ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams
 ) => {
   return [
-    `/api/v1/g/${guildId}/projects/${projectId}/activity`,
+    `/api/v1/c/${guildId}/projects/${projectId}/activity`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+export const getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
+  params?: ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+        Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
         TError,
         TData
       >
@@ -1227,16 +1227,16 @@ export const getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQuer
 
   const queryKey =
     queryOptions?.queryKey ??
-    getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey(
+    getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryKey(
       guildId,
       projectId,
       params
     );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>
+    Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>
   > = ({ signal }) =>
-    projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet(
+    projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet(
       guildId,
       projectId,
       params,
@@ -1251,38 +1251,38 @@ export const getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQuer
       guildId !== null && guildId !== undefined && projectId !== null && projectId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+    Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>
+export type ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>
 >;
-export type ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryError =
+export type ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
-  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+export function useProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet<
+  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params: undefined | ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
+  params: undefined | ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+        Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+          Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
           TError,
-          Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>
+          Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>
         >,
         "initialData"
       >;
@@ -1290,26 +1290,26 @@ export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
-  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+export function useProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet<
+  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
+  params?: ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+        Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+          Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
           TError,
-          Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>
+          Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>
         >,
         "initialData"
       >;
@@ -1317,17 +1317,17 @@ export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
-  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+export function useProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet<
+  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
+  params?: ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+        Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
         TError,
         TData
       >
@@ -1340,17 +1340,17 @@ export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
  * @summary Project Activity Feed
  */
 
-export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
-  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+export function useProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet<
+  TData = Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
+  params?: ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet>>,
+        Awaited<ReturnType<typeof projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet>>,
         TError,
         TData
       >
@@ -1359,7 +1359,7 @@ export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryOptions(
+  const queryOptions = getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryOptions(
     guildId,
     projectId,
     params,
@@ -1376,38 +1376,38 @@ export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
 /**
  * @summary Read Project
  */
-export const readProjectApiV1GGuildIdProjectsProjectIdGet = (
+export const readProjectApiV1CGuildIdProjectsProjectIdGet = (
   guildId: number,
   projectId: number,
-  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
+  params?: ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ProjectRead>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/projects/${projectId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey = (
+export const getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey = (
   guildId: number,
   projectId: number,
-  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams
+  params?: ReadProjectApiV1CGuildIdProjectsProjectIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/projects/${projectId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/projects/${projectId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+export const getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
+  params?: ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+        Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
         TError,
         TData
       >
@@ -1419,12 +1419,12 @@ export const getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId, params);
+    getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, projectId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>
+    Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>
   > = ({ signal }) =>
-    readProjectApiV1GGuildIdProjectsProjectIdGet(
+    readProjectApiV1CGuildIdProjectsProjectIdGet(
       guildId,
       projectId,
       params,
@@ -1439,37 +1439,37 @@ export const getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryOptions = <
       guildId !== null && guildId !== undefined && projectId !== null && projectId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+    Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadProjectApiV1GGuildIdProjectsProjectIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>
+export type ReadProjectApiV1CGuildIdProjectsProjectIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>
 >;
-export type ReadProjectApiV1GGuildIdProjectsProjectIdGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadProjectApiV1CGuildIdProjectsProjectIdGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
-  TData = Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+export function useReadProjectApiV1CGuildIdProjectsProjectIdGet<
+  TData = Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params: undefined | ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
+  params: undefined | ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+        Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+          Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>
+          Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>
         >,
         "initialData"
       >;
@@ -1477,26 +1477,26 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
-  TData = Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+export function useReadProjectApiV1CGuildIdProjectsProjectIdGet<
+  TData = Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
+  params?: ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+        Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+          Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>
+          Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>
         >,
         "initialData"
       >;
@@ -1504,17 +1504,17 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
-  TData = Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+export function useReadProjectApiV1CGuildIdProjectsProjectIdGet<
+  TData = Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
+  params?: ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+        Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
         TError,
         TData
       >
@@ -1527,17 +1527,17 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
  * @summary Read Project
  */
 
-export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
-  TData = Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+export function useReadProjectApiV1CGuildIdProjectsProjectIdGet<
+  TData = Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
+  params?: ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>,
+        Awaited<ReturnType<typeof readProjectApiV1CGuildIdProjectsProjectIdGet>>,
         TError,
         TData
       >
@@ -1546,7 +1546,7 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryOptions(
+  const queryOptions = getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryOptions(
     guildId,
     projectId,
     params,
@@ -1563,7 +1563,7 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
 /**
  * @summary Update Project
  */
-export const updateProjectApiV1GGuildIdProjectsProjectIdPatch = (
+export const updateProjectApiV1CGuildIdProjectsProjectIdPatch = (
   guildId: number,
   projectId: number,
   projectUpdate: BodyType<ProjectUpdate>,
@@ -1572,7 +1572,7 @@ export const updateProjectApiV1GGuildIdProjectsProjectIdPatch = (
 ) => {
   return apiMutator<ProjectRead>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}`,
+      url: `/api/v1/c/${guildId}/projects/${projectId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: projectUpdate,
@@ -1582,27 +1582,27 @@ export const updateProjectApiV1GGuildIdProjectsProjectIdPatch = (
   );
 };
 
-export const getUpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationKey = () =>
-  ["updateProjectApiV1GGuildIdProjectsProjectIdPatch"] as const;
+export const getUpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationKey = () =>
+  ["updateProjectApiV1CGuildIdProjectsProjectIdPatch"] as const;
 
-export const getUpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationOptions = <
+export const getUpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>>,
+    Awaited<ReturnType<typeof updateProjectApiV1CGuildIdProjectsProjectIdPatch>>,
     TError,
-    UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationVariables,
+    UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>>,
+  Awaited<ReturnType<typeof updateProjectApiV1CGuildIdProjectsProjectIdPatch>>,
   TError,
-  UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationVariables,
+  UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationKey();
+  const mutationKey = getUpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1610,12 +1610,12 @@ export const getUpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>>,
-    UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateProjectApiV1CGuildIdProjectsProjectIdPatch>>,
+    UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationVariables
   > = (props) => {
     const { guildId, projectId, data } = props ?? {};
 
-    return updateProjectApiV1GGuildIdProjectsProjectIdPatch(
+    return updateProjectApiV1CGuildIdProjectsProjectIdPatch(
       guildId,
       projectId,
       data,
@@ -1626,13 +1626,13 @@ export const getUpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationOptions 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>>
+export type UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProjectApiV1CGuildIdProjectsProjectIdPatch>>
 >;
-export type UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationBody = BodyType<ProjectUpdate>;
-export type UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationError =
+export type UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationBody = BodyType<ProjectUpdate>;
+export type UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationVariables = {
+export type UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationVariables = {
   guildId: number;
   projectId: number;
   data: BodyType<ProjectUpdate>;
@@ -1641,28 +1641,28 @@ export type UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationVariables = 
 /**
  * @summary Update Project
  */
-export const useUpdateProjectApiV1GGuildIdProjectsProjectIdPatch = <
+export const useUpdateProjectApiV1CGuildIdProjectsProjectIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>>,
+      Awaited<ReturnType<typeof updateProjectApiV1CGuildIdProjectsProjectIdPatch>>,
       TError,
-      UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationVariables,
+      UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>>,
+  Awaited<ReturnType<typeof updateProjectApiV1CGuildIdProjectsProjectIdPatch>>,
   TError,
-  UpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationVariables,
+  UpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateProjectApiV1GGuildIdProjectsProjectIdPatchMutationOptions(options),
+    getUpdateProjectApiV1CGuildIdProjectsProjectIdPatchMutationOptions(options),
     queryClient
   );
 };
@@ -1672,39 +1672,39 @@ export const useUpdateProjectApiV1GGuildIdProjectsProjectIdPatch = <
  * descendants automatically.
  * @summary Delete Project
  */
-export const deleteProjectApiV1GGuildIdProjectsProjectIdDelete = (
+export const deleteProjectApiV1CGuildIdProjectsProjectIdDelete = (
   guildId: number,
   projectId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/projects/${projectId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationKey = () =>
-  ["deleteProjectApiV1GGuildIdProjectsProjectIdDelete"] as const;
+export const getDeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationKey = () =>
+  ["deleteProjectApiV1CGuildIdProjectsProjectIdDelete"] as const;
 
-export const getDeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationOptions = <
+export const getDeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteProjectApiV1GGuildIdProjectsProjectIdDelete>>,
+    Awaited<ReturnType<typeof deleteProjectApiV1CGuildIdProjectsProjectIdDelete>>,
     TError,
-    DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationVariables,
+    DeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteProjectApiV1GGuildIdProjectsProjectIdDelete>>,
+  Awaited<ReturnType<typeof deleteProjectApiV1CGuildIdProjectsProjectIdDelete>>,
   TError,
-  DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationVariables,
+  DeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationKey();
+  const mutationKey = getDeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1712,24 +1712,24 @@ export const getDeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteProjectApiV1GGuildIdProjectsProjectIdDelete>>,
-    DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteProjectApiV1CGuildIdProjectsProjectIdDelete>>,
+    DeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationVariables
   > = (props) => {
     const { guildId, projectId } = props ?? {};
 
-    return deleteProjectApiV1GGuildIdProjectsProjectIdDelete(guildId, projectId, requestOptions);
+    return deleteProjectApiV1CGuildIdProjectsProjectIdDelete(guildId, projectId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteProjectApiV1GGuildIdProjectsProjectIdDelete>>
+export type DeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteProjectApiV1CGuildIdProjectsProjectIdDelete>>
 >;
 
-export type DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationError =
+export type DeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationVariables = {
+export type DeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationVariables = {
   guildId: number;
   projectId: number;
 };
@@ -1737,28 +1737,28 @@ export type DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationVariables =
 /**
  * @summary Delete Project
  */
-export const useDeleteProjectApiV1GGuildIdProjectsProjectIdDelete = <
+export const useDeleteProjectApiV1CGuildIdProjectsProjectIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteProjectApiV1GGuildIdProjectsProjectIdDelete>>,
+      Awaited<ReturnType<typeof deleteProjectApiV1CGuildIdProjectsProjectIdDelete>>,
       TError,
-      DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationVariables,
+      DeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteProjectApiV1GGuildIdProjectsProjectIdDelete>>,
+  Awaited<ReturnType<typeof deleteProjectApiV1CGuildIdProjectsProjectIdDelete>>,
   TError,
-  DeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationVariables,
+  DeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteProjectApiV1GGuildIdProjectsProjectIdDeleteMutationOptions(options),
+    getDeleteProjectApiV1CGuildIdProjectsProjectIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -1777,16 +1777,16 @@ export const useDeleteProjectApiV1GGuildIdProjectsProjectIdDelete = <
  * narrows the same assignable set, so an id outside it returns nothing.
  * @summary Search Project Members
  */
-export const searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet = (
+export const searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet = (
   guildId: number,
   projectId: number,
-  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  params?: SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserSummaryListResponse>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/members/search`,
+      url: `/api/v1/c/${guildId}/projects/${projectId}/members/search`,
       method: "GET",
       params,
       signal,
@@ -1795,31 +1795,31 @@ export const searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet 
   );
 };
 
-export const getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryKey = (
+export const getSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetQueryKey = (
   guildId: number,
   projectId: number,
-  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams
+  params?: SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams
 ) => {
   return [
-    `/api/v1/g/${guildId}/projects/${projectId}/members/search`,
+    `/api/v1/c/${guildId}/projects/${projectId}/members/search`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryOptions = <
+export const getSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+    ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  params?: SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
         >,
         TError,
         TData
@@ -1832,16 +1832,16 @@ export const getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchG
 
   const queryKey =
     queryOptions?.queryKey ??
-    getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryKey(
+    getSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetQueryKey(
       guildId,
       projectId,
       params
     );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>>
+    Awaited<ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>>
   > = ({ signal }) =>
-    searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet(
+    searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet(
       guildId,
       projectId,
       params,
@@ -1856,33 +1856,33 @@ export const getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchG
       guildId !== null && guildId !== undefined && projectId !== null && projectId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>>,
+    Awaited<ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryResult =
+export type SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>>
+    Awaited<ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>>
   >;
-export type SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryError =
+export type SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet<
+export function useSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet<
   TData = Awaited<
-    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+    ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params: undefined | SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  params: undefined | SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
         >,
         TError,
         TData
@@ -1891,11 +1891,11 @@ export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSear
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+            ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+            ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
           >
         >,
         "initialData"
@@ -1904,20 +1904,20 @@ export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSear
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet<
+export function useSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet<
   TData = Awaited<
-    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+    ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  params?: SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
         >,
         TError,
         TData
@@ -1926,11 +1926,11 @@ export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSear
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+            ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+            ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
           >
         >,
         "initialData"
@@ -1939,20 +1939,20 @@ export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSear
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet<
+export function useSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet<
   TData = Awaited<
-    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+    ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  params?: SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
         >,
         TError,
         TData
@@ -1966,20 +1966,20 @@ export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSear
  * @summary Search Project Members
  */
 
-export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet<
+export function useSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet<
   TData = Awaited<
-    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+    ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   projectId: number,
-  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  params?: SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          ReturnType<typeof searchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet>
         >,
         TError,
         TData
@@ -1990,7 +1990,7 @@ export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSear
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryOptions(
+    getSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetQueryOptions(
       guildId,
       projectId,
       params,
@@ -2007,7 +2007,7 @@ export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSear
 /**
  * @summary Reorder Projects
  */
-export const reorderProjectsApiV1GGuildIdProjectsReorderPost = (
+export const reorderProjectsApiV1CGuildIdProjectsReorderPost = (
   guildId: number,
   projectReorderRequest: BodyType<ProjectReorderRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -2015,7 +2015,7 @@ export const reorderProjectsApiV1GGuildIdProjectsReorderPost = (
 ) => {
   return apiMutator<ProjectRead[]>(
     {
-      url: `/api/v1/g/${guildId}/projects/reorder`,
+      url: `/api/v1/c/${guildId}/projects/reorder`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: projectReorderRequest,
@@ -2025,27 +2025,27 @@ export const reorderProjectsApiV1GGuildIdProjectsReorderPost = (
   );
 };
 
-export const getReorderProjectsApiV1GGuildIdProjectsReorderPostMutationKey = () =>
-  ["reorderProjectsApiV1GGuildIdProjectsReorderPost"] as const;
+export const getReorderProjectsApiV1CGuildIdProjectsReorderPostMutationKey = () =>
+  ["reorderProjectsApiV1CGuildIdProjectsReorderPost"] as const;
 
-export const getReorderProjectsApiV1GGuildIdProjectsReorderPostMutationOptions = <
+export const getReorderProjectsApiV1CGuildIdProjectsReorderPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reorderProjectsApiV1GGuildIdProjectsReorderPost>>,
+    Awaited<ReturnType<typeof reorderProjectsApiV1CGuildIdProjectsReorderPost>>,
     TError,
-    ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationVariables,
+    ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof reorderProjectsApiV1GGuildIdProjectsReorderPost>>,
+  Awaited<ReturnType<typeof reorderProjectsApiV1CGuildIdProjectsReorderPost>>,
   TError,
-  ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationVariables,
+  ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getReorderProjectsApiV1GGuildIdProjectsReorderPostMutationKey();
+  const mutationKey = getReorderProjectsApiV1CGuildIdProjectsReorderPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2053,25 +2053,25 @@ export const getReorderProjectsApiV1GGuildIdProjectsReorderPostMutationOptions =
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof reorderProjectsApiV1GGuildIdProjectsReorderPost>>,
-    ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationVariables
+    Awaited<ReturnType<typeof reorderProjectsApiV1CGuildIdProjectsReorderPost>>,
+    ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return reorderProjectsApiV1GGuildIdProjectsReorderPost(guildId, data, requestOptions);
+    return reorderProjectsApiV1CGuildIdProjectsReorderPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof reorderProjectsApiV1GGuildIdProjectsReorderPost>>
+export type ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderProjectsApiV1CGuildIdProjectsReorderPost>>
 >;
-export type ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationBody =
+export type ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationBody =
   BodyType<ProjectReorderRequest>;
-export type ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationError =
+export type ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationVariables = {
+export type ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationVariables = {
   guildId: number;
   data: BodyType<ProjectReorderRequest>;
 };
@@ -2079,28 +2079,28 @@ export type ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationVariables = {
 /**
  * @summary Reorder Projects
  */
-export const useReorderProjectsApiV1GGuildIdProjectsReorderPost = <
+export const useReorderProjectsApiV1CGuildIdProjectsReorderPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof reorderProjectsApiV1GGuildIdProjectsReorderPost>>,
+      Awaited<ReturnType<typeof reorderProjectsApiV1CGuildIdProjectsReorderPost>>,
       TError,
-      ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationVariables,
+      ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof reorderProjectsApiV1GGuildIdProjectsReorderPost>>,
+  Awaited<ReturnType<typeof reorderProjectsApiV1CGuildIdProjectsReorderPost>>,
   TError,
-  ReorderProjectsApiV1GGuildIdProjectsReorderPostMutationVariables,
+  ReorderProjectsApiV1CGuildIdProjectsReorderPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getReorderProjectsApiV1GGuildIdProjectsReorderPostMutationOptions(options),
+    getReorderProjectsApiV1CGuildIdProjectsReorderPostMutationOptions(options),
     queryClient
   );
 };
@@ -2111,39 +2111,39 @@ export const useReorderProjectsApiV1GGuildIdProjectsReorderPost = <
  * grantee's browsing is transient by design and is not stored.
  * @summary Record Project View
  */
-export const recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost = (
+export const recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost = (
   guildId: number,
   projectId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}/view`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/projects/${projectId}/view`, method: "POST", signal },
     options
   );
 };
 
-export const getRecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationKey = () =>
-  ["recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost"] as const;
+export const getRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationKey = () =>
+  ["recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost"] as const;
 
-export const getRecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationOptions = <
+export const getRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost>>,
+    Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
     TError,
-    RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationVariables,
+    RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost>>,
+  Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
   TError,
-  RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationVariables,
+  RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getRecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationKey();
+  const mutationKey = getRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2151,12 +2151,12 @@ export const getRecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost>>,
-    RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationVariables
+    Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
+    RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables
   > = (props) => {
     const { guildId, projectId } = props ?? {};
 
-    return recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost(
+    return recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost(
       guildId,
       projectId,
       requestOptions
@@ -2166,13 +2166,13 @@ export const getRecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationO
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost>>
+export type RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>
 >;
 
-export type RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationError =
+export type RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationError =
   ErrorType<HTTPValidationError>;
-export type RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationVariables = {
+export type RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables = {
   guildId: number;
   projectId: number;
 };
@@ -2180,28 +2180,28 @@ export type RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationVaria
 /**
  * @summary Record Project View
  */
-export const useRecordProjectViewApiV1GGuildIdProjectsProjectIdViewPost = <
+export const useRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost>>,
+      Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
       TError,
-      RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationVariables,
+      RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost>>,
+  Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
   TError,
-  RecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationVariables,
+  RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRecordProjectViewApiV1GGuildIdProjectsProjectIdViewPostMutationOptions(options),
+    getRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationOptions(options),
     queryClient
   );
 };
@@ -2211,39 +2211,39 @@ export const useRecordProjectViewApiV1GGuildIdProjectsProjectIdViewPost = <
  * Idempotent — a tab that is not open stays closed.
  * @summary Clear Project View
  */
-export const clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete = (
+export const clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete = (
   guildId: number,
   projectId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}/view`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/projects/${projectId}/view`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationKey = () =>
-  ["clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete"] as const;
+export const getClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationKey = () =>
+  ["clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete"] as const;
 
-export const getClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationOptions = <
+export const getClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete>>,
+    Awaited<ReturnType<typeof clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete>>,
     TError,
-    ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationVariables,
+    ClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete>>,
+  Awaited<ReturnType<typeof clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete>>,
   TError,
-  ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationVariables,
+  ClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationKey();
+  const mutationKey = getClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2251,12 +2251,12 @@ export const getClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete>>,
-    ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationVariables
+    Awaited<ReturnType<typeof clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete>>,
+    ClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationVariables
   > = (props) => {
     const { guildId, projectId } = props ?? {};
 
-    return clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete(
+    return clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete(
       guildId,
       projectId,
       requestOptions
@@ -2266,13 +2266,13 @@ export const getClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutation
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete>>
+export type ClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete>>
 >;
 
-export type ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationError =
+export type ClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationVariables = {
+export type ClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationVariables = {
   guildId: number;
   projectId: number;
 };
@@ -2280,28 +2280,28 @@ export type ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationVari
 /**
  * @summary Clear Project View
  */
-export const useClearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete = <
+export const useClearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete>>,
+      Awaited<ReturnType<typeof clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete>>,
       TError,
-      ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationVariables,
+      ClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete>>,
+  Awaited<ReturnType<typeof clearProjectViewApiV1CGuildIdProjectsProjectIdViewDelete>>,
   TError,
-  ClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationVariables,
+  ClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClearProjectViewApiV1GGuildIdProjectsProjectIdViewDeleteMutationOptions(options),
+    getClearProjectViewApiV1CGuildIdProjectsProjectIdViewDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -2314,7 +2314,7 @@ export const useClearProjectViewApiV1GGuildIdProjectsProjectIdViewDelete = <
  * tasks (you can't be assigned to tasks you can't edit).
  * @summary Set Project Grants
  */
-export const setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut = (
+export const setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut = (
   guildId: number,
   projectId: number,
   resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
@@ -2323,7 +2323,7 @@ export const setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut = (
 ) => {
   return apiMutator<ProjectRead>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/grants`,
+      url: `/api/v1/c/${guildId}/projects/${projectId}/grants`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: resourceGrantSchema,
@@ -2333,27 +2333,27 @@ export const setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut = (
   );
 };
 
-export const getSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationKey = () =>
-  ["setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut"] as const;
+export const getSetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationKey = () =>
+  ["setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut"] as const;
 
-export const getSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationOptions = <
+export const getSetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
+    Awaited<ReturnType<typeof setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut>>,
     TError,
-    SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationVariables,
+    SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
+  Awaited<ReturnType<typeof setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut>>,
   TError,
-  SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationVariables,
+  SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationKey();
+  const mutationKey = getSetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2361,12 +2361,12 @@ export const getSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
-    SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationVariables
+    Awaited<ReturnType<typeof setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut>>,
+    SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationVariables
   > = (props) => {
     const { guildId, projectId, data } = props ?? {};
 
-    return setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut(
+    return setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut(
       guildId,
       projectId,
       data,
@@ -2377,15 +2377,15 @@ export const getSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationO
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>
+export type SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut>>
 >;
-export type SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationBody = BodyType<
+export type SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationBody = BodyType<
   ResourceGrantSchema[]
 >;
-export type SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationError =
+export type SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationVariables = {
+export type SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationVariables = {
   guildId: number;
   projectId: number;
   data: BodyType<ResourceGrantSchema[]>;
@@ -2394,28 +2394,28 @@ export type SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationVaria
 /**
  * @summary Set Project Grants
  */
-export const useSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut = <
+export const useSetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
+      Awaited<ReturnType<typeof setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut>>,
       TError,
-      SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationVariables,
+      SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
+  Awaited<ReturnType<typeof setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut>>,
   TError,
-  SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationVariables,
+  SetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationOptions(options),
+    getSetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationOptions(options),
     queryClient
   );
 };

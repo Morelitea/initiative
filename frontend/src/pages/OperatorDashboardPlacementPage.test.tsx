@@ -198,7 +198,7 @@ describe("OperatorDashboardPlacementPage", () => {
     let sent: unknown = null;
     server.use(
       http.get(REQUESTS_URL, () => HttpResponse.json(waiting)),
-      http.put("/api/v1/settings/guilds/7/narrowings/41", async ({ request }) => {
+      http.put("/api/v1/settings/communities/7/narrowings/41", async ({ request }) => {
         sent = await request.json();
         waiting = [];
         return HttpResponse.json({ ...sent, connection_id: 41 });

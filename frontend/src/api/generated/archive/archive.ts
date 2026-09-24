@@ -29,7 +29,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * archived, not when it was last asked about.
  * @summary Archive Entity
  */
-export const archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost = (
+export const archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost = (
   guildId: number,
   entityType: ArchivableType,
   entityId: number,
@@ -37,32 +37,32 @@ export const archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost = (
   signal?: AbortSignal
 ) => {
   return apiMutator<ArchiveResponse>(
-    { url: `/api/v1/g/${guildId}/archive/${entityType}/${entityId}`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/archive/${entityType}/${entityId}`, method: "POST", signal },
     options
   );
 };
 
-export const getArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationKey = () =>
-  ["archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost"] as const;
+export const getArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationKey = () =>
+  ["archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost"] as const;
 
-export const getArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationOptions = <
+export const getArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost>>,
+    Awaited<ReturnType<typeof archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost>>,
     TError,
-    ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationVariables,
+    ArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost>>,
+  Awaited<ReturnType<typeof archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost>>,
   TError,
-  ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationVariables,
+  ArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationKey();
+  const mutationKey = getArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -70,12 +70,12 @@ export const getArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost>>,
-    ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationVariables
+    Awaited<ReturnType<typeof archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost>>,
+    ArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationVariables
   > = (props) => {
     const { guildId, entityType, entityId } = props ?? {};
 
-    return archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost(
+    return archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost(
       guildId,
       entityType,
       entityId,
@@ -86,13 +86,13 @@ export const getArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationO
   return { mutationFn, ...mutationOptions };
 };
 
-export type ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost>>
+export type ArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost>>
 >;
 
-export type ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationError =
+export type ArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationVariables = {
+export type ArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationVariables = {
   guildId: number;
   entityType: ArchivableType;
   entityId: number;
@@ -101,28 +101,28 @@ export type ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationVaria
 /**
  * @summary Archive Entity
  */
-export const useArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost = <
+export const useArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost>>,
+      Awaited<ReturnType<typeof archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost>>,
       TError,
-      ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationVariables,
+      ArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost>>,
+  Awaited<ReturnType<typeof archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost>>,
   TError,
-  ArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationVariables,
+  ArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPostMutationOptions(options),
+    getArchiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPostMutationOptions(options),
     queryClient
   );
 };
@@ -132,7 +132,7 @@ export const useArchiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost = <
  * live row.
  * @summary Unarchive Entity
  */
-export const unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost = (
+export const unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost = (
   guildId: number,
   entityType: ArchivableType,
   entityId: number,
@@ -140,32 +140,32 @@ export const unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost = (
   signal?: AbortSignal
 ) => {
   return apiMutator<ArchiveResponse>(
-    { url: `/api/v1/g/${guildId}/unarchive/${entityType}/${entityId}`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/unarchive/${entityType}/${entityId}`, method: "POST", signal },
     options
   );
 };
 
-export const getUnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationKey = () =>
-  ["unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost"] as const;
+export const getUnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationKey = () =>
+  ["unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost"] as const;
 
-export const getUnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationOptions = <
+export const getUnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost>>,
+    Awaited<ReturnType<typeof unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost>>,
     TError,
-    UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables,
+    UnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost>>,
+  Awaited<ReturnType<typeof unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost>>,
   TError,
-  UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables,
+  UnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getUnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationKey();
+  const mutationKey = getUnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -173,12 +173,12 @@ export const getUnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost>>,
-    UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables
+    Awaited<ReturnType<typeof unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost>>,
+    UnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables
   > = (props) => {
     const { guildId, entityType, entityId } = props ?? {};
 
-    return unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost(
+    return unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost(
       guildId,
       entityType,
       entityId,
@@ -189,13 +189,13 @@ export const getUnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost>>
+export type UnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost>>
 >;
 
-export type UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationError =
+export type UnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables = {
+export type UnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables = {
   guildId: number;
   entityType: ArchivableType;
   entityId: number;
@@ -204,28 +204,28 @@ export type UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationV
 /**
  * @summary Unarchive Entity
  */
-export const useUnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost = <
+export const useUnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost>>,
+      Awaited<ReturnType<typeof unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost>>,
       TError,
-      UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables,
+      UnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost>>,
+  Awaited<ReturnType<typeof unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost>>,
   TError,
-  UnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables,
+  UnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUnarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPostMutationOptions(options),
+    getUnarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPostMutationOptions(options),
     queryClient
   );
 };

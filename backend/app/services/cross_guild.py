@@ -50,7 +50,7 @@ async def member_guild_ids(
     Suspended guilds are excluded for every membership role: content access is
     cut for members AND guild admins alike (admins keep only the settings
     surface), so no cross-guild aggregate may surface a suspended guild's
-    content — the ``/g/{guild_id}`` choke point (``_load_guild_context``)
+    content — the ``/c/{guild_id}`` choke point (``_load_guild_context``)
     refuses those guilds and this is its aggregate-path twin.
 
     A suspended *user* is excluded the same way, and for the same reason. They
@@ -59,7 +59,7 @@ async def member_guild_ids(
     that path means answering the same.
 
     A guild that declines personal API keys is excluded when the request is
-    carrying one, which is the same twinning: ``/g/{guild_id}`` refuses that
+    carrying one, which is the same twinning: ``/c/{guild_id}`` refuses that
     caller, so an aggregate cannot be the way its content is read instead."""
     await set_rls_context(session, user_id=user_id)
     conditions = [
@@ -96,7 +96,7 @@ async def gather_across_guilds(
     concatenate the results. The identity map is expunged between guilds because
     ids are unique only within a schema, not across them.
 
-    Each community is entered through the **same seam** a ``/g/{guild_id}``
+    Each community is entered through the **same seam** a ``/c/{guild_id}``
     request goes through, so what these views show is what that request would
     show: the same lookup, the same refusals, and the same standing computed in
     the community's own schema. A community this caller cannot reach right now
@@ -108,7 +108,7 @@ async def gather_across_guilds(
     system jobs pass ``SYSTEM_SATISFIED`` explicitly.
 
     ``for_settings`` enters each community on its configuration surface, as
-    ``/g/{guild_id}`` settings routes do (``establish_guild_access``'s
+    ``/c/{guild_id}`` settings routes do (``establish_guild_access``'s
     ``for_settings``), for a read of what its administrator configures.
 
     With communities divided into cohorts (``app.db.cohorts``), a request-path
@@ -172,7 +172,7 @@ async def gather_across_guilds(
                 )
         except GuildAccessError:
             # A community this caller cannot reach right now contributes
-            # nothing, exactly as its own ``/g/{guild_id}`` requests would.
+            # nothing, exactly as its own ``/c/{guild_id}`` requests would.
             return False
         return True
 

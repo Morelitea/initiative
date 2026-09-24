@@ -54,30 +54,30 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * answer to "what does it do", never to "is it there".
  * @summary Support Availability
  */
-export const supportAvailabilityApiV1GGuildIdSupportGet = (
+export const supportAvailabilityApiV1CGuildIdSupportGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<SupportAvailability>(
-    { url: `/api/v1/g/${guildId}/support`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/support`, method: "GET", signal },
     options
   );
 };
 
-export const getSupportAvailabilityApiV1GGuildIdSupportGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/support`] as const;
+export const getSupportAvailabilityApiV1CGuildIdSupportGetQueryKey = (guildId: number) => {
+  return [`/api/v1/c/${guildId}/support`] as const;
 };
 
-export const getSupportAvailabilityApiV1GGuildIdSupportGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+export const getSupportAvailabilityApiV1CGuildIdSupportGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+        Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
         TError,
         TData
       >
@@ -88,11 +88,11 @@ export const getSupportAvailabilityApiV1GGuildIdSupportGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getSupportAvailabilityApiV1GGuildIdSupportGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getSupportAvailabilityApiV1CGuildIdSupportGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>
-  > = ({ signal }) => supportAvailabilityApiV1GGuildIdSupportGet(guildId, requestOptions, signal);
+    Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>
+  > = ({ signal }) => supportAvailabilityApiV1CGuildIdSupportGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -100,35 +100,35 @@ export const getSupportAvailabilityApiV1GGuildIdSupportGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+    Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type SupportAvailabilityApiV1GGuildIdSupportGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>
+export type SupportAvailabilityApiV1CGuildIdSupportGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>
 >;
-export type SupportAvailabilityApiV1GGuildIdSupportGetQueryError = ErrorType<HTTPValidationError>;
+export type SupportAvailabilityApiV1CGuildIdSupportGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useSupportAvailabilityApiV1GGuildIdSupportGet<
-  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+export function useSupportAvailabilityApiV1CGuildIdSupportGet<
+  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+        Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+          Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
           TError,
-          Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>
+          Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>
         >,
         "initialData"
       >;
@@ -136,24 +136,24 @@ export function useSupportAvailabilityApiV1GGuildIdSupportGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSupportAvailabilityApiV1GGuildIdSupportGet<
-  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+export function useSupportAvailabilityApiV1CGuildIdSupportGet<
+  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+        Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+          Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
           TError,
-          Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>
+          Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>
         >,
         "initialData"
       >;
@@ -161,15 +161,15 @@ export function useSupportAvailabilityApiV1GGuildIdSupportGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSupportAvailabilityApiV1GGuildIdSupportGet<
-  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+export function useSupportAvailabilityApiV1CGuildIdSupportGet<
+  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+        Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
         TError,
         TData
       >
@@ -182,15 +182,15 @@ export function useSupportAvailabilityApiV1GGuildIdSupportGet<
  * @summary Support Availability
  */
 
-export function useSupportAvailabilityApiV1GGuildIdSupportGet<
-  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+export function useSupportAvailabilityApiV1CGuildIdSupportGet<
+  TData = Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof supportAvailabilityApiV1GGuildIdSupportGet>>,
+        Awaited<ReturnType<typeof supportAvailabilityApiV1CGuildIdSupportGet>>,
         TError,
         TData
       >
@@ -199,7 +199,7 @@ export function useSupportAvailabilityApiV1GGuildIdSupportGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getSupportAvailabilityApiV1GGuildIdSupportGetQueryOptions(guildId, options);
+  const queryOptions = getSupportAvailabilityApiV1CGuildIdSupportGetQueryOptions(guildId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -215,7 +215,7 @@ export function useSupportAvailabilityApiV1GGuildIdSupportGet<
  * person who needs help is rarely the person who administers anything.
  * @summary Ask For Help
  */
-export const askForHelpApiV1GGuildIdSupportPost = (
+export const askForHelpApiV1CGuildIdSupportPost = (
   guildId: number,
   supportRequestCreate: BodyType<SupportRequestCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -223,7 +223,7 @@ export const askForHelpApiV1GGuildIdSupportPost = (
 ) => {
   return apiMutator<SupportRequestAccepted>(
     {
-      url: `/api/v1/g/${guildId}/support`,
+      url: `/api/v1/c/${guildId}/support`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: supportRequestCreate,
@@ -233,27 +233,27 @@ export const askForHelpApiV1GGuildIdSupportPost = (
   );
 };
 
-export const getAskForHelpApiV1GGuildIdSupportPostMutationKey = () =>
-  ["askForHelpApiV1GGuildIdSupportPost"] as const;
+export const getAskForHelpApiV1CGuildIdSupportPostMutationKey = () =>
+  ["askForHelpApiV1CGuildIdSupportPost"] as const;
 
-export const getAskForHelpApiV1GGuildIdSupportPostMutationOptions = <
+export const getAskForHelpApiV1CGuildIdSupportPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof askForHelpApiV1GGuildIdSupportPost>>,
+    Awaited<ReturnType<typeof askForHelpApiV1CGuildIdSupportPost>>,
     TError,
-    AskForHelpApiV1GGuildIdSupportPostMutationVariables,
+    AskForHelpApiV1CGuildIdSupportPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof askForHelpApiV1GGuildIdSupportPost>>,
+  Awaited<ReturnType<typeof askForHelpApiV1CGuildIdSupportPost>>,
   TError,
-  AskForHelpApiV1GGuildIdSupportPostMutationVariables,
+  AskForHelpApiV1CGuildIdSupportPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getAskForHelpApiV1GGuildIdSupportPostMutationKey();
+  const mutationKey = getAskForHelpApiV1CGuildIdSupportPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -261,23 +261,23 @@ export const getAskForHelpApiV1GGuildIdSupportPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof askForHelpApiV1GGuildIdSupportPost>>,
-    AskForHelpApiV1GGuildIdSupportPostMutationVariables
+    Awaited<ReturnType<typeof askForHelpApiV1CGuildIdSupportPost>>,
+    AskForHelpApiV1CGuildIdSupportPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return askForHelpApiV1GGuildIdSupportPost(guildId, data, requestOptions);
+    return askForHelpApiV1CGuildIdSupportPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type AskForHelpApiV1GGuildIdSupportPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof askForHelpApiV1GGuildIdSupportPost>>
+export type AskForHelpApiV1CGuildIdSupportPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof askForHelpApiV1CGuildIdSupportPost>>
 >;
-export type AskForHelpApiV1GGuildIdSupportPostMutationBody = BodyType<SupportRequestCreate>;
-export type AskForHelpApiV1GGuildIdSupportPostMutationError = ErrorType<HTTPValidationError>;
-export type AskForHelpApiV1GGuildIdSupportPostMutationVariables = {
+export type AskForHelpApiV1CGuildIdSupportPostMutationBody = BodyType<SupportRequestCreate>;
+export type AskForHelpApiV1CGuildIdSupportPostMutationError = ErrorType<HTTPValidationError>;
+export type AskForHelpApiV1CGuildIdSupportPostMutationVariables = {
   guildId: number;
   data: BodyType<SupportRequestCreate>;
 };
@@ -285,25 +285,25 @@ export type AskForHelpApiV1GGuildIdSupportPostMutationVariables = {
 /**
  * @summary Ask For Help
  */
-export const useAskForHelpApiV1GGuildIdSupportPost = <
+export const useAskForHelpApiV1CGuildIdSupportPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof askForHelpApiV1GGuildIdSupportPost>>,
+      Awaited<ReturnType<typeof askForHelpApiV1CGuildIdSupportPost>>,
       TError,
-      AskForHelpApiV1GGuildIdSupportPostMutationVariables,
+      AskForHelpApiV1CGuildIdSupportPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof askForHelpApiV1GGuildIdSupportPost>>,
+  Awaited<ReturnType<typeof askForHelpApiV1CGuildIdSupportPost>>,
   TError,
-  AskForHelpApiV1GGuildIdSupportPostMutationVariables,
+  AskForHelpApiV1CGuildIdSupportPostMutationVariables,
   TContext
 > => {
-  return useMutation(getAskForHelpApiV1GGuildIdSupportPostMutationOptions(options), queryClient);
+  return useMutation(getAskForHelpApiV1CGuildIdSupportPostMutationOptions(options), queryClient);
 };

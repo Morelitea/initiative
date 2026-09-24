@@ -1556,7 +1556,7 @@ async def _load_download_document(
     with the eager loads the access check needs.
 
     Downloads are served via iframe/window.open, which can't send headers, so
-    the guild rides in the ``/g/{guild_id}`` path segment and names exactly the
+    the guild rides in the ``/c/{guild_id}`` path segment and names exactly the
     schema to read. Access is re-validated here (membership or live PAM grant).
     Leaves the session routed into the guild so a follow-up version query runs
     in the same schema.

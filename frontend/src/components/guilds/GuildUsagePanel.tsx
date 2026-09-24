@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { useReadStorageUsageApiV1GGuildIdStorageUsageGet } from "@/api/generated/storage/storage";
+import { useReadStorageUsageApiV1CGuildIdStorageUsageGet } from "@/api/generated/storage/storage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -29,7 +29,7 @@ export const GuildUsagePanel = () => {
   const guildId = activeGuild?.id;
   // What a community stores is read from inside it, so the figure is not part
   // of what a settings grant reaches. The panel renders without it.
-  const { data: usage } = useReadStorageUsageApiV1GGuildIdStorageUsageGet(guildId ?? 0, {
+  const { data: usage } = useReadStorageUsageApiV1CGuildIdStorageUsageGet(guildId ?? 0, {
     query: { enabled: guildId != null && reachesGuildContent(activeGuild) },
   });
 

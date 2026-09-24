@@ -26,8 +26,8 @@ import { useTranslation } from "react-i18next";
 import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListInitiativesApiV1GGuildIdInitiativesGetQueryKey,
-  listInitiativesApiV1GGuildIdInitiativesGet,
+  getListInitiativesApiV1CGuildIdInitiativesGetQueryKey,
+  listInitiativesApiV1CGuildIdInitiativesGet,
 } from "@/api/generated/initiatives/initiatives";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
@@ -192,8 +192,8 @@ export function MyToolsPage() {
   );
   const initiatives = useQueries({
     queries: rowGuildIds.map((guildId) => ({
-      queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId),
-      queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId),
+      queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId),
+      queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId),
       staleTime: 60_000,
     })),
     // `combine` rather than a `useMemo` over the results: the results array is

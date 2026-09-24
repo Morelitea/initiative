@@ -155,7 +155,7 @@ async def test_creating_a_guild_claims_it_for_its_owner(
 
     user = await create_user(session, email="claim-create@example.com")
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=get_auth_headers(user),
         json={"name": "Claimed Guild"},
     )
@@ -174,7 +174,7 @@ async def test_an_unconfigured_deployment_creates_guilds_without_claiming(
 
     user = await create_user(session, email="claim-foss@example.com")
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=get_auth_headers(user),
         json={"name": "Self-Hosted Guild"},
     )

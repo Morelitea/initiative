@@ -191,7 +191,7 @@ export interface AppDelegation {
 /** A value being set, or `null` to clear it. A key left out is untouched. */
 export type AppConfigValue = string | number | boolean | null;
 
-const base = (guildId: number, appId: number) => `/g/${guildId}/apps/${appId}`;
+const base = (guildId: number, appId: number) => `/c/${guildId}/apps/${appId}`;
 
 export const getGuildApp = (guildId: number, appId: number) =>
   apiClient.get<GuildAppDetail>(base(guildId, appId)).then((r) => r.data);

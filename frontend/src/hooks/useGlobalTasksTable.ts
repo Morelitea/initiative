@@ -14,7 +14,7 @@ import type {
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import {
   getListMyTasksApiV1MeTasksGetQueryKey,
   listMyTasksApiV1MeTasksGet,
@@ -398,7 +398,7 @@ export function useGlobalTasksTable() {
     }
     // Explicit guild address: the project lives in the task's guild, which
     // need not be the user's current context on these cross-guild pages.
-    const statuses = await listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+    const statuses = await listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(
       guildId,
       projectId
     );

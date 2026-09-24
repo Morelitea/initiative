@@ -1786,7 +1786,7 @@ async def _begin_provider_login(
     return response
 
 
-@router.get("/g/{guild_id}/providers", response_model=LoginProvidersResponse)
+@router.get("/c/{guild_id}/providers", response_model=LoginProvidersResponse)
 async def list_guild_login_providers(
     session: SessionDep, system_session: SystemSessionDep, guild_id: int
 ) -> LoginProvidersResponse:

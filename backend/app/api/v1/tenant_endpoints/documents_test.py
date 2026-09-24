@@ -1257,7 +1257,7 @@ async def test_a_delegated_download_reads_the_guild_its_token_names(
 
     try:
         response = await client.get(
-            f"/api/v1/g/{elsewhere.guild.id}/documents/{doc.id}/download",
+            f"/api/v1/c/{elsewhere.guild.id}/documents/{doc.id}/download",
             headers=headers,
         )
         assert response.status_code == 200, response.text
@@ -1295,7 +1295,7 @@ async def test_a_delegated_version_download_reads_the_same_guild(
 
     try:
         response = await client.get(
-            f"/api/v1/g/{elsewhere.guild.id}/documents/{doc.id}"
+            f"/api/v1/c/{elsewhere.guild.id}/documents/{doc.id}"
             f"/versions/{version.id}/download",
             headers=headers,
         )

@@ -1,12 +1,12 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet } from "@/api/generated/dashboards/dashboards";
+import { loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet } from "@/api/generated/dashboards/dashboards";
 import type {
   DashboardDataResponse,
   DashboardWidgetData,
   QueryResponse,
 } from "@/api/generated/initiativeAPI.schemas";
-import { runQueryApiV1GGuildIdQueryPost } from "@/api/generated/query/query";
+import { runQueryApiV1CGuildIdQueryPost } from "@/api/generated/query/query";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { busyRetryDelay, inQueryLane, retryWhileBusy } from "@/lib/queryLane";
 import type { QueryOpts } from "@/types/query";
@@ -51,7 +51,7 @@ export const useSqlQuery = (
     queryKey: sqlQueryKey(guildId, sql ?? "", initiativeId),
     queryFn: () =>
       inQueryLane(guildId, () =>
-        runQueryApiV1GGuildIdQueryPost(guildId, { sql: sql ?? "", initiative_id: initiativeId })
+        runQueryApiV1CGuildIdQueryPost(guildId, { sql: sql ?? "", initiative_id: initiativeId })
       ),
     // Not retried: a statement either resolves against the registry or it does
     // not, and a refused one is refused the same way every time. A guild with
@@ -85,7 +85,7 @@ export const useWidgetQuery = (
   const canvas = useQuery<DashboardDataResponse, Error, DashboardWidgetData | null>({
     queryKey: dashboardDataKey(guildId, dashboardId ?? 0),
     queryFn: () =>
-      loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet(guildId, dashboardId as number),
+      loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet(guildId, dashboardId as number),
     select: (data) => data.widgets[widgetId ?? ""] ?? null,
     // Not retried, for the same reason: a statement either resolves against the
     // registry or it does not — except for a guild with no free slot, which a

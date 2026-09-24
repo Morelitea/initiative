@@ -283,7 +283,7 @@ async def test_reading_an_initiative_by_id_answers_each_caller(
     else:
         actor = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
 
-    base = f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}"
+    base = f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}"
     detail = await client.get(base, headers=actor.headers)
 
     assert detail.status_code == status_code, detail.text
@@ -318,7 +318,7 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
     )
 
     response = await client.get(
-        f"/api/v1/g/{owner.guild.id}/initiatives/", headers=grantee.headers
+        f"/api/v1/c/{owner.guild.id}/initiatives/", headers=grantee.headers
     )
 
     assert response.status_code == 200, response.text
@@ -940,7 +940,7 @@ async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
     )
 
     response = await client.patch(
-        f"/api/v1/guilds/{admin.guild.id}/members/{joiner.user.id}",
+        f"/api/v1/communities/{admin.guild.id}/members/{joiner.user.id}",
         headers=admin.headers,
         json={"role": "admin"},
     )
@@ -1048,7 +1048,7 @@ async def test_initiative_guild_isolation(
     # ids are per-schema (not globally unique), so initiative1.id may collide with
     # a guild2 initiative — but it must never resolve to guild1's initiative.
     response2 = await client.get(
-        f"/api/v1/g/{guild2.id}/initiatives/{initiative1.id}", headers=a.headers
+        f"/api/v1/c/{guild2.id}/initiatives/{initiative1.id}", headers=a.headers
     )
 
     if response2.status_code == 200:
@@ -1169,7 +1169,7 @@ async def test_directory_rejects_non_guild_member(
     outsider = await acting_user(guild_role=GuildRole.member)
 
     response = await client.get(
-        f"/api/v1/g/{admin.guild.id}/initiatives/directory", headers=outsider.headers
+        f"/api/v1/c/{admin.guild.id}/initiatives/directory", headers=outsider.headers
     )
 
     assert response.status_code == 403
@@ -1238,7 +1238,7 @@ async def test_self_join_answers_each_policy_and_caller(
     actor = await _joiner(acting_user, session, caller, owner, initiative)
 
     response = await client.post(
-        f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}/join",
+        f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}/join",
         headers=actor.headers,
     )
 
@@ -1497,7 +1497,7 @@ async def test_knocking_answers_each_policy_and_caller(
         session, acting_user, name="Doorway", join_policy=policy
     )
     actor = await _joiner(acting_user, session, caller, owner, initiative)
-    url = f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}/join-requests"
+    url = f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}/join-requests"
 
     if knocked_first:
         first = await client.post(url, headers=actor.headers, json={})
@@ -2006,7 +2006,7 @@ async def test_answering_a_join_request_takes_manager_standing(
     actor = await _resolver(acting_user, session, caller, owner, initiative)
 
     response = await client.post(
-        f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}"
+        f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}"
         f"/join-requests/{request_id}/{action}",
         headers=actor.headers,
     )

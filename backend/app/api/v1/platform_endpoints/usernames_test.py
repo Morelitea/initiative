@@ -170,7 +170,7 @@ class TestWhatAGuildPayloadSays:
         admin, _member, guild = guild_with_member
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
         assert response.status_code == 200
@@ -181,7 +181,7 @@ class TestWhatAGuildPayloadSays:
         admin, member, guild = guild_with_member
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
         row = next(r for r in response.json() if r["id"] == member.id)
@@ -192,7 +192,7 @@ class TestWhatAGuildPayloadSays:
         admin, member, guild = guild_with_member
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
         row = next(r for r in response.json() if r["id"] == member.id)
@@ -207,7 +207,7 @@ class TestWhatAGuildPayloadSays:
         await session.commit()
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
         row = next(r for r in response.json() if r["id"] == member.id)
@@ -226,7 +226,7 @@ class TestWhatAGuildPayloadSays:
         await session.commit()
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
         row = next(r for r in response.json() if r["id"] == member.id)
@@ -265,7 +265,7 @@ class TestFindingSomeone:
 
     async def _search(self, client, admin, guild, term):
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/search",
+            f"/api/v1/c/{guild.id}/users/search",
             headers=get_auth_headers(admin),
             params={"search": term},
         )

@@ -2278,7 +2278,7 @@ async def test_guild_export_belongs_to_the_seat(
     admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
     member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
     for caller in (admin, member):
-        for source, params in (("guild", {}), ("estimate", {"scope": "guild"})):
+        for source, params in (("community", {}), ("estimate", {"scope": "guild"})):
             resp = await _export(
                 client, caller, source, headers=caller.headers, **params
             )
@@ -2308,7 +2308,7 @@ async def test_guild_backup_spans_initiatives_and_refreshes_access(
 
     monkeypatch.setattr(api_deps, "establish_guild_access", counting_establish)
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
     assert manifest["type"] == "guild-backup"
@@ -2614,7 +2614,7 @@ async def test_guild_export_seat_vacated_fails_closed(
     a = await acting_user(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     assert resp.status_code == 202
     job_id = resp.json()["id"]
 
@@ -2646,7 +2646,7 @@ async def test_guild_backup_carries_the_community_itself(
     )
     await create_tag(session, a.guild, name="worldbuilding", color="#ff0000")
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     names = set(archive.namelist())
     assert {"guild/settings.json", "guild/tags.json", "guild/members.json"} <= names
@@ -2741,7 +2741,7 @@ async def test_guild_backup_bundles_blobs_nothing_points_at(
         content_type="application/octet-stream",
     )
 
-    resp = await _export(client, a, "guild", include_uploads=True)
+    resp = await _export(client, a, "community", include_uploads=True)
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     assert f"assets/{orphan_key}" in archive.namelist()
     assert archive.read(f"assets/{orphan_key}") == b"orphan-bytes"
@@ -2804,7 +2804,7 @@ async def test_backup_skips_third_party_dashboards_and_says_so(
     session.add(theirs)
     await session.commit()
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
 
@@ -2838,7 +2838,7 @@ async def test_guild_backup_records_apps_it_does_not_carry(
         name="GitHub",
     )
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
 
@@ -2895,16 +2895,16 @@ async def test_whole_community_export_has_a_cooldown(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    first = await _export(client, a, "guild")
+    first = await _export(client, a, "community")
     assert first.status_code == 202, first.text
 
-    again = await _export(client, a, "guild")
+    again = await _export(client, a, "community")
     assert again.status_code == 429
     assert again.json()["detail"] == "EXPORT_COOLDOWN_ACTIVE"
 
     # A second holder of the seat does not get a fresh allowance.
     b = await acting_user(guild_role=GuildRole.superadmin, guild=a.guild)
-    theirs = await _export(client, b, "guild", headers=b.headers)
+    theirs = await _export(client, b, "community", headers=b.headers)
     assert theirs.status_code == 429
 
 
@@ -2916,8 +2916,8 @@ async def test_cooldown_can_be_switched_off(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    assert (await _export(client, a, "guild")).status_code == 202
-    assert (await _export(client, a, "guild")).status_code == 202
+    assert (await _export(client, a, "community")).status_code == 202
+    assert (await _export(client, a, "community")).status_code == 202
 
 
 async def test_guild_export_status_says_who_took_the_last_one_and_when(
@@ -2932,7 +2932,7 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    quiet = await client.get(a.g("/exports/guild/status"), headers=a.headers)
+    quiet = await client.get(a.g("/exports/community/status"), headers=a.headers)
     assert quiet.status_code == 200, quiet.text
     body = quiet.json()
     assert body["latest"] is None
@@ -2940,11 +2940,13 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
     assert body["next_available_at"] is None
     assert body["cooldown_hours"] == settings.EXPORT_GUILD_COOLDOWN_HOURS
 
-    started = await _export(client, a, "guild")
+    started = await _export(client, a, "community")
     assert started.status_code == 202, started.text
     job_id = started.json()["id"]
 
-    body = (await client.get(a.g("/exports/guild/status"), headers=a.headers)).json()
+    body = (
+        await client.get(a.g("/exports/community/status"), headers=a.headers)
+    ).json()
     assert body["latest"]["id"] == job_id
     assert body["latest"]["status"] == ExportJobStatus.queued.value
     assert body["latest_started_by"] == (
@@ -2959,7 +2961,7 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
         hours=settings.EXPORT_GUILD_COOLDOWN_HOURS
     )
 
-    refused = await _export(client, a, "guild")
+    refused = await _export(client, a, "community")
     assert refused.status_code == 429
     left = (available_at - datetime.now(timezone.utc)).total_seconds()
     assert abs(int(refused.headers["Retry-After"]) - left) <= 5
@@ -2972,7 +2974,7 @@ async def test_guild_export_status_is_the_seats(
     seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
     admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
 
-    resp = await client.get(admin.g("/exports/guild/status"), headers=admin.headers)
+    resp = await client.get(admin.g("/exports/community/status"), headers=admin.headers)
     assert resp.status_code == 403
     assert resp.json()["detail"] == "EXPORT_SUPERADMIN_REQUIRED"
 
@@ -2989,14 +2991,16 @@ async def test_a_failed_export_is_reported_but_holds_no_door(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    job_id = (await _export(client, a, "guild")).json()["id"]
+    job_id = (await _export(client, a, "community")).json()["id"]
     await _run_worker()
 
-    body = (await client.get(a.g("/exports/guild/status"), headers=a.headers)).json()
+    body = (
+        await client.get(a.g("/exports/community/status"), headers=a.headers)
+    ).json()
     assert body["latest"]["id"] == job_id
     assert body["latest"]["status"] == ExportJobStatus.failed.value
     assert body["next_available_at"] is None
-    assert (await _export(client, a, "guild")).status_code == 202
+    assert (await _export(client, a, "community")).status_code == 202
 
 
 async def test_an_archive_over_the_download_bound_is_delivered(
@@ -3010,7 +3014,7 @@ async def test_an_archive_over_the_download_bound_is_delivered(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     assert resp.status_code == 202, resp.text
     job_id = resp.json()["id"]
     await _run_worker()
@@ -3041,7 +3045,7 @@ async def test_a_delivered_archive_is_not_swept_up_by_artifact_gc(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     job_id = resp.json()["id"]
     await _run_worker()
 
@@ -3060,7 +3064,7 @@ async def test_over_the_bound_with_no_destination_fails_the_job_clearly(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     job_id = resp.json()["id"]
     await _run_worker()
 

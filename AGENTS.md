@@ -283,7 +283,7 @@ Available factories:
 Auth helpers:
 - `get_auth_token(user)` — returns a JWT string for the user
 - `get_auth_headers(user)` — returns `{"Authorization": "Bearer <token>"}` dict
-- `get_guild_headers(session, guild, user)` — async; wraps `get_auth_headers` (guild context is path-based now, so it writes no state). Address the guild in the URL, e.g. `/api/v1/g/{guild.id}/initiatives/`
+- `get_guild_headers(session, guild, user)` — async; wraps `get_auth_headers` (guild context is path-based now, so it writes no state). Address the guild in the URL, e.g. `/api/v1/c/{guild.id}/initiatives/`
 
 ```python
 from app.testing import create_user, create_guild, create_guild_membership, get_guild_headers
@@ -294,7 +294,7 @@ async def test_something(session, client):
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     headers = await get_guild_headers(session, guild, user)
-    response = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    response = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert response.status_code == 200
 ```
 
@@ -338,7 +338,7 @@ Tenancy is enforced in Postgres, not just app code. See **CLAUDE.md → "Tenancy
 
 - **Schema-per-guild.** Each guild's content lives in its own `guild_<id>` schema; shared identity/config lives in `public`. Isolation = the schema boundary + per-request `SET ROLE`.
 - **Three logins:** `app_user` (RLS-enforced request path), `app_admin` (the **only** BYPASSRLS role — jobs/seeding/bootstrapping), `app_provisioner` (migrations + provisioning, not a superuser). `DATABASE_URL` alone is the database owner and the app derives all three (see CLAUDE.md); `DATABASE_URL_APP`/`_ADMIN` name them explicitly. No standing all-guild bypass on the request path; `app.is_superadmin` is retired from it.
-- **Guild context is path-based:** guild requests are addressed as `/g/{guild_id}/…`. There is **no `X-Guild-ID` header and no `users.active_guild_id`** (both removed). Cross-guild "my" views are `/api/v1/me/*`.
+- **Guild context is path-based:** guild requests are addressed as `/c/{guild_id}/…`. There is **no `X-Guild-ID` header and no `users.active_guild_id`** (both removed). Cross-guild "my" views are `/api/v1/me/*`.
 - **Initiative-member RLS** on guild content defers to one function, `public.initiative_access(initiative_id, user_id, need_write)` (member OR guild admin OR PAM). A non-member sees **404** (row hidden), not 403. The structural initiative tables are guild-scoped only (not initiative-gated).
 - **Cross-guild access** (PAM / break-glass) is time-bound, per-guild, and audited — never a standing bypass.
 
@@ -346,14 +346,14 @@ Tenancy is enforced in Postgres, not just app code. See **CLAUDE.md → "Tenancy
 
 | Session Dep | Engine / role assumed | When to use |
 |---|---|---|
-| `RLSSessionDep` (`get_guild_session`) | `app_user` → `SET ROLE guild_<id>`/`_ro` | Guild-scoped data under `/g/{guild_id}/…`. Pair with `GuildContextDep`. |
+| `RLSSessionDep` (`get_guild_session`) | `app_user` → `SET ROLE guild_<id>`/`_ro` | Guild-scoped data under `/c/{guild_id}/…`. Pair with `GuildContextDep`. |
 | `UserSessionDep` (`get_user_session`) | `app_user` → `platform_<tier>` | Authenticated cross-guild/platform reads with no guild (`/me/*`, list/reorder/leave guilds). |
 | `SystemSessionDep` (`get_system_session`) | `app_admin` (**BYPASSRLS**) | Bootstrapping (create guild, accept invite), platform user/access-grant mgmt, background jobs, seeding. |
 | `SessionDep` (`get_session`) | `app_user`, login role | Unauthenticated, or handlers that call `set_rls_context()` themselves after validating. |
 
 ### Rules for writing backend endpoints
 
-1. **Default to `RLSSessionDep`** (+ `GuildContextDep`) for any guild-scoped data; the guild comes from the `/g/{guild_id}` path. Never use `SessionDep` for guild-scoped data.
+1. **Default to `RLSSessionDep`** (+ `GuildContextDep`) for any guild-scoped data; the guild comes from the `/c/{guild_id}` path. Never use `SessionDep` for guild-scoped data.
 2. **After every `session.commit()` followed by a query** (incl. `session.refresh()`), call `await reapply_rls_context(session)` — a commit may release the connection back to the pool.
 3. **Use `UserSessionDep`** for authenticated cross-guild/platform reads; reserve `SystemSessionDep` (BYPASSRLS) for bootstrapping/lifecycle/jobs that can't run under a scoped role.
 4. **Gate platform endpoints on `require_capability(...)`** — never reintroduce a request-path `is_superadmin`.
@@ -371,15 +371,15 @@ The path depends on where the table lives:
 ### Rules for writing frontend code
 
 1. **React Query cache keys for the same data must match across components.** If the sidebar uses `["initiatives", guildId]` and a page uses `["initiatives", { guildId }]`, invalidation from one won't reach the other. Use prefix invalidation (`queryKey: ["initiatives"]`) when mutations should refresh all consumers.
-2. **Guild context is in the URL path, not server-held.** Every guild-scoped request addresses its guild as `/api/v1/g/{guildId}/…`; there is no `X-Guild-ID` header and no server-held active guild (the `users.active_guild_id` column was removed). `useActiveGuildId()` derives the guild from the route; cross-guild "my" views call `/api/v1/me/*`.
+2. **Guild context is in the URL path, not server-held.** Every guild-scoped request addresses its guild as `/api/v1/c/{guildId}/…`; there is no `X-Guild-ID` header and no server-held active guild (the `users.active_guild_id` column was removed). `useActiveGuildId()` derives the guild from the route; cross-guild "my" views call `/api/v1/me/*`.
 3. **Never use `localStorage` directly.** Import `getItem`, `setItem`, `removeItem` from `@/lib/storage` instead. The storage module uses an in-memory cache backed by Capacitor Preferences on native (preventing data loss when the OS clears localStorage) and delegates to localStorage on web. `initStorage()` hydrates the cache before React renders, so all reads are synchronous.
 
 ## Guild Architecture Notes
 
-- Guilds are the primary tenancy boundary; users can join many. The active guild is **addressed in the URL path** (`/g/{guild_id}/…`) — there is no server-held active guild (`users.active_guild_id` was removed) and no `X-Guild-ID` header. `GuildContextDep`/`RLSSessionDep` resolve the guild from the path and re-validate membership (or a live PAM/break-glass grant) per request; a forged/stale path fails closed (403). Cross-guild "my" views are `/api/v1/me/*`.
+- Guilds are the primary tenancy boundary; users can join many. The active guild is **addressed in the URL path** (`/c/{guild_id}/…`) — there is no server-held active guild (`users.active_guild_id` was removed) and no `X-Guild-ID` header. `GuildContextDep`/`RLSSessionDep` resolve the guild from the path and re-validate membership (or a live PAM/break-glass grant) per request; a forged/stale path fails closed (403). Cross-guild "my" views are `/api/v1/me/*`.
 - Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project config, and can delete their guild. A guild admin sees the whole guild via the `current_guild_role='admin'` RLS leg, not a bypass.
 - **Platform roles are a 5-rung ladder** (`member → support → moderator → operator → owner`, stored in `users.role`) resolved to capabilities in `backend/app/core/capabilities.py`. Gate platform endpoints on a capability via `require_capability(...)`, not a role name. App-wide config (OIDC, SMTP, branding, role labels, platform AI) requires `config.manage` (owner-only); the first/bootstrap user becomes `owner`. Never leave the platform without a `config.manage` holder.
-- `.env` supports `DISABLE_GUILD_CREATION`: when `true`, POST `/guilds/` returns 403 and the SPA hides “Create guild” affordances.
+- `.env` supports `DISABLE_GUILD_CREATION`: when `true`, POST `/communities/` returns 403 and the SPA hides “Create guild” affordances.
 - Every new guild **provisions its `guild_<id>` schema + per-guild roles**, seeds its settings row + mandatory apps, and makes the creator a guild admin. It gets **no initiative** — the owner names the first one from the guild home's empty state. Guild deletion must drop the schema + roles and clean up the shared rows that cascade off `public.guilds`.
 
 ## Docker Deployment

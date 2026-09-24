@@ -892,7 +892,7 @@ class Settings(BaseSettings):
     # is unset on a self-hosted install, and with them unset the app behaves
     # exactly as if billing did not exist: the /billing endpoints answer 503,
     # the membership ping is a no-op, and guild caps/status are governed
-    # solely by what the operator sets (PATCH /settings/guilds/{id}).
+    # solely by what the operator sets (PATCH /settings/communities/{id}).
     #
     # Inbound calls from the billing service (initiative-billing). Requests
     # carry an RS256 service JWT (verified against this public key) plus an

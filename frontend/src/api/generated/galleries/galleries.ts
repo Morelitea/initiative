@@ -21,8 +21,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  BodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost,
-  BodyUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost,
+  BodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost,
+  BodyUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost,
   GalleryCreate,
   GalleryImageBulkDelete,
   GalleryImageBulkDeleteResponse,
@@ -33,12 +33,12 @@ import type {
   GalleryListResponse,
   GalleryRead,
   GalleryUpdate,
-  GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
   HTTPValidationError,
   InitiativeGroupedCountsResponse,
-  ListGalleriesApiV1GGuildIdGalleriesGetParams,
-  ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
-  ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams,
+  ListGalleriesApiV1CGuildIdGalleriesGetParams,
+  ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
+  ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
   TimelineResponse,
@@ -68,27 +68,27 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * Visible-gallery counts grouped by initiative, for the sidebar badges.
  * @summary Get Gallery Counts By Initiative
  */
-export const getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet = (
+export const getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeGroupedCountsResponse>(
-    { url: `/api/v1/g/${guildId}/galleries/counts/by-initiative`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/galleries/counts/by-initiative`, method: "GET", signal },
     options
   );
 };
 
-export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryKey = (
+export const getGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/galleries/counts/by-initiative`] as const;
+  return [`/api/v1/c/${guildId}/galleries/counts/by-initiative`] as const;
 };
 
-export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryOptions =
+export const getGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+      ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
     >,
     TError = ErrorType<HTTPValidationError>,
   >(
@@ -98,7 +98,7 @@ export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitia
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+              typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet
             >
           >,
           TError,
@@ -112,14 +112,14 @@ export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitia
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryKey(guildId);
+      getGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGetQueryKey(guildId);
 
     const queryFn: QueryFunction<
       Awaited<
-        ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+        ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
       >
     > = ({ signal }) =>
-      getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet(
+      getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet(
         guildId,
         requestOptions,
         signal
@@ -132,25 +132,25 @@ export const getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitia
       ...queryOptions,
     } as UseQueryOptions<
       Awaited<
-        ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+        ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
       >,
       TError,
       TData
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryResult =
+export type GetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+      ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
     >
   >;
-export type GetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryError =
+export type GetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
+export function useGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+    ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -159,7 +159,7 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+          ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
         >,
         TError,
         TData
@@ -169,13 +169,13 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+              typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+              typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet
             >
           >
         >,
@@ -185,9 +185,9 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
+export function useGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+    ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -196,7 +196,7 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+          ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
         >,
         TError,
         TData
@@ -206,13 +206,13 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+              typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet
+              typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet
             >
           >
         >,
@@ -222,9 +222,9 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
+export function useGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+    ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -233,7 +233,7 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+          ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
         >,
         TError,
         TData
@@ -247,9 +247,9 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
  * @summary Get Gallery Counts By Initiative
  */
 
-export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet<
+export function useGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+    ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -258,7 +258,7 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGet>
+          ReturnType<typeof getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet>
         >,
         TError,
         TData
@@ -269,7 +269,7 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByInitiativeGetQueryOptions(
+    getGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGetQueryOptions(
       guildId,
       options
     );
@@ -285,35 +285,35 @@ export function useGetGalleryCountsByInitiativeApiV1GGuildIdGalleriesCountsByIni
  * List galleries visible to the current user (guild admins see all).
  * @summary List Galleries
  */
-export const listGalleriesApiV1GGuildIdGalleriesGet = (
+export const listGalleriesApiV1CGuildIdGalleriesGet = (
   guildId: number,
-  params?: ListGalleriesApiV1GGuildIdGalleriesGetParams,
+  params?: ListGalleriesApiV1CGuildIdGalleriesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GalleryListResponse>(
-    { url: `/api/v1/g/${guildId}/galleries/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/galleries/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListGalleriesApiV1GGuildIdGalleriesGetQueryKey = (
+export const getListGalleriesApiV1CGuildIdGalleriesGetQueryKey = (
   guildId: number,
-  params?: ListGalleriesApiV1GGuildIdGalleriesGetParams
+  params?: ListGalleriesApiV1CGuildIdGalleriesGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/galleries/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/galleries/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListGalleriesApiV1GGuildIdGalleriesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+export const getListGalleriesApiV1CGuildIdGalleriesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListGalleriesApiV1GGuildIdGalleriesGetParams,
+  params?: ListGalleriesApiV1CGuildIdGalleriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+        Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
         TError,
         TData
       >
@@ -324,12 +324,12 @@ export const getListGalleriesApiV1GGuildIdGalleriesGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListGalleriesApiV1GGuildIdGalleriesGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getListGalleriesApiV1CGuildIdGalleriesGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>
+    Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>
   > = ({ signal }) =>
-    listGalleriesApiV1GGuildIdGalleriesGet(guildId, params, requestOptions, signal);
+    listGalleriesApiV1CGuildIdGalleriesGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -337,36 +337,36 @@ export const getListGalleriesApiV1GGuildIdGalleriesGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+    Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListGalleriesApiV1GGuildIdGalleriesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>
+export type ListGalleriesApiV1CGuildIdGalleriesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>
 >;
-export type ListGalleriesApiV1GGuildIdGalleriesGetQueryError = ErrorType<HTTPValidationError>;
+export type ListGalleriesApiV1CGuildIdGalleriesGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListGalleriesApiV1GGuildIdGalleriesGet<
-  TData = Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+export function useListGalleriesApiV1CGuildIdGalleriesGet<
+  TData = Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListGalleriesApiV1GGuildIdGalleriesGetParams,
+  params: undefined | ListGalleriesApiV1CGuildIdGalleriesGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+        Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+          Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
           TError,
-          Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>
+          Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>
         >,
         "initialData"
       >;
@@ -374,25 +374,25 @@ export function useListGalleriesApiV1GGuildIdGalleriesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGalleriesApiV1GGuildIdGalleriesGet<
-  TData = Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+export function useListGalleriesApiV1CGuildIdGalleriesGet<
+  TData = Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListGalleriesApiV1GGuildIdGalleriesGetParams,
+  params?: ListGalleriesApiV1CGuildIdGalleriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+        Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+          Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
           TError,
-          Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>
+          Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>
         >,
         "initialData"
       >;
@@ -400,16 +400,16 @@ export function useListGalleriesApiV1GGuildIdGalleriesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGalleriesApiV1GGuildIdGalleriesGet<
-  TData = Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+export function useListGalleriesApiV1CGuildIdGalleriesGet<
+  TData = Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListGalleriesApiV1GGuildIdGalleriesGetParams,
+  params?: ListGalleriesApiV1CGuildIdGalleriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+        Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
         TError,
         TData
       >
@@ -422,16 +422,16 @@ export function useListGalleriesApiV1GGuildIdGalleriesGet<
  * @summary List Galleries
  */
 
-export function useListGalleriesApiV1GGuildIdGalleriesGet<
-  TData = Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+export function useListGalleriesApiV1CGuildIdGalleriesGet<
+  TData = Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListGalleriesApiV1GGuildIdGalleriesGetParams,
+  params?: ListGalleriesApiV1CGuildIdGalleriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleriesApiV1GGuildIdGalleriesGet>>,
+        Awaited<ReturnType<typeof listGalleriesApiV1CGuildIdGalleriesGet>>,
         TError,
         TData
       >
@@ -440,7 +440,7 @@ export function useListGalleriesApiV1GGuildIdGalleriesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGalleriesApiV1GGuildIdGalleriesGetQueryOptions(
+  const queryOptions = getListGalleriesApiV1CGuildIdGalleriesGetQueryOptions(
     guildId,
     params,
     options
@@ -458,7 +458,7 @@ export function useListGalleriesApiV1GGuildIdGalleriesGet<
  * initiative (or guild admin); the creator gets the owner grant.
  * @summary Create Gallery
  */
-export const createGalleryApiV1GGuildIdGalleriesPost = (
+export const createGalleryApiV1CGuildIdGalleriesPost = (
   guildId: number,
   galleryCreate: BodyType<GalleryCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -466,7 +466,7 @@ export const createGalleryApiV1GGuildIdGalleriesPost = (
 ) => {
   return apiMutator<GalleryRead>(
     {
-      url: `/api/v1/g/${guildId}/galleries/`,
+      url: `/api/v1/c/${guildId}/galleries/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: galleryCreate,
@@ -476,27 +476,27 @@ export const createGalleryApiV1GGuildIdGalleriesPost = (
   );
 };
 
-export const getCreateGalleryApiV1GGuildIdGalleriesPostMutationKey = () =>
-  ["createGalleryApiV1GGuildIdGalleriesPost"] as const;
+export const getCreateGalleryApiV1CGuildIdGalleriesPostMutationKey = () =>
+  ["createGalleryApiV1CGuildIdGalleriesPost"] as const;
 
-export const getCreateGalleryApiV1GGuildIdGalleriesPostMutationOptions = <
+export const getCreateGalleryApiV1CGuildIdGalleriesPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createGalleryApiV1GGuildIdGalleriesPost>>,
+    Awaited<ReturnType<typeof createGalleryApiV1CGuildIdGalleriesPost>>,
     TError,
-    CreateGalleryApiV1GGuildIdGalleriesPostMutationVariables,
+    CreateGalleryApiV1CGuildIdGalleriesPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createGalleryApiV1GGuildIdGalleriesPost>>,
+  Awaited<ReturnType<typeof createGalleryApiV1CGuildIdGalleriesPost>>,
   TError,
-  CreateGalleryApiV1GGuildIdGalleriesPostMutationVariables,
+  CreateGalleryApiV1CGuildIdGalleriesPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateGalleryApiV1GGuildIdGalleriesPostMutationKey();
+  const mutationKey = getCreateGalleryApiV1CGuildIdGalleriesPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -504,23 +504,23 @@ export const getCreateGalleryApiV1GGuildIdGalleriesPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createGalleryApiV1GGuildIdGalleriesPost>>,
-    CreateGalleryApiV1GGuildIdGalleriesPostMutationVariables
+    Awaited<ReturnType<typeof createGalleryApiV1CGuildIdGalleriesPost>>,
+    CreateGalleryApiV1CGuildIdGalleriesPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createGalleryApiV1GGuildIdGalleriesPost(guildId, data, requestOptions);
+    return createGalleryApiV1CGuildIdGalleriesPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateGalleryApiV1GGuildIdGalleriesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createGalleryApiV1GGuildIdGalleriesPost>>
+export type CreateGalleryApiV1CGuildIdGalleriesPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createGalleryApiV1CGuildIdGalleriesPost>>
 >;
-export type CreateGalleryApiV1GGuildIdGalleriesPostMutationBody = BodyType<GalleryCreate>;
-export type CreateGalleryApiV1GGuildIdGalleriesPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateGalleryApiV1GGuildIdGalleriesPostMutationVariables = {
+export type CreateGalleryApiV1CGuildIdGalleriesPostMutationBody = BodyType<GalleryCreate>;
+export type CreateGalleryApiV1CGuildIdGalleriesPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateGalleryApiV1CGuildIdGalleriesPostMutationVariables = {
   guildId: number;
   data: BodyType<GalleryCreate>;
 };
@@ -528,66 +528,66 @@ export type CreateGalleryApiV1GGuildIdGalleriesPostMutationVariables = {
 /**
  * @summary Create Gallery
  */
-export const useCreateGalleryApiV1GGuildIdGalleriesPost = <
+export const useCreateGalleryApiV1CGuildIdGalleriesPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createGalleryApiV1GGuildIdGalleriesPost>>,
+      Awaited<ReturnType<typeof createGalleryApiV1CGuildIdGalleriesPost>>,
       TError,
-      CreateGalleryApiV1GGuildIdGalleriesPostMutationVariables,
+      CreateGalleryApiV1CGuildIdGalleriesPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createGalleryApiV1GGuildIdGalleriesPost>>,
+  Awaited<ReturnType<typeof createGalleryApiV1CGuildIdGalleriesPost>>,
   TError,
-  CreateGalleryApiV1GGuildIdGalleriesPostMutationVariables,
+  CreateGalleryApiV1CGuildIdGalleriesPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateGalleryApiV1GGuildIdGalleriesPostMutationOptions(options),
+    getCreateGalleryApiV1CGuildIdGalleriesPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Read Gallery
  */
-export const readGalleryApiV1GGuildIdGalleriesGalleryIdGet = (
+export const readGalleryApiV1CGuildIdGalleriesGalleryIdGet = (
   guildId: number,
   galleryId: number,
-  params?: ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams,
+  params?: ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GalleryRead>(
-    { url: `/api/v1/g/${guildId}/galleries/${galleryId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/galleries/${galleryId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey = (
+export const getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey = (
   guildId: number,
   galleryId: number,
-  params?: ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams
+  params?: ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/galleries/${galleryId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/galleries/${galleryId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+export const getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams,
+  params?: ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+        Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
         TError,
         TData
       >
@@ -599,12 +599,12 @@ export const getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryKey(guildId, galleryId, params);
+    getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey(guildId, galleryId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>
+    Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>
   > = ({ signal }) =>
-    readGalleryApiV1GGuildIdGalleriesGalleryIdGet(
+    readGalleryApiV1CGuildIdGalleriesGalleryIdGet(
       guildId,
       galleryId,
       params,
@@ -619,38 +619,38 @@ export const getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryOptions = <
       guildId !== null && guildId !== undefined && galleryId !== null && galleryId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+    Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>
+export type ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>
 >;
-export type ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryError =
+export type ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
-  TData = Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+export function useReadGalleryApiV1CGuildIdGalleriesGalleryIdGet<
+  TData = Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params: undefined | ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams,
+  params: undefined | ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+        Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+          Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>
+          Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>
         >,
         "initialData"
       >;
@@ -658,26 +658,26 @@ export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
-  TData = Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+export function useReadGalleryApiV1CGuildIdGalleriesGalleryIdGet<
+  TData = Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams,
+  params?: ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+        Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+          Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>
+          Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>
         >,
         "initialData"
       >;
@@ -685,17 +685,17 @@ export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
-  TData = Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+export function useReadGalleryApiV1CGuildIdGalleriesGalleryIdGet<
+  TData = Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams,
+  params?: ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+        Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
         TError,
         TData
       >
@@ -708,17 +708,17 @@ export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
  * @summary Read Gallery
  */
 
-export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
-  TData = Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+export function useReadGalleryApiV1CGuildIdGalleriesGalleryIdGet<
+  TData = Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: ReadGalleryApiV1GGuildIdGalleriesGalleryIdGetParams,
+  params?: ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryApiV1GGuildIdGalleriesGalleryIdGet>>,
+        Awaited<ReturnType<typeof readGalleryApiV1CGuildIdGalleriesGalleryIdGet>>,
         TError,
         TData
       >
@@ -727,7 +727,7 @@ export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadGalleryApiV1GGuildIdGalleriesGalleryIdGetQueryOptions(
+  const queryOptions = getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryOptions(
     guildId,
     galleryId,
     params,
@@ -745,7 +745,7 @@ export function useReadGalleryApiV1GGuildIdGalleriesGalleryIdGet<
  * Rename, describe, or choose the cover. Requires write access.
  * @summary Update Gallery
  */
-export const updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch = (
+export const updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch = (
   guildId: number,
   galleryId: number,
   galleryUpdate: BodyType<GalleryUpdate>,
@@ -754,7 +754,7 @@ export const updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch = (
 ) => {
   return apiMutator<GalleryRead>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: galleryUpdate,
@@ -764,27 +764,27 @@ export const updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch = (
   );
 };
 
-export const getUpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationKey = () =>
-  ["updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch"] as const;
+export const getUpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationKey = () =>
+  ["updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch"] as const;
 
-export const getUpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationOptions = <
+export const getUpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch>>,
+    Awaited<ReturnType<typeof updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch>>,
     TError,
-    UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationVariables,
+    UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch>>,
+  Awaited<ReturnType<typeof updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch>>,
   TError,
-  UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationVariables,
+  UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationKey();
+  const mutationKey = getUpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -792,12 +792,12 @@ export const getUpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch>>,
-    UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch>>,
+    UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationVariables
   > = (props) => {
     const { guildId, galleryId, data } = props ?? {};
 
-    return updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch(
+    return updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch(
       guildId,
       galleryId,
       data,
@@ -808,13 +808,13 @@ export const getUpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationOptions
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch>>
+export type UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch>>
 >;
-export type UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationBody = BodyType<GalleryUpdate>;
-export type UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationError =
+export type UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationBody = BodyType<GalleryUpdate>;
+export type UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationVariables = {
+export type UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationVariables = {
   guildId: number;
   galleryId: number;
   data: BodyType<GalleryUpdate>;
@@ -823,28 +823,28 @@ export type UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationVariables =
 /**
  * @summary Update Gallery
  */
-export const useUpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatch = <
+export const useUpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch>>,
+      Awaited<ReturnType<typeof updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch>>,
       TError,
-      UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationVariables,
+      UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateGalleryApiV1GGuildIdGalleriesGalleryIdPatch>>,
+  Awaited<ReturnType<typeof updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch>>,
   TError,
-  UpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationVariables,
+  UpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatchMutationOptions(options),
+    getUpdateGalleryApiV1CGuildIdGalleriesGalleryIdPatchMutationOptions(options),
     queryClient
   );
 };
@@ -853,39 +853,39 @@ export const useUpdateGalleryApiV1GGuildIdGalleriesGalleryIdPatch = <
  * guild admin.
  * @summary Delete Gallery
  */
-export const deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete = (
+export const deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete = (
   guildId: number,
   galleryId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/galleries/${galleryId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/galleries/${galleryId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationKey = () =>
-  ["deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete"] as const;
+export const getDeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationKey = () =>
+  ["deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete"] as const;
 
-export const getDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationOptions = <
+export const getDeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete>>,
+    Awaited<ReturnType<typeof deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete>>,
     TError,
-    DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationVariables,
+    DeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete>>,
+  Awaited<ReturnType<typeof deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete>>,
   TError,
-  DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationVariables,
+  DeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationKey();
+  const mutationKey = getDeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -893,24 +893,24 @@ export const getDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete>>,
-    DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete>>,
+    DeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationVariables
   > = (props) => {
     const { guildId, galleryId } = props ?? {};
 
-    return deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete(guildId, galleryId, requestOptions);
+    return deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete(guildId, galleryId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete>>
+export type DeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete>>
 >;
 
-export type DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationError =
+export type DeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationVariables = {
+export type DeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationVariables = {
   guildId: number;
   galleryId: number;
 };
@@ -918,28 +918,28 @@ export type DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationVariables 
 /**
  * @summary Delete Gallery
  */
-export const useDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete = <
+export const useDeleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete>>,
+      Awaited<ReturnType<typeof deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete>>,
       TError,
-      DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationVariables,
+      DeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete>>,
+  Awaited<ReturnType<typeof deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete>>,
   TError,
-  DeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationVariables,
+  DeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDeleteMutationOptions(options),
+    getDeleteGalleryApiV1CGuildIdGalleriesGalleryIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -950,41 +950,41 @@ export const useDeleteGalleryApiV1GGuildIdGalleriesGalleryIdDelete = <
  * there is no per-picture sharing to consult.
  * @summary List Gallery Images
  */
-export const listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet = (
+export const listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet = (
   guildId: number,
   galleryId: number,
-  params?: ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
+  params?: ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GalleryImageListResponse>(
-    { url: `/api/v1/g/${guildId}/galleries/${galleryId}/images`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/galleries/${galleryId}/images`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryKey = (
+export const getListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryKey = (
   guildId: number,
   galleryId: number,
-  params?: ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams
+  params?: ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams
 ) => {
   return [
-    `/api/v1/g/${guildId}/galleries/${galleryId}/images`,
+    `/api/v1/c/${guildId}/galleries/${galleryId}/images`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+export const getListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
+  params?: ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+        Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
         TError,
         TData
       >
@@ -996,16 +996,16 @@ export const getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryOp
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryKey(
+    getListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryKey(
       guildId,
       galleryId,
       params
     );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>
+    Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>
   > = ({ signal }) =>
-    listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet(
+    listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet(
       guildId,
       galleryId,
       params,
@@ -1020,38 +1020,38 @@ export const getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryOp
       guildId !== null && guildId !== undefined && galleryId !== null && galleryId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+    Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>
+export type ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>
 >;
-export type ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryError =
+export type ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
-  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+export function useListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet<
+  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params: undefined | ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
+  params: undefined | ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+        Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+          Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
           TError,
-          Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>
+          Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>
         >,
         "initialData"
       >;
@@ -1059,26 +1059,26 @@ export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
-  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+export function useListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet<
+  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
+  params?: ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+        Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+          Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
           TError,
-          Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>
+          Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>
         >,
         "initialData"
       >;
@@ -1086,17 +1086,17 @@ export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
-  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+export function useListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet<
+  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
+  params?: ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+        Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
         TError,
         TData
       >
@@ -1109,17 +1109,17 @@ export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
  * @summary List Gallery Images
  */
 
-export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
-  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+export function useListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet<
+  TData = Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
+  params?: ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet>>,
+        Awaited<ReturnType<typeof listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet>>,
         TError,
         TData
       >
@@ -1128,7 +1128,7 @@ export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryOptions(
+  const queryOptions = getListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryOptions(
     guildId,
     galleryId,
     params,
@@ -1150,34 +1150,34 @@ export function useListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet<
  * fails does not take the other thirty-nine with it.
  * @summary Upload Gallery Image
  */
-export const uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost = (
+export const uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost = (
   guildId: number,
   galleryId: number,
-  bodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost: BodyType<BodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>,
+  bodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost: BodyType<BodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`file`, bodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost.file);
+  formData.append(`file`, bodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost.file);
   if (
-    bodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost.title !== undefined &&
-    bodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost.title !== null
+    bodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost.title !== undefined &&
+    bodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost.title !== null
   ) {
-    formData.append(`title`, bodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost.title);
+    formData.append(`title`, bodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost.title);
   }
   if (
-    bodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost.caption !== undefined &&
-    bodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost.caption !== null
+    bodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost.caption !== undefined &&
+    bodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost.caption !== null
   ) {
     formData.append(
       `caption`,
-      bodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost.caption
+      bodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost.caption
     );
   }
 
   return apiMutator<GalleryImageRead>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/images`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/images`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -1187,27 +1187,27 @@ export const uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost = (
   );
 };
 
-export const getUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationKey = () =>
-  ["uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost"] as const;
+export const getUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationKey = () =>
+  ["uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost"] as const;
 
-export const getUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationOptions = <
+export const getUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>>,
+    Awaited<ReturnType<typeof uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>>,
     TError,
-    UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationVariables,
+    UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>>,
+  Awaited<ReturnType<typeof uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>>,
   TError,
-  UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationVariables,
+  UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationKey();
+  const mutationKey = getUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1215,12 +1215,12 @@ export const getUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>>,
-    UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationVariables
+    Awaited<ReturnType<typeof uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>>,
+    UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationVariables
   > = (props) => {
     const { guildId, galleryId, data } = props ?? {};
 
-    return uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost(
+    return uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost(
       guildId,
       galleryId,
       data,
@@ -1231,44 +1231,44 @@ export const getUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>>
+export type UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>>
 >;
-export type UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationBody =
-  BodyType<BodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>;
-export type UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationError =
+export type UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationBody =
+  BodyType<BodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>;
+export type UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationVariables = {
+export type UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationVariables = {
   guildId: number;
   galleryId: number;
-  data: BodyType<BodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>;
+  data: BodyType<BodyUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>;
 };
 
 /**
  * @summary Upload Gallery Image
  */
-export const useUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost = <
+export const useUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>>,
+      Awaited<ReturnType<typeof uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>>,
       TError,
-      UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationVariables,
+      UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost>>,
+  Awaited<ReturnType<typeof uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost>>,
   TError,
-  UploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationVariables,
+  UploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPostMutationOptions(options),
+    getUploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPostMutationOptions(options),
     queryClient
   );
 };
@@ -1278,16 +1278,16 @@ export const useUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost = <
  * rail is a picture of the list as it currently stands.
  * @summary Get Gallery Image Timeline
  */
-export const getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet = (
+export const getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet = (
   guildId: number,
   galleryId: number,
-  params?: GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  params?: GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TimelineResponse>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/images/timeline`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/images/timeline`,
       method: "GET",
       params,
       signal,
@@ -1296,33 +1296,33 @@ export const getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelin
   );
 };
 
-export const getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey = (
+export const getGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey = (
   guildId: number,
   galleryId: number,
-  params?: GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams
+  params?: GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams
 ) => {
   return [
-    `/api/v1/g/${guildId}/galleries/${galleryId}/images/timeline`,
+    `/api/v1/c/${guildId}/galleries/${galleryId}/images/timeline`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryOptions =
+export const getGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+      ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
     >,
     TError = ErrorType<HTTPValidationError>,
   >(
     guildId: number,
     galleryId: number,
-    params?: GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+    params?: GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
     options?: {
       query?: Partial<
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet
+              typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet
             >
           >,
           TError,
@@ -1336,7 +1336,7 @@ export const getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTime
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey(
+      getGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey(
         guildId,
         galleryId,
         params
@@ -1344,10 +1344,10 @@ export const getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTime
 
     const queryFn: QueryFunction<
       Awaited<
-        ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+        ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
       >
     > = ({ signal }) =>
-      getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet(
+      getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet(
         guildId,
         galleryId,
         params,
@@ -1363,36 +1363,36 @@ export const getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTime
       ...queryOptions,
     } as UseQueryOptions<
       Awaited<
-        ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+        ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
       >,
       TError,
       TData
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryResult =
+export type GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+      ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
     >
   >;
-export type GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryError =
+export type GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet<
+export function useGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet<
   TData = Awaited<
-    ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+    ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params: undefined | GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  params: undefined | GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+          ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
         >,
         TError,
         TData
@@ -1402,13 +1402,13 @@ export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesT
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet
+              typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet
+              typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet
             >
           >
         >,
@@ -1418,20 +1418,20 @@ export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesT
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet<
+export function useGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet<
   TData = Awaited<
-    ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+    ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  params?: GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+          ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
         >,
         TError,
         TData
@@ -1441,13 +1441,13 @@ export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesT
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet
+              typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet
+              typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet
             >
           >
         >,
@@ -1457,20 +1457,20 @@ export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesT
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet<
+export function useGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet<
   TData = Awaited<
-    ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+    ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  params?: GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+          ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
         >,
         TError,
         TData
@@ -1484,20 +1484,20 @@ export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesT
  * @summary Get Gallery Image Timeline
  */
 
-export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet<
+export function useGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet<
   TData = Awaited<
-    ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+    ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   galleryId: number,
-  params?: GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  params?: GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet>
+          ReturnType<typeof getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet>
         >,
         TError,
         TData
@@ -1508,7 +1508,7 @@ export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesT
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryOptions(
+    getGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryOptions(
       guildId,
       galleryId,
       params,
@@ -1525,7 +1525,7 @@ export function useGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesT
 /**
  * @summary Read Gallery Image
  */
-export const readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet = (
+export const readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet = (
   guildId: number,
   galleryId: number,
   imageId: number,
@@ -1533,22 +1533,22 @@ export const readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet = (
   signal?: AbortSignal
 ) => {
   return apiMutator<GalleryImageRead>(
-    { url: `/api/v1/g/${guildId}/galleries/${galleryId}/images/${imageId}`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/galleries/${galleryId}/images/${imageId}`, method: "GET", signal },
     options
   );
 };
 
-export const getReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQueryKey = (
+export const getReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGetQueryKey = (
   guildId: number,
   galleryId: number,
   imageId: number
 ) => {
-  return [`/api/v1/g/${guildId}/galleries/${galleryId}/images/${imageId}`] as const;
+  return [`/api/v1/c/${guildId}/galleries/${galleryId}/images/${imageId}`] as const;
 };
 
-export const getReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQueryOptions = <
+export const getReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+    ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1558,7 +1558,7 @@ export const getReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQ
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>>,
+        Awaited<ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>>,
         TError,
         TData
       >
@@ -1570,16 +1570,16 @@ export const getReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQ
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQueryKey(
+    getReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGetQueryKey(
       guildId,
       galleryId,
       imageId
     );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>>
+    Awaited<ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>>
   > = ({ signal }) =>
-    readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet(
+    readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet(
       guildId,
       galleryId,
       imageId,
@@ -1599,22 +1599,22 @@ export const getReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQ
       imageId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>>,
+    Awaited<ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQueryResult =
+export type ReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>>
+    Awaited<ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>>
   >;
-export type ReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQueryError =
+export type ReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet<
+export function useReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet<
   TData = Awaited<
-    ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+    ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1624,7 +1624,7 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>>,
+        Awaited<ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>>,
         TError,
         TData
       >
@@ -1632,11 +1632,11 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+            ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+            ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
           >
         >,
         "initialData"
@@ -1645,9 +1645,9 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet<
+export function useReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet<
   TData = Awaited<
-    ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+    ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1657,7 +1657,7 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>>,
+        Awaited<ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>>,
         TError,
         TData
       >
@@ -1665,11 +1665,11 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+            ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+            ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
           >
         >,
         "initialData"
@@ -1678,9 +1678,9 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet<
+export function useReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet<
   TData = Awaited<
-    ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+    ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1690,7 +1690,7 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>>,
+        Awaited<ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>>,
         TError,
         TData
       >
@@ -1703,9 +1703,9 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
  * @summary Read Gallery Image
  */
 
-export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet<
+export function useReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet<
   TData = Awaited<
-    ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>
+    ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1715,7 +1715,7 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGet>>,
+        Awaited<ReturnType<typeof readGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGet>>,
         TError,
         TData
       >
@@ -1725,7 +1725,7 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdGetQueryOptions(
+    getReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdGetQueryOptions(
       guildId,
       galleryId,
       imageId,
@@ -1744,7 +1744,7 @@ export function useReadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdG
  * gallery.
  * @summary Update Gallery Image
  */
-export const updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch = (
+export const updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch = (
   guildId: number,
   galleryId: number,
   imageId: number,
@@ -1754,7 +1754,7 @@ export const updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch
 ) => {
   return apiMutator<GalleryImageRead>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/images/${imageId}`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/images/${imageId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: galleryImageUpdate,
@@ -1764,28 +1764,28 @@ export const updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch
   );
 };
 
-export const getUpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationKey =
-  () => ["updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch"] as const;
+export const getUpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationKey =
+  () => ["updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch"] as const;
 
-export const getUpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationOptions =
+export const getUpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch>
+        ReturnType<typeof updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch>
       >,
       TError,
-      UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables,
+      UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
-    Awaited<ReturnType<typeof updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch>>,
+    Awaited<ReturnType<typeof updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch>>,
     TError,
-    UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables,
+    UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getUpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationKey();
+      getUpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1794,13 +1794,13 @@ export const getUpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPa
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch>
+        ReturnType<typeof updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch>
       >,
-      UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables
+      UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables
     > = (props) => {
       const { guildId, galleryId, imageId, data } = props ?? {};
 
-      return updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch(
+      return updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch(
         guildId,
         galleryId,
         imageId,
@@ -1812,15 +1812,15 @@ export const getUpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPa
     return { mutationFn, ...mutationOptions };
   };
 
-export type UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationResult =
+export type UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch>>
+    Awaited<ReturnType<typeof updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch>>
   >;
-export type UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationBody =
+export type UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationBody =
   BodyType<GalleryImageUpdate>;
-export type UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationError =
+export type UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables = {
+export type UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables = {
   guildId: number;
   galleryId: number;
   imageId: number;
@@ -1830,30 +1830,30 @@ export type UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchM
 /**
  * @summary Update Gallery Image
  */
-export const useUpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch = <
+export const useUpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch>
+        ReturnType<typeof updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch>
       >,
       TError,
-      UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables,
+      UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch>>,
+  Awaited<ReturnType<typeof updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch>>,
   TError,
-  UpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables,
+  UpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatchMutationOptions(options),
+    getUpdateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatchMutationOptions(options),
     queryClient
   );
 };
@@ -1862,7 +1862,7 @@ export const useUpdateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPa
  * removing a picture is editing the gallery, and it can be restored.
  * @summary Delete Gallery Image
  */
-export const deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete = (
+export const deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete = (
   guildId: number,
   galleryId: number,
   imageId: number,
@@ -1871,7 +1871,7 @@ export const deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelet
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/images/${imageId}`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/images/${imageId}`,
       method: "DELETE",
       signal,
     },
@@ -1879,30 +1879,30 @@ export const deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelet
   );
 };
 
-export const getDeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationKey =
-  () => ["deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete"] as const;
+export const getDeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationKey =
+  () => ["deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete"] as const;
 
-export const getDeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationOptions =
+export const getDeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete>
+        ReturnType<typeof deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete>
       >,
       TError,
-      DeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables,
+      DeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete>
+      ReturnType<typeof deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete>
     >,
     TError,
-    DeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables,
+    DeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationKey();
+      getDeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1911,13 +1911,13 @@ export const getDeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDe
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete>
+        ReturnType<typeof deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete>
       >,
-      DeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables
+      DeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables
     > = (props) => {
       const { guildId, galleryId, imageId } = props ?? {};
 
-      return deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete(
+      return deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete(
         guildId,
         galleryId,
         imageId,
@@ -1928,43 +1928,43 @@ export const getDeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDe
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationResult =
+export type DeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete>>
+    Awaited<ReturnType<typeof deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete>>
   >;
 
-export type DeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationError =
+export type DeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables =
+export type DeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables =
   { guildId: number; galleryId: number; imageId: number };
 
 /**
  * @summary Delete Gallery Image
  */
-export const useDeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete = <
+export const useDeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete>
+        ReturnType<typeof deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete>
       >,
       TError,
-      DeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables,
+      DeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete>>,
+  Awaited<ReturnType<typeof deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete>>,
   TError,
-  DeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables,
+  DeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationOptions(options),
+    getDeleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -1975,7 +1975,7 @@ export const useDeleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDe
  * rather than trashing the rest and reporting a partial success.
  * @summary Bulk Delete Gallery Images
  */
-export const bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost = (
+export const bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost = (
   guildId: number,
   galleryId: number,
   galleryImageBulkDelete: BodyType<GalleryImageBulkDelete>,
@@ -1984,7 +1984,7 @@ export const bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDel
 ) => {
   return apiMutator<GalleryImageBulkDeleteResponse>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/images/bulk-delete`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/images/bulk-delete`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: galleryImageBulkDelete,
@@ -1994,32 +1994,32 @@ export const bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDel
   );
 };
 
-export const getBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationKey =
-  () => ["bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost"] as const;
+export const getBulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationKey =
+  () => ["bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost"] as const;
 
-export const getBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationOptions =
+export const getBulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost
+          typeof bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost
         >
       >,
       TError,
-      BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables,
+      BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost>
+      ReturnType<typeof bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost>
     >,
     TError,
-    BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables,
+    BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationKey();
+      getBulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -2029,14 +2029,14 @@ export const getBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulk
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost
+          typeof bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost
         >
       >,
-      BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables
+      BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables
     > = (props) => {
       const { guildId, galleryId, data } = props ?? {};
 
-      return bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost(
+      return bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost(
         guildId,
         galleryId,
         data,
@@ -2047,23 +2047,23 @@ export const getBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulk
     return { mutationFn, ...mutationOptions };
   };
 
-export type BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationResult =
+export type BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost>
+      ReturnType<typeof bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost>
     >
   >;
-export type BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationBody =
+export type BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationBody =
   BodyType<GalleryImageBulkDelete>;
-export type BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationError =
+export type BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationError =
   ErrorType<HTTPValidationError>;
-export type BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables =
+export type BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables =
   { guildId: number; galleryId: number; data: BodyType<GalleryImageBulkDelete> };
 
 /**
  * @summary Bulk Delete Gallery Images
  */
-export const useBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost = <
+export const useBulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -2071,11 +2071,11 @@ export const useBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulk
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost
+          typeof bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost
         >
       >,
       TError,
-      BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables,
+      BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2083,14 +2083,14 @@ export const useBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulk
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost>
+    ReturnType<typeof bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost>
   >,
   TError,
-  BulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables,
+  BulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationOptions(
+    getBulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePostMutationOptions(
       options
     ),
     queryClient
@@ -2101,23 +2101,23 @@ export const useBulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulk
  * Requires write access on the gallery.
  * @summary Upload Gallery Image Version
  */
-export const uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost = (
+export const uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost = (
   guildId: number,
   galleryId: number,
   imageId: number,
-  bodyUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost: BodyType<BodyUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost>,
+  bodyUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost: BodyType<BodyUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
   formData.append(
     `file`,
-    bodyUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost.file
+    bodyUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost.file
   );
 
   return apiMutator<GalleryImageVersionRead>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/images/${imageId}/versions`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/images/${imageId}/versions`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -2127,35 +2127,35 @@ export const uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImage
   );
 };
 
-export const getUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationKey =
+export const getUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationKey =
   () =>
-    ["uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost"] as const;
+    ["uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost"] as const;
 
-export const getUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationOptions =
+export const getUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
+          typeof uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
         >
       >,
       TError,
-      UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables,
+      UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
+        typeof uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
       >
     >,
     TError,
-    UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables,
+    UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationKey();
+      getUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -2165,14 +2165,14 @@ export const getUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
+          typeof uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
         >
       >,
-      UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables
+      UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables
     > = (props) => {
       const { guildId, galleryId, imageId, data } = props ?? {};
 
-      return uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost(
+      return uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost(
         guildId,
         galleryId,
         imageId,
@@ -2184,40 +2184,40 @@ export const getUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
     return { mutationFn, ...mutationOptions };
   };
 
-export type UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationResult =
+export type UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
+        typeof uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
       >
     >
   >;
-export type UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationBody =
-  BodyType<BodyUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost>;
-export type UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationError =
+export type UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationBody =
+  BodyType<BodyUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost>;
+export type UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables =
+export type UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables =
   {
     guildId: number;
     galleryId: number;
     imageId: number;
-    data: BodyType<BodyUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost>;
+    data: BodyType<BodyUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost>;
   };
 
 /**
  * @summary Upload Gallery Image Version
  */
-export const useUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost =
+export const useUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
     options?: {
       mutation?: UseMutationOptions<
         Awaited<
           ReturnType<
-            typeof uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
+            typeof uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
           >
         >,
         TError,
-        UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables,
+        UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables,
         TContext
       >;
       request?: SecondParameter<typeof apiMutator>;
@@ -2226,15 +2226,15 @@ export const useUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
   ): UseMutationResult<
     Awaited<
       ReturnType<
-        typeof uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
+        typeof uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost
       >
     >,
     TError,
-    UploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables,
+    UploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationVariables,
     TContext
   > => {
     return useMutation(
-      getUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationOptions(
+      getUploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPostMutationOptions(
         options
       ),
       queryClient
@@ -2244,7 +2244,7 @@ export const useUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
  * Every stored rendition of a picture, newest first.
  * @summary List Gallery Image Versions
  */
-export const listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet = (
+export const listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet = (
   guildId: number,
   galleryId: number,
   imageId: number,
@@ -2253,7 +2253,7 @@ export const listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageI
 ) => {
   return apiMutator<GalleryImageVersionRead[]>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/images/${imageId}/versions`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/images/${imageId}/versions`,
       method: "GET",
       signal,
     },
@@ -2261,16 +2261,16 @@ export const listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageI
   );
 };
 
-export const getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey =
+export const getListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey =
   (guildId: number, galleryId: number, imageId: number) => {
-    return [`/api/v1/g/${guildId}/galleries/${galleryId}/images/${imageId}/versions`] as const;
+    return [`/api/v1/c/${guildId}/galleries/${galleryId}/images/${imageId}/versions`] as const;
   };
 
-export const getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryOptions =
+export const getListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryOptions =
   <
     TData = Awaited<
       ReturnType<
-        typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+        typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
       >
     >,
     TError = ErrorType<HTTPValidationError>,
@@ -2283,7 +2283,7 @@ export const getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesIma
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+              typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
             >
           >,
           TError,
@@ -2297,7 +2297,7 @@ export const getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesIma
 
     const queryKey =
       queryOptions?.queryKey ??
-      getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey(
+      getListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey(
         guildId,
         galleryId,
         imageId
@@ -2306,11 +2306,11 @@ export const getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesIma
     const queryFn: QueryFunction<
       Awaited<
         ReturnType<
-          typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+          typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
         >
       >
     > = ({ signal }) =>
-      listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet(
+      listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet(
         guildId,
         galleryId,
         imageId,
@@ -2332,7 +2332,7 @@ export const getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesIma
     } as UseQueryOptions<
       Awaited<
         ReturnType<
-          typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+          typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
         >
       >,
       TError,
@@ -2340,21 +2340,21 @@ export const getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesIma
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type ListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryResult =
+export type ListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+        typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
       >
     >
   >;
-export type ListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryError =
+export type ListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet<
+export function useListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet<
   TData = Awaited<
     ReturnType<
-      typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+      typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -2367,7 +2367,7 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+            typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
           >
         >,
         TError,
@@ -2378,13 +2378,13 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+              typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+              typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
             >
           >
         >,
@@ -2394,10 +2394,10 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet<
+export function useListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet<
   TData = Awaited<
     ReturnType<
-      typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+      typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -2410,7 +2410,7 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+            typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
           >
         >,
         TError,
@@ -2421,13 +2421,13 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+              typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+              typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
             >
           >
         >,
@@ -2437,10 +2437,10 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet<
+export function useListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet<
   TData = Awaited<
     ReturnType<
-      typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+      typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -2453,7 +2453,7 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+            typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
           >
         >,
         TError,
@@ -2468,10 +2468,10 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
  * @summary List Gallery Image Versions
  */
 
-export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet<
+export function useListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet<
   TData = Awaited<
     ReturnType<
-      typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+      typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -2484,7 +2484,7 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
+            typeof listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet
           >
         >,
         TError,
@@ -2496,7 +2496,7 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryOptions(
+    getListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryOptions(
       guildId,
       galleryId,
       imageId,
@@ -2516,7 +2516,7 @@ export function useListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImages
  * picture instead.
  * @summary Delete Gallery Image Version
  */
-export const deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete =
+export const deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete =
   (
     guildId: number,
     galleryId: number,
@@ -2527,7 +2527,7 @@ export const deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImage
   ) => {
     return apiMutator<void>(
       {
-        url: `/api/v1/g/${guildId}/galleries/${galleryId}/images/${imageId}/versions/${versionId}`,
+        url: `/api/v1/c/${guildId}/galleries/${galleryId}/images/${imageId}/versions/${versionId}`,
         method: "DELETE",
         signal,
       },
@@ -2535,37 +2535,37 @@ export const deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImage
     );
   };
 
-export const getDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationKey =
+export const getDeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationKey =
   () =>
     [
-      "deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete",
+      "deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete",
     ] as const;
 
-export const getDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationOptions =
+export const getDeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
+          typeof deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
         >
       >,
       TError,
-      DeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables,
+      DeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
+        typeof deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
       >
     >,
     TError,
-    DeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables,
+    DeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationKey();
+      getDeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -2575,14 +2575,14 @@ export const getDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
+          typeof deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
         >
       >,
-      DeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables
+      DeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables
     > = (props) => {
       const { guildId, galleryId, imageId, versionId } = props ?? {};
 
-      return deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete(
+      return deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete(
         guildId,
         galleryId,
         imageId,
@@ -2594,34 +2594,34 @@ export const getDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationResult =
+export type DeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
+        typeof deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
       >
     >
   >;
 
-export type DeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationError =
+export type DeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables =
+export type DeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables =
   { guildId: number; galleryId: number; imageId: number; versionId: number };
 
 /**
  * @summary Delete Gallery Image Version
  */
-export const useDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete =
+export const useDeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
     options?: {
       mutation?: UseMutationOptions<
         Awaited<
           ReturnType<
-            typeof deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
+            typeof deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
           >
         >,
         TError,
-        DeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables,
+        DeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables,
         TContext
       >;
       request?: SecondParameter<typeof apiMutator>;
@@ -2630,15 +2630,15 @@ export const useDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
   ): UseMutationResult<
     Awaited<
       ReturnType<
-        typeof deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
+        typeof deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete
       >
     >,
     TError,
-    DeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables,
+    DeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationVariables,
     TContext
   > => {
     return useMutation(
-      getDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationOptions(
+      getDeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDeleteMutationOptions(
         options
       ),
       queryClient
@@ -2651,39 +2651,39 @@ export const useDeleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesIm
  * grantee's browsing is transient by design and is not stored.
  * @summary Record Gallery View
  */
-export const recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost = (
+export const recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost = (
   guildId: number,
   galleryId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/g/${guildId}/galleries/${galleryId}/view`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/galleries/${galleryId}/view`, method: "POST", signal },
     options
   );
 };
 
-export const getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationKey = () =>
-  ["recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost"] as const;
+export const getRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationKey = () =>
+  ["recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost"] as const;
 
-export const getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationOptions = <
+export const getRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+    Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
     TError,
-    RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationVariables,
+    RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+  Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
   TError,
-  RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationVariables,
+  RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationKey();
+  const mutationKey = getRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2691,12 +2691,12 @@ export const getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
-    RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationVariables
+    Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
+    RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables
   > = (props) => {
     const { guildId, galleryId } = props ?? {};
 
-    return recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost(
+    return recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost(
       guildId,
       galleryId,
       requestOptions
@@ -2706,13 +2706,13 @@ export const getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutation
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>
+export type RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>
 >;
 
-export type RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationError =
+export type RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationError =
   ErrorType<HTTPValidationError>;
-export type RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationVariables = {
+export type RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables = {
   guildId: number;
   galleryId: number;
 };
@@ -2720,28 +2720,28 @@ export type RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationVari
 /**
  * @summary Record Gallery View
  */
-export const useRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost = <
+export const useRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+      Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
       TError,
-      RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationVariables,
+      RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost>>,
+  Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
   TError,
-  RecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationVariables,
+  RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPostMutationOptions(options),
+    getRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationOptions(options),
     queryClient
   );
 };
@@ -2751,39 +2751,39 @@ export const useRecordGalleryViewApiV1GGuildIdGalleriesGalleryIdViewPost = <
  * Idempotent — a tab that is not open stays closed.
  * @summary Clear Gallery View
  */
-export const clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete = (
+export const clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete = (
   guildId: number,
   galleryId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/galleries/${galleryId}/view`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/galleries/${galleryId}/view`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationKey = () =>
-  ["clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete"] as const;
+export const getClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationKey = () =>
+  ["clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete"] as const;
 
-export const getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationOptions = <
+export const getClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+    Awaited<ReturnType<typeof clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete>>,
     TError,
-    ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationVariables,
+    ClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+  Awaited<ReturnType<typeof clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete>>,
   TError,
-  ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationVariables,
+  ClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationKey();
+  const mutationKey = getClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2791,12 +2791,12 @@ export const getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
-    ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationVariables
+    Awaited<ReturnType<typeof clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete>>,
+    ClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationVariables
   > = (props) => {
     const { guildId, galleryId } = props ?? {};
 
-    return clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete(
+    return clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete(
       guildId,
       galleryId,
       requestOptions
@@ -2806,13 +2806,13 @@ export const getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutatio
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>
+export type ClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete>>
 >;
 
-export type ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationError =
+export type ClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationVariables = {
+export type ClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationVariables = {
   guildId: number;
   galleryId: number;
 };
@@ -2820,28 +2820,28 @@ export type ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationVar
 /**
  * @summary Clear Gallery View
  */
-export const useClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete = <
+export const useClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+      Awaited<ReturnType<typeof clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete>>,
       TError,
-      ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationVariables,
+      ClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete>>,
+  Awaited<ReturnType<typeof clearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDelete>>,
   TError,
-  ClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationVariables,
+  ClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDeleteMutationOptions(options),
+    getClearGalleryViewApiV1CGuildIdGalleriesGalleryIdViewDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -2851,7 +2851,7 @@ export const useClearGalleryViewApiV1GGuildIdGalleriesGalleryIdViewDelete = <
  * owner is always preserved.
  * @summary Set Gallery Grants
  */
-export const setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut = (
+export const setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut = (
   guildId: number,
   galleryId: number,
   resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
@@ -2860,7 +2860,7 @@ export const setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut = (
 ) => {
   return apiMutator<GalleryRead>(
     {
-      url: `/api/v1/g/${guildId}/galleries/${galleryId}/grants`,
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/grants`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: resourceGrantSchema,
@@ -2870,27 +2870,27 @@ export const setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut = (
   );
 };
 
-export const getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationKey = () =>
-  ["setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut"] as const;
+export const getSetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationKey = () =>
+  ["setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut"] as const;
 
-export const getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationOptions = <
+export const getSetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+    Awaited<ReturnType<typeof setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut>>,
     TError,
-    SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationVariables,
+    SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+  Awaited<ReturnType<typeof setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut>>,
   TError,
-  SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationVariables,
+  SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationKey();
+  const mutationKey = getSetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2898,12 +2898,12 @@ export const getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
-    SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationVariables
+    Awaited<ReturnType<typeof setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut>>,
+    SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationVariables
   > = (props) => {
     const { guildId, galleryId, data } = props ?? {};
 
-    return setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut(
+    return setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut(
       guildId,
       galleryId,
       data,
@@ -2914,15 +2914,15 @@ export const getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutation
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>
+export type SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut>>
 >;
-export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationBody = BodyType<
+export type SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationBody = BodyType<
   ResourceGrantSchema[]
 >;
-export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationError =
+export type SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationVariables = {
+export type SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationVariables = {
   guildId: number;
   galleryId: number;
   data: BodyType<ResourceGrantSchema[]>;
@@ -2931,28 +2931,28 @@ export type SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationVari
 /**
  * @summary Set Gallery Grants
  */
-export const useSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut = <
+export const useSetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+      Awaited<ReturnType<typeof setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut>>,
       TError,
-      SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationVariables,
+      SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPut>>,
+  Awaited<ReturnType<typeof setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut>>,
   TError,
-  SetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationVariables,
+  SetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetGalleryGrantsApiV1GGuildIdGalleriesGalleryIdGrantsPutMutationOptions(options),
+    getSetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationOptions(options),
     queryClient
   );
 };

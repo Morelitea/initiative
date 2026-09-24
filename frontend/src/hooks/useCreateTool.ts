@@ -31,7 +31,7 @@ export const useCreateTool = () => {
   return useMutation({
     mutationFn: ({ tool, name, initiativeId }: NewTool) =>
       apiMutator<{ id: number }>({
-        url: `/api/v1/g/${guildId}${toolApiPath(tool).replace("/api/v1", "")}/`,
+        url: `/api/v1/c/${guildId}${toolApiPath(tool).replace("/api/v1", "")}/`,
         method: "POST",
         data: { name, initiative_id: initiativeId },
       }),

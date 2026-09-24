@@ -21,10 +21,10 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost,
-  BodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost,
-  BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost,
-  BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost,
+  BodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost,
+  BodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost,
+  BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost,
+  BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost,
   DocumentCopyRequest,
   DocumentCountsResponse,
   DocumentCreate,
@@ -34,12 +34,12 @@ import type {
   DocumentRead,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
-  GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   HTTPValidationError,
   InitiativeGroupedCountsResponse,
-  ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  ListDocumentsApiV1CGuildIdDocumentsGetParams,
   PropertyValuesSetRequest,
-  ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
+  ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
   SpreadsheetImportRead,
@@ -73,27 +73,27 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * instead of walking the full corpus.
  * @summary Get Document Counts By Initiative
  */
-export const getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet = (
+export const getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeGroupedCountsResponse>(
-    { url: `/api/v1/g/${guildId}/documents/counts/by-initiative`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/documents/counts/by-initiative`, method: "GET", signal },
     options
   );
 };
 
-export const getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey = (
+export const getGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/documents/counts/by-initiative`] as const;
+  return [`/api/v1/c/${guildId}/documents/counts/by-initiative`] as const;
 };
 
-export const getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryOptions =
+export const getGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+      ReturnType<typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet>
     >,
     TError = ErrorType<HTTPValidationError>,
   >(
@@ -103,7 +103,7 @@ export const getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIniti
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+              typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
             >
           >,
           TError,
@@ -117,14 +117,14 @@ export const getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIniti
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey(guildId);
+      getGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryKey(guildId);
 
     const queryFn: QueryFunction<
       Awaited<
-        ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+        ReturnType<typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet>
       >
     > = ({ signal }) =>
-      getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet(
+      getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet(
         guildId,
         requestOptions,
         signal
@@ -137,25 +137,25 @@ export const getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIniti
       ...queryOptions,
     } as UseQueryOptions<
       Awaited<
-        ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+        ReturnType<typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet>
       >,
       TError,
       TData
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryResult =
+export type GetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+      ReturnType<typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet>
     >
   >;
-export type GetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryError =
+export type GetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet<
+export function useGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+    ReturnType<typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -165,7 +165,7 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
           >
         >,
         TError,
@@ -176,13 +176,13 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+              typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+              typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
             >
           >
         >,
@@ -192,9 +192,9 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet<
+export function useGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+    ReturnType<typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -204,7 +204,7 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
           >
         >,
         TError,
@@ -215,13 +215,13 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+              typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+              typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
             >
           >
         >,
@@ -231,9 +231,9 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet<
+export function useGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+    ReturnType<typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -243,7 +243,7 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
           >
         >,
         TError,
@@ -258,9 +258,9 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
  * @summary Get Document Counts By Initiative
  */
 
-export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet<
+export function useGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet<
   TData = Awaited<
-    ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+    ReturnType<typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -270,7 +270,7 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            typeof getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet
           >
         >,
         TError,
@@ -282,7 +282,7 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryOptions(
+    getGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryOptions(
       guildId,
       options
     );
@@ -305,35 +305,35 @@ export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByIn
  * Cross-guild "my documents" lives under /me/documents (see list_my_documents).
  * @summary List Documents
  */
-export const listDocumentsApiV1GGuildIdDocumentsGet = (
+export const listDocumentsApiV1CGuildIdDocumentsGet = (
   guildId: number,
-  params?: ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  params?: ListDocumentsApiV1CGuildIdDocumentsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DocumentListResponse>(
-    { url: `/api/v1/g/${guildId}/documents/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/documents/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListDocumentsApiV1GGuildIdDocumentsGetQueryKey = (
+export const getListDocumentsApiV1CGuildIdDocumentsGetQueryKey = (
   guildId: number,
-  params?: ListDocumentsApiV1GGuildIdDocumentsGetParams
+  params?: ListDocumentsApiV1CGuildIdDocumentsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/documents/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/documents/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListDocumentsApiV1GGuildIdDocumentsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+export const getListDocumentsApiV1CGuildIdDocumentsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  params?: ListDocumentsApiV1CGuildIdDocumentsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+        Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
         TError,
         TData
       >
@@ -344,12 +344,12 @@ export const getListDocumentsApiV1GGuildIdDocumentsGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListDocumentsApiV1GGuildIdDocumentsGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getListDocumentsApiV1CGuildIdDocumentsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>
+    Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>
   > = ({ signal }) =>
-    listDocumentsApiV1GGuildIdDocumentsGet(guildId, params, requestOptions, signal);
+    listDocumentsApiV1CGuildIdDocumentsGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -357,36 +357,36 @@ export const getListDocumentsApiV1GGuildIdDocumentsGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+    Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListDocumentsApiV1GGuildIdDocumentsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>
+export type ListDocumentsApiV1CGuildIdDocumentsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>
 >;
-export type ListDocumentsApiV1GGuildIdDocumentsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListDocumentsApiV1CGuildIdDocumentsGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListDocumentsApiV1GGuildIdDocumentsGet<
-  TData = Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+export function useListDocumentsApiV1CGuildIdDocumentsGet<
+  TData = Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  params: undefined | ListDocumentsApiV1CGuildIdDocumentsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+        Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+          Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
           TError,
-          Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>
+          Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>
         >,
         "initialData"
       >;
@@ -394,25 +394,25 @@ export function useListDocumentsApiV1GGuildIdDocumentsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDocumentsApiV1GGuildIdDocumentsGet<
-  TData = Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+export function useListDocumentsApiV1CGuildIdDocumentsGet<
+  TData = Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  params?: ListDocumentsApiV1CGuildIdDocumentsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+        Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+          Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
           TError,
-          Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>
+          Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>
         >,
         "initialData"
       >;
@@ -420,16 +420,16 @@ export function useListDocumentsApiV1GGuildIdDocumentsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDocumentsApiV1GGuildIdDocumentsGet<
-  TData = Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+export function useListDocumentsApiV1CGuildIdDocumentsGet<
+  TData = Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  params?: ListDocumentsApiV1CGuildIdDocumentsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+        Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
         TError,
         TData
       >
@@ -442,16 +442,16 @@ export function useListDocumentsApiV1GGuildIdDocumentsGet<
  * @summary List Documents
  */
 
-export function useListDocumentsApiV1GGuildIdDocumentsGet<
-  TData = Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+export function useListDocumentsApiV1CGuildIdDocumentsGet<
+  TData = Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  params?: ListDocumentsApiV1CGuildIdDocumentsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentsApiV1GGuildIdDocumentsGet>>,
+        Awaited<ReturnType<typeof listDocumentsApiV1CGuildIdDocumentsGet>>,
         TError,
         TData
       >
@@ -460,7 +460,7 @@ export function useListDocumentsApiV1GGuildIdDocumentsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListDocumentsApiV1GGuildIdDocumentsGetQueryOptions(
+  const queryOptions = getListDocumentsApiV1CGuildIdDocumentsGetQueryOptions(
     guildId,
     params,
     options
@@ -476,7 +476,7 @@ export function useListDocumentsApiV1GGuildIdDocumentsGet<
 /**
  * @summary Create Document
  */
-export const createDocumentApiV1GGuildIdDocumentsPost = (
+export const createDocumentApiV1CGuildIdDocumentsPost = (
   guildId: number,
   documentCreate: BodyType<DocumentCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -484,7 +484,7 @@ export const createDocumentApiV1GGuildIdDocumentsPost = (
 ) => {
   return apiMutator<DocumentRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/`,
+      url: `/api/v1/c/${guildId}/documents/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: documentCreate,
@@ -494,27 +494,27 @@ export const createDocumentApiV1GGuildIdDocumentsPost = (
   );
 };
 
-export const getCreateDocumentApiV1GGuildIdDocumentsPostMutationKey = () =>
-  ["createDocumentApiV1GGuildIdDocumentsPost"] as const;
+export const getCreateDocumentApiV1CGuildIdDocumentsPostMutationKey = () =>
+  ["createDocumentApiV1CGuildIdDocumentsPost"] as const;
 
-export const getCreateDocumentApiV1GGuildIdDocumentsPostMutationOptions = <
+export const getCreateDocumentApiV1CGuildIdDocumentsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createDocumentApiV1GGuildIdDocumentsPost>>,
+    Awaited<ReturnType<typeof createDocumentApiV1CGuildIdDocumentsPost>>,
     TError,
-    CreateDocumentApiV1GGuildIdDocumentsPostMutationVariables,
+    CreateDocumentApiV1CGuildIdDocumentsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createDocumentApiV1GGuildIdDocumentsPost>>,
+  Awaited<ReturnType<typeof createDocumentApiV1CGuildIdDocumentsPost>>,
   TError,
-  CreateDocumentApiV1GGuildIdDocumentsPostMutationVariables,
+  CreateDocumentApiV1CGuildIdDocumentsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateDocumentApiV1GGuildIdDocumentsPostMutationKey();
+  const mutationKey = getCreateDocumentApiV1CGuildIdDocumentsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -522,23 +522,23 @@ export const getCreateDocumentApiV1GGuildIdDocumentsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createDocumentApiV1GGuildIdDocumentsPost>>,
-    CreateDocumentApiV1GGuildIdDocumentsPostMutationVariables
+    Awaited<ReturnType<typeof createDocumentApiV1CGuildIdDocumentsPost>>,
+    CreateDocumentApiV1CGuildIdDocumentsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createDocumentApiV1GGuildIdDocumentsPost(guildId, data, requestOptions);
+    return createDocumentApiV1CGuildIdDocumentsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateDocumentApiV1GGuildIdDocumentsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createDocumentApiV1GGuildIdDocumentsPost>>
+export type CreateDocumentApiV1CGuildIdDocumentsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createDocumentApiV1CGuildIdDocumentsPost>>
 >;
-export type CreateDocumentApiV1GGuildIdDocumentsPostMutationBody = BodyType<DocumentCreate>;
-export type CreateDocumentApiV1GGuildIdDocumentsPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateDocumentApiV1GGuildIdDocumentsPostMutationVariables = {
+export type CreateDocumentApiV1CGuildIdDocumentsPostMutationBody = BodyType<DocumentCreate>;
+export type CreateDocumentApiV1CGuildIdDocumentsPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateDocumentApiV1CGuildIdDocumentsPostMutationVariables = {
   guildId: number;
   data: BodyType<DocumentCreate>;
 };
@@ -546,28 +546,28 @@ export type CreateDocumentApiV1GGuildIdDocumentsPostMutationVariables = {
 /**
  * @summary Create Document
  */
-export const useCreateDocumentApiV1GGuildIdDocumentsPost = <
+export const useCreateDocumentApiV1CGuildIdDocumentsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createDocumentApiV1GGuildIdDocumentsPost>>,
+      Awaited<ReturnType<typeof createDocumentApiV1CGuildIdDocumentsPost>>,
       TError,
-      CreateDocumentApiV1GGuildIdDocumentsPostMutationVariables,
+      CreateDocumentApiV1CGuildIdDocumentsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createDocumentApiV1GGuildIdDocumentsPost>>,
+  Awaited<ReturnType<typeof createDocumentApiV1CGuildIdDocumentsPost>>,
   TError,
-  CreateDocumentApiV1GGuildIdDocumentsPostMutationVariables,
+  CreateDocumentApiV1CGuildIdDocumentsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateDocumentApiV1GGuildIdDocumentsPostMutationOptions(options),
+    getCreateDocumentApiV1CGuildIdDocumentsPostMutationOptions(options),
     queryClient
   );
 };
@@ -579,35 +579,35 @@ export const useCreateDocumentApiV1GGuildIdDocumentsPost = <
  * list endpoint so the sidebar counts match the list beside it.
  * @summary Get Document Counts
  */
-export const getDocumentCountsApiV1GGuildIdDocumentsCountsGet = (
+export const getDocumentCountsApiV1CGuildIdDocumentsCountsGet = (
   guildId: number,
-  params?: GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DocumentCountsResponse>(
-    { url: `/api/v1/g/${guildId}/documents/counts`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/documents/counts`, method: "GET", params, signal },
     options
   );
 };
 
-export const getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey = (
+export const getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey = (
   guildId: number,
-  params?: GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams
+  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/documents/counts`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/documents/counts`, ...(params ? [params] : [])] as const;
 };
 
-export const getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+export const getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
         TError,
         TData
       >
@@ -619,12 +619,12 @@ export const getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey(guildId, params);
+    getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>
+    Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>
   > = ({ signal }) =>
-    getDocumentCountsApiV1GGuildIdDocumentsCountsGet(guildId, params, requestOptions, signal);
+    getDocumentCountsApiV1CGuildIdDocumentsCountsGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -632,37 +632,37 @@ export const getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+    Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>
+export type GetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>
 >;
-export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryError =
+export type GetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+export function useGetDocumentCountsApiV1CGuildIdDocumentsCountsGet<
+  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  params: undefined | GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+          Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
           TError,
-          Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>
+          Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>
         >,
         "initialData"
       >;
@@ -670,25 +670,25 @@ export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+export function useGetDocumentCountsApiV1CGuildIdDocumentsCountsGet<
+  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+          Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
           TError,
-          Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>
+          Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>
         >,
         "initialData"
       >;
@@ -696,16 +696,16 @@ export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+export function useGetDocumentCountsApiV1CGuildIdDocumentsCountsGet<
+  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
         TError,
         TData
       >
@@ -718,16 +718,16 @@ export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
  * @summary Get Document Counts
  */
 
-export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+export function useGetDocumentCountsApiV1CGuildIdDocumentsCountsGet<
+  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1GGuildIdDocumentsCountsGet>>,
+        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
         TError,
         TData
       >
@@ -736,7 +736,7 @@ export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryOptions(
+  const queryOptions = getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryOptions(
     guildId,
     params,
     options
@@ -753,23 +753,23 @@ export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
  * Upload a file document (PDF, DOCX, etc.).
  * @summary Upload Document File
  */
-export const uploadDocumentFileApiV1GGuildIdDocumentsUploadPost = (
+export const uploadDocumentFileApiV1CGuildIdDocumentsUploadPost = (
   guildId: number,
-  bodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost: BodyType<BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost>,
+  bodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost: BodyType<BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`name`, bodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost.name);
+  formData.append(`name`, bodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost.name);
   formData.append(
     `initiative_id`,
-    bodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost.initiative_id.toString()
+    bodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost.initiative_id.toString()
   );
-  formData.append(`file`, bodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost.file);
+  formData.append(`file`, bodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost.file);
 
   return apiMutator<DocumentRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/upload`,
+      url: `/api/v1/c/${guildId}/documents/upload`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -779,27 +779,27 @@ export const uploadDocumentFileApiV1GGuildIdDocumentsUploadPost = (
   );
 };
 
-export const getUploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationKey = () =>
-  ["uploadDocumentFileApiV1GGuildIdDocumentsUploadPost"] as const;
+export const getUploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationKey = () =>
+  ["uploadDocumentFileApiV1CGuildIdDocumentsUploadPost"] as const;
 
-export const getUploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationOptions = <
+export const getUploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadDocumentFileApiV1GGuildIdDocumentsUploadPost>>,
+    Awaited<ReturnType<typeof uploadDocumentFileApiV1CGuildIdDocumentsUploadPost>>,
     TError,
-    UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationVariables,
+    UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadDocumentFileApiV1GGuildIdDocumentsUploadPost>>,
+  Awaited<ReturnType<typeof uploadDocumentFileApiV1CGuildIdDocumentsUploadPost>>,
   TError,
-  UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationVariables,
+  UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getUploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationKey();
+  const mutationKey = getUploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -807,54 +807,54 @@ export const getUploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadDocumentFileApiV1GGuildIdDocumentsUploadPost>>,
-    UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationVariables
+    Awaited<ReturnType<typeof uploadDocumentFileApiV1CGuildIdDocumentsUploadPost>>,
+    UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return uploadDocumentFileApiV1GGuildIdDocumentsUploadPost(guildId, data, requestOptions);
+    return uploadDocumentFileApiV1CGuildIdDocumentsUploadPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadDocumentFileApiV1GGuildIdDocumentsUploadPost>>
+export type UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadDocumentFileApiV1CGuildIdDocumentsUploadPost>>
 >;
-export type UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationBody =
-  BodyType<BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost>;
-export type UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationError =
+export type UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationBody =
+  BodyType<BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost>;
+export type UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationVariables = {
+export type UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationVariables = {
   guildId: number;
-  data: BodyType<BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost>;
+  data: BodyType<BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost>;
 };
 
 /**
  * @summary Upload Document File
  */
-export const useUploadDocumentFileApiV1GGuildIdDocumentsUploadPost = <
+export const useUploadDocumentFileApiV1CGuildIdDocumentsUploadPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadDocumentFileApiV1GGuildIdDocumentsUploadPost>>,
+      Awaited<ReturnType<typeof uploadDocumentFileApiV1CGuildIdDocumentsUploadPost>>,
       TError,
-      UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationVariables,
+      UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadDocumentFileApiV1GGuildIdDocumentsUploadPost>>,
+  Awaited<ReturnType<typeof uploadDocumentFileApiV1CGuildIdDocumentsUploadPost>>,
   TError,
-  UploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationVariables,
+  UploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUploadDocumentFileApiV1GGuildIdDocumentsUploadPostMutationOptions(options),
+    getUploadDocumentFileApiV1CGuildIdDocumentsUploadPostMutationOptions(options),
     queryClient
   );
 };
@@ -862,22 +862,22 @@ export const useUploadDocumentFileApiV1GGuildIdDocumentsUploadPost = <
  * Upload a new version of a file document. Requires write access.
  * @summary Upload Document Version
  */
-export const uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost = (
+export const uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost = (
   guildId: number,
   documentId: number,
-  bodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost: BodyType<BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>,
+  bodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost: BodyType<BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
   formData.append(
     `file`,
-    bodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost.file
+    bodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost.file
   );
 
   return apiMutator<DocumentFileVersionRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/versions`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}/versions`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -887,28 +887,28 @@ export const uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost =
   );
 };
 
-export const getUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationKey = () =>
-  ["uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost"] as const;
+export const getUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationKey = () =>
+  ["uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost"] as const;
 
-export const getUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationOptions = <
+export const getUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>>,
+    Awaited<ReturnType<typeof uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>>,
     TError,
-    UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationVariables,
+    UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>>,
+  Awaited<ReturnType<typeof uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>>,
   TError,
-  UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationVariables,
+  UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationKey();
+    getUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -916,12 +916,12 @@ export const getUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPos
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>>,
-    UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationVariables
+    Awaited<ReturnType<typeof uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>>,
+    UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationVariables
   > = (props) => {
     const { guildId, documentId, data } = props ?? {};
 
-    return uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost(
+    return uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost(
       guildId,
       documentId,
       data,
@@ -932,45 +932,45 @@ export const getUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPos
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationResult =
+export type UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>>
+    Awaited<ReturnType<typeof uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>>
   >;
-export type UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationBody =
-  BodyType<BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>;
-export type UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationError =
+export type UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationBody =
+  BodyType<BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>;
+export type UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationVariables = {
+export type UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationVariables = {
   guildId: number;
   documentId: number;
-  data: BodyType<BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>;
+  data: BodyType<BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>;
 };
 
 /**
  * @summary Upload Document Version
  */
-export const useUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost = <
+export const useUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>>,
+      Awaited<ReturnType<typeof uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>>,
       TError,
-      UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationVariables,
+      UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost>>,
+  Awaited<ReturnType<typeof uploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost>>,
   TError,
-  UploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationVariables,
+  UploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPostMutationOptions(options),
+    getUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPostMutationOptions(options),
     queryClient
   );
 };
@@ -978,28 +978,28 @@ export const useUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPos
  * List all stored versions of a file document, newest first. Read access.
  * @summary List Document Versions
  */
-export const listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet = (
+export const listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet = (
   guildId: number,
   documentId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DocumentFileVersionRead[]>(
-    { url: `/api/v1/g/${guildId}/documents/${documentId}/versions`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/documents/${documentId}/versions`, method: "GET", signal },
     options
   );
 };
 
-export const getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryKey = (
+export const getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryKey = (
   guildId: number,
   documentId: number
 ) => {
-  return [`/api/v1/g/${guildId}/documents/${documentId}/versions`] as const;
+  return [`/api/v1/c/${guildId}/documents/${documentId}/versions`] as const;
 };
 
-export const getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryOptions = <
+export const getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+    ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1008,7 +1008,7 @@ export const getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQ
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>>,
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>>,
         TError,
         TData
       >
@@ -1020,12 +1020,12 @@ export const getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQ
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryKey(guildId, documentId);
+    getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryKey(guildId, documentId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>>
+    Awaited<ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>>
   > = ({ signal }) =>
-    listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet(
+    listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet(
       guildId,
       documentId,
       requestOptions,
@@ -1039,22 +1039,22 @@ export const getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQ
       guildId !== null && guildId !== undefined && documentId !== null && documentId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>>,
+    Awaited<ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryResult =
+export type ListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>>
+    Awaited<ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>>
   >;
-export type ListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryError =
+export type ListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet<
+export function useListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet<
   TData = Awaited<
-    ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+    ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1063,7 +1063,7 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>>,
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>>,
         TError,
         TData
       >
@@ -1071,11 +1071,11 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+            ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+            ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
           >
         >,
         "initialData"
@@ -1084,9 +1084,9 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet<
+export function useListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet<
   TData = Awaited<
-    ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+    ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1095,7 +1095,7 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>>,
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>>,
         TError,
         TData
       >
@@ -1103,11 +1103,11 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+            ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+            ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
           >
         >,
         "initialData"
@@ -1116,9 +1116,9 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet<
+export function useListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet<
   TData = Awaited<
-    ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+    ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1127,7 +1127,7 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>>,
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>>,
         TError,
         TData
       >
@@ -1140,9 +1140,9 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
  * @summary List Document Versions
  */
 
-export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet<
+export function useListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet<
   TData = Awaited<
-    ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>
+    ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -1151,7 +1151,7 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet>>,
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet>>,
         TError,
         TData
       >
@@ -1161,7 +1161,7 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryOptions(
+    getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryOptions(
       guildId,
       documentId,
       options
@@ -1179,7 +1179,7 @@ export function useListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsG
  * version promotes the previous one; deleting the last version is blocked.
  * @summary Delete Document Version
  */
-export const deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete = (
+export const deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete = (
   guildId: number,
   documentId: number,
   versionId: number,
@@ -1188,7 +1188,7 @@ export const deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersio
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/versions/${versionId}`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}/versions/${versionId}`,
       method: "DELETE",
       signal,
     },
@@ -1196,34 +1196,34 @@ export const deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersio
   );
 };
 
-export const getDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationKey =
-  () => ["deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete"] as const;
+export const getDeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationKey =
+  () => ["deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete"] as const;
 
-export const getDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationOptions =
+export const getDeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete
+          typeof deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete
         >
       >,
       TError,
-      DeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables,
+      DeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete
+        typeof deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete
       >
     >,
     TError,
-    DeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables,
+    DeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationKey();
+      getDeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1233,14 +1233,14 @@ export const getDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVer
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete
+          typeof deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete
         >
       >,
-      DeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables
+      DeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables
     > = (props) => {
       const { guildId, documentId, versionId } = props ?? {};
 
-      return deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete(
+      return deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete(
         guildId,
         documentId,
         versionId,
@@ -1251,24 +1251,24 @@ export const getDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVer
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationResult =
+export type DeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete
+        typeof deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete
       >
     >
   >;
 
-export type DeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationError =
+export type DeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables =
+export type DeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables =
   { guildId: number; documentId: number; versionId: number };
 
 /**
  * @summary Delete Document Version
  */
-export const useDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete = <
+export const useDeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -1276,11 +1276,11 @@ export const useDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVer
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete
+          typeof deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete
         >
       >,
       TError,
-      DeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables,
+      DeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1288,14 +1288,14 @@ export const useDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVer
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof deleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDelete>
+    ReturnType<typeof deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete>
   >,
   TError,
-  DeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables,
+  DeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationOptions(
+    getDeleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDeleteMutationOptions(
       options
     ),
     queryClient
@@ -1304,38 +1304,38 @@ export const useDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVer
 /**
  * @summary Read Document
  */
-export const readDocumentApiV1GGuildIdDocumentsDocumentIdGet = (
+export const readDocumentApiV1CGuildIdDocumentsDocumentIdGet = (
   guildId: number,
   documentId: number,
-  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
+  params?: ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DocumentRead>(
-    { url: `/api/v1/g/${guildId}/documents/${documentId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/documents/${documentId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey = (
+export const getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey = (
   guildId: number,
   documentId: number,
-  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams
+  params?: ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/documents/${documentId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/documents/${documentId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+export const getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   documentId: number,
-  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
+  params?: ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+        Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
         TError,
         TData
       >
@@ -1347,12 +1347,12 @@ export const getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId, params);
+    getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>
+    Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>
   > = ({ signal }) =>
-    readDocumentApiV1GGuildIdDocumentsDocumentIdGet(
+    readDocumentApiV1CGuildIdDocumentsDocumentIdGet(
       guildId,
       documentId,
       params,
@@ -1367,38 +1367,38 @@ export const getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryOptions = <
       guildId !== null && guildId !== undefined && documentId !== null && documentId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+    Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>
+export type ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>
 >;
-export type ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryError =
+export type ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
-  TData = Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+export function useReadDocumentApiV1CGuildIdDocumentsDocumentIdGet<
+  TData = Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   documentId: number,
-  params: undefined | ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
+  params: undefined | ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+        Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+          Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>
+          Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>
         >,
         "initialData"
       >;
@@ -1406,26 +1406,26 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
-  TData = Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+export function useReadDocumentApiV1CGuildIdDocumentsDocumentIdGet<
+  TData = Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   documentId: number,
-  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
+  params?: ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+        Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+          Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>
+          Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>
         >,
         "initialData"
       >;
@@ -1433,17 +1433,17 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
-  TData = Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+export function useReadDocumentApiV1CGuildIdDocumentsDocumentIdGet<
+  TData = Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   documentId: number,
-  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
+  params?: ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+        Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
         TError,
         TData
       >
@@ -1456,17 +1456,17 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
  * @summary Read Document
  */
 
-export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
-  TData = Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+export function useReadDocumentApiV1CGuildIdDocumentsDocumentIdGet<
+  TData = Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   documentId: number,
-  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
+  params?: ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>,
+        Awaited<ReturnType<typeof readDocumentApiV1CGuildIdDocumentsDocumentIdGet>>,
         TError,
         TData
       >
@@ -1475,7 +1475,7 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryOptions(
+  const queryOptions = getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryOptions(
     guildId,
     documentId,
     params,
@@ -1492,7 +1492,7 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
 /**
  * @summary Update Document
  */
-export const updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch = (
+export const updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch = (
   guildId: number,
   documentId: number,
   documentUpdate: BodyType<DocumentUpdate>,
@@ -1501,7 +1501,7 @@ export const updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch = (
 ) => {
   return apiMutator<DocumentRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: documentUpdate,
@@ -1511,27 +1511,27 @@ export const updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch = (
   );
 };
 
-export const getUpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationKey = () =>
-  ["updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch"] as const;
+export const getUpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationKey = () =>
+  ["updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch"] as const;
 
-export const getUpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationOptions = <
+export const getUpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch>>,
+    Awaited<ReturnType<typeof updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch>>,
     TError,
-    UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationVariables,
+    UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch>>,
+  Awaited<ReturnType<typeof updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch>>,
   TError,
-  UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationVariables,
+  UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationKey();
+  const mutationKey = getUpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1539,12 +1539,12 @@ export const getUpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch>>,
-    UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch>>,
+    UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationVariables
   > = (props) => {
     const { guildId, documentId, data } = props ?? {};
 
-    return updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch(
+    return updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch(
       guildId,
       documentId,
       data,
@@ -1555,14 +1555,14 @@ export const getUpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationOptio
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch>>
+export type UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch>>
 >;
-export type UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationBody =
+export type UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationBody =
   BodyType<DocumentUpdate>;
-export type UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationError =
+export type UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationVariables = {
+export type UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationVariables = {
   guildId: number;
   documentId: number;
   data: BodyType<DocumentUpdate>;
@@ -1571,28 +1571,28 @@ export type UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationVariables
 /**
  * @summary Update Document
  */
-export const useUpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatch = <
+export const useUpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch>>,
+      Awaited<ReturnType<typeof updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch>>,
       TError,
-      UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationVariables,
+      UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch>>,
+  Awaited<ReturnType<typeof updateDocumentApiV1CGuildIdDocumentsDocumentIdPatch>>,
   TError,
-  UpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationVariables,
+  UpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatchMutationOptions(options),
+    getUpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatchMutationOptions(options),
     queryClient
   );
 };
@@ -1605,39 +1605,39 @@ export const useUpdateDocumentApiV1GGuildIdDocumentsDocumentIdPatch = <
  * hard-purge time, via ``purge_document_uploads``.
  * @summary Delete Document
  */
-export const deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete = (
+export const deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete = (
   guildId: number,
   documentId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/documents/${documentId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/documents/${documentId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationKey = () =>
-  ["deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete"] as const;
+export const getDeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationKey = () =>
+  ["deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete"] as const;
 
-export const getDeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationOptions = <
+export const getDeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete>>,
+    Awaited<ReturnType<typeof deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete>>,
     TError,
-    DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationVariables,
+    DeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete>>,
+  Awaited<ReturnType<typeof deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete>>,
   TError,
-  DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationVariables,
+  DeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationKey();
+  const mutationKey = getDeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1645,12 +1645,12 @@ export const getDeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationOpti
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete>>,
-    DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete>>,
+    DeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationVariables
   > = (props) => {
     const { guildId, documentId } = props ?? {};
 
-    return deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete(
+    return deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete(
       guildId,
       documentId,
       requestOptions
@@ -1660,13 +1660,13 @@ export const getDeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationOpti
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete>>
+export type DeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete>>
 >;
 
-export type DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationError =
+export type DeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationVariables = {
+export type DeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationVariables = {
   guildId: number;
   documentId: number;
 };
@@ -1674,35 +1674,35 @@ export type DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationVariable
 /**
  * @summary Delete Document
  */
-export const useDeleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete = <
+export const useDeleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete>>,
+      Awaited<ReturnType<typeof deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete>>,
       TError,
-      DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationVariables,
+      DeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete>>,
+  Awaited<ReturnType<typeof deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete>>,
   TError,
-  DeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationVariables,
+  DeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteDocumentApiV1GGuildIdDocumentsDocumentIdDeleteMutationOptions(options),
+    getDeleteDocumentApiV1CGuildIdDocumentsDocumentIdDeleteMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Duplicate Document
  */
-export const duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost = (
+export const duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost = (
   guildId: number,
   documentId: number,
   documentDuplicateRequestNull?: BodyType<DocumentDuplicateRequest | null> | null,
@@ -1711,7 +1711,7 @@ export const duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost = (
 ) => {
   return apiMutator<DocumentRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/duplicate`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}/duplicate`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: documentDuplicateRequestNull,
@@ -1721,28 +1721,28 @@ export const duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost = (
   );
 };
 
-export const getDuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationKey = () =>
-  ["duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost"] as const;
+export const getDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationKey = () =>
+  ["duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost"] as const;
 
-export const getDuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationOptions = <
+export const getDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost>>,
+    Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
     TError,
-    DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
+    DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost>>,
+  Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
   TError,
-  DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
+  DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getDuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationKey();
+    getDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1750,12 +1750,12 @@ export const getDuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMu
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost>>,
-    DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationVariables
+    Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
+    DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables
   > = (props) => {
     const { guildId, documentId, data } = props ?? {};
 
-    return duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost(
+    return duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost(
       guildId,
       documentId,
       data,
@@ -1766,16 +1766,16 @@ export const getDuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMu
   return { mutationFn, ...mutationOptions };
 };
 
-export type DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationResult =
+export type DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost>>
+    Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>
   >;
-export type DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationBody =
+export type DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationBody =
   | BodyType<DocumentDuplicateRequest | null>
   | undefined;
-export type DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationError =
+export type DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationError =
   ErrorType<HTTPValidationError>;
-export type DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationVariables = {
+export type DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables = {
   guildId: number;
   documentId: number;
   data?: BodyType<DocumentDuplicateRequest | null>;
@@ -1784,35 +1784,35 @@ export type DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutati
 /**
  * @summary Duplicate Document
  */
-export const useDuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost = <
+export const useDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost>>,
+      Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
       TError,
-      DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
+      DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost>>,
+  Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
   TError,
-  DuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
+  DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDuplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePostMutationOptions(options),
+    getDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Copy Document
  */
-export const copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost = (
+export const copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost = (
   guildId: number,
   documentId: number,
   documentCopyRequest: BodyType<DocumentCopyRequest>,
@@ -1821,7 +1821,7 @@ export const copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost = (
 ) => {
   return apiMutator<DocumentRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/copy`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}/copy`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: documentCopyRequest,
@@ -1831,27 +1831,27 @@ export const copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost = (
   );
 };
 
-export const getCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationKey = () =>
-  ["copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost"] as const;
+export const getCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationKey = () =>
+  ["copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost"] as const;
 
-export const getCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationOptions = <
+export const getCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost>>,
+    Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
     TError,
-    CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationVariables,
+    CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost>>,
+  Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
   TError,
-  CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationVariables,
+  CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationKey();
+  const mutationKey = getCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1859,12 +1859,12 @@ export const getCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationOpti
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost>>,
-    CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationVariables
+    Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
+    CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables
   > = (props) => {
     const { guildId, documentId, data } = props ?? {};
 
-    return copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(
+    return copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost(
       guildId,
       documentId,
       data,
@@ -1875,14 +1875,14 @@ export const getCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationOpti
   return { mutationFn, ...mutationOptions };
 };
 
-export type CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost>>
+export type CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>
 >;
-export type CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationBody =
+export type CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationBody =
   BodyType<DocumentCopyRequest>;
-export type CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationError =
+export type CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationVariables = {
+export type CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables = {
   guildId: number;
   documentId: number;
   data: BodyType<DocumentCopyRequest>;
@@ -1891,28 +1891,28 @@ export type CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationVariable
 /**
  * @summary Copy Document
  */
-export const useCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost = <
+export const useCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost>>,
+      Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
       TError,
-      CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationVariables,
+      CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost>>,
+  Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
   TError,
-  CopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationVariables,
+  CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPostMutationOptions(options),
+    getCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationOptions(options),
     queryClient
   );
 };
@@ -1920,46 +1920,46 @@ export const useCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost = <
  * Notify users that they were mentioned in a document.
  * @summary Notify Mentions
  */
-export const notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost = (
+export const notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost = (
   guildId: number,
   documentId: number,
-  bodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost: BodyType<BodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>,
+  bodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost: BodyType<BodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/mentions`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}/mentions`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: bodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost,
+      data: bodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost,
       signal,
     },
     options
   );
 };
 
-export const getNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationKey = () =>
-  ["notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost"] as const;
+export const getNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationKey = () =>
+  ["notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost"] as const;
 
-export const getNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationOptions = <
+export const getNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>>,
+    Awaited<ReturnType<typeof notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>>,
     TError,
-    NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationVariables,
+    NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>>,
+  Awaited<ReturnType<typeof notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>>,
   TError,
-  NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationVariables,
+  NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationKey();
+  const mutationKey = getNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1967,12 +1967,12 @@ export const getNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>>,
-    NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationVariables
+    Awaited<ReturnType<typeof notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>>,
+    NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationVariables
   > = (props) => {
     const { guildId, documentId, data } = props ?? {};
 
-    return notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost(
+    return notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost(
       guildId,
       documentId,
       data,
@@ -1983,44 +1983,44 @@ export const getNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutati
   return { mutationFn, ...mutationOptions };
 };
 
-export type NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>>
+export type NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>>
 >;
-export type NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationBody =
-  BodyType<BodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>;
-export type NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationError =
+export type NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationBody =
+  BodyType<BodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>;
+export type NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationVariables = {
+export type NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationVariables = {
   guildId: number;
   documentId: number;
-  data: BodyType<BodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>;
+  data: BodyType<BodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>;
 };
 
 /**
  * @summary Notify Mentions
  */
-export const useNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost = <
+export const useNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>>,
+      Awaited<ReturnType<typeof notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>>,
       TError,
-      NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationVariables,
+      NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost>>,
+  Awaited<ReturnType<typeof notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost>>,
   TError,
-  NotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationVariables,
+  NotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPostMutationOptions(options),
+    getNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPostMutationOptions(options),
     queryClient
   );
 };
@@ -2031,39 +2031,39 @@ export const useNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost = <
  * (not file uploads like PDFs).
  * @summary Generate Summary
  */
-export const generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost = (
+export const generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost = (
   guildId: number,
   documentId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GenerateDocumentSummaryResponse>(
-    { url: `/api/v1/g/${guildId}/documents/${documentId}/ai/summary`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/documents/${documentId}/ai/summary`, method: "POST", signal },
     options
   );
 };
 
-export const getGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationKey = () =>
-  ["generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost"] as const;
+export const getGenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationKey = () =>
+  ["generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost"] as const;
 
-export const getGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationOptions = <
+export const getGenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost>>,
+    Awaited<ReturnType<typeof generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost>>,
     TError,
-    GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables,
+    GenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost>>,
+  Awaited<ReturnType<typeof generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost>>,
   TError,
-  GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables,
+  GenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationKey();
+  const mutationKey = getGenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2071,12 +2071,12 @@ export const getGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMuta
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost>>,
-    GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables
+    Awaited<ReturnType<typeof generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost>>,
+    GenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables
   > = (props) => {
     const { guildId, documentId } = props ?? {};
 
-    return generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost(
+    return generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost(
       guildId,
       documentId,
       requestOptions
@@ -2086,14 +2086,14 @@ export const getGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMuta
   return { mutationFn, ...mutationOptions };
 };
 
-export type GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationResult =
+export type GenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost>>
+    Awaited<ReturnType<typeof generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost>>
   >;
 
-export type GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationError =
+export type GenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationError =
   ErrorType<HTTPValidationError>;
-export type GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables = {
+export type GenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables = {
   guildId: number;
   documentId: number;
 };
@@ -2101,28 +2101,28 @@ export type GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutation
 /**
  * @summary Generate Summary
  */
-export const useGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost = <
+export const useGenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost>>,
+      Awaited<ReturnType<typeof generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost>>,
       TError,
-      GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables,
+      GenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost>>,
+  Awaited<ReturnType<typeof generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost>>,
   TError,
-  GenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables,
+  GenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPostMutationOptions(options),
+    getGenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationOptions(options),
     queryClient
   );
 };
@@ -2134,7 +2134,7 @@ export const useGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost = <
  * person a person-valued property holds by its reference for them.
  * @summary Set Document Properties
  */
-export const setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut = (
+export const setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut = (
   guildId: number,
   documentId: number,
   propertyValuesSetRequest: BodyType<PropertyValuesSetRequest>,
@@ -2143,7 +2143,7 @@ export const setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut 
 ) => {
   return apiMutator<DocumentRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/properties`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}/properties`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: propertyValuesSetRequest,
@@ -2153,28 +2153,28 @@ export const setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut 
   );
 };
 
-export const getSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationKey =
-  () => ["setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut"] as const;
+export const getSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationKey =
+  () => ["setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut"] as const;
 
-export const getSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationOptions =
+export const getSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut>
+        ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>
       >,
       TError,
-      SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
+      SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
-    Awaited<ReturnType<typeof setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut>>,
+    Awaited<ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>>,
     TError,
-    SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
+    SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationKey();
+      getSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -2183,13 +2183,13 @@ export const getSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesP
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut>
+        ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>
       >,
-      SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationVariables
+      SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables
     > = (props) => {
       const { guildId, documentId, data } = props ?? {};
 
-      return setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut(
+      return setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut(
         guildId,
         documentId,
         data,
@@ -2200,15 +2200,15 @@ export const getSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesP
     return { mutationFn, ...mutationOptions };
   };
 
-export type SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationResult =
+export type SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut>>
+    Awaited<ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>>
   >;
-export type SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationBody =
+export type SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationBody =
   BodyType<PropertyValuesSetRequest>;
-export type SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationError =
+export type SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationVariables = {
+export type SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables = {
   guildId: number;
   documentId: number;
   data: BodyType<PropertyValuesSetRequest>;
@@ -2217,30 +2217,30 @@ export type SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMu
 /**
  * @summary Set Document Properties
  */
-export const useSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut = <
+export const useSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut>
+        ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>
       >,
       TError,
-      SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
+      SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut>>,
+  Awaited<ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>>,
   TError,
-  SetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
+  SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPutMutationOptions(options),
+    getSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationOptions(options),
     queryClient
   );
 };
@@ -2258,22 +2258,22 @@ export const useSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesP
  * as any other.
  * @summary Import Spreadsheet File
  */
-export const importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost = (
+export const importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost = (
   guildId: number,
   documentId: number,
-  bodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost: BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>,
+  bodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost: BodyType<BodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
   formData.append(
     `file`,
-    bodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost.file
+    bodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost.file
   );
 
   return apiMutator<SpreadsheetImportRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/spreadsheet/import`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}/spreadsheet/import`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -2283,32 +2283,32 @@ export const importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImp
   );
 };
 
-export const getImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationKey =
-  () => ["importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost"] as const;
+export const getImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationKey =
+  () => ["importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost"] as const;
 
-export const getImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationOptions =
+export const getImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost
+          typeof importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost
         >
       >,
       TError,
-      ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables,
+      ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>
+      ReturnType<typeof importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost>
     >,
     TError,
-    ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables,
+    ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationKey();
+      getImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -2318,14 +2318,14 @@ export const getImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheet
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost
+          typeof importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost
         >
       >,
-      ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables
+      ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables
     > = (props) => {
       const { guildId, documentId, data } = props ?? {};
 
-      return importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost(
+      return importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost(
         guildId,
         documentId,
         data,
@@ -2336,27 +2336,27 @@ export const getImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheet
     return { mutationFn, ...mutationOptions };
   };
 
-export type ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationResult =
+export type ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>
+      ReturnType<typeof importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost>
     >
   >;
-export type ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationBody =
-  BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
-export type ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationError =
+export type ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationBody =
+  BodyType<BodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
+export type ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables =
+export type ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables =
   {
     guildId: number;
     documentId: number;
-    data: BodyType<BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
+    data: BodyType<BodyImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost>;
   };
 
 /**
  * @summary Import Spreadsheet File
  */
-export const useImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost = <
+export const useImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -2364,11 +2364,11 @@ export const useImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheet
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost
+          typeof importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost
         >
       >,
       TError,
-      ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables,
+      ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2376,14 +2376,14 @@ export const useImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheet
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof importSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost>
+    ReturnType<typeof importSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPost>
   >,
   TError,
-  ImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables,
+  ImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationOptions(
+    getImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationOptions(
       options
     ),
     queryClient
@@ -2396,39 +2396,39 @@ export const useImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheet
  * grantee's browsing is transient by design and is not stored.
  * @summary Record Document View
  */
-export const recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost = (
+export const recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost = (
   guildId: number,
   documentId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/g/${guildId}/documents/${documentId}/view`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/documents/${documentId}/view`, method: "POST", signal },
     options
   );
 };
 
-export const getRecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationKey = () =>
-  ["recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost"] as const;
+export const getRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationKey = () =>
+  ["recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost"] as const;
 
-export const getRecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationOptions = <
+export const getRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost>>,
+    Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
     TError,
-    RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationVariables,
+    RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost>>,
+  Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
   TError,
-  RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationVariables,
+  RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getRecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationKey();
+  const mutationKey = getRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2436,12 +2436,12 @@ export const getRecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost>>,
-    RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationVariables
+    Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
+    RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables
   > = (props) => {
     const { guildId, documentId } = props ?? {};
 
-    return recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost(
+    return recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost(
       guildId,
       documentId,
       requestOptions
@@ -2451,13 +2451,13 @@ export const getRecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutati
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost>>
+export type RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>
 >;
 
-export type RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationError =
+export type RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationError =
   ErrorType<HTTPValidationError>;
-export type RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationVariables = {
+export type RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables = {
   guildId: number;
   documentId: number;
 };
@@ -2465,28 +2465,28 @@ export type RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationVa
 /**
  * @summary Record Document View
  */
-export const useRecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost = <
+export const useRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost>>,
+      Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
       TError,
-      RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationVariables,
+      RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost>>,
+  Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
   TError,
-  RecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationVariables,
+  RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPostMutationOptions(options),
+    getRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationOptions(options),
     queryClient
   );
 };
@@ -2496,39 +2496,39 @@ export const useRecordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost = <
  * Idempotent — a tab that is not open stays closed.
  * @summary Clear Document View
  */
-export const clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete = (
+export const clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete = (
   guildId: number,
   documentId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/documents/${documentId}/view`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/documents/${documentId}/view`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationKey = () =>
-  ["clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete"] as const;
+export const getClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationKey = () =>
+  ["clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete"] as const;
 
-export const getClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationOptions = <
+export const getClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete>>,
+    Awaited<ReturnType<typeof clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete>>,
     TError,
-    ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationVariables,
+    ClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete>>,
+  Awaited<ReturnType<typeof clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete>>,
   TError,
-  ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationVariables,
+  ClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationKey();
+  const mutationKey = getClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2536,12 +2536,12 @@ export const getClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete>>,
-    ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationVariables
+    Awaited<ReturnType<typeof clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete>>,
+    ClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationVariables
   > = (props) => {
     const { guildId, documentId } = props ?? {};
 
-    return clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete(
+    return clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete(
       guildId,
       documentId,
       requestOptions
@@ -2551,13 +2551,13 @@ export const getClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete>>
+export type ClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete>>
 >;
 
-export type ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationError =
+export type ClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationVariables = {
+export type ClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationVariables = {
   guildId: number;
   documentId: number;
 };
@@ -2565,28 +2565,28 @@ export type ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationV
 /**
  * @summary Clear Document View
  */
-export const useClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete = <
+export const useClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete>>,
+      Awaited<ReturnType<typeof clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete>>,
       TError,
-      ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationVariables,
+      ClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete>>,
+  Awaited<ReturnType<typeof clearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDelete>>,
   TError,
-  ClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationVariables,
+  ClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDeleteMutationOptions(options),
+    getClearDocumentViewApiV1CGuildIdDocumentsDocumentIdViewDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -2596,7 +2596,7 @@ export const useClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete = <
  * non-owner grant is rebuilt from it; the owner is always preserved.
  * @summary Set Document Grants
  */
-export const setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut = (
+export const setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut = (
   guildId: number,
   documentId: number,
   resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
@@ -2605,7 +2605,7 @@ export const setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut = (
 ) => {
   return apiMutator<DocumentRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/grants`,
+      url: `/api/v1/c/${guildId}/documents/${documentId}/grants`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: resourceGrantSchema,
@@ -2615,27 +2615,27 @@ export const setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut = (
   );
 };
 
-export const getSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationKey = () =>
-  ["setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut"] as const;
+export const getSetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationKey = () =>
+  ["setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut"] as const;
 
-export const getSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationOptions = <
+export const getSetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
+    Awaited<ReturnType<typeof setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut>>,
     TError,
-    SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationVariables,
+    SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
+  Awaited<ReturnType<typeof setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut>>,
   TError,
-  SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationVariables,
+  SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationKey();
+  const mutationKey = getSetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2643,12 +2643,12 @@ export const getSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
-    SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationVariables
+    Awaited<ReturnType<typeof setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut>>,
+    SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationVariables
   > = (props) => {
     const { guildId, documentId, data } = props ?? {};
 
-    return setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(
+    return setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut(
       guildId,
       documentId,
       data,
@@ -2659,15 +2659,15 @@ export const getSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutati
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>
+export type SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut>>
 >;
-export type SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationBody = BodyType<
+export type SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationBody = BodyType<
   ResourceGrantSchema[]
 >;
-export type SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationError =
+export type SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationVariables = {
+export type SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationVariables = {
   guildId: number;
   documentId: number;
   data: BodyType<ResourceGrantSchema[]>;
@@ -2676,28 +2676,28 @@ export type SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationVa
 /**
  * @summary Set Document Grants
  */
-export const useSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut = <
+export const useSetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
+      Awaited<ReturnType<typeof setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut>>,
       TError,
-      SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationVariables,
+      SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
+  Awaited<ReturnType<typeof setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut>>,
   TError,
-  SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationVariables,
+  SetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationOptions(options),
+    getSetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationOptions(options),
     queryClient
   );
 };

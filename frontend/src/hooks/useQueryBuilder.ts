@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type { QueryBuildRequest, QueryBuildResponse } from "@/api/generated/initiativeAPI.schemas";
-import { buildQueryApiV1GGuildIdQueryBuildPost } from "@/api/generated/query/query";
+import { buildQueryApiV1CGuildIdQueryBuildPost } from "@/api/generated/query/query";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { QueryOpts } from "@/types/query";
 
@@ -27,7 +27,7 @@ export const useQueryBuilder = (
   const guildId = useActiveGuildId();
   return useQuery<QueryBuildResponse>({
     queryKey: queryBuildKey(guildId, spec),
-    queryFn: () => buildQueryApiV1GGuildIdQueryBuildPost(guildId, spec as QueryBuildRequest),
+    queryFn: () => buildQueryApiV1CGuildIdQueryBuildPost(guildId, spec as QueryBuildRequest),
     placeholderData: keepPreviousData,
     // A description either builds or it does not; retrying asks the same
     // question again.

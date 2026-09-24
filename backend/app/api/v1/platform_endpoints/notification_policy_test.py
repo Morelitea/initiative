@@ -30,7 +30,7 @@ PLATFORM = "/api/v1/settings/notifications"
 
 
 def _guild_url(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/notification-policy"
+    return f"/api/v1/communities/{guild_id}/notification-policy"
 
 
 def _all(**overrides: bool) -> dict:

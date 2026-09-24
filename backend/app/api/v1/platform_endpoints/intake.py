@@ -117,7 +117,7 @@ async def read_intake_options(
     )
 
 
-@router.put("/intake/guild", response_model=IntakeSettingsRead)
+@router.put("/intake/community", response_model=IntakeSettingsRead)
 async def update_operations_guild(
     payload: OperationsGuildUpdate,
     session: SystemSessionDep,

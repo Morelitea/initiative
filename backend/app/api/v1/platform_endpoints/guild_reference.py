@@ -50,7 +50,7 @@ ANSWERABLE_PURPOSES: frozenset[IdentityPurpose] = frozenset({IdentityPurpose.bil
 router = APIRouter(include_in_schema=False)
 
 
-@router.post("/guild-reference", response_model=GuildReferenceRead)
+@router.post("/community-reference", response_model=GuildReferenceRead)
 async def read_guild_reference(request: Request) -> GuildReferenceRead:
     """Name the caller's guild in another sector."""
     body = await request.body()

@@ -46,7 +46,7 @@ async def test_each_request_through_a_grant_is_written_down(
     await _break_glass(client, a, guild)
     capfd.readouterr()
 
-    reached = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=a.headers)
+    reached = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=a.headers)
     assert reached.status_code == 200, reached.text
 
     (line,) = emitted(capfd, PAM)
@@ -58,7 +58,7 @@ async def test_each_request_through_a_grant_is_written_down(
     assert line["is_write"] is False
     assert line["detail"] == {
         "method": "GET",
-        "route": "/api/v1/g/{guild_id}/initiatives/",
+        "route": "/api/v1/c/{guild_id}/initiatives/",
         "status": 200,
         "reached": {"guild_id": guild.id},
     }
@@ -73,7 +73,7 @@ async def test_the_line_names_the_grant_that_served_it(
     await _break_glass(client, a, guild)
     capfd.readouterr()
 
-    await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=a.headers)
+    await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=a.headers)
 
     (line,) = emitted(capfd, PAM)
     context = line["context"]
@@ -94,7 +94,7 @@ async def test_a_member_reaching_their_own_community_is_not_recorded(
     capfd.readouterr()
 
     reached = await client.get(
-        f"/api/v1/g/{a.guild.id}/initiatives/", headers=a.headers
+        f"/api/v1/c/{a.guild.id}/initiatives/", headers=a.headers
     )
     assert reached.status_code == 200
 
@@ -112,7 +112,7 @@ async def test_a_refused_request_is_recorded_with_what_it_was_refused(
     capfd.readouterr()
 
     refused = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         json={"name": "Not mine to make"},
         headers=a.headers,
     )
@@ -133,7 +133,7 @@ async def test_reaching_nothing_still_records_the_attempt(
     capfd.readouterr()
 
     missing = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/9999", headers=a.headers
+        f"/api/v1/c/{guild.id}/initiatives/9999", headers=a.headers
     )
     assert missing.status_code == 404
 

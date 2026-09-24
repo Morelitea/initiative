@@ -2,10 +2,10 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState 
 import { useTranslation } from "react-i18next";
 
 import {
-  useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
-  useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
-  useImportEnvelopeApiV1GGuildIdImportsEnvelopePost,
-  useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost,
+  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
+  useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost,
+  useImportEnvelopeApiV1CGuildIdImportsEnvelopePost,
+  useImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost,
 } from "@/api/generated/imports/imports";
 import type { ImportJobRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
@@ -117,10 +117,10 @@ export function EnvelopeImportDialog({
   // started must not stamp its (stale) result onto the input.
   const readGeneration = useRef(0);
 
-  const importMutation = useImportEnvelopeApiV1GGuildIdImportsEnvelopePost();
-  const archiveMutation = useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost();
-  const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
-  const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
+  const importMutation = useImportEnvelopeApiV1CGuildIdImportsEnvelopePost();
+  const archiveMutation = useImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost();
+  const confirmMutation = useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost();
+  const cancelMutation = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
 
   const people = useMemo(
     () => ((stagedJob?.plan as { people?: PlanPerson[] } | null)?.people ?? []) as PlanPerson[],
