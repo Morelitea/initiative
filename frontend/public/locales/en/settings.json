@@ -1598,6 +1598,18 @@
     "directMessagesOffConfirm": "Turn off direct messages",
     "directMessagesEnabledToast": "Direct messages are on.",
     "directMessagesDisabledToast": "Direct messages are off.",
+    "holdDeletion": {
+      "title": "Deleting communities on hold",
+      "description": "A community on hold is closed to everyone in it. If the hold is still in place when this window ends, the community is deleted, and the window above then decides how long it is kept. The people who run it are told the date when it goes on hold.",
+      "label": "Delete after (days on hold)",
+      "placeholder": "Never delete",
+      "hint": "Counted from the moment each community was put on hold, so changing this moves the date for ones already on hold.",
+      "neverHint": "Nothing is deleted on a timer. A community stays on hold until somebody lifts the hold or deletes it.",
+      "saved_one": "Communities on hold are deleted after {{count}} day.",
+      "saved_other": "Communities on hold are deleted after {{count}} days.",
+      "savedNever": "Communities on hold are never deleted automatically.",
+      "save": "Save how long communities stay on hold"
+    },
     "retention": {
       "title": "Keeping deleted communities",
       "description": "A deleted community disappears for everyone in it straight away, but nothing is destroyed until this window ends. Until then an operator can restore it.",

@@ -1388,6 +1388,9 @@ export function useReadCommunitySettingsApiV1SettingsCommunityGet<
  * put in it, so this field reads its presence rather than its value — omit it
  * to leave the window alone. The figure is the deployment's; a community has
  * no say in its own.
+ *
+ * ``on_hold_community_deletion_days`` reads the same way: how long a
+ * community stays on hold before it is deleted, and ``null`` for never.
  * @summary Update Community Settings
  */
 export const updateCommunitySettingsApiV1SettingsCommunityPut = (

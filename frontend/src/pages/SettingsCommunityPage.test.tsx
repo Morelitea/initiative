@@ -20,6 +20,7 @@ const config = vi.hoisted(() => ({
   defaultDmPolicy: "private" as "private" | "community" | "public",
   directMessages: true,
   retentionDays: 90 as number | null,
+  holdDays: 30 as number | null,
 }));
 
 vi.mock("@/hooks/useAppConfig", () => ({
@@ -40,6 +41,7 @@ vi.mock("@/hooks/useSettings", () => ({
       default_dm_policy: config.defaultDmPolicy,
       direct_messages_enabled: config.directMessages,
       deleted_community_retention_days: config.retentionDays,
+      on_hold_community_deletion_days: config.holdDays,
     },
   }),
 }));
@@ -265,5 +267,46 @@ describe("how long deleted communities are kept", () => {
     expect(
       screen.getByRole("button", { name: "Save how long communities are kept" })
     ).toBeDisabled();
+  });
+});
+
+describe("how long communities stay on hold", () => {
+  beforeEach(() => {
+    updateMutate.mockClear();
+    config.communityDirectory = false;
+    config.holdDays = 30;
+  });
+
+  it("shows the deployment's window and saves a new one", async () => {
+    renderPage();
+
+    const box = (await screen.findByLabelText("Delete after (days on hold)")) as HTMLInputElement;
+    expect(box.value).toBe("30");
+
+    await userEvent.clear(box);
+    await userEvent.type(box, "60");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save how long communities stay on hold" })
+    );
+
+    expect(updateMutate).toHaveBeenCalledWith({
+      community_directory_enabled: false,
+      on_hold_community_deletion_days: 60,
+    });
+  });
+
+  it("takes a blank box as never delete", async () => {
+    renderPage();
+
+    const box = (await screen.findByLabelText("Delete after (days on hold)")) as HTMLInputElement;
+    await userEvent.clear(box);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save how long communities stay on hold" })
+    );
+
+    expect(updateMutate).toHaveBeenCalledWith({
+      community_directory_enabled: false,
+      on_hold_community_deletion_days: null,
+    });
   });
 });

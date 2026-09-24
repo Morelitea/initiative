@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import type { DmPolicy } from "@/api/generated/initiativeAPI.schemas";
 import { DeletedAccountRetentionSection } from "@/components/platform/DeletedAccountRetentionSection";
 import { DeletedCommunityRetentionSection } from "@/components/platform/DeletedCommunityRetentionSection";
+import { OnHoldCommunityDeletionSection } from "@/components/platform/OnHoldCommunityDeletionSection";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
@@ -201,6 +202,8 @@ export const SettingsCommunityPage = () => {
         />
 
         <DeletedCommunityRetentionSection directoryEnabled={communityDirectoryEnabled} />
+
+        <OnHoldCommunityDeletionSection directoryEnabled={communityDirectoryEnabled} />
 
         <DeletedAccountRetentionSection directoryEnabled={communityDirectoryEnabled} />
 

@@ -1598,6 +1598,18 @@
     "directMessagesOffConfirm": "Desactivar los mensajes directos",
     "directMessagesEnabledToast": "Los mensajes directos están activados.",
     "directMessagesDisabledToast": "Los mensajes directos están desactivados.",
+    "holdDeletion": {
+      "title": "Eliminación de comunidades en pausa",
+      "description": "Una comunidad en pausa está cerrada para todos sus miembros. Si sigue en pausa cuando termina este plazo, se elimina, y el plazo de arriba decide cuánto se conserva después. Quienes la gestionan reciben la fecha cuando se pone en pausa.",
+      "label": "Eliminar tras (días en pausa)",
+      "placeholder": "No eliminar nunca",
+      "hint": "Se cuenta desde el momento en que se puso en pausa cada comunidad, así que cambiarlo mueve también la fecha de las que ya están en pausa.",
+      "neverHint": "No se elimina nada por plazo. Una comunidad sigue en pausa hasta que alguien levanta la pausa o la elimina.",
+      "saved_one": "Las comunidades en pausa se eliminan tras {{count}} día.",
+      "saved_other": "Las comunidades en pausa se eliminan tras {{count}} días.",
+      "savedNever": "Las comunidades en pausa nunca se eliminan automáticamente.",
+      "save": "Guardar cuánto tiempo siguen en pausa las comunidades"
+    },
     "retention": {
       "title": "Conservación de comunidades eliminadas",
       "description": "Una comunidad eliminada desaparece de inmediato para todos sus miembros, pero no se destruye nada hasta que termina este plazo. Hasta entonces, un operador puede restaurarla.",
