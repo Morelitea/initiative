@@ -36,8 +36,13 @@ from app.services.export import limits as export_limits
 # literal, as it does on screen.
 _USER_MENTION_RE = re.compile(r"@\[([^\]]+)\]\(\d+\)")
 
+#: A picture in a comment — a pasted screenshot — prints as its alt text,
+#: the way the description's Markdown blocks print one.
+_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
+
 
 def _flatten_mentions(content: str) -> str:
+    content = _IMAGE_RE.sub(lambda m: m.group(1) or "[image]", content)
     content = _USER_MENTION_RE.sub(lambda m: f"@{m.group(1)}", content)
     return TEXT_REFERENCE.sub(
         lambda m: m.group(2) if kind_for_trigger(m.group(1)) else m.group(0),

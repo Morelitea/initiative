@@ -1250,6 +1250,10 @@ export interface BodyUploadMyAvatarApiV1UsersMeAvatarPut {
   file: Blob;
 }
 
+export interface BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost {
+  file: Blob;
+}
+
 export type BreakGlassCreatePasskey = { [key: string]: unknown } | null;
 
 /**

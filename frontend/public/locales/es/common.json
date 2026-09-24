@@ -216,7 +216,10 @@
     "bulletedList": "Lista con viñetas",
     "numberedList": "Lista numerada",
     "taskList": "Lista de tareas",
-    "more": "Más formato"
+    "more": "Más formato",
+    "image": "Imagen",
+    "uploadingImage": "Subiendo {{name}}…",
+    "imageUploadFailed": "No se pudo añadir esa imagen."
   },
   "errorPage": {
     "title": "Algo salió mal",

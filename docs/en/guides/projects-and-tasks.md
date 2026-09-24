@@ -41,7 +41,7 @@ A task can hold:
 | Field | What it's for |
 |---|---|
 | **Title** | A short name. Required. |
-| **Description** | The detail. Formatting works, with a **Preview**, and so do `@`, `#` and `[[ ]]` — see [Mentions & links](mentions-and-links.md). |
+| **Description** | The detail. Formatting works, with a **Preview**, and so do `@`, `#` and `[[ ]]` — see [Mentions & links](mentions-and-links.md). Paste or drag in a screenshot and it lands where your cursor is; take it back out, or leave without saving, and it's gone from storage too. |
 | **Status** | Where it's got to. |
 | **Priority** | Low, Medium, High, or Urgent. |
 | **Start date** | When work should begin. |

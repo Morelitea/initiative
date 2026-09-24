@@ -216,7 +216,10 @@
     "bulletedList": "Liste à puces",
     "numberedList": "Liste numérotée",
     "taskList": "Liste de tâches",
-    "more": "Plus de mise en forme"
+    "more": "Plus de mise en forme",
+    "image": "Image",
+    "uploadingImage": "Envoi de {{name}}…",
+    "imageUploadFailed": "Impossible d'ajouter cette image."
   },
   "errorPage": {
     "title": "Un problème est survenu",

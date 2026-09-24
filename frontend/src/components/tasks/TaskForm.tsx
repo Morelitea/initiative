@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { usePastedImages } from "@/hooks/usePastedImages";
 import { dateRangeBounds } from "@/lib/dateRange";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 
@@ -164,6 +165,7 @@ export const TaskForm = ({
   autoFocusTitle = false,
 }: TaskFormProps) => {
   const { t } = useTranslation(["tasks", "properties", "dates", "common"]);
+  const uploadImage = usePastedImages();
 
   const set = (patch: Partial<TaskFormValue>) => onChange({ ...value, ...patch });
 
@@ -352,6 +354,7 @@ export const TaskForm = ({
         onChange={(description) => set({ description })}
         initiativeId={initiativeId ?? 0}
         renderPreview={renderDescription}
+        onUploadImage={uploadImage}
         placeholder={t("taskForm.descriptionPlaceholder")}
         disabled={disabled}
       />

@@ -1,8 +1,9 @@
 import type { ComponentPropsWithoutRef, Ref } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { remarkImageLinks, remarkLineBreaks } from "@/lib/remarkProse";
+import { isStoredUpload, remarkImageLinks, remarkLineBreaks } from "@/lib/remarkProse";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 import { LinkedMentionSpan, PlainMentionSpan } from "./MentionSpan";
@@ -35,25 +36,40 @@ const MarkdownAnchor = ({ children, node: _node, ...props }: AnchorProps) => (
 
 const PlainAnchor = ({ children }: AnchorProps) => <span>{children}</span>;
 
-/** `remarkImageLinks` rewrites every image ahead of this, so reaching here
- *  means an unexpected shape — name it rather than fetch it. */
-const MarkdownImage = ({ src, alt }: ImageProps) => (
+/** A picture by its name — for a clamped preview, and for any image that is
+ *  not one this app stores (`remarkImageLinks` makes those links, so reaching
+ *  here means an unexpected shape). */
+const ImageName = ({ src, alt }: ImageProps) => (
   <span>{alt || (typeof src === "string" ? src : "")}</span>
 );
 
-const LINKED_COMPONENTS = {
-  span: LinkedMentionSpan,
-  a: MarkdownAnchor,
-  img: MarkdownImage,
+/** A picture pasted into the comment, fetched from the server it is stored on. */
+const StoredImage = (props: ImageProps) => {
+  const { src, alt } = props;
+  if (typeof src !== "string" || !isStoredUpload(src)) return <ImageName {...props} />;
+  return (
+    <img
+      src={resolveUploadUrl(src) ?? src}
+      alt={alt ?? ""}
+      loading="lazy"
+      className="max-h-80 max-w-full rounded-md border border-border"
+    />
+  );
 };
-const PLAIN_COMPONENTS = {
-  span: PlainMentionSpan,
-  a: PlainAnchor,
-  img: MarkdownImage,
-};
+
+const LINKED_COMPONENTS = { span: LinkedMentionSpan, a: MarkdownAnchor, img: StoredImage };
+const PLAIN_COMPONENTS = { span: PlainMentionSpan, a: PlainAnchor, img: StoredImage };
+const COMPACT_LINKED_COMPONENTS = { ...LINKED_COMPONENTS, img: ImageName };
+const COMPACT_PLAIN_COMPONENTS = { ...PLAIN_COMPONENTS, img: ImageName };
 // Mentions resolve before images, so an image-derived link is never mistaken
-// for one.
-const PLUGINS = [remarkGfm, remarkMentions, remarkImageLinks, remarkLineBreaks];
+// for one. A picture stored here stays a picture; one from anywhere else
+// becomes a link, so reading a comment never fetches from a site nobody chose.
+const PLUGINS = [
+  remarkGfm,
+  remarkMentions,
+  [remarkImageLinks, { keep: isStoredUpload }],
+  remarkLineBreaks,
+] satisfies Options["remarkPlugins"];
 
 export const CommentContent = ({
   content,
@@ -65,7 +81,15 @@ export const CommentContent = ({
   <div ref={ref} className={cn(PROSE_CLASS, !compact && SPACED_CLASS, className)}>
     <ReactMarkdown
       remarkPlugins={PLUGINS}
-      components={disableLinks ? PLAIN_COMPONENTS : LINKED_COMPONENTS}
+      components={
+        compact
+          ? disableLinks
+            ? COMPACT_PLAIN_COMPONENTS
+            : COMPACT_LINKED_COMPONENTS
+          : disableLinks
+            ? PLAIN_COMPONENTS
+            : LINKED_COMPONENTS
+      }
     >
       {content}
     </ReactMarkdown>

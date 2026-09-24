@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { Button } from "@/components/ui/button";
+import { usePastedImages } from "@/hooks/usePastedImages";
 
 interface CommentInputProps {
   value: string;
@@ -44,6 +45,7 @@ export const CommentInput = ({
   const { t } = useTranslation(["comments", "common"]);
   const resolvedPlaceholder = placeholder ?? t("placeholder");
   const resolvedSubmitLabel = submitLabel ?? t("postComment");
+  const uploadImage = usePastedImages();
 
   // Handle form submit
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -63,6 +65,7 @@ export const CommentInput = ({
         }}
         initiativeId={initiativeId}
         subject={subject}
+        onUploadImage={uploadImage}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();

@@ -60,6 +60,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
+import { usePastedImages } from "@/hooks/usePastedImages";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useServerForm } from "@/hooks/useServerForm";
@@ -159,6 +160,7 @@ export const TaskEditPage = () => {
   const parsedTaskId = Number(taskId);
   const router = useRouter();
   const guildId = useActiveGuildId();
+  const uploadImage = usePastedImages();
   const { user: currentUser } = useAuth();
   useGuilds();
   const { t } = useTranslation(["tasks", "common", "properties"]);
@@ -586,6 +588,7 @@ export const TaskEditPage = () => {
           initiativeId={initiativeId ?? 0}
           subject={referenceRef(SearchEntityType.task, parsedTaskId)}
           renderPreview={renderDescription}
+          onUploadImage={uploadImage}
           defaultMode="preview"
           placeholder={t("edit.descriptionPlaceholder")}
           actions={

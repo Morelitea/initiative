@@ -216,7 +216,10 @@
     "bulletedList": "Bulleted list",
     "numberedList": "Numbered list",
     "taskList": "Task list",
-    "more": "More formatting"
+    "more": "More formatting",
+    "image": "Image",
+    "uploadingImage": "Uploading {{name}}…",
+    "imageUploadFailed": "Couldn't add that picture."
   },
   "errorPage": {
     "title": "Something went wrong",

@@ -60,3 +60,21 @@ async def test_read_upload_bounded_works_with_real_uploadfile() -> None:
     upload = UploadFile(filename="x.bin", file=io.BytesIO(b"X" * 100))
     with pytest.raises(FileTooLargeError):
         await read_upload_bounded(upload, max_size=50)
+
+
+@pytest.mark.unit
+def test_a_description_s_pictures_are_read_out_of_its_markdown():
+    from app.services.tenant.attachments import upload_urls_in_markdown
+
+    text = (
+        "Before ![a](/uploads/9/task-abc_1.png) and "
+        "![b](https://example.com/uploads/9/task-def.jpg), "
+        "a link [c](/uploads/9/doc.pdf) and /api/v1/uploads-nope"
+    )
+
+    assert upload_urls_in_markdown(text) == {
+        "/uploads/9/task-abc_1.png",
+        "/uploads/9/task-def.jpg",
+        "/uploads/9/doc.pdf",
+    }
+    assert upload_urls_in_markdown(None) == set()

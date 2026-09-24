@@ -86,6 +86,7 @@ from app.services.tenant import task_creation as task_creation_service
 from app.services.tenant.task_completion import sync_completed_at
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_description as task_description_service
+from app.services.tenant import attachments as attachments_service
 from app.services import ai_generation as ai_generation_service
 from app.services import audit as audit_service
 from app.services.ai_settings import resolve_ai_settings
@@ -2093,6 +2094,7 @@ async def update_task(
     if property_values is not None:
         session.expire(task, ["property_values"])
 
+    released_images: set[str] = set()
     if task.description != previous_description:
         await task_description_service.description_saved(
             session,
@@ -2102,10 +2104,18 @@ async def update_task(
             guild_id=guild_context.guild_id,
             initiative_id=project.initiative_id,
         )
+        released_images = await attachments_service.release_pasted_images(
+            session,
+            attachments_service.upload_urls_in_markdown(previous_description)
+            - attachments_service.upload_urls_in_markdown(task.description),
+            leaving={Task: {task.id}},
+        )
 
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
+    # A picture taken out of the description goes once the edit has landed.
+    attachments_service.delete_uploads_by_urls(released_images)
     task = await _fetch_task(
         session, task.id, guild_context.guild_id, populate_existing=True
     )
