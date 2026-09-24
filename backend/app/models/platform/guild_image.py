@@ -20,7 +20,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
 
 from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String
@@ -109,10 +108,6 @@ class GuildImage(SQLModel, table=True):
     content_type: str = Field(sa_column=Column(String(64), nullable=False))
     byte_size: int = Field(sa_column=Column(Integer, nullable=False))
     data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
-    created_by: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("users.id"), nullable=True),
-    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

@@ -181,7 +181,6 @@ async def set_images(
     session: AsyncSession,
     *,
     guild_id: int,
-    user_id: int,
     renditions: list[Rendition],
 ) -> dict[GuildImageVariant, str]:
     """Replace exactly the variants named by ``renditions``. Returns their URLs.
@@ -215,7 +214,6 @@ async def set_images(
                 "content_type": rendition.content_type,
                 "byte_size": len(rendition.data),
                 "data": rendition.data,
-                "created_by": user_id,
                 "created_at": now,
             }
         )
