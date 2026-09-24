@@ -3,13 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
+from app.core.identity_boundary import PersonId
 from app.core.tools import COMMENT_TARGETS
 from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.models.platform.user import Presence
-from app.schemas.platform.user import ProfileDecorations
+from app.schemas.platform.user import AvatarUrl, ProfileDecorations
 from app.services.platform import presence
 
 
@@ -28,11 +29,11 @@ class CommentAuthor(SanitizedBaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: PersonId
     username: str
     discriminator: int
     full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    avatar_url: AvatarUrl = None
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
 
     @computed_field(return_type=Presence)  # type: ignore[misc]
@@ -121,7 +122,7 @@ class CommentRead(CommentBase):
     )
 
     id: int
-    created_by: int | None = None
+    created_by: Optional[PersonId] = None
     task_id: Optional[int] = None
     wiki_page_id: Optional[int] = None
     document_id: Optional[int] = None

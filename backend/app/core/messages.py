@@ -883,6 +883,10 @@ class CalendarMessages:
     # and what its removal takes with it. Without the app there is nowhere to
     # put one.
     GUILD_APP_REQUIRED = "CALENDAR_GUILD_APP_REQUIRED"
+    # An installed app creates a calendar in an initiative; a guild calendar
+    # is recorded on the calendar app's install, which is the community's own
+    # configuration.
+    APP_INITIATIVE_REQUIRED = "CALENDAR_APP_INITIATIVE_REQUIRED"
 
 
 class CalendarEventMessages:
@@ -1318,6 +1322,9 @@ class AppMessages:
     CONSENT_OUTSIDE_TOKEN = "APP_CONSENT_OUTSIDE_TOKEN"
     #: The install has asked for consent too often; it tries again later.
     CONSENT_RATE_LIMITED = "APP_CONSENT_RATE_LIMITED"
+    #: The request asks an installed app to share something or to name its
+    #: owner. What it creates is its own, and sharing it is a person's to do.
+    SHARING_NOT_AVAILABLE = "APP_SHARING_NOT_AVAILABLE"
 
 
 class AppDataMessages:

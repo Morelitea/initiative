@@ -5,6 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.comment import CommentAuthor
@@ -12,7 +13,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext, GuildContext
     from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 
 
@@ -63,8 +64,8 @@ class GallerySummary(GalleryBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
-    created_by: int | None = None
+    guild_id: GuildId
+    created_by: PersonId | None = None
     created_at: datetime
     updated_at: datetime
     #: How many pictures it holds. Served with the row so a list of galleries
@@ -196,7 +197,7 @@ def gallery_cover(image: "GalleryImage | None") -> GalleryCover | None:
 
 
 def serialize_gallery_summary(
-    gallery: "Gallery", *, context: GuildContext, user_id: Optional[int] = None
+    gallery: "Gallery", *, context: ActorContext, user_id: Optional[int] = None
 ) -> GallerySummary:
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import client_access, serialize_grants
@@ -232,7 +233,7 @@ def serialize_gallery_summary(
 
 
 def serialize_gallery(
-    gallery: "Gallery", *, context: GuildContext, user_id: Optional[int] = None
+    gallery: "Gallery", *, context: ActorContext, user_id: Optional[int] = None
 ) -> GalleryRead:
     return GalleryRead(
         **serialize_gallery_summary(

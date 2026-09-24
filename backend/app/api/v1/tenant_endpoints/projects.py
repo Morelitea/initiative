@@ -17,11 +17,16 @@ from app.core.relationships import (
 )
 from app.models.tenant.relationship import EntityRelationship
 from app.core.search import SearchEntityType
-from app.services.tenant import relationships
+from app.services.tenant import content_references, relationships
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
@@ -58,7 +63,7 @@ from app.api import resource_access
 from app.core.user_display import handle_of
 from app.core.audit_events import AuditEventType
 from app.core.tools import Tool
-from app.db.session import require_guild_context
+from app.db.session import require_actor_context, require_guild_context
 from app.services import audit as audit_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
@@ -111,9 +116,12 @@ from app.services.tenant import project_export as project_export_service
 from app.services.tenant import project_grants
 from app.schemas.tenant.tag import annotated_tags
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the projects scopes.
+ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
+ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]
 GuildAdminContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.admin))
 ]
@@ -189,7 +197,7 @@ async def _get_project_or_404(
     session: SessionDep,
     guild_id: int | None = None,
     *,
-    user_id: int,
+    user_id: int | None,
     populate_existing: bool = False,
 ) -> Project:
     """Load a project with everything a ``ProjectRead`` reads, or refuse.
@@ -221,12 +229,18 @@ async def _get_project_or_404(
 
 
 async def _get_initiative_or_404(
-    initiative_id: int, session: SessionDep, guild_id: int | None = None
+    initiative_id: int,
+    session: SessionDep,
+    guild_id: int | None = None,
+    *,
+    with_roster: bool = True,
 ) -> Initiative:
-    result = await session.exec(
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
+    """The initiative, with its roster and each member's role permissions
+    unless ``with_roster`` is off — an installed app's create reads the row
+    alone, since the role permission rows are not in its reach."""
+    statement = select(Initiative).where(Initiative.id == initiative_id)
+    if with_roster:
+        statement = statement.options(
             selectinload(Initiative.memberships).options(
                 selectinload(InitiativeMember.user),
                 selectinload(InitiativeMember.role_ref).selectinload(
@@ -234,7 +248,7 @@ async def _get_initiative_or_404(
                 ),
             )
         )
-    )
+    result = await session.exec(statement)
     initiative = result.one_or_none()
     if not initiative:
         raise HTTPException(
@@ -437,7 +451,7 @@ async def _copy_task_relationships(
     between two template tasks becomes a dependency between the two new tasks;
     any other end (a document, a task outside the template) is kept as-is.
     """
-    if not task_mapping:
+    if not task_mapping or not content_references.records_edges(session):
         return
     source_nodes = [node_id(SearchEntityType.task, task_id) for task_id in task_mapping]
     live = EntityRelationship.removed_at.is_(None)  # type: ignore[union-attr]
@@ -503,9 +517,9 @@ def project_load_options(*, slim: bool = False) -> list:
 
 
 def visible_project_conditions(
-    user_id: int,
+    user_id: int | None,
     *,
-    context: GuildContext,
+    context: ActorContext,
     archived: Optional[bool],
     template: Optional[bool],
     search: Optional[str] = None,
@@ -560,11 +574,14 @@ async def _visible_projects(
 
 async def _project_reads_with_order(
     session: SessionDep,
-    current_user: User,
+    user_id: int | None,
     projects: List[Project],
     *,
     preserve_order: bool = False,
 ) -> List[ProjectRead]:
+    """``ProjectRead`` for each project, with the reader's own order,
+    favourites and last visits. An installed app (``user_id`` ``None``) keeps
+    none of those."""
     if not projects:
         return []
 
@@ -574,11 +591,15 @@ async def _project_reads_with_order(
     # parallel-ish (all independent queries batched before we iterate projects)
     await _attach_task_summaries(session, projects)
     await tags_service.annotate_tags(session, projects)
-    order_map, favorite_ids, view_map = await _project_metadata_for_user(
-        session,
-        current_user.id,
-        project_ids,
-    )
+    order_map: dict[int, float] = {}
+    favorite_ids: set[int] = set()
+    view_map: dict[int, datetime] = {}
+    if user_id is not None:
+        order_map, favorite_ids, view_map = await _project_metadata_for_user(
+            session,
+            user_id,
+            project_ids,
+        )
 
     if preserve_order:
         sorted_projects = projects
@@ -595,7 +616,7 @@ async def _project_reads_with_order(
         sorted_projects = sorted(projects, key=sort_key)
 
     attached = await _documents_for_projects(session, sorted_projects)
-    context = require_guild_context(session)
+    context = require_actor_context(session)
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
         payloads.append(
@@ -605,7 +626,7 @@ async def _project_reads_with_order(
                 sort_order=order_map.get(project.id),
                 favorite_ids=favorite_ids,
                 view_map=view_map,
-                user_id=current_user.id,
+                user_id=user_id,
                 attached_documents=attached.get(project.id, []),
             )
         )
@@ -613,7 +634,7 @@ async def _project_reads_with_order(
 
 
 def _slim_project_reads(
-    projects: List[Project], user_id: int, *, context: GuildContext
+    projects: List[Project], user_id: int | None, *, context: ActorContext
 ) -> List[ProjectRead]:
     """Build lightweight ``ProjectRead`` rows for the slim projection.
 
@@ -649,7 +670,7 @@ def _slim_project_reads(
 
 async def serialize_project_page(
     session: SessionDep,
-    current_user: User,
+    user_id: int | None,
     projects: List[Project],
     *,
     slim: bool,
@@ -662,10 +683,10 @@ async def serialize_project_page(
     """
     if slim:
         return _slim_project_reads(
-            projects, current_user.id, context=require_guild_context(session)
+            projects, user_id, context=require_actor_context(session)
         )
     return await _project_reads_with_order(
-        session, current_user, projects, preserve_order=True
+        session, user_id, projects, preserve_order=True
     )
 
 
@@ -797,7 +818,7 @@ def _project_owner(project: Project) -> Optional[UserPublic]:
 def _build_project_payload(
     project: Project,
     *,
-    context: GuildContext,
+    context: ActorContext,
     sort_order: Optional[float],
     favorite_ids: set[int],
     view_map: dict[int, datetime],
@@ -859,10 +880,10 @@ async def _set_favorite_state(
 
 async def _project_read_for_user(
     session: SessionDep,
-    current_user: User,
+    user_id: int | None,
     project: Project,
 ) -> ProjectRead:
-    payloads = await _project_reads_with_order(session, current_user, [project])
+    payloads = await _project_reads_with_order(session, user_id, [project])
     return payloads[0]
 
 
@@ -888,7 +909,7 @@ async def list_writable_projects(
     ]
     return await _project_reads_with_order(
         session,
-        current_user,
+        current_user.id,
         writable_projects,
     )
 
@@ -896,10 +917,11 @@ async def list_writable_projects(
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_in: ProjectCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> ProjectRead:
+    resource_access.refuse_app_sharing(guild_context, project_in, "grants", "owner_id")
     template_project: Project | None = None
     if project_in.template_id is not None:
         # Reaching the blueprint is settled first: whether it is a blueprint at
@@ -918,7 +940,9 @@ async def create_project(
                 detail=ProjectMessages.INVALID_TEMPLATE,
             )
 
-    owner_id = project_in.owner_id or current_user.id
+    # Nobody for an installed app, whose install the table's trigger makes the
+    # owner.
+    owner_id = project_in.owner_id or guild_context.user_id
     icon_value = (
         project_in.icon
         if project_in.icon is not None
@@ -940,19 +964,23 @@ async def create_project(
             detail=ProjectMessages.INITIATIVE_REQUIRED,
         )
     initiative = await _get_initiative_or_404(
-        initiative_id, session, guild_context.guild_id
+        initiative_id,
+        session,
+        guild_context.guild_id,
+        with_roster=guild_context.user_id is not None,
     )
     resource_access.require_tool_enabled(Tool.project, initiative)
     await resource_access.require_create(
         session, Tool.project, initiative, current_user, guild_context
     )
-    await _ensure_user_in_initiative(
-        initiative_id,
-        owner_id,
-        session,
-        actor_user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
+    if owner_id is not None:
+        await _ensure_user_in_initiative(
+            initiative_id,
+            owner_id,
+            session,
+            actor_user_id=guild_context.user_id,
+            guild_id=guild_context.guild_id,
+        )
     project = Project(
         name=project_in.name,
         icon=icon_value,
@@ -970,28 +998,32 @@ async def create_project(
 
     # Sharing before anything that hangs off it: a status, a preset or a task
     # is reached through the project, so the project has to be reachable first.
-    owner_permission = ResourceGrant(
-        resource_type="project",
-        resource_id=project.id,
-        user_id=owner_id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
-        initiative_id=project.initiative_id,
-    )
-    session.add(owner_permission)
+    # An installed app's owner row went in with the project, by the table's
+    # trigger, and it writes no other grant.
+    if owner_id is not None:
+        owner_permission = ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            user_id=owner_id,
+            role_id=None,
+            level=ResourceAccessLevel.owner,
+            initiative_id=project.initiative_id,
+        )
+        session.add(owner_permission)
 
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all members, set on ProjectCreate.grants).
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="project",
-        resource_id=project.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=project.initiative_id,
-        owner_id=owner_id,
-        grants=project_in.grants,
-        actor_user_id=current_user.id,
-    )
+        # Apply the initial sharing exactly the way edits do — one grant list,
+        # one code path (defaults to Viewer for all members, set on
+        # ProjectCreate.grants).
+        await permissions_service.replace_resource_grants(
+            session,
+            resource_type="project",
+            resource_id=project.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=project.initiative_id,
+            owner_id=owner_id,
+            grants=project_in.grants,
+            actor_user_id=guild_context.user_id,
+        )
 
     await session.flush()
 
@@ -1034,9 +1066,9 @@ async def create_project(
     await session.commit()
 
     project = await _get_project_or_404(
-        project.id, session, guild_context.guild_id, user_id=current_user.id
+        project.id, session, guild_context.guild_id, user_id=guild_context.user_id
     )
-    if project.initiative_id:
+    if project.initiative_id and current_user is not None:
         # Notify every member the project is shared with, derived from the grants:
         # all members, members of a granted role, or a directly granted user.
         share_all = any(g.all_initiative_members for g in project_in.grants)
@@ -1068,7 +1100,7 @@ async def create_project(
     await _attach_task_summaries(session, [project])
     return await _project_read_for_user(
         session,
-        current_user,
+        guild_context.user_id,
         project,
     )
 
@@ -1216,7 +1248,7 @@ async def duplicate_project(
     await _attach_task_summaries(session, [new_project])
     return await _project_read_for_user(
         session,
-        current_user,
+        current_user.id,
         new_project,
     )
 
@@ -1377,9 +1409,9 @@ async def project_activity_feed(
 @router.get("/{project_id}", response_model=ProjectRead)
 async def read_project(
     project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> ProjectRead:
     project = await resource_access.load_authorized(
@@ -1393,7 +1425,7 @@ async def read_project(
     )
     return await _project_read_for_user(
         session,
-        current_user,
+        guild_context.user_id,
         project,
     )
 
@@ -1510,9 +1542,9 @@ async def search_project_members(
 async def update_project(
     project_id: int,
     project_in: ProjectUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> ProjectRead:
     project = await resource_access.load_authorized(
         session,
@@ -1557,12 +1589,12 @@ async def update_project(
     session.add(project)
     await session.commit()
     project = await _get_project_or_404(
-        project.id, session, guild_context.guild_id, user_id=current_user.id
+        project.id, session, guild_context.guild_id, user_id=guild_context.user_id
     )
     await _attach_task_summaries(session, [project])
     return await _project_read_for_user(
         session,
-        current_user,
+        guild_context.user_id,
         project,
     )
 
@@ -1585,7 +1617,7 @@ async def reorder_projects(
         return []
 
     current_payloads = await _project_reads_with_order(
-        session, current_user, visible_projects
+        session, current_user.id, visible_projects
     )
     current_ids = [project.id for project in current_payloads if project.id is not None]
     if not current_ids:
@@ -1631,7 +1663,7 @@ async def reorder_projects(
     await session.commit()
     return await _project_reads_with_order(
         session,
-        current_user,
+        current_user.id,
         visible_projects,
     )
 
@@ -1685,7 +1717,7 @@ async def read_after_write(
     project = await _get_project_or_404(
         project_id, session, guild_context.guild_id, user_id=user.id
     )
-    return await _project_read_for_user(session, user, project)
+    return await _project_read_for_user(session, user.id, project)
 
 
 # ── Export / Import ──────────────────────────────────────────────

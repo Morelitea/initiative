@@ -43,12 +43,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     GuildContext,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
 from app.api.v1.tenant_endpoints import calendars as calendars_endpoints
 from app.api.v1.tenant_endpoints import counters as counters_endpoints
 from app.api.v1.tenant_endpoints import dashboards as dashboards_endpoints
@@ -112,12 +118,10 @@ from app.schemas.tenant.wiki import (
 )
 from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
-from app.services.tenant import comments as comments_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import galleries as galleries_service
-from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import queues as queues_service
@@ -125,7 +129,7 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
 from app.services.tenant import wikis as wikis_service
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
@@ -146,13 +150,19 @@ class ListRequest:
     """
 
     session: AsyncSession
-    user: User
-    guild_context: GuildContext
+    #: The person asking; ``None`` when an installed app is.
+    user: Optional[User]
+    guild_context: ActorContext
     values: dict[str, Any]
 
     @property
     def guild_id(self) -> int:
         return self.guild_context.guild_id
+
+    @property
+    def user_id(self) -> Optional[int]:
+        """The person asking, by id; ``None`` for an installed app."""
+        return self.guild_context.user_id
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +317,8 @@ class ToolListSpec:
     counts_doc: Optional[str] = None
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
+    #: Whether an installed app may list this tool, under its read scope.
+    serves_apps: bool = True
 
     def __post_init__(self) -> None:
         # The switch column is spelled out in the table for readability; this
@@ -333,7 +345,7 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
             spec.tool,
             spec.model,
             spec.enabled_column,
-            req.user.id,
+            req.user_id,
             context=req.guild_context,
             initiative_id=values.get("initiative_id"),
             search=values.get("search"),
@@ -350,7 +362,7 @@ def _summaries(serializer: Callable[..., Any]) -> Callable[..., Awaitable[list]]
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
         return [
-            serializer(row, context=req.guild_context, user_id=req.user.id)
+            serializer(row, context=req.guild_context, user_id=req.user_id)
             for row in rows
         ]
 
@@ -377,7 +389,7 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     # in progress, so it is left out unless it is asked for by name.
     values = req.values
     return projects_endpoints.visible_project_conditions(
-        req.user.id,
+        req.user_id,
         context=req.guild_context,
         archived=values.get("archived"),
         template=values.get("template"),
@@ -388,19 +400,31 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 
 
 def _project_refine(req: ListRequest) -> Callable[[Any], Any]:
-    """Join each reader's own manual positions, which the default order reads."""
+    """Join each reader's own manual positions, which the default order reads.
+
+    An installed app keeps no positions of its own, so its list is left as it
+    is and ordered by id (:func:`_project_order`)."""
+    if req.user_id is None:
+        return lambda statement: statement
     return lambda statement: statement.outerjoin(
         ProjectOrder,
         and_(
             ProjectOrder.project_id == Project.id,
-            ProjectOrder.user_id == req.user.id,
+            ProjectOrder.user_id == req.user_id,
         ),
     )
 
 
+def _project_order(req: ListRequest) -> list:
+    """The reader's own manual order, then id; by id alone for an app."""
+    if req.user_id is None:
+        return [Project.id.asc()]
+    return [ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc()]
+
+
 async def _serialize_projects(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     return await projects_endpoints.serialize_project_page(
-        req.session, req.user, rows, slim=bool(req.values.get("slim"))
+        req.session, req.user_id, rows, slim=bool(req.values.get("slim"))
     )
 
 
@@ -427,7 +451,7 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         )
     conditions = documents_endpoints.visible_document_conditions(
         req.guild_context,
-        req.user.id,
+        req.user_id,
         initiative_id=values.get("initiative_id"),
         ids=ids,
         search=values.get("search"),
@@ -473,7 +497,7 @@ async def _serialize_documents(
     spec: ToolListSpec, req: ListRequest, rows: list
 ) -> list:
     return await documents_endpoints.serialize_document_page(
-        req.session, req.user, rows
+        req.session, req.user_id, rows
     )
 
 
@@ -500,7 +524,7 @@ async def _calendar_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 async def _post_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
     conditions = posts_endpoints.board_conditions(
-        req.user.id,
+        req.user_id,
         context=req.guild_context,
         initiative_id=values.get("initiative_id"),
         search=values.get("search"),
@@ -524,13 +548,10 @@ async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> 
     # of times rather than forty.
     session = req.session
     await tags_service.annotate_tags(session, rows)
-    await comments_service.annotate_comment_counts(session, rows, column="post_id")
-    await posts_service.attach_reactions(session, *rows)
-    await posts_service.annotate_read_state(session, rows, user_id=req.user.id)
-    await posts_service.annotate_read_counts(session, rows)
-    await post_polls_service.annotate_poll_state(session, rows, user_id=req.user.id)
+    # An installed app's page carries no reactions, read state or ballots.
+    await posts_endpoints.annotate_post_rows(session, rows, user_id=req.user_id)
     return [
-        serialize_post(post, context=req.guild_context, user_id=req.user.id)
+        serialize_post(post, context=req.guild_context, user_id=req.user_id)
         for post in rows
     ]
 
@@ -545,7 +566,7 @@ async def _serialize_galleries(
 ) -> list:
     await galleries_endpoints.annotate_gallery_rows(req.session, rows)
     return [
-        serialize_gallery_summary(row, context=req.guild_context, user_id=req.user.id)
+        serialize_gallery_summary(row, context=req.guild_context, user_id=req.user_id)
         for row in rows
     ]
 
@@ -553,7 +574,7 @@ async def _serialize_galleries(
 async def _serialize_wikis(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     await wikis_endpoints.annotate_wiki_rows(req.session, rows)
     return [
-        serialize_wiki_summary(row, context=req.guild_context, user_id=req.user.id)
+        serialize_wiki_summary(row, context=req.guild_context, user_id=req.user_id)
         for row in rows
     ]
 
@@ -584,9 +605,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         ),
         # No sort asked for keeps the per-user manual order the projects page
         # drags into place; a sort replaces it for this request only.
-        default_order=_order(
-            ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc()
-        ),
+        default_order=_project_order,
         serialize=_serialize_projects,
         conditions=_project_conditions,
         refine=_project_refine,
@@ -857,6 +876,8 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
     ),
     Tool.dashboard: ToolListSpec(
         tool=Tool.dashboard,
+        # Not among what an installed app reads today.
+        serves_apps=False,
         read_model=DashboardRead,
         read_row=dashboards_endpoints.read_after_write,
         grants_doc=(
@@ -1070,7 +1091,22 @@ _CONTEXT_PARAMS: tuple[tuple[str, Any], ...] = (
 )
 
 
-def _signature(params: tuple[ListParam, ...]) -> inspect.Signature:
+def _actor_params(tool: Tool) -> tuple[tuple[str, Any], ...]:
+    """The same three, for a list an installed app may call under the tool's
+    read scope: a person arrives exactly as above, and an install through its
+    token."""
+    scope = scope_name(tool_resource(tool), AppScopeAccess.read)
+    return (
+        ("session", ActorSessionDep),
+        ("current_user", ActorUserDep),
+        ("guild_context", Annotated[ActorContext, Depends(app_scope(scope))]),
+    )
+
+
+def _signature(
+    params: tuple[ListParam, ...],
+    context_params: tuple[tuple[str, Any], ...] = _CONTEXT_PARAMS,
+) -> inspect.Signature:
     """The signature FastAPI reads off a tool's list handler.
 
     Keyword-only throughout, so the registry's declared order is what the
@@ -1080,7 +1116,7 @@ def _signature(params: tuple[ListParam, ...]) -> inspect.Signature:
     """
     declared = [
         inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, annotation=annotation)
-        for name, annotation in _CONTEXT_PARAMS
+        for name, annotation in context_params
     ]
     declared += [
         inspect.Parameter(
@@ -1127,7 +1163,10 @@ def _mount_list(spec: ToolListSpec) -> None:
             **extras,
         )
 
-    list_rows.__signature__ = _signature(spec.params)
+    list_rows.__signature__ = _signature(
+        spec.params,
+        _actor_params(spec.tool) if spec.serves_apps else _CONTEXT_PARAMS,
+    )
     router.add_api_route(
         f"/{_segment(spec.tool)}/",
         list_rows,

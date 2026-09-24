@@ -59,6 +59,10 @@ class RequestContext:
     #: Whether the grant was issued and approved by the same account, which is
     #: what breaking glass does.
     break_glass: Optional[bool] = None
+    #: The installed app the request is being served as: its registration's
+    #: ``public_id`` and the install in the community.
+    app: Optional[str] = None
+    install_id: Optional[int] = None
 
     @property
     def is_privileged(self) -> bool:
@@ -79,6 +83,9 @@ class RequestContext:
         if caller:
             block["source_ip"] = self.source_ip
             block["user_agent"] = self.user_agent
+        if self.app is not None:
+            block["app"] = self.app
+            block["install_id"] = self.install_id
         if self.is_privileged:
             block.update(
                 {
@@ -165,6 +172,17 @@ def note_grant(
     context.settings_grant_id = settings_grant_id
     context.settings_level = settings_level
     context.break_glass = break_glass
+
+
+def note_install(*, app: str, guild_id: int, install_id: int) -> None:
+    """Record that this request is an installed app's, acting as ``install_id``
+    in ``guild_id``."""
+    context = _request.get()
+    if context is None:
+        return
+    context.app = app
+    context.guild_id = guild_id
+    context.install_id = install_id
 
 
 def envelope_context(*, caller: bool) -> Optional[dict[str, Any]]:

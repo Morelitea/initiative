@@ -22,7 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
 from app.db import session as db_session
-from app.db.guild_standing import GuildContext
+from app.db.guild_standing import ActorContext
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time, is_published_clause, pin_is_live
@@ -94,9 +94,9 @@ def board_order(*, anchored: bool = False) -> list:
 
 
 def visibility_clause(
-    user_id: int,
+    user_id: int | None,
     *,
-    context: GuildContext | None,
+    context: ActorContext | None,
     initiative_id: int | None = None,
 ) -> Any:
     """The WHERE leg hiding notices that have not gone up yet.

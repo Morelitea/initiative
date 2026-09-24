@@ -16,7 +16,11 @@ from fastapi import (
 from sqlalchemy import func
 from sqlmodel import select
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    app_scope,
     FactorExemptAccountHolder,
     FactorExemptAccountHolderSessionDep,
     RLSSessionDep,
@@ -34,7 +38,9 @@ from app.api.v1.platform_endpoints.password_recheck import (
 )
 from app.api.v1.platform_endpoints.session_opening import replace_session
 from app.core.password_policy import enforce_password_policy
+from app.core.identity_boundary import PersonId
 from app.core.user_display import handle_of
+from app.db.guild_standing import InstallContext
 from app.core import usernames
 from app.core.capabilities import Capability
 from app.core.usernames import UsernameError
@@ -70,6 +76,7 @@ from app.schemas.platform.guild import (
 )
 from app.schemas.platform.user import (
     AccountTimeOutRead,
+    AppMemberRead,
     CookieConsentRead,
     CookieConsentUpdate,
     UserEmailCreate,
@@ -134,6 +141,7 @@ from app.services.platform import usernames as username_service
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import (
+    GuildMember,
     MemberProfile,
     user_profiles,
 )
@@ -166,11 +174,14 @@ router = APIRouter()
 me_router = APIRouter()
 # Guild-scoped member management (guild-admin lists/creates/approves/removes
 # members of one guild). Mounted under /g/{guild_id}/users — the /me/* and
-# platform user endpoints stay on ``router`` (top-level /users).
-guild_router = APIRouter()
+# platform user endpoints stay on ``router`` (top-level /users). The member
+# search is also what an installed app reads people through, under
+# ``members:read``.
+guild_router = APIRouter(route_class=ActorRoute)
 
 SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
 GuildAdminContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.admin))
 ]
@@ -304,6 +315,59 @@ async def list_users(
     return response
 
 
+async def _search_members_for_app(
+    session: AsyncSession,
+    *,
+    search: Optional[str],
+    user_id: Optional[list[int]],
+    page: int,
+    page_size: int,
+) -> UserSummaryListResponse:
+    """The member search, for an installed app.
+
+    Read through ``current_guild_members``, the projection of the routed
+    community's own members, so it needs nothing of the membership table. The
+    handle is what it matches and orders by: whether the guild shows real
+    names is the guild row's to say, which an app does not read; a name the
+    guild shows still comes back on each row.
+    """
+    base = select(MemberProfile).where(
+        MemberProfile.id.in_(select(GuildMember.id)),
+        users_service.visible_to_other_people(),
+    )
+    closest = None
+    if search and (term := search.strip()):
+        matches, closest = users_service.member_match(term, shows_names=False)
+        base = base.where(matches)
+    if user_id:
+        base = base.where(MemberProfile.id.in_(user_id))
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(
+        *users_service.member_order(closest, shows_names=False),
+        MemberProfile.username.asc(),
+        MemberProfile.discriminator.asc(),
+        MemberProfile.id.asc(),
+    )
+    users, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
+    items = [
+        UserSummary(
+            **AppMemberRead.from_public(UserSummary.model_validate(user)).model_dump()
+        )
+        for user in users
+    ]
+    return UserSummaryListResponse(
+        items=items,
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
+    )
+
+
 def _membership_standing(role: GuildRole | None) -> dict[str, object]:
     """The membership field a picker row carries: the rung, which is both what
     a row shows and what a surface asks the ladder about."""
@@ -312,9 +376,8 @@ def _membership_standing(role: GuildRole | None) -> dict[str, object]:
 
 @guild_router.get("/search", response_model=UserSummaryListResponse)
 async def search_users(
-    session: RLSSessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    guild_context: MembersRead,
     search: Optional[str] = Query(
         default=None,
         description=(
@@ -324,7 +387,9 @@ async def search_users(
             "in a guild that shows them."
         ),
     ),
-    user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
+    user_id: Annotated[
+        list[PersonId] | None, Query(max_length=MAX_ID_FILTER_VALUES)
+    ] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -338,7 +403,15 @@ async def search_users(
 
     Pass ``user_id`` one or more times to resolve a known selection (a picker
     rehydrating stored ids into names/avatars) rather than searching.
+
+    An installed app (``members:read``) names members by its own references
+    and reads what :class:`AppMemberRead` carries: the reference, the handle,
+    the name where the guild shows names, and a picture hosted elsewhere.
     """
+    if isinstance(guild_context, InstallContext):
+        return await _search_members_for_app(
+            session, search=search, user_id=user_id, page=page, page_size=page_size
+        )
     base = (
         select(MemberProfile)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)

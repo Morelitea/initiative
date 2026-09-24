@@ -470,6 +470,11 @@ export function useListCalendarsApiV1GGuildIdCalendarsGet<
  * gate, which ``GuildContextDep`` has already established. What it needs
  * instead is the calendar app, which is what holds it and what its removal
  * takes with it.
+ *
+ * An installed app creates initiative calendars only: a guild calendar is
+ * recorded on the calendar app's install, which is community configuration.
+ * What it creates is owned by its install, whose owner row the table's
+ * trigger writes; it sets no initial sharing.
  * @summary Create Calendar
  */
 export const createCalendarApiV1GGuildIdCalendarsPost = (

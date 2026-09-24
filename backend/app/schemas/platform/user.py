@@ -1,10 +1,11 @@
 from datetime import date, datetime
-from typing import Dict, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional
 
 from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    PlainSerializer,
     computed_field,
     field_validator,
     model_validator,
@@ -28,7 +29,7 @@ from app.core.profile_decorations import (
     validate_decoration_id,
     validate_tint,
 )
-from app.core.identity_boundary import PersonId
+from app.core.identity_boundary import PersonId, responding_to_install
 from app.models.platform.user import Presence, UserRole, UserStatus
 from app.services.platform.user_avatars import is_avatar_url
 from app.core.config import settings
@@ -103,6 +104,20 @@ class UserCreate(SanitizedBaseModel):
     captcha_token: Optional[str] = None
 
 
+def _avatar_out(value: Optional[str]) -> Optional[str]:
+    if value is not None and responding_to_install() and is_avatar_url(value):
+        return None
+    return value
+
+
+#: A person's picture. One this API serves is addressed by the person's row id,
+#: so an installed app's response leaves it out; a picture hosted elsewhere
+#: comes along.
+AvatarUrl = Annotated[
+    Optional[str], PlainSerializer(_avatar_out, return_type=Optional[str])
+]
+
+
 class UserIdentity(SanitizedBaseModel):
     """A person, minus their name.
 
@@ -121,10 +136,10 @@ class UserIdentity(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    id: int
+    id: PersonId
     username: str
     discriminator: int
-    avatar_url: Optional[str] = None
+    avatar_url: AvatarUrl = None
     status: UserStatus = UserStatus.active
 
 

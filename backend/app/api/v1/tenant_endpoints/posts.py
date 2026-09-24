@@ -37,10 +37,15 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     GuildContext,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
@@ -50,7 +55,6 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time
 from app.models.tenant.post_poll import PostPoll
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.post import (
     PostCreate,
     PostReadMarks,
@@ -73,11 +77,14 @@ from app.schemas.tenant.post_poll import (
     serialize_poll,
 )
 from app.schemas.tenant.timeline import TimelineResponse
+from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
+from app.services.notifications import AppAuthor
 from app.core.search import SearchEntityType
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import post_publication
 from app.services.tenant import posts as posts_service
@@ -94,9 +101,13 @@ from app.services.tenant.relationships import Endpoint
 BOARD_PAGE_SIZE = 5
 MAX_BOARD_PAGE_SIZE = 50
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the posts scopes. Pinning is an
+#: edit of the board, so it asks the write scope.
+PostsRead = Annotated[ActorContext, Depends(app_scope("posts:read"))]
+PostsWrite = Annotated[ActorContext, Depends(app_scope("posts:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +189,7 @@ def _poll_of(post: Post) -> PostPoll:
     return poll
 
 
-def _may_edit(post: Post, user: User, guild_context: GuildContext) -> bool:
+def _may_edit(post: Post, user: Optional[User], guild_context: ActorContext) -> bool:
     """Whether this caller could change the post — which is also who may see it
     before it goes up.
 
@@ -195,8 +206,8 @@ def _may_edit(post: Post, user: User, guild_context: GuildContext) -> bool:
 async def _announce(
     session: RLSSessionDep,
     post: Post,
-    author: User,
-    guild_context: GuildContext,
+    author: User | AppAuthor,
+    guild_context: ActorContext,
 ) -> None:
     """Tell the notice's audience it is up.
 
@@ -215,7 +226,36 @@ async def _announce(
     )
 
 
-async def _refetch_post(session: RLSSessionDep, post_id: int, *, user_id: int) -> Post:
+async def annotate_post_rows(
+    session: RLSSessionDep,
+    rows: list[Post],
+    *,
+    user_id: int | None,
+    own_read_state: bool = True,
+) -> None:
+    """Everything a post row carries beyond its columns, one grouped query each
+    for the page: its comment count, reactions, read state and poll tallies.
+
+    ``own_read_state`` stamps whether this reader has read each one; a write's
+    answer leaves it out.
+
+    An installed app (``user_id`` ``None``) keeps no read markers or ballots
+    and reacts to nothing, so a post it reads carries only the comment count;
+    the rest stay at their empty defaults.
+    """
+    await comments_service.annotate_comment_counts(session, rows, column="post_id")
+    if user_id is None:
+        return
+    await posts_service.attach_reactions(session, *rows)
+    if own_read_state:
+        await posts_service.annotate_read_state(session, rows, user_id=user_id)
+    await posts_service.annotate_read_counts(session, rows)
+    await post_polls_service.annotate_poll_state(session, rows, user_id=user_id)
+
+
+async def _refetch_post(
+    session: RLSSessionDep, post_id: int, *, user_id: int | None
+) -> Post:
     post = await posts_service.get_post(session, post_id, populate_existing=True)
     if not post:
         raise HTTPException(
@@ -224,17 +264,14 @@ async def _refetch_post(session: RLSSessionDep, post_id: int, *, user_id: int) -
         )
     # Every write answers with the row a read would return — count, chips,
     # tallies and all.
-    await comments_service.annotate_comment_counts(session, [post], column="post_id")
-    await posts_service.attach_reactions(session, post)
-    await posts_service.annotate_read_counts(session, [post])
-    await post_polls_service.annotate_poll_state(session, [post], user_id=user_id)
+    await annotate_post_rows(session, [post], user_id=user_id, own_read_state=False)
     return post
 
 
 def board_conditions(
-    user_id: int,
+    user_id: int | None,
     *,
-    context: GuildContext,
+    context: ActorContext,
     initiative_id: Optional[int] = None,
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
@@ -251,6 +288,9 @@ def board_conditions(
 
     The archive answer is the caller's: the feed takes an ``archived``
     parameter and the rail does not.
+
+    An installed app (``user_id`` ``None``) keeps no read markers, so ``unread``
+    narrows nothing for it.
     """
     conditions = tool_listing.base_conditions(
         Tool.post,
@@ -267,7 +307,7 @@ def board_conditions(
             user_id, context=context, initiative_id=initiative_id
         )
     )
-    if unread:
+    if unread and user_id is not None:
         conditions.append(posts_service.unread_clause(user_id))
     return conditions
 
@@ -331,9 +371,9 @@ async def get_post_timeline(
 @router.get("/{post_id}", response_model=PostRead)
 async def read_post(
     post_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: PostsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> PostRead:
     """Read one notice.
@@ -349,25 +389,20 @@ async def read_post(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=Tool.post.not_found_code,
         )
-    await comments_service.annotate_comment_counts(session, [post], column="post_id")
-    await posts_service.attach_reactions(session, post)
-    await posts_service.annotate_read_state(session, [post], user_id=current_user.id)
-    await posts_service.annotate_read_counts(session, [post])
-    await post_polls_service.annotate_poll_state(
-        session, [post], user_id=current_user.id
-    )
-    return serialize_post(post, user_id=current_user.id, context=guild_context)
+    await annotate_post_rows(session, [post], user_id=guild_context.user_id)
+    return serialize_post(post, user_id=guild_context.user_id, context=guild_context)
 
 
 @router.post("/", response_model=PostRead, status_code=status.HTTP_201_CREATED)
 async def create_post(
     post_in: PostCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: PostsWrite,
 ) -> PostRead:
     """Post a notice to an initiative's board. Requires create_posts permission
     on the initiative (or guild admin); the author gets the owner grant."""
+    resource_access.refuse_app_sharing(guild_context, post_in, "grants")
     initiative = await _get_initiative_for_post(session, post_in.initiative_id)
     if not initiative.posts_enabled:
         raise HTTPException(
@@ -389,7 +424,7 @@ async def create_post(
     )
     post = Post(
         initiative_id=initiative.id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         name=post_in.name.strip(),
         body=_validated_body(post_in.body),
         scheduled_for=scheduled,
@@ -398,36 +433,37 @@ async def create_post(
     session.add(post)
     await session.flush()
 
-    session.add(
-        ResourceGrant(
+    # The author's owner grant. An installed app's is written by the table's
+    # own trigger as the row goes in.
+    owner_grant = ownership_service.creator_owner_grant(
+        guild_context,
+        tool=Tool.post,
+        resource_id=post.id,
+        initiative_id=initiative.id,
+    )
+    if owner_grant is not None and current_user is not None:
+        session.add(owner_grant)
+
+        # Apply the initial sharing exactly the way edits do — one grant list,
+        # one code path (defaults to Viewer for all initiative members). An
+        # installed app writes no grant of its own.
+        await permissions_service.replace_resource_grants(
+            session,
             resource_type="post",
             resource_id=post.id,
-            user_id=current_user.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
+            guild_id=guild_context.guild_id,
             initiative_id=initiative.id,
+            owner_id=current_user.id,
+            grants=post_in.grants,
+            actor_user_id=current_user.id,
         )
-    )
-
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all initiative members).
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="post",
-        resource_id=post.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=initiative.id,
-        owner_id=current_user.id,
-        grants=post_in.grants,
-        actor_user_id=current_user.id,
-    )
 
     # What the new body points at becomes `references` edges.
     await content_references.sync_for_entity(
         session,
         Endpoint(SearchEntityType.post, post.id),
         body=post.body,
-        author_id=current_user.id,
+        author_id=guild_context.user_id,
     )
 
     if post_in.tag_ids:
@@ -443,20 +479,25 @@ async def create_post(
         session.add(post_polls_service.write_poll(post, _validated_poll(post_in.poll)))
 
     if post.published_at is not None:
-        await _announce(session, post, current_user, guild_context)
+        author = await notifications_service.author_of(
+            session, guild_context, current_user
+        )
+        await _announce(session, post, author, guild_context)
 
     await session.commit()
-    hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
+    return serialize_post(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.patch("/{post_id}", response_model=PostRead)
 async def update_post(
     post_id: int,
     post_in: PostUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: PostsWrite,
 ) -> PostRead:
     """Edit a notice — its headline, its body, or a schedule not yet reached.
     Requires write access.
@@ -519,23 +560,28 @@ async def update_post(
                 session,
                 Endpoint(SearchEntityType.post, post.id),
                 body=post.body,
-                author_id=current_user.id,
+                author_id=guild_context.user_id,
             )
         if publish_now:
-            await _announce(session, post, current_user, guild_context)
+            author = await notifications_service.author_of(
+                session, guild_context, current_user
+            )
+            await _announce(session, post, author, guild_context)
         await session.commit()
 
-    hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
+    return serialize_post(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.put("/{post_id}/pin", response_model=PostRead)
 async def set_post_pin(
     post_id: int,
     pin_in: PostPinUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: PostsWrite,
 ) -> PostRead:
     """Pin a notice to the top of the board, or take it back down.
 
@@ -552,11 +598,19 @@ async def set_post_pin(
     Sending ``pinned`` on a pin that is already live changes only the expiry —
     the pin keeps its original time and author. A pin that has lapsed is a new
     pin, so that one re-stamps.
+
+    An installed app manages no initiative, so it pins the notices it may
+    write: its own, and the ones shared with it at write.
     """
     post = await resource_access.load_authorized(
-        session, Tool.post, post_id, current_user, guild_context
+        session,
+        Tool.post,
+        post_id,
+        current_user,
+        guild_context,
+        access="read" if current_user is not None else "write",
     )
-    if not guild_context.is_admin:
+    if current_user is not None and not guild_context.is_admin:
         is_manager = await rls_service.is_initiative_manager(
             session, initiative_id=post.initiative_id
         )
@@ -578,7 +632,7 @@ async def set_post_pin(
         # three-day-old pin does not vault it over the pins made since.
         if not post.is_pinned_now(now):
             post.pinned_at = now
-            post.pinned_by = current_user.id
+            post.pinned_by = guild_context.user_id
         post.pin_expires_at = pin_in.expires_at
     else:
         post.pinned_at = None
@@ -590,8 +644,10 @@ async def set_post_pin(
     await session.commit()
     # Pinning reorders the whole board, not just this row.
 
-    hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
+    return serialize_post(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)

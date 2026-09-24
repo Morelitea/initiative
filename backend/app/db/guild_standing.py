@@ -72,6 +72,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild, GuildMembership, GuildRole
 
 __all__ = [
+    "ActorContext",
     "GuildContext",
     "INSTALL_STANDING_SQL",
     "InstallContext",
@@ -871,6 +872,63 @@ class InstallContext:
         ``initiative_id``. Never, for the install itself."""
         return initiative_id is not None and initiative_id in self.override_initiatives
 
+    # --- A person's standing, as an install answers it -----------------------
+    # A route that serves both actors reads these off whichever context it was
+    # handed. Each is what the install standing statement wrote for the key a
+    # person's standing sets: an install is never an admin, a grantee or a
+    # manager, and it is nobody. A member token names its member in
+    # ``member_user_id``; what that member's writes own is written by the
+    # tool table's trigger, as for the install.
+
+    @property
+    def user_id(self) -> None:
+        """An install is not a person, even when it acts for one."""
+        return None
+
+    @property
+    def is_admin(self) -> bool:
+        return False
+
+    @property
+    def content_read_only(self) -> bool:
+        """The community is in ``read_only`` status. The standing leaves the
+        install no write scope there; this reports the same hold."""
+        return self.read_only
+
+    @property
+    def is_pam(self) -> bool:
+        return False
+
+    @property
+    def pam_read(self) -> bool:
+        return False
+
+    @property
+    def pam_write(self) -> bool:
+        return False
+
+    @property
+    def grant_content(self) -> Optional[str]:
+        return None
+
+    def grant_satisfies(
+        self, *, access: str = "read", require_owner: bool = False
+    ) -> bool:
+        return False
+
+    @property
+    def manager_initiatives(self) -> tuple[int, ...]:
+        return ()
+
+    def holds(self, scope: str) -> bool:
+        """Whether the standing lets this install use ``scope``: its resource
+        among what the token and the seat's grant hold together (write implies
+        read), writing only where the standing writes."""
+        resource, _, access = scope.partition(":")
+        return resource in (
+            self.install_write if access == "write" else self.install_read
+        )
+
     def with_standing(self, row: dict[str, Any]) -> "InstallContext":
         """This context completed with what the install standing statement
         returned."""
@@ -892,6 +950,11 @@ class InstallContext:
             guild_ref=row.get("guild_ref") or None,
             named_refs=_named_refs(row.get("named_refs")),
         )
+
+
+#: Who a request that names an app scope is serving: a person's standing in the
+#: community, or an installed app's.
+ActorContext = GuildContext | InstallContext
 
 
 def _named_refs(value: Any) -> tuple[tuple[str, str, int], ...]:

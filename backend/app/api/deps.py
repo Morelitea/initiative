@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Any, NoReturn, Optional, Sequence
@@ -17,9 +17,7 @@ from app.core.app_access_token import (
     unseal_access_token,
 )
 from app.core.app_scopes import (
-    AppScopeAccess,
     UnknownAppScope,
-    expand,
     parse_scope,
     validate_scopes,
 )
@@ -67,7 +65,12 @@ from app.core.security import (
     verify_upload_token,
 )
 from app.core.identity_boundary import InstallBoundary, admit_install
-from app.db.guild_standing import GuildContext, InstallContext, named_ref_candidates
+from app.db.guild_standing import (
+    ActorContext,
+    GuildContext,
+    InstallContext,
+    named_ref_candidates,
+)
 from app.models.platform.identity_ref import IdentityEntity
 from app.db.schema_provisioning import PLATFORM_SUSPENDED
 from app.db.session import (
@@ -1580,13 +1583,12 @@ async def establish_install_access(
     return completed
 
 
-#: Who a scoped route is serving: a person's standing in the community, or an
-#: installed app's.
-ActorContext = GuildContext | InstallContext
-
 #: The attribute a scoped route's dependency carries its scope on, for a walk
 #: over the routes.
 APP_SCOPE_ATTRIBUTE = "__app_scope__"
+#: Every scope the dependency may ask of a request, for the same walk: the one
+#: scope of :func:`app_scope`, each of :func:`app_scope_by`'s.
+APP_SCOPES_ATTRIBUTE = "__app_scopes__"
 
 
 def _refuse_install_credential() -> HTTPException:
@@ -1595,16 +1597,6 @@ def _refuse_install_credential() -> HTTPException:
         detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
         headers={"WWW-Authenticate": "Bearer"},
     )
-
-
-def scope_covers(scopes: frozenset[str], scope: str) -> bool:
-    """Whether ``scopes`` include ``scope``. Writing implies reading."""
-    resource, access = parse_scope(scope)
-    try:
-        read, write = expand(scopes)
-    except UnknownAppScope:
-        return False
-    return resource in (write if access is AppScopeAccess.write else read)
 
 
 def _strings_in(value: Any) -> list[str]:
@@ -1678,6 +1670,11 @@ async def _establish_install_request(
         raise _refuse_install_credential() from exc
 
     request.state.credential = CREDENTIAL_INSTALL
+    audit_context.note_install(
+        app=context.client_id,
+        guild_id=context.guild_id,
+        install_id=context.install_id,
+    )
     # Whose request this is, for the rate limiter's key (see
     # ``app.core.rate_limit.get_user_or_ip_key``).
     request.state.app_install = (
@@ -1685,7 +1682,10 @@ async def _establish_install_request(
         context.guild_id,
         context.install_id,
     )
-    if not scope_covers(context.token_scopes, scope):
+    # Asked of what the standing holds — the token's scopes and the seat's
+    # grant together, with writes off in a read-only community — so a scope
+    # the seat has since taken back answers here on the next request.
+    if not context.holds(scope):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AppMessages.SCOPE_REQUIRED,
@@ -1739,20 +1739,17 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
         request: Request,
         session: SessionDep,
         guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        person: Annotated[Optional[User], Depends(get_actor_user)],
         bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-        session_cookie: Annotated[
-            Optional[str], Cookie(alias=SESSION_COOKIE_NAME)
-        ] = None,
     ) -> ActorContext:
-        if bearer_token and is_access_token(bearer_token):
+        if person is None:
+            # ``get_actor_user`` answers ``None`` only for an access token.
+            if not bearer_token:
+                raise _refuse_install_credential()
             return await _establish_install_request(
                 request, session, bearer_token, scope
             )
-        # A person: the same three dependencies a content route composes, in
-        # the same order, called here so an install never passes through them.
-        user = await get_current_user(request, session, bearer_token, session_cookie)
-        user = await get_current_active_user(request, session, user)
-        context = await get_guild_membership(request, session, user, guild_id)
+        context = await get_guild_membership(request, session, person, guild_id)
         if context.is_settings_only:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -1761,9 +1758,91 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
         return context
 
     setattr(dependency, APP_SCOPE_ATTRIBUTE, scope)
+    setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset({scope}))
     dependency.__name__ = f"app_scope_{scope.replace(':', '_')}"
     dependency.__qualname__ = dependency.__name__
     return dependency
+
+
+def app_scope_by(
+    param: str, scopes: Mapping[str, str]
+) -> Callable[..., Awaitable[ActorContext]]:
+    """:func:`app_scope` for a route that serves several kinds of thing, named
+    by the path parameter ``param``: an installed app's request needs
+    ``scopes[<the parameter's value>]``. A value with no entry is one no app
+    may ask about, and an installation token gets 403 (``APP_SCOPE_REQUIRED``)
+    for it. A person passes through to the ordinary seam, as with
+    :func:`app_scope`.
+
+    The returned callable carries every scope it may ask on
+    :data:`APP_SCOPES_ATTRIBUTE`, and ``by <param>`` on
+    :data:`APP_SCOPE_ATTRIBUTE`.
+    """
+    for scope in scopes.values():
+        parse_scope(scope)
+
+    async def dependency(
+        request: Request,
+        session: SessionDep,
+        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        person: Annotated[Optional[User], Depends(get_actor_user)],
+        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    ) -> ActorContext:
+        if person is None:
+            if not bearer_token:
+                raise _refuse_install_credential()
+            scope = scopes.get(str(request.path_params.get(param)))
+            if scope is None:
+                # Read locally first, so a token that is not one answers 401
+                # whatever it asked for.
+                try:
+                    unseal_access_token(bearer_token)
+                except AccessTokenError as exc:
+                    raise _refuse_install_credential() from exc
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=AppMessages.SCOPE_REQUIRED,
+                )
+            return await _establish_install_request(
+                request, session, bearer_token, scope
+            )
+        context = await get_guild_membership(request, session, person, guild_id)
+        if context.is_settings_only:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_ACCESS_DENIED,
+            )
+        return context
+
+    setattr(dependency, APP_SCOPE_ATTRIBUTE, f"by {param}")
+    setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset(scopes.values()))
+    dependency.__name__ = f"app_scope_by_{param}"
+    dependency.__qualname__ = dependency.__name__
+    return dependency
+
+
+async def get_actor_user(
+    request: Request,
+    session: SessionDep,
+    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+) -> Optional[User]:
+    """The person a scoped route serves, or ``None`` for an installed app.
+
+    For a person, the same two dependencies a content route composes, in the
+    same order. An installation token is not read here and costs nothing: the
+    route's :func:`app_scope` dependency admits it. FastAPI resolves this once
+    per request, so a handler that takes :data:`ActorUserDep` beside its scope
+    gets the account the scope dependency authenticated.
+    """
+    if bearer_token and is_access_token(bearer_token):
+        return None
+    user = await get_current_user(request, session, bearer_token, session_cookie)
+    return await get_current_active_user(request, session, user)
+
+
+#: The account a scoped route serves; ``None`` when an installed app calls it.
+ActorUserDep = Annotated[Optional[User], Depends(get_actor_user)]
 
 
 def route_app_scope(route: Any) -> str | None:
@@ -1777,6 +1856,20 @@ def route_app_scope(route: Any) -> str | None:
             return found
         pending.extend(current.dependencies or ())
     return None
+
+
+def route_app_scopes(route: Any) -> frozenset[str]:
+    """Every app scope a route may ask of a request: read from its
+    dependencies. Empty for a route that names none."""
+    dependant = getattr(route, "dependant", None)
+    pending = list(getattr(dependant, "dependencies", ()) or ())
+    while pending:
+        current = pending.pop()
+        found = getattr(current.call, APP_SCOPES_ATTRIBUTE, None)
+        if isinstance(found, frozenset):
+            return found
+        pending.extend(current.dependencies or ())
+    return frozenset()
 
 
 async def get_actor_session(request: Request, session: SessionDep) -> AsyncSession:
@@ -1894,7 +1987,7 @@ SeatWriteSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_write_sessi
 
 
 async def _include_deleted_flag(
-    session: RLSSessionDep,
+    session: SessionDep,
     include_deleted: Annotated[
         bool,
         Query(
@@ -1913,7 +2006,8 @@ async def _include_deleted_flag(
     see ``app.db.soft_delete_filter``) so every load in the handler, including
     the DAC loaders, can resolve a trashed row. Discloses nothing new: RLS and
     the per-resource access checks run unchanged, and the trash surface already
-    shows these rows to the same audience.
+    shows these rows to the same audience. The route's own seam routes the
+    session — a person's or an installed app's — so this only sets the flag.
     """
     if include_deleted:
         session.info["include_deleted"] = True

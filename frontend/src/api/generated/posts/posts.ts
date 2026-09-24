@@ -1098,6 +1098,9 @@ export const useDeletePostApiV1GGuildIdPostsPostIdDelete = <
  * Sending ``pinned`` on a pin that is already live changes only the expiry —
  * the pin keeps its original time and author. A pin that has lapsed is a new
  * pin, so that one re-stamps.
+ *
+ * An installed app manages no initiative, so it pins the notices it may
+ * write: its own, and the ones shared with it at write.
  * @summary Set Post Pin
  */
 export const setPostPinApiV1GGuildIdPostsPostIdPinPut = (

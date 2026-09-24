@@ -5,6 +5,7 @@ from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
@@ -14,7 +15,7 @@ from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.queue import Queue, QueueItem
 
 
@@ -54,7 +55,7 @@ class QueueItemBase(SanitizedBaseModel):
 
 class QueueItemCreate(QueueItemBase):
     label: TitleStr = Field(..., min_length=1, max_length=255)
-    user_id: Optional[int] = None
+    user_id: Optional[PersonId] = None
     tag_ids: Optional[List[int]] = None
     document_ids: Optional[List[int]] = None
     task_ids: Optional[List[int]] = None
@@ -63,7 +64,7 @@ class QueueItemCreate(QueueItemBase):
 class QueueItemUpdate(SanitizedBaseModel):
     label: Optional[TitleStr] = None
     position: Optional[float] = None
-    user_id: Optional[int] = None
+    user_id: Optional[PersonId] = None
     color: Optional[str] = None
     notes: Optional[RichTextStr] = None
     is_visible: Optional[bool] = None
@@ -76,7 +77,7 @@ class QueueItemRead(QueueItemBase):
 
     id: int
     queue_id: int
-    user_id: Optional[int] = None
+    user_id: Optional[PersonId] = None
     user: Optional[UserPublic] = None
     tags: List[TagSummary] = Field(default_factory=list)
     documents: List[QueueItemDocumentRead] = Field(default_factory=list)
@@ -146,8 +147,8 @@ class QueueSummary(QueueBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
-    created_by: int | None = None
+    guild_id: GuildId
+    created_by: PersonId | None = None
     current_round: int
     is_active: bool
     item_count: int = 0
@@ -245,7 +246,7 @@ def serialize_queue_item(
 def serialize_queue_summary(
     queue: "Queue",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
 ) -> QueueSummary:
     items = getattr(queue, "items", None) or []
@@ -275,7 +276,7 @@ def serialize_queue_summary(
 def serialize_queue(
     queue: "Queue",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
     documents: Optional[Mapping[int, Sequence[Related]]] = None,
     tasks: Optional[Mapping[int, Sequence[Related]]] = None,

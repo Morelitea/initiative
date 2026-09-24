@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
@@ -13,7 +14,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext, GuildContext
 
 
 class WikiBase(SanitizedBaseModel):
@@ -74,8 +75,8 @@ class WikiSummary(WikiBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
-    created_by: int | None = None
+    guild_id: GuildId
+    created_by: PersonId | None = None
     created_at: datetime
     updated_at: datetime
     #: How many pages it holds. Served with the row so a list of wikis can say
@@ -298,7 +299,7 @@ class WikiPageLinks(SanitizedBaseModel):
 
 
 def serialize_wiki_summary(
-    wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
+    wiki: "Any", *, context: ActorContext, user_id: Optional[int] = None
 ) -> WikiSummary:
     # Local import avoids a schema -> service import cycle.
     from app.schemas.tenant.tag import annotated_tags
@@ -332,7 +333,7 @@ def serialize_wiki_summary(
 
 
 def serialize_wiki(
-    wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
+    wiki: "Any", *, context: ActorContext, user_id: Optional[int] = None
 ) -> WikiRead:
     return WikiRead(
         **serialize_wiki_summary(wiki, context=context, user_id=user_id).model_dump()

@@ -42,10 +42,15 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     GuildContext,
     IncludeDeletedDep,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
@@ -59,7 +64,6 @@ from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.upload import Upload
 from app.schemas.tenant.gallery import (
     GalleryCreate,
@@ -82,6 +86,7 @@ from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import galleries as galleries_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 
@@ -125,10 +130,13 @@ def _discard_orphans(urls: list[str], failure: BaseException) -> None:
 IMAGE_PAGE_SIZE = 40
 MAX_IMAGE_PAGE_SIZE = 200
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
+#: The routes an installed app may call, under the galleries scopes.
+GalleriesRead = Annotated[ActorContext, Depends(app_scope("galleries:read"))]
+GalleriesWrite = Annotated[ActorContext, Depends(app_scope("galleries:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +166,7 @@ async def _get_initiative_for_gallery(
 
 
 async def _refetch_gallery(
-    session: RLSSessionDep, gallery_id: int, *, user_id: int
+    session: RLSSessionDep, gallery_id: int, *, user_id: int | None
 ) -> Gallery:
     gallery = await galleries_service.get_gallery(
         session, gallery_id, populate_existing=True
@@ -370,27 +378,30 @@ def _image_scope(
 @router.get("/{gallery_id}", response_model=GalleryRead)
 async def read_gallery(
     gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> GalleryRead:
     gallery = await resource_access.load_authorized(
         session, Tool.gallery, gallery_id, current_user, guild_context
     )
     await annotate_gallery_rows(session, [gallery])
-    return serialize_gallery(gallery, user_id=current_user.id, context=guild_context)
+    return serialize_gallery(
+        gallery, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.post("/", response_model=GalleryRead, status_code=status.HTTP_201_CREATED)
 async def create_gallery(
     gallery_in: GalleryCreate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
 ) -> GalleryRead:
     """Create a gallery. Requires create_galleries permission on the
     initiative (or guild admin); the creator gets the owner grant."""
+    resource_access.refuse_app_sharing(guild_context, gallery_in, "grants")
     initiative = await _get_initiative_for_gallery(session, gallery_in.initiative_id)
     if not initiative.galleries_enabled:
         raise HTTPException(
@@ -403,33 +414,34 @@ async def create_gallery(
 
     gallery = Gallery(
         initiative_id=initiative.id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         name=gallery_in.name.strip(),
         description=(gallery_in.description or "").strip() or None,
     )
     session.add(gallery)
     await session.flush()
 
-    session.add(
-        ResourceGrant(
+    # The creator's owner grant, then the initial sharing. An installed app's
+    # owner row is written by the table's own trigger as the row goes in, and
+    # it writes no grant of its own.
+    owner_grant = ownership_service.creator_owner_grant(
+        guild_context,
+        tool=Tool.gallery,
+        resource_id=gallery.id,
+        initiative_id=initiative.id,
+    )
+    if owner_grant is not None and current_user is not None:
+        session.add(owner_grant)
+        await permissions_service.replace_resource_grants(
+            session,
             resource_type="gallery",
             resource_id=gallery.id,
-            user_id=current_user.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
+            guild_id=guild_context.guild_id,
             initiative_id=initiative.id,
+            owner_id=current_user.id,
+            grants=gallery_in.grants,
+            actor_user_id=current_user.id,
         )
-    )
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="gallery",
-        resource_id=gallery.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=initiative.id,
-        owner_id=current_user.id,
-        grants=gallery_in.grants,
-        actor_user_id=current_user.id,
-    )
     if gallery_in.tag_ids:
         await tags_service.set_entity_tags(
             session,
@@ -439,17 +451,21 @@ async def create_gallery(
             tag_ids=gallery_in.tag_ids,
         )
     await session.commit()
-    hydrated = await _refetch_gallery(session, gallery.id, user_id=current_user.id)
-    return serialize_gallery(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_gallery(
+        session, gallery.id, user_id=guild_context.user_id
+    )
+    return serialize_gallery(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.patch("/{gallery_id}", response_model=GalleryRead)
 async def update_gallery(
     gallery_id: int,
     gallery_in: GalleryUpdate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
 ) -> GalleryRead:
     """Rename, describe, or choose the cover. Requires write access."""
     gallery = await resource_access.load_authorized(
@@ -481,8 +497,12 @@ async def update_gallery(
         session.add(gallery)
         await session.commit()
 
-    hydrated = await _refetch_gallery(session, gallery.id, user_id=current_user.id)
-    return serialize_gallery(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_gallery(
+        session, gallery.id, user_id=guild_context.user_id
+    )
+    return serialize_gallery(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)

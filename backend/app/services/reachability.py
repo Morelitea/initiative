@@ -133,7 +133,7 @@ def _initiative_through_parents(model: Any, row_id: int) -> Select[Any]:
 async def missing_or_denied(
     table: str,
     row_id: int,
-    user_id: int,
+    user_id: int | None,
     guild_id: int,
     *,
     not_found: str,
@@ -143,11 +143,14 @@ async def missing_or_denied(
 
     ``denied`` where the reader is in the row's initiative, ``not_found``
     otherwise. Returns the exception rather than raising it, so a caller reads
-    as ``raise await missing_or_denied(...)``.
+    as ``raise await missing_or_denied(...)``. An installed app (``user_id``
+    ``None``) is answered ``not_found``: it is in no initiative as a member.
     """
     from fastapi import HTTPException, status
 
-    if await reader_is_in_the_initiative(table, row_id, user_id, guild_id):
+    if user_id is not None and await reader_is_in_the_initiative(
+        table, row_id, user_id, guild_id
+    ):
         return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=denied)
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found)
 

@@ -18,10 +18,12 @@ from typing import Annotated, Any, Awaitable, Callable, Optional
 from fastapi import Depends, HTTPException, status
 
 from app.api.deps import (
+    ActorContext,
     GuildContext,
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.messages import AppMessages
 from app.core.tools import Tool
 from app.db.initiative_rls import governing_path
 from app.models.tenant.initiative import PermissionKey
@@ -173,8 +175,8 @@ async def require_create(
     session: Any,
     kind: Tool,
     initiative: Any,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> None:
     """Raise 403 unless this caller may create a ``kind`` in ``initiative``.
 
@@ -202,12 +204,30 @@ async def require_create(
     )
 
 
+def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
+    """Raise 403 when an installed app's create sets any of ``fields`` — the
+    initial sharing or a named owner.
+
+    What an app creates is owned by its install, whose owner row the tool
+    table's trigger writes; it writes no other grant. A field left at its
+    default is not a request to share, so only the ones the payload sets are
+    refused.
+    """
+    if actor.user_id is not None:
+        return
+    if any(field in payload.model_fields_set for field in fields):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AppMessages.SHARING_NOT_AVAILABLE,
+        )
+
+
 def authorize(
     kind: Tool,
     row: Any,
     user: Optional[User] = None,
     *,
-    context: Optional[GuildContext],
+    context: Optional[ActorContext],
     access: str = "read",
     require_owner: bool = False,
     manage_access: bool = False,
@@ -248,7 +268,8 @@ def authorize(
     # exists before it is anybody's to read — a post that has not gone up.
     # Answering 404 here rather than 403 is the point; to a reader the
     # notice does not exist yet.
-    if user is not None and permissions_service.hidden_from_reader(cfg.dac_kind, row):
+    reader = user is not None or (context is not None and context.user_id is None)
+    if reader and permissions_service.hidden_from_reader(cfg.dac_kind, row):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=cfg.not_found_msg,
@@ -259,8 +280,8 @@ async def load_authorized(
     session: Any,
     kind: Tool,
     resource_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
     *,
     access: str = "read",
     require_owner: bool = False,
@@ -276,7 +297,7 @@ async def load_authorized(
     loader = cfg.hydrated_loader if hydrated and cfg.hydrated_loader else cfg.loader
     row = await loader(session, resource_id)
     if row is None:
-        if await reachability.reader_is_in_the_initiative(
+        if user is not None and await reachability.reader_is_in_the_initiative(
             kind.plural, resource_id, user.id, guild_context.guild_id
         ):
             # In the initiative, so the row is theirs to know about — sharing is

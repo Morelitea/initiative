@@ -56,6 +56,8 @@ __all__ = [
     "admit_install",
     "boundary_scope",
     "current_install_boundary",
+    "responding_to_install",
+    "serialize_person_id",
 ]
 
 
@@ -174,6 +176,13 @@ def _boundary_in(phase: BoundaryPhase) -> Optional[InstallBoundary]:
     return boundary
 
 
+def responding_to_install() -> bool:
+    """Whether a value being serialized now goes out in an installed app's
+    response. For a field whose value names a person some other way than by
+    a :data:`PersonId` field, and is left out for an install."""
+    return _boundary_in(BoundaryPhase.response) is not None
+
+
 # --- The two types --------------------------------------------------------------
 
 
@@ -202,6 +211,11 @@ def _serializer(entity: IdentityEntity):
 
     return serialize
 
+
+#: A person's id as a response carries it: the row id for a person, the
+#: install's reference for an installed app. For a field whose person id sits
+#: inside a value no :data:`PersonId` field describes.
+serialize_person_id = _serializer(IdentityEntity.user)
 
 #: The schema both types publish, in both modes: what a person sends and
 #: receives, unchanged.

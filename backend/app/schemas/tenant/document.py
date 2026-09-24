@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.tenant.archive import ArchiveState
@@ -18,7 +19,7 @@ from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.document import (
         Document,
         DocumentFileVersion,
@@ -85,8 +86,8 @@ class DocumentSummary(DocumentBase, ArchiveState):
     # The owning guild — lets clients address guild-scoped actions (file
     # download, media) by the document's guild rather than ambient context,
     # which matters on cross-guild surfaces like My Documents.
-    guild_id: int
-    created_by: int | None = None
+    guild_id: GuildId
+    created_by: PersonId | None = None
     created_at: datetime
     updated_at: datetime
     initiative: Optional[InitiativeSummary] = None
@@ -223,7 +224,7 @@ def _document_owner(document: "Document") -> Optional[UserPublic]:
 def serialize_document_summary(
     document: "Document",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
     projects: Sequence[Related] = (),
 ) -> DocumentSummary:
@@ -275,7 +276,7 @@ def serialize_document_summary(
 def serialize_document(
     document: "Document",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
     include_content: bool = True,
 ) -> DocumentRead:

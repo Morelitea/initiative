@@ -29,11 +29,11 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, and_, func, inspect, or_, true
+from sqlalchemy import ColumnElement, and_, false, func, inspect, or_, true
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
-from app.db.guild_standing import GuildContext
+from app.db.guild_standing import ActorContext, InstallContext
 from app.services import audit as audit_service
 from app.core.tools import Tool
 
@@ -55,7 +55,7 @@ from app.models.tenant.resource_grant import (
 )
 
 
-def _frozen_community(context: GuildContext | None) -> bool:
+def _frozen_community(context: ActorContext | None) -> bool:
     """Whether this request reads a community whose content is on hold.
 
     The routed role (``guild_<id>_ro``) refuses the write either way; the app
@@ -119,9 +119,9 @@ def _granted_resource_ids(
 def granted_scope_clause(
     tool: Tool,
     id_col: ColumnElement[int],
-    user_id: int,
+    user_id: int | None,
     *,
-    context: GuildContext | None,
+    context: ActorContext | None,
     access: str = "read",
 ) -> ColumnElement[bool]:
     """The WHERE leg for a listing that **spans initiatives** — the cross-guild
@@ -146,17 +146,24 @@ def granted_scope_clause(
     A statement already confined to one initiative asks nothing here — see
     :func:`listing_scope_clause`.
     """
+    if isinstance(context, InstallContext):
+        # An installed app is granted to by name or through its placements,
+        # and has no admin leg to set aside: the table's own policy answers
+        # exactly what reaches it.
+        return true()
     if context is not None and context.grant_satisfies(access=access):
         return true()
+    if user_id is None:
+        raise ValueError("a listing for a person names the person")
     return id_col.in_(_granted_resource_ids(tool, user_id))
 
 
 def listing_scope_clause(
     tool: Tool,
     id_col: ColumnElement[int],
-    user_id: int,
+    user_id: int | None,
     *,
-    context: GuildContext | None,
+    context: ActorContext | None,
     initiative_id: int | None = None,
     access: str = "read",
 ) -> ColumnElement[bool]:
@@ -186,9 +193,9 @@ def listing_scope_clause(
 def writable_scope_clause(
     tool: Tool,
     id_col: ColumnElement[int],
-    user_id: int,
+    user_id: int | None,
     *,
-    context: GuildContext | None,
+    context: ActorContext | None,
     initiative_id: int | None = None,
 ) -> ColumnElement[bool]:
     """The listing rule narrowed to what the reader may CHANGE.
@@ -208,6 +215,10 @@ def writable_scope_clause(
         )
     if context is not None and context.grant_satisfies(access="write"):
         return true()
+    if user_id is None:
+        # Spanning initiatives, what may be changed is read from grants to a
+        # person; an installed app asks one initiative at a time.
+        return false()
     return id_col.in_(_granted_resource_ids(tool, user_id, levels=WRITE_LEVELS))
 
 
@@ -643,7 +654,7 @@ def require_access(
     resource: DacResource,
     row: Any,
     *,
-    context: GuildContext | None,
+    context: ActorContext | None,
     access: str = "read",
     require_owner: bool = False,
     allow_frozen: bool = False,
@@ -709,7 +720,7 @@ def require_export_access(
     resource: DacResource,
     row: Any,
     *,
-    context: GuildContext | None,
+    context: ActorContext | None,
     access: str = EXPORT_ACCESS,
 ) -> None:
     """Raise unless the request may export ``row``: read it at all, and — for
@@ -726,7 +737,7 @@ def require_export_access(
         )
 
 
-def compute_permission(row: Any, *, context: GuildContext | None) -> str | None:
+def compute_permission(row: Any, *, context: ActorContext | None) -> str | None:
     """``my_permission_level`` for the client: the rung the database answered
     (full authority reports owner; a content grant lends its own rung).
     A frozen guild (read_only lifecycle status) caps the result at read — the
@@ -744,7 +755,7 @@ def compute_permission(row: Any, *, context: GuildContext | None) -> str | None:
     return level
 
 
-def may_unarchive(row: Any, *, context: GuildContext | None) -> bool:
+def may_unarchive(row: Any, *, context: ActorContext | None) -> bool:
     """Whether the caller may take this row back out of the archive.
 
     ``compute_permission`` caps a frozen row at read so that every edit
@@ -773,7 +784,7 @@ def may_unarchive(row: Any, *, context: GuildContext | None) -> bool:
 
 
 def client_access(
-    row: Any, user_id: int | None, *, context: GuildContext | None
+    row: Any, user_id: int | None, *, context: ActorContext | None
 ) -> dict[str, Any]:
     """The two access fields a tool's read schema carries, answered together.
 
@@ -787,7 +798,7 @@ def client_access(
     Returned as a mapping so the pair travels into a serializer as one argument
     and neither half can be passed without the other.
     """
-    if user_id is None:
+    if user_id is None and not isinstance(context, InstallContext):
         return {"my_permission_level": None, "can_unarchive": False}
     return {
         "my_permission_level": compute_permission(row, context=context),
@@ -798,7 +809,7 @@ def client_access(
 # ── Project helpers above the generic engine ────────────────────
 
 
-def can_configure_project(project: Project, *, context: GuildContext | None) -> bool:
+def can_configure_project(project: Project, *, context: ActorContext | None) -> bool:
     """Whether the request may configure the project itself.
 
     Configuring a project — pinning it, setting its default view, curating its
@@ -820,7 +831,7 @@ def can_configure_project(project: Project, *, context: GuildContext | None) -> 
 
 
 def require_project_configure(
-    project: Project, *, context: GuildContext | None
+    project: Project, *, context: ActorContext | None
 ) -> None:
     """Raise 403 unless the request may configure the project (see above)."""
     if not can_configure_project(project, context=context):

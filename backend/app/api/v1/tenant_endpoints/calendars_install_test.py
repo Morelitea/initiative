@@ -1,0 +1,427 @@
+"""Calendars and calendar events as an installed app calls them.
+
+Each test installs an app the way a community does (``install_app``: placed in
+initiative A and not in B, granted scopes by the seat), seals an installation
+token for it, and calls the calendar and event routes that name a scope: the
+reads, create and update, and the event's attendee list.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import pytest
+from sqlmodel import select
+
+from app.core.messages import AppMessages, CalendarMessages
+from app.models.platform.guild import GuildRole
+from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.calendar import Calendar
+from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.services.marketplace import app_refs
+from app.testing import (
+    create_calendar,
+    create_calendar_event,
+    create_guild_app,
+    create_guild_calendar,
+    guild_of,
+    route_session_to_guild,
+)
+from app.testing.app_clients import (
+    assert_names_nobody,
+    install_app,
+    install_headers,
+    lift_person_and_guild_ids,
+)
+
+
+pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def _cold_reference_cache():
+    app_refs.forget_cached_install_refs()
+    yield
+    app_refs.forget_cached_install_refs()
+
+
+def _g(guild_id: int, path: str) -> str:
+    return f"/api/v1/g/{guild_id}{path}"
+
+
+def _window() -> dict[str, str]:
+    start = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=1)
+    return {
+        "start_at": start.isoformat(),
+        "end_at": (start + timedelta(hours=1)).isoformat(),
+    }
+
+
+async def _switch_on(session: Any, *initiatives: Any) -> None:
+    """Turn calendars on in each of ``initiatives``."""
+    await route_session_to_guild(session, guild_of(initiatives[0]))
+    for initiative in initiatives:
+        initiative.calendars_enabled = True
+        session.add(initiative)
+    await session.commit()
+
+
+async def _member_of_a(acting_user: Any, installed: Any) -> Any:
+    return await acting_user(
+        guild_role=GuildRole.member,
+        guild=installed.guild,
+        initiative=installed.placed,
+        initiative_role="member",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Reach
+# ---------------------------------------------------------------------------
+
+
+async def test_reads_the_calendars_and_events_open_to_its_initiative(
+    client, session, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["calendars:read"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, installed.placed, installed.unplaced)
+    # Both are open to their initiative's members (the factory's default).
+    in_a = await create_calendar(session, installed.placed, seat.user, name="A")
+    in_b = await create_calendar(session, installed.unplaced, seat.user, name="B")
+    event_a = await create_calendar_event(session, in_a, seat.user, title="In A")
+    event_b = await create_calendar_event(session, in_b, seat.user, title="In B")
+    community = await create_guild_calendar(session, installed.guild, seat.user)
+    headers = install_headers(installed, ["calendars:read"])
+
+    read = await client.get(_g(guild_id, f"/calendars/{in_a.id}"), headers=headers)
+    assert read.status_code == 200, read.text
+    assert read.json()["name"] == "A"
+    assert read.json()["my_permission_level"] == "read"
+
+    event = await client.get(
+        _g(guild_id, f"/calendar-events/{event_a.id}"), headers=headers
+    )
+    assert event.status_code == 200, event.text
+    assert event.json()["title"] == "In A"
+    assert event.json()["my_permission_level"] == "read"
+
+    for path in (
+        f"/calendars/{in_b.id}",
+        f"/calendar-events/{event_b.id}",
+    ):
+        response = await client.get(_g(guild_id, path), headers=headers)
+        assert response.status_code == 404, (path, response.text)
+
+    # A token narrowed to A reaches nothing that belongs to the community as
+    # a whole.
+    narrowed = install_headers(
+        installed, ["calendars:read"], initiative_id=installed.placed.id
+    )
+    guild_level = await client.get(
+        _g(guild_id, f"/calendars/{community.id}"), headers=narrowed
+    )
+    assert guild_level.status_code == 404, guild_level.text
+    still_a = await client.get(_g(guild_id, f"/calendars/{in_a.id}"), headers=narrowed)
+    assert still_a.status_code == 200, still_a.text
+
+
+async def test_changing_anything_needs_the_write_scope(
+    client, session, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["calendars:read"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, installed.placed)
+    calendar = await create_calendar(session, installed.placed, seat.user)
+    event = await create_calendar_event(session, calendar, seat.user)
+    headers = install_headers(installed, ["calendars:read"])
+
+    for method, path, body in (
+        ("POST", "/calendars/", {"name": "New", "initiative_id": installed.placed.id}),
+        ("PATCH", f"/calendars/{calendar.id}", {"name": "Renamed"}),
+        (
+            "POST",
+            "/calendar-events/",
+            {"calendar_id": calendar.id, "title": "New", **_window()},
+        ),
+        ("PATCH", f"/calendar-events/{event.id}", {"title": "Renamed"}),
+        ("PUT", f"/calendar-events/{event.id}/attendees", []),
+    ):
+        response = await client.request(
+            method, _g(guild_id, path), headers=headers, json=body
+        )
+        assert response.status_code == 403, (method, path, response.text)
+        assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
+
+
+# ---------------------------------------------------------------------------
+# Authorship and the boundary
+# ---------------------------------------------------------------------------
+
+
+async def test_what_it_creates_is_its_own_and_names_nobody(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(
+        session, acting_user, role_session, granted=["calendars:write"]
+    )
+    guild_id = installed.guild.id
+    await _switch_on(session, installed.placed)
+    headers = install_headers(installed, ["calendars:write"])
+
+    created = await client.post(
+        _g(guild_id, "/calendars/"),
+        headers=headers,
+        json={"name": "Made by the app", "initiative_id": installed.placed.id},
+    )
+    assert created.status_code == 201, created.text
+    calendar = created.json()
+    assert calendar["created_by"] is None
+    assert isinstance(calendar["guild_id"], str)
+    assert calendar["my_permission_level"] == "owner"
+    assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
+
+    event_created = await client.post(
+        _g(guild_id, "/calendar-events/"),
+        headers=headers,
+        json={"calendar_id": calendar["id"], "title": "Stand-up", **_window()},
+    )
+    assert event_created.status_code == 201, event_created.text
+    event = event_created.json()
+    assert event["created_by"] is None
+    assert event["attendees"] == []
+    assert event["my_permission_level"] == "owner"
+    assert_names_nobody(event_created.text, [installed.seat.user.id, guild_id])
+
+    renamed = await client.patch(
+        _g(guild_id, f"/calendars/{calendar['id']}"),
+        headers=headers,
+        json={"name": "Renamed by the app"},
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["name"] == "Renamed by the app"
+
+    moved = await client.patch(
+        _g(guild_id, f"/calendar-events/{event['id']}"),
+        headers=headers,
+        json={"title": "Retro"},
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["title"] == "Retro"
+
+    await route_session_to_guild(session, guild_id)
+    grants = (
+        await session.exec(
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "calendar",
+                ResourceGrant.resource_id == calendar["id"],
+            )
+        )
+    ).all()
+    assert [(g.level, g.app_install_id, g.user_id) for g in grants] == [
+        (ResourceAccessLevel.owner, installed.app.id, None)
+    ]
+    stored_calendar = await session.get(Calendar, calendar["id"])
+    assert stored_calendar is not None and stored_calendar.created_by is None
+    stored_event = await session.get(CalendarEvent, event["id"])
+    assert stored_event is not None and stored_event.created_by is None
+
+
+async def test_it_shares_nothing_and_makes_no_community_calendar(
+    client, session, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["calendars:write"]
+    )
+    guild_id = installed.guild.id
+    await _switch_on(session, installed.placed)
+    headers = install_headers(installed, ["calendars:write"])
+
+    shared = await client.post(
+        _g(guild_id, "/calendars/"),
+        headers=headers,
+        json={
+            "name": "Shared",
+            "initiative_id": installed.placed.id,
+            "grants": [{"all_initiative_members": True, "level": "write"}],
+        },
+    )
+    assert shared.status_code == 403, shared.text
+    assert shared.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
+
+    community = await client.post(
+        _g(guild_id, "/calendars/"), headers=headers, json={"name": "Everyone"}
+    )
+    assert community.status_code == 403, community.text
+    assert community.json()["detail"] == CalendarMessages.APP_INITIATIVE_REQUIRED
+
+
+# ---------------------------------------------------------------------------
+# Attendees
+# ---------------------------------------------------------------------------
+
+
+async def test_invites_attendees_by_reference_in_its_own_name(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(
+        session,
+        acting_user,
+        role_session,
+        granted=["calendars:write", "members:read"],
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    attendee = await _member_of_a(acting_user, installed)
+    await _switch_on(session, installed.placed)
+    # Something the attendee made, which is how the install learns their
+    # reference.
+    theirs = await create_calendar(session, installed.placed, seat.user)
+    their_event = await create_calendar_event(session, theirs, attendee.user)
+    headers = install_headers(installed, ["calendars:write", "members:read"])
+
+    read = await client.get(
+        _g(guild_id, f"/calendar-events/{their_event.id}"), headers=headers
+    )
+    assert read.status_code == 200, read.text
+    reference = read.json()["created_by"]
+    assert isinstance(reference, str)
+
+    calendar = await client.post(
+        _g(guild_id, "/calendars/"),
+        headers=headers,
+        json={"name": "App calendar", "initiative_id": installed.placed.id},
+    )
+    assert calendar.status_code == 201, calendar.text
+    created = await client.post(
+        _g(guild_id, "/calendar-events/"),
+        headers=headers,
+        json={
+            "calendar_id": calendar.json()["id"],
+            "title": "Planning",
+            **_window(),
+        },
+    )
+    assert created.status_code == 201, created.text
+    event_id = created.json()["id"]
+
+    response = await client.put(
+        _g(guild_id, f"/calendar-events/{event_id}/attendees"),
+        headers=headers,
+        json=[reference],
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [a["user_id"] for a in body["attendees"]] == [reference]
+    assert body["attendees"][0]["user"]["id"] == reference
+    assert [p["user_id"] for p in body["attendee_previews"]] == [reference]
+    assert_names_nobody(response.text, [seat.user.id, attendee.user.id, guild_id])
+
+    invitations = (
+        await session.exec(
+            select(Notification).where(
+                Notification.user_id == attendee.user.id,
+                Notification.type == NotificationType.event_invitation,
+            )
+        )
+    ).all()
+    assert len(invitations) == 1
+    assert invitations[0].data["organizer_name"] == installed.app.name
+    assert invitations[0].data["event_id"] == event_id
+
+    # An edit worth telling them about names the app too.
+    edited = await client.patch(
+        _g(guild_id, f"/calendar-events/{event_id}"),
+        headers=headers,
+        json={"title": "Planning (moved)", **_window()},
+    )
+    assert edited.status_code == 200, edited.text
+    updates = (
+        await session.exec(
+            select(Notification).where(
+                Notification.user_id == attendee.user.id,
+                Notification.type == NotificationType.event_updated,
+            )
+        )
+    ).all()
+    assert updates, "the attendee is told the event changed"
+    assert all(n.data.get("editor_name") == installed.app.name for n in updates)
+
+
+async def test_an_attendee_it_does_not_know_is_unprocessable(
+    client, session, acting_user, role_session
+):
+    installed = await install_app(
+        session,
+        acting_user,
+        role_session,
+        granted=["calendars:write", "members:read"],
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    attendee = await _member_of_a(acting_user, installed)
+    await _switch_on(session, installed.placed)
+    calendar = await create_calendar(session, installed.placed, seat.user)
+    event = await create_calendar_event(session, calendar, seat.user)
+    # Open to A's members for writing, so the refusals below are the
+    # references' and nothing else's.
+    await route_session_to_guild(session, guild_id)
+    members_grant = (
+        await session.exec(
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "calendar",
+                ResourceGrant.resource_id == calendar.id,
+                ResourceGrant.all_initiative_members == True,  # noqa: E712
+            )
+        )
+    ).one()
+    members_grant.level = ResourceAccessLevel.write
+    session.add(members_grant)
+    await session.commit()
+    other = await create_guild_app(
+        session,
+        installed.guild,
+        seat.user,
+        definition={
+            "app_kind": "service",
+            "service": {"public_id": "tests.token-client-two", "protocol": 1},
+        },
+        listing_uid="TOKENCLIENT002",
+    )
+    foreign = await app_refs.ensure_app_ref(
+        guild_id=guild_id, app_install_id=other.id, user_id=attendee.user.id
+    )
+    headers = install_headers(installed, ["calendars:write", "members:read"])
+
+    for attendees in ([attendee.user.id], [foreign], ["uapp_" + "x" * 32]):
+        response = await client.put(
+            _g(guild_id, f"/calendar-events/{event.id}/attendees"),
+            headers=headers,
+            json=attendees,
+        )
+        assert response.status_code == 422, (attendees, response.text)
+        assert AppMessages.REFERENCE_UNKNOWN in {
+            error["msg"] for error in response.json()["detail"]
+        }
+
+    created = await client.post(
+        _g(guild_id, "/calendar-events/"),
+        headers=headers,
+        json={
+            "calendar_id": calendar.id,
+            "title": "Named by row id",
+            "attendee_ids": [attendee.user.id],
+            **_window(),
+        },
+    )
+    assert created.status_code == 422, created.text

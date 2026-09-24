@@ -814,7 +814,10 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # names (install_reads_its_sector / install_mints_in_its_sector; migration
     # 20260924_0383).
     "identity_refs": frozenset({"SELECT", "INSERT"}),
-    "app_settings": None,
+    # Deployment settings are read from inside a community as from anywhere
+    # (app_settings_read, TO public): a notification an install's write sends
+    # asks whether the deployment sends mail (migration 20260924_0386).
+    "app_settings": frozenset({"SELECT"}),
     "app_setting_secrets": None,
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
@@ -836,7 +839,9 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "user_dm_settings": None,
     "user_cookie_consent": None,
     "user_notification_prefs": None,
-    "email_outbox": None,
+    # What an install's write sends appends its email for the worker, as a
+    # member's does (0320; migration 20260924_0386).
+    "email_outbox": frozenset({"INSERT"}),
     "user_dm_guild_optouts": None,
     "contact_grants": None,
     "user_ignores": None,
@@ -863,7 +868,10 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "mfa_recovery_codes": None,
     "auth_challenges": None,
     "user_view_preferences": None,
-    "notifications": None,
+    # A bell line an install's write sends, for its named recipient in the
+    # routed community (the named-recipient policies; migration
+    # 20260924_0386).
+    "notifications": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "announcements": None,
     "announcement_reads": None,
     "announcement_images": None,

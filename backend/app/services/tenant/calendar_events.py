@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.core.messages import CalendarEventMessages
+from app.db.session import install_context
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
@@ -84,16 +85,24 @@ async def set_event_attendees(
     Who may be named depends on what the calendar belongs to. An initiative
     calendar draws its attendees from that initiative's members. A guild
     calendar belongs to no initiative and never reads one — its events are the
-    guild's, so anyone in the guild can be named.
+    guild's, so anyone in the guild can be named. An installed app reads the
+    guild's members from the projection of the routed community's members,
+    which is what its role holds; the initiative roster it reads under its
+    ``members`` scope.
 
     Requires ``event.calendar`` to be eager-loaded.
     """
     if user_ids:
         from app.models.platform.guild import GuildMembership
+        from app.models.platform.user_profile_view import current_guild_members
         from app.models.tenant.initiative import InitiativeMember
 
         initiative_id = event.calendar.initiative_id
-        if initiative_id is None:
+        if initiative_id is None and install_context(session) is not None:
+            stmt = select(current_guild_members.c.id).where(
+                current_guild_members.c.id.in_(user_ids)
+            )
+        elif initiative_id is None:
             stmt = select(GuildMembership.user_id).where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.user_id.in_(user_ids),
@@ -135,7 +144,7 @@ async def set_event_documents(
     event: CalendarEvent,
     document_ids: list[int],
     guild_id: int,
-    user_id: int,
+    user_id: int | None,
 ) -> None:
     """Replace all document links on a calendar event.
 

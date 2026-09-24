@@ -438,6 +438,9 @@ export function useListCalendarEventsApiV1GGuildIdCalendarEventsGet<
 
 /**
  * Create a calendar event. Requires write access on the calendar.
+ *
+ * The attendees it names are invited by whoever created it: the person, or
+ * an installed app by its name. An installed app's event has no creator.
  * @summary Create Calendar Event
  */
 export const createCalendarEventApiV1GGuildIdCalendarEventsPost = (
@@ -933,6 +936,9 @@ export const useDeleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete = <
 };
 /**
  * Set attendees. Requires write access on the calendar.
+ *
+ * Everyone newly on the list is invited by whoever set it: the person, or an
+ * installed app by its name.
  * @summary Set Attendees
  */
 export const setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut = (

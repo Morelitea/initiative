@@ -5,10 +5,15 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     GuildContext,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
@@ -27,25 +32,32 @@ from app.schemas.tenant.comment import (
     CommentUpdate,
     RecentActivityEntry,
 )
+from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import reactions as reactions_service
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the comments scopes.
+CommentsRead = Annotated[ActorContext, Depends(app_scope("comments:read"))]
+CommentsWrite = Annotated[ActorContext, Depends(app_scope("comments:write"))]
 
 
 @router.post("/", response_model=CommentRead, status_code=status.HTTP_201_CREATED)
 async def create_comment(
     comment_in: CommentCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CommentsWrite,
 ) -> CommentRead:
+    # An installed app posts as itself: the comment names no author, and the
+    # notices it sends name the app.
+    author = await notifications_service.author_of(session, guild_context, current_user)
     try:
         comment = await comments_service.create_comment(
             session,
-            author=current_user,
+            author=author,
             guild_id=guild_context.guild_id,
             content=comment_in.content,
             parent_comment_id=comment_in.parent_comment_id,
@@ -65,7 +77,9 @@ async def create_comment(
         ) from exc
 
     await session.commit()
-    response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
+    response = comments_service.serialize_comment(
+        comment, viewer_id=guild_context.user_id
+    )
     return response
 
 
@@ -290,9 +304,9 @@ async def recent_comments(
 
 @router.get("/", response_model=List[CommentRead])
 async def list_comments(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CommentsRead,
     task_id: Optional[int] = Query(default=None, gt=0),
     document_id: Optional[int] = Query(default=None, gt=0),
     project_id: Optional[int] = Query(default=None, gt=0),
@@ -336,7 +350,7 @@ async def list_comments(
         ) from exc
 
     return [
-        comments_service.serialize_comment(comment, viewer_id=current_user.id)
+        comments_service.serialize_comment(comment, viewer_id=guild_context.user_id)
         for comment in comments
     ]
 
@@ -344,9 +358,9 @@ async def list_comments(
 @router.get("/{comment_id}", response_model=CommentRead)
 async def read_comment(
     comment_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CommentsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> CommentRead:
     """One comment by id — the read-back for a ``comments.*`` event."""
@@ -365,7 +379,7 @@ async def read_comment(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
-    return comments_service.serialize_comment(comment, viewer_id=current_user.id)
+    return comments_service.serialize_comment(comment, viewer_id=guild_context.user_id)
 
 
 @router.patch("/{comment_id}", response_model=CommentRead)

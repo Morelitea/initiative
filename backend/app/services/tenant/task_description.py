@@ -60,7 +60,7 @@ async def description_saved(
     task: Task,
     *,
     previous: str | None,
-    author: User,
+    author: User | None,
     guild_id: int,
     initiative_id: int,
 ) -> None:
@@ -68,9 +68,16 @@ async def description_saved(
     names.
 
     ``previous`` is the description as it stood before this save — ``None`` for
-    a task that is new. Rides the caller's transaction; the caller commits.
+    a task that is new. ``author`` is ``None`` for an installed app, whose
+    save records references and tells nobody: a mention names a person by
+    their row id, which an app does not hold. Rides the caller's transaction;
+    the caller commits.
     """
-    await record_references(session, task, author_id=author.id)
+    await record_references(
+        session, task, author_id=author.id if author is not None else None
+    )
+    if author is None:
+        return
 
     added = newly_mentioned(task.description, previous)
     added.discard(author.id)

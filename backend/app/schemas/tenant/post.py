@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.platform.user import ProfileDecorations
@@ -15,7 +16,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.post import Post
 
 
@@ -123,8 +124,8 @@ class PostSummary(PostBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
-    created_by: int | None = None
+    guild_id: GuildId
+    created_by: PersonId | None = None
     #: Who wrote it, ready to draw: handle, picture, what they wear around it,
     #: and how they are appearing. The same shape a comment's author takes, so
     #: a person looks the same wherever the app shows them.
@@ -136,7 +137,7 @@ class PostSummary(PostBase, ArchiveState):
     #: the first time somebody edited it.
     excerpt: str = ""
     pinned_at: Optional[datetime] = None
-    pinned_by: Optional[int] = None
+    pinned_by: Optional[PersonId] = None
     pin_expires_at: Optional[datetime] = None
     #: Whether the pin above is in force *right now*. Served rather than
     #: recomputed client-side so the board and the API agree on the boundary
@@ -342,7 +343,7 @@ def post_excerpt(body: Any, *, limit: int = EXCERPT_CHARS) -> str:
 
 
 def serialize_post_summary(
-    post: "Post", *, context: GuildContext, user_id: Optional[int] = None
+    post: "Post", *, context: ActorContext, user_id: Optional[int] = None
 ) -> PostSummary:
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import client_access, serialize_grants
@@ -389,7 +390,7 @@ def serialize_post_summary(
 
 
 def serialize_post(
-    post: "Post", *, context: GuildContext, user_id: Optional[int] = None
+    post: "Post", *, context: ActorContext, user_id: Optional[int] = None
 ) -> PostRead:
     summary = serialize_post_summary(post, context=context, user_id=user_id)
     poll = getattr(post, "poll", None)

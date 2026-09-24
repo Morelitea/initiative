@@ -5,6 +5,7 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
@@ -38,7 +39,7 @@ class ProjectBase(SanitizedBaseModel):
 
 class ProjectCreate(ProjectBase):
     name: TitleStr
-    owner_id: Optional[int] = None
+    owner_id: Optional[PersonId] = None
     initiative_id: Optional[int] = None
     is_template: bool = False
     template_id: Optional[int] = None
@@ -88,12 +89,12 @@ class ProjectRead(ProjectBase, ArchiveState):
     # its ``validation_alias`` (an attribute the ORM row never has) keeps
     # ``model_validate(project)`` from reaching for a relationship that may not
     # be loaded — it is set explicitly in ``_build_project_payload``.
-    owner_id: Optional[int] = None
+    owner_id: Optional[PersonId] = None
     initiative_id: int
     #: The community this project lives in — the one fact a cross-guild list
     #: needs to address the row, and what every other tool summary carries.
     #: Left out of the slim picker projection, which never leaves one guild.
-    guild_id: Optional[int] = None
+    guild_id: Optional[GuildId] = None
     created_at: datetime
     updated_at: datetime
     is_template: bool

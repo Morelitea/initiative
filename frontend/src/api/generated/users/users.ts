@@ -3204,6 +3204,10 @@ export function useListUsersApiV1GGuildIdUsersGet<
  *
  * Pass ``user_id`` one or more times to resolve a known selection (a picker
  * rehydrating stored ids into names/avatars) rather than searching.
+ *
+ * An installed app (``members:read``) names members by its own references
+ * and reads what :class:`AppMemberRead` carries: the reference, the handle,
+ * the name where the guild shows names, and a picture hosted elsewhere.
  * @summary Search Users
  */
 export const searchUsersApiV1GGuildIdUsersSearchGet = (

@@ -66,10 +66,13 @@ async def check_initiative_permission(
     session: AsyncSession,
     *,
     initiative_id: int,
-    user: User,
+    user: User | None,
     permission_key: PermissionKey,
 ) -> bool:
     """Whether ``user``'s role in the initiative permits ``permission_key``.
+
+    ``None`` is an installed app, whose standing carries the keys its scopes
+    allow in the initiatives it is placed in.
 
     Asked of the schema's own ``initiative_role_permits`` — the function the
     content policies call — so the rule has one body: a manager holds every
@@ -84,7 +87,7 @@ async def check_initiative_permission(
                 select(
                     func.initiative_role_permits(
                         initiative_id,
-                        user.id,
+                        user.id if user is not None else None,
                         permission_key.value,
                         default,
                         standing_arg(),

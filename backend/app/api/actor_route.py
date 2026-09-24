@@ -70,8 +70,16 @@ def _check_returned(boundary: InstallBoundary | None, result: Any) -> Any:
     return result
 
 
+#: Set on an endpoint :func:`_phased` has wrapped. A router included into
+#: another is rebuilt route by route with the endpoint it already holds, which
+#: must not be wrapped a second time.
+_PHASED = "__actor_route_phased__"
+
+
 def _phased(endpoint: Callable[..., Any]) -> Callable[..., Any]:
     """``endpoint``, marking the boundary's handler and response phases."""
+    if getattr(endpoint, _PHASED, False):
+        return endpoint
     if inspect.iscoroutinefunction(endpoint):
 
         @functools.wraps(endpoint)
@@ -80,6 +88,7 @@ def _phased(endpoint: Callable[..., Any]) -> Callable[..., Any]:
             result = await endpoint(*args, **kwargs)
             return _check_returned(_enter(BoundaryPhase.response), result)
 
+        setattr(run_async, _PHASED, True)
         return run_async
 
     @functools.wraps(endpoint)
@@ -88,6 +97,7 @@ def _phased(endpoint: Callable[..., Any]) -> Callable[..., Any]:
         result = endpoint(*args, **kwargs)
         return _check_returned(_enter(BoundaryPhase.response), result)
 
+    setattr(run, _PHASED, True)
     return run
 
 

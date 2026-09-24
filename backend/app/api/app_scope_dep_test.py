@@ -286,8 +286,9 @@ async def test_an_install_request_spends_two_statements_before_its_handler(
     try:
         # The slot ActorRoute opens for every request it serves.
         with boundary_scope():
+            # ``person`` is what ``get_actor_user`` answers for an access token.
             context = await _read_documents(
-                request, s, installed.guild.id, bearer_token=token, session_cookie=None
+                request, s, installed.guild.id, person=None, bearer_token=token
             )
     finally:
         event.remove(engine, "before_cursor_execute", count)

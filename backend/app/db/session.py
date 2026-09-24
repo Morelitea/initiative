@@ -1030,6 +1030,18 @@ def require_install_context(session: AsyncSession) -> InstallContext:
     return context
 
 
+def require_actor_context(session: AsyncSession) -> GuildContext | InstallContext:
+    """The standing this session was routed with, a person's or an installed
+    app's, for a caller on a route that serves either."""
+    context = guild_context(session) or install_context(session)
+    if context is None:
+        raise RuntimeError(
+            "no standing is recorded on this session; the route's seam must run "
+            "before a decision is made from one"
+        )
+    return context
+
+
 async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:
     """Route a verified billing-service request — transaction-local.
 

@@ -30,9 +30,14 @@ from app.models.tenant.document import Document
 from app.models.tenant.task import Task
 from app.services.tenant import relationships
 from app.core.auth_context import satisfied_provider_ids
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
+    app_scope,
     establish_guild_access,
     get_current_active_user,
     get_guild_membership,
@@ -45,7 +50,6 @@ from app.models.tenant.queue import (
     Queue,
     QueueItem,
 )
-from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.initiative import (
     Initiative,
 )
@@ -65,8 +69,9 @@ from app.schemas.tenant.queue import (
 )
 from app.api import resource_access
 from app.core.tools import Tool
-from app.db.session import require_guild_context
+from app.db.session import require_actor_context, require_guild_context
 from app.services import permissions as permissions_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import queues as queues_service
 from app.services.tenant import tags as tags_service
 from app.schemas.tenant.tag import TagSetRequest
@@ -97,7 +102,7 @@ async def _queue_item_attachments(
 
 
 async def _serialized_queue(
-    session: AsyncSession, queue: Queue, *, user_id: int
+    session: AsyncSession, queue: Queue, *, user_id: int | None
 ) -> QueueRead:
     """A queue and its items, each with what is pinned to it.
 
@@ -136,7 +141,7 @@ async def _serialized_queue(
     )
     return serialize_queue(
         queue,
-        context=require_guild_context(session),
+        context=require_actor_context(session),
         user_id=user_id,
         documents=documents,
         tasks=tasks,
@@ -162,19 +167,23 @@ async def _serialized_queue_item(
     )
 
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 #: Flat read-back route, mounted at the guild root. An event envelope names
 #: ``(resource_type, id)`` and nothing else, so the resource has to be
 #: addressable by its own id — a nested path would need a parent the envelope
 #: never carries. Writes stay nested under their queue, where the caller is
 #: already working inside one.
-items_router = APIRouter()
+items_router = APIRouter(route_class=ActorRoute)
 
 
 logger = logging.getLogger(__name__)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the queues scopes. A queue's
+#: items and its turn commands answer to the queue's own scopes.
+QueuesRead = Annotated[ActorContext, Depends(app_scope("queues:read"))]
+QueuesWrite = Annotated[ActorContext, Depends(app_scope("queues:write"))]
 
 
 async def _emit_queue(
@@ -270,9 +279,9 @@ async def _refetch_queue(
 @items_router.get("/queue-items/{item_id}", response_model=QueueItemRead)
 async def read_queue_item(
     item_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> QueueItemRead:
     """One queue item by id — the read-back for a ``queue_items.*`` event.
@@ -295,29 +304,30 @@ async def read_queue_item(
 @router.get("/{queue_id}", response_model=QueueRead)
 async def read_queue(
     queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> QueueRead:
     queue = await resource_access.load_authorized(
         session, Tool.queue, queue_id, current_user, guild_context
     )
-    return await _serialized_queue(session, queue, user_id=current_user.id)
+    return await _serialized_queue(session, queue, user_id=guild_context.user_id)
 
 
 @router.post("/", response_model=QueueRead, status_code=status.HTTP_201_CREATED)
 async def create_queue(
     queue_in: QueueCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Create a new queue in an initiative.
 
     Requires create_queues permission on the initiative (or guild admin).
     The creator automatically gets owner-level permission.
     """
+    resource_access.refuse_app_sharing(guild_context, queue_in, "grants")
     initiative = await _get_initiative_for_queue(session, queue_in.initiative_id)
     if not initiative.queues_enabled:
         raise HTTPException(
@@ -330,50 +340,51 @@ async def create_queue(
 
     queue = Queue(
         initiative_id=initiative.id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         name=queue_in.name.strip(),
         description=queue_in.description,
     )
     session.add(queue)
     await session.flush()
 
-    # Owner permission for the creator
-    owner_perm = ResourceGrant(
-        resource_type="queue",
+    # The creator's owner grant. An installed app's is written by the table's
+    # own trigger as the row goes in.
+    owner_perm = ownership_service.creator_owner_grant(
+        guild_context,
+        tool=Tool.queue,
         resource_id=queue.id,
-        user_id=current_user.id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
         initiative_id=queue.initiative_id,
     )
-    session.add(owner_perm)
+    if owner_perm is not None and current_user is not None:
+        session.add(owner_perm)
 
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (empty default = owner-only until shared).
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="queue",
-        resource_id=queue.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=queue.initiative_id,
-        owner_id=current_user.id,
-        grants=queue_in.grants,
-        actor_user_id=current_user.id,
-    )
+        # Apply the initial sharing exactly the way edits do — one grant list,
+        # one code path (empty default = owner-only until shared). An installed
+        # app writes no grant of its own.
+        await permissions_service.replace_resource_grants(
+            session,
+            resource_type="queue",
+            resource_id=queue.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=queue.initiative_id,
+            owner_id=current_user.id,
+            grants=queue_in.grants,
+            actor_user_id=current_user.id,
+        )
 
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    return await _serialized_queue(session, hydrated, user_id=current_user.id)
+    return await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
 
 
 @router.patch("/{queue_id}", response_model=QueueRead)
 async def update_queue(
     queue_id: int,
     queue_in: QueueUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Update queue name/description. Requires write access."""
     queue = await resource_access.load_authorized(
@@ -395,7 +406,7 @@ async def update_queue(
         await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     if updated:
         await _emit_queue(
             session, queue_id, "queue_updated", result.model_dump(mode="json")
@@ -530,9 +541,9 @@ async def update_queue_item(
     queue_id: int,
     item_id: int,
     item_in: QueueItemUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueItemRead:
     """Update a queue item. Requires write access on the queue."""
     await resource_access.load_authorized(
@@ -641,9 +652,9 @@ async def reorder_queue_items(
 @router.post("/{queue_id}/start", response_model=QueueRead)
 async def start_queue(
     queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Start the queue: set active, reset to first item, round 1."""
     queue = await resource_access.load_authorized(
@@ -653,7 +664,7 @@ async def start_queue(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     await _emit_queue(
         session, queue_id, "queue_started", result.model_dump(mode="json")
     )
@@ -663,9 +674,9 @@ async def start_queue(
 @router.post("/{queue_id}/stop", response_model=QueueRead)
 async def stop_queue(
     queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Stop the queue: set inactive but keep current position."""
     queue = await resource_access.load_authorized(
@@ -675,7 +686,7 @@ async def stop_queue(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     await _emit_queue(
         session, queue_id, "queue_stopped", result.model_dump(mode="json")
     )
@@ -685,9 +696,9 @@ async def stop_queue(
 @router.post("/{queue_id}/next", response_model=QueueRead)
 async def advance_turn(
     queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Advance to the next visible item. Wraps around and increments round."""
     queue = await resource_access.load_authorized(
@@ -697,7 +708,7 @@ async def advance_turn(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     await _emit_queue(session, queue_id, "turn_advance", result.model_dump(mode="json"))
     return result
 
@@ -705,9 +716,9 @@ async def advance_turn(
 @router.post("/{queue_id}/previous", response_model=QueueRead)
 async def previous_turn(
     queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Move to the previous visible item. Wraps around and decrements round."""
     queue = await resource_access.load_authorized(
@@ -717,7 +728,7 @@ async def previous_turn(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     await _emit_queue(
         session, queue_id, "turn_previous", result.model_dump(mode="json")
     )
@@ -728,9 +739,9 @@ async def previous_turn(
 async def set_active_item(
     queue_id: int,
     item_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Jump to a specific item in the queue."""
     queue = await resource_access.load_authorized(
@@ -740,7 +751,7 @@ async def set_active_item(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     await _emit_queue(
         session, queue_id, "turn_set_active", result.model_dump(mode="json")
     )
@@ -750,9 +761,9 @@ async def set_active_item(
 @router.post("/{queue_id}/reset", response_model=QueueRead)
 async def reset_queue(
     queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Reset the queue to round 1, first visible item."""
     queue = await resource_access.load_authorized(
@@ -762,7 +773,7 @@ async def reset_queue(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     await _emit_queue(session, queue_id, "queue_reset", result.model_dump(mode="json"))
     return result
 
@@ -770,9 +781,9 @@ async def reset_queue(
 @router.post("/{queue_id}/hold", response_model=QueueRead)
 async def hold_current_turn(
     queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
 ) -> QueueRead:
     """Hold the current turn — the item leaves the rotation until it acts.
 
@@ -787,7 +798,7 @@ async def hold_current_turn(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     await _emit_queue(session, queue_id, "turn_held", result.model_dump(mode="json"))
     return result
 
@@ -796,9 +807,9 @@ async def hold_current_turn(
 async def release_held_item(
     queue_id: int,
     item_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
     options: QueueReleaseRequest = QueueReleaseRequest(),  # noqa: B008
 ) -> QueueRead:
     """Release a held item back into the rotation.
@@ -823,7 +834,7 @@ async def release_held_item(
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
+    result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     await _emit_queue(
         session, queue_id, "turn_released", result.model_dump(mode="json")
     )

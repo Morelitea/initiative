@@ -21,14 +21,20 @@ from app.models.tenant.document import Document
 from app.services.tenant import relationships
 from sqlmodel import select
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
     UserSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
 )
+from app.core.identity_boundary import PersonId
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
@@ -38,7 +44,7 @@ from app.models.tenant.calendar_event import (
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.platform.user import User
-from app.core.messages import CalendarEventMessages
+from app.core.messages import AppMessages, CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
     CalendarEventSummary,
     CalendarEventCreate,
@@ -64,6 +70,7 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendars as calendars_service
+from app.services.tenant import content_references
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import ical_service
 from app.services import notifications as notifications_service
@@ -71,7 +78,7 @@ from app.services.platform import accounts as accounts_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 # Cross-guild "my calendar" aggregate (My Calendar page). Mounted under
 # /api/v1/me; runs on the caller's own platform session and enters each member
 # guild with the membership role they hold there, via gather_across_guilds.
@@ -79,6 +86,10 @@ me_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call. An event answers to its calendar, so
+#: they name the calendars scopes.
+CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
+CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -87,10 +98,10 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _get_event_or_404(
-    session: RLSSessionDep,
+    session: ActorSessionDep,
     event_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: User | None,
+    guild_context: ActorContext,
     *,
     access: str = "read",
 ) -> CalendarEvent:
@@ -115,10 +126,10 @@ async def _get_event_or_404(
 
 
 async def _get_writable_calendar(
-    session: RLSSessionDep,
+    session: ActorSessionDep,
     calendar_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: User | None,
+    guild_context: ActorContext,
 ) -> Calendar:
     """Load a calendar and require write access — the gate for creating or
     moving events into it."""
@@ -132,7 +143,7 @@ async def _get_writable_calendar(
     )
 
 
-async def _refetch_event(session: RLSSessionDep, event_id: int) -> CalendarEvent:
+async def _refetch_event(session: ActorSessionDep, event_id: int) -> CalendarEvent:
     event = await events_service.get_event(session, event_id, populate_existing=True)
     if not event:
         raise HTTPException(
@@ -149,6 +160,31 @@ async def _notify_targets(user_ids: list[int]) -> list[User]:
     not a guild's to read.
     """
     return await accounts_service.load_all(user_ids)
+
+
+async def _notify_invited(
+    session: ActorSessionDep,
+    event: CalendarEvent,
+    user_ids: list[int],
+    current_user: User | None,
+    guild_context: ActorContext,
+) -> None:
+    """Tell each of ``user_ids`` they were invited to ``event``, by whoever
+    invited them: the person, or an installed app by its name."""
+    attendees = await _notify_targets(user_ids)
+    if not attendees:
+        return
+    organizer = await notifications_service.author_of(
+        session, guild_context, current_user
+    )
+    for attendee in attendees:
+        await notifications_service.notify_event_invitation(
+            session,
+            attendee=attendee,
+            organizer=organizer,
+            event=event,
+            guild_id=guild_context.guild_id,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -622,9 +658,9 @@ async def _event_documents(
 async def _serialized_event(
     session: AsyncSession,
     event: CalendarEvent,
-    user_id: int,
+    user_id: int | None,
     *,
-    context: GuildContext,
+    context: ActorContext,
 ) -> CalendarEventRead:
     return serialize_calendar_event(
         event,
@@ -637,25 +673,29 @@ async def _serialized_event(
 @router.get("/{event_id}", response_model=CalendarEventRead)
 async def read_calendar_event(
     event_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> CalendarEventRead:
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
     return await _serialized_event(
-        session, event, current_user.id, context=guild_context
+        session, event, guild_context.user_id, context=guild_context
     )
 
 
 @router.post("/", response_model=CalendarEventRead, status_code=status.HTTP_201_CREATED)
 async def create_calendar_event(
     event_in: CalendarEventCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
 ) -> CalendarEventRead:
-    """Create a calendar event. Requires write access on the calendar."""
+    """Create a calendar event. Requires write access on the calendar.
+
+    The attendees it names are invited by whoever created it: the person, or
+    an installed app by its name. An installed app's event has no creator.
+    """
     await _get_writable_calendar(
         session, event_in.calendar_id, current_user, guild_context
     )
@@ -666,7 +706,7 @@ async def create_calendar_event(
 
     event = CalendarEvent(
         calendar_id=event_in.calendar_id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         title=event_in.title.strip(),
         description=event_in.description,
         location=event_in.location,
@@ -696,30 +736,30 @@ async def create_calendar_event(
             tag_ids=event_in.tag_ids,
         )
     if event_in.document_ids:
+        if not content_references.records_edges(session):
+            # Attaching a document is a relationship, which an installed app
+            # writes under its relationships scope.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AppMessages.SCOPE_REQUIRED,
+            )
         await events_service.set_event_documents(
             session,
             event,
             event_in.document_ids,
             guild_context.guild_id,
-            current_user.id,
+            guild_context.user_id,
         )
 
     invite_ids = [
-        uid for uid in (event_in.attendee_ids or []) if uid != current_user.id
+        uid for uid in (event_in.attendee_ids or []) if uid != guild_context.user_id
     ]
-    for attendee in await _notify_targets(invite_ids):
-        await notifications_service.notify_event_invitation(
-            session,
-            attendee=attendee,
-            organizer=current_user,
-            event=event,
-            guild_id=guild_context.guild_id,
-        )
+    await _notify_invited(session, event, invite_ids, current_user, guild_context)
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
-        session, hydrated, current_user.id, context=guild_context
+        session, hydrated, guild_context.user_id, context=guild_context
     )
 
 
@@ -727,9 +767,9 @@ async def create_calendar_event(
 async def update_calendar_event(
     event_id: int,
     event_in: CalendarEventUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
 ) -> CalendarEventRead:
     """Update a calendar event. Requires write access on the calendar (and on
     the target calendar when moving the event)."""
@@ -818,24 +858,30 @@ async def update_calendar_event(
                 attendee.user_id
                 for attendee in event.attendees
                 if attendee.user_id
-                and attendee.user_id != current_user.id
+                and attendee.user_id != guild_context.user_id
                 and attendee.rsvp_status != RSVPStatus.declined
             ]
-            for attendee_user in await _notify_targets(notify_ids):
-                await notifications_service.notify_event_updated(
-                    session,
-                    attendee=attendee_user,
-                    editor=current_user,
-                    event=event,
-                    guild_id=guild_context.guild_id,
-                    time_changed=time_changed,
+            notify_targets = await _notify_targets(notify_ids)
+            if notify_targets:
+                # The person who edited it, or an installed app by its name.
+                editor = await notifications_service.author_of(
+                    session, guild_context, current_user
                 )
+                for attendee_user in notify_targets:
+                    await notifications_service.notify_event_updated(
+                        session,
+                        attendee=attendee_user,
+                        editor=editor,
+                        event=event,
+                        guild_id=guild_context.guild_id,
+                        time_changed=time_changed,
+                    )
 
         await session.commit()
 
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
-        session, hydrated, current_user.id, context=guild_context
+        session, hydrated, guild_context.user_id, context=guild_context
     )
 
 
@@ -890,12 +936,16 @@ async def delete_calendar_event(
 @router.put("/{event_id}/attendees", response_model=CalendarEventRead)
 async def set_attendees(
     event_id: int,
-    attendee_ids: List[int],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    attendee_ids: List[PersonId],
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
 ) -> CalendarEventRead:
-    """Set attendees. Requires write access on the calendar."""
+    """Set attendees. Requires write access on the calendar.
+
+    Everyone newly on the list is invited by whoever set it: the person, or an
+    installed app by its name.
+    """
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, access="write"
     )
@@ -904,20 +954,15 @@ async def set_attendees(
         session, event, attendee_ids, guild_context.guild_id
     )
 
-    added_ids = [uid for uid in (set(attendee_ids) - old_ids) if uid != current_user.id]
-    for attendee in await _notify_targets(added_ids):
-        await notifications_service.notify_event_invitation(
-            session,
-            attendee=attendee,
-            organizer=current_user,
-            event=event,
-            guild_id=guild_context.guild_id,
-        )
+    added_ids = [
+        uid for uid in (set(attendee_ids) - old_ids) if uid != guild_context.user_id
+    ]
+    await _notify_invited(session, event, added_ids, current_user, guild_context)
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
-        session, hydrated, current_user.id, context=guild_context
+        session, hydrated, guild_context.user_id, context=guild_context
     )
 
 

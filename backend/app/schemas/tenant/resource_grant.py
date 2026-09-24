@@ -14,6 +14,7 @@ from typing import Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
+from app.core.identity_boundary import PersonId
 from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
 
@@ -52,7 +53,7 @@ class ResourceGrantSchema(SanitizedBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     level: Literal["read", "write", "owner"]
-    user_id: Optional[int] = None
+    user_id: Optional[PersonId] = None
     role_id: Optional[int] = None
     all_initiative_members: bool = False
     #: The dashboard this resource is readable through. Reported, never taken.

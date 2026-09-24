@@ -5,17 +5,18 @@ from typing import List, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
-from app.schemas.platform.user import UserPublic
+from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.core.user_display import display_name
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.calendar_event import CalendarEvent
 
 
@@ -29,7 +30,7 @@ class CalendarEventAttendeeRead(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    user_id: int
+    user_id: PersonId
     user: Optional[UserPublic] = None
     rsvp_status: RSVPStatus
     created_at: datetime
@@ -99,7 +100,7 @@ class CalendarEventBase(SanitizedBaseModel):
 class CalendarEventCreate(CalendarEventBase):
     title: TitleStr = Field(..., min_length=1, max_length=255)
     calendar_id: int
-    attendee_ids: Optional[List[int]] = None
+    attendee_ids: Optional[List[PersonId]] = None
     tag_ids: Optional[List[int]] = None
     document_ids: Optional[List[int]] = None
 
@@ -129,9 +130,9 @@ class CalendarEventAttendeePreview(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    user_id: int
+    user_id: PersonId
     name: str
-    avatar_url: Optional[str] = None
+    avatar_url: AvatarUrl = None
 
 
 class CalendarEventSummary(CalendarEventBase):
@@ -145,8 +146,8 @@ class CalendarEventSummary(CalendarEventBase):
     # filter/group by initiative without another fetch. NULL when the parent is
     # a guild-level calendar.
     initiative_id: Optional[int] = None
-    guild_id: int
-    created_by: int | None = None
+    guild_id: GuildId
+    created_by: PersonId | None = None
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)
     attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
@@ -244,19 +245,22 @@ def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
 def serialize_calendar_event_summary(
     event: "CalendarEvent",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
 ) -> CalendarEventSummary:
     # Local import avoids a schema -> service import cycle.
+    from app.db.guild_standing import InstallContext
     from app.services.permissions import compute_permission
 
     # Access is inherited from the parent calendar; requires ``event.calendar``
-    # eager-loaded with its level.
+    # eager-loaded with its level. An installed app has no user id and is
+    # answered its own level, as ``client_access`` answers it on a calendar.
     calendar = event.calendar
+    reader = user_id is not None or isinstance(context, InstallContext)
     my_permission_level = (
         compute_permission(calendar, context=context)
-        if user_id is not None and calendar is not None
+        if reader and calendar is not None
         else None
     )
     attendees_list = getattr(event, "attendees", None) or []
@@ -301,7 +305,7 @@ def serialize_calendar_event_summary(
 def serialize_calendar_event(
     event: "CalendarEvent",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
     documents: Sequence[Related] = (),
 ) -> CalendarEventRead:
