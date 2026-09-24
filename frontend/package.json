@@ -156,7 +156,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/typo-js": "^1.2.2",
     "@vitejs/plugin-react": "^6.0.5",
-    "baseline-browser-mapping": "^2.11.11",
+    "baseline-browser-mapping": "^2.11.25",
     "cross-env": "^10.1.0",
     "emojibase-data": "^17.0.0",
     "fake-indexeddb": "^6.2.5",
