@@ -2452,6 +2452,58 @@ async def test_logout_revokes_refresh_session(
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_logout_with_an_expired_access_token_still_ends_the_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """A client whose access token has run out signs out with the refresh
+    token it holds, and that session stops renewing."""
+    user, password = await _make_login_user(session, "expired-logout@example.com")
+    login = await _login(client, "expired-logout@example.com", password)
+    captured = login.cookies.get("refresh_token")
+    expired = get_auth_token(user, expires_in=timedelta(seconds=-1))
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", captured, path="/api/v1/auth")
+    logout = await client.post(
+        "/api/v1/auth/logout", headers={"Authorization": f"Bearer {expired}"}
+    )
+    assert logout.status_code == 204
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", captured, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_with_no_access_token_ends_only_the_presented_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """Signing out without an access token ends the session the refresh token
+    names and leaves the account's other sign-ins renewing."""
+    _, password = await _make_login_user(session, "bare-logout@example.com")
+    first = await _login(client, "bare-logout@example.com", password)
+    elsewhere = first.cookies.get("refresh_token")
+    client.cookies.clear()
+    second = await _login(client, "bare-logout@example.com", password)
+    signing_out = second.cookies.get("refresh_token")
+
+    client.cookies.clear()
+    logout = await client.post(
+        "/api/v1/auth/logout", json={"refresh_token": signing_out}
+    )
+    assert logout.status_code == 204
+
+    client.cookies.set("refresh_token", signing_out, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 401
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", elsewhere, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 200
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_password_change_revokes_refresh_session(
     client: AsyncClient, session: AsyncSession
 ):

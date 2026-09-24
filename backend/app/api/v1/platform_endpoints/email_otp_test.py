@@ -25,6 +25,22 @@ async def _permit(session: AsyncSession, *, mail: bool = True) -> None:
     await session.commit()
 
 
+def _captcha_configured(monkeypatch) -> None:
+    """A deployment whose settings hold a captcha, as the process has read them."""
+    import time
+
+    from app.services import captcha_config
+
+    monkeypatch.setattr(
+        captcha_config,
+        "_resolved",
+        captcha_config.ResolvedCaptchaConfig(
+            provider="hcaptcha", site_key="site", secret_key="secret"
+        ),
+    )
+    monkeypatch.setattr(captcha_config, "_loaded_at", time.monotonic())
+
+
 def _catch_codes(monkeypatch) -> list[tuple[str, str]]:
     """Every code the routes post, as (address, code)."""
     from app.services import email as email_service
@@ -566,12 +582,8 @@ async def test_the_send_asks_for_the_captcha_where_one_is_configured(
     the captcha answers for the request rather than for the address — so it
     is checked before the address is looked at.
     """
-    from app.core.config import settings as app_config
-
     await _permit(session)
-    monkeypatch.setattr(app_config, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(app_config, "CAPTCHA_SITE_KEY", "site")
-    monkeypatch.setattr(app_config, "CAPTCHA_SECRET_KEY", "secret")
+    _captcha_configured(monkeypatch)
 
     refused = await client.post(SEND_URL, json={"email": "reader@example.com"})
 
@@ -583,15 +595,12 @@ async def test_the_send_takes_the_token_the_card_carries(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """With the token present the route answers as it does anywhere else."""
-    from app.core.config import settings as app_config
     from app.services import captcha as captcha_service
 
     await _permit(session)
     caught = _catch_codes(monkeypatch)
     await create_user(session, email="reader@example.com")
-    monkeypatch.setattr(app_config, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(app_config, "CAPTCHA_SITE_KEY", "site")
-    monkeypatch.setattr(app_config, "CAPTCHA_SECRET_KEY", "secret")
+    _captcha_configured(monkeypatch)
 
     async def _accept(token, *, remote_ip):
         assert token == "solved"
