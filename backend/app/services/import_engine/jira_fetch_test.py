@@ -265,12 +265,42 @@ async def test_the_row_budget_is_shared_across_projects(monkeypatch):
     """One enormous project must not eat the whole import's ceiling and leave
     the others empty without saying so."""
 
-    monkeypatch.setattr(import_limits, "IMPORT_MAX_ROWS", 3)
+    monkeypatch.setattr(import_limits, "IMPORT_FETCH_MAX_ROWS", 3)
     _site(monkeypatch, issues=[_issue(f"ACME-{i}", f"Task {i}") for i in range(10)])
     _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OTHER"])
 
     assert report.tasks == 3
     assert report.projects == 1
+    # Said, not merely done: one project was cut short and one left out.
+    assert report.projects_over_limit == ["ACME", "OTHER"]
+
+
+async def test_a_project_stopped_with_more_to_read_is_named(monkeypatch):
+    """The budget ran out exactly at a page boundary, with the site still
+    offering more: that project was not read in full either."""
+    monkeypatch.setattr(import_limits, "IMPORT_FETCH_MAX_ROWS", 2)
+    _site(
+        monkeypatch,
+        pages=[
+            ([_issue("ACME-1", "One"), _issue("ACME-2", "Two")], "cursor-1"),
+            ([_issue("ACME-3", "Three")], None),
+        ],
+    )
+    _payload, report = await _bundle(monkeypatch)
+    assert report.tasks == 2
+    assert report.projects_over_limit == ["ACME"]
+
+
+async def test_a_project_read_to_its_end_is_not_named(monkeypatch):
+    _site(
+        monkeypatch,
+        pages=[
+            ([_issue("ACME-1", "One")], "cursor-1"),
+            ([_issue("ACME-2", "Two")], None),
+        ],
+    )
+    _payload, report = await _bundle(monkeypatch)
+    assert report.projects_over_limit == []
 
 
 # --- when the site misbehaves ----------------------------------------------
@@ -820,9 +850,10 @@ async def test_comments_spend_the_row_budget(monkeypatch):
         "total": 2,
     }
     _site(monkeypatch, issues=[_issue("ACME-1", "One", comment=thread)])
-    monkeypatch.setattr(import_limits, "IMPORT_MAX_ROWS", 3)
+    monkeypatch.setattr(import_limits, "IMPORT_FETCH_MAX_ROWS", 3)
     _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OTHER"])
     assert report.projects == 1
+    assert report.projects_over_limit == ["OTHER"]
 
 
 # --- images --------------------------------------------------------------------

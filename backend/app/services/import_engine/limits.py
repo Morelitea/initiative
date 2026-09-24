@@ -29,3 +29,18 @@ IMPORT_FETCH_DEADLINE_SECONDS = 4 * 60 * 60
 #: import fetching or running at a time, whatever the slots allow.
 IMPORT_FETCH_SLOTS = 3
 IMPORT_APPLY_SLOTS = 2
+
+#: A bundle a fetch writes itself — read from an Atlassian site, or converted
+#: from a Confluence export — is bounded by these rather than by the upload
+#: bounds above, which exist for zips somebody else built. The community's
+#: storage quota narrows the attachment budget further (``jira_attachments``).
+#: Rows one fetch may bring: tasks, comments, pages, file documents.
+IMPORT_FETCH_MAX_ROWS = 250_000
+#: Declared uncompressed size of a fetched bundle, attachments and envelopes
+#: together. It is written to disk as it is read, so this is a disk bound.
+IMPORT_FETCH_MAX_BUNDLE_BYTES = 20 * 1024 * 1024 * 1024  # 20 GiB
+#: Members of a fetched bundle.
+IMPORT_FETCH_MAX_ZIP_MEMBERS = 250_000
+#: The converted content one Confluence space may carry; pages past it are
+#: reported and left behind.
+IMPORT_FETCH_MAX_SPACE_BYTES = 150 * 1024 * 1024  # 150 MiB

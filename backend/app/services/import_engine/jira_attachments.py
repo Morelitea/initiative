@@ -44,33 +44,44 @@ IMAGE_TYPES: dict[str, str] = {
 
 
 #: Held back from the bundle's byte and member bounds for the manifest and
-#: the envelopes, so attachments cannot crowd them out.
-_BUNDLE_RESERVE_BYTES = 64 * 1024 * 1024
-_BUNDLE_RESERVE_FILES = 500
+#: the envelopes, so attachments cannot crowd them out. Envelopes for a full
+#: row budget run to about a gigabyte.
+_BUNDLE_RESERVE_BYTES = 2 * 1024 * 1024 * 1024
+_BUNDLE_RESERVE_FILES = 1_000
 
 
 @dataclass
 class AssetBudget:
     """What the bundle can still hold, shared by everything one import reads.
 
-    Kept under the bounds the restore checks when it opens the zip — its
-    uncompressed size and its member count — with room left for the
-    manifest and the envelopes, so a bundle the fetch wrote is never one the
-    apply refuses whole.
+    Kept under the bounds a fetched bundle is opened with — its uncompressed
+    size and its member count — with room left for the manifest and the
+    envelopes, so a bundle the fetch wrote is never one the apply refuses
+    whole.
     """
 
     bytes_left: int
     files_left: int
 
 
-def bundle_budget() -> AssetBudget:
-    """A whole bundle's worth, before anything has been spent."""
+def bundle_budget(storage_left: int | None = None) -> AssetBudget:
+    """A whole fetched bundle's worth, before anything has been spent.
+
+    ``storage_left`` is what the community's storage quota still allows, when
+    it has one: attachments past it could never be restored, so they are not
+    downloaded either.
+    """
+    bytes_left = max(
+        0,
+        import_limits.IMPORT_FETCH_MAX_BUNDLE_BYTES - _BUNDLE_RESERVE_BYTES,
+    )
+    if storage_left is not None:
+        bytes_left = min(bytes_left, max(0, storage_left))
     return AssetBudget(
-        bytes_left=max(
-            0,
-            import_limits.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES - _BUNDLE_RESERVE_BYTES,
+        bytes_left=bytes_left,
+        files_left=max(
+            0, import_limits.IMPORT_FETCH_MAX_ZIP_MEMBERS - _BUNDLE_RESERVE_FILES
         ),
-        files_left=max(0, import_limits.IMPORT_MAX_ZIP_MEMBERS - _BUNDLE_RESERVE_FILES),
     )
 
 

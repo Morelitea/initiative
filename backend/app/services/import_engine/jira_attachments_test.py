@@ -210,3 +210,11 @@ async def test_other_files_come_over_as_documents_when_asked_for():
     (pdf,) = report.files_by_issue["ACME-1"]
     assert pdf.filename == "spec.pdf" and pdf.storage_key.endswith(".pdf")
     assert report.file_bytes == pdf.size_bytes == len(store.kept[pdf.storage_key])
+
+
+def test_a_fetched_bundle_is_bounded_by_the_communitys_storage_left():
+    unbounded = ja.bundle_budget()
+    assert unbounded.bytes_left > 10 * 1024 * 1024 * 1024
+    assert ja.bundle_budget(5_000).bytes_left == 5_000
+    assert ja.bundle_budget(-1).bytes_left == 0
+    assert ja.bundle_budget(5_000).files_left == unbounded.files_left

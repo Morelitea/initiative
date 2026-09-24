@@ -327,6 +327,7 @@ describe("JiraReviewSummary", () => {
                 properties: [{ name: "Story points", type: "number", issue_count: 18 }],
                 dropped_fields: ["Watchers too"],
                 unreadable_projects: ["HR"],
+                projects_over_limit: ["OPS"],
               },
             },
           }) as never
@@ -350,6 +351,7 @@ describe("JiraReviewSummary", () => {
 
     expect(screen.getByText(/not coming across/i)).toBeInTheDocument();
     expect(screen.getByText(/can't read: HR/i)).toBeInTheDocument();
+    expect(screen.getByText(/reached its size limit: OPS/i)).toBeInTheDocument();
     expect(screen.getByText(/2 links to issues you didn't pick/i)).toBeInTheDocument();
     expect(screen.getByText(/1 comment only some people/i)).toBeInTheDocument();
     expect(screen.getByText(/4 sprints:/i)).toBeInTheDocument();

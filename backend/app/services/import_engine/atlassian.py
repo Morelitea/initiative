@@ -193,6 +193,14 @@ def throttled(beat: Callable[[], Awaitable[None]] | None) -> Heartbeat:
     return tick
 
 
+@dataclass
+class Walk:
+    """Whether a paged read reached the end of what the site had, rather than
+    stopping at a bound of ours. Set by the read; ``False`` until it is."""
+
+    complete: bool = False
+
+
 @dataclass(frozen=True)
 class AtlassianCredential:
     """What one site needs to be read, held for the length of a call.

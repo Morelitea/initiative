@@ -628,6 +628,27 @@ async def get_upload_metadata_for_urls(
 _QUOTA_LOCK_NAMESPACE = 0x53544F52  # 1397114706
 
 
+async def storage_left(session, *, guild_id: int) -> int | None:
+    """What the guild's ``max_storage_bytes`` still allows, or ``None`` when it
+    has no limit. A reading for planning, not a reservation: the write that
+    follows still goes through :func:`enforce_storage_quota`. Runs under the
+    guild-routed RLS session, like the usage it reads."""
+    from sqlmodel import select
+
+    from app.models.platform.guild_administration import GuildAdministration
+
+    limit = (
+        await session.exec(
+            select(GuildAdministration.max_storage_bytes).where(
+                GuildAdministration.guild_id == guild_id
+            )
+        )
+    ).one_or_none()
+    if limit is None:
+        return None
+    return max(0, limit - await get_guild_storage_usage(session))
+
+
 async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) -> None:
     """Reject an upload that would exceed the guild's ``max_storage_bytes``.
 
