@@ -46,6 +46,7 @@ from app.services.import_engine.importers._base import (
 )
 from app.services.import_engine.links import links_to_pages, wiki_page_slug_ref
 from app.services.import_engine.mentions import MENTION_HANDLE, place_mention_node
+from app.services.import_engine.references import note_or_settle
 from app.services.import_engine.people import PeopleMap, quoted_account
 from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
@@ -282,6 +283,11 @@ class WikiImporter:
             if linked is not None:
                 row.content = linked
                 session.add(row)
+            # An exported page's references wait for the rest of the job: what
+            # they name may be in an entry that has not been applied yet.
+            row.content = note_or_settle(
+                context, SearchEntityType.wiki_page, row.id, row.content
+            )
             comment_count += await _write_comments(
                 session,
                 page_env,

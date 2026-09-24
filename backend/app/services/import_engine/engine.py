@@ -271,14 +271,20 @@ async def apply_one_envelope(
     from app.services.import_engine.context import (
         ImportContext,
         excluded_property_names,
+        exported_from_here,
     )
     from app.services.import_engine.people import resolve_people_map
+    from app.services.import_engine.references import resolve_references
 
+    guild_id = routed_guild_id(session)
     context = ImportContext(
-        people=await resolve_people_map(
-            session, guild_id=routed_guild_id(session), raw=people_map
-        ),
+        people=await resolve_people_map(session, guild_id=guild_id, raw=people_map),
         excluded_properties=excluded_property_names(exclude_properties),
+        same_community=exported_from_here(
+            getattr(envelope, "source_instance_url", None),
+            getattr(envelope, "source_guild_id", None),
+            guild_id=guild_id,
+        ),
     )
     result = await importer.apply(
         session,
@@ -290,6 +296,7 @@ async def apply_one_envelope(
     resolution = await context.links.resolve(session, created_by=user.id)
     result.links_created = resolution.created
     result.links_unresolved = resolution.unresolved
+    await resolve_references(session, context, author_id=user.id)
     return result
 
 

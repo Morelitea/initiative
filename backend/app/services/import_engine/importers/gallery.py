@@ -21,6 +21,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
@@ -136,6 +137,10 @@ class GalleryImporter(QuotesNobody):
             )
             session.add(row)
             await session.flush()
+            if context is not None:
+                context.links.register(
+                    image_env.external_ref, SearchEntityType.gallery_image, row.id
+                )
             created += 1
             if env.cover and key == env.cover:
                 cover_id = row.id

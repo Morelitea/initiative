@@ -703,6 +703,10 @@ async def test_smart_link_exports_the_importable_document_envelope(
         "content": {"url": "https://example.com/spec"},
         "tags": [],
         "properties": [],
+        # Where it was taken, so an import can tell whether an id in it still
+        # names the same thing.
+        "source_instance_url": settings.APP_URL,
+        "source_guild_id": a.guild.id,
     }
 
 

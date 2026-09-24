@@ -44,6 +44,28 @@ class ImportContext:
     #: ``(document ref, wiki ref, page slug)``: the wiki's own importer knows
     #: its pages by slug, and the document is applied before the wiki is.
     placements: list[tuple[str, str, str]] = field(default_factory=list)
+    #: Whether what is being imported was exported from this community on this
+    #: server. A reference to something the export did not carry still names
+    #: the thing it named then, so it keeps pointing at it rather than being
+    #: reduced to its title.
+    same_community: bool = False
+
+
+def exported_from_here(
+    source_instance_url: Any, source_guild_id: Any, *, guild_id: int | None
+) -> bool:
+    """Whether an export names this server and this community as where it was
+    taken. Both have to match: a community id is only unique on its own
+    server, and an export that says nothing about either is from elsewhere."""
+    from app.core.config import settings
+
+    if not isinstance(source_guild_id, int) or source_guild_id != guild_id:
+        return False
+    if not isinstance(source_instance_url, str) or not source_instance_url.strip():
+        return False
+    return source_instance_url.strip().rstrip("/") == settings.APP_URL.strip().rstrip(
+        "/"
+    )
 
 
 def excluded_property_names(raw: Any) -> frozenset[str]:

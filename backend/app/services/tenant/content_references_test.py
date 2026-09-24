@@ -106,6 +106,19 @@ def test_a_hash_in_running_text_is_a_reference():
     assert references_in_text("see #task[Fix the bug](12) first") == {(TASK, 12)}
 
 
+def test_a_hash_reads_every_spelling_the_composer_writes():
+    """The composer kebabs a kind after ``#`` and once wrote ``#doc``; both
+    name the same things the kind's own spelling does."""
+    assert references_in_text(
+        "#wiki-page[Start](3) #counter-group[Tally](4) #doc[Spec](5) #wiki_page[A](6)"
+    ) == {
+        (SearchEntityType.wiki_page, 3),
+        (SearchEntityType.counter_group, 4),
+        (SearchEntityType.document, 5),
+        (SearchEntityType.wiki_page, 6),
+    }
+
+
 def test_a_hash_naming_no_known_kind_is_not_a_reference():
     assert references_in_text("#widget[Nope](3)") == set()
 

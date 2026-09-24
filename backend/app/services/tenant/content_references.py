@@ -115,13 +115,13 @@ async def sync_for_comment(
     change what the conversation says, and none of them is a change to the
     comment's own edges, because a comment has none.
     """
-    parent = _comment_parent(comment)
+    parent = comment_parent(comment)
     if parent is None:
         return
     await sync_for_entity(
         session,
         parent,
-        body=await _own_body(session, parent),
+        body=await own_body(session, parent),
         author_id=author_id,
     )
 
@@ -150,7 +150,7 @@ async def referencing_documents(
     return list(rows.all())
 
 
-def _comment_parent(comment: Comment) -> Endpoint | None:
+def comment_parent(comment: Comment) -> Endpoint | None:
     """The thing a comment is about, as an edge would name it."""
     for kind, column in _COMMENT_COLUMNS.items():
         entity_id = getattr(comment, column, None)
@@ -159,7 +159,7 @@ def _comment_parent(comment: Comment) -> Endpoint | None:
     return None
 
 
-async def _own_body(session: AsyncSession, entity: Endpoint) -> Any:
+async def own_body(session: AsyncSession, entity: Endpoint) -> Any:
     """A thing's stored body, or None if its kind has none."""
     source = BODY_COLUMNS.get(entity.kind)
     if source is None:

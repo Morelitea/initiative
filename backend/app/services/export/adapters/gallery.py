@@ -109,4 +109,6 @@ def _image_envelope(image: GalleryImage) -> dict[str, Any]:
         "width": image.width,
         "height": image.height,
         "tags": sorted(tag.name for tag in getattr(image, "tags", None) or []),
+        # What a reference to this picture points at across one import.
+        "external_ref": f"gallery_image:{image.id}",
     }

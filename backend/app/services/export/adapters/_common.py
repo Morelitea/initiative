@@ -183,10 +183,16 @@ class ToolExportAdapter:
             # An envelope names people by handle, never by id — including the
             # people its body mentions, which the item builders cannot look
             # up because they hold no session.
+            # Nor does it name other things by id: each reference carries the
+            # ref it had, for the import to point at whatever that became.
             from app.services.import_engine.mentions import detach_envelope_mentions
+            from app.services.import_engine.references import (
+                detach_envelope_references,
+            )
 
             for item in batch:
                 await detach_envelope_mentions(session, item.data)
+                detach_envelope_references(item.data, guild_id=guild_id)
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,

@@ -83,6 +83,10 @@ class LinkCollector:
     #: Tasks and comments whose text links to a page on the source site —
     #: rewritten once every page has been written (:func:`rewrite_page_links`).
     _bodies: list[tuple[SearchEntityType, int]] = field(default_factory=list)
+    #: Rows whose body names things by the ref they had where it was exported
+    #: — placed once every entry has been written
+    #: (:func:`app.services.import_engine.references.resolve_references`).
+    _referencing: list[tuple[SearchEntityType, int]] = field(default_factory=list)
 
     def lookup(self, ref: str) -> Optional[Endpoint]:
         """The row a ref names, if it has been written yet this job."""
@@ -97,6 +101,16 @@ class LinkCollector:
     def take_bodies(self) -> list[tuple[SearchEntityType, int]]:
         bodies, self._bodies = self._bodies, []
         return bodies
+
+    def note_references(self, kind: SearchEntityType, entity_id: int) -> None:
+        """Say that this row's body names things by their exported refs, so
+        the job comes back to it once everything it names could exist."""
+        if (kind, entity_id) not in self._referencing:
+            self._referencing.append((kind, entity_id))
+
+    def take_references(self) -> list[tuple[SearchEntityType, int]]:
+        noted, self._referencing = self._referencing, []
+        return noted
 
     def register(
         self, ref: str | None, kind: SearchEntityType, entity_id: int | None

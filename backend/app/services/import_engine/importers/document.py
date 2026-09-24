@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.core.messages import ImportEngineMessages
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
@@ -29,6 +30,7 @@ from app.services.import_engine.contract import (
 )
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.mentions import place_mentions
+from app.services.import_engine.references import note_or_settle
 from app.services.import_engine.people import PeopleMap
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
@@ -109,6 +111,10 @@ class DocumentImporter(NamesPeopleInPassing):
         )
         session.add(document)
         await session.flush()
+        # What its references name is placed once the rest of the job exists.
+        document.content = note_or_settle(
+            context, SearchEntityType.document, document.id, document.content
+        )
 
         await grant_ownership(
             session,

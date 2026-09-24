@@ -1414,8 +1414,10 @@ class _ScopeBuilder:
         self, item: RenderItem, *, path: str, **entry_kwargs
     ) -> None:
         from app.services.import_engine.mentions import detach_envelope_mentions
+        from app.services.import_engine.references import detach_envelope_references
 
         await detach_envelope_mentions(self.session, item.data)
+        detach_envelope_references(item.data, guild_id=self.guild_id)
         self._record_property_people(item.data, entry_kwargs.get("properties"))
         self._record_mentioned_people(item.data)
         self.items.append(replace(item, filename=path, format="json"))

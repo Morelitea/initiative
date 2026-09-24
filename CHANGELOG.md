@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Every kind of document opens properly inside a wiki.
 - Sign-in group rules place only people the community's own connection recognises.
 - On servers that keep files in S3, backup restores and large imports finish instead of failing when they are applied.
+- A restored backup, or a single exported project, document, post or wiki, now links its mentions, `#` references, `[[ ]]` links and smart chips to the right people and things. A reference to something the backup didn't carry keeps pointing at the original in the community it came from, and is its name anywhere else.
+- `#` references to wiki pages, counter groups and other two-word tools in comments now count in **Linked from**.
 - Other fixes: task table columns no longer jump while scrolling, tags shorten to fit the space they have, export formats show their names, broken and missing pages get a proper error page, restored backups keep comment replies in their threads, imports ask about everyone they mention, and access-request notifications open the right page.
 
 ## [0.71.3] - 2026-09-21

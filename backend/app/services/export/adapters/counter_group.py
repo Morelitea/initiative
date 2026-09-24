@@ -108,6 +108,9 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
                 "initial_count": _number(counter.initial_count),
                 "view_mode": counter.view_mode.value,
                 "position": _number(counter.position),
+                # What a reference to this counter — a chip reading its value
+                # — points at across one import.
+                "external_ref": f"counter:{counter.id}",
             }
             for counter in group.counters
         ],
