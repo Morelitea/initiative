@@ -96,7 +96,8 @@ async def test_the_frame_carries_identifiers_and_nothing_else(session, acting_us
 
         assert watcher.changes, "the room heard nothing"
         for change in watcher.changes:
-            assert set(change) == {"resource", "parents", "action"}
+            assert set(change) == {"resource", "parents", "initiative_id", "action"}
+            assert change["initiative_id"] == a.initiative.id
             assert set(change["resource"]) == {"type", "id"}
             assert all(set(p) == {"type", "id"} for p in change["parents"])
 
@@ -363,6 +364,7 @@ def test_one_row_written_repeatedly_is_one_change() -> None:
         {
             "resource": {"type": "tasks", "id": 4},
             "parents": [{"type": "projects", "id": 7}],
+            "initiative_id": 1,
             "action": "updated",
         }
     ]

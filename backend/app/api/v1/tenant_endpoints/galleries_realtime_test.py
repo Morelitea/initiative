@@ -83,7 +83,10 @@ async def test_a_picture_arriving_tells_the_room_about_its_gallery(
         assert all(
             c["resource"] == {"type": "galleries", "id": gallery.id} for c in changes
         )
-        assert all(set(c) == {"resource", "parents", "action"} for c in changes)
+        assert all(
+            set(c) == {"resource", "parents", "initiative_id", "action"}
+            for c in changes
+        )
 
 
 @pytest.mark.asyncio

@@ -3,8 +3,11 @@ import { useEffect } from "react";
 
 import { apiClient, getAuthToken } from "@/api/client";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { DashboardDataResponse } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q, type Spec } from "@/api/query-keys";
+import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
+import { queryClient } from "@/lib/queryClient";
 import { TOOLS, toolPlural } from "@/lib/tools";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
@@ -30,6 +33,8 @@ export type ResourceRef = { type: string; id: number };
 export type RealtimeChange = {
   resource?: ResourceRef;
   parents?: ResourceRef[];
+  /** The initiative the change is in, or null for the guild's own. */
+  initiative_id?: number | null;
   action?: string;
 };
 
@@ -109,7 +114,7 @@ const refKey = (ref: ResourceRef) => `${ref.type}:${ref.id}`;
  * so three hundred comments on one task cost the same single walk as one — and
  * the repeats among them collapse when the specs merge.
  */
-export const applyChanges = (changes: readonly RealtimeChange[]) => {
+export const applyChanges = (changes: readonly RealtimeChange[], guildId?: number) => {
   const refs = new Map<string, ResourceRef>();
   const effects = new Map<string, [string, ResourceRef]>();
 
@@ -135,6 +140,21 @@ export const applyChanges = (changes: readonly RealtimeChange[]) => {
     specs.push(...(PARENT_SPECS[childType]?.(parent) ?? []));
   }
   if (specs.length > 0) void invalidate(...specs);
+
+  // A dashboard's answer is keyed by the dashboard, not by anything a change
+  // names, so it is matched by what its widgets read: stale when a change is
+  // to one of those tables, in its initiative. Initiative ids are per guild,
+  // so only this guild's canvases are asked.
+  if (guildId !== undefined) {
+    const [scope, kind] = dashboardDataKey(guildId, 0);
+    void queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === scope &&
+        query.queryKey[1] === kind &&
+        query.queryKey[2] === guildId &&
+        canvasIsStale(query.state.data as DashboardDataResponse | undefined, changes),
+    });
+  }
 };
 
 export const useRealtimeUpdates = () => {
@@ -175,7 +195,7 @@ export const useRealtimeUpdates = () => {
         frameTimer = null;
         const batch = pending;
         pending = [];
-        applyChanges(batch);
+        applyChanges(batch, routeGuildId);
       }, FRAME_DEBOUNCE_MS);
     };
 

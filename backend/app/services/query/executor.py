@@ -43,6 +43,7 @@ from app.core.messages import QueryMessages
 from app.db import session as db_session
 from app.db.session import set_rls_context
 from app.services.fields.spec import FieldType
+from app.services.query.canvas import compile_canvas
 from app.services.query.resolve import QueryError, ResolvedQuery, resolve
 
 
@@ -178,6 +179,9 @@ async def _described(
 QUERY_MAX_CONCURRENT_PER_GUILD = 2
 #: How long one statement may run.
 QUERY_STATEMENT_TIMEOUT_MS = 5_000
+#: How long a whole canvas's compiled statement may run. Past it, each widget
+#: is run on its own under :data:`QUERY_STATEMENT_TIMEOUT_MS`.
+QUERY_CANVAS_TIMEOUT_MS = 10_000
 #: Sort/hash memory per statement, as a PostgreSQL size.
 QUERY_WORK_MEM = "16MB"
 #: The planner's estimate above which a statement is refused unrun.
@@ -221,19 +225,20 @@ _TRANSACTION_LIMITS = text(
 )
 
 
-async def _bound_transaction(connection: Any) -> None:
+async def _bound_transaction(connection: Any, *, timeout_ms: int | None = None) -> None:
     """Put the limits on the transaction, before anything of the reader's runs.
 
     Issued through SQLAlchemy rather than the driver underneath it, so they
     land inside the transaction it is managing — all four are local to one, and
     ``SET TRANSACTION READ ONLY`` has to be the first thing in it, ahead of the
-    statement that sets the rest.
+    statement that sets the rest. *timeout_ms* defaults to one statement's
+    bound.
     """
     await connection.exec_driver_sql("SET TRANSACTION READ ONLY")
     await connection.execute(
         _TRANSACTION_LIMITS,
         {
-            "statement_timeout": str(QUERY_STATEMENT_TIMEOUT_MS),
+            "statement_timeout": str(timeout_ms or QUERY_STATEMENT_TIMEOUT_MS),
             "work_mem": QUERY_WORK_MEM,
         },
     )
@@ -411,3 +416,145 @@ async def describe(
             columns = await _described(connection, prepared, statement)
             await session.rollback()
             return columns, statement.relations
+
+
+def _from_json(value: Any, type_name: str) -> Any:
+    """One value of a compiled canvas's rows, in the spelling :func:`_wire`
+    gives the same value read on its own.
+
+    The compiled statement returns its rows as JSON, which spells a moment as
+    ISO text and a JSON document as structure; the widgets take epoch
+    milliseconds and the document's text, as they do from a single query.
+    """
+    if value is None:
+        return None
+    if type_name in _DATE_TYPES and isinstance(value, str):
+        try:
+            moment = (
+                date.fromisoformat(value)
+                if type_name == "date"
+                else datetime.fromisoformat(value)
+            )
+        except ValueError:
+            # ``infinity`` and its like have no instant to convert to.
+            return value
+        return _wire(moment)
+    if type_name == "numeric" and isinstance(value, (int, float)):
+        return float(value)
+    if type_name in {"json", "jsonb"}:
+        return json.dumps(value)
+    return value
+
+
+async def _run_compiled(
+    statements: Mapping[str, ResolvedQuery],
+    *,
+    guild_id: int,
+    routed: Mapping[str, Any],
+) -> dict[str, QueryResult]:
+    """Every statement in *statements*, as one compiled statement, in one
+    transaction holding one slot."""
+    keys = list(statements)
+    async with AsyncSession(db_session.query_engine) as session:
+        await session.begin()
+        sqlalchemy_connection = await session.connection()
+        raw = await sqlalchemy_connection.get_raw_connection()
+        connection = raw.driver_connection
+
+        await _bound_transaction(
+            sqlalchemy_connection, timeout_ms=QUERY_CANVAS_TIMEOUT_MS
+        )
+        if not await _claim_a_slot(connection, guild_id):
+            raise QueryError(QueryMessages.BUSY, str(guild_id))
+        await set_rls_context(session, **routed)
+
+        # Each widget is prepared — planned, not run — for the columns it
+        # returns, which the JSON the compiled statement answers with does not
+        # carry.
+        shapes = []
+        for key in keys:
+            prepared = await connection.prepare(statements[key].sql)
+            columns = await _described(connection, prepared, statements[key])
+            type_names = [a.type.name for a in prepared.get_attributes()]
+            shapes.append((columns, type_names))
+
+        compiled = compile_canvas(
+            [statements[key] for key in keys], row_limit=QUERY_MAX_ROWS + 1
+        )
+        plan = await connection.fetchval(
+            "EXPLAIN (FORMAT JSON) " + compiled.sql, *compiled.parameters
+        )
+        document = json.loads(plan) if isinstance(plan, str) else plan
+        cost = float(document[0]["Plan"]["Total Cost"])
+        if cost > QUERY_MAX_COST * len(keys):
+            raise QueryError(QueryMessages.TOO_EXPENSIVE, f"{cost:.0f}")
+
+        record = await connection.fetchrow(compiled.sql, *compiled.parameters)
+        await session.rollback()
+
+    results: dict[str, QueryResult] = {}
+    for index, key in enumerate(keys):
+        columns, type_names = shapes[index]
+        answered = record[index] if record is not None else None
+        rows = json.loads(answered) if isinstance(answered, str) else (answered or [])
+        truncated = len(rows) > QUERY_MAX_ROWS
+        results[key] = QueryResult(
+            columns=columns,
+            rows=tuple(
+                tuple(
+                    _from_json(row.get(f"f{position + 1}"), type_name)
+                    for position, type_name in enumerate(type_names)
+                )
+                for row in rows[:QUERY_MAX_ROWS]
+            ),
+            cost=cost,
+            truncated=truncated,
+            relations=statements[key].relations,
+        )
+    return results
+
+
+async def execute_canvas(
+    statements: Mapping[str, ResolvedQuery],
+    *,
+    context: Mapping[str, Any],
+    initiative_id: int | None = None,
+    via_dashboard_id: int | None = None,
+) -> dict[str, QueryResult | QueryError]:
+    """Run every widget on a canvas, keyed as *statements* is.
+
+    The statements are compiled into one (:mod:`app.services.query.canvas`)
+    and run in one transaction holding one of the guild's slots, under the
+    same context, role, limits and narrowing as :func:`execute`. A dataset
+    several widgets read is read once.
+
+    One widget failing, or the whole canvas running past its time or cost,
+    fails the compiled statement. The widgets are then run one at a time
+    through :func:`execute`, so each answers or refuses on its own. A guild
+    with no free slot refuses the canvas as a whole.
+    """
+    if not statements:
+        return {}
+    guild_id = _routed_guild(context)
+    routed = _scoped(context, initiative_id, via_dashboard_id)
+    try:
+        async with _translated_failures():
+            return dict(
+                await _run_compiled(statements, guild_id=guild_id, routed=routed)
+            )
+    except QueryError as refused:
+        if refused.code == QueryMessages.BUSY:
+            raise
+
+    outcomes: dict[str, QueryResult | QueryError] = {}
+    for key, statement in statements.items():
+        try:
+            outcomes[key] = await execute(
+                statement,
+                context=context,
+                initiative_id=initiative_id,
+                via_dashboard_id=via_dashboard_id,
+            )
+        except QueryError as refused:
+            outcomes[key] = refused
+    return outcomes

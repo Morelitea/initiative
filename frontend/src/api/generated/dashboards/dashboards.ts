@@ -22,6 +22,7 @@ import type {
 
 import type {
   DashboardCreate,
+  DashboardDataResponse,
   DashboardInstalledListings,
   DashboardListResponse,
   DashboardRead,
@@ -1452,6 +1453,195 @@ export const useUpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost = 
   );
 };
 /**
+ * Answer every query widget on this dashboard at once.
+ *
+ * The canvas is one unit of work: its gates are asked once, its widgets'
+ * statements run as one statement in one transaction, and every tile reads
+ * the same moment. A widget whose statement is refused says so in its own
+ * entry; the rest still answer. What runs is each widget's own stored
+ * statement, as for :func:`run_widget_query`.
+ * @summary Load Dashboard Data
+ */
+export const loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet = (
+  guildId: number,
+  dashboardId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DashboardDataResponse>(
+    { url: `/api/v1/g/${guildId}/dashboards/${dashboardId}/data`, method: "GET", signal },
+    options
+  );
+};
+
+export const getLoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGetQueryKey = (
+  guildId: number,
+  dashboardId: number
+) => {
+  return [`/api/v1/g/${guildId}/dashboards/${dashboardId}/data`] as const;
+};
+
+export const getLoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  dashboardId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getLoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGetQueryKey(guildId, dashboardId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>
+  > = ({ signal }) =>
+    loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet(
+      guildId,
+      dashboardId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      dashboardId !== null &&
+      dashboardId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type LoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>
+>;
+export type LoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useLoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet<
+  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  dashboardId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+          TError,
+          Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useLoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet<
+  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  dashboardId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+          TError,
+          Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useLoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet<
+  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  dashboardId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Load Dashboard Data
+ */
+
+export function useLoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet<
+  TData = Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  dashboardId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof loadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getLoadDashboardDataApiV1GGuildIdDashboardsDashboardIdDataGetQueryOptions(
+    guildId,
+    dashboardId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * Run the statement stored on one of this dashboard's widgets.
  *
  * What runs is the widget's own, never one the request supplies. That is what
@@ -1460,7 +1650,8 @@ export const useUpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost = 
  * a different one of them.
  *
  * The dashboard's own four gates decide whether this caller sees anything at
- * all, and they run first.
+ * all, and they run first. The canvas loads through
+ * :func:`load_dashboard_data`; this answers one widget, for the builder.
  * @summary Run Widget Query
  */
 export const runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet = (
