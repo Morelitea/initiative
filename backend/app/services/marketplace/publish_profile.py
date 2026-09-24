@@ -15,8 +15,10 @@ What goes:
 * **Links to anything outside the item.** A task's link to another task in the
   same project survives; one to anything else is dropped, and a reference in a
   body is reduced to its label.
-* **Uploads.** Pictures and files an item uses stay in the community that holds
-  them.
+* **Uploads.** A file in the community's own storage stays there. A picture
+  shared with the item travels as the catalogue's own copy
+  (``listing_assets``), named by the path the catalogue serves it from; any
+  other reference into a community's uploads is dropped.
 * **When it happened.** Created, updated and archived times describe the
   original, not the copy.
 
@@ -67,8 +69,8 @@ _MENTION_NODES = frozenset({"mention", "custom-mention"})
 #: the same wiki is part of the wiki.
 _REFERENCE_NODES = frozenset({"entity-mention", "smart-chip"})
 
-#: Editor nodes that carry an upload.
-_UPLOAD_NODES = frozenset({"image"})
+#: Editor nodes that carry a picture.
+_IMAGE_NODES = frozenset({"image"})
 
 
 # --- editor bodies ----------------------------------------------------------
@@ -91,9 +93,16 @@ def _mention_text(node: dict[str, Any]) -> str:
     return f"@{name}" if name else ""
 
 
+def _carried(value: Any) -> bool:
+    """Whether a reference names a picture the catalogue keeps."""
+    from app.services.marketplace.media import digest_of
+
+    return digest_of(value) is not None
+
+
 def _clean_editor_state(content: Any) -> Any:
     """An editor body with its mentions and references as plain words, and
-    its uploads gone."""
+    every picture the catalogue does not keep gone."""
     if not isinstance(content, dict) or not isinstance(content.get("root"), dict):
         return content
 
@@ -113,7 +122,9 @@ def _clean_editor_state(content: Any) -> Any:
                     walk(child)
                     for child in children
                     if not (
-                        isinstance(child, dict) and child.get("type") in _UPLOAD_NODES
+                        isinstance(child, dict)
+                        and child.get("type") in _IMAGE_NODES
+                        and not _carried(child.get("src"))
                     )
                 ],
             }
@@ -190,9 +201,6 @@ def _strip_document(env: dict[str, Any]) -> None:
     content = env.get("content")
     if env.get("document_type") == "native":
         env["content"] = _clean_editor_state(content)
-    elif env.get("document_type") == "whiteboard" and isinstance(content, dict):
-        # A whiteboard's pictures are uploads, carried beside its drawing.
-        env["content"] = {**content, "files": {}}
 
 
 def _strip_post(env: dict[str, Any]) -> None:
@@ -229,8 +237,13 @@ def _strip_queue(env: dict[str, Any]) -> None:
 
 
 def _strip_gallery(env: dict[str, Any]) -> None:
-    env["cover"] = None
-    env["images"] = []
+    env["images"] = [
+        image
+        for image in env.get("images") or []
+        if isinstance(image, dict) and _carried(image.get("storage_key"))
+    ]
+    if not _carried(env.get("cover")):
+        env["cover"] = None
 
 
 def _strip_nothing(env: dict[str, Any]) -> None:
@@ -259,9 +272,18 @@ def strip_for_listing(tool: Tool, envelope: dict[str, Any]) -> dict[str, Any]:
     """
     import copy
 
+    from app.services.tenant.attachments import (
+        extract_upload_urls,
+        replace_upload_urls,
+    )
+
     stripped = copy.deepcopy(envelope)
     _STRIPPERS[tool](stripped)
-    return stripped
+    # Whatever still points into a community's uploads — a whiteboard's
+    # picture, a link in a body — points nowhere once it leaves.
+    return replace_upload_urls(
+        stripped, {url: "" for url in extract_upload_urls(stripped)}
+    )
 
 
 # --- dates ------------------------------------------------------------------
