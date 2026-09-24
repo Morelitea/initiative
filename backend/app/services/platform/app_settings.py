@@ -419,6 +419,7 @@ COMMUNITY_FIELDS: tuple[str, ...] = (
     "deleted_community_retention_days",
     "deleted_account_retention_days",
 )
+MARKETPLACE_FIELDS: tuple[str, ...] = ("marketplace_members_publish_directly",)
 EMAIL_FIELDS: tuple[str, ...] = (
     "smtp_host",
     "smtp_port",
@@ -554,6 +555,40 @@ async def direct_messages_enabled(session: AsyncSession) -> bool:
     """
     settings_row = await get_app_settings(session)
     return bool(settings_row.direct_messages_enabled)
+
+
+async def marketplace_members_publish_directly(session: AsyncSession) -> bool:
+    """Whether a member's share to the marketplace skips the owner's review.
+
+    The one read of the switch, taken when a share is submitted: a version
+    submitted while it was off keeps waiting after it is turned on.
+    """
+    settings_row = await get_app_settings(session)
+    return bool(settings_row.marketplace_members_publish_directly)
+
+
+async def update_marketplace_settings(
+    session: AsyncSession,
+    *,
+    members_publish_directly: bool,
+    actor_user_id: int,
+) -> AppSetting:
+    """Set whether members' shares go on the shelf without review."""
+    settings_row = await ensure_settings_row(session)
+    before = audit_service.snapshot(settings_row, MARKETPLACE_FIELDS)
+    settings_row.marketplace_members_publish_directly = bool(members_publish_directly)
+    session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="marketplace",
+        before=before,
+        row=settings_row,
+        fields=MARKETPLACE_FIELDS,
+    )
+    await session.commit()
+    await session.refresh(settings_row)
+    return settings_row
 
 
 async def update_community_settings(

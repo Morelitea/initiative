@@ -253,6 +253,14 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
 
+    # Whether a member's share to this deployment's marketplace goes on the
+    # shelf straight away. Off by default: each one waits for the owner to
+    # approve it. A deployment whose members all know each other turns it on.
+    marketplace_members_publish_directly: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # The direct-message policy a newly created account starts on. Read once,
     # when the account is created, and copied into its ``user_dm_settings`` row;
     # changing it later moves nobody, so raising it opens no existing account

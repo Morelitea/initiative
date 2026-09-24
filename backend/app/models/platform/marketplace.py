@@ -122,6 +122,18 @@ class MarketplaceListing(SQLModel, table=True):
         default=None,
         sa_column=Column(String(UID_LENGTH), nullable=True, index=True),
     )
+    # Who shared a ``local`` listing, when a member did: the one account that
+    # may publish a new version of it or take it down. NULL for every other
+    # source, and for one the operator uploaded.
+    submitted_by: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+    )
     # False once a registry withdraws a listing. Never deleted: installed
     # instances keep working and keep their provenance.
     available: bool = Field(
@@ -198,6 +210,13 @@ class MarketplaceListingVersion(SQLModel, table=True):
     published_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    # A version a member shared that the operator has not yet approved. It is
+    # stored but not the listing's latest, so nothing offers or installs it;
+    # approving it makes it the latest, and refusing it deletes it.
+    awaiting_review: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
     listing: Optional[MarketplaceListing] = Relationship(

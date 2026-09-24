@@ -186,6 +186,16 @@ class AuditEventType(str, Enum):
     #: An operator re-read the catalogue sources; carries what was published
     #: and withdrawn.
     MARKETPLACE_CATALOG_REFRESHED = "marketplace.catalog_refreshed"
+    #: A member shared an item from a community to this deployment's
+    #: marketplace; carries the listing, its version, and whether it waits for
+    #: review.
+    MARKETPLACE_LISTING_SHARED = "marketplace.listing_shared"
+    #: The owner approved or refused a shared version.
+    MARKETPLACE_LISTING_REVIEWED = "marketplace.listing_reviewed"
+    #: The owner uploaded a listing file.
+    MARKETPLACE_LISTING_UPLOADED = "marketplace.listing_uploaded"
+    #: A member took down a listing they shared.
+    MARKETPLACE_LISTING_WITHDRAWN = "marketplace.listing_withdrawn"
     #: An installed app's own settings or configuration.
     APP_UPDATED = "app.updated"
 
@@ -489,6 +499,18 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.MARKETPLACE_CATALOG_REFRESHED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.MARKETPLACE_LISTING_SHARED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.MARKETPLACE_LISTING_REVIEWED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.MARKETPLACE_LISTING_UPLOADED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.MARKETPLACE_LISTING_WITHDRAWN: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.APP_UPDATED: AuditEventMeta(

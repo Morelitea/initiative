@@ -23,10 +23,17 @@ import type {
 import type {
   HTTPValidationError,
   ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  ListingUploadRequest,
+  ListingUploadResult,
   MarketplaceInstallRequest,
   MarketplaceInstallResult,
   MarketplaceListingDetail,
   MarketplaceListingPage,
+  MarketplaceLocalSettings,
+  MarketplacePendingVersionRead,
+  MarketplaceShareRequest,
+  MarketplaceShareResult,
+  MarketplaceSharedListingRead,
   OperatorCatalogScanResult,
   RegistryRefreshRead,
   RegistryStatusRead,
@@ -383,6 +390,960 @@ export const useRefreshRegistryNowApiV1MarketplaceRegistryRefreshPost = <
 > => {
   return useMutation(
     getRefreshRegistryNowApiV1MarketplaceRegistryRefreshPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * How this deployment takes its members' shares (``config.manage``).
+ * @summary Read Local Marketplace Settings
+ */
+export const readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MarketplaceLocalSettings>(
+    { url: `/api/v1/marketplace/local/settings`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGetQueryKey = () => {
+  return [`/api/v1/marketplace/local/settings`] as const;
+};
+
+export const getReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>
+  > = ({ signal }) =>
+    readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>
+>;
+export type ReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet<
+  TData = Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet<
+  TData = Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet<
+  TData = Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Local Marketplace Settings
+ */
+
+export function useReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet<
+  TData = Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getReadLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Let members publish straight to the shelf, or have each share wait for
+ * review. Changing it moves nothing already waiting.
+ * @summary Update Local Marketplace Settings
+ */
+export const updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut = (
+  marketplaceLocalSettings: BodyType<MarketplaceLocalSettings>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MarketplaceLocalSettings>(
+    {
+      url: `/api/v1/marketplace/local/settings`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: marketplaceLocalSettings,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationKey = () =>
+  ["updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut"] as const;
+
+export const getUpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut>>,
+    TError,
+    UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut>>,
+  TError,
+  UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getUpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut>>,
+    UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut>>
+  >;
+export type UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationBody =
+  BodyType<MarketplaceLocalSettings>;
+export type UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationVariables = {
+  data: BodyType<MarketplaceLocalSettings>;
+};
+
+/**
+ * @summary Update Local Marketplace Settings
+ */
+export const useUpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut>>,
+      TError,
+      UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPut>>,
+  TError,
+  UpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateLocalMarketplaceSettingsApiV1MarketplaceLocalSettingsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Every shared version waiting for review, oldest first, with what it
+ * would publish — the envelope and its example, as the shelf would carry
+ * them.
+ * @summary List Pending Shares
+ */
+export const listPendingSharesApiV1MarketplaceLocalPendingGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MarketplacePendingVersionRead[]>(
+    { url: `/api/v1/marketplace/local/pending`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListPendingSharesApiV1MarketplaceLocalPendingGetQueryKey = () => {
+  return [`/api/v1/marketplace/local/pending`] as const;
+};
+
+export const getListPendingSharesApiV1MarketplaceLocalPendingGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPendingSharesApiV1MarketplaceLocalPendingGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>
+  > = ({ signal }) => listPendingSharesApiV1MarketplaceLocalPendingGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPendingSharesApiV1MarketplaceLocalPendingGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>
+>;
+export type ListPendingSharesApiV1MarketplaceLocalPendingGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListPendingSharesApiV1MarketplaceLocalPendingGet<
+  TData = Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPendingSharesApiV1MarketplaceLocalPendingGet<
+  TData = Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPendingSharesApiV1MarketplaceLocalPendingGet<
+  TData = Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Pending Shares
+ */
+
+export function useListPendingSharesApiV1MarketplaceLocalPendingGet<
+  TData = Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPendingSharesApiV1MarketplaceLocalPendingGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListPendingSharesApiV1MarketplaceLocalPendingGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Put a shared version on the shelf. It becomes the listing's latest.
+ * @summary Approve Shared Version
+ */
+export const approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost = (
+  uid: string,
+  version: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/marketplace/local/${uid}/versions/${version}/approve`, method: "POST", signal },
+    options
+  );
+};
+
+export const getApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationKey =
+  () => ["approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost"] as const;
+
+export const getApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost>
+      >,
+      TError,
+      ApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost>
+    >,
+    TError,
+    ApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost>
+      >,
+      ApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationVariables
+    > = (props) => {
+      const { uid, version } = props ?? {};
+
+      return approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost(
+        uid,
+        version,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type ApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost>
+    >
+  >;
+
+export type ApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type ApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationVariables =
+  { uid: string; version: string };
+
+/**
+ * @summary Approve Shared Version
+ */
+export const useApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost>
+      >,
+      TError,
+      ApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof approveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePost>
+  >,
+  TError,
+  ApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getApproveSharedVersionApiV1MarketplaceLocalUidVersionsVersionApprovePostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Refuse a shared version. It is deleted, and so is a listing left with no
+ * version — it was never offered, so nothing depends on it.
+ * @summary Refuse Shared Version
+ */
+export const refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost = (
+  uid: string,
+  version: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/marketplace/local/${uid}/versions/${version}/refuse`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationKey =
+  () => ["refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost"] as const;
+
+export const getRefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost>
+      >,
+      TError,
+      RefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost>
+    >,
+    TError,
+    RefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getRefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost>
+      >,
+      RefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationVariables
+    > = (props) => {
+      const { uid, version } = props ?? {};
+
+      return refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost(
+        uid,
+        version,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type RefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost>>
+  >;
+
+export type RefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type RefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationVariables =
+  { uid: string; version: string };
+
+/**
+ * @summary Refuse Shared Version
+ */
+export const useRefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost>
+      >,
+      TError,
+      RefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof refuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePost>>,
+  TError,
+  RefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRefuseSharedVersionApiV1MarketplaceLocalUidVersionsVersionRefusePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Publish a listing file (``config.manage``).
+ *
+ * The manifest a catalog directory or a registry carries, published as a
+ * ``local`` listing, on the shelf straight away. A file the catalogue will
+ * not take answers 422 with the validator's reason beside the code, so the
+ * person who uploaded it can see what to fix.
+ * @summary Upload Listing File
+ */
+export const uploadListingFileApiV1MarketplaceLocalUploadPost = (
+  listingUploadRequest: BodyType<ListingUploadRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ListingUploadResult>(
+    {
+      url: `/api/v1/marketplace/local/upload`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: listingUploadRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUploadListingFileApiV1MarketplaceLocalUploadPostMutationKey = () =>
+  ["uploadListingFileApiV1MarketplaceLocalUploadPost"] as const;
+
+export const getUploadListingFileApiV1MarketplaceLocalUploadPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadListingFileApiV1MarketplaceLocalUploadPost>>,
+    TError,
+    UploadListingFileApiV1MarketplaceLocalUploadPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadListingFileApiV1MarketplaceLocalUploadPost>>,
+  TError,
+  UploadListingFileApiV1MarketplaceLocalUploadPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUploadListingFileApiV1MarketplaceLocalUploadPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadListingFileApiV1MarketplaceLocalUploadPost>>,
+    UploadListingFileApiV1MarketplaceLocalUploadPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadListingFileApiV1MarketplaceLocalUploadPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadListingFileApiV1MarketplaceLocalUploadPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadListingFileApiV1MarketplaceLocalUploadPost>>
+>;
+export type UploadListingFileApiV1MarketplaceLocalUploadPostMutationBody =
+  BodyType<ListingUploadRequest>;
+export type UploadListingFileApiV1MarketplaceLocalUploadPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type UploadListingFileApiV1MarketplaceLocalUploadPostMutationVariables = {
+  data: BodyType<ListingUploadRequest>;
+};
+
+/**
+ * @summary Upload Listing File
+ */
+export const useUploadListingFileApiV1MarketplaceLocalUploadPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadListingFileApiV1MarketplaceLocalUploadPost>>,
+      TError,
+      UploadListingFileApiV1MarketplaceLocalUploadPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadListingFileApiV1MarketplaceLocalUploadPost>>,
+  TError,
+  UploadListingFileApiV1MarketplaceLocalUploadPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUploadListingFileApiV1MarketplaceLocalUploadPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * The listings the signed-in member shared, with any version still
+ * waiting for review.
+ * @summary List My Shares
+ */
+export const listMySharesApiV1MarketplaceLocalMineGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MarketplaceSharedListingRead[]>(
+    { url: `/api/v1/marketplace/local/mine`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMySharesApiV1MarketplaceLocalMineGetQueryKey = () => {
+  return [`/api/v1/marketplace/local/mine`] as const;
+};
+
+export const getListMySharesApiV1MarketplaceLocalMineGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMySharesApiV1MarketplaceLocalMineGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>
+  > = ({ signal }) => listMySharesApiV1MarketplaceLocalMineGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMySharesApiV1MarketplaceLocalMineGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>
+>;
+export type ListMySharesApiV1MarketplaceLocalMineGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMySharesApiV1MarketplaceLocalMineGet<
+  TData = Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMySharesApiV1MarketplaceLocalMineGet<
+  TData = Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMySharesApiV1MarketplaceLocalMineGet<
+  TData = Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Shares
+ */
+
+export function useListMySharesApiV1MarketplaceLocalMineGet<
+  TData = Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMySharesApiV1MarketplaceLocalMineGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMySharesApiV1MarketplaceLocalMineGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Take down a listing the signed-in member shared. Communities that
+ * installed a copy keep it.
+ * @summary Withdraw My Share
+ */
+export const withdrawMyShareApiV1MarketplaceLocalUidDelete = (
+  uid: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/marketplace/local/${uid}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getWithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationKey = () =>
+  ["withdrawMyShareApiV1MarketplaceLocalUidDelete"] as const;
+
+export const getWithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdrawMyShareApiV1MarketplaceLocalUidDelete>>,
+    TError,
+    WithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof withdrawMyShareApiV1MarketplaceLocalUidDelete>>,
+  TError,
+  WithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getWithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof withdrawMyShareApiV1MarketplaceLocalUidDelete>>,
+    WithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationVariables
+  > = (props) => {
+    const { uid } = props ?? {};
+
+    return withdrawMyShareApiV1MarketplaceLocalUidDelete(uid, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof withdrawMyShareApiV1MarketplaceLocalUidDelete>>
+>;
+
+export type WithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type WithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationVariables = { uid: string };
+
+/**
+ * @summary Withdraw My Share
+ */
+export const useWithdrawMyShareApiV1MarketplaceLocalUidDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof withdrawMyShareApiV1MarketplaceLocalUidDelete>>,
+      TError,
+      WithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof withdrawMyShareApiV1MarketplaceLocalUidDelete>>,
+  TError,
+  WithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getWithdrawMyShareApiV1MarketplaceLocalUidDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -1130,6 +2091,113 @@ export const useInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
     getInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidInstallPostMutationOptions(
       options
     ),
+    queryClient
+  );
+};
+/**
+ * Share an item from this community to the deployment's marketplace.
+ *
+ * The item is read the way exporting it reads it, on the member's own
+ * session — so a member shares only what they could export — and stripped
+ * to what belongs to the work (``publish_profile``). It then becomes a
+ * ``local`` listing, on the shelf straight away if the owner lets members
+ * publish directly, and otherwise waiting for the owner's review.
+ * @summary Share To Marketplace
+ */
+export const shareToMarketplaceApiV1GGuildIdMarketplaceSharePost = (
+  guildId: number,
+  marketplaceShareRequest: BodyType<MarketplaceShareRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MarketplaceShareResult>(
+    {
+      url: `/api/v1/g/${guildId}/marketplace/share`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: marketplaceShareRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationKey = () =>
+  ["shareToMarketplaceApiV1GGuildIdMarketplaceSharePost"] as const;
+
+export const getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+    TError,
+    ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+  TError,
+  ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+    ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return shareToMarketplaceApiV1GGuildIdMarketplaceSharePost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>
+>;
+export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationBody =
+  BodyType<MarketplaceShareRequest>;
+export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables = {
+  guildId: number;
+  data: BodyType<MarketplaceShareRequest>;
+};
+
+/**
+ * @summary Share To Marketplace
+ */
+export const useShareToMarketplaceApiV1GGuildIdMarketplaceSharePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+      TError,
+      ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>,
+  TError,
+  ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationOptions(options),
     queryClient
   );
 };

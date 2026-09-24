@@ -998,6 +998,19 @@ class MarketplaceMessages:
     #: An install asked to start from the listing's example, and this listing
     #: carries none: it installs only as itself.
     LISTING_HAS_NO_EXAMPLE = "MARKETPLACE_LISTING_HAS_NO_EXAMPLE"
+    #: A share could not be made into a listing — the item has nothing a
+    #: listing can carry, or its export is not one this build reads back.
+    SHARE_INVALID = "MARKETPLACE_SHARE_INVALID"
+    #: The item is larger than a listing may be. Sharing less of it works.
+    SHARE_TOO_LARGE = "MARKETPLACE_SHARE_TOO_LARGE"
+    #: A new version of a shared listing has to be the same tool as the first.
+    SHARE_KIND_MISMATCH = "MARKETPLACE_SHARE_KIND_MISMATCH"
+    #: Only somebody who belongs to the community shares its content; a grant
+    #: into it does not reach the marketplace.
+    SHARE_NOT_PERMITTED = "MARKETPLACE_SHARE_NOT_PERMITTED"
+    #: An uploaded listing file the catalogue would not publish. The response
+    #: carries the validator's reason beside this code.
+    LISTING_UPLOAD_INVALID = "MARKETPLACE_LISTING_UPLOAD_INVALID"
     MEDIA_NOT_FOUND = "MARKETPLACE_MEDIA_NOT_FOUND"
     #: A rescan was asked for on a deployment that publishes no catalog
     #: directory of its own — nothing to scan until one is configured.

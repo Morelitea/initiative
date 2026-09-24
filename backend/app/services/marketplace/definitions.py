@@ -57,6 +57,7 @@ __all__ = [
     "KIND_AUDIENCE",
     "kinds_for_audience",
     "LISTING_SOURCES",
+    "LOCAL_SOURCE",
     "APP_KINDS",
     "GUILD_INSTALLABLE_APP_KINDS",
     "MOUNTABLE_TOOLS",
@@ -124,9 +125,17 @@ def kinds_for_audience(audience: str) -> frozenset[str]:
 #: a listing shipped in this build is credited to us rather than to whatever its
 #: manifest claims.
 #:
-#: ``builtin`` shipped in this build. ``operator`` was added by whoever runs the
-#: deployment. ``registry`` arrived from a remote index this deployment trusts.
-LISTING_SOURCES: frozenset[str] = frozenset({"builtin", "operator", "registry"})
+#: ``builtin`` shipped in this build. ``operator`` was read from the catalog
+#: directory whoever runs the deployment mounts. ``registry`` arrived from a
+#: remote index this deployment trusts. ``local`` was added here and nowhere
+#: else — shared by a member, or uploaded by the operator — and has no file or
+#: index behind it, so no sweep of those sources ever retires it.
+LISTING_SOURCES: frozenset[str] = frozenset(
+    {"builtin", "local", "operator", "registry"}
+)
+
+#: The source a deployment's own additions publish under.
+LOCAL_SOURCE = "local"
 
 #: How an app presents itself.
 #:
