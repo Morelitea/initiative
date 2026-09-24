@@ -36,6 +36,7 @@ from app.services.import_engine import jira_attachments, jira_mapping, jira_spri
 from app.services.import_engine.atlassian import (
     AtlassianCredential,
     Heartbeat,
+    Walk,
     get_bytes,
     get_json,
     throttled,
@@ -98,6 +99,8 @@ class FetchReport:
     #: Projects asked for that the token could not read. Named so the plan can
     #: say which, rather than quietly importing fewer than were ticked.
     unreadable_projects: list[str] = field(default_factory=list)
+    #: Projects the import's size limit cut short or left out, by key.
+    projects_over_limit: list[str] = field(default_factory=list)
     #: Links and parents whose both ends were fetched — the edges the apply
     #: will draw.
     links: int = 0
@@ -203,6 +206,7 @@ async def iter_issue_pages(
     max_issues: int,
     include_comments: bool = False,
     include_attachments: bool = False,
+    walk: Optional[Walk] = None,
 ) -> AsyncIterator[list[Any]]:
     """Every issue in the project, in Rank order, a page at a time.
 
@@ -244,14 +248,20 @@ async def iter_issue_pages(
         if not isinstance(payload, dict):
             break
         page = payload.get("issues")
+        cut = False
         if isinstance(page, list) and page:
-            page = page[: max_issues - seen]
-            seen += len(page)
-            yield page
+            kept = page[: max_issues - seen]
+            cut = len(kept) < len(page)
+            seen += len(kept)
+            yield kept
         # The cursor is the site's to hand back, so it is checked rather
         # than trusted: anything that is not a non-empty string ends the walk.
         cursor = payload.get("nextPageToken")
-        if not isinstance(cursor, str) or not cursor or seen >= max_issues:
+        if not isinstance(cursor, str) or not cursor:
+            if walk is not None:
+                walk.complete = not cut
+            break
+        if seen >= max_issues:
             break
         token = cursor
 
@@ -347,6 +357,9 @@ class FetchedProject:
     restricted_comments: int
     #: The images downloaded for this project's issues.
     images: jira_attachments.ImageReport
+    #: Whether every issue the project has was read, rather than the walk
+    #: stopping at the row budget or the page bound.
+    complete: bool = True
 
 
 async def fetch_project_envelope(
@@ -434,6 +447,7 @@ async def fetch_project_envelope(
     # A page at a time: each is completed, its files downloaded and its
     # issues mapped before the next is asked for, so the site's JSON for the
     # whole project is never held at once.
+    walk = Walk()
     async for page in iter_issue_pages(
         credential,
         key,
@@ -441,6 +455,7 @@ async def fetch_project_envelope(
         max_issues=max_issues,
         include_comments=include_comments,
         include_attachments=image_budget is not None,
+        walk=walk,
     ):
         issues_used += len(page)
         if include_comments:
@@ -492,6 +507,7 @@ async def fetch_project_envelope(
         sprints=sprints,
         restricted_comments=restricted,
         images=images,
+        complete=walk.complete,
     )
 
 
@@ -654,7 +670,7 @@ async def fetch_projects(
 
     tick = throttled(beat)
     link_ends: list[tuple[str, str]] = []
-    remaining = import_limits.IMPORT_MAX_ROWS
+    remaining = import_limits.IMPORT_FETCH_MAX_ROWS
     envelopes: list[tuple[str, dict[str, Any]]] = []
     field_catalog = await fetch_field_catalog(credential)
     dropped_fields: set[str] = set()
@@ -668,11 +684,12 @@ async def fetch_projects(
     )
     sprint_membership: dict[str, list[int]] = {}
 
-    for key in project_keys:
+    for position, key in enumerate(project_keys):
         if remaining <= 0:
-            # The budget is spent. Stopping here is better than a bundle the
-            # applier will refuse whole.
+            # The budget is spent: this project and every one after it are
+            # left out, and the plan says which.
             logger.info("jira fetch row budget spent, stopping at project=%s", key)
+            report.projects_over_limit.extend(project_keys[position:])
             break
         try:
             project = await get_json(credential, f"/rest/api/3/project/{key}")
@@ -702,6 +719,8 @@ async def fetch_projects(
             report.unreadable_projects.append(key)
         else:
             envelopes.append((key, mapped.envelope))
+            if not fetched.complete:
+                report.projects_over_limit.append(key)
             link_ends.extend(fetched.link_ends)
             images = fetched.images
             report.images += images.images
@@ -772,7 +791,7 @@ async def fetch_projects(
         files=all_files,
         people=_people(envelopes),
         report=report,
-        rows_used=import_limits.IMPORT_MAX_ROWS - remaining + len(calendars),
+        rows_used=import_limits.IMPORT_FETCH_MAX_ROWS - remaining + len(calendars),
     )
 
 

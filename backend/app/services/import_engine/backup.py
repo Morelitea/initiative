@@ -126,10 +126,23 @@ def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
 logger = logging.getLogger(__name__)
 
 
-def open_backup_zip(payload: bytes | Path) -> zipfile.ZipFile:
+def open_backup_zip(payload: bytes | Path, *, fetched: bool = False) -> zipfile.ZipFile:
     """Open + bound-check a backup zip, held in memory or read from a file.
     Raises IMPORT_ZIP_INVALID / IMPORT_TOO_LARGE before anything beyond the
-    central directory is read."""
+    central directory is read.
+
+    ``fetched`` is a bundle this app wrote itself from a foreign source, which
+    is held to the fetch's bounds rather than an upload's."""
+    max_members = (
+        import_limits.IMPORT_FETCH_MAX_ZIP_MEMBERS
+        if fetched
+        else import_limits.IMPORT_MAX_ZIP_MEMBERS
+    )
+    max_bytes = (
+        import_limits.IMPORT_FETCH_MAX_BUNDLE_BYTES
+        if fetched
+        else import_limits.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES
+    )
     try:
         archive = zipfile.ZipFile(
             payload if isinstance(payload, Path) else io.BytesIO(payload)
@@ -137,7 +150,7 @@ def open_backup_zip(payload: bytes | Path) -> zipfile.ZipFile:
     except Exception as exc:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
     infos = archive.infolist()
-    if len(infos) > import_limits.IMPORT_MAX_ZIP_MEMBERS:
+    if len(infos) > max_members:
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     declared = 0
     for info in infos:
@@ -149,7 +162,7 @@ def open_backup_zip(payload: bytes | Path) -> zipfile.ZipFile:
         if name.startswith("/") or ".." in name.split("/"):
             raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
         declared += info.file_size
-        if declared > import_limits.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES:
+        if declared > max_bytes:
             raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     return archive
 
@@ -195,6 +208,7 @@ def plan_backup(
     *,
     existing_initiative_names: set[str],
     member_ids_by_handle: dict[str, int] | None = None,
+    fetched: bool = False,
 ) -> BackupImportPlan:
     """The confirm-screen summary. Reads only the manifest — cheap enough to
     run synchronously inside the upload request.
@@ -204,10 +218,12 @@ def plan_backup(
     than read here because this function holds no session: the plan is a
     reading of one file, and the roster is a fact about the community it is
     being read into.
+
+    ``fetched`` is as for :func:`open_backup_zip`.
     """
     from app.services.import_engine.importers import IMPORTERS
 
-    archive = open_backup_zip(payload)
+    archive = open_backup_zip(payload, fetched=fetched)
     manifest = read_manifest(archive)
 
     unknown_types = sorted(
@@ -301,20 +317,22 @@ async def apply_backup(
     people_map: Any = None,
     exclude_properties: Any = None,
     heartbeat: Callable[[], Awaitable[None]] | None = None,
+    fetched: bool = False,
 ) -> BackupImportResult:
     """Restore a backup zip into new initiatives, as ``user``, on the
     worker's creator-routed session. Flushes and COMMITS per chunk (the
     always-create policy makes partial progress durable and never re-run).
 
     ``heartbeat`` is called after each asset and each entry, so the job can
-    show it is still being applied."""
+    show it is still being applied. ``fetched`` is as for
+    :func:`open_backup_zip`."""
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
     from app.models.platform.guild import GuildRole
     from app.services.platform import guilds as guilds_service
     from app.services.tenant import initiatives as initiatives_service
 
-    archive = open_backup_zip(payload)
+    archive = open_backup_zip(payload, fetched=fetched)
     manifest = read_manifest(archive)
     result = BackupImportResult()
 

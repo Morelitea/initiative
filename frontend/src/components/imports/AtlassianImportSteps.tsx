@@ -62,6 +62,7 @@ export interface AtlassianPlanSummary {
   dropped_nodes?: number;
   skipped_issues?: number;
   unreadable_projects?: string[];
+  projects_over_limit?: string[];
   links?: number;
   links_outside_selection?: number;
   properties?: Array<{ name: string; type: string; issue_count: number }>;
@@ -84,6 +85,7 @@ export interface AtlassianPlanSummary {
   pages?: number;
   page_containers?: number;
   unreadable_spaces?: string[];
+  spaces_over_limit?: string[];
   pages_over_limit?: number;
   page_attachments?: number;
   page_images?: number;
@@ -694,6 +696,11 @@ export function JiraReviewSummary({ job, excluded, onExcludedChange }: JiraRevie
           keys: (summary.unreadable_projects ?? []).join(", "),
         })
       : null,
+    (summary.projects_over_limit?.length ?? 0) > 0
+      ? t("wizard.jira.review.projectsOverLimit", {
+          keys: (summary.projects_over_limit ?? []).join(", "),
+        })
+      : null,
     summary.sprints_skipped && (summary.sprints ?? 0) > 0
       ? t("wizard.jira.review.sprintsSkipped", {
           count: summary.sprints,
@@ -820,6 +827,11 @@ export function ConfluenceReviewSummary({ job }: { job: ImportJobRead }) {
     (summary.unreadable_spaces?.length ?? 0) > 0
       ? t("wizard.confluence.review.unreadableSpaces", {
           keys: (summary.unreadable_spaces ?? []).join(", "),
+        })
+      : null,
+    (summary.spaces_over_limit?.length ?? 0) > 0
+      ? t("wizard.confluence.review.spacesOverLimit", {
+          keys: (summary.spaces_over_limit ?? []).join(", "),
         })
       : null,
     (summary.pages_over_limit ?? 0) > 0

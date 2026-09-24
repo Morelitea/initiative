@@ -219,6 +219,7 @@ async def test_every_page_of_the_listing_is_read(monkeypatch):
     )
     _bundle_bytes, report = await _bundle()
     assert report.pages == 3
+    assert report.spaces_over_limit == []
     listing = [c["url"] for c in calls if "/pages?" in c["url"]]
     assert len(listing) == 3
     # Current pages, with their bodies, in the one format the walker reads.
@@ -454,3 +455,15 @@ def test_a_next_link_that_is_not_the_listing_is_not_followed():
     )
     assert confluence_fetch._next_path({"_links": {"next": "/wiki/rest/api/x"}}) is None
     assert confluence_fetch._next_path({}) is None
+
+
+async def test_spaces_the_row_budget_cut_are_named(monkeypatch):
+    """A space whose listing was stopped by the budget, and every space after
+    it, are named in the plan rather than quietly shortened."""
+    _site(
+        monkeypatch,
+        batches=[[_page(1, "One"), _page(2, "Two")], [_page(3, "Three")]],
+    )
+    _bundle_bytes, report = await _bundle(space_keys=["DOCS", "MORE"], max_rows=3)
+    assert report.pages == 2
+    assert report.spaces_over_limit == ["DOCS", "MORE"]

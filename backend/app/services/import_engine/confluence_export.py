@@ -744,7 +744,7 @@ async def export_to_fetched(
     file documents: only the pictures the pages show come.
     """
     space = read_export(archive)
-    budget_rows = import_limits.IMPORT_MAX_ROWS if max_rows is None else max_rows
+    budget_rows = import_limits.IMPORT_FETCH_MAX_ROWS if max_rows is None else max_rows
     by_file = {page.file: page for page in space.pages}
     pages = [
         confluence_mapping.SourcePage(
@@ -806,7 +806,7 @@ async def export_to_fetched(
         site_url=space.site_url,
         app_version=app_version,
         max_bytes=max(
-            0, import_limits.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES
+            0, import_limits.IMPORT_FETCH_MAX_SPACE_BYTES - _ENVELOPE_RESERVE_BYTES
         ),
         media=media,
         documents=documents,

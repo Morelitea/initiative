@@ -176,6 +176,8 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     skipped_issues: int = 0
     #: Project keys that were ticked and could not be read with this token.
     unreadable_projects: list[str] = []
+    #: Project keys the import's size limit cut short or left out.
+    projects_over_limit: list[str] = []
     #: Issue links and parents that will become connections between tasks.
     links: int = 0
     #: Those whose other end was not brought over, so will not.
@@ -222,6 +224,8 @@ class AtlassianFetchSummary(SanitizedBaseModel):
     page_containers: int = 0
     #: Space keys that were ticked and could not be read with this token.
     unreadable_spaces: list[str] = []
+    #: Space keys the import's size limit cut short or left out.
+    spaces_over_limit: list[str] = []
     #: Pages left out because the wiki would have been too large to import
     #: in one piece.
     pages_over_limit: int = 0

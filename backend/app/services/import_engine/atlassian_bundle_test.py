@@ -85,3 +85,27 @@ def test_an_unfinished_bundle_leaves_no_file_behind():
         path = writer.path
         assert path.exists()
     assert not path.exists()
+
+
+def test_a_fetched_bundle_opens_past_the_upload_bounds(monkeypatch):
+    """The upload bounds are for zips somebody else built; one this app wrote
+    from a fetch is held to the fetch's own."""
+    import io
+
+    from app.services.import_engine import limits as import_limits
+    from app.services.import_engine.contract import ImportEngineError
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for index in range(3):
+            archive.writestr(f"assets/{index}.txt", "x")
+    payload = buffer.getvalue()
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ZIP_MEMBERS", 2)
+
+    with pytest.raises(ImportEngineError):
+        open_backup_zip(payload)
+    assert len(open_backup_zip(payload, fetched=True).infolist()) == 3
+
+    monkeypatch.setattr(import_limits, "IMPORT_FETCH_MAX_ZIP_MEMBERS", 2)
+    with pytest.raises(ImportEngineError):
+        open_backup_zip(payload, fetched=True)

@@ -24,6 +24,7 @@ from app.services.import_engine import confluence_attachments, confluence_mappin
 from app.services.import_engine.atlassian import (
     AtlassianCredential,
     Heartbeat,
+    Walk,
     get_bytes,
     get_json,
     throttled,
@@ -77,6 +78,8 @@ class ConfluenceFetchReport:
     dropped: Counter[str] = field(default_factory=Counter)
     #: Spaces ticked that the token could not read.
     unreadable_spaces: list[str] = field(default_factory=list)
+    #: Spaces the import's size limit cut short or left out, by key.
+    spaces_over_limit: list[str] = field(default_factory=list)
     #: Pages left out because the space's wiki would have been too large to
     #: import in one piece, or the import's row budget was spent.
     pages_over_limit: int = 0
@@ -135,12 +138,17 @@ async def fetch_space(credential: AtlassianCredential, key: str) -> dict:
 
 
 async def fetch_pages(
-    credential: AtlassianCredential, space_id: str, *, max_pages: int
+    credential: AtlassianCredential,
+    space_id: str,
+    *,
+    max_pages: int,
+    walk: Optional[Walk] = None,
 ) -> list[dict[str, Any]]:
     """Every current page in the space, with its storage-format body.
 
     Current only: a draft is somebody's unfinished work, and an archived page
-    is one the space itself set aside.
+    is one the space itself set aside. ``walk`` hears whether every page was
+    read, or the read stopped at ``max_pages`` or the request bound.
     """
     pages: list[dict[str, Any]] = []
     path: Optional[str] = (
@@ -157,6 +165,8 @@ async def fetch_pages(
         if isinstance(results, list):
             pages.extend(page for page in results if isinstance(page, dict))
         path = _next_path(payload)
+    if walk is not None:
+        walk.complete = path is None and len(pages) <= max_pages
     return pages[:max_pages]
 
 
@@ -469,20 +479,24 @@ async def fetch_spaces(
             await progress(report)
 
     tick = throttled(beat)
-    remaining = import_limits.IMPORT_MAX_ROWS if max_rows is None else max_rows
+    remaining = import_limits.IMPORT_FETCH_MAX_ROWS if max_rows is None else max_rows
     downloads = gathered.downloads
     max_bytes = max(
-        0, import_limits.IMPORT_MAX_ENVELOPE_BYTES - _ENVELOPE_RESERVE_BYTES
+        0, import_limits.IMPORT_FETCH_MAX_SPACE_BYTES - _ENVELOPE_RESERVE_BYTES
     )
 
-    for key in space_keys:
+    for position, key in enumerate(space_keys):
         if remaining <= 1:
+            # The budget is spent: this space and every one after it are left
+            # out, and the plan says which.
             logger.info("confluence fetch row budget spent, stopping at space=%s", key)
+            report.spaces_over_limit.extend(space_keys[position:])
             break
+        walk = Walk()
         try:
             space = await fetch_space(credential, key)
             raw_pages = await fetch_pages(
-                credential, str(space["id"]), max_pages=remaining - 1
+                credential, str(space["id"]), max_pages=remaining - 1, walk=walk
             )
             pages: list[confluence_mapping.SourcePage] = []
             for raw in raw_pages:
@@ -546,6 +560,8 @@ async def fetch_spaces(
                 comments=comments,
             )
             gathered.add(key, mapped, counted_references=asset_budget is None)
+            if not walk.complete:
+                report.spaces_over_limit.append(key)
             remaining -= mapped.pages + mapped.comments + 1
         gathered.settle()
         if progress is not None:

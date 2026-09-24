@@ -63,6 +63,7 @@ from app.services.import_engine.atlassian_bundle import BundleWriter, merge_peop
 from app.services.import_engine.common import load_guild_member_handles
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
+from app.services.tenant import attachments as attachments_service
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,7 @@ def summary_of(report: jira_fetch.FetchReport) -> AtlassianFetchSummary:
         dropped_nodes=report.dropped_nodes,
         skipped_issues=report.skipped_issues,
         unreadable_projects=list(report.unreadable_projects),
+        projects_over_limit=list(report.projects_over_limit),
         links=report.links,
         links_outside_selection=report.links_outside_selection,
         properties=[
@@ -137,6 +139,7 @@ def confluence_summary_of(
         page_containers=report.containers,
         dropped_nodes=report.dropped_nodes,
         unreadable_spaces=list(report.unreadable_spaces),
+        spaces_over_limit=list(report.spaces_over_limit),
         pages_over_limit=report.pages_over_limit,
         page_attachments=report.attachments,
         page_images=report.images,
@@ -365,13 +368,20 @@ async def _convert_export(
             except ImportEngineError:
                 documents_allowed = False
         roster = await load_guild_member_handles(user_session, guild_id=guild_id)
+        # Attachments past the community's storage quota could never be
+        # restored, so they are not downloaded either.
+        storage_left = (
+            await attachments_service.storage_left(user_session, guild_id=guild_id)
+            if include_attachments
+            else None
+        )
 
     with BundleWriter() as writer:
         fetched, site_url = await confluence_export.export_to_fetched(
             archive,
             guild_id=guild_id,
             app_version=get_version(),
-            asset_budget=jira_attachments.bundle_budget()
+            asset_budget=jira_attachments.bundle_budget(storage_left)
             if include_attachments
             else None,
             store=writer.put_asset,
@@ -411,6 +421,7 @@ def combined_summary(
             "pages",
             "page_containers",
             "unreadable_spaces",
+            "spaces_over_limit",
             "pages_over_limit",
             "page_attachments",
             "page_images",
@@ -627,6 +638,13 @@ async def _read(
         # The community's roster, so the plan can suggest who each person the
         # site names is — read now, as the person, like a backup upload does.
         roster = await load_guild_member_handles(user_session, guild_id=guild_id)
+        # Attachments past the community's storage quota could never be
+        # restored, so they are not downloaded either.
+        storage_left = (
+            await attachments_service.storage_left(user_session, guild_id=guild_id)
+            if include_attachments
+            else None
+        )
 
     credential = AtlassianCredential(
         site_url=site_url, email=principal, api_token=api_token
@@ -646,7 +664,9 @@ async def _read(
             await progress(combined_summary(jira_report, report))
 
     # One bundle, so one budget for everything attached, issues and pages.
-    asset_budget = jira_attachments.bundle_budget() if include_attachments else None
+    asset_budget = (
+        jira_attachments.bundle_budget(storage_left) if include_attachments else None
+    )
     with BundleWriter() as writer:
         if projects:
             try:
@@ -686,7 +706,7 @@ async def _read(
                     app_version=get_version(),
                     progress=report_spaces,
                     # What the issues left of the import's row budget.
-                    max_rows=import_limits.IMPORT_MAX_ROWS
+                    max_rows=import_limits.IMPORT_FETCH_MAX_ROWS
                     - (jira.rows_used if jira else 0),
                     guild_id=guild_id,
                     asset_budget=asset_budget,
@@ -749,6 +769,7 @@ async def _stage(
         path,
         existing_initiative_names=set(),
         member_ids_by_handle=roster,
+        fetched=True,
     )
     plan.atlassian = summary
     payload_ref = await asyncio.to_thread(
