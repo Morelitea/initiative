@@ -28,7 +28,7 @@ export interface AppServiceFormValues {
   secret: string | null;
   delegation: boolean;
   /** Parsed JWKS, or null to leave the stored key set untouched. */
-  delegationJwks: Record<string, unknown> | null;
+  jwks: Record<string, unknown> | null;
   appDirectory: boolean;
   mandatory: boolean;
 }
@@ -40,7 +40,7 @@ interface FormState {
   allowedOrigins: string;
   secret: string;
   delegation: boolean;
-  delegationJwks: string;
+  jwks: string;
   appDirectory: boolean;
   mandatory: boolean;
 }
@@ -52,7 +52,7 @@ const EMPTY_FORM: FormState = {
   allowedOrigins: "",
   secret: "",
   delegation: false,
-  delegationJwks: "",
+  jwks: "",
   appDirectory: false,
   mandatory: false,
 };
@@ -99,9 +99,7 @@ export const AppServiceFormDialog = ({
         allowedOrigins: editing.allowed_origins.join("\n"),
         secret: "",
         delegation: hasGrant(editing, "delegation"),
-        delegationJwks: editing.delegation_jwks
-          ? JSON.stringify(editing.delegation_jwks, null, 2)
-          : "",
+        jwks: editing.jwks ? JSON.stringify(editing.jwks, null, 2) : "",
         appDirectory: hasGrant(editing, "app_directory"),
         mandatory: editing.mandatory,
       });
@@ -121,25 +119,23 @@ export const AppServiceFormDialog = ({
 
     // An emptied box clears the stored set; an untouched one on a row that
     // never had a key leaves it alone. Both arrive as {} vs null respectively,
-    // which is the distinction the PATCH reads. Switching delegation off
-    // clears it too — the box is hidden then, and a key set the form no longer
-    // shows is not one it should keep sending.
-    const typed = form.delegation ? form.delegationJwks.trim() : "";
-    let delegationJwks: Record<string, unknown> | null = null;
+    // which is the distinction the PATCH reads.
+    const typed = form.jwks.trim();
+    let jwks: Record<string, unknown> | null = null;
     if (typed) {
       try {
-        delegationJwks = JSON.parse(typed) as Record<string, unknown>;
+        jwks = JSON.parse(typed) as Record<string, unknown>;
       } catch {
-        setJwksError(t("appServices.delegationJwksInvalid"));
+        setJwksError(t("appServices.jwksInvalid"));
         return;
       }
-    } else if (editing?.delegation_jwks) {
-      delegationJwks = {};
+    } else if (editing?.jwks) {
+      jwks = {};
     }
     setJwksError(null);
 
     onSubmit({
-      delegationJwks,
+      jwks,
       publicId: form.publicId.trim(),
       baseUrl: form.baseUrl.trim(),
       embedOrigin: form.embedOrigin.trim(),
@@ -263,6 +259,20 @@ export const AppServiceFormDialog = ({
             )}
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="app-service-jwks">{t("appServices.jwksLabel")}</Label>
+            <Textarea
+              id="app-service-jwks"
+              value={form.jwks}
+              onChange={(event) => setForm((prev) => ({ ...prev, jwks: event.target.value }))}
+              rows={6}
+              className="font-mono text-xs"
+              placeholder={'{\n  "keys": [ … ]\n}'}
+            />
+            <p className="text-muted-foreground text-xs">{t("appServices.jwksHelp")}</p>
+            {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
+          </div>
+
           <div className="space-y-2 rounded-md border border-amber-500/50 p-3">
             <div>
               <p className="font-medium text-sm">{t("appServices.grantsTitle")}</p>
@@ -283,27 +293,6 @@ export const AppServiceFormDialog = ({
                 }
               />
             </div>
-            {form.delegation && (
-              <div className="space-y-2 pt-1">
-                <Label htmlFor="app-service-delegation-jwks">
-                  {t("appServices.delegationJwksLabel")}
-                </Label>
-                <Textarea
-                  id="app-service-delegation-jwks"
-                  value={form.delegationJwks}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, delegationJwks: event.target.value }))
-                  }
-                  rows={6}
-                  className="font-mono text-xs"
-                  placeholder={'{\n  "keys": [ … ]\n}'}
-                />
-                <p className="text-muted-foreground text-xs">
-                  {t("appServices.delegationJwksHelp")}
-                </p>
-                {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
-              </div>
-            )}
             <div className="flex items-start justify-between gap-3 pt-1">
               <div>
                 <Label htmlFor="app-service-app-directory" className="font-medium">

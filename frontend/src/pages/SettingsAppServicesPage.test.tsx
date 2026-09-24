@@ -19,7 +19,7 @@ const buildRegistration = (
   manifest_hash: "abc123",
   protocol_version: 1,
   grants: [],
-  delegation_jwks: null,
+  jwks: null,
   mandatory: false,
   enabled: true,
   status: "ok",
@@ -274,7 +274,7 @@ describe("SettingsAppServicesPage", () => {
           grants: ["delegation"],
           // Delegation is on but no key set was pasted, so the app can be
           // granted the power now and provisioned with its key later.
-          delegation_jwks: null,
+          jwks: null,
           mandatory: false,
         },
         expect.anything()

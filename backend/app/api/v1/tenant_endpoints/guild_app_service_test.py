@@ -67,7 +67,7 @@ async def _register_target(session: AsyncSession, *, enabled: bool = True) -> No
             allowed_origins=[TARGET_BASE_URL],
             secret_encrypted=None,
             grants=[],
-            delegation_jwks=None,
+            jwks=None,
             enabled=enabled,
             status=AppServiceStatus.OK,
         )

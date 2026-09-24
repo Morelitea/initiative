@@ -1268,9 +1268,9 @@ class AppServiceMessages:
     UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"
     #: A scope ceiling naming something outside the app scope vocabulary.
     UNKNOWN_SCOPE = "APP_SERVICE_UNKNOWN_SCOPE"
-    #: The delegation key set is not a JWKS this build can verify against, or
-    #: an entry in it carries no ``kid`` for a token to name.
-    INVALID_DELEGATION_JWKS = "APP_SERVICE_INVALID_DELEGATION_JWKS"
+    #: The key set is not a JWKS this build can verify against, or an entry in
+    #: it carries no ``kid`` for a JWT to name.
+    INVALID_JWKS = "APP_SERVICE_INVALID_JWKS"
     #: A registration with no stored secret cannot complete a handshake.
     SECRET_REQUIRED = "APP_SERVICE_SECRET_REQUIRED"
     #: The APP_PLATFORM_* signing keypair is not configured. It is required and
@@ -1288,6 +1288,13 @@ class AppServiceMessages:
     PUBLIC_ID_MISMATCH = "APP_SERVICE_PUBLIC_ID_MISMATCH"
     #: The challenge came back signed with a different secret.
     SIGNATURE_MISMATCH = "APP_SERVICE_SIGNATURE_MISMATCH"
+
+
+class AppMessages:
+    """Codes for an installed app calling a route with its access token."""
+
+    #: The route names a scope the token does not carry.
+    SCOPE_REQUIRED = "APP_SCOPE_REQUIRED"
 
 
 class AppDataMessages:
