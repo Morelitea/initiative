@@ -515,6 +515,82 @@ async def _scrub_invites_addressed_to(
             session.add(invite)
 
 
+async def _erase_personal_rows(session: AsyncSession, *, user_id: int) -> None:
+    """Delete the shared-table rows that are about this person and nobody else.
+
+    A hard delete gets all of these from the ``users`` foreign key. Anonymizing
+    keeps the row, so the cascade never fires and each one is deleted here.
+    Rows that pair this account with somebody else go from both sides: a husk
+    on another person's contacts, ignore list or conversation is a trace of
+    the account just the same.
+    """
+    from app.models.platform.announcement import AnnouncementReadReceipt
+    from app.models.platform.contact_grant import ContactGrant
+    from app.models.platform.dm_conversation import DmConversationMember
+    from app.models.platform.dm_device import DmDevice
+    from app.models.platform.email_outbox import EmailOutboxItem
+    from app.models.platform.profile_favorite import ProfileFavorite
+    from app.models.platform.user_cookie_consent import UserCookieConsent
+    from app.models.platform.user_decoration import UserDecoration
+    from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
+    from app.models.platform.user_dm_settings import UserDmSettings
+    from app.models.platform.user_ignore import UserIgnore
+    from app.models.platform.user_passkey import UserPasskey
+
+    # What the profile was dressed in: every decoration an installed pack
+    # granted. What it was wearing is on the ``users`` row, cleared by the caller.
+    await session.exec(delete(UserDecoration).where(UserDecoration.user_id == user_id))
+    # Passkeys name the device they live on, and a husk signs in with nothing.
+    await session.exec(delete(UserPasskey).where(UserPasskey.user_id == user_id))
+    # Notifications quote the content they point at; the email queued behind
+    # them quotes it again, and would otherwise still be sent.
+    await session.exec(
+        delete(EmailOutboxItem).where(EmailOutboxItem.user_id == user_id)
+    )
+    await session.exec(delete(Notification).where(Notification.user_id == user_id))
+    await session.exec(
+        delete(AnnouncementReadReceipt).where(
+            AnnouncementReadReceipt.user_id == user_id
+        )
+    )
+    await session.exec(
+        delete(UserCookieConsent).where(UserCookieConsent.user_id == user_id)
+    )
+    # Direct messages: the devices (their keys and queued ciphertext go with
+    # them by cascade), the account's place on each conversation, and its
+    # settings.
+    await session.exec(delete(DmDevice).where(DmDevice.user_id == user_id))
+    await session.exec(
+        delete(DmConversationMember).where(DmConversationMember.user_id == user_id)
+    )
+    await session.exec(delete(UserDmSettings).where(UserDmSettings.user_id == user_id))
+    await session.exec(
+        delete(UserDmGuildOptout).where(UserDmGuildOptout.user_id == user_id)
+    )
+    # The social graph, both directions.
+    await session.exec(
+        delete(ProfileFavorite).where(
+            or_(
+                ProfileFavorite.user_id == user_id,
+                ProfileFavorite.favorite_user_id == user_id,
+            )
+        )
+    )
+    await session.exec(
+        delete(UserIgnore).where(
+            or_(UserIgnore.user_id == user_id, UserIgnore.ignored_user_id == user_id)
+        )
+    )
+    await session.exec(
+        delete(ContactGrant).where(
+            or_(
+                ContactGrant.user_id_low == user_id,
+                ContactGrant.user_id_high == user_id,
+            )
+        )
+    )
+
+
 async def soft_delete_user(
     session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
 ) -> None:
@@ -620,6 +696,10 @@ async def soft_delete_user(
     # The picture is a row of its own now, so nulling the column is not enough
     # — the husk must not keep a face.
     await user_avatars_service.delete_avatar(session, user_id=user_id)
+    # Nor a look: the banner, frame and trophies it wore, and the status it set.
+    user.profile_decorations = {}
+    user.custom_status = {}
+    await _erase_personal_rows(session, user_id=user_id)
 
     # Drop the notification settings document so the account leaves no
     # behavioural profile behind. Absent reads as every default, which is where

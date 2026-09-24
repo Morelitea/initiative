@@ -1050,6 +1050,123 @@ async def test_soft_delete_user_removes_the_second_factor(session: AsyncSession)
     )
 
 
+@pytest.mark.integration
+@pytest.mark.service
+async def test_soft_delete_user_empties_the_shared_tables(
+    session: AsyncSession, role_session
+):
+    """Everything a hard delete takes by cascade, anonymizing takes by hand:
+    the row stays, so no cascade fires. Run on the system engine, which is what
+    the purge worker erases on, so a missing grant fails here too."""
+    import uuid
+
+    from app.models.platform.announcement import AnnouncementReadReceipt
+    from app.models.platform.contact_grant import (
+        ContactGrant,
+        ContactGrantKind,
+        canonical_pair,
+    )
+    from app.models.platform.dm_conversation import (
+        DmConversation,
+        DmConversationMember,
+    )
+    from app.models.platform.dm_device import DmDevice
+    from app.models.platform.email_outbox import EmailOutboxItem
+    from app.models.platform.notification import Notification
+    from app.models.platform.profile_favorite import ProfileFavorite
+    from app.models.platform.user_cookie_consent import UserCookieConsent
+    from app.models.platform.user_decoration import UserDecoration
+    from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
+    from app.models.platform.user_dm_settings import UserDmSettings
+    from app.models.platform.user_ignore import UserIgnore
+    from app.models.platform.user_passkey import UserPasskey
+
+    user = await create_user(session)
+    other = await create_user(session)
+    guild = await create_guild(session, creator=other)
+    user.profile_decorations = {"trophies": ["core.first-task"]}
+    user.custom_status = {"text": "on holiday in Lisbon"}
+    session.add(user)
+    conversation = DmConversation()
+    session.add(conversation)
+    await session.flush()
+    low, high = canonical_pair(user.id, other.id)
+    session.add_all(
+        [
+            UserDecoration(
+                user_id=user.id, decoration_id="core.first-task", kind="trophy"
+            ),
+            UserPasskey(
+                user_id=user.id,
+                credential_id=uuid.uuid4().bytes,
+                public_key=b"key",
+                rp_id="example.com",
+                name="Work laptop",
+            ),
+            Notification(user_id=user.id, data={"task_title": "Secret plan"}),
+            EmailOutboxItem(
+                user_id=user.id,
+                category="task",
+                subject="Secret plan",
+                headline="Secret plan",
+                body="Secret plan",
+            ),
+            AnnouncementReadReceipt(user_id=user.id, announcement_key="builtin:x"),
+            UserCookieConsent(user_id=user.id, version=1),
+            DmDevice(user_id=user.id, identity_key=b"i", fingerprint_key=b"f"),
+            DmConversationMember(conversation_id=conversation.id, user_id=user.id),
+            DmConversationMember(conversation_id=conversation.id, user_id=other.id),
+            UserDmGuildOptout(user_id=user.id, guild_id=guild.id),
+            ProfileFavorite(user_id=user.id, favorite_user_id=other.id),
+            ProfileFavorite(user_id=other.id, favorite_user_id=user.id),
+            UserIgnore(user_id=user.id, ignored_user_id=other.id),
+            UserIgnore(user_id=other.id, ignored_user_id=user.id),
+            ContactGrant(
+                user_id_low=low,
+                user_id_high=high,
+                kind=ContactGrantKind.connection,
+                requested_by=other.id,
+            ),
+        ]
+    )
+    await session.commit()
+    user_id, other_id = user.id, other.id
+
+    await user_service.soft_delete_user(await role_session("app_admin"), user_id)
+    session.expire_all()
+
+    husk = await session.get(User, user_id)
+    assert husk.profile_decorations == {}
+    assert husk.custom_status == {}
+    for model, column in (
+        (UserDecoration, UserDecoration.user_id),
+        (UserPasskey, UserPasskey.user_id),
+        (Notification, Notification.user_id),
+        (EmailOutboxItem, EmailOutboxItem.user_id),
+        (AnnouncementReadReceipt, AnnouncementReadReceipt.user_id),
+        (UserCookieConsent, UserCookieConsent.user_id),
+        (DmDevice, DmDevice.user_id),
+        (DmConversationMember, DmConversationMember.user_id),
+        (UserDmSettings, UserDmSettings.user_id),
+        (UserDmGuildOptout, UserDmGuildOptout.user_id),
+        (ProfileFavorite, ProfileFavorite.user_id),
+        (ProfileFavorite, ProfileFavorite.favorite_user_id),
+        (UserIgnore, UserIgnore.user_id),
+        (UserIgnore, UserIgnore.ignored_user_id),
+        (ContactGrant, ContactGrant.user_id_low),
+        (ContactGrant, ContactGrant.user_id_high),
+    ):
+        rows = (await session.exec(select(model).where(column == user_id))).all()
+        assert rows == [], f"{column} kept a row"
+
+    # The other side of the conversation is still on it.
+    assert (
+        await session.exec(
+            select(DmConversationMember).where(DmConversationMember.user_id == other_id)
+        )
+    ).all()
+
+
 # ---------------------------------------------------------------------------
 # The erasure receipt
 # ---------------------------------------------------------------------------
