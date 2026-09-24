@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-09-24
+
 ### Added
 
 - **Import from Jira and Confluence** — **Community settings → Data** reads a Jira or Confluence site directly with an API token, or a Confluence space from its HTML export. Projects, issues, sprints, comments, attachments and page trees come across, and the links between issues and pages still work after the move. The token is deleted once it has been read.
