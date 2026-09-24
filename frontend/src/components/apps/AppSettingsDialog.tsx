@@ -39,11 +39,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
 import { useGuilds } from "@/hooks/useGuilds";
-import { appEmbeds } from "@/lib/appSurfaces";
+import { declaredEmbeds } from "@/lib/appSurfaces";
 import { holdsGuildSeat } from "@/lib/permissions";
-
-/** Only an admin reaches the placement control, and an admin clears every rung. */
-const ADMIN = { isGuildAdmin: true };
 
 export interface AppSettingsDialogProps {
   appId: number;
@@ -65,7 +62,7 @@ export function AppSettingsDialog({
   const app = detail.data;
 
   const showsPlacement =
-    isGuildAdmin && !!app && appEmbeds(app.definition, "initiative", ADMIN).length > 0;
+    isGuildAdmin && !!app && declaredEmbeds(app.definition, "initiative").length > 0;
   // Install management, which the seat holds — not the manifest's
   // admin-visible surfaces above, which ask whether you administer the
   // community and are a different question.

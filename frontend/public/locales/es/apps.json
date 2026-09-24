@@ -148,7 +148,15 @@
     "description": "Esta aplicación ofrece una página dentro de las iniciativas. Elige en cuáles aparece.",
     "all": "Todas las iniciativas actuales",
     "some": "Solo las iniciativas que yo elija",
-    "none": "No se eligió ninguna iniciativa, así que esta aplicación solo aparece a nivel de comunidad."
+    "none": "No se eligió ninguna iniciativa, así que esta aplicación solo aparece a nivel de comunidad.",
+    "roles": {
+      "open": "Quién puede abrirla en {{name}}",
+      "title": "Quién puede abrirla aquí",
+      "adminsAlways": "Los administradores de la comunidad siempre pueden abrirla.",
+      "adminsOnly": "Solo administradores de la comunidad",
+      "count_one": "{{count}} rol",
+      "count_other": "{{count}} roles"
+    }
   },
   "connected": {
     "connected": {
@@ -172,5 +180,21 @@
       "body": "El otro servicio ha pedido a alguien que sea propietario de esa organización que apruebe esta app. No ha fallado nada y aún no hay nada configurado: cuando la aprueben, vuelve a conectar desde los ajustes de la app."
     },
     "closeTab": "Puedes cerrar esta pestaña."
+  },
+  "scopes": {
+    "title": "A qué puede acceder esta aplicación",
+    "description": "Elige qué puede leer y cambiar esta aplicación en esta comunidad.",
+    "read": "Leer",
+    "write": "Leer y cambiar",
+    "notAllowed": "Este servidor no lo permite",
+    "saved": "Acceso guardado",
+    "error": "No se pudo guardar a qué puede acceder esta aplicación.",
+    "resources": {
+      "comments": "Comentarios",
+      "relationships": "Vínculos",
+      "tags": "Etiquetas",
+      "members": "Miembros",
+      "initiatives": "Iniciativas"
+    }
   }
 }

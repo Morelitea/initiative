@@ -148,7 +148,15 @@
     "description": "This app offers a page inside initiatives. Choose which ones it appears in.",
     "all": "Every current initiative",
     "some": "Only the initiatives I choose",
-    "none": "No initiatives chosen, so this app appears only community-wide."
+    "none": "No initiatives chosen, so this app appears only community-wide.",
+    "roles": {
+      "open": "Who can open it in {{name}}",
+      "title": "Who can open it here",
+      "adminsAlways": "Community admins can always open it.",
+      "adminsOnly": "Community admins only",
+      "count_one": "{{count}} role",
+      "count_other": "{{count}} roles"
+    }
   },
   "connected": {
     "connected": {
@@ -172,5 +180,21 @@
       "body": "The other service asked somebody who owns that organization to approve this app. Nothing went wrong and nothing is set up yet — once they approve it, connect again from the app's settings."
     },
     "closeTab": "You can close this tab."
+  },
+  "scopes": {
+    "title": "What this app can reach",
+    "description": "Choose what this app may read and change in this community.",
+    "read": "Read",
+    "write": "Read and change",
+    "notAllowed": "This server doesn't allow it",
+    "saved": "Access saved",
+    "error": "Couldn't save what this app can reach.",
+    "resources": {
+      "comments": "Comments",
+      "relationships": "Links",
+      "tags": "Tags",
+      "members": "Members",
+      "initiatives": "Initiatives"
+    }
   }
 }

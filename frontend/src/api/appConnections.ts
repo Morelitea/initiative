@@ -92,6 +92,12 @@ export interface GuildAppDetail {
   /** The initiatives its initiative surfaces appear in, each with the roles
    *  allowed to open it there. An initiative not listed is one it is not in. */
   placements: AppPlacement[];
+  /** The scopes the seat granted this install. */
+  granted_scopes: string[];
+  /** The scopes the pinned manifest asks for, in vocabulary order. */
+  requested_scopes: string[];
+  /** The requested scopes this server lets the seat grant. */
+  grantable_scopes: string[];
   admin_only: boolean;
   /** The platform provides this app: no remove, no turning it off. */
   mandatory: boolean;

@@ -96,8 +96,8 @@ export interface AppParamOptionsRequest {
  * The one call here that carries no dashboard, and it cannot: a form is filled
  * in before a widget is placed, so there is no dashboard whose gates could
  * decide it. What decides it instead is that the caller does not name what gets
- * called — the source is read out of the app's own declaration, and its own
- * visibility is enforced on the caller's credentials.
+ * called — the source is read out of the app's own declaration, and it is
+ * fetched on the caller's own credentials.
  */
 export const getAppParamOptions = ({
   guildId,

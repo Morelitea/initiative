@@ -148,7 +148,15 @@
     "description": "Diese App bietet eine Seite innerhalb von Initiativen. Wähle aus, in welchen sie erscheint.",
     "all": "Alle bestehenden Initiativen",
     "some": "Nur ausgewählte Initiativen",
-    "none": "Keine Initiative ausgewählt – diese App erscheint nur Community-weit."
+    "none": "Keine Initiative ausgewählt – diese App erscheint nur Community-weit.",
+    "roles": {
+      "open": "Wer sie in {{name}} öffnen kann",
+      "title": "Wer sie hier öffnen kann",
+      "adminsAlways": "Community-Admins können sie immer öffnen.",
+      "adminsOnly": "Nur Community-Admins",
+      "count_one": "{{count}} Rolle",
+      "count_other": "{{count}} Rollen"
+    }
   },
   "connected": {
     "connected": {
@@ -172,5 +180,21 @@
       "body": "Der andere Dienst hat jemanden, dem diese Organisation gehört, um Freigabe dieser App gebeten. Es ist nichts schiefgegangen und noch nichts eingerichtet – sobald sie freigegeben ist, verbinde dich erneut über die Einstellungen der App."
     },
     "closeTab": "Du kannst diesen Tab schließen."
+  },
+  "scopes": {
+    "title": "Worauf diese App zugreifen kann",
+    "description": "Wähle aus, was diese App in dieser Community lesen und ändern darf.",
+    "read": "Lesen",
+    "write": "Lesen und ändern",
+    "notAllowed": "Dieser Server erlaubt das nicht",
+    "saved": "Zugriff gespeichert",
+    "error": "Der Zugriff dieser App konnte nicht gespeichert werden.",
+    "resources": {
+      "comments": "Kommentare",
+      "relationships": "Verknüpfungen",
+      "tags": "Tags",
+      "members": "Mitglieder",
+      "initiatives": "Initiativen"
+    }
   }
 }

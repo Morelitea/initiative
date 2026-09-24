@@ -13,10 +13,13 @@ import {
   getListGuildAppsApiV1GGuildIdAppsGetQueryKey,
   installGuildAppApiV1GGuildIdAppsPost,
   listGuildAppsApiV1GGuildIdAppsGet,
+  putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut,
+  putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut,
   uninstallGuildAppApiV1GGuildIdAppsAppIdDelete,
   updateGuildAppApiV1GGuildIdAppsAppIdPatch,
 } from "@/api/generated/apps/apps";
 import type {
+  AppPlacementRead,
   GuildAppInstall,
   GuildAppListResponse,
   GuildAppRead,
@@ -71,6 +74,45 @@ export const useUninstallGuildApp = (options?: MutationOpts<void, number>) => {
       mutationFn: (guildId, appId) => uninstallGuildAppApiV1GGuildIdAppsAppIdDelete(guildId, appId),
       invalidate: () => invalidate(q.apps()),
       errorKey: "apps:error",
+    },
+    options
+  );
+};
+
+export interface AppPlacementRoles {
+  initiativeId: number;
+  roleIds: number[];
+}
+
+/** Place the app in one initiative with exactly these roles. */
+export const useSetAppPlacementRoles = (
+  appId: number,
+  options?: MutationOpts<AppPlacementRead, AppPlacementRoles>
+) => {
+  return useGuildMutation<AppPlacementRead, AppPlacementRoles>(
+    {
+      mutationFn: (guildId, { initiativeId, roleIds }) =>
+        putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut(
+          guildId,
+          appId,
+          initiativeId,
+          { role_ids: roleIds }
+        ),
+      invalidate: () => invalidate(q.apps()),
+      errorKey: "apps:error",
+    },
+    options
+  );
+};
+
+/** Grant the app exactly these scopes; any left out are withdrawn. */
+export const useSetAppScopes = (appId: number, options?: MutationOpts<GuildAppRead, string[]>) => {
+  return useGuildMutation<GuildAppRead, string[]>(
+    {
+      mutationFn: (guildId, granted) =>
+        putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut(guildId, appId, { granted }),
+      invalidate: () => invalidate(q.apps()),
+      errorKey: "apps:scopes.error",
     },
     options
   );

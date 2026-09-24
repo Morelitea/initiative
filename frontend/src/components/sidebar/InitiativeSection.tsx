@@ -99,17 +99,10 @@ export const InitiativeSection = memo(
     /** Whether to surface a create affordance for a tool. */
     const canCreateTool = (tool: Tool): boolean => access[tool].create;
 
-    // Apps offering this reader a surface inside *this* initiative. Managing
-    // one initiative says nothing about another, so the standing is resolved
-    // per section rather than once for the sidebar.
+    // Apps offering this reader a surface inside *this* initiative, as the
+    // server computed it for them.
     const appRows = apps
-      .map((app) => ({
-        app,
-        path: initiativeAppPath(app, initiative.id, {
-          isGuildAdmin,
-          isInitiativeManager: canManageInitiative,
-        }),
-      }))
+      .map((app) => ({ app, path: initiativeAppPath(app, initiative.id) }))
       .filter((row): row is { app: GuildAppRead; path: string } => row.path !== null);
 
     // Load initial state from storage, default to true if not found

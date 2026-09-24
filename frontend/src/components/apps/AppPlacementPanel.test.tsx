@@ -34,8 +34,37 @@ const mutateAsync = vi.fn((body: unknown) => {
   return new Promise<object>((resolve) => release.push(() => resolve({})));
 });
 
+/** Every role save, as the hook was called with it. */
+const roleSaves: unknown[] = [];
+const setRoles = vi.fn(
+  (
+    variables: { initiativeId: number; roleIds: number[] },
+    handlers?: { onSuccess?: (placement: { role_ids: number[] }) => void }
+  ) => {
+    roleSaves.push(variables);
+    handlers?.onSuccess?.({ role_ids: variables.roleIds });
+  }
+);
+
 vi.mock("@/hooks/useGuildApps", () => ({
   useUpdateGuildApp: () => ({ mutateAsync }),
+  useSetAppPlacementRoles: () => ({ mutate: setRoles, isPending: false }),
+}));
+
+/** The initiatives whose roles were asked for. */
+const rolesAskedFor: Array<number | null> = [];
+
+vi.mock("@/hooks/useInitiativeRoles", () => ({
+  useInitiativeRoles: (initiativeId: number | null) => {
+    rolesAskedFor.push(initiativeId);
+    return {
+      isLoading: false,
+      data: [
+        { id: 11, display_name: "Project manager" },
+        { id: 12, display_name: "Member" },
+      ],
+    };
+  },
 }));
 
 let roster = [
@@ -47,12 +76,12 @@ vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: roster, isLoading: false }),
 }));
 
-/** An install placed in these initiatives. */
-const app = (placed: number[]) =>
+/** An install placed in these initiatives, each allowing ``roleIds``. */
+const app = (placed: number[], roleIds: number[] = []) =>
   ({
     id: 7,
     name: "Automations",
-    placements: placed.map((initiative_id) => ({ initiative_id, role_ids: [] })),
+    placements: placed.map((initiative_id) => ({ initiative_id, role_ids: roleIds })),
   }) as unknown as GuildAppDetail;
 
 beforeEach(() => {
@@ -60,6 +89,9 @@ beforeEach(() => {
   release = [];
   holdSaves = false;
   mutateAsync.mockClear();
+  roleSaves.length = 0;
+  setRoles.mockClear();
+  rolesAskedFor.length = 0;
   roster = [
     { id: 1, name: "Platform" },
     { id: 2, name: "Marketing" },
@@ -155,5 +187,48 @@ describe("AppPlacementPanel", () => {
     expect(await screen.findByLabelText("Platform")).toBeChecked();
     expect(screen.getByLabelText("Marketing")).toBeChecked();
     expect(sent).toEqual([]);
+  });
+
+  describe("who can open it", () => {
+    it("loads an initiative's roles only when its chooser opens", async () => {
+      renderPage(() => <AppPlacementPanel app={app([1])} />);
+
+      const trigger = await screen.findByLabelText("Who can open it in Platform");
+      expect(trigger).toHaveTextContent("Community admins only");
+      // Marketing is not placed, so it has no chooser at all.
+      expect(screen.queryByLabelText("Who can open it in Marketing")).toBeNull();
+      expect(rolesAskedFor.filter((id) => id !== null)).toEqual([]);
+
+      trigger.click();
+      expect(await screen.findByText("Community admins can always open it.")).toBeTruthy();
+      expect(new Set(rolesAskedFor)).toEqual(new Set([1]));
+    });
+
+    it("saves the whole role set for that one initiative", async () => {
+      renderPage(() => <AppPlacementPanel app={app([1], [11])} />);
+
+      const trigger = await screen.findByLabelText("Who can open it in Platform");
+      expect(trigger).toHaveTextContent("1 role");
+      trigger.click();
+
+      expect(await screen.findByLabelText("Project manager")).toBeChecked();
+      (await screen.findByLabelText("Member")).click();
+      await waitFor(() => expect(roleSaves).toEqual([{ initiativeId: 1, roleIds: [11, 12] }]));
+      expect(screen.getByLabelText("Member")).toBeChecked();
+
+      screen.getByLabelText("Project manager").click();
+      await waitFor(() => expect(roleSaves[1]).toEqual({ initiativeId: 1, roleIds: [12] }));
+      // Roles never go through the whole-selection save.
+      expect(sent).toEqual([]);
+    });
+
+    it("offers the roles of each placement when placed everywhere", async () => {
+      renderPage(() => <AppPlacementPanel app={app([1, 2], [11, 12])} />);
+
+      expect(await screen.findByLabelText("Who can open it in Platform")).toHaveTextContent(
+        "2 roles"
+      );
+      expect(screen.getByLabelText("Who can open it in Marketing")).toBeTruthy();
+    });
   });
 });

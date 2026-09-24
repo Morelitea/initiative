@@ -23,6 +23,8 @@ import type {
 import type {
   AppDataResponse,
   AppParamOptionsResponse,
+  AppPlacementRead,
+  AppPlacementUpdate,
   AppWidgetCatalogResponse,
   GuildAppConfigUpdate,
   GuildAppConnectStart,
@@ -34,6 +36,7 @@ import type {
   GuildAppListResponse,
   GuildAppMembersResponse,
   GuildAppRead,
+  GuildAppScopesUpdate,
   GuildAppUpdate,
   HTTPValidationError,
   ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams,
@@ -468,8 +471,8 @@ export function useReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGet<
  * ``options_from`` of the parameter being filled in — so the reachable set is
  * exactly the reads a publisher marked as menu sources, and the arguments are
  * the ones that source's ``needs`` names, mapped from answers this same form
- * already holds. The source's own ``visibility`` is then enforced on the
- * caller's own credentials, exactly as it is for a placed tile.
+ * already holds. The source is then fetched on the caller's own credentials,
+ * exactly as it is for a placed tile.
  *
  * A source that will not resolve is not an error: it comes back as
  * ``unavailable`` with no options, and the parameter stays typeable.
@@ -1595,14 +1598,541 @@ export const useUpdateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut = <
   );
 };
 /**
+ * Where this app appears, and which roles open it in each initiative.
+ *
+ * Readable by every member, as the same rows are on the app read itself:
+ * placement is the community's answer to where an app belongs.
+ * @summary List Guild App Placements
+ */
+export const listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet = (
+  guildId: number,
+  appId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppPlacementRead[]>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}/placements`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGetQueryKey = (
+  guildId: number,
+  appId: number
+) => {
+  return [`/api/v1/g/${guildId}/apps/${appId}/placements`] as const;
+};
+
+export const getListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGetQueryKey(guildId, appId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>
+  > = ({ signal }) =>
+    listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet(
+      guildId,
+      appId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && appId !== null && appId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>
+>;
+export type ListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet<
+  TData = Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet<
+  TData = Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet<
+  TData = Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Guild App Placements
+ */
+
+export function useListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet<
+  TData = Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListGuildAppPlacementsApiV1GGuildIdAppsAppIdPlacementsGetQueryOptions(
+    guildId,
+    appId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Place the app in one initiative with exactly these roles.
+ *
+ * Creates the placement or replaces its roles. Every role must be one of that
+ * initiative's; guild admins open the app there whatever the roles say.
+ * @summary Put Guild App Placement
+ */
+export const putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut = (
+  guildId: number,
+  appId: number,
+  initiativeId: number,
+  appPlacementUpdate: BodyType<AppPlacementUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppPlacementRead>(
+    {
+      url: `/api/v1/g/${guildId}/apps/${appId}/placements/${initiativeId}`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: appPlacementUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getPutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationKey =
+  () => ["putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut"] as const;
+
+export const getPutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut>
+      >,
+      TError,
+      PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut>>,
+    TError,
+    PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getPutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut>
+      >,
+      PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables
+    > = (props) => {
+      const { guildId, appId, initiativeId, data } = props ?? {};
+
+      return putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut(
+        guildId,
+        appId,
+        initiativeId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut>>
+  >;
+export type PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationBody =
+  BodyType<AppPlacementUpdate>;
+export type PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables = {
+  guildId: number;
+  appId: number;
+  initiativeId: number;
+  data: BodyType<AppPlacementUpdate>;
+};
+
+/**
+ * @summary Put Guild App Placement
+ */
+export const usePutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut>
+      >,
+      TError,
+      PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof putGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPut>>,
+  TError,
+  PutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getPutGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Take the app out of one initiative.
+ *
+ * Allowed for a mandatory app too: the deployment decides that the app
+ * exists, and the seat still decides where it appears. The removal stays;
+ * only an initiative created later is placed automatically.
+ * @summary Delete Guild App Placement
+ */
+export const deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete = (
+  guildId: number,
+  appId: number,
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/g/${guildId}/apps/${appId}/placements/${initiativeId}`,
+      method: "DELETE",
+      signal,
+    },
+    options
+  );
+};
+
+export const getDeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationKey =
+  () => ["deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete"] as const;
+
+export const getDeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete>
+      >,
+      TError,
+      DeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete>
+    >,
+    TError,
+    DeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getDeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete>
+      >,
+      DeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationVariables
+    > = (props) => {
+      const { guildId, appId, initiativeId } = props ?? {};
+
+      return deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete(
+        guildId,
+        appId,
+        initiativeId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type DeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete>
+    >
+  >;
+
+export type DeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type DeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationVariables =
+  { guildId: number; appId: number; initiativeId: number };
+
+/**
+ * @summary Delete Guild App Placement
+ */
+export const useDeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete>
+      >,
+      TError,
+      DeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof deleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDelete>
+  >,
+  TError,
+  DeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDeleteGuildAppPlacementApiV1GGuildIdAppsAppIdPlacementsInitiativeIdDeleteMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Grant the install exactly these scopes.
+ *
+ * Each must be one the app's manifest requests and one the deployment's
+ * registration allows the app (its ceiling). The whole set is replaced: a
+ * scope left out is withdrawn.
+ * @summary Put Guild App Scopes
+ */
+export const putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut = (
+  guildId: number,
+  appId: number,
+  guildAppScopesUpdate: BodyType<GuildAppScopesUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppRead>(
+    {
+      url: `/api/v1/g/${guildId}/apps/${appId}/scopes`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildAppScopesUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getPutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationKey = () =>
+  ["putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut"] as const;
+
+export const getPutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut>>,
+    TError,
+    PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut>>,
+  TError,
+  PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut>>,
+    PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationVariables
+  > = (props) => {
+    const { guildId, appId, data } = props ?? {};
+
+    return putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut(guildId, appId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut>>
+>;
+export type PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationBody =
+  BodyType<GuildAppScopesUpdate>;
+export type PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationVariables = {
+  guildId: number;
+  appId: number;
+  data: BodyType<GuildAppScopesUpdate>;
+};
+
+/**
+ * @summary Put Guild App Scopes
+ */
+export const usePutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut>>,
+      TError,
+      PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof putGuildAppScopesApiV1GGuildIdAppsAppIdScopesPut>>,
+  TError,
+  PutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getPutGuildAppScopesApiV1GGuildIdAppsAppIdScopesPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Mint the short-lived credential for one of this app's embedded surfaces.
  *
  * Whether the surface may be opened is decided here, under the caller's real
  * session, so the app never makes that call and never sees a request from
- * somebody who failed it. What the manifest declared as ``visibility``
- * governs, read guild-wide: a surface naming any audience narrower than
- * ``member`` is reachable here only by the guild's admins, and everything
- * else is open to every member of the installing guild.
+ * somebody who failed it. At the community level only the guild's admins open
+ * a surface.
  *
  * The token goes to the iframe by ``postMessage`` — never a query string —
  * and expires in a minute.
@@ -3269,10 +3799,10 @@ export const useRevokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost = 
  * but the surface is being opened somewhere narrower, and the token says so.
  *
  * Three gates, outermost first. The initiative must be one this caller can
- * reach. The manifest must declare the surface for this scope. And the
- * surface's ``visibility`` is then read *here*, where ``member`` means this
- * initiative's members and ``initiative_manager`` means its managers — a
- * guild admin clears both, as they do everywhere in their own guild.
+ * reach. The manifest must declare the surface for this scope, and the seat
+ * must have placed the app here. And the caller must hold one of the roles
+ * that placement allows — or be a guild admin, as everywhere in their own
+ * guild. A surface marked ``admin_only`` is for the admins alone.
  *
  * The initiative in the minted token is this route's, never the caller's to
  * supply, so an app can scope what it shows without asking a second question

@@ -80,7 +80,6 @@ const CATALOG = {
       endpoints: [
         {
           id: "app.acme.shop.orders-summary",
-          visibility: "member",
           cache_ttl_seconds: 60,
           params: [],
         },

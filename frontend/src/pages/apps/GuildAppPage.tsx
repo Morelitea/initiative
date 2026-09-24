@@ -4,8 +4,8 @@
  * The security shape, which mirrors what the mint endpoint already enforces:
  *
  * 1. The server decides whether a surface may be opened — the install must be
- *    enabled, its registration live, and the manifest's `visibility` must admit
- *    the caller. A refusal never reaches the app.
+ *    enabled, its registration live, and the seat's placement and roles must
+ *    admit the caller. A refusal never reaches the app.
  * 2. The token is delivered by `postMessage` to the iframe's own origin, never
  *    in the URL, so it stays out of history, referrers and proxy logs.
  * 3. Inbound messages are ignored unless `event.origin` is one the registration
@@ -36,7 +36,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { effectiveThemeColors } from "@/hooks/useColorTheme";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
 import { useTheme } from "@/hooks/useTheme";
-import { appEmbeds, embedAllow, type SurfaceViewer } from "@/lib/appSurfaces";
+import { appEmbeds, embedAllow } from "@/lib/appSurfaces";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
@@ -56,22 +56,16 @@ export interface GuildAppPageProps {
    * app can scope what it shows without asking a second question.
    */
   initiativeId?: number;
-  /** Who is reading, so a surface they could not open is not offered. */
-  viewer: SurfaceViewer;
 }
 
-export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps) {
+export function GuildAppPage({ appId, initiativeId }: GuildAppPageProps) {
   const { t, i18n } = useTranslation(["apps", "common"]);
   const guildId = useActiveGuildId();
   const detail = useGuildAppDetail(appId);
   const app = detail.data;
 
-  const scope = initiativeId === undefined ? "guild" : "initiative";
-  const { isGuildAdmin, isInitiativeManager } = viewer;
-  const embeds = useMemo(
-    () => appEmbeds(app?.definition, scope, { isGuildAdmin, isInitiativeManager }),
-    [app?.definition, scope, isGuildAdmin, isInitiativeManager]
-  );
+  // Only the surfaces the server says this reader opens here.
+  const embeds = useMemo(() => appEmbeds(app, initiativeId), [app, initiativeId]);
   const [surfaceId, setSurfaceId] = useState<string | null>(null);
   const active = embeds.find((embed) => embed.id === surfaceId) ?? embeds[0] ?? null;
   // The surface as a plain id, so a refetch that hands back an equal-but-new
