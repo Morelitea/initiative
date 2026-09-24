@@ -77,6 +77,8 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post
 from app.models.tenant.project import Project
 from app.models.tenant.project_order import ProjectOrder
+from app.models.tenant.property import PropertyType
+from app.schemas.query import FilterOp
 from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki
 from app.schemas.tenant.calendar import (
@@ -464,17 +466,25 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         archive_service.archive_filter_clause(Document, values.get("archived"))
     )
     conditions.extend(
-        await _property_filter_clauses(req.session, values.get("property_filters"))
+        await _property_filter_clauses(
+            req.session,
+            values.get("property_filters"),
+            names_people=req.user is not None,
+        )
     )
     return conditions
 
 
-async def _property_filter_clauses(session: AsyncSession, raw: Optional[str]) -> list:
+async def _property_filter_clauses(
+    session: AsyncSession, raw: Optional[str], *, names_people: bool
+) -> list:
     """WHERE clauses for the typed property filters a document list may carry.
 
     Loads the definitions the caller can see, then hands the compilation to the
     shared helper so documents, tasks and events agree about what each operator
-    means.
+    means. A filter on a person-valued property takes row ids, which an
+    installed app does not hold, so it is left to people (``names_people``),
+    as the task list does.
     """
     try:
         parsed = properties_service.parse_property_filters(raw)
@@ -488,6 +498,16 @@ async def _property_filter_clauses(session: AsyncSession, raw: Optional[str]) ->
     definitions = await properties_service.load_definitions_by_ids(
         session, [condition.property_id for condition in parsed]
     )
+    if not names_people and any(
+        condition.op is not FilterOp.is_null
+        and (definition := definitions.get(condition.property_id)) is not None
+        and definition.type is PropertyType.user_reference
+        for condition in parsed
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
     return properties_service.build_property_filter_clauses(
         "document", parsed, definitions
     )

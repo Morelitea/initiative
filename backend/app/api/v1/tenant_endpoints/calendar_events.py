@@ -1057,9 +1057,9 @@ async def set_event_tags(
 async def set_event_properties(
     event_id: int,
     payload: PropertyValuesSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
 ) -> CalendarEventRead:
     """Replace-all set of property values on an event.
 
@@ -1070,6 +1070,9 @@ async def set_event_properties(
     Property definitions belong to an initiative. A guild calendar belongs to
     none, so there are no definitions its events could carry and the request is
     refused; clearing values stays available.
+
+    An installed app names the person a person-valued property holds by its
+    reference for them.
     """
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, access="write"
@@ -1080,10 +1083,13 @@ async def set_event_properties(
             detail=CalendarEventMessages.GUILD_CALENDAR_NO_PROPERTIES,
         )
     await properties_service.set_event_property_values(
-        session, event, payload.values, initiative_id=event.calendar.initiative_id
+        session,
+        event,
+        await properties_service.property_values_by_row_id(session, payload.values),
+        initiative_id=event.calendar.initiative_id,
     )
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
-        session, hydrated, current_user.id, context=guild_context
+        session, hydrated, guild_context.user_id, context=guild_context
     )

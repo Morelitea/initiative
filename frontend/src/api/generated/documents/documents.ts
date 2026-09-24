@@ -2130,7 +2130,8 @@ export const useGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost = <
  * Replace the custom property values on a document.
  *
  * Requires document write access. Values are validated server-side against
- * each property definition's type and options.
+ * each property definition's type and options. An installed app names the
+ * person a person-valued property holds by its reference for them.
  * @summary Set Document Properties
  */
 export const setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut = (

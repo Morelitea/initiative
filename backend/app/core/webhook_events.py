@@ -18,7 +18,7 @@ from functools import lru_cache
 
 from sqlmodel import SQLModel
 
-from app.core.app_scopes import AppScopeResource
+from app.core.app_scopes import AppScopeAccess, AppScopeResource, scope_name
 from app.db.app_rls import APP_TABLE_ACCESS, AppTableKind
 from app.db.event_capture import (
     HOUSEKEEPING_COLUMNS,
@@ -126,3 +126,13 @@ def read_scope_for(event_type: str) -> AppScopeResource | None:
     ``None`` when no scope reaches it (or it is not an event type at all)."""
     resource, _, _action = event_type.rpartition(".")
     return _read_scopes().get(resource)
+
+
+def event_read_scopes() -> frozenset[str]:
+    """Every scope an app may need to hear some event type: the read scope of
+    each resource whose events an app can hear."""
+    return frozenset(
+        scope_name(resource, AppScopeAccess.read)
+        for resource in _read_scopes().values()
+        if resource is not None
+    )

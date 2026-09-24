@@ -20,11 +20,14 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set
 
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
+from pydantic_core import PydanticCustomError
 from sqlalchemy import func, true
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import PropertyMessages
+from app.core.identity_boundary import current_install_boundary
+from app.core.messages import AppMessages, PropertyMessages
+from app.models.platform.identity_ref import IdentityEntity
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
@@ -371,6 +374,44 @@ async def _set_property_values(
             **cols,
         )
         session.add(row)
+
+
+async def property_values_by_row_id(
+    session: AsyncSession, values: Sequence[PropertyValueInput]
+) -> list[PropertyValueInput]:
+    """``values`` with each person a ``user_reference`` value names as a row
+    id.
+
+    Unchanged for a person. An installed app names a person by the reference
+    it was given for them, which is resolved here the way a ``PersonId`` field
+    is; anything else in that place is a 422 (``APP_REFERENCE_UNKNOWN``). Only
+    a person-valued property's value is read this way, since which values
+    name a person depends on each value's definition.
+    """
+    boundary = current_install_boundary()
+    if boundary is None or not values:
+        return list(values)
+    definitions = await load_definitions_by_ids(
+        session, [entry.property_id for entry in values]
+    )
+    resolved: list[PropertyValueInput] = []
+    for entry in values:
+        defn = definitions.get(entry.property_id)
+        if (
+            defn is not None
+            and defn.type is PropertyType.user_reference
+            and entry.value is not None
+        ):
+            try:
+                row_id = boundary.resolve(entry.value, IdentityEntity.user)
+            except PydanticCustomError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=AppMessages.REFERENCE_UNKNOWN,
+                )
+            entry = entry.model_copy(update={"value": row_id})
+        resolved.append(entry)
+    return resolved
 
 
 async def set_document_property_values(

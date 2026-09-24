@@ -1275,6 +1275,9 @@ export const useSetEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut = <
  * Property definitions belong to an initiative. A guild calendar belongs to
  * none, so there are no definitions its events could carry and the request is
  * refused; clearing values stays available.
+ *
+ * An installed app names the person a person-valued property holds by its
+ * reference for them.
  * @summary Set Event Properties
  */
 export const setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut = (
