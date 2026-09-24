@@ -271,6 +271,8 @@ async def install_tool_listing(
         apply_one_envelope,
         load_target_initiative,
     )
+    from app.services.marketplace.listing_assets import land_assets
+    from app.services.tenant.attachments import StorageQuotaExceededError
 
     body = installable_body(version, start_from)
     if body is None:
@@ -280,7 +282,7 @@ async def install_tool_listing(
     body = shift_dates(tool, body, (start - DATE_ANCHOR).days)
 
     importer = _importer(tool)
-    validated = importer.validate(_named(tool, body, listing.name))
+    importer.validate(_named(tool, body, listing.name))
     initiative = await load_target_initiative(
         session,
         guild_id=guild_id,
@@ -288,6 +290,17 @@ async def install_tool_listing(
         importer=importer,
         user=user,
     )
+    # Only once the member may create it here do its pictures land in this
+    # community's storage.
+    try:
+        body = await land_assets(
+            session, tool=tool, envelope=body, guild_id=guild_id, user_id=user.id
+        )
+    except StorageQuotaExceededError as exc:
+        raise ImportEngineError(
+            ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
+        ) from exc
+    validated = importer.validate(_named(tool, body, listing.name))
     result = await apply_one_envelope(
         session,
         importer=importer,

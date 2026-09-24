@@ -65,11 +65,10 @@ from sqlalchemy import text as sa_text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import API_V1_STR, settings
+from app.core.config import settings
 from app.core.messages import MarketplaceRegistryMessages as Codes
 from app.models.platform.marketplace import MarketplaceListing
 from app.models.platform.marketplace_registry import (
-    MarketplaceMedia,
     MarketplaceRegistryState,
 )
 from app.services.marketplace.catalog import (
@@ -78,6 +77,7 @@ from app.services.marketplace.catalog import (
     upsert_listing,
     withdraw_listing,
 )
+from app.services.marketplace import media
 from app.services.marketplace.definitions import (
     ListingDefinitionError,
     normalize_listing_definition,
@@ -144,21 +144,8 @@ CLOCK_SKEW_SECONDS = 300
 #: The index format this client understands.
 SUPPORTED_SCHEMA_VERSION = 1
 
-#: Where mirrored artwork is served from. Same-origin by construction, and
-#: addressed by the digest of the bytes, so the URL is stable and cacheable.
-MEDIA_URL_PREFIX = f"{API_V1_STR}/marketplace/media/"
-
-#: Image types a listing may carry, each with the leading bytes a file of that
-#: type starts with. Raster formats only — the artwork renders in a plain
-#: ``<img>`` and carries no document of its own.
-_IMAGE_MAGIC: dict[str, tuple[bytes, ...]] = {
-    "image/png": (b"\x89PNG\r\n\x1a\n",),
-    "image/jpeg": (b"\xff\xd8\xff",),
-    "image/gif": (b"GIF87a", b"GIF89a"),
-    # WebP is a RIFF container; the format tag sits at offset 8 and is checked
-    # separately below.
-    "image/webp": (b"RIFF",),
-}
+#: Where mirrored artwork is served from (``media``).
+MEDIA_URL_PREFIX = media.MEDIA_URL_PREFIX
 
 _HEX_DIGITS = frozenset("0123456789abcdef")
 _DIGEST_LENGTH = 64
@@ -300,7 +287,7 @@ def registry_configured() -> bool:
 
 def media_path(digest: str) -> str:
     """The same-origin path a mirrored image is served from."""
-    return f"{MEDIA_URL_PREFIX}{digest}"
+    return media.media_path(digest)
 
 
 # --- fetching ---------------------------------------------------------------
@@ -614,14 +601,12 @@ def _check_serial(
 
 def _check_image_bytes(data: bytes, content_type: Any) -> str:
     """Confirm the bytes are an image of the type the signed index declares."""
-    if not isinstance(content_type, str) or content_type not in _IMAGE_MAGIC:
+    if not isinstance(content_type, str) or content_type not in media.IMAGE_TYPES:
         raise RegistryError(
             Codes.ARTIFACT_INVALID, f"unsupported image type {content_type!r}"
         )
-    if not any(data.startswith(prefix) for prefix in _IMAGE_MAGIC[content_type]):
+    if not media.is_image_of_type(data, content_type):
         raise RegistryError(Codes.ARTIFACT_INVALID, f"the bytes are not {content_type}")
-    if content_type == "image/webp" and data[8:12] != b"WEBP":
-        raise RegistryError(Codes.ARTIFACT_INVALID, "the bytes are not image/webp")
     return content_type
 
 
@@ -644,24 +629,10 @@ async def _mirror_image(
     digest = _check_digest(data, spec, what=f"image {url}")
     content_type = _check_image_bytes(data, spec.get("content_type"))
 
-    existing = (
-        await session.exec(
-            select(MarketplaceMedia).where(MarketplaceMedia.sha256 == digest)
-        )
-    ).first()
-    if existing is None:
-        session.add(
-            MarketplaceMedia(
-                sha256=digest,
-                content_type=content_type,
-                byte_size=len(data),
-                data=data,
-                source_url=url[:2000],
-                created_at=now,
-            )
-        )
-        await session.flush()
-    return media_path(digest)
+    del digest  # checked against the index; the store keys on the same digest
+    return await media.store_media(
+        session, data, content_type=content_type, source_url=url, now=now
+    )
 
 
 # --- one listing ------------------------------------------------------------

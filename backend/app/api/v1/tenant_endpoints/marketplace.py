@@ -54,6 +54,7 @@ from app.services.marketplace.installs import (
     resolve_listing_install,
 )
 from app.services.marketplace import local_listings
+from app.services.marketplace.listing_assets import carry_uploads
 from app.services.marketplace.publish_profile import export_for_listing
 from app.services.marketplace.tool_listings import (
     example_is_generated,
@@ -321,6 +322,15 @@ async def share_to_marketplace(
         hold = not await app_settings_service.marketplace_members_publish_directly(
             system
         )
+        # Its pictures travel as the catalogue's own copies, in the same
+        # transaction as the listing that names them.
+        envelope = await carry_uploads(
+            system, tool=tool, envelope=envelope, guild_id=guild_context.guild_id
+        )
+        if example is not None:
+            example = await carry_uploads(
+                system, tool=tool, envelope=example, guild_id=guild_context.guild_id
+            )
         try:
             listing, version = await local_listings.submit_share(
                 system,

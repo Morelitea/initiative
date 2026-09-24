@@ -221,3 +221,36 @@ class TestEveryListingIsStripped:
     def test_the_stored_form_is_a_fixed_point(self):
         once = normalize_tool_listing(Tool.project, _project())
         assert normalize_tool_listing(Tool.project, once) == once
+
+
+class TestPictures:
+    DIGEST = "a" * 64
+
+    def test_a_picture_the_catalogue_keeps_stays(self):
+        from app.services.marketplace.media import media_path
+
+        kept = media_path(self.DIGEST)
+        post = {
+            "type": "initiative-post",
+            "name": "News",
+            "body": _editor(
+                {"type": "image", "src": kept},
+                {"type": "image", "src": "/uploads/3/elsewhere.png"},
+            ),
+        }
+        paragraph = strip_for_listing(Tool.post, post)["body"]["root"]["children"][0]
+        assert paragraph["children"] == [{"type": "image", "src": kept}]
+
+    def test_a_gallery_keeps_only_what_travelled(self):
+        from app.services.marketplace.media import media_path
+
+        kept = media_path(self.DIGEST)
+        gallery = {
+            "type": "initiative-gallery",
+            "name": "Moodboard",
+            "cover": "abc.png",
+            "images": [{"storage_key": kept}, {"storage_key": "abc.png"}],
+        }
+        stripped = strip_for_listing(Tool.gallery, gallery)
+        assert stripped["images"] == [{"storage_key": kept}]
+        assert stripped["cover"] is None
