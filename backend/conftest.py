@@ -33,6 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.db import cohorts
 from app.db.session import (
     clear_rls_context,
     get_system_session,
@@ -616,6 +617,10 @@ async def reading_as(role_session):
 # created a guild schema pays for the catalog scan + DROP SCHEMA/ROLE.
 _provisioned_guild_ids: set[int] = set()
 
+#: How many cohorts the suite divides communities into. More than one, so the
+#: paths that give each community a session of its own are the ones exercised.
+_TEST_COHORTS = 2
+
 
 @pytest.fixture(autouse=True)
 async def _schema_test_harness(engine, monkeypatch):
@@ -689,6 +694,21 @@ async def _schema_test_harness(engine, monkeypatch):
         ),
     )
 
+    # Two cohorts, each its own pool on this worker's database, so every test
+    # that reaches a community through a session of its own (the sockets, the
+    # cross-community reads) does so from that community's cohort — and a
+    # route outside it raises.
+    test_cohort_engines = [
+        create_async_engine(
+            _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
+        )
+        for _ in range(_TEST_COHORTS)
+    ]
+    monkeypatch.setattr(settings, "DB_COHORTS", _TEST_COHORTS)
+    monkeypatch.setattr(cohorts, "STRICT", True)
+    monkeypatch.setattr(cohorts, "_request_makers", None)
+    cohorts.use_request_engines(test_cohort_engines)
+
     _provisioned_guild_ids.clear()
     _orig_provision_guild = schema_provisioning.provision_guild
 
@@ -705,6 +725,8 @@ async def _schema_test_harness(engine, monkeypatch):
     await test_system_engine.dispose()
     await test_query_engine.dispose()
     await test_app_engine.dispose()
+    for cohort_engine in test_cohort_engines:
+        await cohort_engine.dispose()
 
 
 @pytest.fixture(scope="function")
@@ -889,6 +911,8 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     system_session = async_sessionmaker(
         bind=admin_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )()
+    # What get_session marks on the session it hands out.
+    cohorts.mark_request_session(req_session)
 
     async def _publish_setup_state() -> None:
         """Commit the setup ``session`` so the request — on its OWN real-role

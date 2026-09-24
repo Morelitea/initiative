@@ -16,10 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
+from starlette.requests import HTTPConnection
 
 from app.core import audit_context, metrics
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
+from app.db import cohorts
 from app.db.guild_standing import (
     GuildContext,
     InstallContext,
@@ -32,9 +34,14 @@ from app.db.guild_standing import (
 logger = logging.getLogger(__name__)
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
+# With DB_COHORTS above 1 this is the platform pool: requests that address no
+# community. Each cohort's requests draw from a pool of their own
+# (``app.db.cohorts``).
 engine = create_async_engine(
     settings.DATABASE_URL_APP,
     echo=False,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
 
@@ -45,6 +52,8 @@ engine = create_async_engine(
 system_engine = create_async_engine(
     settings.DATABASE_URL_ADMIN,
     echo=False,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
 _SYSTEM_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_ADMIN")
@@ -135,6 +144,8 @@ instrument_engine(system_engine, "system")
 instrument_engine(provisioning_engine, "provisioning", flag_slow=False)
 # What a reader writes is theirs, so its text stays out of the log.
 instrument_engine(query_engine, "query", log_text=False)
+if settings.DB_COHORTS > 1:
+    cohorts.tag_engine(engine, cohorts.PLATFORM)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -151,12 +162,20 @@ SystemSessionLocal = async_sessionmaker(
 )
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session(
+    connection: HTTPConnection,
+) -> AsyncGenerator[AsyncSession, None]:
     # No checkout reset: context is transaction-local (set_config is_local +
     # SET LOCAL semantics), so a pooled connection carries NO role/GUC/
     # search_path state between transactions — there is nothing to clear.
     # The pool's rollback-on-return is the only baseline needed.
-    async with AsyncSessionLocal() as session:
+    #
+    # The pool is chosen here, before the first statement, from the community
+    # the path addresses: by the time the seam routes the session, the
+    # credential and membership lookups have already begun a transaction on it.
+    guild_id = cohorts.addressed_guild_id(connection.path_params)
+    async with cohorts.request_sessionmaker(guild_id)() as session:
+        cohorts.mark_request_session(session)
         yield session
 
 
@@ -594,6 +613,8 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
     if transaction.nested:
         # SET LOCAL scopes to the top-level transaction; savepoints inherit.
         return
+    if session.info.get(cohorts.READ_ONLY_INFO_KEY):
+        connection.exec_driver_sql("SET TRANSACTION READ ONLY")
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     if params is None:
         return
@@ -608,6 +629,7 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
                 f"{RLS_CONTEXT_MAX_AGE_SECONDS}s; re-validate via "
                 "establish_guild_access before further queries."
             )
+    cohorts.note_route(connection, cohorts.routed_guild_id(params))
     bind = _render_context_bind_params(params)
     connection.execute(text(_CONTEXT_SQL), bind)
 
@@ -1038,7 +1060,10 @@ async def _apply_stored_context(session: AsyncSession) -> None:
     user's memberships, so guild A -> guild B directly is legal) but as a
     defensive baseline (see :data:`_CONTEXT_SQL`).
     """
-    bind = _render_context_bind_params(session.info[_RLS_PARAMS_INFO_KEY])
+    params = session.info[_RLS_PARAMS_INFO_KEY]
+    connection = await session.connection()
+    cohorts.note_route(connection.sync_connection, cohorts.routed_guild_id(params))
+    bind = _render_context_bind_params(params)
     await session.exec(text(_CONTEXT_SQL), params=bind)
 
 

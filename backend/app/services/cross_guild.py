@@ -13,6 +13,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import auth_context
+from app.db import cohorts
 from app.db.guild_standing import GuildContext
 from app.db.session import set_rls_context
 from app.models.platform.guild import (
@@ -107,7 +108,13 @@ async def gather_across_guilds(
 
     ``for_settings`` enters each community on its configuration surface, as
     ``/g/{guild_id}`` settings routes do (``establish_guild_access``'s
-    ``for_settings``), for a read of what its administrator configures."""
+    ``for_settings``), for a read of what its administrator configures.
+
+    With communities divided into cohorts (``app.db.cohorts``), a request-path
+    ``session`` stays where it is and each community gets a read-only session
+    from its own cohort, which is closed before the next one opens; ``fetch``
+    receives that session. Otherwise ``session`` itself is routed into each
+    community in turn and is left routed into the last."""
     if not guild_ids:
         return []
     from app.api.deps import (
@@ -132,8 +139,50 @@ async def gather_across_guilds(
     contexts: dict[tuple[int, int, bool], GuildContext] = session.info.setdefault(
         _CONTEXT_CACHE_KEY, {}
     )
+    satisfied = (
+        satisfied_providers
+        if isinstance(satisfied_providers, str)
+        else frozenset(satisfied_providers or ())
+    )
+
+    async def enter(routed: AsyncSession, account: User, guild_id: int) -> bool:
+        """Route ``routed`` into ``guild_id`` as ``account``; False when this
+        caller cannot reach it right now."""
+        key = (user_id, guild_id, for_settings)
+        cached = contexts.get(key)
+        try:
+            if cached is None:
+                contexts[key] = await establish_guild_access(
+                    routed,
+                    account,
+                    guild_id,
+                    satisfied_providers=satisfied_providers,
+                    for_settings=for_settings,
+                )
+            else:
+                # The lookup's answer is the same one it gave a moment ago in
+                # this request; what has to happen again is the routing and the
+                # standing, which is the pair this applies.
+                await apply_guild_session_context(
+                    routed, account, cached, satisfied=satisfied
+                )
+        except GuildAccessError:
+            # A community this caller cannot reach right now contributes
+            # nothing, exactly as its own ``/g/{guild_id}`` requests would.
+            return False
+        return True
 
     results: list[T] = []
+    if cohorts.fans_out(session):
+        # Each community is read on a session from its own cohort's pool, so
+        # this request's connection never opens another cohort's schema.
+        for guild_id in guild_ids:
+            async with cohorts.community_session(guild_id) as routed:
+                account = await routed.merge(user, load=False)
+                if await enter(routed, account, guild_id):
+                    results.extend(await fetch(routed, guild_id))
+        return results
+
     for guild_id in guild_ids:
         # Expunge BEFORE each guild: a cached object with this schema's id (from
         # a prior guild, or anything already on the session) would otherwise be
@@ -143,35 +192,6 @@ async def gather_across_guilds(
         # nothing per schema, so it goes straight back — every step below
         # reads it.
         session.add(user)
-        key = (user_id, guild_id, for_settings)
-        cached = contexts.get(key)
-        try:
-            if cached is None:
-                context = await establish_guild_access(
-                    session,
-                    user,
-                    guild_id,
-                    satisfied_providers=satisfied_providers,
-                    for_settings=for_settings,
-                )
-                contexts[key] = context
-            else:
-                # The lookup's answer is the same one it gave a moment ago in
-                # this request; what has to happen again is the routing and the
-                # standing, which is the pair this applies.
-                await apply_guild_session_context(
-                    session,
-                    user,
-                    cached,
-                    satisfied=(
-                        satisfied_providers
-                        if isinstance(satisfied_providers, str)
-                        else frozenset(satisfied_providers or ())
-                    ),
-                )
-        except GuildAccessError:
-            # A community this caller cannot reach right now contributes
-            # nothing, exactly as its own ``/g/{guild_id}`` requests would.
-            continue
-        results.extend(await fetch(session, guild_id))
+        if await enter(session, user, guild_id):
+            results.extend(await fetch(session, guild_id))
     return results

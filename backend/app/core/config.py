@@ -280,6 +280,21 @@ class Settings(BaseSettings):
     # again long before it has been idle long enough to trip one, so age is
     # the only bound that actually applies. 0 disables recycling.
     DB_POOL_RECYCLE_SECONDS: int = 1800
+    # Connections each request and system pool keeps open, and how many more it
+    # may open under load. With DB_COHORTS above 1 these size every cohort's
+    # request pool, not their total.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
+    # How many groups ("cohorts") communities are divided into. Each cohort has
+    # a request pool of its own, and a connection only ever serves its own
+    # cohort's communities, so the catalog each database connection caches is
+    # a K-th of the whole. 1 is one shared pool.
+    DB_COHORTS: int = 1
+    # The database name each cohort's connections ask for, with ``{cohort}``
+    # standing for its number: ``initiative_c{cohort}`` behind a pooler that
+    # gives each cohort an alias of its own. Unset, every cohort connects to
+    # the database DATABASE_URL_APP names.
+    DB_COHORT_DATABASE: str | None = None
 
     SECRET_KEY: str
     # Optional: the *previous* SECRET_KEY, set only while rotating the encryption
@@ -311,6 +326,38 @@ class Settings(BaseSettings):
     # gone.
     AUTH_ACCESS_TTL_MINUTES: int = 15
     AUTH_REFRESH_TTL_DAYS: int = 30
+
+    @field_validator("DB_COHORTS", "DB_POOL_SIZE")
+    @classmethod
+    def _at_least_one(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("must be at least 1")
+        return value
+
+    @field_validator("DB_MAX_OVERFLOW")
+    @classmethod
+    def _not_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("must not be negative")
+        return value
+
+    @field_validator("DB_COHORT_DATABASE")
+    @classmethod
+    def _names_the_cohort(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        if "{cohort}" not in value:
+            raise ValueError(
+                "DB_COHORT_DATABASE must contain {cohort}, which stands for the "
+                "cohort's number"
+            )
+        try:
+            value.format(cohort=0)
+        except (KeyError, IndexError, ValueError) as exc:
+            raise ValueError(
+                "DB_COHORT_DATABASE may contain {cohort} and nothing else in braces"
+            ) from exc
+        return value
 
     @field_validator("SECRET_KEY")
     @classmethod

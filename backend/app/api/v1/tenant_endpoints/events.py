@@ -13,7 +13,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import establish_guild_access, GuildAccessError
 from app.core.security import SESSION_COOKIE_NAME
-from app.db.session import CONNECTION_RESET_SQL, AsyncSessionLocal
+from app.db.cohorts import request_sessionmaker
+from app.db.session import CONNECTION_RESET_SQL
 from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
 from app.services.membership import initiative_scope_clause
@@ -133,10 +134,10 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
     # keepalive loop. Holding a request-scoped session for the websocket's whole
     # lifetime keeps a connection idle-in-transaction, whose locks block DDL like
     # DROP SCHEMA (guild deletion). Mirrors the queue/counter websockets.
-    async with AsyncSessionLocal() as session:
+    async with request_sessionmaker(guild_id)() as session:
         # Reset any stale GUCs the pooled connection may carry (e.g. a SET ROLE to
         # a since-dropped guild role would make every query error) before the auth
-        # query — AsyncSessionLocal doesn't run get_session's per-request reset.
+        # query — a session opened here doesn't run get_session's per-request reset.
         await session.exec(text(CONNECTION_RESET_SQL))
         # Taken before the row is read, so it is never later than the value
         # that read comes back with.

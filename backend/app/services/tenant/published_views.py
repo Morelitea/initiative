@@ -47,7 +47,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.guild_standing import GuildContext
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.user import User, UserStatus
@@ -145,9 +145,9 @@ async def author_still_reaches(grants: Sequence[ResourceGrant], guild_id: int) -
         author_id = grant.created_by
         if author_id is None:
             return False
-        # Looked up on the module rather than bound at import: which database
-        # the request login points at is decided after this module is read.
-        async with db_session.AsyncSessionLocal() as session:
+        # From the guild's own cohort, which resolves the request pool when it
+        # is called rather than when this module is read.
+        async with cohorts.request_sessionmaker(guild_id)() as session:
             standing = await _standing(session, author_id, guild_id)
             if standing is None:
                 return False

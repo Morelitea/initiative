@@ -36,7 +36,7 @@ from app.api.deps import (
 )
 from app.core.messages import DocumentMessages
 from app.core.security import SESSION_COOKIE_NAME
-from app.db.session import AsyncSessionLocal
+from app.db.cohorts import request_sessionmaker
 from app.models.platform.user import User
 from app.services.tenant.collaboration import (
     broadcast_awareness,
@@ -207,7 +207,7 @@ async def _collaborate(
         return
 
     # Authenticate and check permissions using a short-lived session
-    async with AsyncSessionLocal() as session:
+    async with request_sessionmaker(guild_id)() as session:
         user = await _get_user_from_token(token, session)
         if not user:
             logger.warning(
@@ -477,7 +477,7 @@ async def _collaborate(
         # Save what this session added. The room is only retired afterwards,
         # and only once nothing is connected to it — another tab of the same
         # account is another connection, and keeps it.
-        async with AsyncSessionLocal() as session:
+        async with request_sessionmaker(guild_id)() as session:
             await establish_guild_access(session, user, guild_id)
             await collaboration_manager.persist_room(
                 guild_id, spec.resource_type, resource_id, session
