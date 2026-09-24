@@ -8,7 +8,7 @@ from sqlalchemy.engine import make_url
 
 from app.core.config import (
     CAPACITOR_NATIVE_ORIGINS,
-    DERIVED_DATABASE_LOGINS,
+    DATABASE_LOGINS,
     Settings,
     derive_database_password,
 )
@@ -132,7 +132,7 @@ def test_owner_url_alone_derives_the_three_logins():
 
     assert settings.database_logins_derived is True
     assert settings.DATABASE_URL_BOOTSTRAP == OWNER_URL
-    for setting, role in DERIVED_DATABASE_LOGINS:
+    for setting, role in DATABASE_LOGINS:
         url = make_url(getattr(settings, setting))
         assert url.username == role
         assert url.password == derive_database_password(TEST_SECRET_KEY, role)
@@ -148,9 +148,9 @@ def test_owner_url_alone_derives_the_three_logins():
 
 def test_derived_passwords_are_per_role_and_follow_secret_key():
     passwords = {
-        derive_database_password(TEST_SECRET_KEY, r) for _, r in DERIVED_DATABASE_LOGINS
+        derive_database_password(TEST_SECRET_KEY, r) for _, r in DATABASE_LOGINS
     }
-    assert len(passwords) == len(DERIVED_DATABASE_LOGINS)
+    assert len(passwords) == len(DATABASE_LOGINS)
     # Stable for one key, so every replica and every restart agrees.
     assert derive_database_password(TEST_SECRET_KEY, "app_user") == (
         derive_database_password(TEST_SECRET_KEY, "app_user")
@@ -167,6 +167,14 @@ def test_three_login_urls_are_used_as_given():
     assert settings.DATABASE_URL == "postgresql+asyncpg://prov:pw@localhost/app"
     assert settings.DATABASE_URL_APP == "postgresql+asyncpg://app:app@localhost/app"
     assert settings.DATABASE_URL_BOOTSTRAP is None
+
+
+def test_database_login_reads_the_url_and_falls_back_to_the_canonical_name():
+    settings = _settings(DATABASE_URL="postgresql+asyncpg://prov:p%40ss@localhost/app")
+
+    assert settings.database_login("DATABASE_URL") == ("prov", "p@ss")
+    settings.DATABASE_URL_ADMIN = "postgresql+asyncpg://localhost/app"
+    assert settings.database_login("DATABASE_URL_ADMIN") == ("app_admin", None)
 
 
 @pytest.mark.parametrize(

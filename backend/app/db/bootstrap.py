@@ -37,13 +37,12 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from urllib.parse import unquote, urlparse
 
 from sqlalchemy import make_url, text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.core.config import settings
+from app.core.config import DATABASE_LOGINS, settings
 from app.db.system_grants import GRANTABLE_SHARED_TABLES
 
 logger = logging.getLogger(__name__)
@@ -64,12 +63,6 @@ _BOOTSTRAP_LOCK_KEY = 0x1417B007
 #: Tried in order for the cluster-wide lock. Both are conventionally present;
 #: a provider that exposes neither falls back to the per-database lock.
 _MAINTENANCE_DATABASES = ("postgres", "template1")
-
-#: The canonical login names, used when a URL does not name one. Each is paired
-#: with the setting whose URL supplies its name and password.
-_PROVISIONER = ("DATABASE_URL", "app_provisioner")
-_APP_USER = ("DATABASE_URL_APP", "app_user")
-_SYSTEM_ENGINE = ("DATABASE_URL_ADMIN", "app_admin")
 
 #: Roles the provisioner administers but does not create: the shared floors,
 #: the platform ladder and the two reader roles come from migrations, and
@@ -128,39 +121,26 @@ def owner_setting() -> str:
     )
 
 
-def _url_parts(setting_name: str, default_role: str) -> tuple[str, str | None]:
-    """The (role name, password) a connection URL carries.
+#: The attributes each login is held to, keyed by the setting that names it.
+_LOGIN_ATTRIBUTES = {
+    "DATABASE_URL": "LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS",
+    "DATABASE_URL_APP": "LOGIN NOINHERIT",
+    "DATABASE_URL_ADMIN": "LOGIN BYPASSRLS",
+}
+
+
+def login_roles() -> tuple[LoginRole, LoginRole, LoginRole]:
+    """The three logins to maintain: provisioner, request login, system engine.
 
     Deployments are free to name their logins something other than the
     canonical names; the bootstrap maintains whatever the URLs actually
     connect as, the same way the system-engine check reads ``current_user``.
     """
-    url = getattr(settings, setting_name, None)
-    if not url:
-        return default_role, None
-    try:
-        parsed = urlparse(url)
-    except ValueError:
-        return default_role, None
-    name = unquote(parsed.username) if parsed.username else default_role
-    password = unquote(parsed.password) if parsed.password else None
-    return name, password
-
-
-def login_roles() -> tuple[LoginRole, LoginRole, LoginRole]:
-    """The three logins to maintain, read from the connection URLs."""
-    provisioner_name, provisioner_pw = _url_parts(*_PROVISIONER)
-    app_name, app_pw = _url_parts(*_APP_USER)
-    system_name, system_pw = _url_parts(*_SYSTEM_ENGINE)
-    return (
-        LoginRole(
-            provisioner_name,
-            provisioner_pw,
-            "LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS",
-        ),
-        LoginRole(app_name, app_pw, "LOGIN NOINHERIT"),
-        LoginRole(system_name, system_pw, "LOGIN BYPASSRLS"),
+    provisioner, app_login, system = (
+        LoginRole(*settings.database_login(setting), _LOGIN_ATTRIBUTES[setting])
+        for setting, _name in DATABASE_LOGINS
     )
+    return provisioner, app_login, system
 
 
 # --- Role and database statements ------------------------------------------
@@ -278,9 +258,10 @@ DO $$ BEGIN
 END $$;
 """
 
-#: The name of the match function :data:`_SEARCH_MATCH_FUNCTION` installs.
-#: ``schema_provisioning`` reads it from here so the name has one home.
+#: The names of the match function and operator class this module installs.
+#: ``schema_provisioning`` reads them from here so each name has one home.
 SEARCH_MATCH_FUNCTION = "search_tsmatch"
+SEARCH_OPCLASS = "tsvector_search_ops"
 
 #: Functions this module installs itself, over the bootstrap connection rather
 #: than the provisioning one. Every boot re-asserts them with CREATE OR REPLACE
@@ -507,16 +488,21 @@ def search_operator_sql() -> tuple[str, ...]:
     return tuple(statement for _label, statement in _SEARCH_OPERATOR_STEPS)
 
 
-#: Both objects must be present for guild search to use its index.
 _SEARCH_OPERATOR_PRESENT = text(
     "SELECT "
     "  coalesce((SELECT p.proleakproof FROM pg_proc p"
     "            JOIN pg_namespace n ON n.oid = p.pronamespace"
-    "            WHERE n.nspname = 'public' AND p.proname = 'search_tsmatch'), false)"
+    "            WHERE n.nspname = 'public' AND p.proname = :match_fn), false)"
     "  AND EXISTS (SELECT 1 FROM pg_opclass c"
     "              JOIN pg_namespace n ON n.oid = c.opcnamespace"
-    "              WHERE n.nspname = 'public' AND c.opcname = 'tsvector_search_ops')"
-)
+    "              WHERE n.nspname = 'public' AND c.opcname = :opclass)"
+).bindparams(match_fn=SEARCH_MATCH_FUNCTION, opclass=SEARCH_OPCLASS)
+
+
+async def search_operator_present(conn) -> bool:
+    """Whether both objects are present, so guild search can use its index."""
+    return bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
+
 
 _IS_SUPERUSER = text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
 
@@ -630,14 +616,14 @@ async def _apply_search_operator(conn) -> bool:
     afterwards — a non-superuser bootstrap connection cannot create them, and
     that is reported rather than raised: search works without them."""
     if not await conn.scalar(_IS_SUPERUSER):
-        return bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
+        return await search_operator_present(conn)
     for label, statement in _SEARCH_OPERATOR_STEPS:
         try:
             await conn.execute(text(statement))
         except Exception:
             logger.exception("database bootstrap: %s failed", label)
             return False
-    return bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
+    return await search_operator_present(conn)
 
 
 #: A signal, not a work list: does anything in the app's own schemas belong to
@@ -861,7 +847,7 @@ async def _verify_only() -> BootstrapResult:
         for role in (provisioner, app_login, system):
             if role.name not in present:
                 missing.append(f"role {role.name}")
-        search_ready = bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
+        search_ready = await search_operator_present(conn)
     if missing:
         raise RuntimeError(_repair_instructions(missing))
     return BootstrapResult(
