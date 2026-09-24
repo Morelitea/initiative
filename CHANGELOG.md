@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Your sessions, in one place** — **My Settings → Security** lists every browser and phone signed in to your account. You can sign any one of them out, or all of them except the one you're on.
 - **Control what notifications carry** — platform and community **Security** settings choose whether notifications may go to phones and email, and whether they may name what they're about. Where the two disagree, the stricter one wins.
 - **Smaller additions** — a 12- or 24-hour clock under **My Settings → Interface**, a **Fields** menu that picks what kanban cards show, a file upload in **Add link**, a colour for each priority, and MCP assistants can now tick checklist items.
-- **For operators** — `/api/v1/metrics` serves Prometheus metrics when `METRICS_TOKEN` is set. Communities can be put **On hold**. **Settings → Intake** takes contact addresses, which notices use when they tell people who to contact. Sign-in placement rules on an identity provider add people to communities by group.
+- **For operators** — `/api/v1/metrics` serves Prometheus metrics when `METRICS_TOKEN` is set. Communities can be put **On hold**; one left on hold for 30 days is deleted, and its superadmins are emailed that date when the hold starts. Change the window under **Settings → Platform → Community**. **Settings → Intake** takes contact addresses, which notices use when they tell people who to contact. Sign-in placement rules on an identity provider add people to communities by group.
 
 ### Changed
 
