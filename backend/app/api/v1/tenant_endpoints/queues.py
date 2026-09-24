@@ -40,7 +40,7 @@ from app.api.deps import (
     GuildContext,
 )
 from app.core.security import SESSION_COOKIE_NAME
-from app.db.session import AsyncSessionLocal
+from app.db.cohorts import request_sessionmaker
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
@@ -953,7 +953,7 @@ async def websocket_queue(
         return
 
     # Authenticate and check access using a short-lived session
-    async with AsyncSessionLocal() as session:
+    async with request_sessionmaker(guild_id)() as session:
         user = await _ws_authenticate(token, session)
         if not user:
             logger.warning(f"Queue WS: auth failed for queue {queue_id}")

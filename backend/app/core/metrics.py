@@ -83,6 +83,18 @@ db_slow_statements = Counter(
     "Statements over the slow threshold; each is also a warning in the log.",
     ("engine",),
 )
+db_cross_cohort_routes = Counter(
+    "initiative_db_cross_cohort_routes",
+    "Times a pooled connection was routed into a community outside its "
+    "cohort, by the cohort (or platform pool) the connection belongs to.",
+    ("cohort",),
+)
+db_connection_communities = Histogram(
+    "initiative_db_connection_communities",
+    "Communities a pooled connection served before it closed, by cohort.",
+    ("cohort",),
+    buckets=(1, 2, 5, 10, 25, 50, 100, 250, 500, 1000),
+)
 users = Gauge(
     "initiative_users",
     "Accounts on this deployment, by status.",

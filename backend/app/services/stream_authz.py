@@ -48,10 +48,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import GuildAccessError, establish_guild_access
 from app.core import auth_context
 from app.db import session as db_session
+from app.db.cohorts import request_sessionmaker
 from app.db.session import (
     CONNECTION_RESET_SQL,
     RLS_CONTEXT_MAX_AGE_SECONDS,
-    AsyncSessionLocal,
 )
 from app.models.platform.user import User, UserStatus
 from app.services.auth import sessions as session_service
@@ -395,8 +395,8 @@ class StreamAuthority:
             auth_context.satisfied_claims(),
         )
         try:
-            async with AsyncSessionLocal() as session:
-                # AsyncSessionLocal skips get_session's per-request reset; clear
+            async with request_sessionmaker(member.guild_id)() as session:
+                # A session opened here skips get_session's per-request reset; clear
                 # any stale pooled-connection GUCs before establishing context.
                 await session.exec(text(CONNECTION_RESET_SQL))
                 # Read the account fresh. ``member.user`` is the snapshot taken

@@ -184,7 +184,9 @@ def _patch_recheck(
             raise GuildAccessError()
 
     monkeypatch.setattr(
-        stream_authz, "AsyncSessionLocal", lambda: _FakeSession(account_status)
+        stream_authz,
+        "request_sessionmaker",
+        lambda _guild_id: lambda: _FakeSession(account_status),
     )
     monkeypatch.setattr(stream_authz, "establish_guild_access", fake_establish)
 
@@ -301,7 +303,9 @@ async def test_recheck_answers_for_the_session_that_opened_the_socket(
         if not auth_context.session_amr() & {"hwk", "swk"}:
             raise GuildAccessError()
 
-    monkeypatch.setattr(stream_authz, "AsyncSessionLocal", lambda: _FakeSession())
+    monkeypatch.setattr(
+        stream_authz, "request_sessionmaker", lambda _guild_id: lambda: _FakeSession()
+    )
     monkeypatch.setattr(stream_authz, "establish_guild_access", gate_wanting_a_passkey)
 
     with_a_key = FakeWebSocket()
@@ -347,7 +351,9 @@ async def test_recheck_answers_a_narrowed_provider_from_the_socket(
         if "acme.com" not in asserted.get("hd", []):
             raise GuildAccessError()
 
-    monkeypatch.setattr(stream_authz, "AsyncSessionLocal", lambda: _FakeSession())
+    monkeypatch.setattr(
+        stream_authz, "request_sessionmaker", lambda _guild_id: lambda: _FakeSession()
+    )
     monkeypatch.setattr(stream_authz, "establish_guild_access", gate_wanting_the_claim)
 
     from_acme = FakeWebSocket()

@@ -31,7 +31,7 @@ from app.api.deps import (
 )
 from app.core.security import SESSION_COOKIE_NAME
 from app.core.messages import CounterMessages, InitiativeMessages
-from app.db.session import AsyncSessionLocal
+from app.db.cohorts import request_sessionmaker
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
@@ -850,7 +850,7 @@ async def websocket_counter_group(
             pass
         return
 
-    async with AsyncSessionLocal() as session:
+    async with request_sessionmaker(guild_id)() as session:
         user = await _ws_authenticate(token, session)
         if not user:
             logger.warning(f"Counter WS: auth failed for group {group_id}")
