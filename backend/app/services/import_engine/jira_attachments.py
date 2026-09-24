@@ -190,6 +190,7 @@ async def download_images(
     budget_bytes: int,
     max_files: int,
     documents: bool = False,
+    tick: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> ImageReport:
     """Fetch every issue's images, within the per-image cap and a total budget.
 
@@ -230,6 +231,9 @@ async def download_images(
                 else:
                     report.unreadable += 1
                 continue
+            finally:
+                if tick is not None:
+                    await tick()
             spent += len(data)
             stored = StoredImage(
                 filename=attachment.filename,

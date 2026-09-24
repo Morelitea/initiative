@@ -497,6 +497,30 @@ async def fetch(
     open_user_session: Callable[[], AsyncContextManager[AsyncSession]],
     progress: Callable[[AtlassianFetchSummary], Awaitable[None]] | None = None,
 ) -> StagedFetch:
+    """:func:`_read`, within :data:`~limits.IMPORT_FETCH_DEADLINE_SECONDS`.
+
+    A fetch still going when the time runs out fails with
+    ``IMPORT_SOURCE_TOO_SLOW``, and nothing it read so far is kept.
+    """
+    try:
+        async with asyncio.timeout(import_limits.IMPORT_FETCH_DEADLINE_SECONDS):
+            return await _read(
+                job,
+                guild_id=guild_id,
+                open_user_session=open_user_session,
+                progress=progress,
+            )
+    except TimeoutError:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_TOO_SLOW) from None
+
+
+async def _read(
+    job: ImportJob,
+    *,
+    guild_id: int,
+    open_user_session: Callable[[], AsyncContextManager[AsyncSession]],
+    progress: Callable[[AtlassianFetchSummary], Awaitable[None]] | None = None,
+) -> StagedFetch:
     """Read the job's projects or spaces from the site and stage the bundle.
 
     Raises an :class:`ImportEngineError` for anything the person has to act

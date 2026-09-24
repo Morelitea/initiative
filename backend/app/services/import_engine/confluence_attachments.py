@@ -146,6 +146,7 @@ async def download_page_attachments(
     budget: AssetBudget,
     report: AttachmentReport,
     documents: bool = True,
+    tick: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> PageMedia:
     """Fetch one page's attachments, within the caps and the shared budget.
 
@@ -184,6 +185,9 @@ async def download_page_attachments(
             else:
                 report.unreadable += 1
             continue
+        finally:
+            if tick is not None:
+                await tick()
         budget.bytes_left -= len(data)
         budget.files_left -= 1
         report.bytes += len(data)
