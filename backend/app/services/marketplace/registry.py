@@ -693,6 +693,12 @@ async def _ingest_listing(
             f"{public_id}: the manifest names a different listing",
         )
 
+    # A pack's decoration art, like every other picture, comes from the index.
+    # Whatever the manifest names is dropped before the body is checked.
+    is_pack = manifest.get("kind") == "profile_pack"
+    if is_pack:
+        _drop_decoration_images(manifest)
+
     # Validate the body before anything is downloaded for it: a listing the
     # validator will not take is not worth fetching artwork for.
     try:
@@ -740,10 +746,77 @@ async def _ingest_listing(
         )
     manifest["images"] = mirrored
 
+    if is_pack:
+        await _copy_decoration_art(
+            session,
+            manifest=manifest,
+            specs=entry.get("decoration_art"),
+            index_url=index_url,
+            public_id=public_id,
+            now=now,
+        )
+
     try:
         await upsert_listing(session, manifest, source=SOURCE)
     except CatalogError as exc:
         raise RegistryError(Codes.LISTING_REJECTED, str(exc)) from exc
+
+
+def _pack_decorations(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
+    definition = manifest.get("definition")
+    if not isinstance(definition, dict):
+        return []
+    entries = definition.get("decorations")
+    if not isinstance(entries, list):
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def _drop_decoration_images(manifest: Mapping[str, Any]) -> None:
+    for decoration in _pack_decorations(manifest):
+        decoration.pop("image", None)
+
+
+async def _copy_decoration_art(
+    session: AsyncSession,
+    *,
+    manifest: Mapping[str, Any],
+    specs: Any,
+    index_url: str,
+    public_id: str,
+    now: datetime,
+) -> None:
+    """Give each of a pack's decorations the picture the index names for it.
+
+    ``decoration_art`` in the index entry maps a decoration id to an image spec
+    — the same ``{url, sha256, content_type}`` an avatar has — and each one is
+    fetched, checked against its digest, and kept in the marketplace's media.
+    A decoration the index names no art for keeps none, and is drawn only by a
+    client that ships art for its id.
+    """
+    if specs is None:
+        return
+    if not isinstance(specs, Mapping):
+        raise RegistryError(
+            Codes.INDEX_MALFORMED, f"{public_id}: decoration_art must be an object"
+        )
+    decorations = {str(entry.get("id")): entry for entry in _pack_decorations(manifest)}
+    for decoration_id, spec in specs.items():
+        decoration = decorations.get(str(decoration_id))
+        if decoration is None:
+            raise RegistryError(
+                Codes.INDEX_MALFORMED,
+                f"{public_id}: decoration_art names {decoration_id!r}, "
+                "which the pack does not grant",
+            )
+        if not isinstance(spec, Mapping):
+            raise RegistryError(
+                Codes.INDEX_MALFORMED,
+                f"{public_id}: art for {decoration_id!r} is not an object",
+            )
+        decoration["image"] = await _mirror_image(
+            session, index_url=index_url, spec=spec, now=now
+        )
 
 
 # --- state ------------------------------------------------------------------

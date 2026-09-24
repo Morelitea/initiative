@@ -1509,6 +1509,8 @@ async def test_library_carries_what_a_pack_granted(client, session, acting_user)
         # No listing behind this row in this test, so no name to carry.
         "name": None,
         "source": "studio.midnight-pack",
+        # Nor a picture of its own.
+        "image_url": None,
     }
     assert len(items) == len(SHIPPED_DECORATIONS) + 1
     assert "pack.elsewhere" not in {item["id"] for item in items}

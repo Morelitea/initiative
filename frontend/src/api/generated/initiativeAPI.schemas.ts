@@ -2744,6 +2744,17 @@ export const DatasetName = {
   wiki_pages: "wiki_pages",
 } as const;
 
+export type DecorationArtResponseArt = { [key: string]: string };
+
+/**
+ * Pictures for decorations whose art is carried by their pack rather than
+ * shipped with the client, by decoration id. An id the client draws itself,
+ * or one no pack on this deployment names, is absent.
+ */
+export interface DecorationArtResponse {
+  art: DecorationArtResponseArt;
+}
+
 /**
  * One decoration an account may wear, and where it came from.
  *
@@ -2757,6 +2768,7 @@ export interface OwnedDecoration {
   kind: string;
   name: string | null;
   source: string | null;
+  image_url: string | null;
 }
 
 /**
@@ -9358,6 +9370,13 @@ export type ListCommunityGuildsApiV1GuildsCommunitiesGetParams = {
    * @maximum 60
    */
   page_size?: number;
+};
+
+export type ReadDecorationArtApiV1UsersDecorationArtGetParams = {
+  /**
+   * @maxItems 64
+   */
+  ids?: string[];
 };
 
 export type ListAnnouncementsApiV1AnnouncementsGetParams = {

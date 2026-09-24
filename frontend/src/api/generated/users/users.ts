@@ -32,6 +32,7 @@ import type {
   CommunityGuildRead,
   CookieConsentRead,
   CookieConsentUpdate,
+  DecorationArtResponse,
   DecorationPack,
   DecorationPackListResponse,
   DeletionEligibilityResponse,
@@ -42,6 +43,7 @@ import type {
   OwnedDecorationsResponse,
   OwnershipTransferRequest,
   OwnershipTransferResponse,
+  ReadDecorationArtApiV1UsersDecorationArtGetParams,
   SearchUsersApiV1GGuildIdUsersSearchGetParams,
   UserEmailCreate,
   UserEmailListResponse,
@@ -576,6 +578,166 @@ export function useListMyDecorationsApiV1UsersMeDecorationsGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListMyDecorationsApiV1UsersMeDecorationsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The pictures packs carry for these decorations.
+ *
+ * A profile names the decorations its owner wears by id. The client draws the
+ * ones it ships art for; for any other, this answers with the picture the
+ * pack carries, served by the marketplace. Ids nothing carries art for are
+ * left out.
+ * @summary Read Decoration Art
+ */
+export const readDecorationArtApiV1UsersDecorationArtGet = (
+  params?: ReadDecorationArtApiV1UsersDecorationArtGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationArtResponse>(
+    { url: `/api/v1/users/decoration-art`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getReadDecorationArtApiV1UsersDecorationArtGetQueryKey = (
+  params?: ReadDecorationArtApiV1UsersDecorationArtGetParams
+) => {
+  return [`/api/v1/users/decoration-art`, ...(params ? [params] : [])] as const;
+};
+
+export const getReadDecorationArtApiV1UsersDecorationArtGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ReadDecorationArtApiV1UsersDecorationArtGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadDecorationArtApiV1UsersDecorationArtGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>
+  > = ({ signal }) => readDecorationArtApiV1UsersDecorationArtGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadDecorationArtApiV1UsersDecorationArtGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>
+>;
+export type ReadDecorationArtApiV1UsersDecorationArtGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadDecorationArtApiV1UsersDecorationArtGet<
+  TData = Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ReadDecorationArtApiV1UsersDecorationArtGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+          TError,
+          Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadDecorationArtApiV1UsersDecorationArtGet<
+  TData = Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ReadDecorationArtApiV1UsersDecorationArtGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+          TError,
+          Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadDecorationArtApiV1UsersDecorationArtGet<
+  TData = Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ReadDecorationArtApiV1UsersDecorationArtGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Decoration Art
+ */
+
+export function useReadDecorationArtApiV1UsersDecorationArtGet<
+  TData = Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ReadDecorationArtApiV1UsersDecorationArtGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDecorationArtApiV1UsersDecorationArtGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadDecorationArtApiV1UsersDecorationArtGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

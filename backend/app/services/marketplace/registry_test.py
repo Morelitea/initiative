@@ -32,7 +32,10 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.messages import MarketplaceRegistryMessages as Codes
-from app.models.platform.marketplace import MarketplaceListing
+from app.models.platform.marketplace import (
+    MarketplaceListing,
+    MarketplaceListingVersion,
+)
 from app.models.platform.marketplace_registry import (
     MarketplaceMedia,
     MarketplaceRegistryState,
@@ -888,3 +891,87 @@ class TestMalformedIndex:
         # Refused before its artwork was fetched — there is nothing to mirror
         # for a listing that cannot be stored.
         assert REGISTRY_ROOT + "acme.widgets-icon.png" not in host.requested
+
+
+def _pack_definition(*ids: str, image: Optional[str] = None) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "kind": "profile_pack",
+        "decorations": [
+            {
+                "id": decoration_id,
+                "slot": "banner",
+                "name": decoration_id,
+                **({"image": image} if image else {}),
+            }
+            for decoration_id in ids
+        ],
+    }
+
+
+class TestAPackCarriesItsArt:
+    async def test_each_decoration_gets_the_picture_the_index_names(
+        self, session, host, publisher_key
+    ):
+        entry = host.add(
+            "acme.stickers",
+            "PACK0000000001",
+            kind="profile_pack",
+            definition=_pack_definition("acme.star", "acme.moon"),
+        )
+        art = host._put("acme-star.png", _png("star"))
+        art["content_type"] = "image/png"
+        entry["decoration_art"] = {"acme.star": art}
+        host.publish(publisher_key)
+
+        assert (await registry.refresh_registry(session)).ok
+
+        listing = await _listing(session, "acme.stickers")
+        assert listing is not None
+        version = await session.get(
+            MarketplaceListingVersion, listing.latest_version_id
+        )
+        decorations = {d["id"]: d for d in version.definition["decorations"]}
+        assert decorations["acme.star"]["image"] == registry.media_path(art["sha256"])
+        assert "image" not in decorations["acme.moon"]
+
+    async def test_a_picture_the_manifest_names_itself_is_discarded(
+        self, session, host, publisher_key
+    ):
+        host.add(
+            "acme.stickers",
+            "PACK0000000001",
+            kind="profile_pack",
+            definition=_pack_definition(
+                "acme.star", image="https://images.example.invalid/star.png"
+            ),
+        )
+        host.publish(publisher_key)
+
+        assert (await registry.refresh_registry(session)).ok
+
+        listing = await _listing(session, "acme.stickers")
+        assert listing is not None
+        version = await session.get(
+            MarketplaceListingVersion, listing.latest_version_id
+        )
+        assert "image" not in version.definition["decorations"][0]
+
+    async def test_art_for_a_decoration_the_pack_does_not_grant_is_refused(
+        self, session, host, publisher_key
+    ):
+        entry = host.add(
+            "acme.stickers",
+            "PACK0000000001",
+            kind="profile_pack",
+            definition=_pack_definition("acme.star"),
+        )
+        art = host._put("acme-other.png", _png("other"))
+        art["content_type"] = "image/png"
+        entry["decoration_art"] = {"acme.other": art}
+        host.publish(publisher_key)
+
+        result = await registry.refresh_registry(session)
+
+        assert await _listing(session, "acme.stickers") is None
+        assert [item.public_id for item in result.skipped] == ["acme.stickers"]
