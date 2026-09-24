@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On servers that keep files in S3, backup restores and large imports finish instead of failing when they are applied.
 - A restored backup, or a single exported project, document, post or wiki, now links its mentions, `#` references, `[[ ]]` links and smart chips to the right people and things. A reference to something the backup didn't carry keeps pointing at the original in the community it came from, and is its name anywhere else.
 - `#` references to wiki pages, counter groups and other two-word tools in comments now count in **Linked from**.
+- A deleted account is now emptied completely. Its trophies, installed decoration packs, custom status, passkeys, notifications and queued email go, along with its direct-message devices, contacts, favourites and ignores. Operators can now permanently remove an account that once set a community's icon or banner.
 - Deleting or anonymizing an account no longer fails when it was mentioned in archived work or in a comment in the trash.
 - Making a missing tool from `[[` in a comment now puts the link where you typed it, and works in replies too.
 - Other fixes: task table columns no longer jump while scrolling, tags shorten to fit the space they have, export formats show their names, broken and missing pages get a proper error page, restored backups keep comment replies in their threads, imports ask about everyone they mention, and access-request notifications open the right page.

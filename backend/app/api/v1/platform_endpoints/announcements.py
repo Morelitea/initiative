@@ -187,11 +187,9 @@ async def list_all_announcements(
 async def create_announcement(
     payload: AnnouncementWrite,
     session: UserSessionDep,
-    author: AuthorDep,
+    _author: AuthorDep,
 ) -> AnnouncementOperatorRead:
-    announcement = await announcements_service.create(
-        session, payload=payload, author_id=author.id
-    )
+    announcement = await announcements_service.create(session, payload=payload)
     await announcements_service.prune_unreferenced_images(session)
     await session.commit()
     await session.refresh(announcement)
@@ -244,7 +242,7 @@ async def delete_announcement(
 )
 async def upload_announcement_image(
     session: UserSessionDep,
-    author: AuthorDep,
+    _author: AuthorDep,
     file: UploadFile = File(...),
 ) -> AnnouncementImageRead:
     """Store one picture and return the URL a section should point at."""
@@ -256,9 +254,7 @@ async def upload_announcement_image(
             detail=AnnouncementMessages.IMAGE_TOO_LARGE,
         )
     try:
-        image = await announcements_service.store_image(
-            session, data=data, user_id=author.id
-        )
+        image = await announcements_service.store_image(session, data=data)
     except announcements_service.AnnouncementImageError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)

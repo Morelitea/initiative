@@ -435,7 +435,6 @@ export interface AnnouncementOperatorRead {
   guild_admins_only?: boolean;
   audience_accounts?: AnnouncementAudienceAccounts;
   expires_at?: string | null;
-  created_by?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
 }

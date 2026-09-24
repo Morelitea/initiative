@@ -887,7 +887,6 @@ async def _store_guild_images(
     session: AsyncSession,
     *,
     guild_id: int,
-    user: User,
     uploads: list[tuple[GuildImageVariant, UploadFile]],
 ) -> None:
     """Validate every part, then store them — never one and then the other.
@@ -916,9 +915,7 @@ async def _store_guild_images(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
             ) from exc
 
-    await images_service.set_images(
-        session, guild_id=guild_id, user_id=user.id, renditions=renditions
-    )
+    await images_service.set_images(session, guild_id=guild_id, renditions=renditions)
 
 
 @router.put("/{guild_id}/icon", response_model=GuildRead)
@@ -934,7 +931,6 @@ async def set_guild_icon(
     await _store_guild_images(
         session,
         guild_id=guild_id,
-        user=current_user,
         uploads=[(GuildImageVariant.icon, icon)],
     )
     await session.commit()
@@ -989,7 +985,6 @@ async def set_guild_banner(
     await _store_guild_images(
         session,
         guild_id=guild_id,
-        user=current_user,
         uploads=list(zip(BANNER_VARIANTS, (full, card))),
     )
     await session.commit()

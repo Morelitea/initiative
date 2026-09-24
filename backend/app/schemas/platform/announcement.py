@@ -137,7 +137,6 @@ class AnnouncementOperatorRead(AnnouncementRead):
         AnnouncementAudienceAccounts.everyone
     )
     expires_at: Optional[datetime] = None
-    created_by: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

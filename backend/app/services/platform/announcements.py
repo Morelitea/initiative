@@ -225,7 +225,6 @@ def to_operator_read(announcement: Announcement) -> AnnouncementOperatorRead:
         guild_admins_only=announcement.guild_admins_only,
         audience_accounts=AnnouncementAudienceAccounts(announcement.audience_accounts),
         expires_at=announcement.expires_at,
-        created_by=announcement.created_by,
         created_at=announcement.created_at,
         updated_at=announcement.updated_at,
     )
@@ -452,9 +451,7 @@ async def list_all(session: AsyncSession) -> list[AnnouncementOperatorRead]:
     return items
 
 
-async def create(
-    session: AsyncSession, *, payload: AnnouncementWrite, author_id: int
-) -> Announcement:
+async def create(session: AsyncSession, *, payload: AnnouncementWrite) -> Announcement:
     now = datetime.now(timezone.utc)
     announcement = Announcement(
         title=payload.title,
@@ -467,7 +464,6 @@ async def create(
         expires_at=payload.expires_at,
         dismissals_required=payload.dismissals_required,
         trigger_route=payload.trigger_route,
-        created_by=author_id,
         created_at=now,
         updated_at=now,
     )
@@ -551,9 +547,7 @@ def _referenced_digests(sections: Iterable[dict]) -> set[str]:
     return digests
 
 
-async def store_image(
-    session: AsyncSession, *, data: bytes, user_id: int
-) -> AnnouncementImage:
+async def store_image(session: AsyncSession, *, data: bytes) -> AnnouncementImage:
     """Validate an uploaded picture and keep it, or return the one already here.
 
     The format is read from the bytes rather than believed from the part's
@@ -588,7 +582,6 @@ async def store_image(
         width=header.width,
         height=header.height,
         data=data,
-        created_by=user_id,
         created_at=datetime.now(timezone.utc),
     )
     session.add(image)
