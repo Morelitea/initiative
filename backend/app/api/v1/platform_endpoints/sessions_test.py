@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import get_password_hash
 from app.models.platform.user import UserStatus
+from app.services.platform import api_keys as api_keys_service
 from app.services.platform import user_tokens
 from app.testing import create_user, get_auth_headers
 
@@ -249,3 +250,31 @@ async def test_a_native_client_sweeping_spares_its_own_device(
         "/api/v1/users/me", headers={"Authorization": f"DeviceToken {other}"}
     )
     assert stale.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/api/v1/auth/sessions"),
+        ("POST", "/api/v1/auth/sessions/revoke-others"),
+        ("GET", "/api/v1/auth/device-tokens"),
+    ],
+)
+async def test_a_standing_credential_does_not_manage_sign_ins(
+    client: AsyncClient, session: AsyncSession, method: str, path: str
+):
+    """The account's sign-ins are the person's to list and end, not a key's."""
+    user = await _signed_in_user(session, f"sessions-key-{method}@example.com")
+    secret, _row = await api_keys_service.create_api_key(
+        session, user=user, name="script"
+    )
+    await session.commit()
+
+    response = await client.request(
+        method, path, headers={"Authorization": f"Bearer {secret}"}
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "SESSION_REQUIRED"

@@ -24,6 +24,7 @@ from app.api.deps import (
     SessionDep,
     get_current_active_user,
     get_current_user_optional,
+    require_first_party_session,
 )
 from app.db.session import get_system_session, set_rls_context
 from app.core.config import API_V1_STR, settings
@@ -1451,6 +1452,7 @@ async def exchange_device_token(
 async def list_device_tokens(
     system_session: SystemSessionDep,
     current_user: AccountHolder,
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> list[DeviceTokenInfo]:
     """List all device tokens for the current user."""
     tokens = await user_tokens.get_user_device_tokens(
@@ -1470,6 +1472,7 @@ async def list_device_tokens(
 async def revoke_device_token(
     system_session: SystemSessionDep,
     current_user: AccountHolder,
+    _first_party: Annotated[str, Depends(require_first_party_session)],
     token_id: int,
 ) -> None:
     """Revoke a device token."""
