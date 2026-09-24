@@ -24,8 +24,8 @@ A person's request carries no install, and each leg answers for it with its
 first comparison. The bodies are stated here in full, as they were and as they
 become, so this revision reads the same whatever the modules say later.
 
-Revision ID: 20260924_0380
-Revises: 20260924_0379
+Revision ID: 20260924_0381
+Revises: 20260924_0380
 Create Date: 2026-09-24
 """
 
@@ -34,8 +34,8 @@ from alembic import op
 
 from app.db.guild_migrations import guild_schema_names, run_for_each_guild_schema
 
-revision = "20260924_0380"
-down_revision = "20260924_0379"
+revision = "20260924_0381"
+down_revision = "20260924_0380"
 branch_labels = None
 depends_on = None
 
