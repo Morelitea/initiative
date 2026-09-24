@@ -232,9 +232,6 @@ class StaleAuthorizationContext(RuntimeError):
     a routed session past the bound."""
 
 
-_ROLE_RESET_SQL = "SELECT set_config('role', 'none', true)"
-
-
 def _search_path(*schemas: str) -> str:
     """The schemas a request resolves unqualified names against, in priority order.
 
@@ -261,8 +258,13 @@ CONNECTION_RESET_SQL = (
 #: by the standing statement (``app.db.guild_standing``).
 OVERRIDE_INITIATIVES_GUC = "app.override_initiatives"
 
+#: The whole of a routing, in one statement. It returns to the login role
+#: first and assumes the routed role last, so a statement that fails part-way
+#: leaves the transaction aborted on the login role, never wearing a stale
+#: guild role.
 _CONTEXT_SQL = (
-    "SELECT set_config('app.current_user_id', :uid, true), "
+    "SELECT set_config('role', 'none', true), "
+    "set_config('app.current_user_id', :uid, true), "
     "set_config('app.current_guild_id', :gid, true), "
     "set_config('app.pam_guild_id', :pgid, true), "
     "set_config('app.settings_guild_id', :setgid, true), "
@@ -540,7 +542,6 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
                 "establish_guild_access before further queries."
             )
     bind = _render_context_bind_params(params)
-    connection.execute(text(_ROLE_RESET_SQL))
     connection.execute(text(_CONTEXT_SQL), bind)
 
 
@@ -905,14 +906,12 @@ async def _apply_stored_context(session: AsyncSession) -> None:
 
     Uses set_config() (a regular SQL function) instead of SET commands —
     set_config() is a standard SQL query guaranteed to run on the same
-    connection as other session queries. Resets to the login role first, NOT
-    because switching requires it (SET ROLE checks the SESSION user's
-    memberships, so guild A -> guild B directly is legal) but as a defensive
-    baseline: if the set below fails mid-way, the transaction is left as the
-    login role, never wearing a stale guild role.
+    connection as other session queries. The statement resets to the login
+    role first, NOT because switching requires it (SET ROLE checks the SESSION
+    user's memberships, so guild A -> guild B directly is legal) but as a
+    defensive baseline (see :data:`_CONTEXT_SQL`).
     """
     bind = _render_context_bind_params(session.info[_RLS_PARAMS_INFO_KEY])
-    await session.exec(text(_ROLE_RESET_SQL))
     await session.exec(text(_CONTEXT_SQL), params=bind)
 
 
