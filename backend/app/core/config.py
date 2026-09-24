@@ -270,6 +270,12 @@ class Settings(BaseSettings):
     # where the app reaches Postgres through something that pools per
     # transaction, which cannot hold a subscription open.
     DATABASE_URL_LISTEN: str | None = None
+    # Where reads that may trail the primary by a moment go: dashboard widgets'
+    # SQL and export renders. Point it at a read replica. It connects as the
+    # same login as DATABASE_URL_APP; when DATABASE_URL names the owner, give
+    # only the host and database and the app fills in that login. Unset, those
+    # reads use DATABASE_URL_APP.
+    DATABASE_URL_QUERY: str | None = None
     # How long a pooled connection may live before it is retired and replaced.
     #
     # A backend permanently caches catalog entries for every table it touches
@@ -415,6 +421,7 @@ class Settings(BaseSettings):
                 f"makes them."
             )
         if has_app:
+            self._check_query_login()
             return self
         if self.DATABASE_URL_BOOTSTRAP:
             raise ValueError(
@@ -433,8 +440,28 @@ class Settings(BaseSettings):
                 password=derive_database_password(self.SECRET_KEY, role),
             )
             setattr(self, setting, login.render_as_string(hide_password=False))
+        if self.DATABASE_URL_QUERY:
+            request_login = make_url(self.DATABASE_URL_APP)
+            self.DATABASE_URL_QUERY = (
+                make_url(self.DATABASE_URL_QUERY)
+                .set(username=request_login.username, password=request_login.password)
+                .render_as_string(hide_password=False)
+            )
         self._database_logins_derived = True
         return self
+
+    def _check_query_login(self) -> None:
+        """DATABASE_URL_QUERY connects as DATABASE_URL_APP's login, the one
+        the query roles are granted to."""
+        if not self.DATABASE_URL_QUERY:
+            return
+        query_login = make_url(self.DATABASE_URL_QUERY).username
+        request_login = make_url(self.DATABASE_URL_APP).username
+        if query_login != request_login:
+            raise ValueError(
+                f"DATABASE_URL_QUERY connects as {query_login!r}, but it must use "
+                f"the same login as DATABASE_URL_APP ({request_login!r})."
+            )
 
     @property
     def database_logins_derived(self) -> bool:

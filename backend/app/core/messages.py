@@ -854,6 +854,10 @@ class QueryMessages:
     TIMED_OUT = "QUERY_TIMED_OUT"
     #: This guild already has as many queries running as it may.
     BUSY = "QUERY_BUSY"
+    #: The database stopped the statement for reasons of its own — a read
+    #: replica catching up with the primary — so the same statement may well
+    #: run if asked again.
+    INTERRUPTED = "QUERY_INTERRUPTED"
     #: The statement parsed and resolved, and the database refused it while
     #: running it — dividing by zero, a value that will not convert, a
     #: function called with types it does not take.

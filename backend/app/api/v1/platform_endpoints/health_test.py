@@ -43,6 +43,16 @@ async def test_readyz_reports_every_dependency(client: AsyncClient):
 
 
 @pytest.mark.integration
+def test_a_read_replica_is_reported_and_does_not_decide(monkeypatch):
+    assert "database_query" not in health.declared_checks()
+
+    monkeypatch.setattr(
+        health.settings, "DATABASE_URL_QUERY", "postgresql+asyncpg://r/initiative"
+    )
+    assert "database_query" in health.declared_checks()
+    assert "database_query" not in health.REQUIRED
+
+
 async def test_readyz_is_503_when_a_database_is_unreachable(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):

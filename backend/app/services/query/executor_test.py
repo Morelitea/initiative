@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 import sqlalchemy as sa
+from asyncpg.exceptions import DatabaseDroppedError, SerializationError
 
 from app.core.messages import QueryMessages
 from app.db.guild_standing import GuildContext
@@ -99,6 +100,17 @@ async def test_a_slow_statement_is_stopped(guild, monkeypatch):
     with pytest.raises(QueryError) as stopped:
         await execute(slow, context=_context(guild))
     assert stopped.value.code == QueryMessages.TIMED_OUT
+
+
+@pytest.mark.parametrize("stopped_by", [SerializationError, DatabaseDroppedError])
+async def test_a_read_the_database_stopped_on_its_own_can_be_asked_again(
+    stopped_by,
+):
+    """What a read replica says when it cancels a statement to keep replaying."""
+    with pytest.raises(QueryError) as stopped:
+        async with executor._translated_failures():
+            raise stopped_by("canceling statement due to conflict with recovery")
+    assert stopped.value.code == QueryMessages.INTERRUPTED
 
 
 async def test_the_transaction_refuses_a_write(guild):
