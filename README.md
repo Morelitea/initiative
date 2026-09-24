@@ -133,9 +133,7 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 
 | Variable | Description | Default |
 |---|---|---|
-| `DATABASE_URL` | Provisioning PostgreSQL connection (migrations, guild/role creation; not a superuser) | Required |
-| `DATABASE_URL_APP` | RLS-enforced connection (`app_user` role) | Required |
-| `DATABASE_URL_ADMIN` | System connection for background jobs and startup seeding (`app_admin` role) | Required |
+| `DATABASE_URL` | PostgreSQL connection as the database owner (see [Database connection](#database-connection)) | Required |
 | `SECRET_KEY` | JWT signing and encryption key | Required |
 | `APP_URL` | Public base URL (required for OIDC callbacks) | - |
 | `DISABLE_GUILD_CREATION` | Restrict guild creation to `guilds.manage` holders (operator and owner) | `false` |
@@ -155,19 +153,17 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 
 For FCM setup, see [docs/en/running-a-server/push-notifications.md](docs/en/running-a-server/push-notifications.md). For a complete list of options, see `backend/.env.example`.
 
-### Database connections
+### Database connection
 
-Initiative runs on **three** PostgreSQL roles, one database. The container will not start without all three connection strings (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN` have no defaults — a missing one aborts startup with a config validation error). They work as a set:
+Set **`DATABASE_URL`** to the database, connecting as its **owner**. At startup the app uses it to create three least-privilege logins, hand them the schema and install the guild-search match operator, then closes it and serves everything on those logins:
 
-- **`DATABASE_URL`** — the **provisioning role** (`app_provisioner`): runs migrations and creates/removes guild schemas. Deliberately *not* a superuser.
-- **`DATABASE_URL_APP`** — connects as `app_user`, the role every request runs on.
-- **`DATABASE_URL_ADMIN`** — connects as `app_admin`, the system role for background jobs and startup seeding.
+- **`app_provisioner`** runs migrations and creates/removes guild schemas. Deliberately *not* a superuser.
+- **`app_user`** is the role every request runs on.
+- **`app_admin`** is the system role for background jobs and startup seeding.
 
-A fourth is what creates them:
+Their passwords are derived from `SECRET_KEY` and re-applied on every start, so rotating `SECRET_KEY` rotates them too. The [example compose file](docker-compose.example.yml) points `DATABASE_URL` at the `POSTGRES_USER` it creates, so `docker compose up` works as-is.
 
-- **`DATABASE_URL_BOOTSTRAP`** — the **database owner**. At startup the app uses it to create the three roles above (with the passwords you put in their URLs), take ownership of the schema, and install the guild-search match operator; then it closes that connection and serves everything on the three roles. It re-applies on every start, so changing a role's password in its URL is enough to rotate it.
-
-The [example compose file](docker-compose.example.yml) wires all four together, so `docker compose up` works as-is with no SQL to run by hand. Once the stack is up you can remove `DATABASE_URL_BOOTSTRAP`: the app then checks those prerequisites instead of applying them, and tells you what is missing if any are. A deployment that provisions its database elsewhere — managed Postgres, a Kubernetes operator, your DBA — never sets it; `python -m app.db.bootstrap --print-sql` prints exactly what to apply.
+**Naming the logins yourself** (a pooler with its own user list, managed Postgres, a DBA): set `DATABASE_URL` to `app_provisioner` and add `DATABASE_URL_APP` (`app_user`) and `DATABASE_URL_ADMIN` (`app_admin`). Add `DATABASE_URL_BOOTSTRAP` as the owner and the app creates those logins with the passwords in their URLs; leave it out and the app only checks they exist. `python -m app.db.bootstrap --print-sql` prints exactly what to apply by hand.
 
 ### Running as a non-root user (PUID/PGID)
 

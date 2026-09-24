@@ -34,7 +34,7 @@ docker compose up -d
 The example file ships **PostgreSQL 17** and sensible defaults already wired together, so it works as-is once you set a `SECRET_KEY`. Initiative listens on port **8173** by default.
 
 !!! warning "Change the secrets before going live"
-    At an absolute minimum: set a strong, unique **`SECRET_KEY`** and change the default **database passwords**.
+    At an absolute minimum: set a strong, unique **`SECRET_KEY`** and change the default **database password** (`POSTGRES_PASSWORD`).
 
     The `SECRET_KEY` signs sessions *and* encrypts sensitive data. Keep it somewhere safe, and don't change it casually later on a whim — doing so invalidates existing sessions and every encrypted value.
 
@@ -47,33 +47,47 @@ Two things need to persist across restarts and upgrades:
 
 The example compose file sets up volumes for both. Make sure those volumes live somewhere your [backups](backups-and-updates.md) will capture.
 
-## The database connections
+## The database connection
 
-Initiative runs on **three** PostgreSQL roles and won't start without a connection string for each. They work as a set — this is how least-privilege is enforced at the database level (see [How your data is kept separate](../security/how-your-data-is-kept-separate.md)).
+One URL, connecting as the database's owner:
 
-| Variable | Connects as | Purpose |
-|---|---|---|
-| `DATABASE_URL` | `app_provisioner` | Runs migrations and creates community spaces. Not a superuser. |
-| `DATABASE_URL_APP` | `app_user` | The everyday, security-enforced connection for normal requests. |
-| `DATABASE_URL_ADMIN` | `app_admin` | Background jobs and startup seeding. |
+```yaml
+DATABASE_URL: postgresql+asyncpg://initiative:<password>@db:5432/initiative
+```
 
-A fourth connection creates those three:
+That's the user and password you gave PostgreSQL when you set it up. In the example compose file they're `POSTGRES_USER` and `POSTGRES_PASSWORD`, already wired in.
 
-| Variable | Connects as | Purpose |
-|---|---|---|
-| `DATABASE_URL_BOOTSTRAP` | the database owner | Creates the three roles, hands them the schema, and installs the search index's match operator. |
+You don't have to know anything else about it. At startup Initiative uses that connection to set up three smaller logins of its own, then serves every request on those. Each one can do only its own job, which is how the separation described in [How your data is kept separate](../security/how-your-data-is-kept-separate.md) is enforced by the database itself.
 
-At startup Initiative opens the bootstrap connection, applies those prerequisites, and closes it. Every request afterwards runs on the three roles above. The password you put in each URL is the password that role gets, and the bootstrap runs on every start — so changing one and restarting is how you rotate it.
+??? techspec "The three logins"
+    | Login | Used for |
+    |---|---|
+    | `app_provisioner` | Migrations and creating community spaces. Not a superuser. |
+    | `app_user` | Every request. Row-level security applies to it. |
+    | `app_admin` | Background jobs and startup seeding. |
 
-The example compose file wires all four together, so `docker compose up` works with no SQL to run by hand.
+    Their passwords are derived from `SECRET_KEY` and set again on every start. Rotating `SECRET_KEY` (with `PREVIOUS_SECRET_KEY`, as `backend/.env.example` describes) rotates them too, with nothing else to do. The owner connection is closed before Initiative serves anything.
 
-**Once you're running, you can remove `DATABASE_URL_BOOTSTRAP`.** Initiative then checks those prerequisites at startup instead of applying them, and names anything missing. If you point Initiative at a database you provision elsewhere — a managed PostgreSQL service, a Kubernetes operator, a DBA who owns the cluster — leave it unset and apply the SQL yourself:
+    The owner also installs the search index's match operator, which is marked `LEAKPROOF`. Only a PostgreSQL superuser may declare that. The example compose file's owner is one; if yours isn't, everything else still works, search just reads more of its index to get there, and Initiative says so at startup.
+
+### Naming the logins yourself
+
+Some setups need to know the logins in advance: a connection pooler such as PgBouncer with its own user list, a managed PostgreSQL service, or a DBA who'd rather Initiative never held the owner's password. For those, give the three connections directly:
+
+| Variable | Connects as |
+|---|---|
+| `DATABASE_URL` | `app_provisioner` |
+| `DATABASE_URL_APP` | `app_user` |
+| `DATABASE_URL_ADMIN` | `app_admin` |
+| `DATABASE_URL_BOOTSTRAP` | the database owner (optional) |
+
+Set `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` and Initiative reads `DATABASE_URL` as the provisioner. With `DATABASE_URL_BOOTSTRAP` it creates the three logins with the passwords in their URLs, on every start. Without it, Initiative only checks they exist and names anything missing. To create them by hand, print the SQL and run it as the owner:
 
 ```bash
 docker compose exec -T initiative python -m app.db.bootstrap --print-sql
 ```
 
-One part of that SQL needs a PostgreSQL superuser: the search index's match operator is marked `LEAKPROOF`, which only a superuser may declare. If your database owner isn't one, everything else still applies and search works — it just reads more of its index to do it, and Initiative says so at startup.
+To go back to one URL, point `DATABASE_URL` at the owner, delete the other three, and restart.
 
 ## Running as a specific user (PUID / PGID)
 

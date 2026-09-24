@@ -14,12 +14,10 @@ Initiative is configured with **environment variables**, set in your `docker-com
 | Variable | What it does | Default |
 |---|---|---|
 | `SECRET_KEY` | Signs sessions **and** encrypts sensitive stored data. Set a strong, unique value and keep it safe. | *required* |
-| `DATABASE_URL` | Provisioning connection — migrations and community/role creation (`app_provisioner`, not a superuser). | *required* |
-| `DATABASE_URL_APP` | Security-enforced connection for normal requests (`app_user`). | *required* |
-| `DATABASE_URL_ADMIN` | Connection for migrations and background jobs (`app_admin`). | *required* |
+| `DATABASE_URL` | The database, connecting as its owner. Initiative sets up its own logins from it. | *required* |
 | `APP_URL` | Your public base URL. Needed for single-sign-on callbacks and correct links. Passkeys are bound to its host: change the host and every passkey registered stops answering, so people sign in another way and add new ones. | — |
 
-See [Installation](installation.md#the-database-connections) for how the database URLs work together.
+See [Installation](installation.md#the-database-connection) for what it's used for, and for naming the logins yourself.
 
 ## Who can sign up
 

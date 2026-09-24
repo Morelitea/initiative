@@ -2,8 +2,6 @@
   "service": "initiative",
   "env_prefix": "",
   "required": [
-    "DATABASE_URL_ADMIN",
-    "DATABASE_URL_APP",
     "SECRET_KEY"
   ],
   "registration": [],
@@ -65,6 +63,8 @@
     "BUNDLED_SERVICE_SHARED_SECRET",
     "CORS_ALLOWED_ORIGINS",
     "DATABASE_URL",
+    "DATABASE_URL_ADMIN",
+    "DATABASE_URL_APP",
     "DATABASE_URL_BOOTSTRAP",
     "DATABASE_URL_LISTEN",
     "DB_POOL_RECYCLE_SECONDS",

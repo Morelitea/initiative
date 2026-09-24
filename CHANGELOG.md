@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sign-in group rules are set per community** — they moved from platform settings to **Community settings → Security**. Rules that were already saved keep working.
 - **Signing out affects only the device you're on.** Changing your password still signs out everywhere.
 - **Names and titles are capped at 255 characters.**
+- **One database URL** — set `DATABASE_URL` to the database owner and Initiative creates its own database logins, with passwords derived from `SECRET_KEY`. Existing setups that set `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` work unchanged. To switch, point `DATABASE_URL` at the owner, remove `DATABASE_URL_APP`, `DATABASE_URL_ADMIN` and `DATABASE_URL_BOOTSTRAP`, and restart.
 - **Breaking API and configuration changes**
   - `/api/v1/admin/*` is now `/api/v1/operator/*`, and `/api/v1/announcements/admin/*` is now `/api/v1/announcements/operator/*`. The matching `Admin*` schemas are renamed `Operator*`.
   - `/api/v1/settings/oidc-mappings` and the operator routes for initiative and community members were removed. Use `PATCH /api/v1/guilds/{guild_id}/members/{user_id}` and `/api/v1/guilds/{guild_id}/auth/rules` instead.

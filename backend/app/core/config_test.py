@@ -4,7 +4,14 @@ import pytest
 from pydantic import ValidationError
 from pydantic_settings import SettingsConfigDict
 
-from app.core.config import CAPACITOR_NATIVE_ORIGINS, Settings
+from sqlalchemy.engine import make_url
+
+from app.core.config import (
+    CAPACITOR_NATIVE_ORIGINS,
+    DERIVED_DATABASE_LOGINS,
+    Settings,
+    derive_database_password,
+)
 
 # Test-only key satisfying the SECRET_KEY validator (64 hex chars). Not a secret.
 TEST_SECRET_KEY = "f2d8a1c4b7e90365d4a2f8c1b6e3079a5c8d2e4f6a1b3c5d7e9f0a2b4c6d8e1f"
@@ -100,6 +107,84 @@ def test_secret_key_failure_points_at_safe_rotation_path():
     assert "restart" in msg
     assert "automatically" in msg
     assert "app.db.secret_key_rotation" in msg
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# DATABASE_URL: the owner alone, or the three logins
+# ──────────────────────────────────────────────────────────────────────────
+
+OWNER_URL = "postgresql+asyncpg://owner:p%40ss@db.internal:5433/initiative?ssl=require"
+
+
+def _owner_settings(**overrides) -> Settings:
+    """DATABASE_URL as the owner, with the two login URLs explicitly unset so
+    nothing in the test process's environment selects the other shape."""
+    overrides.setdefault("DATABASE_URL", OWNER_URL)
+    overrides.setdefault("DATABASE_URL_APP", "")
+    overrides.setdefault("DATABASE_URL_ADMIN", "")
+    return _HermeticSettings(
+        APP_URL="https://app.example.com", SECRET_KEY=TEST_SECRET_KEY, **overrides
+    )
+
+
+def test_owner_url_alone_derives_the_three_logins():
+    settings = _owner_settings()
+
+    assert settings.database_logins_derived is True
+    assert settings.DATABASE_URL_BOOTSTRAP == OWNER_URL
+    for setting, role in DERIVED_DATABASE_LOGINS:
+        url = make_url(getattr(settings, setting))
+        assert url.username == role
+        assert url.password == derive_database_password(TEST_SECRET_KEY, role)
+        # Everything but the credentials is the owner's.
+        assert (url.drivername, url.host, url.port, url.database) == (
+            "postgresql+asyncpg",
+            "db.internal",
+            5433,
+            "initiative",
+        )
+        assert url.query == {"ssl": "require"}
+
+
+def test_derived_passwords_are_per_role_and_follow_secret_key():
+    passwords = {
+        derive_database_password(TEST_SECRET_KEY, r) for _, r in DERIVED_DATABASE_LOGINS
+    }
+    assert len(passwords) == len(DERIVED_DATABASE_LOGINS)
+    # Stable for one key, so every replica and every restart agrees.
+    assert derive_database_password(TEST_SECRET_KEY, "app_user") == (
+        derive_database_password(TEST_SECRET_KEY, "app_user")
+    )
+    assert derive_database_password("e" * 64, "app_user") != (
+        derive_database_password(TEST_SECRET_KEY, "app_user")
+    )
+
+
+def test_three_login_urls_are_used_as_given():
+    settings = _settings(DATABASE_URL="postgresql+asyncpg://prov:pw@localhost/app")
+
+    assert settings.database_logins_derived is False
+    assert settings.DATABASE_URL == "postgresql+asyncpg://prov:pw@localhost/app"
+    assert settings.DATABASE_URL_APP == "postgresql+asyncpg://app:app@localhost/app"
+    assert settings.DATABASE_URL_BOOTSTRAP is None
+
+
+@pytest.mark.parametrize(
+    ("given", "missing"),
+    [
+        ("DATABASE_URL_APP", "DATABASE_URL_ADMIN"),
+        ("DATABASE_URL_ADMIN", "DATABASE_URL_APP"),
+    ],
+)
+def test_one_login_url_without_the_other_is_refused(given, missing):
+    with pytest.raises(ValidationError) as exc_info:
+        _owner_settings(**{given: "postgresql+asyncpg://x:y@localhost/app"})
+    assert f"{given} is set but {missing} is not" in str(exc_info.value)
+
+
+def test_bootstrap_url_beside_an_owner_database_url_is_refused():
+    with pytest.raises(ValidationError, match="so remove DATABASE_URL_BOOTSTRAP"):
+        _owner_settings(DATABASE_URL_BOOTSTRAP=OWNER_URL)
 
 
 # ──────────────────────────────────────────────────────────────────────────

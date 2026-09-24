@@ -48,20 +48,10 @@ services:
       # Unraid users: set PUID=99 PGID=100 for nobody:users
       # PUID: 1000
       # PGID: 1000
-      # RLS-enforced connection (app_user role, the request path)
-      DATABASE_URL_APP: postgresql+asyncpg://app_user:${APP_USER_PASSWORD:-app_user_password}@db:5432/${POSTGRES_DB:-initiative}
-      # System engine for background jobs and seeding (app_admin role, BYPASSRLS)
-      DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:${APP_ADMIN_PASSWORD:-app_admin_password}@db:5432/${POSTGRES_DB:-initiative}
-      # Provisioning connection for migrations + guild schema/role creation.
-      # app_provisioner is least-privilege (no superuser).
-      DATABASE_URL: postgresql+asyncpg://app_provisioner:${PROVISIONER_PASSWORD:-provisioner_password}@db:5432/${POSTGRES_DB:-initiative}
-      # The database owner. Used once at startup to create the three roles above
-      # and install the guild-search match operator, then closed — the app
-      # serves every request on the roles above. Applied again on each start, so
-      # changing a password here is enough to rotate it. You may remove this
-      # line once the stack has come up: the app then checks those prerequisites
-      # instead of applying them, and says what is missing if any are.
-      DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@db:5432/${POSTGRES_DB:-initiative}
+      # The database, as the owner the db service above creates. The app makes
+      # its own least-privilege logins from it at startup and serves every
+      # request on those.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@db:5432/${POSTGRES_DB:-initiative}
       # REQUIRED: generate with `openssl rand -hex 32`. The stack refuses to start without it.
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set - generate with openssl rand -hex 32}
       # Stay signed in for 30 days of not opening the app, renewed silently
