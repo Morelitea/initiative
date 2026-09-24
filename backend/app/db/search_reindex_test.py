@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlmodel import select
 
 from app.db import session as db_session
-from app.db.schema_provisioning import reindex_guild_search
+from app.db.schema_provisioning import community_schemas, reindex_guild_search
 from app.db.search_index import search_generation
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
@@ -171,3 +171,14 @@ async def test_a_write_during_the_sweep_wins(session, acting_user):
         r for r in await _entries(session, a.guild.id, "task") if r.entity_id == task.id
     ]
     assert [r.title for r in rows] == ["edited"]
+
+
+async def test_the_sweep_skips_the_template(session, acting_user):
+    """``guild_template`` names no community, so the boot sweep has no role to
+    assume for it and nothing to index there."""
+    a = await acting_user(guild_role=GuildRole.admin)
+    async with db_session.provisioning_engine.connect() as conn:
+        assert await conn.scalar(text("SELECT to_regnamespace('guild_template')"))
+        schemas = await community_schemas(conn)
+    assert "guild_template" not in schemas
+    assert f"guild_{a.guild.id}" in schemas

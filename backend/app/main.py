@@ -469,9 +469,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-# Body-size bounds for upload-shaped routes — enforced at the ASGI seam so an
-# oversized (or chunked, length-less) request is refused before its body is
-# buffered, not after FastAPI has already parsed it.
+# Body-size bounds for every request — a route's own where it has one, a
+# default otherwise — enforced at the ASGI seam so an oversized (or chunked,
+# length-less) request is refused before its body is buffered, not after
+# FastAPI has already parsed it.
 app.add_middleware(BodySizeLimitMiddleware)
 
 # Origin checking for cookie-authenticated writes; see app/core/csrf.py.

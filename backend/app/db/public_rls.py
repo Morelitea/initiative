@@ -1169,6 +1169,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "user_api_keys": FORCED_NO_POLICY,
     "user_tokens": FORCED_NO_POLICY,
     "user_email_assertions": FORCED_NO_POLICY,
+    "sign_in_locks": FORCED_NO_POLICY,
     "user_emails": FORCED_NO_POLICY,
     "user_passkeys": FORCED_NO_POLICY,
     "user_totp": FORCED_NO_POLICY,

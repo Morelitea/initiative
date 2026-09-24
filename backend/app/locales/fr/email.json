@@ -381,5 +381,21 @@
     "textDeletion": "Si elle est toujours en attente le {{date}}, elle sera supprimée.",
     "textContact": "Contactez {{contact}} pour régler la situation.",
     "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation."
+  },
+  "signInLocked": {
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "fallbackText": "Si c'était vous, il n'y a rien d'autre à faire. Sinon, quelqu'un connaît peut-être votre adresse e-mail. Votre mot de passe reste protégé, mais pensez à vous connecter avec une clé d'accès.",
+    "locked": {
+      "subject": "Connexion par mot de passe suspendue sur votre compte",
+      "title": "Connexion par mot de passe suspendue",
+      "body": "Quelqu'un a saisi 5 fois un mauvais mot de passe ou code pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant 15 minutes. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà.",
+      "textBody": "Quelqu'un a saisi 5 fois un mauvais mot de passe ou code pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant 15 minutes. Les clés d'accès fonctionnent toujours."
+    },
+    "held": {
+      "subject": "Connexion par mot de passe désactivée sur votre compte",
+      "title": "Connexion par mot de passe désactivée",
+      "body": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est donc désactivée jusqu'à ce qu'un modérateur la réactive. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Contactez la personne qui gère ce site pour la faire réactiver.",
+      "textBody": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est désactivée jusqu'à ce qu'un modérateur la réactive. Les clés d'accès fonctionnent toujours."
+    }
   }
 }

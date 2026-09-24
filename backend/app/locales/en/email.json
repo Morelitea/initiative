@@ -381,5 +381,21 @@
     "textDeletion": "If it is still on hold on {{date}}, it will be deleted.",
     "textContact": "Contact {{contact}} to sort it out.",
     "textContactNobody": "Contact whoever runs this server to sort it out."
+  },
+  "signInLocked": {
+    "greeting": "Hello <strong>{{name}}</strong>,",
+    "fallbackText": "If this was you, there's nothing else to do. If it wasn't, someone may know your email address. Your password is still safe, but consider signing in with a passkey.",
+    "locked": {
+      "subject": "Password sign-in paused on your account",
+      "title": "Password sign-in paused",
+      "body": "Someone entered the wrong password or code for your account 5 times, so signing in with a password or code is turned off for 15 minutes. Passkeys still work, and you stay signed in where you already are.",
+      "textBody": "Someone entered the wrong password or code for your account 5 times, so signing in with a password or code is turned off for 15 minutes. Passkeys still work."
+    },
+    "held": {
+      "subject": "Password sign-in turned off on your account",
+      "title": "Password sign-in turned off",
+      "body": "Wrong passwords or codes kept arriving for your account, so signing in with a password or code is now turned off until a moderator turns it back on. Passkeys still work, and you stay signed in where you already are. Contact whoever runs this site to have it turned back on.",
+      "textBody": "Wrong passwords or codes kept arriving for your account, so signing in with a password or code is turned off until a moderator turns it back on. Passkeys still work."
+    }
   }
 }

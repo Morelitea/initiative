@@ -1043,6 +1043,17 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
     return written
 
 
+async def community_schemas(conn: AsyncConnection) -> list[str]:
+    """Every community's schema, sorted. ``guild_template`` is not one."""
+    rows = await conn.execute(
+        text(
+            "SELECT nspname FROM pg_namespace "
+            "WHERE nspname ~ '^guild_[0-9]+$' ORDER BY nspname"
+        )
+    )
+    return [r[0] for r in rows.all()]
+
+
 async def backfill_guild_search() -> int:
     """Reindex every guild whose search generation is stale.
 
@@ -1050,20 +1061,8 @@ async def backfill_guild_search() -> int:
     walked in bounded transactions, so a large install fills in progressively
     instead of holding one transaction open across the whole sweep.
     """
-    from sqlalchemy import text as _text
-
     async with db_session.provisioning_engine.connect() as conn:
-        schemas = [
-            r[0]
-            for r in (
-                await conn.execute(
-                    _text(
-                        "SELECT nspname FROM pg_namespace "
-                        "WHERE nspname LIKE 'guild\\_%' ORDER BY nspname"
-                    )
-                )
-            ).all()
-        ]
+        schemas = await community_schemas(conn)
     total = 0
     for schema in schemas:
         try:

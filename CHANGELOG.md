@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Request size limits** — a request can now be at most 4 MiB, a file upload 51 MiB, and saving a document 64 MiB, which leaves room for whiteboards with pictures in them. Imports keep their own, larger limits.
+- **The update check asks Docker Hub less often** — the server asks at most every six hours, and every visitor shares the answer, instead of asking on every page load. A server without internet access logs that once and stops trying for 15 minutes at a time.
+- **Password sign-in switches off after wrong answers** — five wrong passwords or codes within 15 minutes turn off password and code sign-in for that account for 15 minutes, and its email addresses are told. Three of those in a day and it stays off until a moderator turns it back on from **Operator dashboard → Users**. Passkeys, and anywhere already signed in, keep working throughout.
+
+### Fixed
+
+- **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
+
+## [0.72.0] - 2026-09-24
+
 ### Added
 
 - **Import from Jira and Confluence** — **Community settings → Data** reads a Jira or Confluence site directly with an API token, or a Confluence space from its HTML export. Projects, issues, sprints, comments, attachments and page trees come across, and the links between issues and pages still work after the move. The token is deleted once it has been read.

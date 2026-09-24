@@ -54,6 +54,7 @@ The row's actions menu keeps the one-off jobs:
 - **Reactivate** a deactivated account.
 - **Export** the user list as CSV.
 - **Let someone answer the age question again**, where they answered as under age. Nearly always a mistyped year. It clears the answer and nothing else — they answer again from scratch, and no birthday is recorded either way. See [Asking members their age](configuration.md#asking-members-their-age).
+- **Turn password sign-in back on**, shown on an account marked **Password sign-in off**. Five wrong passwords or codes in fifteen minutes switch it off for fifteen minutes; three of those in a day and it stays off until somebody here turns it back on. Their passkeys work throughout, and so does anywhere they're already signed in. Moderator and above.
 - **Delete a user**, choosing how thorough it is:
     - **Deactivate** — can't sign in; data preserved; reversible.
     - **Anonymize** — personal details removed; their content remains as "Deleted user"; not reversible.

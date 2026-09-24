@@ -26,7 +26,6 @@ Safety model:
 
 from __future__ import annotations
 
-import asyncio
 import io
 import json
 import logging
@@ -990,14 +989,12 @@ async def _restore_assets(
     register ``uploads`` rows, dedup against keys that already exist (a
     re-import of the same backup), and enforce the guild's storage quota."""
     from app.models.tenant.upload import Upload
-    from app.services.storage import get_guild_storage
     from app.services.tenant.attachments import (
         StorageQuotaExceededError,
-        compute_content_hash,
         enforce_storage_quota,
+        store_upload,
     )
 
-    storage = get_guild_storage(guild_id)
     incoming = 0
     to_restore = []
     for asset in manifest.assets:
@@ -1045,20 +1042,13 @@ async def _restore_assets(
             raise ImportEngineError(
                 ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
             )
-        await asyncio.to_thread(
-            storage.write,
-            asset.storage_key,
-            data,
-            content_type=asset.content_type or "application/octet-stream",
-        )
-        session.add(
-            Upload(
-                filename=asset.storage_key,
-                created_by=user.id,
-                size_bytes=len(data),
-                content_type=asset.content_type,
-                content_hash=compute_content_hash(data),
-            )
+        await store_upload(
+            session,
+            guild_id=guild_id,
+            filename=asset.storage_key,
+            data=data,
+            content_type=asset.content_type,
+            created_by=user.id,
         )
         result.assets_restored += 1
         result.asset_bytes += len(data)

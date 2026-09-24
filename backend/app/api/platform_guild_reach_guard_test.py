@@ -90,6 +90,10 @@ _WRAPPERS: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"
     ),
+    (f"{_SERVICES}/guild_purge.py", "_delete_expired_hold"): (
+        "deletes one community whose hold ran out, letting go of its app "
+        "connections in its own schema"
+    ),
     (f"{_SERVICES}/intake_setup.py", "_route"): (
         "intake setup's routing helper: the platform owner's Intake page, into the operations community"
     ),
@@ -139,6 +143,9 @@ _ALLOWED: dict[tuple[str, str], str] = {
     ),
     (f"{_SERVICES}/app_settings.py", "ensure_defaults"): (
         "startup seeding of the primary community"
+    ),
+    (f"{_SERVICES}/guild_purge.py", "delete_expired_holds"): (
+        "the scheduled sweep that deletes communities whose hold ran out"
     ),
     # --- Aggregates ----------------------------------------------------------
     (f"{_ENDPOINTS}/billing.py", "guild_usage"): (

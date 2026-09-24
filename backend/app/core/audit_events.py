@@ -32,6 +32,7 @@ class AuditEventType(str, Enum):
     USER_SUSPENDED = "user.suspended"
     USER_UNSUSPENDED = "user.unsuspended"
     USER_AGE_BLOCK_CLEARED = "user.age_block_cleared"
+    USER_SIGN_IN_LOCK_LIFTED = "user.sign_in_lock_lifted"
 
     # The platform ladder. Granting a rung is an operator's job (``roles.assign``),
     # not a moderator's, so it is recorded apart from the account actions above:
@@ -65,6 +66,8 @@ class AuditEventType(str, Enum):
     AUTH_SECOND_FACTOR_ENROLLED = "auth.second_factor_enrolled"
     AUTH_SECOND_FACTOR_DISABLED = "auth.second_factor_disabled"
     AUTH_SECOND_FACTOR_FAILED = "auth.second_factor_failed"
+    AUTH_SIGN_IN_LOCKED = "auth.sign_in_locked"
+    AUTH_SIGN_IN_HELD = "auth.sign_in_held"
     #: Cleared by somebody else — a support path, so actor and target differ.
     AUTH_SECOND_FACTOR_RESET = "auth.second_factor_reset"
     AUTH_RECOVERY_CODE_USED = "auth.recovery_code_used"
@@ -294,6 +297,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.USER_AGE_BLOCK_CLEARED: AuditEventMeta(
         tier=2, category=AuditCategory.MODERATION, is_write=True
     ),
+    AuditEventType.USER_SIGN_IN_LOCK_LIFTED: AuditEventMeta(
+        tier=2, category=AuditCategory.MODERATION, is_write=True
+    ),
     AuditEventType.USER_PLATFORM_ROLE_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.PLATFORM, is_write=True
     ),
@@ -335,6 +341,14 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     # A refused code changed nothing, like a refused sign-in.
     AuditEventType.AUTH_SECOND_FACTOR_FAILED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=False
+    ),
+    # Wrong answers adding up: the account's password and codes are refused
+    # for a while, or until a moderator lifts it.
+    AuditEventType.AUTH_SIGN_IN_LOCKED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_SIGN_IN_HELD: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_SECOND_FACTOR_RESET: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True

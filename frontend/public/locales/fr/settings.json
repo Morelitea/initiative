@@ -762,6 +762,9 @@
     "actionError": "L'opération n'a pas abouti. Réessayez.",
     "clearAgeBlock": "Réinitialiser la question d'âge",
     "ageBlockCleared": "La question sur l'âge peut être répondue à nouveau.",
+    "signInLocked": "Connexion par mot de passe désactivée",
+    "liftSignInLock": "Réactiver la connexion par mot de passe",
+    "signInLockLifted": "Cette personne peut de nouveau se connecter avec un mot de passe.",
     "sheet": {
       "open": "Gérer",
       "openLabel": "Gérer le compte {{handle}}",
