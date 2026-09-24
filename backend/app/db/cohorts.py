@@ -56,6 +56,9 @@ STRICT = False
 #: Each cohort's request sessionmaker, built on first use.
 _request_makers: list[async_sessionmaker[AsyncSession]] | None = None
 
+#: Each cohort's sessionmaker on DATABASE_URL_QUERY, built on first use.
+_read_makers: list[async_sessionmaker[AsyncSession]] | None = None
+
 
 class CrossCohortRoute(RuntimeError):
     """A connection was routed into a community outside its cohort."""
@@ -104,20 +107,22 @@ def tag_engine(engine: AsyncEngine, tag: int | str) -> None:
     event.listen(engine.sync_engine, "close", closed)
 
 
-def _build_request_makers() -> list[async_sessionmaker[AsyncSession]]:
+def _build_makers(url: str, label: str) -> list[async_sessionmaker[AsyncSession]]:
     from app.db.session import instrument_engine
 
     makers = []
+    divided = cohort_count() > 1
     for cohort in range(cohort_count()):
         engine = create_async_engine(
-            cohort_url(settings.DATABASE_URL_APP, cohort),
+            cohort_url(url, cohort) if divided else url,
             echo=False,
             pool_size=settings.DB_POOL_SIZE,
             max_overflow=settings.DB_MAX_OVERFLOW,
             pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
         )
-        instrument_engine(engine, f"request/{cohort}")
-        tag_engine(engine, cohort)
+        instrument_engine(engine, f"{label}/{cohort}" if divided else label)
+        if divided:
+            tag_engine(engine, cohort)
         makers.append(_sessionmaker(engine))
     return makers
 
@@ -151,8 +156,28 @@ def request_sessionmaker(guild_id: int | None) -> async_sessionmaker[AsyncSessio
     if guild_id is None or cohort_count() == 1:
         return db_session.AsyncSessionLocal
     if _request_makers is None:
-        _request_makers = _build_request_makers()
+        _request_makers = _build_makers(settings.DATABASE_URL_APP, "request")
     return _request_makers[cohort_of(guild_id)]
+
+
+def read_sessionmaker(guild_id: int) -> async_sessionmaker[AsyncSession]:
+    """The sessionmaker for reads in ``guild_id``'s community that may trail
+    the primary by a moment: on DATABASE_URL_QUERY when it is set, from the
+    community's cohort, and otherwise the request path's."""
+    global _read_makers
+    if not settings.DATABASE_URL_QUERY:
+        return request_sessionmaker(guild_id)
+    if _read_makers is None:
+        _read_makers = _build_makers(settings.DATABASE_URL_QUERY, "read")
+    return _read_makers[cohort_of(guild_id)]
+
+
+@asynccontextmanager
+async def read_session(guild_id: int) -> AsyncIterator[AsyncSession]:
+    """A read-only session from :func:`read_sessionmaker`."""
+    async with read_sessionmaker(guild_id)() as session:
+        session.info[READ_ONLY_INFO_KEY] = True
+        yield session
 
 
 def addressed_guild_id(path_params: Mapping[str, Any]) -> int | None:

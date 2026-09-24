@@ -133,3 +133,28 @@ async def test_a_read_across_communities_reads_each_from_its_own_cohort(session)
         (first.id, cohorts.cohort_of(first.id), False),
         (second.id, cohorts.cohort_of(second.id), False),
     ]
+
+
+async def test_reads_that_may_trail_use_the_request_pool_without_a_replica():
+    assert settings.DATABASE_URL_QUERY is None
+    assert cohorts.read_sessionmaker(5) is cohorts.request_sessionmaker(5)
+    async with cohorts.read_session(5) as reading:
+        assert reading.info[cohorts.READ_ONLY_INFO_KEY] is True
+
+
+async def test_reads_that_may_trail_use_the_replica_when_there_is_one(monkeypatch):
+    replica = "postgresql+asyncpg://app_user:pw@replica:5432/initiative"
+    monkeypatch.setattr(settings, "DATABASE_URL_QUERY", replica)
+    monkeypatch.setattr(settings, "DB_COHORT_DATABASE", "initiative_c{cohort}")
+    monkeypatch.setattr(cohorts, "_read_makers", None)
+
+    engines = [cohorts.read_sessionmaker(g).kw["bind"] for g in (4, 5)]
+    try:
+        assert [e.url.host for e in engines] == ["replica", "replica"]
+        assert [e.url.database for e in engines] == [
+            f"initiative_c{cohorts.cohort_of(4)}",
+            f"initiative_c{cohorts.cohort_of(5)}",
+        ]
+    finally:
+        for engine in engines:
+            await engine.dispose()

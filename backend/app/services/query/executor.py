@@ -30,8 +30,10 @@ from decimal import Decimal
 from typing import Any, AsyncIterator, Mapping
 
 from asyncpg.exceptions import (
+    DatabaseDroppedError,
     DataError,
     QueryCanceledError,
+    SerializationError,
     SyntaxOrAccessError,
 )
 from sqlalchemy import text
@@ -247,8 +249,11 @@ async def _estimated_cost(connection: Any, statement: ResolvedQuery) -> float:
 async def _translated_failures() -> AsyncIterator[None]:
     """Turn what the database says into what this surface answers.
 
-    Two things a statement this surface accepted can still do. It can run out
-    of the time it is allowed. And it can be a statement the server will not
+    Three things a statement this surface accepted can still do. It can run out
+    of the time it is allowed. It can be stopped by the server for reasons of
+    its own — a read replica cancels a statement that is in the way of what it
+    is replaying — which says nothing about the statement. And it can be a
+    statement the server will not
     run: a value that will not convert or a division by zero, or a shape the
     grammar allows and the planner rejects — a column selected beside an
     aggregate without being grouped, a function called with types it does not
@@ -260,6 +265,8 @@ async def _translated_failures() -> AsyncIterator[None]:
         yield
     except QueryCanceledError as cancelled:
         raise QueryError(QueryMessages.TIMED_OUT) from cancelled
+    except (SerializationError, DatabaseDroppedError) as interrupted:
+        raise QueryError(QueryMessages.INTERRUPTED) from interrupted
     except (DataError, SyntaxOrAccessError) as failed:
         raise QueryError(QueryMessages.EXECUTION_FAILED, str(failed)) from failed
 

@@ -75,9 +75,10 @@ QUERY_POOL_TIMEOUT_SECONDS = 5
 #: A pool of its own for reader-written SQL, so what those statements wait for
 #: is each other rather than the requests serving every other page. Same login
 #: as the request path — the difference is the role each statement assumes and
-#: the transaction it runs in, not who connects.
+#: the transaction it runs in, not who connects. On a read replica when
+#: DATABASE_URL_QUERY names one.
 query_engine = create_async_engine(
-    settings.DATABASE_URL_APP,
+    settings.DATABASE_URL_QUERY or settings.DATABASE_URL_APP,
     echo=False,
     pool_size=QUERY_POOL_SIZE,
     max_overflow=0,

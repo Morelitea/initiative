@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Read replica for dashboards and exports** — set `DATABASE_URL_QUERY` to a read replica and dashboard widgets and exports read from it, leaving the main database for everything else. If the replica stops a widget's query partway, the widget tries once more and then says it was interrupted. Unset, nothing changes.
 - **Database pool settings** — `DB_POOL_SIZE` and `DB_MAX_OVERFLOW` set how many database connections each pool keeps, instead of a fixed 5 plus 10. On servers with many communities, `DB_COHORTS` splits communities into groups, each with its own request pool, so each database connection uses less memory. Behind a connection pooler, set `DB_COHORT_DATABASE` to give each group its own pooler database.
 
 ### Changed
