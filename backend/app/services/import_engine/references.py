@@ -317,7 +317,7 @@ async def resolve_references(
     changed = 0
     # What each rewritten body is about: a comment's edges belong to the thing
     # it is on, which is why a sync reads a body and its comments together.
-    owners: dict[str, Endpoint] = {}
+    owners: dict[int, Endpoint] = {}
     for kind, entity_id in noted:
         column = _body_column(kind)
         if column is None:
