@@ -22,6 +22,8 @@ Create Date: 2026-09-22
 
 from alembic import op
 
+from app.core.config import settings
+
 revision = "20260922_0351"
 down_revision = "20260922_0350"
 branch_labels = None
@@ -29,7 +31,7 @@ depends_on = None
 
 ROLE = "app_superadmin"
 SEAT_TABLE = "public.guild_auth_policies"
-FLOORS = ("app_guild_base", "platform_base")
+FLOORS = ("app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base")
 
 
 def upgrade() -> None:
