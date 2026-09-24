@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import Field
 
 from app.models.platform.identity_ref import REF_MAX_LENGTH, IdentityPurpose
@@ -18,6 +20,20 @@ class GuildReferenceRequest(SanitizedBaseModel):
 
     guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
     purpose: IdentityPurpose
+
+
+class InstallationReferenceRequest(SanitizedBaseModel):
+    """The sector an installed app wants its community named in.
+
+    The community is the one the installation token names. ``guild_ref``, when
+    given, is the app's own reference for it and has to name that same
+    community.
+    """
+
+    purpose: IdentityPurpose
+    guild_ref: Optional[str] = Field(
+        default=None, min_length=1, max_length=REF_MAX_LENGTH
+    )
 
 
 class GuildReferenceRead(SanitizedBaseModel):

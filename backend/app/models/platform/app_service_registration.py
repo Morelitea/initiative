@@ -39,13 +39,21 @@ Some columns exist only because of that split:
   switch (``enabled``) still outranks it.
 
 **Live** is one rule, stated once in :func:`registration_live_sql`: the
-registration is enabled, its publisher is enabled, and it has a key set to
-verify against. The install standing, the registration snapshot and every
-channel that reads a single row ask it in that form.
+registration is enabled, its publisher is enabled, it has a location, and it
+has a key set to verify against. The install standing, the registration
+snapshot and every channel that reads a single row ask it in that form.
+
+**Where it came from** is ``source``. An operator's row (``apps.manage``
+endpoints, or ``APP_SERVICES_CONFIG`` at boot) is theirs entirely. A registry
+row (``source='registry'``) is written by the registry refresh from a verified
+listing: the listing it speaks for, its keys, its ceiling, its reference
+sectors, and either the image it runs (a container) or where it is hosted. The
+operator keeps the kill switch, the grants, the mandatory flag, the origin
+list and, for a container, its location.
 
 Lives in ``public``: a registration is platform-wide and carries no guild data.
-It is written on the system engine by ``apps.manage`` (owner) endpoints and by
-boot reconciliation from ``APP_SERVICES_CONFIG``.
+It is written on the system engine by ``apps.manage`` (owner) endpoints, by
+boot reconciliation from ``APP_SERVICES_CONFIG``, and by the registry refresh.
 """
 
 from datetime import datetime, timezone
@@ -65,11 +73,16 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlmodel import Field, SQLModel
 
+from app.models.platform.identity_ref import IdentityPurpose
+
 __all__ = [
     "APP_SERVICE_GRANTS",
+    "IMAGE_REFERENCE_MAX_LENGTH",
     "MAX_APP_ID_LENGTH",
+    "REFERENCE_SECTORS",
     "AppServiceRegistration",
     "BrowserAddressed",
+    "RegistrationSource",
     "browser_base",
     "registration_live_sql",
 ]
@@ -83,6 +96,23 @@ APP_SERVICE_GRANTS: frozenset[str] = frozenset({"delegation", "app_directory"})
 #: this cannot name a registration, so it is refused without a query.
 MAX_APP_ID_LENGTH = 120
 
+#: The widest container image reference stored.
+IMAGE_REFERENCE_MAX_LENGTH = 500
+
+#: The sectors a registration may name in ``reference_sectors``: the other
+#: parties this deployment keeps its own reference for a community in, which
+#: an app may be allowed to learn. A sector outside this set is dropped.
+REFERENCE_SECTORS: frozenset[str] = frozenset({IdentityPurpose.billing.value})
+
+
+class RegistrationSource:
+    """Where a registration row came from."""
+
+    #: The ``apps.manage`` endpoints or ``APP_SERVICES_CONFIG``.
+    OPERATOR = "operator"
+    #: The registry refresh, from a verified listing.
+    REGISTRY = "registry"
+
 
 def registration_live_sql(
     registration: str = "app_service_registrations", publisher: str = "publishers"
@@ -90,12 +120,16 @@ def registration_live_sql(
     """Whether a registration is live, as a SQL boolean over one registration
     row and its publisher's row, named by ``registration`` and ``publisher``.
 
-    Enabled, its publisher enabled, and a key set to verify against: a pasted
-    set with at least one key, or a key set address. ``-> 0`` reads the first
-    key and is null for an empty or absent set.
+    Enabled, its publisher enabled, a location, and a key set to verify
+    against: a pasted set with at least one key, or a key set address. ``-> 0``
+    reads the first key and is null for an empty or absent set.
+
+    Only a registry container registration can lack a location: the registry
+    names the image, and the operator says where it runs.
     """
     return (
         f"({registration}.enabled AND {publisher}.enabled"
+        f" AND {registration}.base_url IS NOT NULL"
         f" AND ({registration}.jwks_uri IS NOT NULL"
         f" OR {registration}.jwks -> 'keys' -> 0 IS NOT NULL))"
     )
@@ -131,8 +165,12 @@ class AppServiceRegistration(SQLModel, table=True):
     )
     # Base of the service's wire surface: its data and lifecycle endpoints
     # hang off it, and a ``jwks_uri`` must share its origin. Every consumer of
-    # this column is Initiative's own server calling the app.
-    base_url: str = Field(sa_column=Column(String(1000), nullable=False))
+    # this column is Initiative's own server calling the app. NULL only on a
+    # registry container registration the operator has not placed yet, which
+    # is not live until they do.
+    base_url: Optional[str] = Field(
+        default=None, sa_column=Column(String(1000), nullable=True)
+    )
     # Base of the service's browser surface: the iframe an embed opens and the
     # page a member is sent to for an interactive connection. Unset means the
     # app answers both surfaces at one address, which is the ordinary case and
@@ -180,6 +218,29 @@ class AppServiceRegistration(SQLModel, table=True):
     enabled: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    # Where the row came from (``RegistrationSource``).
+    source: str = Field(
+        default=RegistrationSource.OPERATOR,
+        sa_column=Column(String(16), nullable=False, server_default="operator"),
+    )
+    # The container image a registry listing names, pinned by digest
+    # (``<repository>@sha256:<hex>``). NULL for every other registration.
+    image_digest: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(IMAGE_REFERENCE_MAX_LENGTH), nullable=True),
+    )
+    # Which of this deployment's other sectors the app may learn a community's
+    # reference in. Written only by the registry; empty everywhere else.
+    reference_sectors: List[str] = Field(
+        default_factory=list,
+        sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
+    )
+    # Whether the registry listing behind this row was verified under the root
+    # shipped in the image. Reference sectors are honoured only when it was.
+    root_is_builtin: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

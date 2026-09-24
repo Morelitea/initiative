@@ -102,9 +102,9 @@ def start_background_tasks() -> list[asyncio.Task]:
         EXPORT_POLL_SECONDS,
         EXPORT_GC_POLL_SECONDS,
     )
-    from app.services.marketplace.registry import (
+    from app.services.marketplace.tuf_registry import (
         process_registry_refresh,
-        registry_configured,
+        registry_available,
     )
 
     tasks = [
@@ -253,13 +253,13 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
     ]
 
-    # The marketplace registry is optional. With no registry configured there
-    # is no worker at all rather than one that wakes up to find nothing to do —
-    # an unconfigured install runs no part of this and says nothing about it.
-    # The loop runs its first pass immediately, so boot is also the first
-    # refresh; the catalog this build ships is already seeded by then and the
-    # registry adds to it through the same writer.
-    if registry_configured():
+    # The marketplace registry needs a trusted root. A build without one runs
+    # no worker at all. Each pass asks the platform switch first, so turning
+    # the registry off stops the fetching without a restart. The loop runs its
+    # first pass immediately, so boot is also the first refresh; the catalog
+    # this build ships is already seeded by then and the registry adds to it
+    # through the same writer.
+    if registry_available():
         from app.core.config import settings
 
         tasks.append(

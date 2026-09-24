@@ -1,11 +1,17 @@
 """Managing the deployment's app service registrations.
 
-Two ways a registration arrives, and they meet in the same checks:
+Three ways a registration arrives, and they meet in the same checks:
 
 * **An operator adds one** through the ``apps.manage`` endpoints.
 * **The deployment declares them** in ``APP_SERVICES_CONFIG``, a file a chart
   mounts, reconciled at boot. Reconciliation touches the database only, so a
   boot never waits on an app's container.
+* **The registry brings one** with a verified app listing
+  (:mod:`app.services.marketplace.registry_entries`). Its row keeps what the
+  registry says about the app; the operator edits only what is theirs on it
+  (the switch, grants, mandatory flag, origins, and a container's location),
+  and an ``APP_SERVICES_CONFIG``
+  entry for the same app takes the row over as the operator's.
 
 Either way the registration states everything about itself: its
 ``public_id``, the ``listing_uid`` of the listing it speaks for, where it
@@ -47,7 +53,7 @@ from app.models.platform.app_service_registration import (
     APP_SERVICE_GRANTS,
     MAX_APP_ID_LENGTH,
     AppServiceRegistration,
-    browser_base,
+    RegistrationSource,
 )
 from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
 from app.models.platform.publisher import Publisher, publisher_prefix
@@ -78,7 +84,11 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "scope_ceiling",
     "mandatory",
     "enabled",
+    "source",
+    "image_digest",
+    "reference_sectors",
 )
+
 
 __all__ = [
     "ReconcileResult",
@@ -87,6 +97,8 @@ __all__ = [
     "create_registration",
     "delete_registration",
     "get_registration",
+    "is_registry_container",
+    "row_browser_base",
     "list_registrations",
     "normalize_base_url",
     "normalize_jwks",
@@ -121,6 +133,24 @@ def _now() -> datetime:
 def _bad_request(code: str, detail: str) -> HTTPException:
     logger.debug("app service registration refused (%s): %s", code, detail)
     return HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=code)
+
+
+def is_registry_container(row: AppServiceRegistration) -> bool:
+    """Whether the registry brought this row as a container the operator runs."""
+    return row.source == RegistrationSource.REGISTRY and row.image_digest is not None
+
+
+def row_browser_base(row: AppServiceRegistration) -> Optional[str]:
+    """Where a browser loads the app's surfaces, or ``None`` for a registry
+    container that has no location yet."""
+    return row.embed_origin or row.base_url
+
+
+def _registry_managed() -> HTTPException:
+    return HTTPException(
+        status_code=http_status.HTTP_409_CONFLICT,
+        detail=AppServiceMessages.REGISTRY_MANAGED,
+    )
 
 
 # --- validation --------------------------------------------------------------
@@ -577,15 +607,33 @@ async def update_registration(
     An empty ``embed_origin`` clears it, putting both surfaces back on
     ``base_url``; an empty ``jwks_uri`` clears it. A ``jwks_uri`` kept while
     ``base_url`` moves is checked against the new origin.
+
+    A registration the registry brought takes only the operator's fields (the
+    switch, grants, mandatory flag, origins, and a container's location); a
+    change to anything else answers 409.
     """
     row = await get_registration(session, registration_id)
+    if row.source == RegistrationSource.REGISTRY:
+        _check_registry_edit(
+            row,
+            listing_uid=listing_uid,
+            base_url=base_url,
+            embed_origin=embed_origin,
+            jwks=jwks,
+            jwks_uri=jwks_uri,
+            scope_ceiling=scope_ceiling,
+        )
     before = audit_service.snapshot(row, AUDITED_FIELDS)
     # Whether the origin list is still just the app's own origin. An untouched
     # list follows the address it was derived from; one an operator typed is
-    # theirs and is left exactly as typed.
-    origins_were_default = list(row.allowed_origins or []) == [
-        origin_of(browser_base(row))
-    ]
+    # theirs and is left exactly as typed. A container with no location yet
+    # has no origin of its own, so its empty list counts as untouched.
+    current_base = row_browser_base(row)
+    origins_were_default = (
+        list(row.allowed_origins or []) == [origin_of(current_base)]
+        if current_base
+        else not row.allowed_origins
+    )
 
     if listing_uid is not None:
         row.listing_uid = normalize_listing_uid(listing_uid)
@@ -594,12 +642,17 @@ async def update_registration(
     if embed_origin is not None:
         cleaned = embed_origin.strip()
         row.embed_origin = normalize_embed_origin(cleaned) if cleaned else None
+    new_base = row_browser_base(row)
     if allowed_origins is not None:
-        row.allowed_origins = normalize_origins(
-            allowed_origins, browser_base=browser_base(row)
-        )
-    elif origins_were_default:
-        row.allowed_origins = normalize_origins(None, browser_base=browser_base(row))
+        if new_base is None:
+            # Nothing to derive a default from, and nothing to frame yet.
+            row.allowed_origins = [normalize_origin(item) for item in allowed_origins]
+        else:
+            row.allowed_origins = normalize_origins(
+                allowed_origins, browser_base=new_base
+            )
+    elif origins_were_default and new_base is not None:
+        row.allowed_origins = normalize_origins(None, browser_base=new_base)
     if grants is not None:
         row.grants = normalize_grants(grants)
     if jwks is not None:
@@ -607,9 +660,9 @@ async def update_registration(
         # provisioned whole, so two entries mean a rotation is in flight and
         # one means it is over.
         row.jwks = normalize_jwks(jwks)
-    if jwks_uri is not None:
+    if jwks_uri is not None and row.base_url is not None:
         row.jwks_uri = normalize_jwks_uri(jwks_uri, base_url=row.base_url)
-    elif row.jwks_uri is not None and base_url is not None:
+    elif row.jwks_uri is not None and base_url is not None and row.base_url:
         row.jwks_uri = normalize_jwks_uri(row.jwks_uri, base_url=row.base_url)
     if scope_ceiling is not None:
         # Replaces rather than merges; an empty list is a ceiling of nothing.
@@ -642,10 +695,59 @@ async def update_registration(
     return row
 
 
+def _check_registry_edit(
+    row: AppServiceRegistration,
+    *,
+    listing_uid: Optional[str],
+    base_url: Optional[str],
+    embed_origin: Optional[str],
+    jwks: Optional[dict],
+    jwks_uri: Optional[str],
+    scope_ceiling: Optional[Iterable[str]],
+) -> None:
+    """Refuse a change to what the registry says about an app.
+
+    A value sent unchanged is not a change, so a form that sends every field
+    back saves the operator's own edits. A container's location is the
+    operator's to give.
+    """
+    location_is_operators = is_registry_container(row)
+    changes: list[str] = []
+    if listing_uid is not None and listing_uid.strip() != (row.listing_uid or ""):
+        changes.append("listing_uid")
+    if jwks is not None and normalize_jwks(jwks) != row.jwks:
+        changes.append("jwks")
+    if jwks_uri is not None and (jwks_uri.strip() or None) != row.jwks_uri:
+        changes.append("jwks_uri")
+    if scope_ceiling is not None and normalize_scope_ceiling(scope_ceiling) != sorted(
+        row.scope_ceiling or []
+    ):
+        changes.append("scope_ceiling")
+    if not location_is_operators:
+        if base_url is not None and normalize_base_url(base_url) != row.base_url:
+            changes.append("base_url")
+        if embed_origin is not None:
+            cleaned = embed_origin.strip()
+            wanted = normalize_embed_origin(cleaned) if cleaned else None
+            if wanted != row.embed_origin:
+                changes.append("embed_origin")
+    if changes:
+        logger.debug(
+            "app service registration %s: the registry keeps %s",
+            row.public_id,
+            ", ".join(changes),
+        )
+        raise _registry_managed()
+
+
 async def delete_registration(
     session: AsyncSession, registration_id: int, *, actor_user_id: int | None = None
 ) -> None:
+    """Remove a registration. One the registry brought is switched off instead
+    (409): the next refresh would bring it back."""
     row = await get_registration(session, registration_id)
+    if row.source == RegistrationSource.REGISTRY:
+        raise _registry_managed()
     await session.delete(row)
     await audit_service.record(
         session,
@@ -782,9 +884,13 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
 
         # The file is the declarative source for what the app IS and may do.
         # `enabled` is deliberately not reconciled: turning a registration off
-        # is an operator action, and a restart must not reverse it.
+        # is an operator action, and a restart must not reverse it. A row the
+        # registry brought becomes the operator's: the file is their statement
+        # about this deployment, and it wins.
+        taken_over = row.source == RegistrationSource.REGISTRY
         dirty = (
-            listing_uid != row.listing_uid
+            taken_over
+            or listing_uid != row.listing_uid
             or base_url != row.base_url
             or embed != row.embed_origin
             or origins != list(row.allowed_origins or [])
@@ -808,6 +914,11 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         row.jwks_uri = key_uri
         row.scope_ceiling = ceiling
         row.mandatory = mandatory
+        if taken_over:
+            row.source = RegistrationSource.OPERATOR
+            row.image_digest = None
+            row.reference_sectors = []
+            row.root_is_builtin = False
         row.updated_at = _now()
         session.add(row)
         edited.append((row, before))

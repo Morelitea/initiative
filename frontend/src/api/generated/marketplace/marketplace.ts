@@ -23,6 +23,7 @@ import type {
 import type {
   BodyShareToMarketplaceApiV1CGuildIdMarketplaceSharePost,
   BodyUploadListingPictureApiV1MarketplaceLocalMediaPost,
+  BodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost,
   HTTPValidationError,
   ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   ListingMediaRead,
@@ -38,6 +39,7 @@ import type {
   MarketplaceSharedListingRead,
   OperatorCatalogScanResult,
   RegistryRefreshRead,
+  RegistrySettings,
   RegistryStatusRead,
 } from "../initiativeAPI.schemas";
 
@@ -155,11 +157,10 @@ export const useRescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost =
   );
 };
 /**
- * Where this deployment stands with its configured registry.
+ * Where this deployment stands with the registry (``config.manage``).
  *
- * Answers "is anything coming from a registry, and did the last refresh
- * work". With no registry configured every field is empty — the feature is
- * absent rather than idle.
+ * The switch, whether this build has a trusted root, and how the last
+ * refresh or bundle went.
  * @summary Read Registry Status
  */
 export const readRegistryStatusApiV1MarketplaceRegistryStatusGet = (
@@ -305,12 +306,110 @@ export function useReadRegistryStatusApiV1MarketplaceRegistryStatusGet<
 }
 
 /**
- * Fetch and apply the registry index now.
+ * Follow the registry, or stop (``config.manage``). What already arrived
+ * stays; switching back on picks up from where it left off.
+ * @summary Update Registry Settings
+ */
+export const updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut = (
+  registrySettings: BodyType<RegistrySettings>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RegistrySettings>(
+    {
+      url: `/api/v1/marketplace/registry/settings`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: registrySettings,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationKey = () =>
+  ["updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut"] as const;
+
+export const getUpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut>>,
+    TError,
+    UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut>>,
+  TError,
+  UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut>>,
+    UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut>>
+>;
+export type UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationBody =
+  BodyType<RegistrySettings>;
+export type UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationVariables = {
+  data: BodyType<RegistrySettings>;
+};
+
+/**
+ * @summary Update Registry Settings
+ */
+export const useUpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut>>,
+      TError,
+      UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateRegistrySettingsApiV1MarketplaceRegistrySettingsPut>>,
+  TError,
+  UpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateRegistrySettingsApiV1MarketplaceRegistrySettingsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Fetch, verify and apply the registry now (``config.manage``).
  *
- * The same code path the background refresh runs, so there is one set of
- * checks rather than a shortcut for the button. A refresh already in flight
- * is reported rather than queued, and a refusal answers with the code naming
- * it so the reason is legible instead of "it didn't work".
+ * The same code the background refresh runs. A refresh already in flight is
+ * reported rather than queued, and a refusal answers with the code naming it.
  * @summary Refresh Registry Now
  */
 export const refreshRegistryNowApiV1MarketplaceRegistryRefreshPost = (
@@ -392,6 +491,112 @@ export const useRefreshRegistryNowApiV1MarketplaceRegistryRefreshPost = <
 > => {
   return useMutation(
     getRefreshRegistryNowApiV1MarketplaceRegistryRefreshPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Apply a registry bundle (``config.manage``).
+ *
+ * A tar of a registry's ``metadata/`` and ``targets/`` directories, for a
+ * deployment that cannot reach the registry. It is verified against the
+ * trusted root exactly as a fetched repository is, and applied the same way.
+ * @summary Upload Registry Bundle
+ */
+export const uploadRegistryBundleApiV1MarketplaceRegistryBundlePost = (
+  bodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost: BodyType<BodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`file`, bodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost.file);
+
+  return apiMutator<RegistryRefreshRead>(
+    {
+      url: `/api/v1/marketplace/registry/bundle`,
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationKey = () =>
+  ["uploadRegistryBundleApiV1MarketplaceRegistryBundlePost"] as const;
+
+export const getUploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadRegistryBundleApiV1MarketplaceRegistryBundlePost>>,
+    TError,
+    UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadRegistryBundleApiV1MarketplaceRegistryBundlePost>>,
+  TError,
+  UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadRegistryBundleApiV1MarketplaceRegistryBundlePost>>,
+    UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadRegistryBundleApiV1MarketplaceRegistryBundlePost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadRegistryBundleApiV1MarketplaceRegistryBundlePost>>
+>;
+export type UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationBody =
+  BodyType<BodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost>;
+export type UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationVariables = {
+  data: BodyType<BodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost>;
+};
+
+/**
+ * @summary Upload Registry Bundle
+ */
+export const useUploadRegistryBundleApiV1MarketplaceRegistryBundlePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadRegistryBundleApiV1MarketplaceRegistryBundlePost>>,
+      TError,
+      UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadRegistryBundleApiV1MarketplaceRegistryBundlePost>>,
+  TError,
+  UploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUploadRegistryBundleApiV1MarketplaceRegistryBundlePostMutationOptions(options),
     queryClient
   );
 };

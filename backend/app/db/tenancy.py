@@ -181,10 +181,12 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # Spent client-assertion jtis from the app token endpoint. Hangs off a
         # registration, which is platform-wide.
         "app_assertion_jtis",
-        # Registry client state: what this deployment last accepted from a
-        # signed index, and the artwork that index named, mirrored locally so
-        # listing media is served from here. Operator/system state, no guild.
-        "marketplace_registry_state",
+        # Registry client state: the TUF metadata this deployment last
+        # verified, how the last refresh went, and the artwork its listings
+        # named, kept locally so listing media is served from here.
+        # Operator/system state, no guild.
+        "marketplace_tuf_metadata",
+        "marketplace_registry_status",
         "marketplace_media",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)

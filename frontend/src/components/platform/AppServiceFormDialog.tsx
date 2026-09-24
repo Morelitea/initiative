@@ -97,7 +97,7 @@ export const AppServiceFormDialog = ({
       setForm({
         publicId: editing.public_id,
         listingUid: editing.listing_uid ?? "",
-        baseUrl: editing.base_url,
+        baseUrl: editing.base_url ?? "",
         embedOrigin: editing.embed_origin ?? "",
         allowedOrigins: editing.allowed_origins.join("\n"),
         delegation: hasGrant(editing, "delegation"),

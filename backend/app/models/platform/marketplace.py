@@ -69,8 +69,24 @@ class MarketplaceListing(SQLModel, table=True):
     # Who publishes it, and the namespace it publishes under. Required, so the
     # question "who is this from?" is answered before install rather than after;
     # NOT NULL, so the requirement holds at the database as well as in the
-    # validator. A registry binds this prefix to the key that signed its index.
+    # validator. A registry listing's prefix is the delegation that signed it.
     publisher: str = Field(sa_column=Column(String(200), nullable=False))
+    # The publisher record a registry listing arrived under, and whether that
+    # record was verified when it was applied. NULL and false for every other
+    # source.
+    publisher_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("publishers.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+    )
+    publisher_verified: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     description: str = Field(sa_column=Column(String(500), nullable=False))
     long_description: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)

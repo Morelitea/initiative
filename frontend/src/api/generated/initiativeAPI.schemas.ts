@@ -879,7 +879,7 @@ export interface AppServiceRegistrationRead {
   publisher_prefix: string;
   publisher_name: string;
   publisher_enabled: boolean;
-  base_url: string;
+  base_url: string | null;
   embed_origin: string | null;
   allowed_origins: string[];
   grants: string[];
@@ -888,6 +888,8 @@ export interface AppServiceRegistrationRead {
   scope_ceiling: string[];
   mandatory: boolean;
   enabled: boolean;
+  source: string;
+  image_digest: string | null;
   live: boolean;
   created_at: string;
   updated_at: string;
@@ -1401,6 +1403,10 @@ export interface BodyUploadMyAvatarApiV1UsersMeAvatarPut {
 }
 
 export interface BodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost {
+  file: Blob;
+}
+
+export interface BodyUploadRegistryBundleApiV1MarketplaceRegistryBundlePost {
   file: Blob;
 }
 
@@ -7831,19 +7837,18 @@ export interface RefreshRequest {
 }
 
 /**
- * One listing a verified index carried that this deployment did not take.
+ * A listing (or a publisher) the repository carried that did not land.
  */
 export interface RegistrySkippedListing {
-  public_id: string;
+  name: string;
   code: string;
 }
 
 /**
- * The outcome of one refresh.
+ * The outcome of one refresh or bundle upload.
  */
 export interface RegistryRefreshRead {
-  serial: number | null;
-  key_id: string | null;
+  root_version: number | null;
   upserted: number;
   withdrawn: number;
   unchanged: boolean;
@@ -7851,15 +7856,24 @@ export interface RegistryRefreshRead {
 }
 
 /**
+ * The platform switch for the marketplace registry.
+ */
+export interface RegistrySettings {
+  enabled: boolean;
+}
+
+/**
  * Where this deployment stands with its registry.
  */
 export interface RegistryStatusRead {
+  enabled: boolean;
   configured: boolean;
-  registry_url: string | null;
-  key_id: string | null;
-  last_serial: number | null;
-  last_generated_at: string | null;
-  last_fetched_at: string | null;
+  custom_root: boolean;
+  registry_url: string;
+  root_version: number | null;
+  expires_at: string | null;
+  last_source: string | null;
+  last_attempt_at: string | null;
   last_success_at: string | null;
   last_error: string | null;
   listing_count: number;

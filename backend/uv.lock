@@ -1192,6 +1192,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "bcrypt" },
     { name = "boto3" },
+    { name = "cryptography" },
     { name = "email-validator" },
     { name = "fastapi" },
     { name = "fastmcp" },
@@ -1218,6 +1219,7 @@ dependencies = [
     { name = "slowapi" },
     { name = "sqlalchemy" },
     { name = "sqlmodel" },
+    { name = "tuf" },
     { name = "typst" },
     { name = "tzdata" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1242,6 +1244,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0,<0.32" },
     { name = "bcrypt", specifier = "==5.0.0" },
     { name = "boto3", specifier = ">=1.35,<2" },
+    { name = "cryptography", specifier = ">=50.0.0" },
     { name = "email-validator", specifier = ">=2.3.0,<3" },
     { name = "fastapi", specifier = ">=0.136.1,<0.142" },
     { name = "fastmcp", specifier = ">=3.4.2" },
@@ -1268,6 +1271,7 @@ requires-dist = [
     { name = "slowapi", specifier = ">=0.1.9,<0.2" },
     { name = "sqlalchemy", specifier = ">=2.0.49,<3" },
     { name = "sqlmodel", specifier = ">=0.0.38,<0.0.43" },
+    { name = "tuf", specifier = ">=7.0.1" },
     { name = "typst", specifier = ">=0.15.0" },
     { name = "tzdata", specifier = ">=2026.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.54" },
@@ -2746,6 +2750,15 @@ wheels = [
 ]
 
 [[package]]
+name = "securesystemslib"
+version = "1.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/d4/f9323507144693d869f30f13694035438ab6642153b94e3057945cf0584f/securesystemslib-1.5.1.tar.gz", hash = "sha256:4b8d00abd93707ead10b69eb2b8582376a1364de3b0a71077de534c2ef4985e0", size = 947087, upload-time = "2026-09-04T06:55:32.066Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/fc/c71335a5046d46bf3b761a8c7fa092b40a7721429a5613538f0a28ae80a6/securesystemslib-1.5.1-py3-none-any.whl", hash = "sha256:ada8bdf817da29ece4ba91654f6a162ce7cfbadbc3ae3f840f7313f9d22675de", size = 876390, upload-time = "2026-09-04T06:55:30.393Z" },
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2919,6 +2932,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/12/64/da524626d3b9cc40c168a13da8335fe1c51be12c0a63685cc6db7308daae/tomli-2.4.1-cp314-cp314t-win_amd64.whl", hash = "sha256:2c1c351919aca02858f740c6d33adea0c5deea37f9ecca1cc1ef9e884a619d26", size = 121196, upload-time = "2026-03-25T20:22:01.169Z" },
     { url = "https://files.pythonhosted.org/packages/5a/cd/e80b62269fc78fc36c9af5a6b89c835baa8af28ff5ad28c7028d60860320/tomli-2.4.1-cp314-cp314t-win_arm64.whl", hash = "sha256:eab21f45c7f66c13f2a9e0e1535309cee140182a9cdae1e041d02e47291e8396", size = 100393, upload-time = "2026-03-25T20:22:02.137Z" },
     { url = "https://files.pythonhosted.org/packages/7b/61/cceae43728b7de99d9b847560c262873a1f6c98202171fd5ed62640b494b/tomli-2.4.1-py3-none-any.whl", hash = "sha256:0d85819802132122da43cb86656f8d1f8c6587d54ae7dcaf30e90533028b49fe", size = 14583, upload-time = "2026-03-25T20:22:03.012Z" },
+]
+
+[[package]]
+name = "tuf"
+version = "7.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "securesystemslib" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9c/dd/52e7390cbac308e6b1cfe6be9bc3a96fe26326d5893cc297a52bb72792a9/tuf-7.0.1.tar.gz", hash = "sha256:5ada1db78da3518fa851e28588f4b2249b8662a28ae528f54afa2a1de541fb31", size = 274148, upload-time = "2026-09-02T06:19:52.071Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a2/10/171e306e4a19ff980b9029ce5a523881e34bc6a2a52750fb1853f49f0fb9/tuf-7.0.1-py3-none-any.whl", hash = "sha256:d30434bda6e079ab303fb30d1b3006d939a10ca34783b1573d61cd9b802fa45c", size = 56253, upload-time = "2026-09-02T06:19:50.608Z" },
 ]
 
 [[package]]

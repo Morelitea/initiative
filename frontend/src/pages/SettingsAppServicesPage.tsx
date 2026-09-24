@@ -215,6 +215,9 @@ export const SettingsAppServicesPage = () => {
                             {t("appServices.publisherDisabledBadge")}
                           </Badge>
                         )}
+                        {registration.source === "registry" && (
+                          <Badge variant="secondary">{t("appServices.registryBadge")}</Badge>
+                        )}
                         {registration.mandatory && (
                           <Badge variant="secondary">{t("appServices.mandatoryBadge")}</Badge>
                         )}
@@ -225,9 +228,20 @@ export const SettingsAppServicesPage = () => {
                           <Badge variant="secondary">{t("appServices.appDirectoryBadge")}</Badge>
                         )}
                       </div>
-                      <p className="truncate text-muted-foreground text-sm">
-                        {registration.base_url}
-                      </p>
+                      {registration.base_url ? (
+                        <p className="truncate text-muted-foreground text-sm">
+                          {registration.base_url}
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground text-sm">
+                          {t("appServices.needsAddress")}
+                        </p>
+                      )}
+                      {registration.image_digest && (
+                        <p className="break-all text-muted-foreground text-xs">
+                          {t("appServices.imageSummary", { image: registration.image_digest })}
+                        </p>
+                      )}
                       {registration.embed_origin && (
                         <p className="truncate text-muted-foreground text-sm">
                           {t("appServices.embedOriginSummary", {

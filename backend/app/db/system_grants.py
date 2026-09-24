@@ -146,9 +146,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # shared jti janitor prunes the ones past their assertion's exp. Never
     # updated — a spent jti has one state.
     "app_assertion_jtis": frozenset({"SELECT", "INSERT", "DELETE"}),
-    # Registry client state: read and written by the refresh job alone. One row
-    # per registry URL, recycled in place, so nothing is ever deleted.
-    "marketplace_registry_state": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    # Registry client state: read and written by the refresh job alone. The
+    # verified TUF metadata is replaced role by role, so a superseded version
+    # is deleted; the status is one row, recycled in place.
+    "marketplace_tuf_metadata": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "marketplace_registry_status": frozenset({"SELECT", "INSERT", "UPDATE"}),
     # Mirrored listing artwork: written by the refresh job; DELETE prunes bytes
     # no listing references any more.
     "marketplace_media": frozenset({"SELECT", "INSERT", "DELETE"}),
@@ -350,7 +352,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "app_assertion_jtis": None,
     # Refresh bookkeeping — system engine only, surfaced to an operator through
     # a capability-gated endpoint rather than read on the request path.
-    "marketplace_registry_state": None,
+    "marketplace_tuf_metadata": None,
+    "marketplace_registry_status": None,
     # Mirrored listing artwork stands in for the static image files this build
     # ships, so it is served exactly as they are: to anyone holding the digest,
     # before a session is routed. Bytes only, addressed by their own hash.
@@ -514,7 +517,8 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "app_service_registrations": None,
     "publishers": None,
     "app_assertion_jtis": None,
-    "marketplace_registry_state": None,
+    "marketplace_tuf_metadata": None,
+    "marketplace_registry_status": None,
     # 0360: served on the bare login role alone.
     "marketplace_media": None,
     # 0200: no table grant; the routed path holds a column-scoped SELECT on
@@ -640,7 +644,8 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "app_service_registrations": None,
     "publishers": None,
     "app_assertion_jtis": None,
-    "marketplace_registry_state": None,
+    "marketplace_tuf_metadata": None,
+    "marketplace_registry_status": None,
     # 0360: served on the bare login role alone.
     "marketplace_media": None,
     "guild_images": None,
@@ -728,7 +733,8 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "app_service_registrations": None,
     "publishers": None,
     "app_assertion_jtis": None,
-    "marketplace_registry_state": None,
+    "marketplace_tuf_metadata": None,
+    "marketplace_registry_status": None,
     "marketplace_media": None,
     "guild_images": None,
     "user_avatars": None,
@@ -818,10 +824,10 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
     # No TABLE grant: a column-scoped SELECT on (public_id, listing_uid,
-    # enabled, publisher_id, jwks, jwks_uri), for the registration the
-    # install's token names (install_reads_its_registration; migrations
-    # 20260924_0379 and 20260924_0387). Asserted in install_standing_test
-    # beside the one on guilds.
+    # enabled, publisher_id, jwks, jwks_uri, base_url), for the registration
+    # the install's token names (install_reads_its_registration; migrations
+    # 20260924_0379, 20260924_0387, 20260924_0388 and 20260924_0390). Asserted
+    # in install_standing_test beside the one on guilds.
     "app_service_registrations": None,
     # No TABLE grant: a column-scoped SELECT on (id, enabled), for the
     # publisher of that registration (install_reads_its_publisher; migration
@@ -829,7 +835,8 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "publishers": None,
     "app_assertion_jtis": None,
     "sign_in_locks": None,
-    "marketplace_registry_state": None,
+    "marketplace_tuf_metadata": None,
+    "marketplace_registry_status": None,
     "marketplace_media": None,
     "guild_images": None,
     "user_avatars": None,

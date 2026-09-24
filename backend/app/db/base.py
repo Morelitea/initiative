@@ -121,7 +121,8 @@ from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
 from app.models.platform.marketplace_registry import (
     MarketplaceMedia,
-    MarketplaceRegistryState,
+    MarketplaceRegistryStatus,
+    MarketplaceTufMetadata,
 )
 from app.models.platform.ai_connection import PlatformAIConnection
 from app.models.platform.app_service_registration import AppServiceRegistration
@@ -238,7 +239,8 @@ __all__ = [
     "Publisher",
     "AppAssertionJti",
     "MarketplaceMedia",
-    "MarketplaceRegistryState",
+    "MarketplaceRegistryStatus",
+    "MarketplaceTufMetadata",
     "PlatformAIConnection",
     "GuildAIConnection",
     "GuildAIMemberKey",

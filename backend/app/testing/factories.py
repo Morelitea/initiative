@@ -1265,6 +1265,7 @@ async def create_publisher(
     display_name: str | None = None,
     verified: bool = True,
     enabled: bool = True,
+    source: str = "operator",
 ) -> Publisher:
     """The publisher for ``prefix``: the existing row, or a new one."""
     row = (
@@ -1276,6 +1277,7 @@ async def create_publisher(
             display_name=display_name or prefix,
             verified=verified,
             enabled=enabled,
+            source=source,
         )
         session.add(row)
         await session.commit()

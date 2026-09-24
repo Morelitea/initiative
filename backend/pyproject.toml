@@ -49,6 +49,8 @@ dependencies = [
     "pglast>=7.18,<8",
     "pillow>=12.3.0",
     "prometheus-client>=0.23,<1",        # /api/v1/metrics, read by Prometheus when METRICS_TOKEN is set
+    "tuf>=7.0.1",
+    "cryptography>=50.0.0",
 ]
 
 [dependency-groups]

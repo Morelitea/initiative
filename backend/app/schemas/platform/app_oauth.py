@@ -12,6 +12,7 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.platform.identity_ref import REF_MAX_LENGTH
+from app.schemas.base import TitleStr
 from app.models.tenant.app_member_consent import (
     LABEL_MAX_LENGTH,
     PURPOSE_MAX_LENGTH,
@@ -63,7 +64,7 @@ class AppConsentRequestCreate(BaseModel):
     purpose: Optional[str] = None
     #: What the purpose is, in the app's own words. The member reads it as the
     #: app's.
-    label: str = Field(min_length=1, max_length=LABEL_MAX_LENGTH)
+    label: TitleStr = Field(min_length=1, max_length=LABEL_MAX_LENGTH)
     #: The one initiative the purpose is bound to, when it is.
     initiative_id: Optional[int] = Field(default=None, gt=0, le=2**31 - 1)
     access: ConsentAccess

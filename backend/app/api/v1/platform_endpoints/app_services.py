@@ -67,6 +67,8 @@ def _to_read(
         scope_ceiling=list(row.scope_ceiling or []),
         mandatory=row.mandatory,
         enabled=row.enabled,
+        source=row.source,
+        image_digest=row.image_digest,
         live=view.live,
         created_at=row.created_at,
         updated_at=row.updated_at,

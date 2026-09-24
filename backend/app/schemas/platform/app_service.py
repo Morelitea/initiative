@@ -35,8 +35,9 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     publisher_prefix: str
     publisher_name: str
     publisher_enabled: bool
-    #: Where this deployment's server calls the app.
-    base_url: str
+    #: Where this deployment's server calls the app. Null for an app from the
+    #: registry that runs as a container until the operator gives its address.
+    base_url: Optional[str] = None
     #: Where a browser loads its surfaces. Null when that is ``base_url`` too.
     embed_origin: Optional[str] = None
     allowed_origins: List[str] = []
@@ -54,7 +55,14 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     #: Installed into every guild and not removable by guild admins.
     mandatory: bool = False
     enabled: bool = True
-    #: Enabled, its publisher enabled, and a key set to verify against.
+    #: ``operator`` (added here or in ``APP_SERVICES_CONFIG``) or ``registry``.
+    #: A registry registration takes only its switch, grants, mandatory flag,
+    #: origins and, for a container, its address.
+    source: str = "operator"
+    #: The container image a registry app runs, pinned by digest.
+    image_digest: Optional[str] = None
+    #: Enabled, its publisher enabled, an address, and a key set to verify
+    #: against.
     live: bool
     created_at: datetime
     updated_at: datetime

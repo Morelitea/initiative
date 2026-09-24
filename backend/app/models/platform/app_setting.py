@@ -277,6 +277,15 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
+    # Whether this deployment follows the marketplace registry: listings,
+    # publishers and app registrations from the TUF repository whose root
+    # ships in the image (or the one ``MARKETPLACE_REGISTRY_ROOT`` names). On
+    # by default. Off stops the background refresh; what already arrived stays.
+    marketplace_registry_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
     # The direct-message policy a newly created account starts on. Read once,
     # when the account is created, and copied into its ``user_dm_settings`` row;
     # changing it later moves nobody, so raising it opens no existing account
