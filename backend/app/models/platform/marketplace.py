@@ -178,6 +178,14 @@ class MarketplaceListingVersion(SQLModel, table=True):
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
+    # The same thing filled in, for a tool listing that has one: a finished
+    # character beside the blank sheet, a project mid-flight beside its
+    # skeleton. Held to the same validator as ``definition``, and installable
+    # in its place when the installer asks to start from it. NULL on every
+    # other kind, and on a listing that shows only what it installs.
+    example: Optional[dict[str, Any]] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
     release_notes: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )

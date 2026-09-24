@@ -529,7 +529,9 @@ class TestOneListingsPage:
         assert response.status_code == 200
         body = response.json()
         assert body["long_description"] == "A longer page for the detail view."
-        assert body["definition"]["kind"] == "dashboard"
+        # The dashboard's export envelope, around the canvas it installs.
+        assert body["definition"]["type"] == "initiative-dashboard"
+        assert body["definition"]["definition"]["kind"] == "dashboard"
         # One app, one current version. The shelf offers the latest and
         # nothing else; which version an install is running, and upgrading
         # it, belong to guild settings.
@@ -627,3 +629,223 @@ class TestOneListingsPage:
         # a listing that silently isn't there.
         assert body["installable"] is False
         assert body["latest_version"]["compatible"] is False
+
+
+#: A counter group a publisher shares: the blank template installs empty, the
+#: example the way they filled it in.
+COUNTERS_UID = "C0VNTERS000001"
+
+
+def _counter_envelope(*counts: float) -> dict:
+    return {
+        "type": "initiative-counter-group",
+        "name": "Whatever the file called it",
+        "description": "Tally of the party's resources.",
+        "counters": [
+            {"name": name, "count": count}
+            for name, count in zip(("Hit points", "Spell slots"), counts)
+        ],
+    }
+
+
+async def _counter_listing(session, *, example: bool = True):
+    return await create_marketplace_listing(
+        session,
+        uid=COUNTERS_UID,
+        public_id="tests.party-tally",
+        kind="counter_group",
+        name="Party tally",
+        definition=_counter_envelope(0, 0),
+        example=_counter_envelope(27, 3) if example else None,
+    )
+
+
+async def _counters_on(session, initiative):
+    initiative.counter_groups_enabled = True
+    session.add(initiative)
+    await session.commit()
+
+
+async def _read_group(session, guild_id: int, group_id: int):
+    from sqlmodel import select
+
+    from app.models.tenant.counter import Counter, CounterGroup
+    from app.testing import route_session_to_guild
+
+    await route_session_to_guild(session, guild_id)
+    group = (
+        await session.exec(select(CounterGroup).where(CounterGroup.id == group_id))
+    ).one()
+    counts = sorted(
+        (
+            await session.exec(
+                select(Counter.count).where(Counter.counter_group_id == group_id)
+            )
+        ).all()
+    )
+    return group, counts
+
+
+class TestInstallingAToolListing:
+    """A tool's listing installs through that tool's importer, as the member."""
+
+    async def test_a_member_who_may_create_it_installs_a_copy(
+        self, client, acting_user, session
+    ):
+        # A guild member, not an admin: what lets them is the initiative
+        # role's permission to create counter groups.
+        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        await _counters_on(session, member.initiative)
+        await _counter_listing(session)
+
+        response = await client.post(
+            member.g(f"/marketplace/listings/by-uid/{COUNTERS_UID}/install"),
+            json={"initiative_id": member.initiative.id},
+            headers=member.headers,
+        )
+
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["kind"] == "counter_group"
+        assert body["listing_version"] == "1.0.0"
+        group, counts = await _read_group(
+            session, member.guild.id, body["result"]["entity_id"]
+        )
+        # Called what the listing is called, and it remembers where it came from.
+        assert group.name == "Party tally"
+        assert (group.listing_uid, group.listing_version) == (COUNTERS_UID, "1.0.0")
+        assert counts == [0, 0]
+
+    async def test_it_may_start_from_the_example(self, client, acting_user, session):
+        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        await _counters_on(session, actor.initiative)
+        await _counter_listing(session)
+
+        response = await client.post(
+            actor.g(f"/marketplace/listings/by-uid/{COUNTERS_UID}/install"),
+            json={"initiative_id": actor.initiative.id, "start_from": "example"},
+            headers=actor.headers,
+        )
+
+        assert response.status_code == 201, response.text
+        _, counts = await _read_group(
+            session, actor.guild.id, response.json()["result"]["entity_id"]
+        )
+        assert counts == [3, 27]
+
+    async def test_there_is_no_example_to_start_from_unless_it_has_one(
+        self, client, acting_user, session
+    ):
+        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        await _counters_on(session, actor.initiative)
+        await _counter_listing(session, example=False)
+
+        response = await client.post(
+            actor.g(f"/marketplace/listings/by-uid/{COUNTERS_UID}/install"),
+            json={"initiative_id": actor.initiative.id, "start_from": "example"},
+            headers=actor.headers,
+        )
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_HAS_NO_EXAMPLE
+
+    async def test_the_detail_page_carries_the_example(
+        self, client, acting_user, session
+    ):
+        actor = await acting_user(guild_role=GuildRole.member)
+        await _counter_listing(session)
+
+        response = await client.get(
+            actor.g(f"/marketplace/listings/by-uid/{COUNTERS_UID}"),
+            headers=actor.headers,
+        )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["kind"] == "counter_group"
+        assert [c["count"] for c in body["example"]["counters"]] == [27, 3]
+
+    async def test_a_tool_switched_off_takes_no_install(
+        self, client, acting_user, session
+    ):
+        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        actor.initiative.counter_groups_enabled = False
+        session.add(actor.initiative)
+        await session.commit()
+        await _counter_listing(session)
+
+        response = await client.post(
+            actor.g(f"/marketplace/listings/by-uid/{COUNTERS_UID}/install"),
+            json={"initiative_id": actor.initiative.id},
+            headers=actor.headers,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "IMPORT_TOOL_DISABLED"
+
+    async def test_an_initiative_the_member_is_not_in_takes_no_install(
+        self, client, acting_user, session
+    ):
+        owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _counters_on(session, owner.initiative)
+        outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+        await _counter_listing(session)
+
+        response = await client.post(
+            outsider.g(f"/marketplace/listings/by-uid/{COUNTERS_UID}/install"),
+            json={"initiative_id": owner.initiative.id},
+            headers=outsider.headers,
+        )
+
+        # The importer's own answer: a guild member may see the initiative,
+        # and holds no role in it that creates anything.
+        assert response.status_code == 403
+        assert response.json()["detail"] == "IMPORT_PERMISSION_REQUIRED"
+
+    async def test_an_app_is_not_installed_here(self, client, acting_user, session):
+        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await catalog_service.upsert_listing(
+            session, _tracker_manifest(with_dashboard=False), source="builtin"
+        )
+        await session.commit()
+
+        response = await client.post(
+            actor.g(f"/marketplace/listings/by-uid/{APP_UID}/install"),
+            json={"initiative_id": actor.initiative.id},
+            headers=actor.headers,
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
+
+    async def test_a_dashboard_listing_installs_through_the_same_path(
+        self, client, acting_user, session, listing
+    ):
+        from sqlmodel import select
+
+        from app.models.tenant.dashboard import Dashboard
+        from app.testing import route_session_to_guild
+
+        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        actor.initiative.dashboards_enabled = True
+        session.add(actor.initiative)
+        await session.commit()
+
+        response = await client.post(
+            actor.g(f"/marketplace/listings/by-uid/{listing.uid}/install"),
+            json={"initiative_id": actor.initiative.id},
+            headers=actor.headers,
+        )
+
+        assert response.status_code == 201, response.text
+        await route_session_to_guild(session, actor.guild.id)
+        dashboard = (
+            await session.exec(
+                select(Dashboard).where(
+                    Dashboard.id == response.json()["result"]["entity_id"]
+                )
+            )
+        ).one()
+        assert dashboard.name == "Sprint health"
+        assert dashboard.listing_uid == listing.uid
+        assert dashboard.definition["widgets"][0]["type"] == "stat"

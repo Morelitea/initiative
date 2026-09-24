@@ -60,14 +60,13 @@ from app.schemas.tenant.dashboard import (
     serialize_dashboard,
 )
 from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
-from app.db import session as db_session
 from app.db.session import rls_context_params
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
 from app.services import audit as audit_service
 from app.services import query as query_service
 from app.services import permissions as permissions_service
-from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.installs import (
+    count_install,
     ListingInstallError,
     resolve_listing_install,
 )
@@ -155,28 +154,15 @@ async def _resolve_listing_install(
         ) from exc
 
 
-async def _count_install(listing_id: Optional[int]) -> None:
-    """Add one to a listing's install tally, after the install has committed.
+def _listing_canvas(version: MarketplaceListingVersion) -> dict:
+    """The canvas a dashboard listing installs.
 
-    On the system engine because the catalog has no request-path writer, and
-    best-effort because it is a display number: a failed bump must never fail an
-    install that already happened. Nothing about *which* guild is recorded.
+    A listing stores the dashboard's export envelope; the canvas is its
+    ``definition``. Validated again by the caller on the way in: the catalog
+    validated it at publish time, but this build decides what it can render
+    *now*.
     """
-    if listing_id is None:
-        return
-    try:
-        # Read off the module rather than bound at import: the session maker is
-        # swapped per test, and a name captured at import time would keep
-        # pointing at the real database.
-        async with db_session.SystemSessionLocal() as session:
-            await catalog_service.bump_installs_count(session, listing_id)
-            await session.commit()
-    except Exception:
-        logger.warning(
-            "marketplace: install count bump failed for listing %s",
-            listing_id,
-            exc_info=True,
-        )
+    return dict((version.definition or {}).get("definition") or {})
 
 
 async def _get_initiative_for_dashboard(
@@ -313,7 +299,7 @@ async def create_dashboard(
         # Validated again on the way in: the catalog validated it at publish
         # time, but this build decides what it can render *now*.
         definition, config = _normalize_body(
-            dict(version.definition),
+            _listing_canvas(version),
             dashboard_in.config,
             await _endpoint_columns(session),
         )
@@ -372,7 +358,7 @@ async def create_dashboard(
 
     await session.commit()
     if listing_id is not None:
-        await _count_install(listing_id)
+        await count_install(listing_id)
     hydrated = await _refetch_dashboard(session, dashboard.id)
     return serialize_dashboard(hydrated, user_id=current_user.id, context=guild_context)
 
@@ -475,7 +461,7 @@ async def upgrade_dashboard(
         )
 
     definition, config = _normalize_body(
-        dict(version.definition), dashboard.config, await _endpoint_columns(session)
+        _listing_canvas(version), dashboard.config, await _endpoint_columns(session)
     )
     # A new version replaces what this dashboard asks, over resources it may be
     # publishing. That is the same act as editing it, and answers to the same

@@ -14,10 +14,14 @@ response.
 
 from __future__ import annotations
 
+import logging
+from typing import Optional
+
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import MarketplaceMessages
+from app.db import session as db_session
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
@@ -26,8 +30,11 @@ from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
 
+logger = logging.getLogger(__name__)
+
 __all__ = [
     "ListingInstallError",
+    "count_install",
     "installed_app_uids",
     "listing_is_offered",
     "resolve_listing_install",
@@ -132,3 +139,27 @@ async def listing_is_offered(
     if listing.bundled_with_uid is None:
         return True
     return listing.bundled_with_uid in await installed_app_uids(session)
+
+
+async def count_install(listing_id: Optional[int]) -> None:
+    """Add one to a listing's install tally, after the install has committed.
+
+    On the system engine because the catalog has no request-path writer, and
+    best-effort because it is a display number: a failed bump must never fail an
+    install that already happened. Nothing about *which* guild is recorded.
+    """
+    if listing_id is None:
+        return
+    try:
+        # Read off the module rather than bound at import: the session maker is
+        # swapped per test, and a name captured at import time would keep
+        # pointing at the real database.
+        async with db_session.SystemSessionLocal() as session:
+            await catalog_service.bump_installs_count(session, listing_id)
+            await session.commit()
+    except Exception:
+        logger.warning(
+            "marketplace: install count bump failed for listing %s",
+            listing_id,
+            exc_info=True,
+        )

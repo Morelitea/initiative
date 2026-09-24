@@ -995,6 +995,9 @@ class MarketplaceMessages:
     #: installed — there is no listing to re-pin it to.
     NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"
     ALREADY_LATEST_VERSION = "MARKETPLACE_ALREADY_LATEST_VERSION"
+    #: An install asked to start from the listing's example, and this listing
+    #: carries none: it installs only as itself.
+    LISTING_HAS_NO_EXAMPLE = "MARKETPLACE_LISTING_HAS_NO_EXAMPLE"
     MEDIA_NOT_FOUND = "MARKETPLACE_MEDIA_NOT_FOUND"
     #: A rescan was asked for on a deployment that publishes no catalog
     #: directory of its own — nothing to scan until one is configured.

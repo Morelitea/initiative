@@ -177,6 +177,23 @@ def test_every_tool_row_is_written_without_returning():
         assert table.implicit_returning is False, tool
 
 
+def test_every_tool_records_where_it_came_from():
+    # Every tool has a marketplace, and installing a listing imports a copy
+    # that records the listing it came from. A tool whose table lacks the pair
+    # would install with nowhere to put it.
+    from sqlmodel import SQLModel
+
+    import app.db.base  # noqa: F401  (populates the metadata)
+    from app.models.tenant._mixins import ListingProvenanceMixin, tool_models
+
+    models = tool_models()
+    for tool in Tool:
+        model = models[tool.plural]
+        assert issubclass(model, ListingProvenanceMixin), tool
+        columns = SQLModel.metadata.tables[tool.plural].columns
+        assert {"listing_uid", "listing_version"} <= set(columns.keys()), tool
+
+
 def test_every_tool_carries_the_comment_switch():
     # Every tool can turn its own thread off: the column on the content table
     # and the flag on the read schema are spelled the same on all six, and the

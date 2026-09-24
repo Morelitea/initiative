@@ -218,7 +218,9 @@ export function MarketplaceListingPage() {
             // The same canvas a live dashboard renders, read-only: `canEdit` false
             // means static tiles, no drag handles, and no layout writes.
             <DashboardCanvas
-              definition={readDefinition(listing.definition)}
+              // A listing is the dashboard's export envelope; the canvas is
+              // its `definition`.
+              definition={readDefinition(listing.definition.definition)}
               config={readConfig({})}
               catalog={catalogQuery.data}
               // Sample rows, and therefore no initiative: an uninstalled

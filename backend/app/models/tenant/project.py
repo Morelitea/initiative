@@ -6,10 +6,11 @@ from sqlmodel import Field, Relationship
 
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
-    attach_access_level,
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -24,7 +25,12 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
 
 
 class Project(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     __tablename__ = "projects"
     # A tool row is written before anything has been shared, so it is read

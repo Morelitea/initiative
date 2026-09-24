@@ -6,10 +6,11 @@ from sqlmodel import Field, Relationship
 
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
-    attach_access_level,
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -24,7 +25,12 @@ DEFAULT_CALENDAR_COLOR = "#6366f1"
 
 
 class Calendar(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     """Initiative-scoped calendar — the shareable container for events.
 

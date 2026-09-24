@@ -11,7 +11,7 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar, Optional
 
-from sqlalchemy import DateTime, Integer, func, select
+from sqlalchemy import DateTime, Integer, String, func, select
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, SQLModel
 
@@ -147,6 +147,27 @@ class CreatedByMixin(SQLModel):
 
     created_by: Optional[int] = Field(
         default=None, foreign_key="users.id", nullable=True
+    )
+
+
+class ListingProvenanceMixin(SQLModel):
+    """Mixin that records which marketplace listing a tool item came from.
+
+    Installing a listing is importing a copy of it, and the copy keeps two
+    facts about where it came from: the listing's ``uid`` and the version it
+    was taken at. Both are NULL on anything made here, which is almost
+    everything. There is no link back and no update stream — the copy belongs
+    to whoever installed it — so these are a record, not a reference, and no
+    foreign key reaches the catalog.
+
+    Every tool has a marketplace, so every tool carries the pair.
+    ``tools_test.py`` fails CI if a ``Tool`` member's model lacks it. Declared
+    without ``sa_column`` so each table builds its own Column.
+    """
+
+    listing_uid: Optional[str] = Field(default=None, sa_type=String(14), nullable=True)
+    listing_version: Optional[str] = Field(
+        default=None, sa_type=String(32), nullable=True
     )
 
 

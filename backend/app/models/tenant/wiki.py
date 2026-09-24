@@ -20,10 +20,11 @@ from sqlmodel import Field, Relationship
 
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
-    attach_access_level,
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -60,7 +61,12 @@ class WikiReadingWidth(str, Enum):
 
 
 class Wiki(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     """A body of linked pages in an initiative.
 

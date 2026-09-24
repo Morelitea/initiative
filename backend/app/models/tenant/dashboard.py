@@ -1,16 +1,17 @@
 from datetime import datetime, timezone
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
-    attach_access_level,
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -21,7 +22,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Dashboard(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     """An initiative's dashboard: a canvas of widgets over existing data.
 
@@ -43,7 +49,15 @@ class Dashboard(
     # A tool row is written before anything has been shared, so it is read
     # back by no RETURNING clause: the id comes from the sequence first and
     # the INSERT stands alone. See app/db/initiative_rls.py.
-    __table_args__ = {"implicit_returning": False}
+    #
+    # Provenance (``listing_uid``/``listing_version``) is every tool's, from
+    # ``ListingProvenanceMixin``. A dashboard is the one tool that reads it back
+    # — the upgrade button re-pins an installed dashboard to its listing — so it
+    # is the one that keeps an index on it.
+    __table_args__ = (
+        Index("ix_dashboards_listing_uid", "listing_uid"),
+        {"implicit_returning": False},
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     initiative_id: int = Field(
@@ -56,17 +70,6 @@ class Dashboard(
     )
     name: str = Field(nullable=False, max_length=255)
     description: Optional[str] = Field(default=None, max_length=2000)
-    # Provenance when installed from the marketplace; both NULL for a dashboard
-    # authored from scratch. The uid points at the public catalog listing; the
-    # version records which published definition this instance pinned.
-    listing_uid: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(14), nullable=True, index=True),
-    )
-    listing_version: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(32), nullable=True),
-    )
     definition: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),

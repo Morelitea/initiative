@@ -41,6 +41,7 @@ from app.services.marketplace.definitions import (
     app_widget_type,
     normalize_publisher,
     normalize_listing_definition,
+    normalize_listing_example,
     reserved_prefix_problem,
 )
 from app.services.marketplace import contract
@@ -378,6 +379,7 @@ async def upsert_listing(
 
     try:
         definition = normalize_listing_definition(kind, manifest.get("definition"))
+        example = normalize_listing_example(kind, manifest.get("example"))
 
         # Required on every ingestion path: seeding, an operator upload, a
         # registry refresh. There is no path that publishes without one.
@@ -475,6 +477,7 @@ async def upsert_listing(
             version=version_str,
             published_at=now,
             definition=definition,
+            example=example,
             release_notes=release_notes,
             min_app_version=min_app_version,
         )
@@ -482,6 +485,7 @@ async def upsert_listing(
         await session.flush()
     elif (
         version.definition != definition
+        or version.example != example
         or version.release_notes != release_notes
         or version.min_app_version != min_app_version
     ):

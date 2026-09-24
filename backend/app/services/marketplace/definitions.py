@@ -3,13 +3,13 @@
 A listing arriving from anywhere — a shipped data file today, an operator upload
 or a signed remote manifest later — carries a definition, and that definition is
 stored and later copied into a guild's schema. This module is the one place that
-decides whether a body is acceptable, and for a dashboard it does so by handing
-off to the *same* validator the guild-scoped API uses: a downloaded dashboard is
-normalized by ``normalize_dashboard_definition``, exactly like one authored by
-hand.
+decides whether a body is acceptable, and for a tool's listing it does so by
+handing off to *that tool's importer*: a listing is the tool's export envelope,
+held to the same checks as importing the same file (``tool_listings``), and a
+dashboard's canvas to the same widget validator the guild-scoped API uses.
 
-That reuse is the point: catalog content is held to the same widget and binding
-vocabulary as anything authored in the app, by the same code.
+That reuse is the point: catalog content is held to the same vocabulary as
+anything authored or imported in the app, by the same code.
 
 The pieces this file leans on live beside it, because a service app's manifest is
 too large a vocabulary to read in one sitting:
@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from app.core.tools import BULK_EXPORT_TOOLS, Tool
 from app.services.marketplace.manifest_values import (
     MAX_PUBLISHER_NAME_LENGTH,
     MAX_NAME_LENGTH,
@@ -43,14 +44,15 @@ from app.services.marketplace.service_apps import (
     app_widget_type,
     normalize_service_app_definition,
 )
-from app.services.tenant.dashboard_definition import (
-    DashboardDefinitionError,
-    normalize_dashboard_definition,
+from app.services.marketplace.tool_listings import (
+    normalize_tool_example,
+    normalize_tool_listing,
 )
 
 __all__ = [
     "ListingDefinitionError",
     "LISTING_KINDS",
+    "TOOL_LISTING_KINDS",
     "LISTING_AUDIENCES",
     "KIND_AUDIENCE",
     "kinds_for_audience",
@@ -62,11 +64,20 @@ __all__ = [
     "app_widget_type",
     "normalize_publisher",
     "normalize_listing_definition",
+    "normalize_listing_example",
     "reserved_prefix_problem",
 ]
 
 
-#: Kinds the catalog can hold.
+#: The tool marketplaces: one per tool that exports and imports, keyed by the
+#: tool's own value. A listing of one of these kinds is that tool's export
+#: envelope, and installing it is that tool's import, so a tool gets a
+#: marketplace by having an exporter and an importer, which it needs anyway
+#: (``tools_test`` holds the two together).
+TOOL_LISTING_KINDS: dict[str, Tool] = {tool.value: tool for tool in BULK_EXPORT_TOOLS}
+
+#: Kinds the catalog can hold: the tool marketplaces, plus the three that are
+#: not a tool's content.
 #:
 #: ``auto`` is declared here so the vocabulary is complete — the marketplace can
 #: name and filter by it — while nothing installs one yet: a manifest carrying
@@ -77,11 +88,13 @@ __all__ = [
 #: it grants land in an account's own library. It is the one kind that does, and
 #: the catalog does not need to know: publishing, browsing and versioning are
 #: the same for it as for anything else, and only the install path differs.
-LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app", "auto", "profile_pack"})
+LISTING_KINDS: frozenset[str] = frozenset(
+    {"app", "auto", "profile_pack", *TOOL_LISTING_KINDS}
+)
 
 #: Who a listing installs to.
 #:
-#: Every kind but one installs to a **guild** — a dashboard lands in an
+#: Every kind but one installs to a **guild** — a tool's content lands in an
 #: initiative, an app mounts in a community. A profile pack installs to a
 #: **user**: its decorations land in one account's own library and belong to
 #: that person across every community they are in.
@@ -92,10 +105,10 @@ LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app", "auto", "profile_
 LISTING_AUDIENCES: frozenset[str] = frozenset({"guild", "user"})
 
 KIND_AUDIENCE: dict[str, str] = {
-    "dashboard": "guild",
     "app": "guild",
     "auto": "guild",
     "profile_pack": "user",
+    **{kind: "guild" for kind in TOOL_LISTING_KINDS},
 }
 
 
@@ -235,7 +248,11 @@ def _normalize_app_definition(definition: Any) -> dict[str, Any]:
 
 
 def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
-    """Validate and canonicalize a listing's definition for its kind."""
+    """Validate and canonicalize a listing's definition for its kind.
+
+    A tool's listing is that tool's export envelope, held to the tool's own
+    importer (``tool_listings``); the other kinds each have their own shape.
+    """
     if kind not in LISTING_KINDS:
         raise ListingDefinitionError(f"unknown listing kind {kind!r}")
     if kind == "auto":
@@ -246,9 +263,18 @@ def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
         return _normalize_app_definition(definition)
     if kind == "profile_pack":
         return normalize_profile_pack_definition(definition)
-    try:
-        return normalize_dashboard_definition(definition)
-    except DashboardDefinitionError as exc:
-        # The tool validator speaks in machine codes meant for the API's 422;
-        # here the audience is whoever is publishing, so it is re-raised named.
-        raise ListingDefinitionError(f"invalid dashboard definition: {exc}") from exc
+    return normalize_tool_listing(TOOL_LISTING_KINDS[kind], definition)
+
+
+def normalize_listing_example(kind: str, example: Any) -> Optional[dict[str, Any]]:
+    """Validate a listing's example, or ``None`` when it has none.
+
+    Only a tool's listing carries one — the same envelope, filled in. Any other
+    kind that states one is refused rather than having it silently dropped.
+    """
+    tool = TOOL_LISTING_KINDS.get(kind)
+    if tool is None:
+        if example is not None:
+            raise ListingDefinitionError(f"a {kind} listing carries no example")
+        return None
+    return normalize_tool_example(tool, example)

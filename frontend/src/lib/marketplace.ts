@@ -25,6 +25,22 @@ export const COMMUNITY_SHELVES = [
   ListingKind.auto,
 ] as const;
 
+/**
+ * Kinds the server publishes that no shelf shows yet: the tool marketplaces
+ * other than dashboards. Each one exists in the API — browse, detail and
+ * install — and is surfaced by moving it into `COMMUNITY_SHELVES`.
+ */
+export const UNSHELVED_KINDS = [
+  ListingKind.project,
+  ListingKind.document,
+  ListingKind.queue,
+  ListingKind.counter_group,
+  ListingKind.calendar,
+  ListingKind.post,
+  ListingKind.gallery,
+  ListingKind.wiki,
+] as const;
+
 /** A shelf a community installs from — the values `?kind=` may name under
  *  `/c/{id}/marketplace`. Derived from the list above so a shelf added there is
  *  a shelf the URL accepts, with nothing else to update. */
