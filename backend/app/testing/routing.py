@@ -17,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 
-__all__ = ["route_as", "route_system"]
+__all__ = ["route_as", "route_as_install", "route_system"]
 
 
 async def route_as(
@@ -63,6 +63,35 @@ async def route_as(
         satisfied_providers=satisfied_providers,
         for_settings=settings or seat,
         for_seat=seat,
+    )
+
+
+async def route_as_install(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    install_id: int,
+    client_id: str,
+    scopes: Sequence[str],
+    initiative_id: Optional[int] = None,
+):
+    """Route ``session`` as an installed app, through the install seam.
+
+    What the token path will hand the seam once it verifies a token, built
+    here from the values a test chose. Returns the ``InstallContext`` the seam
+    built, and raises ``InstallAccessError`` when the install may not act.
+    """
+    from app.api.deps import VerifiedInstall, establish_install_access
+
+    return await establish_install_access(
+        session,
+        VerifiedInstall(
+            guild_id=guild_id,
+            install_id=install_id,
+            client_id=client_id,
+            scopes=frozenset(scopes),
+            initiative_id=initiative_id,
+        ),
     )
 
 

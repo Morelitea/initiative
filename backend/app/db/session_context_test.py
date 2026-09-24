@@ -238,6 +238,12 @@ def test_every_context_branch_binds_every_parameter():
         "platform": {"user_id": 7},
         "guild": {"user_id": 7, "guild_id": 3, "guild_role": "admin"},
         "pam": {"user_id": 7, "pam_guild_id": 3, "pam_read": True},
+        "install": {
+            "guild_id": 3,
+            "install_id": 5,
+            "token_client_id": "tests.app-service",
+            "token_scopes": frozenset({"documents:read"}),
+        },
     }
     for name, params in branches.items():
         rendered = set(_render_context_bind_params(params))

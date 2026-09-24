@@ -22,7 +22,9 @@ from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 from app.db.guild_standing import (
     GuildContext,
+    InstallContext,
     compute_guild_standing,
+    compute_install_standing,
     empty_standing,
     standing_bind_params,
 )
@@ -279,6 +281,12 @@ _CONTEXT_SQL = (
     "set_config('app.via_dashboard_id', :vdash, true), "
     "set_config('app.query', :q, true), "
     "set_config('app.guild_auth_ok', :gok, true), "
+    # The installed app this routes, when it is one: which install, the client
+    # its token was issued to, and the scopes the token carries. Written from
+    # the verified install, the way the user is written from the credential.
+    "set_config('app.current_install_id', :iid, true), "
+    "set_config('app.token_client_id', :tcid, true), "
+    "set_config('app.token_scopes', :tsc, true), "
     # The reader's standing in the community this routes into — written here
     # so a routing always states it, and stated as nothing until the statement
     # that computes it has run. See app.db.guild_standing.
@@ -293,6 +301,8 @@ _CONTEXT_SQL = (
     "set_config('app.role_denies', :rdn, true), "
     "set_config('app.enabled_tools', :etool, true), "
     f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
+    "set_config('app.install_read', :iread, true), "
+    "set_config('app.install_write', :iwrite, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
@@ -312,6 +322,8 @@ _STANDING_BINDS: dict[str, str] = {
     "role_denies": "rdn",
     "enabled_tools": "etool",
     "override_initiatives": "ovr",
+    "install_read": "iread",
+    "install_write": "iwrite",
 }
 
 
@@ -325,6 +337,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     Pure function shared by the async apply path (set_rls_context) and the
     sync after_begin replay hook — one routing decision, two executors.
     """
+    if params.get("install_id") is not None:
+        return _render_install_bind_params(params)
+
     user_id = params.get("user_id")
     guild_id = params.get("guild_id", params.get("system_guild_id"))
     pam_guild_id = params.get("pam_guild_id")
@@ -373,6 +388,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "prole": "",
             "pfac": "false",
             "bgid": str(int(billing_guild_id)),
+            "iid": "",
+            "tcid": "",
+            "tsc": "",
             "sinit": "",
             "vdash": "",
             "q": "false",
@@ -504,6 +522,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "satp": satp,
         "satc": satc,
         "bgid": "",
+        "iid": "",
+        "tcid": "",
+        "tsc": "",
         "gok": "true" if guild_auth_ok else "false",
         **_standing_binds(standing),
         "sinit": str(int(scope_initiative_id))
@@ -519,6 +540,53 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _render_install_bind_params(params: dict[str, Any]) -> dict[str, str]:
+    """The routing binds for an installed app acting in its community.
+
+    Assumes ``guild_<id>_app`` with the community's schema on the path. No
+    person: the user, every credential value and the grant flags are written
+    empty. The install, its client and its token's scopes are the routing's own
+    values, and the standing is what the install standing statement computed —
+    or nothing, until it has run.
+    """
+    from app.db.schema_provisioning import guild_app_role_name, guild_schema_name
+
+    guild_id = int(params["guild_id"])
+    context = params.get("context")
+    completed = (
+        isinstance(context, InstallContext) and context.standing_guild_id is not None
+    )
+    scope_initiative_id = params.get("scope_initiative_id")
+    return {
+        "uid": "",
+        "gid": str(guild_id),
+        "pgid": "",
+        "setgid": "",
+        "pr": "false",
+        "pw": "false",
+        "satp": "",
+        "satc": "",
+        "amr": "",
+        "prole": "",
+        "pfac": "false",
+        "bgid": "",
+        "iid": str(int(params["install_id"])),
+        "tcid": str(params.get("token_client_id") or ""),
+        # The vocabulary is closed (``app.core.app_scopes``), so the delimiter
+        # cannot appear inside a scope; sorted so one token writes one string.
+        "tsc": ",".join(sorted(params.get("token_scopes") or ())),
+        "sinit": str(int(scope_initiative_id))
+        if scope_initiative_id is not None
+        else "",
+        "vdash": "",
+        "q": "false",
+        "gok": "true" if completed and context.guild_auth_ok else "false",
+        **_standing_binds(standing_bind_params(context if completed else None)),
+        "sp": _search_path(guild_schema_name(guild_id), "public"),
+        "role": guild_app_role_name(guild_id),
+    }
+
+
 def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
     """after_begin hook: re-apply the session's stored context at the start of
     every transaction, so no query ever runs without it — regardless of
@@ -529,7 +597,7 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     if params is None:
         return
-    if params.get("user_id") is not None:
+    if params.get("user_id") is not None or params.get("install_id") is not None:
         established = session.info.get(_RLS_ESTABLISHED_INFO_KEY)
         if (
             established is None
@@ -554,7 +622,7 @@ async def set_rls_context(
     session: AsyncSession,
     user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
-    context: Optional[GuildContext] = None,
+    context: GuildContext | InstallContext | None = None,
     pam_guild_id: Optional[int] = None,
     pam_read: bool = False,
     pam_write: bool = False,
@@ -569,6 +637,9 @@ async def set_rls_context(
     via_dashboard_id: Optional[int] = None,
     settings_guild_id: Optional[int] = None,
     seat: bool = False,
+    install_id: Optional[int] = None,
+    token_client_id: Optional[str] = None,
+    token_scopes: frozenset[str] | None = None,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -624,6 +695,14 @@ async def set_rls_context(
     anyway yields nothing — and it is what lets an initiative-scoped surface
     ask a guild-scoped question and get its own initiative's answer. Unset
     means no narrowing, which is every ordinary request.
+
+    ``install_id`` routes an installed app acting in the community named by
+    ``guild_id``: it assumes ``guild_<id>_app`` and writes no person.
+    ``token_client_id`` and ``token_scopes`` are the client the install's token
+    was issued to and the scopes it carries, and ``scope_initiative_id`` the
+    initiative it is narrowed to. ``context`` is then the ``InstallContext``
+    the establishment seam built (``app.api.deps.establish_install_access``),
+    and a routing that names an install without one is refused.
 
     ``platform_factor`` says whether the account answers the deployment's own
     second-factor rule — a factor it holds, or one this session presented. It
@@ -683,6 +762,9 @@ async def set_rls_context(
         session_amr=session_amr,
         scope_initiative_id=scope_initiative_id,
         via_dashboard_id=via_dashboard_id,
+        install_id=install_id,
+        token_client_id=token_client_id,
+        token_scopes=token_scopes,
     )
     # Whether the account answers the deployment's own second-factor rule.
     # Ambient by default, from the context the request's gate resolved once —
@@ -745,6 +827,9 @@ async def set_rls_context(
         "platform_factor": platform_factor,
         "scope_initiative_id": scope_initiative_id,
         "via_dashboard_id": via_dashboard_id,
+        "install_id": install_id,
+        "token_client_id": token_client_id,
+        "token_scopes": token_scopes,
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 
@@ -784,6 +869,24 @@ async def apply_guild_standing(
     one entry, one community.
     """
     completed = context.with_standing(await compute_guild_standing(session))
+    params = session.info.get(_RLS_PARAMS_INFO_KEY)
+    if params is not None:
+        params["context"] = completed
+    return completed
+
+
+async def apply_install_standing(
+    session: AsyncSession, context: InstallContext
+) -> InstallContext:
+    """Compute an installed app's standing and record it on the session.
+
+    The second half of the install seam, as :func:`apply_guild_standing` is of
+    the person seam: the routing has just written the install and cleared every
+    standing key, and :data:`app.db.guild_standing.INSTALL_STANDING_SQL`
+    writes the whole of it. The completed context is stored with the routing
+    parameters, so the replay hook re-applies both together.
+    """
+    completed = context.with_standing(await compute_install_standing(session))
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     if params is not None:
         params["context"] = completed
@@ -836,7 +939,7 @@ def guild_context(session: AsyncSession) -> GuildContext | None:
     """
     params = session.info.get(_RLS_PARAMS_INFO_KEY) or {}
     context = params.get("context")
-    if context is None:
+    if not isinstance(context, GuildContext):
         return None
     return context if context.guild_id == routed_guild_id(session) else None
 
@@ -853,6 +956,31 @@ def require_guild_context(session: AsyncSession) -> GuildContext:
         raise RuntimeError(
             "no standing is recorded on this session; establish_guild_access "
             "must run before a decision is made from one"
+        )
+    return context
+
+
+def install_context(session: AsyncSession) -> InstallContext | None:
+    """The installed app's standing this session was routed with, or ``None``.
+
+    The install counterpart of :func:`guild_context`, read from the same stored
+    parameters and held to the routed community the same way.
+    """
+    params = session.info.get(_RLS_PARAMS_INFO_KEY) or {}
+    context = params.get("context")
+    if not isinstance(context, InstallContext):
+        return None
+    return context if context.guild_id == routed_guild_id(session) else None
+
+
+def require_install_context(session: AsyncSession) -> InstallContext:
+    """The installed app's standing this session was routed with, for a caller
+    that needs one."""
+    context = install_context(session)
+    if context is None:
+        raise RuntimeError(
+            "no install standing is recorded on this session; "
+            "establish_install_access must run before a decision is made from one"
         )
     return context
 

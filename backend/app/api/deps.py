@@ -1,13 +1,16 @@
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, NoReturn, Optional
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
+from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.app_scopes import UnknownAppScope, validate_scopes
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
@@ -50,11 +53,13 @@ from app.core.security import (
     verify_auto_delegation_token,
     verify_upload_token,
 )
-from app.db.guild_standing import GuildContext
+from app.db.guild_standing import GuildContext, InstallContext
 from app.db.schema_provisioning import PLATFORM_SUSPENDED
 from app.db.session import (
     SYSTEM_SATISFIED,
     apply_guild_standing,
+    apply_install_standing,
+    clear_rls_context,
     get_session,
     set_rls_context,
 )
@@ -1452,6 +1457,82 @@ async def establish_guild_access(
     return await apply_guild_session_context(
         session, current_user, guild_context, satisfied=satisfied, for_seat=for_seat
     )
+
+
+@dataclass(frozen=True)
+class VerifiedInstall:
+    """An install whose token has been verified: the community it is installed
+    in, the install, the client the token was issued to, the scopes it carries,
+    and the one initiative it is narrowed to, when it is."""
+
+    guild_id: int
+    install_id: int
+    client_id: str
+    scopes: frozenset[str]
+    initiative_id: int | None = None
+
+
+class InstallAccessError(Exception):
+    """Transport-agnostic "this install may not act here" signal.
+
+    Raised by :func:`establish_install_access` when the install's standing is
+    not live, or its community cannot be routed into. The route dependency maps
+    it to 401.
+    """
+
+
+async def establish_install_access(
+    session: AsyncSession, install: VerifiedInstall
+) -> InstallContext:
+    """Route ``session`` as an installed app and compute its standing — the
+    establishment seam for an install, beside :func:`establish_guild_access`.
+
+    Two statements and no lookup ahead of them: the routing (the community's
+    ``guild_<id>_app`` role, the install, its client, its token's scopes and
+    the narrowed initiative, all from ``install``), and the install standing
+    statement, which reads everything else from rows. The context it returns
+    is what that statement computed, and is stored with the routing for the
+    replay hook.
+
+    Raises :class:`InstallAccessError` when the standing is not live — the
+    community is not in use, the install or its registration is off, or the
+    registration is not the client the token names — and when the community
+    has no role or schema to route into. The session is left unrouted after a
+    refusal of the second kind, with its transaction rolled back.
+    """
+    try:
+        scopes = validate_scopes(install.scopes)
+    except UnknownAppScope as exc:
+        raise InstallAccessError("unknown scope") from exc
+    pending = InstallContext(
+        guild_id=int(install.guild_id),
+        install_id=int(install.install_id),
+        client_id=install.client_id,
+        token_scopes=scopes,
+        scope_initiative_id=(
+            int(install.initiative_id) if install.initiative_id is not None else None
+        ),
+    )
+    try:
+        await set_rls_context(
+            session,
+            guild_id=pending.guild_id,
+            context=pending,
+            install_id=pending.install_id,
+            token_client_id=pending.client_id,
+            token_scopes=pending.token_scopes,
+            scope_initiative_id=pending.scope_initiative_id,
+        )
+        completed = await apply_install_standing(session, pending)
+    except DBAPIError as exc:
+        # A community that was deleted has no role left to assume and no schema
+        # to read, which is the same answer as an install that may not act.
+        clear_rls_context(session)
+        await session.rollback()
+        raise InstallAccessError("community cannot be routed") from exc
+    if not completed.live:
+        raise InstallAccessError("install is not live")
+    return completed
 
 
 async def get_guild_seat_context(

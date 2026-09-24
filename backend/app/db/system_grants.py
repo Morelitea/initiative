@@ -777,6 +777,11 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
 # ``None`` by construction.
 SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "users": None,
+    # No TABLE grant: a column-scoped SELECT on (id, status), which the
+    # install standing statement reads for the routed community alone
+    # (install_reads_its_guild; migration 20260924_0379). Column grants live in
+    # pg_attribute, not relacl, so they are asserted separately
+    # (install_standing_test).
     "guilds": None,
     "guild_administration": None,
     "guild_memberships": None,
@@ -787,6 +792,10 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "app_setting_secrets": None,
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
+    # No TABLE grant: a column-scoped SELECT on (public_id, listing_uid,
+    # enabled, status), for the registration the install's token names
+    # (install_reads_its_registration; migration 20260924_0379). Asserted in
+    # install_standing_test beside the one on guilds.
     "app_service_registrations": None,
     "app_service_nonces": None,
     "marketplace_registry_state": None,

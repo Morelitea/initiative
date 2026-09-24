@@ -88,7 +88,7 @@ from app.testing.passkeys import (
     stub_registration,
 )
 from app.testing.push import push_switched_on
-from app.testing.routing import route_as, route_system
+from app.testing.routing import route_as, route_as_install, route_system
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
 __all__ = [
@@ -167,6 +167,7 @@ __all__ = [
     "guild_of",
     "push_switched_on",
     "route_as",
+    "route_as_install",
     "route_session_to_guild",
     "route_system",
 ]

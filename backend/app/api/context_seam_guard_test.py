@@ -9,6 +9,10 @@ than reviewed, so there is no allow-list to add a site to.
   else would be a second answer to a question the seam has already asked. A
   unit test's fixture is not one of those answers — it is a value under
   assertion — so the walk for this one skips the test modules.
+* ``InstallContext(...)`` outside ``app/api/deps.py``, on the same terms: an
+  installed app's standing is what its verified token named and what the
+  install standing statement computed, and ``establish_install_access`` is
+  where both happen.
 * ``set_rls_context(user_id=..., guild_id=...)`` outside ``deps.py`` and
   ``session.py``. Routing a person into a community is the seam's call —
   ``establish_guild_access`` — because the standing has to be computed in the
@@ -80,6 +84,21 @@ def test_only_the_seam_builds_a_guild_context():
         "a GuildContext is built by the establishment seam and nowhere else; "
         "call app.api.deps.establish_guild_access instead of constructing one: "
         + ", ".join(offenders)
+    )
+
+
+def test_only_the_seam_builds_an_install_context():
+    """``InstallContext(...)`` is constructed in one file."""
+    offenders = [
+        f"{rel}:{node.lineno}"
+        for path in _runtime_files()
+        for rel, node, callee in _calls(path)
+        if callee == "InstallContext" and rel != _CONTEXT_HOME
+    ]
+    assert offenders == [], (
+        "an InstallContext is built by the establishment seam and nowhere "
+        "else; call app.api.deps.establish_install_access instead of "
+        "constructing one: " + ", ".join(offenders)
     )
 
 

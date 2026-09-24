@@ -98,6 +98,9 @@ ROUTED_ADMIN_WRITE = (
 #: writer names its recipient and the policy holds it to that one account.
 #: Set by ``user_notifications.name_recipient``.
 NOTIFY_TARGET = "NULLIF(current_setting('app.notify_target_user_id', true), '')::int"
+#: The client an installed app's token was issued to, written by the install
+#: routing from the verified token.
+TOKEN_CLIENT_ID = "NULLIF(current_setting('app.token_client_id', true), '')"
 
 # --- Predicate builders -------------------------------------------------------
 # Each returns the SQL of a policy predicate. ``{table}`` is replaced with the
@@ -838,6 +841,14 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ("app_profile_reader",),
                 using=OPEN,
             ),
+            # An installed app's standing reads the status of the community it
+            # is routed into (its column grant is id and status alone).
+            Policy(
+                "install_reads_its_guild",
+                SELECT,
+                ("app_install_base",),
+                using=f"id = {GID}",
+            ),
         ),
     ),
     "identity_refs": TableRls(
@@ -1134,7 +1145,19 @@ PUBLIC_RLS: dict[str, TableRls] = {
     ),
     "app_service_nonces": FORCED_NO_POLICY,
     "app_setting_secrets": FORCED_NO_POLICY,
-    "app_service_registrations": FORCED_NO_POLICY,
+    # Everything else is the system engine's. An installed app's standing reads
+    # the registration its token was issued to (its column grant is public_id,
+    # listing_uid, enabled and status alone).
+    "app_service_registrations": TableRls(
+        policies=(
+            Policy(
+                "install_reads_its_registration",
+                SELECT,
+                ("app_install_base",),
+                using=f"public_id = {TOKEN_CLIENT_ID}",
+            ),
+        ),
+    ),
     "auth_challenges": FORCED_NO_POLICY,
     "auth_provider_secrets": FORCED_NO_POLICY,
     "auth_providers": FORCED_NO_POLICY,
