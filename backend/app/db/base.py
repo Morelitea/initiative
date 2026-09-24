@@ -98,6 +98,7 @@ from app.models.platform.platform_provider_default import PlatformProviderDefaul
 from app.models.platform.guild_image import GuildImage
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_email_assertion import UserEmailAssertion
+from app.models.platform.sign_in_lock import SignInLock
 from app.models.platform.user_totp import UserTotp
 from app.models.platform.user_totp_secret import UserTotpSecret
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
@@ -141,6 +142,7 @@ __all__ = [
     "AuthSession",
     "UserEmail",
     "UserEmailAssertion",
+    "SignInLock",
     "FederatedIdentity",
     "FederatedIdentitySecret",
     "IdentityRef",

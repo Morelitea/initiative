@@ -23,6 +23,8 @@ from app.api.deps import (
 )
 from app.api.v1.platform_endpoints.password_recheck import require_password
 from app.api.v1.platform_endpoints.session_opening import (
+    count_wrong_answer,
+    refuse_if_locked,
     replace_session,
     require_login_method,
 )
@@ -30,7 +32,11 @@ from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.password_policy import enforce_password_policy
-from app.core.rate_limit import limiter
+from app.core.rate_limit import (
+    count_sign_in_failure,
+    limiter,
+    sign_in_allowance_left,
+)
 from app.core.security import get_password_hash, has_usable_password
 from app.db.session import get_system_session, get_session
 from app.models.platform.auth_session import AuthSession
@@ -240,16 +246,29 @@ async def recover_with_code(
     # would not take must not cost the account one of its codes.
     await enforce_password_policy(payload.password)
 
+    # Counted by the address typed in as well as by the account, the same way
+    # a password is, so an address nobody holds runs out like one somebody does.
+    address = payload.email.lower().strip()
+    if not await sign_in_allowance_left(address):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=AuthMessages.SIGN_IN_LOCKED,
+        )
     user = await addresses.find_user_by_address(system_session, payload.email)
     if user is None:
+        await count_sign_in_failure(address)
         raise _recovery_code_invalid()
+    await refuse_if_locked(system_session, user.id)
     if user.status != UserStatus.active or has_usable_password(user.hashed_password):
+        await count_sign_in_failure(address)
         await _record_recovery_refusal(system_session, user_id=user.id)
         raise _recovery_code_invalid()
     if not await totp_service.consume_recovery_code(
         system_session, user_id=user.id, code=payload.recovery_code
     ):
+        await count_sign_in_failure(address)
         await _record_recovery_refusal(system_session, user_id=user.id)
+        await count_wrong_answer(system_session, user.id)
         raise _recovery_code_invalid()
 
     user.hashed_password = get_password_hash(payload.password)

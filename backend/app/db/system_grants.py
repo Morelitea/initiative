@@ -247,6 +247,8 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # resolving an address to an account is a pre-auth lookup, like a session
     "user_emails": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_email_assertions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # counted while signing in, before anybody is authenticated
+    "sign_in_locks": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # the second factor and what it is made of — enrolled, presented and
     # removed on the system engine, like the session store beside it
     # Registered, renamed, used and removed on the system engine — the request
@@ -427,6 +429,7 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_sessions": None,
     "user_emails": None,
     "user_email_assertions": None,
+    "sign_in_locks": None,
     # the factor tables are system-engine-only; the bare login role never
     # touches them, and neither does any request-path role
     "user_passkeys": None,
@@ -570,6 +573,7 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_sessions": None,
     "user_emails": None,
     "user_email_assertions": None,
+    "sign_in_locks": None,
     "user_passkeys": None,
     "user_totp": None,
     "user_totp_secrets": None,
@@ -664,6 +668,7 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_sessions": None,
     "user_emails": None,
     "user_email_assertions": None,
+    "sign_in_locks": None,
     "user_passkeys": None,
     "user_totp": None,
     "user_totp_secrets": None,
@@ -749,6 +754,7 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_sessions": None,
     "user_emails": None,
     "user_email_assertions": None,
+    "sign_in_locks": None,
     "user_passkeys": None,
     "user_totp": None,
     "user_totp_secrets": None,

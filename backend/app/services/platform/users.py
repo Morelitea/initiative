@@ -42,6 +42,7 @@ from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.models.platform.sign_in_lock import SignInLock
     from app.schemas.platform.user import OperatorUserRead, UserRead, UserSummary
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
@@ -1163,6 +1164,19 @@ async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
         )
 
 
+async def _sign_in_locks(user_ids: List[int]) -> dict[int, "SignInLock"]:
+    """The sign-in locks standing on these accounts, on the system engine.
+
+    ``sign_in_locks`` carries no request-path grants, for the reason
+    ``user_emails`` does not. One query for the whole page.
+    """
+    from app.db.session import SystemSessionLocal
+    from app.services.auth import sign_in_locks
+
+    async with SystemSessionLocal() as system_session:
+        return await sign_in_locks.closed(system_session, user_ids)
+
+
 async def to_self_read(user: User) -> "UserRead":
     """An account's own record, with the address it is reached at, in full.
 
@@ -1191,6 +1205,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     from app.schemas.platform.user import OperatorUserRead
 
     primary, proven = await _reach([u.id for u in users])
+    locks = await _sign_in_locks([u.id for u in users])
     # Only asked when somebody on this page is actually waiting out a window,
     # which on an ordinary roster is nobody.
     retention = (
@@ -1204,6 +1219,10 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
         payload.purge_at = _erase_at(user, retention)
+        lock = locks.get(user.id)
+        if lock is not None:
+            payload.sign_in_held_at = lock.held_at
+            payload.sign_in_locked_until = lock.locked_until
         out.append(payload)
     return out
 

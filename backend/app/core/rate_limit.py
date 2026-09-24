@@ -146,10 +146,10 @@ limiter.enabled = settings.RATE_LIMIT_ENABLED
 
 #: Refused password sign-ins one address may collect, from any number of
 #: clients, before a password is not checked for it for the rest of the window.
-#: The per-route limits count a client; this counts the account being asked
-#: for, so the two together bound both. Wide enough that the account's holder,
-#: mistyping, does not meet it.
-SIGN_IN_FAILURES_PER_ADDRESS = parse("20/hour")
+#: The same numbers as the account lock in ``app.services.auth.sign_in_locks``,
+#: counted here by the address typed in, so an address nobody holds runs out
+#: the same way.
+SIGN_IN_FAILURES_PER_ADDRESS = parse("5/15minutes")
 
 
 def _sign_in_address_key(address: str) -> str:

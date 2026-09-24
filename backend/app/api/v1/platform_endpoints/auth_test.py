@@ -507,7 +507,7 @@ async def test_address_out_of_refusals_refuses_the_right_password(
     assert (await _sign_in(client, "held@example.com", "wrong")).status_code == 400
     refused = await _sign_in(client, "held@example.com", "right-password")
     assert refused.status_code == 429
-    assert refused.json() == {"detail": "SIGN_IN_ATTEMPTS_EXHAUSTED"}
+    assert refused.json() == {"detail": "SIGN_IN_LOCKED"}
 
     # Another address from the same client has its own allowance.
     other = await _sign_in(client, "other@example.com", "right-password")
@@ -531,7 +531,7 @@ async def test_address_allowance_is_shared_and_ignores_whether_anyone_holds_it(
         },
     )
     assert response.status_code == 429
-    assert response.json() == {"detail": "SIGN_IN_ATTEMPTS_EXHAUSTED"}
+    assert response.json() == {"detail": "SIGN_IN_LOCKED"}
 
 
 async def test_signing_in_starts_the_address_count_over(
@@ -553,6 +553,36 @@ async def test_signing_in_starts_the_address_count_over(
     assert (
         await _sign_in(client, "typo@example.com", "right-password")
     ).status_code == 200
+
+
+async def test_five_wrong_passwords_lock_the_account(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Counted by account whatever the client, so with the per-client limits
+    off (as the suite runs) the account lock is what refuses."""
+    await create_user(
+        session,
+        email="five@example.com",
+        hashed_password=get_password_hash("right-password"),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    for _ in range(5):
+        assert (await _sign_in(client, "five@example.com", "wrong")).status_code == 400
+
+    refused = await _sign_in(client, "five@example.com", "right-password")
+    assert refused.status_code == 429
+    assert refused.json() == {"detail": "SIGN_IN_LOCKED"}
+
+    app_refused = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "five@example.com",
+            "password": "right-password",
+            "device_name": "test-phone",
+        },
+    )
+    assert app_refused.status_code == 429
 
 
 async def test_login_refused_for_account_without_password(

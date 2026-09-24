@@ -381,5 +381,21 @@
     "textDeletion": "Si sigue en pausa el {{date}}, se eliminará.",
     "textContact": "Ponte en contacto con {{contact}} para resolverlo.",
     "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo."
+  },
+  "signInLocked": {
+    "greeting": "Hola <strong>{{name}}</strong>,",
+    "fallbackText": "Si fuiste tú, no tienes que hacer nada más. Si no, puede que alguien conozca tu dirección de correo. Tu contraseña sigue a salvo, pero plantéate iniciar sesión con una llave de acceso.",
+    "locked": {
+      "subject": "Inicio de sesión con contraseña en pausa en tu cuenta",
+      "title": "Inicio de sesión con contraseña en pausa",
+      "body": "Alguien introdujo una contraseña o un código incorrecto para tu cuenta 5 veces, así que el inicio de sesión con contraseña o código está desactivado durante 15 minutos. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías.",
+      "textBody": "Alguien introdujo una contraseña o un código incorrecto para tu cuenta 5 veces, así que el inicio de sesión con contraseña o código está desactivado durante 15 minutos. Las llaves de acceso siguen funcionando."
+    },
+    "held": {
+      "subject": "Inicio de sesión con contraseña desactivado en tu cuenta",
+      "title": "Inicio de sesión con contraseña desactivado",
+      "body": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado hasta que un moderador lo vuelva a activar. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Ponte en contacto con quien administra este sitio para que lo reactive.",
+      "textBody": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado hasta que un moderador lo vuelva a activar. Las llaves de acceso siguen funcionando."
+    }
   }
 }

@@ -1064,6 +1064,51 @@ async def announce_passkey_change(
         logger.exception("could not announce passkey change for account %s", user.id)
 
 
+async def send_sign_in_locked_email(
+    session: AsyncSession, user: User, *, held: bool
+) -> None:
+    """Tell the account its password and codes have been turned off for now.
+
+    Account mail, like the other security letters: it goes to every address the
+    holder has proved.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    key = "signInLocked.held" if held else "signInLocked.locked"
+    body = f"""
+    <p>{email_t("signInLocked.greeting", locale=locale, name=name)}</p>
+    <p>{email_t(f"{key}.body", locale=locale)}</p>
+    <p>{email_t("signInLocked.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t(f"{key}.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=await _account_recipients(user),
+        subject=email_t(f"{key}.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t(f"{key}.textBody", locale=locale, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_sign_in_locked(
+    session: AsyncSession, user: User, *, held: bool
+) -> None:
+    """Tell the account, and never fail the sign-in answer because the letter
+    could not go."""
+    try:
+        await send_sign_in_locked_email(session, user, held=held)
+    except EmailNotConfiguredError:
+        logger.info(
+            "no mail configured; sign-in lock for account %s not announced", user.id
+        )
+    except Exception:  # pragma: no cover - delivery is best effort
+        logger.exception("could not announce sign-in lock for account %s", user.id)
+
+
 async def send_password_removed_email(session: AsyncSession, user: User) -> None:
     """Tell the account its password is gone and what signs it in now.
 

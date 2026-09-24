@@ -762,6 +762,9 @@
     "actionError": "Das hat nicht geklappt. Bitte erneut versuchen.",
     "clearAgeBlock": "Altersfrage zurücksetzen",
     "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden.",
+    "signInLocked": "Anmeldung mit Passwort aus",
+    "liftSignInLock": "Anmeldung mit Passwort wieder einschalten",
+    "signInLockLifted": "Die Person kann sich wieder mit Passwort anmelden.",
     "sheet": {
       "open": "Verwalten",
       "openLabel": "Konto {{handle}} verwalten",

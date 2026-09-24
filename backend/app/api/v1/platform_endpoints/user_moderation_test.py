@@ -329,6 +329,43 @@ class TestSuspension:
         assert response.status_code == 403
 
 
+class TestLiftingASignInLock:
+    async def test_a_moderator_lifts_a_hold(self, client, session):
+        from app.services.auth import sign_in_locks
+
+        moderator = await create_user(session, role=UserRole.moderator)
+        subject = await create_user(session)
+        for _ in range(sign_in_locks.LOCK_AFTER_FAILURES):
+            await sign_in_locks.record_failure(session, subject.id)
+        await session.commit()
+        assert await sign_in_locks.is_locked(session, subject.id)
+
+        lifted = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/sign-in-lock",
+            headers=get_auth_headers(moderator),
+        )
+        assert lifted.status_code == 200, lifted.text
+        assert lifted.json()["sign_in_locked_until"] is None
+        assert lifted.json()["sign_in_held_at"] is None
+        assert not await sign_in_locks.is_locked(session, subject.id)
+
+        again = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/sign-in-lock",
+            headers=get_auth_headers(moderator),
+        )
+        assert again.status_code == 400
+        assert again.json()["detail"] == "USER_SIGN_IN_NOT_LOCKED"
+
+    async def test_support_cannot(self, client, session):
+        support = await create_user(session, role=UserRole.support)
+        subject = await create_user(session)
+        response = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/sign-in-lock",
+            headers=get_auth_headers(support),
+        )
+        assert response.status_code == 403
+
+
 class TestNothingElse:
     """The operator surface writes a fixed set of things about an account, and
     each one is gated deliberately. One more appearing here is a decision, not
@@ -352,6 +389,8 @@ class TestNothingElse:
             ("/api/v1/operator/users/{user_id}/avatar", "DELETE"),
             ("/api/v1/operator/users/{user_id}/username", "PATCH"),
             ("/api/v1/operator/users/{user_id}/suspension", "POST"),
+            # Turns password and code sign-in back on after wrong answers.
+            ("/api/v1/operator/users/{user_id}/sign-in-lock", "DELETE"),
             ("/api/v1/operator/users/{user_id}/reactivate", "POST"),
             ("/api/v1/operator/users/{user_id}/restore", "POST"),
             # Sends the holder a link; it never sets a password.

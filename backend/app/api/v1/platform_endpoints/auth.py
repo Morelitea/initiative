@@ -71,10 +71,12 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.api.v1.platform_endpoints.session_opening import (
     access_ttl_for,
+    count_wrong_answer,
     current_session_row,
     MOBILE_CALLBACK_URI,
     open_session,
     record_sign_in_failure,
+    refuse_if_locked,
     require_login_method,
 )
 from app.core.audit_events import AuditEventType
@@ -126,6 +128,7 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
+from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     passkey_amr,
@@ -781,12 +784,13 @@ async def _require_sign_in_allowance(address: str) -> None:
     """Refuse a password for an address that has run out of refusals.
 
     Before the password is looked at, so a right one is turned away too until
-    the window turns over. Every other way of signing in stays open.
+    the window turns over. Counted by address as well as by account, so an
+    address nobody holds runs out the same way one somebody holds does.
     """
     if not await sign_in_allowance_left(address):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=AuthMessages.SIGN_IN_ATTEMPTS_EXHAUSTED,
+            detail=AuthMessages.SIGN_IN_LOCKED,
         )
 
 
@@ -813,6 +817,8 @@ async def login_access_token(
         else None
     )
     user = user or unconfirmed
+    if user is not None:
+        await refuse_if_locked(system_session, user.id)
     # Unconditional, and deliberately not folded into the `or` below: that
     # short-circuits, and every sign-in pays the same work. See T123.
     password_matches = verify_sign_in_password(
@@ -827,6 +833,8 @@ async def login_access_token(
         await record_sign_in_failure(
             system_session, user, method="password", reason="bad_password"
         )
+        if user is not None:
+            await count_wrong_answer(system_session, user.id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -926,6 +934,12 @@ async def answer_second_factor(
         )
 
     user_id = challenge.user_id
+    try:
+        await refuse_if_locked(system_session, user_id)
+    except HTTPException:
+        # The attempt the claim took stands.
+        await system_session.commit()
+        raise
     # Before the factor is read, not after: a code presented to an account that
     # cannot sign in anyway should not be spent on finding that out.
     user = await system_session.get(User, user_id)
@@ -960,7 +974,7 @@ async def answer_second_factor(
             target_id=user_id,
             detail={"method": method},
         )
-        await system_session.commit()
+        await count_wrong_answer(system_session, user_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
     if not await challenge_service.consume(system_session, challenge):
@@ -1300,6 +1314,8 @@ async def create_device_token(
         else None
     )
     user = user or unconfirmed
+    if user is not None:
+        await refuse_if_locked(system_session, user.id)
     # Same reason as the token route: paid before the branch, never inside it.
     password_matches = verify_sign_in_password(
         payload.password, user.hashed_password if user is not None else None
@@ -1310,6 +1326,8 @@ async def create_device_token(
         await record_sign_in_failure(
             system_session, user, method="password", reason="bad_password"
         )
+        if user is not None:
+            await count_wrong_answer(system_session, user.id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -1398,6 +1416,7 @@ async def create_device_token(
         subject = await subject_service.subject_for_user(
             system_session, user_id=user_id
         )
+        await sign_in_locks.record_success(system_session, user_id)
         await system_session.commit()
     except Exception as exc:
         await system_session.rollback()
