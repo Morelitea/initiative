@@ -105,7 +105,7 @@ Fonts are served from the deployment's own server, and no page loads a script fr
 
 Initiative is built to avoid locking your information in:
 
-- **Export a project** to a portable file you can keep or re-import elsewhere.
+- **Export any tool** — a project, a document, a wiki, a calendar and the rest — to a portable file you can keep or re-import elsewhere, from its **Settings → Advanced**. Exporting belongs to whoever can delete the thing: its owner, and anyone who can see everything in its initiative.
 - **Export spreadsheets** as CSV or Excel (XLSX).
 - **Export calendar events** as standard `.ics` files.
 - Platform operators can **export the user list** as CSV.

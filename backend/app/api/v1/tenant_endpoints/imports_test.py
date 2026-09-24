@@ -2913,6 +2913,231 @@ async def test_a_reference_restored_elsewhere_to_something_left_behind_is_its_ti
     )
 
 
+async def _import_archive(client, actor, zip_bytes, initiative_id, envelope_type=None):
+    data = {"initiative_id": str(initiative_id)}
+    if envelope_type is not None:
+        data["envelope_type"] = envelope_type
+    return await client.post(
+        actor.g("/imports/envelope/archive"),
+        headers=actor.headers,
+        files={"file": ("gallery.zip", zip_bytes, "application/zip")},
+        data=data,
+    )
+
+
+async def test_a_gallery_zip_imports_with_its_pictures_into_another_community(
+    client, acting_user, session, monkeypatch, tmp_path
+):
+    """A gallery exported on its own is a zip of its envelope and its pictures,
+    and importing that zip somewhere the pictures have never been stored brings
+    them along: each lands in the community's storage under its key, and the
+    gallery shows it."""
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+    from app.core.config import settings
+    from app.models.tenant.gallery import Gallery, GalleryImage
+    from app.testing import route_session_to_guild
+    from app.testing.factories import create_gallery, create_gallery_image
+
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+    gallery = await create_gallery(session, a.initiative, a.user, name="Barovia maps")
+    picture = await create_gallery_image(session, gallery, a.user, title="Village")
+    key = picture.file_url.rsplit("/", 1)[-1]
+
+    exported = await client.get(
+        a.g("/exports/gallery"),
+        headers=a.headers,
+        params={"gallery_id": gallery.id, "format": "json"},
+    )
+    assert exported.status_code == 200, exported.text
+
+    b = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await _all_tools_enabled(session, b.initiative)
+    assert get_guild_storage(b.guild.id).exists(key) is False
+    resp = await _import_archive(
+        client, b, exported.content, b.initiative.id, "initiative-gallery"
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["result"]["created"]["images"] == 1
+
+    assert get_guild_storage(b.guild.id).exists(key)
+    await route_session_to_guild(session, b.guild.id)
+    restored = (
+        await session.exec(
+            select(Gallery).where(Gallery.initiative_id == b.initiative.id)
+        )
+    ).one()
+    [image] = (
+        await session.exec(
+            select(GalleryImage).where(GalleryImage.gallery_id == restored.id)
+        )
+    ).all()
+    assert image.file_url == f"/uploads/{b.guild.id}/{key}"
+    assert image.file_content_type == "image/png"
+
+
+async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, session):
+    """A wiki's importable export is a zip, like every wiki download; importing
+    it restores the wiki and its pages."""
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.testing.factories import create_wiki, create_wiki_page
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+    target = await _second_initiative(session, a, wikis_enabled=True)
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    await create_wiki_page(session, wiki, a.user, title="Start")
+
+    exported = await client.get(
+        a.g("/exports/wiki"),
+        headers=a.headers,
+        params={"wiki_id": wiki.id, "format": "json"},
+    )
+    assert exported.status_code == 200, exported.text
+    assert exported.headers["content-type"] == "application/zip"
+
+    resp = await _import_archive(
+        client, a, exported.content, target.id, "initiative-wiki"
+    )
+    assert resp.status_code == 201, resp.text
+    restored = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == target.id))
+    ).one()
+    pages = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == restored.id))
+    ).all()
+    assert [page.title for page in pages] == ["Start"]
+
+
+async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
+    client, acting_user, session
+):
+    """Imported somewhere none of it exists, a wiki's zip files every document
+    it carried again: the text document and the spreadsheet recreated from the
+    envelope, the upload over the bytes the zip brought, each joined to the
+    wiki and under the page it sat under."""
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import (
+        _all_tools_enabled,
+        _wiki_with_filed_documents,
+    )
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.tenant.wikis import document_parent, linked_documents
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+    exported = await client.get(
+        a.g("/exports/wiki"),
+        headers=a.headers,
+        params={"wiki_id": wiki.id, "format": "json"},
+    )
+    assert exported.status_code == 200, exported.text
+
+    b = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await _all_tools_enabled(session, b.initiative)
+    resp = await _import_archive(
+        client, b, exported.content, b.initiative.id, "initiative-wiki"
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["result"]["created"]["documents"] == 3
+
+    await route_session_to_guild(session, b.guild.id)
+    restored = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == b.initiative.id))
+    ).one()
+    filed = {
+        document.name: document
+        for document in await linked_documents(session, restored.id)
+    }
+    assert set(filed) == {"Session notes", "Loot", "Handout"}
+    assert filed["Loot"].document_type == DocumentType.spreadsheet
+    handout = filed["Handout"]
+    assert handout.document_type == DocumentType.file
+    assert handout.file_url == f"/uploads/{b.guild.id}/handout-key.pdf"
+    assert get_guild_storage(b.guild.id).exists("handout-key.pdf")
+    rules = (
+        await session.exec(
+            select(WikiPage).where(
+                WikiPage.wiki_id == restored.id, WikiPage.title == "Rules"
+            )
+        )
+    ).one()
+    assert document_parent(restored, handout.id) == rules.id
+    assert (
+        await session.exec(
+            select(Document).where(Document.initiative_id == b.initiative.id)
+        )
+    ).all()
+
+
+async def test_a_gallery_zip_leaves_out_what_is_not_a_picture(
+    client, acting_user, session
+):
+    """The zip says what its files are; the bytes decide. A file that is not a
+    picture a gallery can show is not stored, and the import says so."""
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+    envelope = {
+        "type": "initiative-gallery",
+        "schema_version": 1,
+        "name": "Handouts",
+        "images": [
+            {"storage_key": "note.png", "content_type": "image/png", "title": "Note"}
+        ],
+    }
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("handouts.initiative-gallery.json", json.dumps(envelope))
+        archive.writestr("assets/note.png", b"<svg onload='x'></svg>")
+
+    resp = await _import_archive(client, a, buffer.getvalue(), a.initiative.id)
+    assert resp.status_code == 201, resp.text
+    result = resp.json()["result"]
+    assert "not_a_picture:note.png" in result["warnings"]
+    assert result["created"]["images"] == 0
+    assert get_guild_storage(a.guild.id).exists("note.png") is False
+
+
+async def test_a_zip_is_refused_from_the_wrong_tool_or_without_an_export(
+    client, acting_user, session
+):
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+
+    def zipped(**members: str) -> bytes:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            for name, content in members.items():
+                archive.writestr(name, content)
+        return buffer.getvalue()
+
+    queue = json.dumps({"type": "initiative-queue", "schema_version": 1, "name": "Q"})
+    wrong = await _import_archive(
+        client, a, zipped(**{"q.json": queue}), a.initiative.id, "initiative-gallery"
+    )
+    assert wrong.status_code == 400
+    assert wrong.json()["detail"] == "IMPORT_WRONG_TOOL"
+
+    empty = await _import_archive(
+        client, a, zipped(**{"readme.txt": "hi"}), a.initiative.id
+    )
+    assert empty.status_code == 400
+    assert empty.json()["detail"] == "IMPORT_ARCHIVE_NO_ENVELOPE"
+
+
 async def test_a_lone_envelope_resolves_what_it_carries(client, acting_user, session):
     """A project exported on its own points a task's reference at a sibling's
     new copy. A reference to something outside it keeps naming the original

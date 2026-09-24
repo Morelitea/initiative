@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FileDown, LayoutGrid, List, Pin as PinIcon } from "lucide-react";
+import { LayoutGrid, List, Pin as PinIcon } from "lucide-react";
 import { type HTMLAttributes, type MouseEvent, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -35,7 +35,6 @@ import {
   ListSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
-import { Button } from "@/components/ui/button";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useProjectListView } from "@/hooks/useProjectListView";
 import { useReorderProjects } from "@/hooks/useProjects";
@@ -278,20 +277,7 @@ export const ProjectListPanel = ({
               onEditAccess={() => setBulkAccessOpen(true)}
               onExit={selection.exit}
             >
-              {selection.selectedItems.length > 0 &&
-                // Project backups require WRITE on every selected project
-                // (the backend refuses mixed selections).
-                (canManageSharing(selection.selectedItems) ? (
-                  <BulkExportButton
-                    tool={Tool.project}
-                    ids={selection.selectedItems.map((p) => p.id)}
-                  />
-                ) : (
-                  <Button variant="outline" size="sm" disabled title={t("export.noWriteAccess")}>
-                    <FileDown className="h-4 w-4" />
-                    <span className="hidden sm:ml-2 sm:inline">{t("export.exportButton")}</span>
-                  </Button>
-                ))}
+              <BulkExportButton tool={Tool.project} items={selection.selectedItems} />
             </BulkAccessBar>
           ) : (
             // Entering selection now lives in the toolbar's overflow menu, so

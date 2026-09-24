@@ -50,6 +50,17 @@ class GalleryImporter(QuotesNobody):
         envelope: GalleryEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
         return len(envelope.images) + 1
 
+    def archive_assets(
+        self, envelope: dict[str, Any]
+    ) -> list[tuple[dict[str, Any], str]]:
+        """The pictures an exported gallery's zip carries beside it, as the
+        envelope names them: each one's ``storage_key`` is its file under
+        ``assets/``."""
+        images = envelope.get("images")
+        if not isinstance(images, list):
+            return []
+        return [(image, "picture") for image in images if isinstance(image, dict)]
+
     async def apply(
         self,
         session: AsyncSession,

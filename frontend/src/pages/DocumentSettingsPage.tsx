@@ -6,6 +6,8 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentSettingsAdvancedTab } from "@/components/documents/settings/DocumentSettingsAdvancedTab";
 import { DocumentSettingsDetailsTab } from "@/components/documents/settings/DocumentSettingsDetailsTab";
 import { DocumentSettingsDialogs } from "@/components/documents/settings/DocumentSettingsDialogs";
+import { useDocumentExportOptions } from "@/components/documents/useDocumentExportOptions";
+import { loadWhiteboardSceneFromContent } from "@/components/documents/whiteboardSceneCache";
 import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
   useCopyDocumentToInitiative,
@@ -47,6 +49,16 @@ export const DocumentSettingsPage = () => {
   const remove = useDeleteDocument();
 
   const canManageDocument = hasWriteAccess(document?.my_permission_level);
+
+  // A whiteboard's pictures are drawn from the scene the server holds; the
+  // editor has saved it by the time anybody is here.
+  const exportOptions = useDocumentExportOptions(
+    document?.document_type ?? "native",
+    document?.name ?? "",
+    document?.document_type === "whiteboard"
+      ? loadWhiteboardSceneFromContent(document.content)
+      : undefined
+  );
 
   const initiativesQuery = useInitiatives({ enabled: Boolean(document) });
 
@@ -159,6 +171,7 @@ export const DocumentSettingsPage = () => {
           templateToggleDisabled={!canManageDocument || updateTemplate.isPending}
         />
       }
+      exportOptions={exportOptions}
       advancedExtra={
         document ? (
           <DocumentSettingsAdvancedTab

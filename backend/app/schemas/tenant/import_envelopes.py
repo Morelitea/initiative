@@ -124,6 +124,38 @@ class WikiPageEnvelope(SanitizedBaseModel):
     comments: list[WikiPageComment] = []
 
 
+class WikiFiledUpload(SanitizedBaseModel):
+    """An uploaded file filed in a wiki: the row, and the key naming its bytes
+    under ``assets/`` in the wiki's zip."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str
+    storage_key: str
+    original_filename: Optional[str] = None
+    content_type: Optional[str] = None
+    tags: list[str] = []
+
+
+class WikiFiledDocument(SanitizedBaseModel):
+    """A document filed in a wiki, and where it sits there.
+
+    Exactly one of ``envelope`` (a text document, spreadsheet, whiteboard or
+    link, whole) and ``upload`` (a file, whose bytes ride under ``assets/``).
+    ``page`` is the slug of the page it is filed under, or none for the top.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    page: Optional[str] = None
+    position: Optional[int] = None
+    envelope: Optional[DocumentEnvelope] = None
+    upload: Optional[WikiFiledUpload] = None
+    #: What the document was called where it came from — ``document:7`` — so
+    #: a reference to it in a page points at the document it became.
+    external_ref: Optional[str] = None
+
+
 class WikiEnvelope(_EnvelopeBase):
     """A wiki, its pages, and the shape they sit in.
 
@@ -138,6 +170,8 @@ class WikiEnvelope(_EnvelopeBase):
     home_page: Optional[str] = None
     tags: list[str] = []
     pages: list[WikiPageEnvelope] = []
+    #: The documents filed in the wiki, when its export carried them.
+    documents: list[WikiFiledDocument] = []
 
 
 class GalleryImageEnvelope(SanitizedBaseModel):

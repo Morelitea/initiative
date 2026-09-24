@@ -250,12 +250,26 @@ def document_parent(wiki: Wiki, document_id: int) -> int | None:
     return _placement(wiki, document_id)[1]
 
 
-def file_document(wiki: Wiki, document_id: int, *, parent_page_id: int | None) -> None:
-    """File a document under a page (or at the top), at the end of what is
-    already there. For an import, which places each file under the page it
-    was attached to without a drag."""
+def document_position(wiki: Wiki, document_id: int) -> int:
+    """Where among its siblings this wiki puts the document."""
+    return _placement(wiki, document_id)[0]
+
+
+def file_document(
+    wiki: Wiki,
+    document_id: int,
+    *,
+    parent_page_id: int | None,
+    position: int | None = None,
+) -> None:
+    """File a document under a page (or at the top) — at ``position``, or at
+    the end of what is already there. For an import, which places each file
+    under the page it was attached to without a drag."""
     placements = dict(wiki.document_positions or {})
-    placements[str(document_id)] = {"position": UNPLACED, "parent": parent_page_id}
+    placements[str(document_id)] = {
+        "position": UNPLACED if position is None else position,
+        "parent": parent_page_id,
+    }
     wiki.document_positions = placements
 
 
@@ -580,10 +594,12 @@ async def get_wiki_for_export(
     guild_id: int,
     *,
     wiki_id: int,
+    access: str = "owner",
 ) -> tuple[Wiki, list[WikiPage]]:
     """The wiki-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read.
+    rule holds on the worker's render-time replay too. It takes the owner rung,
+    or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``).
 
     The pages come back with it, in reading order, because a wiki without its
     pages is not a thing anyone wanted a copy of.
@@ -601,11 +617,11 @@ async def get_wiki_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.wiki.feature_disabled_code,
         )
-    permissions_service.require_access(
+    permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.wiki],
         wiki,
         context=db_session.guild_context(session),
-        access="read",
+        access=access,
     )
     pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
     await tags_service.annotate_tags(session, pages)

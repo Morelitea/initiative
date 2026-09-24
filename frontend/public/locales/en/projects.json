@@ -440,15 +440,6 @@
     "commentedOn": "commented on",
     "loadMore": "Load more"
   },
-  "export": {
-    "title": "Export project",
-    "description": "Download this project as a portable JSON backup, or as a formatted report (PDF, CSV, or Excel).",
-    "detail": "The JSON backup can be re-imported on this instance or any other Initiative installation — cross-row references use names and emails so IDs from this database don't leak. Report formats cover the project's unarchived tasks.",
-    "exportButton": "Export",
-    "noWriteAccess": "You need write access on this project to export it.",
-    "success": "Project exported",
-    "error": "Could not export the project. Please try again."
-  },
   "status": {
     "label": "Show",
     "active": "Active",

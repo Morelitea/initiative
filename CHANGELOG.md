@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Exporting a tool belongs to whoever can delete it** — export moved to each tool's **Settings → Advanced**, for its owner, community admins and roles with full access. Every tool can be exported there. Galleries download as a zip with their pictures, and wikis as PDF, Markdown, Word or an importable zip that brings their filed documents along; both zips import back.
 - **Suspension means no access** — a suspended community or account reaches nothing, settings included, until the suspension is lifted, and sees a notice saying who to contact. Nothing is deleted.
 - **Imports live with the community** — Todoist, TickTick and Vikunja imports moved from **My Settings** to **Community settings → Data**. They now bring due dates, tags, assignees and comments along.
 - **Sign-in group rules are set per community** — they moved from platform settings to **Community settings → Security**. Rules that were already saved keep working.
@@ -30,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The access-grant approval queue is now `GET /api/v1/access-grants/queue`.
   - `CAPTCHA_*` and `FCM_*` are read on first boot only. After that, set the captcha in **Settings → Platform → Security** and push notifications in **Settings → Platform → Push notifications**, with no restart.
   - The `PAM_*_MINUTES` variables are no longer read. Access grants now last up to 4 hours for support, 8 for moderators, 24 for operators and owners, and 4 for break-glass.
+  - `GET /exports/{project,document,queue,counter-group,dashboard,calendar}` answer `403 EXPORT_OWNER_REQUIRED` unless the caller holds the owner rung on every selected item. `/exports/calendar` without ids includes only calendars the caller may export. `GET /exports/post`, `/exports/wiki` and `/exports/gallery` are new; `/exports/gallery` returns a zip, and `/exports/wiki` takes `pdf`, `md` and `docx` and always returns a zip with the wiki's filed documents. `POST /imports/envelope/archive` imports an export zipped with its files.
 
 ### Fixed
 

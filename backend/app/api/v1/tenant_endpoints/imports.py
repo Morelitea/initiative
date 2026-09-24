@@ -56,6 +56,7 @@ from app.services.import_engine import atlassian as atlassian_service
 from app.services.import_engine import atlassian_job
 from app.services.import_engine import backup as backup_service
 from app.services.import_engine import engine as import_engine
+from app.services.import_engine import envelope_archive
 from app.services.import_engine import foreign as foreign_service
 from app.services.import_engine.contract import (
     ImportEngineError,
@@ -122,6 +123,63 @@ async def import_envelope(
             guild_id=guild_context.guild_id,
             initiative_id=payload.initiative_id,
             envelope=payload.envelope,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(outcome, InlineImport):
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content=EnvelopeImportResponse(result=outcome.result).model_dump(
+                mode="json"
+            ),
+        )
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content=serialize_import_job(
+            outcome, guild_id=guild_context.guild_id
+        ).model_dump(mode="json"),
+    )
+
+
+@router.post(
+    "/envelope/archive", response_model=None, status_code=status.HTTP_201_CREATED
+)
+async def import_envelope_archive(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+    initiative_id: int = Form(...),
+    envelope_type: Optional[str] = Form(
+        default=None,
+        description="The envelope type the import was started for; a zip "
+        "holding another tool's export is refused",
+    ),
+) -> Response:
+    """Import an export that travels as a zip — a gallery with its pictures —
+    into the chosen initiative. The zip holds one envelope at its top level and
+    the files it names under ``assets/``; the files are stored first, then the
+    envelope imports exactly as ``POST /imports/envelope`` imports one, with
+    the same responses."""
+    _require_writable(guild_context)
+    try:
+        payload = await read_upload_bounded(
+            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+        )
+    except FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
+        )
+    try:
+        outcome = await envelope_archive.start_envelope_archive_import(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+            payload=payload,
+            expected_type=envelope_type,
         )
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)

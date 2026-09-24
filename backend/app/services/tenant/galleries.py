@@ -390,10 +390,12 @@ async def get_gallery_for_export(
     guild_id: int,
     *,
     gallery_id: int,
+    access: str = "owner",
 ) -> tuple[Gallery, list[GalleryImage]]:
     """The gallery-export seam: fetch + authorize in one place so the rule
-    holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read.
+    holds on the worker's render-time replay too. It takes the owner rung, or
+    ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``).
 
     The pictures come back with it, oldest first, because that is the order
     they were put in and a restore should read the same way round.
@@ -414,11 +416,11 @@ async def get_gallery_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.gallery.feature_disabled_code,
         )
-    permissions_service.require_access(
+    permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.gallery],
         gallery,
         context=db_session.guild_context(session),
-        access="read",
+        access=access,
     )
     images = list(
         await session.exec(

@@ -440,15 +440,6 @@
     "commentedOn": "kommentierte",
     "loadMore": "Mehr laden"
   },
-  "export": {
-    "title": "Projekt exportieren",
-    "description": "Lade dieses Projekt als portable JSON-Sicherung oder als formatierten Bericht (PDF, CSV oder Excel) herunter.",
-    "detail": "Die JSON-Sicherung kann auf dieser oder jeder anderen Initiative-Installation wieder importiert werden — Verweise nutzen Namen und E-Mails, damit keine IDs aus dieser Datenbank durchsickern. Berichtsformate umfassen die nicht archivierten Aufgaben des Projekts.",
-    "exportButton": "Exportieren",
-    "noWriteAccess": "Du benötigst Schreibzugriff auf dieses Projekt, um es zu exportieren.",
-    "success": "Projekt exportiert",
-    "error": "Das Projekt konnte nicht exportiert werden. Bitte versuche es erneut."
-  },
   "status": {
     "label": "Anzeigen",
     "active": "Aktiv",

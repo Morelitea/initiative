@@ -1139,6 +1139,13 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
+export interface BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost {
+  file: Blob;
+  initiative_id: number;
+  /** The envelope type the import was started for; a zip holding another tool's export is refused */
+  envelope_type?: string | null;
+}
+
 export interface BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost {
   file: Blob;
 }
@@ -10091,6 +10098,55 @@ export type ExportDashboardApiV1GGuildIdExportsDashboardGetParams = {
    * Bulk selection: one artifact per dashboard, zipped
    */
   dashboard_ids?: number[] | null;
+  format?: "json";
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportPostApiV1GGuildIdExportsPostGetParams = {
+  post_id?: number | null;
+  /**
+   * Bulk selection: one artifact per post, zipped
+   */
+  post_ids?: number[] | null;
+  format?: "json";
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportWikiApiV1GGuildIdExportsWikiGetParams = {
+  wiki_id?: number | null;
+  /**
+   * Bulk selection: one artifact per wiki, zipped
+   */
+  wiki_ids?: number[] | null;
+  format?: ExportWikiApiV1GGuildIdExportsWikiGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportWikiApiV1GGuildIdExportsWikiGetFormat =
+  (typeof ExportWikiApiV1GGuildIdExportsWikiGetFormat)[keyof typeof ExportWikiApiV1GGuildIdExportsWikiGetFormat];
+
+export const ExportWikiApiV1GGuildIdExportsWikiGetFormat = {
+  json: "json",
+  pdf: "pdf",
+  md: "md",
+  docx: "docx",
+} as const;
+
+export type ExportGalleryApiV1GGuildIdExportsGalleryGetParams = {
+  gallery_id?: number | null;
+  /**
+   * Bulk selection: one artifact per gallery, zipped
+   */
+  gallery_ids?: number[] | null;
   format?: "json";
   /**
    * IANA timezone for report timestamps

@@ -105,6 +105,11 @@
       "archived": "“{{name}}” archived",
       "unarchived": "“{{name}}” is back"
     },
+    "export": {
+      "title": "Export",
+      "description": "Download a copy — a file you can import here or on another server, or a report to read. Only whoever can delete this can export it.",
+      "button": "Export"
+    },
     "title": "Settings",
     "description": "Manage details, access, and advanced options.",
     "tabDetails": "Details",

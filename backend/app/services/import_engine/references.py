@@ -134,9 +134,18 @@ def _editor_holders(data: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
         return [(data, "body")]
     if kind == "initiative-wiki":
         return [
-            (page, "content")
-            for page in data.get("pages") or []
-            if isinstance(page, dict)
+            *(
+                (page, "content")
+                for page in data.get("pages") or []
+                if isinstance(page, dict)
+            ),
+            # The documents filed in it, carried whole inside it.
+            *(
+                holder
+                for filed in data.get("documents") or []
+                if isinstance(filed, dict)
+                for holder in _editor_holders(filed.get("envelope") or {})
+            ),
         ]
     return []
 
@@ -151,7 +160,8 @@ def detach_envelope_references(data: Any, *, guild_id: int) -> None:
     """
     from app.core.config import settings
 
-    if not isinstance(data, dict):
+    if not isinstance(data, dict) or not isinstance(data.get("type"), str):
+        # Not an envelope: a blob riding beside one, say.
         return
     for holder, key in _editor_holders(data):
         holder[key] = detach_editor_references(holder.get(key))

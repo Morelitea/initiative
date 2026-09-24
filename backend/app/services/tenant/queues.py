@@ -20,7 +20,7 @@ from app.core.messages import QueueMessages
 from app.core.tools import Tool
 from app.services.permissions import (
     DAC_RESOURCES,
-    require_access,
+    require_export_access,
 )
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative
@@ -93,11 +93,13 @@ async def get_queue_for_export(
     guild_id: int,
     *,
     queue_id: int,
+    access: str = "owner",
 ) -> Queue:
     """The queue-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read. The guild role is resolved here rather than
-    taken from a request context, so the seam works transport-free."""
+    rule holds on the worker's render-time replay too. It takes the owner rung,
+    or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The guild role is resolved here
+    rather than taken from a request context, so the seam works transport-free."""
 
     queue = await get_queue(session, queue_id)
     if queue is None:
@@ -110,11 +112,11 @@ async def get_queue_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.queue.feature_disabled_code,
         )
-    require_access(
+    require_export_access(
         DAC_RESOURCES[Tool.queue],
         queue,
         context=db_session.guild_context(session),
-        access="read",
+        access=access,
     )
     return queue
 

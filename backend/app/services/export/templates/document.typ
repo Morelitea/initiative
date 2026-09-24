@@ -129,6 +129,8 @@
       width: 100%,
       raw(b.at("text", default: ""), lang: b.at("language", default: "")),
     )
+  } else if btype == "pagebreak" {
+    pagebreak(weak: true)
   } else if btype == "hr" {
     v(4pt)
     line(length: 100%, stroke: 0.5pt + luma(200))

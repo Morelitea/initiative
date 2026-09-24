@@ -410,10 +410,12 @@ async def get_post_for_export(
     guild_id: int,
     *,
     post_id: int,
+    access: str = "owner",
 ) -> Post:
     """The post-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read."""
+    rule holds on the worker's render-time replay too. It takes the owner rung,
+    or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``)."""
     from fastapi import HTTPException, status as http_status
 
     post = await get_post(session, post_id)
@@ -428,20 +430,20 @@ async def get_post_for_export(
             detail=Tool.post.feature_disabled_code,
         )
     context = db_session.guild_context(session)
-    permissions_service.require_access(
-        permissions_service.DAC_RESOURCES[Tool.post],
-        post,
-        context=context,
-        access="read",
-    )
+    resource = permissions_service.DAC_RESOURCES[Tool.post]
+    permissions_service.require_access(resource, post, context=context, access="read")
     # A notice that has not gone up is in no export either — the same gate the
     # read path applies, asked here because this seam resolves a caller-chosen
-    # id rather than going through ``load_authorized``.
+    # id rather than going through ``load_authorized``. Asked before the export
+    # rung, so a notice that is not up yet reads as absent, as it does elsewhere.
     if permissions_service.hidden_from_reader(Tool.post, post):
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=Tool.post.not_found_code,
         )
+    permissions_service.require_export_access(
+        resource, post, context=context, access=access
+    )
     await tags_service.annotate_tags(session, [post])
     return post
 

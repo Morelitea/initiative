@@ -592,7 +592,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             document = await get_document_for_export(
-                self.session, self.user, self.guild_id, document_id=document_id
+                self.session,
+                self.user,
+                self.guild_id,
+                document_id=document_id,
+                access="read",  # the aggregate-export relaxation
             )
             doc_type = (
                 document.document_type.value
@@ -690,7 +694,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             queue = await get_queue_for_export(
-                self.session, self.user, self.guild_id, queue_id=queue_id
+                self.session,
+                self.user,
+                self.guild_id,
+                queue_id=queue_id,
+                access="read",  # the aggregate-export relaxation
             )
             attachments = await queue_attachments_for(self.session, queue.items)
             item = build_queue_item(queue, fmt, self.user, self.now, attachments)
@@ -724,7 +732,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             group = await get_counter_group_for_export(
-                self.session, self.user, self.guild_id, group_id=group_id
+                self.session,
+                self.user,
+                self.guild_id,
+                group_id=group_id,
+                access="read",  # the aggregate-export relaxation
             )
             item = build_counter_group_item(group, fmt, self.user, self.now)
             path_stem = f"{folder}/counter-groups/{_slug(group.id, group.name)}"
@@ -768,7 +780,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             post = await get_post_for_export(
-                self.session, self.user, self.guild_id, post_id=post_id
+                self.session,
+                self.user,
+                self.guild_id,
+                post_id=post_id,
+                access="read",  # the aggregate-export relaxation
             )
             item = build_post_item(post, "json", self.now)
             path_stem = f"{folder}/posts/{_slug(post.id, post.name)}"
@@ -808,7 +824,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             wiki, pages = await get_wiki_for_export(
-                self.session, self.user, self.guild_id, wiki_id=wiki_id
+                self.session,
+                self.user,
+                self.guild_id,
+                wiki_id=wiki_id,
+                access="read",  # the aggregate-export relaxation
             )
             item = build_wiki_item(wiki, pages, self.now)
             path_stem = f"{folder}/wikis/{_slug(wiki.id, wiki.name)}"
@@ -1010,7 +1030,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             gallery, images = await get_gallery_for_export(
-                self.session, self.user, self.guild_id, gallery_id=gallery_id
+                self.session,
+                self.user,
+                self.guild_id,
+                gallery_id=gallery_id,
+                access="read",  # the aggregate-export relaxation
             )
             if not _include_uploads(self.params):
                 self.skipped.append(
@@ -1068,7 +1092,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             calendar = await get_calendar_for_export(
-                self.session, self.user, self.guild_id, calendar_id=calendar_id
+                self.session,
+                self.user,
+                self.guild_id,
+                calendar_id=calendar_id,
+                access="read",  # the aggregate-export relaxation
             )
             documents_by_event = await documents_for_events(
                 self.session, list(calendar.events)
@@ -1137,7 +1165,11 @@ class _ScopeBuilder:
         for dashboard_id in exportable:
             await self._refresh_access()
             dashboard = await get_dashboard_for_export(
-                self.session, self.user, self.guild_id, dashboard_id=dashboard_id
+                self.session,
+                self.user,
+                self.guild_id,
+                dashboard_id=dashboard_id,
+                access="read",  # the aggregate-export relaxation
             )
             item = build_dashboard_item(dashboard, self.now.strftime("%Y-%m-%d"))
             path = (

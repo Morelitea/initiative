@@ -55,10 +55,12 @@ async def get_dashboard_for_export(
     guild_id: int,
     *,
     dashboard_id: int,
+    access: str = "owner",
 ) -> Dashboard:
     """The dashboard-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. READ access
-    suffices — exporting is a formatted read.
+    the rule holds on the worker's render-time replay too. It takes the owner
+    rung, or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``).
 
     A dashboard built on an app this build does not ship is refused here: its
     definition belongs to its publisher, and the way to have it somewhere else
@@ -70,7 +72,7 @@ async def get_dashboard_for_export(
     from app.core.messages import ExportMessages
     from app.core.tools import Tool
     from app.services.export.provenance import builtin_listing_uids, is_exportable
-    from app.services.permissions import DAC_RESOURCES, require_access
+    from app.services.permissions import DAC_RESOURCES, require_export_access
 
     dashboard = await get_dashboard(session, dashboard_id)
     if dashboard is None:
@@ -83,11 +85,11 @@ async def get_dashboard_for_export(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=Tool.dashboard.feature_disabled_code,
         )
-    require_access(
+    require_export_access(
         DAC_RESOURCES[Tool.dashboard],
         dashboard,
         context=db_session.guild_context(session),
-        access="read",
+        access=access,
     )
     builtin = await builtin_listing_uids(session, [dashboard.listing_uid])
     if not is_exportable(dashboard.listing_uid, builtin):

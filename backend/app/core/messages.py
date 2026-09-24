@@ -721,6 +721,7 @@ class ExportMessages:
     EXPORT_TOO_LARGE = "EXPORT_TOO_LARGE"
     EXPORT_JOB_LIMIT_REACHED = "EXPORT_JOB_LIMIT_REACHED"
     EXPORT_WRITE_REQUIRED = "EXPORT_WRITE_REQUIRED"
+    EXPORT_OWNER_REQUIRED = "EXPORT_OWNER_REQUIRED"
     EXPORT_JOB_NOT_FOUND = "EXPORT_JOB_NOT_FOUND"
     EXPORT_NOT_READY = "EXPORT_NOT_READY"
     EXPORT_SUPERADMIN_REQUIRED = "EXPORT_SUPERADMIN_REQUIRED"
@@ -750,6 +751,10 @@ class ImportEngineMessages:
     IMPORT_CREATOR_INACTIVE = "IMPORT_CREATOR_INACTIVE"
     IMPORT_PERMISSION_REQUIRED = "IMPORT_PERMISSION_REQUIRED"
     IMPORT_TOOL_DISABLED = "IMPORT_TOOL_DISABLED"
+    #: A zip that does not hold exactly one export at its top level.
+    IMPORT_ARCHIVE_NO_ENVELOPE = "IMPORT_ARCHIVE_NO_ENVELOPE"
+    #: An export of a different tool than the one it was imported from.
+    IMPORT_WRONG_TOOL = "IMPORT_WRONG_TOOL"
 
     # Reading a foreign source. These name what the SOURCE said or did, which
     # is a different thing from anything the envelope path can go wrong at:

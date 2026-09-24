@@ -1,14 +1,13 @@
-"""Gallery source adapter: the importable backup envelope (json).
+"""Gallery source adapter: the importable envelope, with its pictures.
 
 A gallery is its pictures, so the envelope carries what the rows say about
 them — title, caption, dimensions, the order they arrived in — and names each
-blob by its **storage key**. The bytes themselves ride in the zip under
-``assets/``, registered by the backup adapter, which is why a gallery only
-crosses inside a backup: an envelope on its own would be a list of captions
-for pictures that are not there.
-
-That is also the whole reason the tool sat out of the export engine until now.
-The blob path already existed for file documents; this puts galleries on it.
+blob by its **storage key**. The bytes ride beside it under ``assets/``, named
+by that key: in a backup the backup adapter registers them, and a gallery
+exported on its own is always a zip of the envelope and its pictures, because
+an envelope alone would be a list of captions for pictures that are not there.
+A picture whose file is gone is left out of the zip and still listed, which is
+what the importer already expects of a missing file.
 
 Thumbnails are deliberately **not** carried. A thumbnail is a rendition the
 app makes at upload and can make again, so shipping both doubles the bytes of
@@ -40,8 +39,16 @@ from app.services.export.contract import RenderItem
 Loaded = tuple[Gallery, list[GalleryImage]]
 
 
+#: The size proxy divisor for the pictures: one "row" per MiB, as a file
+#: document counts, so a gallery of large pictures is delivered as a job.
+_IMAGE_ROW_BYTES = 1_048_576
+
+
 class GalleryAdapter(ToolExportAdapter):
     tool = Tool.gallery
+    #: Always a zip, even with no pictures: the envelope and its files are one
+    #: download.
+    force_zip = True
 
     async def fetch(
         self, session: AsyncSession, user: User, guild_id: int, gallery_id: int, /
@@ -53,14 +60,40 @@ class GalleryAdapter(ToolExportAdapter):
         )
 
     def rows(self, loaded: Loaded, /) -> int:
-        # One row per picture: a gallery's size is what is in it, not the
-        # single row naming it.
+        # A gallery's size is what is in it, not the single row naming it:
+        # each picture counts for its megabytes, and at least one.
         _gallery, images = loaded
-        return len(images) or 1
+        return 1 + sum(
+            max(1, int(image.file_size or 0) // _IMAGE_ROW_BYTES) for image in images
+        )
 
     def item(self, loaded: Loaded, ctx: BuildContext, /) -> RenderItem:
         gallery, images = loaded
         return build_gallery_item(gallery, images, ctx.now)
+
+    def items(self, loaded: Loaded, ctx: BuildContext, /) -> tuple[RenderItem, ...]:
+        """The envelope, then each picture whose file is still stored."""
+        from app.services.storage import get_guild_storage
+
+        _gallery, images = loaded
+        storage = get_guild_storage(ctx.guild_id)
+        pictures = []
+        for image in images:
+            key = storage_key_of(image.file_url)
+            if not key or not storage.exists(key):
+                continue
+            pictures.append(
+                RenderItem(
+                    key=key,
+                    data={
+                        "storage_key": key,
+                        "content_type": image.file_content_type,
+                    },
+                    filename=f"assets/{key}",
+                    format="file",
+                )
+            )
+        return (self.item(loaded, ctx), *pictures)
 
 
 def storage_key_of(url: str | None) -> str:

@@ -17,7 +17,7 @@ from sqlmodel import select
 
 from app.services.permissions import (
     DAC_RESOURCES,
-    require_access,
+    require_export_access,
 )
 from app.models.tenant.counter import (
     Counter,
@@ -82,12 +82,13 @@ async def get_counter_group_for_export(
     guild_id: int,
     *,
     group_id: int,
+    access: str = "owner",
 ) -> CounterGroup:
-    """The counter-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. READ access
-    suffices — exporting is a formatted read. The guild role is resolved here
-    rather than taken from a request context, so the seam works
-    transport-free."""
+    """The counter-export adapter's seam: fetch + authorize in one place so the
+    rule holds on the worker's render-time replay too. It takes the owner rung,
+    or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The guild role is resolved here
+    rather than taken from a request context, so the seam works transport-free."""
     from fastapi import HTTPException, status as http_status
 
     group = await get_counter_group(session, group_id)
@@ -101,11 +102,11 @@ async def get_counter_group_for_export(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=Tool.counter_group.feature_disabled_code,
         )
-    require_access(
+    require_export_access(
         DAC_RESOURCES[Tool.counter_group],
         group,
         context=db_session.guild_context(session),
-        access="read",
+        access=access,
     )
     return group
 

@@ -231,6 +231,13 @@ async def detach_envelope_mentions(session: AsyncSession, data: Any) -> None:
             (page, "content")
             for page in data.get("pages") or []
             if isinstance(page, dict)
+        ] + [
+            # A text document filed in it, carried whole inside it.
+            (filed["envelope"], "content")
+            for filed in data.get("documents") or []
+            if isinstance(filed, dict)
+            and isinstance(filed.get("envelope"), dict)
+            and filed["envelope"].get("document_type") == "native"
         ]
     else:
         return

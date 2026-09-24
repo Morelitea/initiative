@@ -435,8 +435,10 @@ def _markdown_text(data: dict) -> str:
         lines.append(f"# {title}")
         lines.append("")
     for block in data.get("blocks") or []:
-        lines.extend(_md_block(block))
-        lines.append("")
+        rendered = _md_block(block)
+        if rendered:
+            lines.extend(rendered)
+            lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -481,6 +483,9 @@ def _md_block(block: dict, indent: str = "") -> list[str]:
         return [f"{fence}excalidraw", data, fence]
     if btype == "hr":
         return ["---"]
+    if btype == "pagebreak":
+        # Markdown has no pages; the heading after it says where one began.
+        return []
     if btype == "image":
         alt = _md_escape(block.get("alt") or "")
         if block.get("asset"):
@@ -746,6 +751,8 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
         elif btype == "hr":
             separator = document.add_paragraph("· · ·")
             separator.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif btype == "pagebreak":
+            document.add_page_break()
         elif btype == "list":
             add_list(block)
         elif btype == "table":

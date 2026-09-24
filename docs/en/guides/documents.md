@@ -115,7 +115,7 @@ A blank canvas for the thinking that flatly refuses to become a paragraph. A flo
 - **Draw anything** — shapes, arrows, freehand lines, text, images.
 - **Work on it together** — everyone's pointer shows up live with their name on it, so you can point at the same thing at the same time from different houses.
 - **Go fullscreen** when the canvas wants the whole window.
-- **Export as a picture** — PNG or SVG, for a slide deck, an email, or a printout.
+- **Export as a picture** — PNG or SVG, for a slide deck, an email, or a printout. It's in the whiteboard's **Settings → Advanced**, with its other exports.
 
 Whiteboards autosave like everything else, and are shared, tagged and commented on exactly like any other document.
 
