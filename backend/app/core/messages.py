@@ -28,6 +28,10 @@ class CommonMessages:
     #: answer names the container rather than the row.
     PARENT_IS_FROZEN = "PARENT_IS_FROZEN"
 
+    #: The request body is larger than its route takes. Answered by the
+    #: transport (``app.core.body_limit``) before any handler runs.
+    REQUEST_TOO_LARGE = "REQUEST_TOO_LARGE"
+
 
 class AuthMessages:
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"

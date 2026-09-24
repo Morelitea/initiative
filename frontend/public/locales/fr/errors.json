@@ -320,6 +320,7 @@
   "IMPORT_SCHEMA_VERSION_UNSUPPORTED": "Ce fichier provient d'une version plus récente d'Initiative et ne peut pas être importé ici.",
   "IMPORT_INVALID_PARAMS": "La demande d'import était invalide.",
   "IMPORT_TOO_LARGE": "Cet import est trop volumineux.",
+  "REQUEST_TOO_LARGE": "C'est trop volumineux pour être envoyé.",
   "IMPORT_JOB_LIMIT_REACHED": "Trop d'imports sont en cours. Attendez qu'un import se termine puis réessayez.",
   "IMPORT_WRITE_REQUIRED": "L'import nécessite un accès en écriture, que cette communauté n'autorise pas actuellement.",
   "IMPORT_JOB_NOT_FOUND": "Import introuvable.",
