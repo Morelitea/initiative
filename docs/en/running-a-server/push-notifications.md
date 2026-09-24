@@ -6,7 +6,7 @@ icon: lucide/bell-ring
 
 Mobile push notifications are delivered through **Firebase Cloud Messaging (FCM)**. This is optional — Initiative works without it, and in-app and email notifications don't need it. Set it up only if you want alerts pushed to the mobile apps.
 
-Initiative uses **runtime configuration**: you set a few environment variables and the mobile app fetches what it needs from your server. You do **not** need to commit a `google-services.json` file into the app.
+You enter everything in **Settings → Platform → Push notifications**, as the [owner](platform-roles.md), and the mobile app fetches what it needs from your server. You do **not** need to commit a `google-services.json` file into the app, and you don't need to restart anything.
 
 ## 1. Create a Firebase project
 
@@ -24,37 +24,32 @@ Initiative uses **runtime configuration**: you set a few environment variables a
 1. In **Project Settings → Service Accounts**, click **Generate New Private Key**.
 2. Save the JSON file somewhere safe. **Never commit it to source control.**
 
-## 4. Set the environment variables
+## 4. Fill in the settings
 
-Add these to your backend environment (for example, your `docker-compose.yml` or `.env`):
+In **Settings → Platform → Push notifications**, turn on **Send push notifications** and fill in:
 
-```bash
-FCM_ENABLED=true
-FCM_PROJECT_ID=your-project-id
-FCM_APPLICATION_ID=1:123456789:android:abcdef123456
-FCM_API_KEY=AIzaSy...
-FCM_SENDER_ID=123456789
-FCM_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"your-project-id", ... }'
-```
-
-Where to find each value:
-
-| Variable | From `google-services.json` | Or in the Firebase console |
+| Field | From `google-services.json` | Or in the Firebase console |
 |---|---|---|
-| `FCM_PROJECT_ID` | `project_info.project_id` | Project Settings → General → Project ID |
-| `FCM_SENDER_ID` | `project_info.project_number` | Project Settings → Cloud Messaging → Sender ID |
-| `FCM_APPLICATION_ID` | `client[0].client_info.mobilesdk_app_id` | Project Settings → General → Your Apps → App ID |
-| `FCM_API_KEY` | `client[0].api_key[0].current_key` | Project Settings → General → Web API Key |
+| **Project ID** | `project_info.project_id` | Project Settings → General → Project ID |
+| **App ID** | `client[0].client_info.mobilesdk_app_id` | Project Settings → General → Your Apps → App ID |
+| **Web API key** | `client[0].api_key[0].current_key` | Project Settings → General → Web API Key |
+| **Sender ID** | `project_info.project_number` | Project Settings → Cloud Messaging → Sender ID |
 
-For `FCM_SERVICE_ACCOUNT_JSON`, paste the **entire contents** of the service-account key file you downloaded, minified onto one line, wrapped in single quotes.
+For **Service account key**, open the key file from step 3 and paste the whole thing, braces and all. The page won't save anything that isn't one complete JSON object, so a half-copied key gets caught before it's stored.
 
-## 5. Restart and verify
+The key is write-only: once it's saved, the field shows that a key is there, and never shows the key. Leave it blank when editing the other fields and the saved key stays put.
 
-Restart the backend, then check:
+??? techspec "Pre-filling from environment variables"
+    On a fresh install's **first boot**, the `FCM_*` variables fill these settings in: `FCM_ENABLED`, `FCM_PROJECT_ID`, `FCM_APPLICATION_ID`, `FCM_API_KEY`, `FCM_SENDER_ID` and `FCM_SERVICE_ACCOUNT_JSON`. After that the settings page owns them and the variables are ignored, so edit the page, not the environment.
+
+## 5. Check it works
 
 1. **Server config:** `GET <your-server>/api/v1/settings/fcm-config` should return `{"enabled": true, ...}`.
-2. **Mobile app:** enabling push in the app's settings should work without errors.
+2. **Mobile app:** the app picks up the settings the next time it opens. Enabling push in the app's settings should work without errors.
 3. **End to end:** assign yourself a task and confirm a push arrives.
+
+!!! note "Two switches, two questions"
+    **Send push notifications** on this page connects the deployment to Firebase. **Mobile notifications**, under **Settings → Platform → Security**, decides whether a notification may reach a phone at all. Push needs both on.
 
 ## Self-hosting notes
 
@@ -64,16 +59,16 @@ Restart the backend, then check:
 
 ## Security notes
 
-- **Never commit** the service-account JSON. Keep it in environment variables or a secret store.
-- **Rotate** the service-account key periodically (every ~90 days is a good habit).
+- **Never commit** the service-account JSON. It's stored encrypted in your database, and the settings page never shows it back.
+- **Rotate** the service-account key periodically (every ~90 days is a good habit): generate a new one and paste it over the old.
 - Give the service account only the **Firebase Cloud Messaging** permission it needs.
 
 ## Troubleshooting
 
 | Symptom | Likely cause and fix |
 |---|---|
-| "FCM not configured" | `FCM_ENABLED` is `false` or variables are missing — set them and restart. |
-| App errors when enabling push | Backend FCM config invalid or unreachable — check the variables and the `/api/v1/settings/fcm-config` endpoint. |
+| "FCM not configured" | **Send push notifications** is off, or a field is empty. Fill it in and save. |
+| App errors when enabling push | The server's Firebase settings don't match your project — check each field against step 4, and the `/api/v1/settings/fcm-config` endpoint. |
 | Push not received | Invalid credentials, the device token wasn't registered, the user disabled the category, or the `project_id` doesn't match — check backend logs and the user's notification settings. |
 
 ## Related

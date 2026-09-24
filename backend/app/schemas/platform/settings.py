@@ -1,3 +1,4 @@
+import json
 from typing import Annotated, List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
@@ -831,6 +832,21 @@ class PushSettingsUpdate(SanitizedBaseModel):
     #: The service-account JSON. Omit to keep the stored one; send null or ""
     #: to clear it. Raw text, and long: a Google service account is ~2.4 kB.
     service_account_json: Optional[RawTextStr] = None
+
+    @field_validator("service_account_json")
+    @classmethod
+    def _service_account_is_a_json_object(cls, value: Optional[str]) -> Optional[str]:
+        """The key file Firebase issues is one JSON object; anything else is
+        refused here rather than stored and failed on at the first send."""
+        if value is None or not value.strip():
+            return value
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            raise ValueError("service_account_json must be JSON") from None
+        if not isinstance(parsed, dict):
+            raise ValueError("service_account_json must be a JSON object")
+        return value
 
 
 class StorageTestResponse(SanitizedBaseModel):
