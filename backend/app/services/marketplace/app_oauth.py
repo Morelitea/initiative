@@ -9,10 +9,16 @@ signs with a key its registration publishes (RFC 7523 §2.2,
 * ``client_credentials`` alone: an **app token**, which lists the app's installs;
 * ``client_credentials`` with ``installation``: an **installation token** for
   that install, optionally down-scoped (``scope``, RFC 6749 §3.3) and narrowed
-  to one initiative it is placed in (``resource``, RFC 8707).
-
-The member grant (``urn:ietf:params:oauth:grant-type:jwt-bearer``) is refused
-as unsupported for now.
+  to one initiative it is placed in (``resource``, RFC 8707);
+* ``urn:ietf:params:oauth:grant-type:jwt-bearer`` (RFC 7523 §2.1): a **member
+  token**, an installation token that acts for one member, for a purpose that
+  member consented to. The ``assertion`` is signed with the same registered key
+  and also authenticates the client (RFC 7523 §3): ``sub`` is the member's
+  reference at this install, ``installation`` the install's, and ``purpose``
+  the purpose, when the consent names one. With no live consent the answer is
+  ``consent_required``; ``scope`` and ``resource`` narrow as for an
+  installation token, and a consent bound to an initiative is only used by a
+  token narrowed to it.
 
 Everything here runs on the system engine. A community's rows are read with
 the session routed by ``guild_id`` alone, as any sweep reads them.
@@ -22,7 +28,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -39,11 +45,20 @@ from app.core.app_access_token import (
     seal_app_token,
     seal_install_token,
 )
-from app.core.app_scopes import expand, ALL_SCOPES, UnknownAppScope, validate_scopes
+from app.core.app_scopes import (
+    ALL_SCOPES,
+    AppScopeAccess,
+    UnknownAppScope,
+    expand,
+    parse_scope,
+    validate_scopes,
+)
 from app.core.config import API_V1_STR, settings
 from app.db.session import clear_rls_context, set_rls_context
 from app.models.platform.app_assertion_jti import ASSERTION_JTI_MAX_LENGTH
-from app.models.platform.guild import LIVE_STATUS_VALUES, Guild
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
+from app.models.platform.user import User, UserStatus
+from app.models.tenant.app_member_consent import ConsentAccess, is_valid_purpose
 from app.services.marketplace import app_refs, registration_lookup
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 
@@ -62,6 +77,7 @@ __all__ = [
     "list_installations",
     "token_endpoint_url",
     "verify_client_assertion",
+    "verify_member_assertion",
 ]
 
 #: Where the endpoint is mounted, under the API prefix.
@@ -97,6 +113,16 @@ def _invalid_client(description: str) -> OAuthError:
     return OAuthError("invalid_client", description, status_code=401)
 
 
+def _invalid_grant(description: str) -> OAuthError:
+    return OAuthError("invalid_grant", description)
+
+
+def _consent_required(description: str) -> OAuthError:
+    """No live consent covers the request: the app asks the member again
+    (the error OpenID Connect names ``consent_required``)."""
+    return OAuthError("consent_required", description)
+
+
 def token_endpoint_url() -> str:
     """The token endpoint's absolute URL: the ``aud`` every client assertion
     must carry, exactly.
@@ -121,10 +147,14 @@ def _algorithm_for(key: Any) -> str | None:
     return None
 
 
-def _numeric_date(claims: Mapping[str, Any], name: str) -> float:
+def _numeric_date(
+    claims: Mapping[str, Any],
+    name: str,
+    fail: Callable[[str], OAuthError] = _invalid_client,
+) -> float:
     value = claims.get(name)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise _invalid_client(f"{name} must be a NumericDate")
+        raise fail(f"{name} must be a NumericDate")
     return float(value)
 
 
@@ -149,35 +179,82 @@ async def verify_client_assertion(
     """
     if assertion_type != ASSERTION_TYPE or not assertion:
         raise _invalid_client("a jwt-bearer client assertion is required")
+    snapshot, _claims = await _verify_signed_assertion(
+        session,
+        assertion=assertion,
+        client_id=client_id,
+        now=now,
+        member=False,
+    )
+    return snapshot
+
+
+async def verify_member_assertion(
+    session: AsyncSession,
+    *,
+    assertion: str | None,
+    client_id: str | None = None,
+    now: float | None = None,
+) -> tuple[RegistrationSnapshot, dict[str, Any]]:
+    """Verify a member grant's assertion (RFC 7523 §2.1), which also
+    authenticates the client (§3), and spend it.
+
+    Held to everything a client assertion is, except that ``sub`` names the
+    member rather than the client, and it must carry ``installation``. Returns
+    the registration and the verified claims. Raises :class:`OAuthError`
+    (``invalid_grant``) on any failure.
+    """
+    if not assertion:
+        raise _invalid_grant("an assertion is required")
+    return await _verify_signed_assertion(
+        session, assertion=assertion, client_id=client_id, now=now, member=True
+    )
+
+
+async def _verify_signed_assertion(
+    session: AsyncSession,
+    *,
+    assertion: str,
+    client_id: str | None,
+    now: float | None,
+    member: bool,
+) -> tuple[RegistrationSnapshot, dict[str, Any]]:
+    """The one verification both assertions share: one key lookup, one
+    signature, one ``jti`` spent. ``member`` selects the member grant's shape
+    and error code."""
+    fail = _invalid_grant if member else _invalid_client
 
     try:
         header = jwt.get_unverified_header(assertion)
         unverified = jwt.decode(assertion, options={"verify_signature": False})
     except jwt.PyJWTError as exc:
-        raise _invalid_client("the client assertion is not a JWT") from exc
+        raise fail("the assertion is not a JWT") from exc
 
     kid = header.get("kid")
     if not isinstance(kid, str) or not kid:
-        raise _invalid_client("the client assertion names no kid")
+        raise fail("the assertion names no kid")
     issuer = unverified.get("iss")
     if not isinstance(issuer, str) or not issuer:
-        raise _invalid_client("the client assertion names no issuer")
+        raise fail("the assertion names no issuer")
     if client_id is not None and client_id != issuer:
-        raise _invalid_client("client_id does not match the assertion")
+        raise fail("client_id does not match the assertion")
 
     snapshot = (await registration_lookup.load_registrations()).get(issuer)
     if snapshot is None or not snapshot.enabled:
-        raise _invalid_client("unknown client")
+        raise fail("unknown client")
     key = snapshot.keys.get(kid)
     if key is None:
-        raise _invalid_client("unknown key")
+        raise fail("unknown key")
     algorithm = _algorithm_for(key)
     if algorithm is None:
-        raise _invalid_client("the key cannot verify a client assertion")
+        raise fail("the key cannot verify an assertion")
     if header.get("alg") != algorithm:
-        raise _invalid_client("the assertion's algorithm does not match its key")
+        raise fail("the assertion's algorithm does not match its key")
 
     audience = token_endpoint_url()
+    required = ["iss", "sub", "aud", "jti", "iat", "exp"]
+    if member:
+        required.append("installation")
     try:
         claims = jwt.decode(
             assertion,
@@ -185,34 +262,36 @@ async def verify_client_assertion(
             algorithms=[algorithm],
             audience=audience,
             issuer=issuer,
-            subject=issuer,
+            # A client assertion's subject is the client; a member grant's is
+            # the member, checked by the grant.
+            subject=None if member else issuer,
             leeway=0,
             options={
-                "require": ["iss", "sub", "aud", "jti", "iat", "exp"],
+                "require": required,
                 "strict_aud": True,
                 # Checked below with the skew this endpoint allows.
                 "verify_iat": False,
             },
         )
     except jwt.PyJWTError as exc:
-        raise _invalid_client("the client assertion did not verify") from exc
+        raise fail("the assertion did not verify") from exc
 
     if claims.get("aud") != audience:
-        raise _invalid_client("the assertion is not for this endpoint")
+        raise fail("the assertion is not for this endpoint")
     current = time.time() if now is None else now
-    issued_at = _numeric_date(claims, "iat")
-    expires_at = _numeric_date(claims, "exp")
+    issued_at = _numeric_date(claims, "iat", fail)
+    expires_at = _numeric_date(claims, "exp", fail)
     if issued_at > current + IAT_CLOCK_SKEW_SECONDS:
-        raise _invalid_client("the assertion was issued in the future")
+        raise fail("the assertion was issued in the future")
     if expires_at <= current:
-        raise _invalid_client("the assertion has expired")
+        raise fail("the assertion has expired")
     if expires_at <= issued_at:
-        raise _invalid_client("the assertion expires before it was issued")
+        raise fail("the assertion expires before it was issued")
     if expires_at - issued_at > MAX_ASSERTION_LIFETIME_SECONDS:
-        raise _invalid_client("the assertion is valid for too long")
+        raise fail("the assertion is valid for too long")
     jti = claims.get("jti")
     if not isinstance(jti, str) or not jti or len(jti) > ASSERTION_JTI_MAX_LENGTH:
-        raise _invalid_client("the assertion's jti is not usable")
+        raise fail("the assertion's jti is not usable")
 
     # One statement: the registration is read fresh (the snapshot may be up to
     # a minute old) and the jti recorded against it. No row back means the
@@ -237,8 +316,8 @@ async def verify_client_assertion(
     ).first()
     await session.commit()
     if spent is None:
-        raise _invalid_client("the assertion was already used")
-    return snapshot
+        raise fail("the assertion was already used")
+    return snapshot, dict(claims)
 
 
 # --- grants -------------------------------------------------------------------
@@ -358,6 +437,153 @@ async def _installation_token(
     )
 
 
+#: The install, where it is placed, and, for one member and purpose, the
+#: initiatives the member is in and their live consent. Read on the system
+#: engine routed into the community.
+_MEMBER_INSTALL_SQL = text(
+    "SELECT a.listing_uid, a.enabled, a.granted_scopes, "
+    "ARRAY(SELECT p.initiative_id FROM app_placements p "
+    "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed, "
+    "ARRAY(SELECT im.initiative_id FROM initiative_members im "
+    "WHERE im.user_id = :user_id ORDER BY im.initiative_id) AS member_of, "
+    "c.granted_access, c.initiative_id AS consent_initiative_id "
+    "FROM guild_apps a "
+    "LEFT JOIN app_member_consents c ON c.install_id = a.id "
+    "AND c.user_id = :user_id "
+    "AND c.purpose IS NOT DISTINCT FROM CAST(:purpose AS varchar) "
+    "AND c.granted_access IS NOT NULL AND c.revoked_at IS NULL "
+    "WHERE a.id = :install_id"
+)
+
+
+def _read_only_scopes(scopes: frozenset[str]) -> frozenset[str]:
+    """``scopes`` with every write scope read instead: what a token may use
+    for a member who allowed reading only."""
+    out: set[str] = set()
+    for scope in scopes:
+        resource, access = parse_scope(scope)
+        out.add(
+            f"{resource.value}:{AppScopeAccess.read.value}"
+            if access is AppScopeAccess.write
+            else scope
+        )
+    return frozenset(out)
+
+
+async def _member_token(
+    session: AsyncSession,
+    client: RegistrationSnapshot,
+    claims: Mapping[str, Any],
+    *,
+    scope: str | None,
+    resource: str | None,
+) -> IssuedToken:
+    """A member token: what the member consented to, for the purpose the
+    assertion names, within the install's placement and scopes."""
+    installation = claims.get("installation")
+    if not isinstance(installation, str) or not installation:
+        raise _invalid_grant("installation must name the install")
+    purpose = claims.get("purpose")
+    if purpose is not None and not is_valid_purpose(purpose):
+        raise _invalid_grant("purpose is not usable")
+    subject = claims.get("sub")
+    if not isinstance(subject, str) or not subject:
+        raise _invalid_grant("sub must name the member")
+
+    resolved = await app_refs.resolve_app_guild_ref(ref=installation)
+    if resolved is None:
+        raise _invalid_grant("unknown installation")
+    guild_id, install_id = resolved
+
+    # The member, by the reference this install holds for them.
+    member_ref = await app_refs.resolve_app_ref(session, ref=subject, guild_id=guild_id)
+    if member_ref is None or member_ref.sector_id != install_id:
+        raise _invalid_grant("unknown member")
+    user_id = int(member_ref.entity_id)
+    belongs = (
+        await session.exec(
+            select(GuildMembership.user_id)
+            .join(User, User.id == GuildMembership.user_id)  # type: ignore[arg-type]
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == user_id,
+                User.status == UserStatus.active,
+            )
+        )
+    ).first()
+    await session.rollback()
+
+    try:
+        await set_rls_context(session, guild_id=guild_id)
+        row = (
+            await session.exec(
+                _MEMBER_INSTALL_SQL,
+                params={
+                    "install_id": install_id,
+                    "user_id": user_id,
+                    "purpose": purpose,
+                },
+            )
+        ).first()
+    except DBAPIError as exc:
+        # A community that was deleted has no role left to route into.
+        await session.rollback()
+        raise _invalid_grant("unknown installation") from exc
+    finally:
+        clear_rls_context(session)
+    await session.rollback()
+
+    if (
+        row is None
+        or client.listing_uid is None
+        or row.listing_uid != client.listing_uid
+        or not row.enabled
+    ):
+        raise _invalid_grant("unknown installation")
+    if belongs is None or row.granted_access is None:
+        raise _consent_required("the member has not consented to this")
+
+    granted = frozenset(row.granted_scopes or ()) & frozenset(ALL_SCOPES)
+    requested = _requested_scopes(scope)
+    if requested is not None and not _covered(requested, granted):
+        raise OAuthError("invalid_scope", "a requested scope has not been granted")
+    scopes = granted if requested is None else requested
+    if row.granted_access != ConsentAccess.read_write.value:
+        scopes = _read_only_scopes(scopes)
+
+    initiative_id: int | None = None
+    if resource is not None:
+        initiative_id = _initiative_resource(resource)
+    consent_initiative = row.consent_initiative_id
+    if consent_initiative is not None and initiative_id != consent_initiative:
+        raise OAuthError(
+            "invalid_target",
+            "this consent is for one initiative; name it as the resource",
+        )
+    if initiative_id is not None:
+        if initiative_id not in set(row.placed or ()):
+            raise OAuthError(
+                "invalid_target", "the installation is not placed in that initiative"
+            )
+        if initiative_id not in set(row.member_of or ()):
+            raise _consent_required("the member is not in that initiative")
+
+    token, _exp = seal_install_token(
+        guild_id=guild_id,
+        install_id=install_id,
+        client_id=client.public_id,
+        scopes=scopes,
+        initiative_id=initiative_id,
+        user_id=user_id,
+        purpose=purpose,
+    )
+    return IssuedToken(
+        access_token=token,
+        expires_in=ACCESS_TOKEN_LIFETIME_SECONDS,
+        scope=" ".join(sorted(scopes)),
+    )
+
+
 async def issue_token(
     session: AsyncSession,
     *,
@@ -368,14 +594,30 @@ async def issue_token(
     installation: str | None = None,
     scope: str | None = None,
     resource: str | None = None,
+    assertion: str | None = None,
 ) -> IssuedToken:
     """Answer one token request, or raise :class:`OAuthError`."""
     if not grant_type:
         raise OAuthError("invalid_request", "grant_type is required")
     if grant_type == GRANT_JWT_BEARER:
-        raise OAuthError("unsupported_grant_type", "member tokens are not issued yet")
+        # The assertion is the client's authentication too (RFC 7523 §3), and
+        # names the install itself.
+        if client_assertion_type is not None or client_assertion is not None:
+            raise OAuthError(
+                "invalid_request", "the assertion authenticates the client"
+            )
+        if installation is not None:
+            raise OAuthError("invalid_request", "the assertion names the installation")
+        client, claims = await verify_member_assertion(
+            session, assertion=assertion, client_id=client_id
+        )
+        return await _member_token(
+            session, client, claims, scope=scope, resource=resource
+        )
     if grant_type != GRANT_CLIENT_CREDENTIALS:
         raise OAuthError("unsupported_grant_type", "unsupported grant_type")
+    if assertion is not None:
+        raise OAuthError("invalid_request", "assertion belongs to the jwt-bearer grant")
 
     client = await verify_client_assertion(
         session,

@@ -1175,6 +1175,10 @@ class GuildAppMessages:
     DELEGATION_NOT_OFFERED = "GUILD_APP_DELEGATION_NOT_OFFERED"
     #: No authorization from this member for this app.
     DELEGATION_NOT_FOUND = "GUILD_APP_DELEGATION_NOT_FOUND"
+    #: No request from this app to act as the caller, by that id.
+    CONSENT_NOT_FOUND = "GUILD_APP_CONSENT_NOT_FOUND"
+    #: The answer allows more than the app asked for.
+    CONSENT_EXCEEDS_REQUEST = "GUILD_APP_CONSENT_EXCEEDS_REQUEST"
 
     # --- apps the deployment provides ---
     #: The deployment installs this app in every guild and a guild admin does
@@ -1308,6 +1312,12 @@ class AppMessages:
     #: The request names a person or a community by something that is not one
     #: of this install's references.
     REFERENCE_UNKNOWN = "APP_REFERENCE_UNKNOWN"
+    #: A consent request names an initiative the install is not placed in.
+    CONSENT_INITIATIVE_NOT_PLACED = "APP_CONSENT_INITIATIVE_NOT_PLACED"
+    #: A token narrowed to one initiative asks for consent beyond it.
+    CONSENT_OUTSIDE_TOKEN = "APP_CONSENT_OUTSIDE_TOKEN"
+    #: The install has asked for consent too often; it tries again later.
+    CONSENT_RATE_LIMITED = "APP_CONSENT_RATE_LIMITED"
 
 
 class AppDataMessages:

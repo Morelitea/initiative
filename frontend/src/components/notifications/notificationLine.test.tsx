@@ -124,3 +124,26 @@ describe("notificationText — mentions", () => {
     expect(line).toContain("notifications.mentionComment");
   });
 });
+
+describe("an app asking to act as the reader", () => {
+  const request = notice("app_consent_requested", {
+    guild_id: 4,
+    app_id: 7,
+    app_name: "Auto",
+    label: "Comment on the linked issue",
+    target_path: "/?app=7",
+  });
+
+  it("names the app and quotes what it asked", () => {
+    expect(notificationText(request, t)).toBe(
+      `notifications.appConsentRequested(${JSON.stringify({
+        app: "Auto",
+        label: "Comment on the linked issue",
+      })})`
+    );
+  });
+
+  it("opens that app's settings in its community", () => {
+    expect(notificationLink(request)).toBe("/c/4/?app=7");
+  });
+});

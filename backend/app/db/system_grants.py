@@ -791,6 +791,10 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
 # entry here is an explicit grant in a migration and everything else is
 # ``None`` by construction.
 SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
+    # No TABLE grant: a column-scoped SELECT on (id, status), which a member
+    # token's standing reads for the member it acts for alone
+    # (install_reads_its_member; migration 20260924_0385). Asserted in
+    # install_standing_test beside the ones below.
     "users": None,
     # No TABLE grant: a column-scoped SELECT on (id, status), which the
     # install standing statement reads for the routed community alone
@@ -799,6 +803,9 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # (install_standing_test).
     "guilds": None,
     "guild_administration": None,
+    # No TABLE grant: a column-scoped SELECT on (guild_id, user_id), which a
+    # member token's standing reads for the member's own row in the routed
+    # community (install_reads_its_member; migration 20260924_0385).
     "guild_memberships": None,
     "guild_invites": None,
     "access_grants": None,

@@ -74,12 +74,15 @@ async def route_as_install(
     client_id: str,
     scopes: Sequence[str],
     initiative_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+    purpose: Optional[str] = None,
 ):
     """Route ``session`` as an installed app, through the install seam.
 
     What the token path will hand the seam once it verifies a token, built
-    here from the values a test chose. Returns the ``InstallContext`` the seam
-    built, and raises ``InstallAccessError`` when the install may not act.
+    here from the values a test chose; ``user_id`` makes it a member token.
+    Returns the ``InstallContext`` the seam built, and raises
+    ``InstallAccessError`` when the install may not act.
     """
     from app.api.deps import VerifiedInstall, establish_install_access
 
@@ -91,6 +94,8 @@ async def route_as_install(
             client_id=client_id,
             scopes=frozenset(scopes),
             initiative_id=initiative_id,
+            user_id=user_id,
+            purpose=purpose,
         ),
     )
 

@@ -4,7 +4,8 @@
 form-encoded in, JSON out, and its errors are the protocol's own
 ``{"error", "error_description"}`` bodies rather than this API's ``detail``
 codes, because the reader is an OAuth client. The app authenticates with a JWT
-it signs (RFC 7523 §2.2); see :mod:`app.services.marketplace.app_oauth`.
+it signs (RFC 7523 §2.2), or, for a member token, presents one as the grant
+itself (RFC 7523 §2.1); see :mod:`app.services.marketplace.app_oauth`.
 
 ``GET /app-platform/installations`` takes an **app token** and lists the app's
 installs, each named by the reference the app asks for an installation token
@@ -54,6 +55,7 @@ _PARAMETERS = (
     "installation",
     "scope",
     "resource",
+    "assertion",
 )
 
 _TOKEN_REQUEST_BODY: dict[str, Any] = {
@@ -63,15 +65,14 @@ _TOKEN_REQUEST_BODY: dict[str, Any] = {
             _FORM_CONTENT_TYPE: {
                 "schema": {
                     "type": "object",
-                    "required": [
-                        "grant_type",
-                        "client_assertion_type",
-                        "client_assertion",
-                    ],
+                    "required": ["grant_type"],
                     "properties": {
                         "grant_type": {
                             "type": "string",
-                            "enum": [app_oauth.GRANT_CLIENT_CREDENTIALS],
+                            "enum": [
+                                app_oauth.GRANT_CLIENT_CREDENTIALS,
+                                app_oauth.GRANT_JWT_BEARER,
+                            ],
                         },
                         "client_assertion_type": {
                             "type": "string",
@@ -82,6 +83,7 @@ _TOKEN_REQUEST_BODY: dict[str, Any] = {
                         "installation": {"type": "string"},
                         "scope": {"type": "string"},
                         "resource": {"type": "string"},
+                        "assertion": {"type": "string"},
                     },
                 }
             }
@@ -147,8 +149,9 @@ async def _read_form(request: Request) -> dict[str, str | None]:
 async def issue_app_access_token(
     request: Request, session: SystemSessionDep
 ) -> JSONResponse:
-    """Issue an app token, or an installation token for one of the app's
-    installs. See the module docstring for the parameters."""
+    """Issue an app token, an installation token for one of the app's
+    installs, or a member token for a member who consented. See the module
+    docstring for the parameters."""
     try:
         params = await _read_form(request)
         issued = await app_oauth.issue_token(
@@ -160,6 +163,7 @@ async def issue_app_access_token(
             installation=params["installation"],
             scope=params["scope"],
             resource=params["resource"],
+            assertion=params["assertion"],
         )
     except app_oauth.OAuthError as exc:
         return _oauth_error(exc)

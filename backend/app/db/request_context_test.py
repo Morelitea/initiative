@@ -179,9 +179,13 @@ def _call_sites() -> list[tuple[str, int, dict]]:
                 continue
             if "install_id" in kwargs:
                 # An install's context names the install and community it is
-                # for, so its stand-in names the stand-ins for those.
+                # for, and a member token's the member and purpose, so its
+                # stand-in names the stand-ins for those.
                 kwargs["context"] = SimpleNamespace(
-                    install_id=kwargs["install_id"], guild_id=kwargs.get("guild_id")
+                    install_id=kwargs["install_id"],
+                    guild_id=kwargs.get("guild_id"),
+                    member_user_id=kwargs.get("member_user_id"),
+                    purpose=kwargs.get("token_purpose"),
                 )
             found.append((str(path.relative_to(root)), node.lineno, kwargs))
     return found

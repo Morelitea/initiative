@@ -558,6 +558,10 @@ async def test_a_new_transaction_replays_the_install(
             "app_service_registrations",
             {"public_id", "listing_uid", "enabled"},
         ),
+        # A member token's standing: the member's own membership row and
+        # whether their account is active.
+        ("guild_memberships", {"guild_id", "user_id"}),
+        ("users", {"id", "status"}),
     ],
 )
 async def test_the_install_floor_reads_only_what_its_standing_needs(

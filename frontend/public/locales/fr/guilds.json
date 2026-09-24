@@ -299,6 +299,7 @@
     "accountSuspendedWithReason": "Votre compte a été suspendu : {{reason}}",
     "accountUnsuspended": "Votre compte n'est plus suspendu.",
     "guildOnHold": "{{community}} est en attente. Contactez la personne qui gère ce serveur pour régler la situation.",
+    "appConsentRequested": "{{app}} demande à agir en votre nom : « {{label}} »",
     "guildOnHoldWithContact": "{{community}} est en attente. Contactez {{contact}} pour régler la situation.",
     "defaultNotification": "Vous avez une nouvelle notification.",
     "push": {

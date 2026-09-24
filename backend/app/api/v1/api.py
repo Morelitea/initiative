@@ -70,6 +70,7 @@ from app.api.v1.platform_endpoints import (
     access_grants,
     announcements,
     ai_settings as platform_ai_settings,
+    app_consent_requests,
     app_oauth,
     app_platform,
     app_services,
@@ -189,6 +190,11 @@ api_router.include_router(
 # app or installation token. The listing of its installs takes the app token.
 api_router.include_router(
     app_oauth.router, prefix="/app-platform", tags=["app-platform"]
+)
+# An installed app asking a member to let it act as them, on its installation
+# token. The member answers on their own consent screen.
+api_router.include_router(
+    app_consent_requests.router, prefix="/app-platform", tags=["app-platform"]
 )
 # The other half of that wiring: what a registered app service may call back on.
 # Authenticated by request signature against its registration's shared secret —

@@ -21,9 +21,11 @@ import {
   type GuildAppDetail,
   getGuildApp,
   getGuildAppMembers,
+  grantAppConsent,
   grantAppDelegation,
   revokeAllMemberConnections,
   revokeAllMemberDelegations,
+  revokeAppConsent,
   revokeAppDelegation,
   revokeMemberConnection,
   revokeMemberDelegation,
@@ -31,6 +33,7 @@ import {
   updateGuildAppConfig,
   upgradeGuildApp,
 } from "@/api/appConnections";
+import type { ConsentAccess, GuildAppConsentRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 
@@ -166,6 +169,29 @@ export const useRevokeAllDelegations = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, void>({
     mutationFn: () => revokeAllMemberDelegations(guildId, appId),
+    onSuccess: () => invalidate(q.apps()),
+  });
+};
+
+export interface ConsentAnswer {
+  consentId: number;
+  access: ConsentAccess;
+}
+
+/** Answer one of the app's requests to act as you. */
+export const useGrantAppConsent = (appId: number) => {
+  const guildId = useActiveGuildId();
+  return useMutation<GuildAppConsentRead, unknown, ConsentAnswer>({
+    mutationFn: ({ consentId, access }) => grantAppConsent(guildId, appId, consentId, access),
+    onSuccess: () => invalidate(q.apps()),
+  });
+};
+
+/** Decline one, or withdraw what you allowed. */
+export const useRevokeAppConsent = (appId: number) => {
+  const guildId = useActiveGuildId();
+  return useMutation<void, unknown, number>({
+    mutationFn: (consentId) => revokeAppConsent(guildId, appId, consentId),
     onSuccess: () => invalidate(q.apps()),
   });
 };

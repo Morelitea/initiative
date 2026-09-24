@@ -573,6 +573,61 @@ export interface AppConfig {
   min_native_version: string;
 }
 
+/**
+ * How deeply an app may act as the member.
+ */
+export type ConsentAccess = (typeof ConsentAccess)[keyof typeof ConsentAccess];
+
+export const ConsentAccess = {
+  read: "read",
+  read_write: "read_write",
+} as const;
+
+/**
+ * An app asking one member to let it act as them, for one purpose.
+ */
+export interface AppConsentRequestCreate {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  member: string;
+  purpose?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  label: string;
+  initiative_id?: number | null;
+  access: ConsentAccess;
+}
+
+/**
+ * Where a request stands, read off its columns.
+ */
+export type ConsentStatus = (typeof ConsentStatus)[keyof typeof ConsentStatus];
+
+export const ConsentStatus = {
+  pending: "pending",
+  granted: "granted",
+  declined: "declined",
+  revoked: "revoked",
+} as const;
+
+/**
+ * A request to act as a member, as it stands.
+ */
+export interface AppConsentRequestRead {
+  member: string;
+  purpose?: string | null;
+  label: string;
+  initiative_id?: number | null;
+  requested_access: ConsentAccess;
+  status: ConsentStatus;
+  granted_access?: ConsentAccess | null;
+  requested_at: string;
+}
+
 export type AppDataParamLabel = { [key: string]: string };
 
 export type AppParamOptionSourceNeeds = { [key: string]: string };
@@ -4137,6 +4192,34 @@ export interface GuildAppConnectionSummary {
 }
 
 /**
+ * Allow a request, at ``access``: never more than the app asked for.
+ * Declining is withdrawing a request that was never granted.
+ */
+export interface GuildAppConsentAnswer {
+  access: ConsentAccess;
+}
+
+/**
+ * One request from this app to act as the viewer, and their answer.
+ *
+ * ``label`` is the app's own description of what it wants to do, shown as
+ * the app's words. ``purpose`` is the app's id for it; absent for app-wide
+ * consent.
+ */
+export interface GuildAppConsentRead {
+  id: number;
+  purpose: string | null;
+  label: string;
+  initiative_id: number | null;
+  requested_access: ConsentAccess;
+  granted_access: ConsentAccess | null;
+  status: ConsentStatus;
+  requested_at: string;
+  granted_at: string | null;
+  revoked_at: string | null;
+}
+
+/**
  * Authorize the app to act as you.
  *
  * ``can_read`` is not asked for: authorizing at all is what lets the app act,
@@ -4199,6 +4282,7 @@ export interface GuildAppDetail {
   updated_at: string;
   connections: GuildAppConnectionRead[];
   delegation: GuildAppDelegationRead | null;
+  consents: GuildAppConsentRead[];
   update_version: string | null;
   requested_scopes: string[];
   grantable_scopes: string[];
@@ -5945,6 +6029,7 @@ export const NotificationType = {
   message_request_received: "message_request_received",
   message_request_accepted: "message_request_accepted",
   direct_message: "direct_message",
+  app_consent_requested: "app_consent_requested",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -9524,6 +9609,7 @@ export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType =
 
 export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType = {
   client_credentials: "client_credentials",
+  "urn:ietf:params:oauth:grant-type:jwt-bearer": "urn:ietf:params:oauth:grant-type:jwt-bearer",
 } as const;
 
 export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType =
@@ -9536,12 +9622,13 @@ export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertio
 
 export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody = {
   grant_type: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType;
-  client_assertion_type: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType;
-  client_assertion: string;
+  client_assertion_type?: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType;
+  client_assertion?: string;
   client_id?: string;
   installation?: string;
   scope?: string;
   resource?: string;
+  assertion?: string;
 };
 
 export type ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams = {

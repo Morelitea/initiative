@@ -769,6 +769,15 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ("public",),
                 using=own_row("user_id"),
             ),
+            # A member token's standing reads that the member it acts for still
+            # belongs to the community it is routed into (its column grant is
+            # guild_id and user_id alone; migration 20260924_0385).
+            Policy(
+                "install_reads_its_member",
+                SELECT,
+                ("app_install_base",),
+                using=f"guild_id = {GID} AND {own_row('user_id')}",
+            ),
         ),
     ),
     "guild_provider_connections": TableRls(
@@ -1163,6 +1172,15 @@ PUBLIC_RLS: dict[str, TableRls] = {
             Policy("users_platform_read", SELECT, Capability.USERS_READ, using=OPEN),
             Policy("users_platform_self", ALL, ("platform_base",), using=own_row("id")),
             Policy("users_profile_read", SELECT, ("app_profile_reader",), using=OPEN),
+            # A member token's standing reads whether the account it acts for is
+            # active (its column grant is id and status alone; migration
+            # 20260924_0385).
+            Policy(
+                "install_reads_its_member",
+                SELECT,
+                ("app_install_base",),
+                using=own_row("id"),
+            ),
             Policy(
                 "users_request_insert_member_only",
                 INSERT,

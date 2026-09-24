@@ -49,6 +49,9 @@ class NotificationType(str, Enum):
     #: One rolled-up line per conversation with unread activity. It names the
     #: sender and counts the messages; it never carries one.
     direct_message = "direct_message"
+    #: An installed app asks to act as the recipient, for one purpose. Written
+    #: once per request; it links to where the recipient answers.
+    app_consent_requested = "app_consent_requested"
 
 
 class Notification(SQLModel, table=True):

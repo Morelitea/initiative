@@ -22,8 +22,11 @@ import type {
 
 import type {
   AppAccessTokenResponse,
+  AppConsentRequestCreate,
+  AppConsentRequestRead,
   AppInstallationRead,
   AppOAuthErrorResponse,
+  HTTPValidationError,
   IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody,
   ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200,
 } from "../initiativeAPI.schemas";
@@ -201,8 +204,9 @@ export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
 }
 
 /**
- * Issue an app token, or an installation token for one of the app's
- * installs. See the module docstring for the parameters.
+ * Issue an app token, an installation token for one of the app's
+ * installs, or a member token for a member who consented. See the module
+ * docstring for the parameters.
  * @summary Issue App Access Token
  */
 export const issueAppAccessTokenApiV1AppPlatformOauthTokenPost = (
@@ -215,14 +219,18 @@ export const issueAppAccessTokenApiV1AppPlatformOauthTokenPost = (
     `grant_type`,
     issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.grant_type
   );
-  formUrlEncoded.append(
-    `client_assertion_type`,
-    issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion_type
-  );
-  formUrlEncoded.append(
-    `client_assertion`,
-    issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion
-  );
+  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion_type !== undefined) {
+    formUrlEncoded.append(
+      `client_assertion_type`,
+      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion_type
+    );
+  }
+  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion !== undefined) {
+    formUrlEncoded.append(
+      `client_assertion`,
+      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion
+    );
+  }
   if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_id !== undefined) {
     formUrlEncoded.append(
       `client_id`,
@@ -242,6 +250,12 @@ export const issueAppAccessTokenApiV1AppPlatformOauthTokenPost = (
     formUrlEncoded.append(
       `resource`,
       issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.resource
+    );
+  }
+  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.assertion !== undefined) {
+    formUrlEncoded.append(
+      `assertion`,
+      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.assertion
     );
   }
 
@@ -480,3 +494,111 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+/**
+ * Ask a member to let this app act as them, for one purpose.
+ *
+ * Takes an installation token. ``200`` returns a request already made for
+ * that member and purpose, as it stands; ``201`` a new one, and the member is
+ * told. A token narrowed to one initiative asks only for a purpose bound to
+ * it, and a purpose is bound only to an initiative the install is placed in.
+ *
+ * Limited per install (30 a minute, repeats included) and per install and
+ * member (5 new requests an hour); past either the answer is 429.
+ * @summary Request Member Consent
+ */
+export const requestMemberConsentApiV1AppPlatformConsentRequestsPost = (
+  appConsentRequestCreate: BodyType<AppConsentRequestCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppConsentRequestRead>(
+    {
+      url: `/api/v1/app-platform/consent-requests`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: appConsentRequestCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationKey = () =>
+  ["requestMemberConsentApiV1AppPlatformConsentRequestsPost"] as const;
+
+export const getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+    TError,
+    RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+  TError,
+  RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+    RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestMemberConsentApiV1AppPlatformConsentRequestsPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>
+>;
+export type RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationBody =
+  BodyType<AppConsentRequestCreate>;
+export type RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables = {
+  data: BodyType<AppConsentRequestCreate>;
+};
+
+/**
+ * @summary Request Member Consent
+ */
+export const useRequestMemberConsentApiV1AppPlatformConsentRequestsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+      TError,
+      RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof requestMemberConsentApiV1AppPlatformConsentRequestsPost>>,
+  TError,
+  RequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRequestMemberConsentApiV1AppPlatformConsentRequestsPostMutationOptions(options),
+    queryClient
+  );
+};

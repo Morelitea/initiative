@@ -299,6 +299,7 @@
     "accountSuspendedWithReason": "Dein Konto wurde gesperrt: {{reason}}",
     "accountUnsuspended": "Dein Konto ist nicht mehr gesperrt.",
     "guildOnHold": "{{community}} ist pausiert. Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "appConsentRequested": "{{app}} möchte in deinem Namen handeln: „{{label}}“",
     "guildOnHoldWithContact": "{{community}} ist pausiert. Wende dich an {{contact}}, um das zu klären.",
     "defaultNotification": "Du hast eine neue Benachrichtigung.",
     "push": {

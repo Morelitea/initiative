@@ -7,7 +7,7 @@ import logging
 import time
 
 import anyio
-from limits import parse
+from limits import RateLimitItem, parse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
@@ -203,3 +203,26 @@ async def clear_sign_in_failures(address: str) -> None:
         "sign-in-address",
         _sign_in_address_key(address),
     )
+
+
+#: Requests to act as a member one install may send, answered or repeated, in
+#: one window. Counted by the install.
+CONSENT_REQUESTS_PER_INSTALL = parse("30/minute")
+#: New requests one install may make of one member in one window. A repeat of
+#: one already made notifies nobody and does not count.
+NEW_CONSENT_REQUESTS_PER_MEMBER = parse("5/hour")
+
+
+async def take_allowance(item: RateLimitItem, namespace: str, key: str) -> bool:
+    """Count one against ``key`` under ``item``; whether it was within the
+    allowance. Always ``True`` with the limiter switched off."""
+    if not limiter.enabled:
+        return True
+    return await anyio.to_thread.run_sync(limiter.limiter.hit, item, namespace, key)
+
+
+async def allowance_left(item: RateLimitItem, namespace: str, key: str) -> bool:
+    """Whether ``key`` has anything left under ``item``, counting nothing."""
+    if not limiter.enabled:
+        return True
+    return await anyio.to_thread.run_sync(limiter.limiter.test, item, namespace, key)

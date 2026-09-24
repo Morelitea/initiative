@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { AppSettingsDialog } from "@/components/apps/AppSettingsDialog";
 import { GuildBannerBadges } from "@/components/guildHome/GuildBannerBadges";
 import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState";
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
@@ -59,6 +60,7 @@ export function GuildHomePage() {
     sort?: string;
     dir?: string;
     state?: string;
+    app?: number;
   };
 
   const initiativesQuery = useInitiatives();
@@ -117,7 +119,14 @@ export function GuildHomePage() {
 
   const page = search.page ?? 1;
   const setSearch = useCallback(
-    (next: { page?: number; q?: string; sort?: string; dir?: string; state?: string }) => {
+    (next: {
+      page?: number;
+      q?: string;
+      sort?: string;
+      dir?: string;
+      state?: string;
+      app?: number;
+    }) => {
       void navigate({
         to: ".",
         search: { ...search, ...next },
@@ -332,6 +341,19 @@ export function GuildHomePage() {
             <GuildRecentComments />
           </>
         )}
+
+        {/* `?app=` opens one app's settings where the reader answers what it
+            asked to do as them — the link its notification carries. */}
+        {search.app ? (
+          <AppSettingsDialog
+            appId={search.app}
+            isGuildAdmin={isGuildAdmin}
+            open
+            onOpenChange={(next) => {
+              if (!next) setSearch({ app: undefined });
+            }}
+          />
+        ) : null}
 
         {canCreateInitiatives ? (
           <CreateInitiativeWizard

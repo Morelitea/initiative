@@ -147,6 +147,8 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
     # person decided about their own name, which is not a support grantee's to
     # write in either direction.
     "guild_app_user_delegations",
+    # A member's answer to an app asking to act as them, for the same reason.
+    "app_member_consents",
 )
 
 # Direct grants for the guild-scoped system operations that must not go through
@@ -498,11 +500,21 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
 
 #: What ``guild_<id>_app`` reads outside ``APP_TABLE_ACCESS``: table -> the
 #: columns, or ``()`` for the whole row. The install standing statement reads
-#: the install and where it is placed; the sharing gate reads the grant rows.
-#: No route addresses any of them for an app.
+#: the install and where it is placed, and for a member token the member's
+#: consent and what their initiative roles permit; the sharing gate reads the
+#: grant rows. No route addresses any of them for an app.
 APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
     "guild_apps": ("id", "listing_uid", "enabled", "granted_scopes"),
     "app_placements": ("install_id", "initiative_id"),
+    "app_member_consents": (
+        "install_id",
+        "user_id",
+        "purpose",
+        "initiative_id",
+        "granted_access",
+        "revoked_at",
+    ),
+    "initiative_role_permissions": ("initiative_role_id", "permission_key", "enabled"),
     "resource_grants": (),
 }
 
