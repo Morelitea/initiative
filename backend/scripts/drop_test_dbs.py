@@ -21,9 +21,9 @@ import hashlib
 import os
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 import asyncpg
+from sqlalchemy.engine import make_url
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -38,11 +38,11 @@ CHECKOUT_ID = hashlib.sha256(
 
 
 async def _connect() -> asyncpg.Connection:
-    url = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
+    url = make_url(settings.DATABASE_URL)
     return await asyncpg.connect(
         user=os.environ.get("POSTGRES_USER", "initiative"),
         password=os.environ.get("POSTGRES_PASSWORD", "initiative"),
-        host=url.hostname,
+        host=url.host,
         port=url.port or 5432,
         database="postgres",
     )

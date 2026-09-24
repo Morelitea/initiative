@@ -5,13 +5,13 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional, Sequence
-from urllib.parse import urlparse
 
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import event, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy.pool import NullPool
@@ -985,7 +985,7 @@ def _get_alembic_config() -> Config:
 
 
 def _database_name(url: str) -> str:
-    return urlparse(url.replace("+asyncpg", "")).path.lstrip("/") or "?"
+    return make_url(url).database or "?"
 
 
 def migration_chain() -> tuple[frozenset[str], str | None]:
