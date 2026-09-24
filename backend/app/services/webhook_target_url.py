@@ -6,9 +6,9 @@ constrain such URLs to public destinations and resolve them so the
 caller connects to exactly the address that was validated.
 
 Policy: only ``https`` is accepted, and the host must resolve to public
-unicast addresses (private, loopback, link-local, multicast, reserved
-and unspecified are rejected). When a name resolves to several
-addresses, all of them must pass. A local-dev setting
+unicast addresses (private, shared address space, loopback, link-local,
+multicast, reserved and unspecified are rejected). When a name resolves
+to several addresses, all of them must pass. A local-dev setting
 (``WEBHOOK_ALLOW_PRIVATE_TARGETS``) relaxes both for round-tripping with
 a locally run initiative-auto; address pinning still applies.
 
@@ -70,9 +70,12 @@ def _unwrap_mapped(ip: _IPAddress) -> _IPAddress:
 
 def _is_public_address(ip: _IPAddress) -> bool:
     """True only for public unicast addresses. Everything else (private,
-    loopback, link-local, multicast, reserved, unspecified) is refused."""
+    shared address space such as ``100.64.0.0/10``, loopback, link-local,
+    multicast, reserved, unspecified — anything the IANA special-purpose
+    registries do not mark globally reachable) is refused, and is reachable
+    only where private targets are allowed."""
     ip = _unwrap_mapped(ip)
-    return not (
+    return ip.is_global and not (
         ip.is_private
         or ip.is_loopback
         or ip.is_link_local

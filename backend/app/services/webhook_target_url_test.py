@@ -258,3 +258,50 @@ def test_dev_flag_allows_https_to_mixed(monkeypatch):
         "app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos
     ):
         assert_target_url_is_public("https://mixed.example.com/hook")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://100.64.1.1/hook",
+        "https://100.100.100.200/hook",
+        "https://100.127.255.254/hook",
+        "https://[::ffff:100.64.1.1]/hook",
+    ],
+)
+def test_rejects_shared_address_space(url: str):
+    """``100.64.0.0/10`` is refused by default like any private range, in
+    its IPv4-mapped IPv6 form as well."""
+    with pytest.raises(WebhookTargetUrlPrivateError):
+        assert_target_url_is_public(url)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "url",
+    ["https://100.64.1.1/hook", "http://100.64.1.1/hook"],
+)
+def test_dev_flag_allows_shared_address_space(monkeypatch, url: str):
+    """With private targets allowed, a ``100.64.0.0/10`` host is accepted
+    exactly as a ``10.0.0.0/8`` one is."""
+    _enable_dev_flag(monkeypatch)
+    assert_target_url_is_public(url)
+
+
+@pytest.mark.unit
+def test_per_call_allow_private_accepts_shared_address_space():
+    """The per-call allowance (an operator's own private host) covers
+    ``100.64.0.0/10`` as it covers ``10.0.0.0/8``."""
+    target = resolve_validated_target("http://100.64.1.1:11434", allow_private=True)
+    assert target.pinned_ip == "100.64.1.1"
+
+
+@pytest.mark.unit
+def test_rejects_when_a_name_resolves_to_shared_address_space():
+    fake_infos = [(2, 0, 0, "", ("100.100.100.200", 0))]
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos
+    ):
+        with pytest.raises(WebhookTargetUrlPrivateError):
+            assert_target_url_is_public("https://internal.example.com/")
