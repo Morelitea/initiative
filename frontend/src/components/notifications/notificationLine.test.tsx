@@ -147,3 +147,23 @@ describe("an app asking to act as the reader", () => {
     expect(notificationLink(request)).toBe("/c/4/?app=7");
   });
 });
+
+describe("an app version waiting for the seat", () => {
+  const waiting = notice("app_update_pending", {
+    guild_id: 4,
+    app_id: 7,
+    app_name: "Auto",
+    version: "1.2.0",
+    target_path: "/settings/integrations",
+  });
+
+  it("names the app and the version", () => {
+    expect(notificationText(waiting, t)).toBe(
+      `notifications.appUpdatePending(${JSON.stringify({ app: "Auto", version: "1.2.0" })})`
+    );
+  });
+
+  it("opens the community's integrations settings", () => {
+    expect(notificationLink(waiting)).toBe("/c/4/settings/integrations");
+  });
+});

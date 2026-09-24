@@ -30,6 +30,7 @@ import type {
   GuildAppConnectStart,
   GuildAppConsentAnswer,
   GuildAppConsentRead,
+  GuildAppDecline,
   GuildAppDelegationGrant,
   GuildAppDelegationRead,
   GuildAppDetail,
@@ -40,6 +41,7 @@ import type {
   GuildAppRead,
   GuildAppScopesUpdate,
   GuildAppUpdate,
+  GuildAppUpgrade,
   HTTPValidationError,
   ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
   ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
@@ -893,6 +895,12 @@ export function useListGuildAppsApiV1CGuildIdAppsGet<
  * Nothing about connections gates this. An app whose credentials are all
  * supplied per member installs with none present, and members connect their
  * own accounts afterwards if they want what those unlock.
+ *
+ * The install dialog is the seat's consent, and it lands with the install in
+ * one transaction: the scopes granted (checked as ``PUT …/scopes`` checks
+ * them), the initiatives the app is placed in (``"all"`` is every initiative
+ * that exists now), and the built-in roles that open it in each. Anything
+ * refused is refused before the install exists.
  * @summary Install Guild App
  */
 export const installGuildAppApiV1CGuildIdAppsPost = (
@@ -1390,16 +1398,29 @@ export const useUninstallGuildAppApiV1CGuildIdAppsAppIdDelete = <
  * declaring — a value cannot outlive the field it was typed into. Per-member
  * connections the new version dropped go the same way, and are revoked rather
  * than orphaned.
+ *
+ * A version that asks for more than the install holds (a new scope, or a
+ * new surface inside initiatives) is applied only with the seat's consent:
+ * ``payload`` names the version the seat was shown and the scopes it grants
+ * with it. Without it the answer is 409, carrying what the version asks
+ * for; so is a consent naming a version the catalog no longer offers.
  * @summary Upgrade Guild App
  */
 export const upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = (
   guildId: number,
   appId: number,
+  guildAppUpgradeNull?: BodyType<GuildAppUpgrade | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GuildAppDetail>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/upgrade`, method: "POST", signal },
+    {
+      url: `/api/v1/c/${guildId}/apps/${appId}/upgrade`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: guildAppUpgradeNull,
+      signal,
+    },
     options
   );
 };
@@ -1435,9 +1456,9 @@ export const getUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationOptions 
     Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>,
     UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables
   > = (props) => {
-    const { guildId, appId } = props ?? {};
+    const { guildId, appId, data } = props ?? {};
 
-    return upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost(guildId, appId, requestOptions);
+    return upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost(guildId, appId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1446,12 +1467,15 @@ export const getUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationOptions 
 export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationResult = NonNullable<
   Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>
 >;
-
+export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationBody =
+  | BodyType<GuildAppUpgrade | null>
+  | undefined;
 export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationError =
   ErrorType<HTTPValidationError>;
 export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables = {
   guildId: number;
   appId: number;
+  data?: BodyType<GuildAppUpgrade | null>;
 };
 
 /**
@@ -1479,6 +1503,120 @@ export const useUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = <
 > => {
   return useMutation(
     getUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Keep the pinned version, and stop being asked about this one.
+ *
+ * The install goes on running the version it has, with the grant it has.
+ * The sweep does not ask about the declined version again; a newer one is
+ * asked about afresh. Accepting it later is still the Update button.
+ * @summary Decline Guild App Upgrade
+ */
+export const declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost = (
+  guildId: number,
+  appId: number,
+  guildAppDecline: BodyType<GuildAppDecline>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppDetail>(
+    {
+      url: `/api/v1/c/${guildId}/apps/${appId}/upgrade/decline`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: guildAppDecline,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationKey = () =>
+  ["declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost"] as const;
+
+export const getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+    TError,
+    DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+  TError,
+  DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+    DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables
+  > = (props) => {
+    const { guildId, appId, data } = props ?? {};
+
+    return declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost(
+      guildId,
+      appId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>
+  >;
+export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationBody =
+  BodyType<GuildAppDecline>;
+export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables = {
+  guildId: number;
+  appId: number;
+  data: BodyType<GuildAppDecline>;
+};
+
+/**
+ * @summary Decline Guild App Upgrade
+ */
+export const useDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+      TError,
+      DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>,
+  TError,
+  DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationOptions(options),
     queryClient
   );
 };

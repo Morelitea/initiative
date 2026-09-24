@@ -28,8 +28,11 @@ vi.mock("@/hooks/useGuildApps", () => ({
   }),
 }));
 
+const declined = vi.fn();
+
 vi.mock("@/hooks/useGuildAppDetail", () => ({
   useUpgradeApp: () => ({ isPending: false, mutate: upgraded }),
+  useDeclineAppUpgrade: () => ({ isPending: false, mutate: declined }),
 }));
 
 const app = (overrides: Partial<GuildAppDetail>) =>
@@ -44,6 +47,7 @@ const app = (overrides: Partial<GuildAppDetail>) =>
 beforeEach(() => {
   patched.length = 0;
   upgraded.mockClear();
+  declined.mockClear();
 });
 
 describe("AppUpdatesPanel", () => {
@@ -80,5 +84,74 @@ describe("AppUpdatesPanel", () => {
 
     expect(await screen.findByText("Up to date")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
+  });
+
+  it("says what a version asking for more wants, and accepts it with its scopes", async () => {
+    renderPage(() => (
+      <AppUpdatesPanel
+        app={app({
+          update_version: "1.2.0",
+          pending_update: {
+            version: "1.2.0",
+            added_scopes: ["documents:write"],
+            added_surfaces: [{ id: "planner", name: { en: "Planner" } }],
+            declined: false,
+          },
+        })}
+      />
+    ));
+
+    expect(await screen.findByText("Version 1.2.0 wants to:")).toBeInTheDocument();
+    expect(screen.getByText("Read and change documents")).toBeInTheDocument();
+    expect(screen.getByText("Show “Planner” inside initiatives")).toBeInTheDocument();
+    // The plain Update button is not offered beside the question.
+    expect(screen.queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
+
+    screen.getByRole("button", { name: "Accept and update" }).click();
+    expect(upgraded).toHaveBeenCalledWith(
+      { version: "1.2.0", add_scopes: ["documents:write"] },
+      expect.anything()
+    );
+  });
+
+  it("declines the version it was shown", async () => {
+    renderPage(() => (
+      <AppUpdatesPanel
+        app={app({
+          update_version: "1.2.0",
+          pending_update: {
+            version: "1.2.0",
+            added_scopes: ["documents:read"],
+            added_surfaces: [],
+            declined: false,
+          },
+        })}
+      />
+    ));
+
+    (await screen.findByRole("button", { name: "Decline" })).click();
+    expect(declined).toHaveBeenCalledWith("1.2.0", expect.anything());
+  });
+
+  it("says a declined version was declined, and offers only to accept it", async () => {
+    renderPage(() => (
+      <AppUpdatesPanel
+        app={app({
+          update_version: "1.2.0",
+          pending_update: {
+            version: "1.2.0",
+            added_scopes: ["documents:read"],
+            added_surfaces: [],
+            declined: true,
+          },
+        })}
+      />
+    ));
+
+    expect(
+      await screen.findByText("You declined version 1.2.0. The app stays on its current version.")
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Decline" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept and update" })).toBeInTheDocument();
   });
 });

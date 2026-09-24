@@ -368,8 +368,33 @@ def _requested_scopes(value: str | None) -> frozenset[str] | None:
         raise OAuthError("invalid_scope", f"{exc.scope!r} is not a scope") from exc
 
 
+#: The scopes the install's pinned manifest requests, as ``text[]``. A grant
+#: is issued only where the pinned version still asks for it, so a scope a
+#: later version stops requesting stops being issued with it, while the seat's
+#: grant itself is left as the seat set it.
+_REQUESTED_SQL = (
+    "ARRAY(SELECT s #>> '{}' FROM jsonb_path_query(a.definition, "
+    "'$.service.scopes[*] ? (@.type() == \"string\")') AS s) AS requested_scopes"
+)
+
+
+def _issuable(row: Any) -> frozenset[str]:
+    """What an install's grant issues now: the seat's grant, within what the
+    pinned manifest requests and what the vocabulary still defines.
+
+    A scope the vocabulary no longer defines is left out rather than sealed:
+    the token could never be used with it.
+    """
+    return (
+        frozenset(row.granted_scopes or ())
+        & frozenset(row.requested_scopes or ())
+        & frozenset(ALL_SCOPES)
+    )
+
+
 _INSTALL_SQL = text(
     "SELECT a.listing_uid, a.enabled, a.granted_scopes, "
+    f"{_REQUESTED_SQL}, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
     "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed "
     "FROM guild_apps a WHERE a.id = :install_id"
@@ -410,9 +435,7 @@ async def _installation_token(
     ):
         raise OAuthError("invalid_grant", "unknown installation")
 
-    # A scope the vocabulary no longer defines is left out rather than sealed:
-    # the token could never be used with it.
-    granted = frozenset(row.granted_scopes or ()) & frozenset(ALL_SCOPES)
+    granted = _issuable(row)
     requested = _requested_scopes(scope)
     if requested is not None and not _covered(requested, granted):
         raise OAuthError("invalid_scope", "a requested scope has not been granted")
@@ -445,6 +468,7 @@ async def _installation_token(
 #: engine routed into the community.
 _MEMBER_INSTALL_SQL = text(
     "SELECT a.listing_uid, a.enabled, a.granted_scopes, "
+    f"{_REQUESTED_SQL}, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
     "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed, "
     "ARRAY(SELECT im.initiative_id FROM initiative_members im "
@@ -546,7 +570,7 @@ async def _member_token(
     if belongs is None or row.granted_access is None:
         raise _consent_required("the member has not consented to this")
 
-    granted = frozenset(row.granted_scopes or ()) & frozenset(ALL_SCOPES)
+    granted = _issuable(row)
     requested = _requested_scopes(scope)
     if requested is not None and not _covered(requested, granted):
         raise OAuthError("invalid_scope", "a requested scope has not been granted")
@@ -662,6 +686,7 @@ class InstallationListing:
 
 _INSTALLS_SQL = text(
     "SELECT a.id, a.granted_scopes, "
+    f"{_REQUESTED_SQL}, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
     "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed "
     "FROM guild_apps a WHERE a.listing_uid = :listing_uid AND a.enabled "
@@ -690,7 +715,6 @@ async def list_installations(
         )
     ).all()
 
-    vocabulary = frozenset(ALL_SCOPES)
     found: list[tuple[int, int, list[str], list[int]]] = []
     for guild_id in guild_ids:
         try:
@@ -712,7 +736,7 @@ async def list_installations(
                 (
                     int(guild_id),
                     int(row.id),
-                    sorted(set(row.granted_scopes or ()) & vocabulary),
+                    sorted(_issuable(row)),
                     [int(i) for i in (row.placed or ())],
                 )
             )

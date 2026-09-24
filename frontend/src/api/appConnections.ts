@@ -15,7 +15,12 @@
  */
 
 import { apiClient } from "@/api/client";
-import type { ConsentAccess, GuildAppConsentRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ConsentAccess,
+  GuildAppConsentRead,
+  GuildAppUpgrade,
+  GuildAppUpgradeAsks,
+} from "@/api/generated/initiativeAPI.schemas";
 
 /** A localized label, as the manifest supplies it. */
 export type LocalizedText = Record<string, string>;
@@ -120,6 +125,10 @@ export interface GuildAppDetail {
   /** The version an update would move this install to. Absent when there is
    *  none — already newest, or nothing published this build can run. */
   update_version?: string | null;
+  /** What `update_version` asks for beyond what the install holds, when it asks
+   *  for anything: new scopes, new surfaces inside initiatives, and whether the
+   *  seat declined it. Absent for a version that asks nothing new. */
+  pending_update?: GuildAppUpgradeAsks | null;
 }
 
 export interface AppConnectStart {
@@ -203,8 +212,16 @@ export const updateGuildAppConfig = (
 ) =>
   apiClient.put<GuildAppDetail>(`${base(guildId, appId)}/config`, { values }).then((r) => r.data);
 
-export const upgradeGuildApp = (guildId: number, appId: number) =>
-  apiClient.post<GuildAppDetail>(`${base(guildId, appId)}/upgrade`).then((r) => r.data);
+/** Move to the offered version. `consent` is required when it asks for more:
+ *  the version the seat was shown and the scopes it grants with it. */
+export const upgradeGuildApp = (guildId: number, appId: number, consent?: GuildAppUpgrade) =>
+  apiClient.post<GuildAppDetail>(`${base(guildId, appId)}/upgrade`, consent).then((r) => r.data);
+
+/** Keep the pinned version and stop being asked about `version`. */
+export const declineGuildAppUpgrade = (guildId: number, appId: number, version: string) =>
+  apiClient
+    .post<GuildAppDetail>(`${base(guildId, appId)}/upgrade/decline`, { version })
+    .then((r) => r.data);
 
 export const connectGuildApp = (guildId: number, appId: number, connectionId: string) =>
   apiClient

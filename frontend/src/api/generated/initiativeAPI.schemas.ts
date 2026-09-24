@@ -927,6 +927,16 @@ export interface AppSurfaceAccessRead {
   openable_initiatives: number[];
 }
 
+export type AppSurfaceSummaryName = { [key: string]: string };
+
+/**
+ * One of an app's embedded surfaces, by id and by its localized name.
+ */
+export interface AppSurfaceSummary {
+  id: string;
+  name: AppSurfaceSummaryName;
+}
+
 export type AppWidgetReadMeta = { [key: string]: unknown };
 
 export type AppWidgetReadSampleData = { [key: string]: unknown };
@@ -4288,6 +4298,14 @@ export interface GuildAppConsentRead {
 }
 
 /**
+ * Keep the pinned version, and stop being asked about this one.
+ */
+export interface GuildAppDecline {
+  /** @maxLength 32 */
+  version: string;
+}
+
+/**
  * Authorize the app to act as you.
  *
  * ``can_read`` is not asked for: authorizing at all is what lets the app act,
@@ -4315,6 +4333,21 @@ export interface GuildAppDelegationRead {
 }
 
 export type GuildAppDetailDefinition = { [key: string]: unknown };
+
+/**
+ * A version that asks for more than the install holds.
+ *
+ * ``added_scopes`` are grantable scopes neither the grant nor the pinned
+ * version names; ``added_surfaces`` are surfaces inside initiatives the
+ * pinned version does not have. ``declined`` says the seat declined this
+ * version: the install stays where it is and the sweep does not ask again.
+ */
+export interface GuildAppUpgradeAsks {
+  version: string;
+  added_scopes: string[];
+  added_surfaces: AppSurfaceSummary[];
+  declined: boolean;
+}
 
 /**
  * An install plus its connections, for the settings page.
@@ -4354,6 +4387,7 @@ export interface GuildAppDetail {
   update_version: string | null;
   requested_scopes: string[];
   grantable_scopes: string[];
+  pending_update: GuildAppUpgradeAsks | null;
 }
 
 /**
@@ -4373,15 +4407,22 @@ export interface GuildAppHandoff {
 }
 
 /**
- * Install a listing into this guild.
+ * Install a listing into this guild, with the seat's consent.
  *
- * Names a listing and nothing else that matters: the definition comes from the
- * catalog, and the content the install creates is made server-side.
+ * The definition comes from the catalog, and the content the install creates
+ * is made server-side. What the request adds is the seat's answer to the
+ * install dialog: what the app may reach, where it appears, and who opens it
+ * there. The install, its grant and its placements are one transaction.
  */
 export interface GuildAppInstall {
   /** @maxLength 14 */
   listing_uid: string;
   name?: string | null;
+  /** @maxItems 64 */
+  granted_scopes?: string[];
+  placements?: "all" | number[];
+  /** @maxItems 10 */
+  role_kinds?: string[];
 }
 
 export type GuildAppReadDefinition = { [key: string]: unknown };
@@ -4472,6 +4513,21 @@ export interface GuildAppUpdate {
   enabled?: boolean | null;
   auto_update?: boolean | null;
   placed_initiative_ids?: number[] | null;
+}
+
+/**
+ * The seat's consent to a version that asks for more.
+ *
+ * ``version`` is the version the seat was shown; if the catalog offers a
+ * different one now, nothing is applied. ``add_scopes`` are the scopes the
+ * seat grants with it, each requested by that version and within the
+ * ceiling. Consenting to a version's new surfaces alone sends none.
+ */
+export interface GuildAppUpgrade {
+  /** @maxLength 32 */
+  version: string;
+  /** @maxItems 64 */
+  add_scopes?: string[];
 }
 
 export type GuildAuthOption = (typeof GuildAuthOption)[keyof typeof GuildAuthOption];
@@ -5742,6 +5798,9 @@ export interface MarketplaceListingDetail {
   long_description: string | null;
   definition: MarketplaceListingDetailDefinition;
   example: MarketplaceListingDetailExample;
+  requested_scopes: string[];
+  grantable_scopes: string[];
+  has_initiative_surfaces: boolean;
 }
 
 /**
@@ -6098,6 +6157,7 @@ export const NotificationType = {
   message_request_accepted: "message_request_accepted",
   direct_message: "direct_message",
   app_consent_requested: "app_consent_requested",
+  app_update_pending: "app_update_pending",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };

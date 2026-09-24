@@ -71,6 +71,7 @@ from app.services.marketplace.listing_assets import (
     UploadedImageError,
     store_uploaded_image,
 )
+from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.marketplace.publish_profile import export_for_listing
 from app.services.marketplace.tool_listings import (
@@ -149,8 +150,25 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
             detail=MarketplaceMessages.LISTING_NOT_FOUND,
         )
     summary = serialize_listing_summary(listing, latest)
+    definition = dict(latest.definition) if latest else {}
+    # What the install dialog asks the seat about, from the version it would
+    # install and the registration's ceiling. Empty for anything not an app.
+    requested: list[str] = []
+    grantable: list[str] = []
+    if listing.kind == "app":
+        requested = guild_apps_service.requested_scopes(definition)
+        registration = await registration_lookup.registration_for_definition(definition)
+        grantable = guild_apps_service.grantable_scopes(
+            definition, registration.scope_ceiling if registration else ()
+        )
     return MarketplaceListingDetail(
         **summary.model_dump(),
+        requested_scopes=requested,
+        grantable_scopes=grantable,
+        has_initiative_surfaces=(
+            listing.kind == "app"
+            and guild_apps_service.has_initiative_surfaces(definition)
+        ),
         long_description=listing.long_description,
         # A preview of what installing would produce. The install path re-reads
         # the catalog itself, so this is display data, not an input.

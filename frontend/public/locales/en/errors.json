@@ -409,6 +409,8 @@
   "GUILD_APP_PLACEMENT_ROLE_INVALID": "Choose roles from this initiative.",
   "GUILD_APP_SCOPE_NOT_REQUESTED": "This app doesn't ask for that access.",
   "GUILD_APP_SCOPE_ABOVE_CEILING": "This server doesn't allow this app that access.",
+  "GUILD_APP_UPGRADE_NEEDS_CONSENT": "This version asks for more access. Review what it asks for before updating.",
+  "GUILD_APP_UPGRADE_VERSION_MOVED": "A different version is now available. Review it and try again.",
   "GUILD_APP_LISTING_NOT_AN_APP": "That listing can't be installed as an app.",
   "GUILD_APP_ALREADY_INSTALLED": "This community already has that app installed.",
   "GUILD_APP_KIND_NOT_INSTALLABLE": "This kind of app can't be installed on this version of Initiative yet.",

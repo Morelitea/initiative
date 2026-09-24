@@ -18,14 +18,14 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useSetAppScopes } from "@/hooks/useGuildApps";
+import { type ScopeAccess, scopeResourceLabel, toggleScope } from "@/lib/appScopes";
 import { toast } from "@/lib/chesterToast";
-import { TOOLS, toolCamelPlural, toolPlural } from "@/lib/tools";
 
 export interface AppScopesPanelProps {
   app: GuildAppDetail;
 }
 
-type Access = "read" | "write";
+type Access = ScopeAccess;
 
 /** One resource the app asks for, and which of its accesses. */
 interface ResourceRow {
@@ -63,29 +63,10 @@ export function AppScopesPanel({ app }: AppScopesPanelProps) {
     granted.filter((scope) => grantable.has(scope))
   );
 
-  const resourceLabel = (resource: string): string => {
-    const tool = TOOLS.find((one) => toolPlural(one) === resource);
-    return tool
-      ? t(`nav:${toolCamelPlural(tool)}` as never)
-      : t(`apps:scopes.resources.${resource}` as never);
-  };
+  const resourceLabel = (resource: string): string => scopeResourceLabel(resource, t);
 
-  const toggle = (resource: string, access: Access, on: boolean) => {
-    const read = scopeOf(resource, "read");
-    const write = scopeOf(resource, "write");
-    let next = chosen.filter((scope) => scope !== scopeOf(resource, access));
-    if (on) {
-      next.push(scopeOf(resource, access));
-      // Changing implies reading: tick the read too when it can be granted.
-      if (access === "write" && requested.includes(read) && grantable.has(read)) {
-        next.push(read);
-      }
-    } else if (access === "read") {
-      // Without the read the change goes too.
-      next = next.filter((scope) => scope !== write);
-    }
-    setChosen([...new Set(next)]);
-  };
+  const toggle = (resource: string, access: Access, on: boolean) =>
+    setChosen(toggleScope(chosen, scopeOf(resource, access), on, grantable));
 
   const save = () =>
     setScopes.mutate(chosen, {

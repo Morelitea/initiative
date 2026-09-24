@@ -149,13 +149,30 @@ class GuildApp(CreatedByMixin, table=True):
     )
 
     # The scopes the community's seat consented to for this install, from
-    # ``app.core.app_scopes``. Always a subset of the scopes the pinned manifest
-    # requests and of the registration's ``scope_ceiling``, which is checked
-    # when the set is written. Nothing is granted by default: a new install
-    # holds none until the seat grants them.
+    # ``app.core.app_scopes``. A subset of the scopes the manifest requested
+    # and of the registration's ``scope_ceiling`` when it is written, at
+    # install or afterwards. An upgrade does not rewrite it: what a token
+    # carries is this set intersected with what the pinned manifest requests
+    # now, so a scope a later version stops asking for stops working with it.
     granted_scopes: list[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
+    )
+
+    # A newer version of the listing that asks for more than this install
+    # holds: a scope it has not been granted, or a surface inside initiatives
+    # the pinned version does not have. The auto-update sweep records it here
+    # rather than applying it, and tells the seat once; the install keeps
+    # running its pinned version until the seat accepts. Cleared when a
+    # version is applied or the seat declines this one.
+    pending_version: Optional[str] = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
+    )
+    # The version the seat declined. The sweep does not ask about it again;
+    # a newer version is asked about afresh. Cleared when a version is
+    # applied.
+    declined_version: Optional[str] = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
     )
 
     created_by: int = Field(foreign_key="users.id", nullable=False)

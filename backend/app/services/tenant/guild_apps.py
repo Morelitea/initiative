@@ -53,7 +53,11 @@ from app.core.audit_events import AuditEventType
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.initiative import Initiative, InitiativeRoleModel
+from app.models.tenant.initiative import (
+    BUILTIN_ROLES,
+    Initiative,
+    InitiativeRoleModel,
+)
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import audit as audit_service
 from app.services.marketplace.service_apps import is_admin_only
@@ -61,6 +65,7 @@ from app.services.tenant.soft_delete import soft_delete_entity
 
 __all__ = [
     "ARTIFACT_HANDLERS",
+    "BUILTIN_ROLE_NAMES",
     "ArtifactHandler",
     "PlacementError",
     "PlacementRoleError",
@@ -70,12 +75,15 @@ __all__ = [
     "declared_surfaces",
     "create_app_artifacts",
     "find_mounting_app",
+    "has_initiative_surfaces",
+    "initiative_surface_ids",
     "get_app_content_id",
     "install_app",
     "is_placed",
     "legacy_artifacts",
     "lock_install",
     "place_in_every_initiative",
+    "place_with_roles",
     "placed_initiative_ids",
     "placement_role_ids",
     "placements_by_install",
@@ -356,6 +364,7 @@ async def install_app(
     name: str,
     actor_user_id: Optional[int] = None,
     via: str = "install",
+    granted_scopes: Sequence[str] = (),
 ) -> GuildApp:
     """Create the install row, and whatever the app mounts alongside it.
 
@@ -368,6 +377,10 @@ async def install_app(
     ``actor_user_id`` is the account the caller's session runs as — an admin
     choosing the app, or ``None`` for a sweep running as nobody. ``via`` says
     which of the two routes this install came down, and rides the record.
+
+    ``granted_scopes`` is what the seat consented to in the install dialog,
+    already checked against the manifest and the ceiling by the caller. It is
+    written with the row, so the install never exists without its consent.
     """
     artifacts = await create_app_artifacts(
         session,
@@ -385,6 +398,7 @@ async def install_app(
         config={},
         config_secrets={},
         artifacts=artifacts,
+        granted_scopes=sorted(set(granted_scopes)),
         created_by=created_by,
     )
     session.add(app)
@@ -402,6 +416,7 @@ async def install_app(
             "listing_uid": listing_uid,
             "version": listing_version,
             "via": via,
+            "granted_scopes": sorted(set(granted_scopes)),
         },
     )
     return app
@@ -452,32 +467,48 @@ class PlacementRoleError(PlacementError):
     """A placement naming a role that is not one of its initiative's."""
 
 
-async def _moderator_role_ids(
-    session: AsyncSession, initiative_ids: Iterable[int]
-) -> dict[int, int]:
-    """Each initiative's built-in moderator role, keyed by initiative."""
+#: The built-in initiative roles, by name. Every initiative is created with
+#: each of them, so a name here resolves to one role in any initiative.
+BUILTIN_ROLE_NAMES: tuple[str, ...] = tuple(spec.name for spec in BUILTIN_ROLES)
+
+
+async def _builtin_role_ids(
+    session: AsyncSession, initiative_ids: Iterable[int], names: Iterable[str]
+) -> dict[int, list[int]]:
+    """Each initiative's built-in roles of those names, keyed by initiative.
+
+    One query for every initiative. An initiative missing one of the roles
+    (renamed or deleted) is placed with the ones it has.
+    """
     ids = list(initiative_ids)
-    if not ids:
+    wanted = sorted(set(names))
+    if not ids or not wanted:
         return {}
     rows = await session.exec(
         select(InitiativeRoleModel.initiative_id, InitiativeRoleModel.id)
         .where(
             InitiativeRoleModel.initiative_id.in_(ids),
-            InitiativeRoleModel.name == "moderator",
+            InitiativeRoleModel.name.in_(wanted),
             InitiativeRoleModel.is_builtin.is_(True),
         )
         .order_by(InitiativeRoleModel.id)
     )
-    roles: dict[int, int] = {}
+    roles: dict[int, list[int]] = {}
     for initiative_id, role_id in rows.all():
-        roles.setdefault(initiative_id, role_id)
+        roles.setdefault(initiative_id, []).append(role_id)
     return roles
 
 
-def _default_role_ids(roles: dict[int, int], initiative_id: int) -> list[int]:
+async def _moderator_role_ids(
+    session: AsyncSession, initiative_ids: Iterable[int]
+) -> dict[int, list[int]]:
+    """Each initiative's built-in moderator role, keyed by initiative."""
+    return await _builtin_role_ids(session, initiative_ids, ("moderator",))
+
+
+def _default_role_ids(roles: dict[int, list[int]], initiative_id: int) -> list[int]:
     """The role set a new placement starts with: the initiative's moderators."""
-    role_id = roles.get(initiative_id)
-    return [role_id] if role_id is not None else []
+    return sorted(roles.get(initiative_id, []))
 
 
 async def placements_by_install(
@@ -682,6 +713,52 @@ async def place_in_every_initiative(session: AsyncSession, app: GuildApp) -> Non
     await session.flush()
 
 
+async def place_with_roles(
+    session: AsyncSession,
+    app: GuildApp,
+    initiative_ids: Optional[Iterable[int]],
+    role_names: Iterable[str],
+) -> list[int]:
+    """Place a new install in these initiatives, each with these built-in roles.
+
+    What the install dialog does. ``None`` is every initiative that exists now,
+    the same set "every current initiative" places from the placement panel;
+    an initiative created afterwards is placed only if the seat places it.
+    Each name must be a built-in role, resolved to that initiative's own role
+    of the name. Anything else raises :class:`PlacementError`, before anything
+    is written. Answers the initiatives placed, sorted.
+    """
+    names = list(role_names)
+    for name in names:
+        if name not in BUILTIN_ROLE_NAMES:
+            raise PlacementRoleError(f"{name!r} is not a built-in role")
+    known = set((await session.exec(select(Initiative.id))).all())
+    if initiative_ids is None:
+        chosen = known
+    else:
+        chosen = set()
+        for entry in initiative_ids:
+            if isinstance(entry, bool) or not isinstance(entry, int):
+                raise PlacementError("placement must be a list of initiative ids")
+            chosen.add(entry)
+        unknown = sorted(chosen - known)
+        if unknown:
+            raise PlacementError(f"initiative {unknown[0]} is not one of this guild's")
+
+    placed = sorted(chosen)
+    roles = await _builtin_role_ids(session, placed, names)
+    for initiative_id in placed:
+        session.add(
+            AppPlacement(
+                install_id=app.id,
+                initiative_id=initiative_id,
+                role_ids=sorted(roles.get(initiative_id, [])),
+            )
+        )
+    await session.flush()
+    return placed
+
+
 # --- opening a surface ------------------------------------------------------
 #
 # One decision, read by both the handoff mint and the app read that tells the
@@ -731,6 +808,20 @@ def declared_surfaces(definition: Any) -> list[dict[str, Any]]:
         for embed in embeds
         if isinstance(embed, dict) and isinstance(embed.get("id"), str)
     ]
+
+
+def initiative_surface_ids(definition: Any) -> set[str]:
+    """The ids of the surfaces a pinned definition renders inside initiatives."""
+    return {
+        embed["id"]
+        for embed in declared_surfaces(definition)
+        if surface_renders_in(embed, "initiative")
+    }
+
+
+def has_initiative_surfaces(definition: Any) -> bool:
+    """Whether the app has anything to place in an initiative."""
+    return bool(initiative_surface_ids(definition))
 
 
 def surface_renders_in(embed: dict[str, Any], scope: str) -> bool:

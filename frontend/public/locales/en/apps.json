@@ -32,6 +32,15 @@
     "upToDate": "Up to date",
     "upgraded": "Updated to {{version}}."
   },
+  "updates": {
+    "wants": "Version {{version}} wants to:",
+    "newSurface": "Show “{{name}}” inside initiatives",
+    "accept": "Accept and update",
+    "decline": "Decline",
+    "declined": "You declined version {{version}}. The app stays on its current version.",
+    "declinedDone": "Version {{version}} declined.",
+    "moved": "A different version is now available. Review what it asks for."
+  },
   "install": {
     "title": "Add {{name}}",
     "description": "This adds something for the whole community. You can rename it now or later.",
@@ -39,7 +48,17 @@
     "action": "Add to community",
     "done": "{{name}} added.",
     "adminOnly": "Ask a community admin to add this app.",
-    "unknownState": "Could not check whether this app is already added."
+    "unknownState": "Could not check whether this app is already added.",
+    "reachTitle": "What it can reach",
+    "reachNone": "This app asks for no access to your community's content.",
+    "whereTitle": "Where it appears",
+    "whereDescription": "This app offers a page inside initiatives.",
+    "whoTitle": "Who can open it there",
+    "roles": {
+      "moderator": "Moderators",
+      "project_manager": "Project managers",
+      "member": "Members"
+    }
   },
   "connections": {
     "none": "This app asks for nothing to be set up.",
@@ -221,6 +240,70 @@
       "sharing": "Sharing",
       "members": "Members",
       "initiatives": "Initiatives"
+    },
+    "sentences": {
+      "projects": {
+        "read": "Read projects",
+        "write": "Read and change projects"
+      },
+      "documents": {
+        "read": "Read documents",
+        "write": "Read and change documents"
+      },
+      "queues": {
+        "read": "Read queues",
+        "write": "Read and change queues"
+      },
+      "counter_groups": {
+        "read": "Read counters",
+        "write": "Read and change counters"
+      },
+      "calendars": {
+        "read": "Read calendars",
+        "write": "Read and change calendars"
+      },
+      "dashboards": {
+        "read": "Read dashboards",
+        "write": "Read and change dashboards"
+      },
+      "posts": {
+        "read": "Read posts",
+        "write": "Read and change posts"
+      },
+      "galleries": {
+        "read": "Read galleries",
+        "write": "Read and change galleries"
+      },
+      "wikis": {
+        "read": "Read wikis",
+        "write": "Read and change wikis"
+      },
+      "comments": {
+        "read": "Read comments",
+        "write": "Read and write comments"
+      },
+      "relationships": {
+        "read": "Read links between items",
+        "write": "Read and change links between items"
+      },
+      "tags": {
+        "read": "Read tags",
+        "write": "Read and change tags"
+      },
+      "sharing": {
+        "read": "See who has access to what",
+        "write": "See and change who has access to what"
+      },
+      "members": {
+        "read": "See who is in your community"
+      },
+      "initiatives": {
+        "read": "See your community's initiatives"
+      },
+      "fallback": {
+        "read": "Read {{resource}}",
+        "write": "Read and change {{resource}}"
+      }
     }
   }
 }

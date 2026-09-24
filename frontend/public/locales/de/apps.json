@@ -32,6 +32,15 @@
     "upToDate": "Aktuell",
     "upgraded": "Auf {{version}} aktualisiert."
   },
+  "updates": {
+    "wants": "Version {{version}} möchte:",
+    "newSurface": "„{{name}}“ in Initiativen anzeigen",
+    "accept": "Zustimmen und aktualisieren",
+    "decline": "Ablehnen",
+    "declined": "Du hast Version {{version}} abgelehnt. Die App bleibt auf ihrer aktuellen Version.",
+    "declinedDone": "Version {{version}} abgelehnt.",
+    "moved": "Inzwischen gibt es eine andere Version. Prüfe, was sie möchte."
+  },
   "install": {
     "title": "{{name}} hinzufügen",
     "description": "Das ergänzt etwas für die ganze Community. Umbenennen kannst du es jetzt oder später.",
@@ -39,7 +48,17 @@
     "action": "Zur Community hinzufügen",
     "done": "{{name}} hinzugefügt.",
     "adminOnly": "Bitte eine Community-Administratorin oder einen Community-Administrator, diese App hinzuzufügen.",
-    "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde."
+    "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde.",
+    "reachTitle": "Worauf sie zugreifen kann",
+    "reachNone": "Diese App fragt nach keinem Zugriff auf die Inhalte deiner Community.",
+    "whereTitle": "Wo sie erscheint",
+    "whereDescription": "Diese App bietet eine Seite innerhalb von Initiativen.",
+    "whoTitle": "Wer sie dort öffnen kann",
+    "roles": {
+      "moderator": "Moderation",
+      "project_manager": "Projektleitung",
+      "member": "Mitglieder"
+    }
   },
   "connections": {
     "none": "Diese App verlangt keine Einrichtung.",
@@ -221,6 +240,70 @@
       "sharing": "Freigaben",
       "members": "Mitglieder",
       "initiatives": "Initiativen"
+    },
+    "sentences": {
+      "projects": {
+        "read": "Projekte lesen",
+        "write": "Projekte lesen und ändern"
+      },
+      "documents": {
+        "read": "Dokumente lesen",
+        "write": "Dokumente lesen und ändern"
+      },
+      "queues": {
+        "read": "Abläufe lesen",
+        "write": "Abläufe lesen und ändern"
+      },
+      "counter_groups": {
+        "read": "Zähler lesen",
+        "write": "Zähler lesen und ändern"
+      },
+      "calendars": {
+        "read": "Kalender lesen",
+        "write": "Kalender lesen und ändern"
+      },
+      "dashboards": {
+        "read": "Dashboards lesen",
+        "write": "Dashboards lesen und ändern"
+      },
+      "posts": {
+        "read": "Beiträge lesen",
+        "write": "Beiträge lesen und ändern"
+      },
+      "galleries": {
+        "read": "Galerien lesen",
+        "write": "Galerien lesen und ändern"
+      },
+      "wikis": {
+        "read": "Wikis lesen",
+        "write": "Wikis lesen und ändern"
+      },
+      "comments": {
+        "read": "Kommentare lesen",
+        "write": "Kommentare lesen und schreiben"
+      },
+      "relationships": {
+        "read": "Verknüpfungen lesen",
+        "write": "Verknüpfungen lesen und ändern"
+      },
+      "tags": {
+        "read": "Tags lesen",
+        "write": "Tags lesen und ändern"
+      },
+      "sharing": {
+        "read": "Sehen, wer worauf Zugriff hat",
+        "write": "Sehen und ändern, wer worauf Zugriff hat"
+      },
+      "members": {
+        "read": "Sehen, wer in deiner Community ist"
+      },
+      "initiatives": {
+        "read": "Die Initiativen deiner Community sehen"
+      },
+      "fallback": {
+        "read": "{{resource}} lesen",
+        "write": "{{resource}} lesen und ändern"
+      }
     }
   }
 }

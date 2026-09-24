@@ -32,6 +32,15 @@
     "upToDate": "Actualizada",
     "upgraded": "Actualizada a {{version}}."
   },
+  "updates": {
+    "wants": "La versión {{version}} quiere:",
+    "newSurface": "Mostrar «{{name}}» dentro de las iniciativas",
+    "accept": "Aceptar y actualizar",
+    "decline": "Rechazar",
+    "declined": "Rechazaste la versión {{version}}. La aplicación se queda en su versión actual.",
+    "declinedDone": "Versión {{version}} rechazada.",
+    "moved": "Ahora hay otra versión disponible. Revisa lo que pide."
+  },
   "install": {
     "title": "Añadir {{name}}",
     "description": "Esto añade algo para todo la comunidad. Puedes cambiarle el nombre ahora o más tarde.",
@@ -39,7 +48,17 @@
     "action": "Añadir a la comunidad",
     "done": "{{name}} añadida.",
     "adminOnly": "Pide a un administrador de la comunidad que añada esta aplicación.",
-    "unknownState": "No se pudo comprobar si esta aplicación ya está añadida."
+    "unknownState": "No se pudo comprobar si esta aplicación ya está añadida.",
+    "reachTitle": "A qué puede acceder",
+    "reachNone": "Esta aplicación no pide acceso al contenido de tu comunidad.",
+    "whereTitle": "Dónde aparece",
+    "whereDescription": "Esta aplicación ofrece una página dentro de las iniciativas.",
+    "whoTitle": "Quién puede abrirla allí",
+    "roles": {
+      "moderator": "Moderadores",
+      "project_manager": "Responsables de proyecto",
+      "member": "Miembros"
+    }
   },
   "connections": {
     "none": "Esta aplicación no pide nada que configurar.",
@@ -221,6 +240,70 @@
       "sharing": "Uso compartido",
       "members": "Miembros",
       "initiatives": "Iniciativas"
+    },
+    "sentences": {
+      "projects": {
+        "read": "Leer proyectos",
+        "write": "Leer y cambiar proyectos"
+      },
+      "documents": {
+        "read": "Leer documentos",
+        "write": "Leer y cambiar documentos"
+      },
+      "queues": {
+        "read": "Leer colas",
+        "write": "Leer y cambiar colas"
+      },
+      "counter_groups": {
+        "read": "Leer contadores",
+        "write": "Leer y cambiar contadores"
+      },
+      "calendars": {
+        "read": "Leer calendarios",
+        "write": "Leer y cambiar calendarios"
+      },
+      "dashboards": {
+        "read": "Leer paneles",
+        "write": "Leer y cambiar paneles"
+      },
+      "posts": {
+        "read": "Leer publicaciones",
+        "write": "Leer y cambiar publicaciones"
+      },
+      "galleries": {
+        "read": "Leer galerías",
+        "write": "Leer y cambiar galerías"
+      },
+      "wikis": {
+        "read": "Leer wikis",
+        "write": "Leer y cambiar wikis"
+      },
+      "comments": {
+        "read": "Leer comentarios",
+        "write": "Leer y escribir comentarios"
+      },
+      "relationships": {
+        "read": "Leer enlaces entre elementos",
+        "write": "Leer y cambiar enlaces entre elementos"
+      },
+      "tags": {
+        "read": "Leer etiquetas",
+        "write": "Leer y cambiar etiquetas"
+      },
+      "sharing": {
+        "read": "Ver quién tiene acceso a qué",
+        "write": "Ver y cambiar quién tiene acceso a qué"
+      },
+      "members": {
+        "read": "Ver quién está en tu comunidad"
+      },
+      "initiatives": {
+        "read": "Ver las iniciativas de tu comunidad"
+      },
+      "fallback": {
+        "read": "Leer: {{resource}}",
+        "write": "Leer y cambiar: {{resource}}"
+      }
     }
   }
 }

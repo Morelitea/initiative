@@ -1215,6 +1215,13 @@ class GuildAppMessages:
     SCOPE_NOT_REQUESTED = "GUILD_APP_SCOPE_NOT_REQUESTED"
     #: A scope granted to an install beyond what this deployment allows the app.
     SCOPE_ABOVE_CEILING = "GUILD_APP_SCOPE_ABOVE_CEILING"
+    #: The version an upgrade would apply asks for more than the install holds,
+    #: and the request carried no consent to it. The response names what it
+    #: asks for.
+    UPGRADE_NEEDS_CONSENT = "GUILD_APP_UPGRADE_NEEDS_CONSENT"
+    #: The consent or the decline names a version other than the one the
+    #: catalog offers now.
+    UPGRADE_VERSION_MOVED = "GUILD_APP_UPGRADE_VERSION_MOVED"
 
 
 class DelegationExchangeMessages:
