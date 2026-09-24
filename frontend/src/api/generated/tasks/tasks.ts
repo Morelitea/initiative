@@ -1482,7 +1482,9 @@ export const useSetTaskTagsApiV1GGuildIdTasksTaskIdTagsPut = <
  * Replace the custom property values on a task.
  *
  * Requires write access (same permission gate as PUT /tags). Validates
- * each value against its definition's type and options server-side.
+ * each value against its definition's type and options server-side. An
+ * installed app names the person a person-valued property holds by its
+ * reference for them.
  * @summary Set Task Properties
  */
 export const setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut = (

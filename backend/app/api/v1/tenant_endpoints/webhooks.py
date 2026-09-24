@@ -34,6 +34,13 @@ Who may rewrite or remove one is the row's own gates, the same ones that govern
 the content it watches: initiative write access for an initiative-scoped
 subscription, guild admin for a community-wide one. Authorship is not a gate in
 this app.
+
+An installed app registers and removes subscriptions on its installation token
+(``history/app-principal-design.md`` §D9). What it may register depends on the
+event types it names — each needs the read scope of its tool — so the two
+routes take :func:`app.api.deps.app_scope_checked` and the service asks those
+scopes of the install's standing. An install sees and removes only the
+subscriptions it registered.
 """
 
 from __future__ import annotations
@@ -44,13 +51,19 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
     GuildContext,
     RLSSessionDep,
+    app_scope_checked,
     get_current_active_user,
     get_guild_membership,
 )
+from app.core import webhook_events
 from app.core.messages import WebhookSubscriptionMessages
+from app.db.guild_standing import InstallContext
 from app.models.platform.user import User
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
@@ -63,6 +76,7 @@ from app.services.tenant import webhook_refs
 from app.services.tenant import webhook_subscriptions as subscriptions_service
 from app.services.tenant.webhook_subscriptions import (
     WebhookSubscriptionNotFoundError,
+    WebhookSubscriptionScopeError,
     WebhookSubscriptionVocabularyError,
 )
 from app.services.webhook_target_url import (
@@ -73,9 +87,16 @@ from app.services.webhook_target_url import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call. Registering asks the read scope of
+#: each event type's tool, which the service checks once it has the body;
+#: removing reaches only the install's own subscriptions.
+SubscriptionsByEventType = Annotated[
+    ActorContext,
+    Depends(app_scope_checked(webhook_events.event_read_scopes(), per="event type")),
+]
 
 
 async def _validate_target_url(url: str) -> None:
@@ -100,19 +121,33 @@ async def _validate_target_url(url: str) -> None:
 
 
 async def _named(
-    row: WebhookSubscription, *, guild_id: int, dead_letter_count: int
+    row: WebhookSubscription,
+    *,
+    guild_id: int,
+    dead_letter_count: int,
+    actor: ActorContext | None = None,
 ) -> WebhookSubscriptionRead:
     """One subscription, with the guild and its creator named for its receiver.
 
     Minted rather than stored, and in the same sector its deliveries use, so
-    what a receiver reads here is what it will be sent.
+    what a receiver reads here is what it will be sent. An installed app that
+    registered one names no person on it, and its standing already carries
+    what the install calls the guild, so nothing is minted for it here.
     """
-    guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
-        guild_id=guild_id,
-        app_install_id=row.app_install_id,
-        subscription_id=row.id,
-        actor_ids=() if row.created_by is None else (row.created_by,),
-    )
+    if (
+        isinstance(actor, InstallContext)
+        and actor.guild_ref is not None
+        and row.app_install_id == actor.install_id
+        and row.created_by is None
+    ):
+        guild_ref, actor_refs = actor.guild_ref, {}
+    else:
+        guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
+            guild_id=guild_id,
+            app_install_id=row.app_install_id,
+            subscription_id=row.id,
+            actor_ids=() if row.created_by is None else (row.created_by,),
+        )
     return WebhookSubscriptionRead(
         id=row.id,
         guild_ref=guild_ref,
@@ -136,9 +171,8 @@ async def _named(
 async def create_subscription(
     request: Request,
     payload: WebhookSubscriptionCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    guild_context: SubscriptionsByEventType,
 ) -> WebhookSubscriptionCreated:
     """Register a new webhook subscription.
 
@@ -150,24 +184,41 @@ async def create_subscription(
     log of the scope it names, the initiative it was registered against or, for
     one a guild admin registers, the whole community.
 
+    An installed app registers one as its community, naming no person: each
+    event type needs the read scope of its tool, a token narrowed to one
+    initiative registers for that initiative only, and a community-wide one
+    needs a token that is not narrowed. Otherwise 403 (``APP_SCOPE_REQUIRED``).
+
     Target policy: ``target_url`` must be https and resolve to a public unicast
     address; private, loopback and link-local addresses are rejected.
     """
     await _validate_target_url(str(payload.target_url))
 
     try:
-        subscription, secret = await subscriptions_service.create_subscription(
-            session,
-            payload=payload,
-            created_by=current_user.id,
-            guild_id=guild_context.guild_id,
-            # Set when an app registered this through its delegation. The
-            # install decides which names its deliveries arrive under.
-            app_install_id=getattr(request.state, "delegating_install_id", None),
-        )
+        if isinstance(guild_context, InstallContext):
+            (
+                subscription,
+                secret,
+            ) = await subscriptions_service.create_install_subscription(
+                session, context=guild_context, payload=payload
+            )
+        else:
+            subscription, secret = await subscriptions_service.create_subscription(
+                session,
+                payload=payload,
+                created_by=guild_context.user_id,
+                guild_id=guild_context.guild_id,
+                # Set when an app registered this through its delegation. The
+                # install decides which names its deliveries arrive under.
+                app_install_id=getattr(request.state, "delegating_install_id", None),
+            )
     except WebhookSubscriptionVocabularyError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
+    except WebhookSubscriptionScopeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=exc.code
         ) from exc
 
     return WebhookSubscriptionCreated(
@@ -177,6 +228,7 @@ async def create_subscription(
                 subscription,
                 guild_id=guild_context.guild_id,
                 dead_letter_count=0,
+                actor=guild_context,
             )
         ).model_dump(),
         hmac_secret=secret,
@@ -261,24 +313,32 @@ async def update_subscription(
 )
 async def delete_subscription(
     subscription_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    guild_context: SubscriptionsByEventType,
 ) -> None:
     """Hard-delete a subscription. Who may is the DELETE policy, the same gates
-    that govern the content it watches; a cross-guild lookup is a 404."""
+    that govern the content it watches; a cross-guild lookup is a 404. An
+    installed app reaches only the subscriptions it registered, and any other
+    is a 404."""
+    by_install = isinstance(guild_context, InstallContext)
     try:
         await subscriptions_service.delete_subscription(
             session,
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
-            actor_user_id=current_user.id,
+            actor_user_id=guild_context.user_id,
+            by_install=by_install,
         )
     except WebhookSubscriptionNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WebhookSubscriptionMessages.NOT_FOUND,
         ) from exc
+    if by_install:
+        # An install's subscriptions are named in the install's own sector,
+        # which outlives any one of them; there is nothing of this one's to
+        # remove.
+        return
 
     # The names this subscription minted for itself. Only its own sector: one an
     # app registered is named in that app's, which belongs to the install and

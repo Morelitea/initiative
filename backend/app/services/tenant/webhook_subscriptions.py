@@ -415,13 +415,16 @@ async def delete_subscription(
     subscription_id: int,
     guild_id: int,
     actor_user_id: int | None = None,
+    by_install: bool = False,
 ) -> None:
     """Hard-delete a subscription. Cross-guild lookups raise; non-owner
     who may delete one is the DELETE policy — the same gates that govern the
     content it watches.
 
     ``actor_user_id`` is the account the caller's session runs as; ``None``
-    writes no audit record."""
+    writes no audit record, unless ``by_install`` says an installed app is
+    deleting it as its community. That record names no person, and the
+    request's context names the app."""
     subscription = await get_subscription(
         session, subscription_id=subscription_id, guild_id=guild_id
     )
@@ -430,7 +433,7 @@ async def delete_subscription(
     await session.delete(subscription)
     # Read off the row while it is still here, and staged before the commit that
     # takes it away, so the two land together.
-    if actor_user_id is not None:
+    if actor_user_id is not None or by_install:
         await audit_service.record(
             session,
             event_type=AuditEventType.WEBHOOK_DELETED,

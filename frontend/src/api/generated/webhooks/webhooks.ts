@@ -59,6 +59,11 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * log of the scope it names, the initiative it was registered against or, for
  * one a guild admin registers, the whole community.
  *
+ * An installed app registers one as its community, naming no person: each
+ * event type needs the read scope of its tool, a token narrowed to one
+ * initiative registers for that initiative only, and a community-wide one
+ * needs a token that is not narrowed. Otherwise 403 (``APP_SCOPE_REQUIRED``).
+ *
  * Target policy: ``target_url`` must be https and resolve to a public unicast
  * address; private, loopback and link-local addresses are rejected.
  * @summary Create Subscription
@@ -452,7 +457,9 @@ export const useUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
 };
 /**
  * Hard-delete a subscription. Who may is the DELETE policy, the same gates
- * that govern the content it watches; a cross-guild lookup is a 404.
+ * that govern the content it watches; a cross-guild lookup is a 404. An
+ * installed app reaches only the subscriptions it registered, and any other
+ * is a 404.
  * @summary Delete Subscription
  */
 export const deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete = (
