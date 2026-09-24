@@ -145,6 +145,62 @@ async def load_many(
         return await resolve_many(system_session, guild_ids)
 
 
+# --- One answer per send ------------------------------------------------------
+
+#: Answers already read during the sender's current transaction, with that
+#: transaction. Kept on ``Session.info`` so concurrent senders never share one.
+_ANSWERS = "notification_policy_answers"
+
+
+def _answers_for_this_transaction(
+    session: AsyncSession,
+) -> dict[int | None, NotificationPolicy] | None:
+    """The answers read so far in ``session``'s open transaction, or ``None``
+    when it has none open to hold them to."""
+    txn = session.sync_session.get_transaction()
+    if txn is None:
+        return None
+    held = session.info.get(_ANSWERS)
+    if held is None or held[0] is not txn:
+        held = (txn, {})
+        session.info[_ANSWERS] = held
+    return held[1]
+
+
+async def for_send(session: AsyncSession, guild_id: int | None) -> NotificationPolicy:
+    """The answer for one community, read once per transaction of ``session``.
+
+    ``session`` is the sender's, and only carries the answer: it is still read
+    on the system engine. A fan-out that writes to fifty people in one
+    transaction asks once rather than twice per recipient, and the next
+    transaction reads again, so a switch changed in between applies to it.
+    """
+    answers = _answers_for_this_transaction(session)
+    if answers is None:
+        return await load(guild_id)
+    if guild_id not in answers:
+        answers[guild_id] = await load(guild_id)
+    return answers[guild_id]
+
+
+async def for_send_many(
+    session: AsyncSession, guild_ids: Iterable[int | None]
+) -> Mapping[int | None, NotificationPolicy]:
+    """:func:`for_send` for a set of communities, in one pass.
+
+    Also holds the deployment's own answer, which the pass reads anyway, for
+    the sends that belong to no community.
+    """
+    wanted = set(guild_ids) | {None}
+    answers = _answers_for_this_transaction(session)
+    if answers is None:
+        return await load_many(wanted)
+    missing = wanted - answers.keys()
+    if missing:
+        answers.update(await load_many(missing))
+    return {gid: answers[gid] for gid in wanted}
+
+
 # --- What a redacted notification says ---------------------------------------
 
 
