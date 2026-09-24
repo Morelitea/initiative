@@ -14,6 +14,7 @@ from sqlalchemy.exc import ProgrammingError
 import app.db.schema_provisioning as schema_provisioning
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
+    APP_ROLE_MACHINERY_READS,
     SUPPORT_WRITE_PROTECTED_TABLES,
     apply_guild_rls,
     strip_template_registry_objects,
@@ -289,7 +290,8 @@ async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
 
 async def test_the_app_role_holds_only_what_an_app_reaches(engine):
     """``guild_<id>_app`` writes content, reads the initiative structure, and
-    holds nothing on the community's configuration or its app setup."""
+    holds nothing on the community's configuration or its app setup beyond
+    the columns its own standing reads."""
     gid = _GID_APP
     try:
         async with engine.begin() as conn:
@@ -322,6 +324,33 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
             ):
                 for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                     assert await held(conn, table, verb) is False, f"{table} {verb}"
+            # The install standing statement reads these columns and no others.
+            for table, columns in APP_ROLE_MACHINERY_READS.items():
+                if not columns:
+                    continue
+                readable = {
+                    row[0]
+                    for row in (
+                        await conn.execute(
+                            text(
+                                "SELECT column_name, has_column_privilege("
+                                ":r, CAST(:t AS text), column_name, 'SELECT') "
+                                "FROM information_schema.columns "
+                                "WHERE table_schema = :s AND table_name = :n"
+                            ),
+                            {
+                                "r": app_role,
+                                "t": f"{schema}.{table}",
+                                "s": schema,
+                                "n": table,
+                            },
+                        )
+                    ).all()
+                    if row[1]
+                }
+                assert readable == set(columns), table
+            assert await held(conn, "resource_grants", "SELECT") is True
+            assert await held(conn, "resource_grants", "INSERT") is False
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)

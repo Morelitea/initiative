@@ -129,6 +129,25 @@ class PamGrantee:
 
 
 @dataclass(frozen=True)
+class InstallScoped:
+    """An installed app acting in the community it is installed in.
+
+    No person: the install is the principal, routed into ``guild_<id>_app``.
+    ``standing`` is the ``InstallContext`` the establishment seam built, which
+    names the same community and install. It narrows to one initiative the way
+    a person's read does; no other narrowing, grant or credential value belongs
+    to it.
+    """
+
+    guild_id: int
+    install_id: int
+    standing: object
+    token_client_id: Optional[str] = None
+    token_scopes: frozenset[str] = frozenset()
+    scope_initiative_id: Optional[int] = None
+
+
+@dataclass(frozen=True)
 class SettingsGrantee:
     """A settings-only grant routed to one guild's configuration tables."""
 
@@ -144,6 +163,7 @@ RequestContext = Union[
     SystemGuild,
     PamGrantee,
     SettingsGrantee,
+    InstallScoped,
 ]
 
 
@@ -163,6 +183,26 @@ _NARROWING = (
 #: Keywords naming a PAM grant.
 _PAM = ("pam_guild_id", "pam_read", "pam_write")
 
+#: Keywords naming what an install's token says of it.
+_INSTALL_TOKEN = ("token_client_id", "token_scopes")
+
+#: Keywords an install routing leaves unset: they describe a person, a grant,
+#: a surface, or a routing an install does not take.
+_NOT_FOR_AN_INSTALL = (
+    "user_id",
+    "platform_role",
+    "pam_guild_id",
+    "pam_read",
+    "pam_write",
+    "settings_guild_id",
+    "read_only",
+    "query",
+    "via_dashboard_id",
+    "satisfied_providers",
+    "satisfied_claims",
+    "session_amr",
+)
+
 
 def _set(value: object) -> bool:
     """Whether a keyword was given a value that means anything.
@@ -172,6 +212,45 @@ def _set(value: object) -> bool:
     context, which is the same as leaving it out.
     """
     return value is not None and value is not False and value != ()
+
+
+def _classify_install(kwargs: dict) -> InstallScoped:
+    """The one shape an install routing takes, or raise."""
+    install_id = kwargs["install_id"]
+    guild_id = kwargs.get("guild_id")
+    standing = kwargs.get("context")
+    named = [k for k in _NOT_FOR_AN_INSTALL if kwargs.get(k)]
+    if named:
+        raise ContextShapeError(
+            f"{', '.join(named)} are not part of an install routing; an "
+            "install acts as itself"
+        )
+    if not _set(guild_id):
+        raise ContextShapeError(
+            "an install is routed into the community it is installed in"
+        )
+    if standing is None:
+        raise ContextShapeError(
+            "routing an install takes the InstallContext the seam builds; call "
+            "app.api.deps.establish_install_access instead of set_rls_context"
+        )
+    if getattr(standing, "install_id", None) != int(install_id) or getattr(
+        standing, "guild_id", None
+    ) != int(guild_id):
+        raise ContextShapeError(
+            "an install routing and its context name the same install in the "
+            "same community"
+        )
+    if not kwargs.get("token_client_id"):
+        raise ContextShapeError("an install routing names its token's client")
+    return InstallScoped(
+        guild_id=int(guild_id),
+        install_id=int(install_id),
+        standing=standing,
+        token_client_id=kwargs.get("token_client_id"),
+        token_scopes=frozenset(kwargs.get("token_scopes") or ()),
+        scope_initiative_id=kwargs.get("scope_initiative_id"),
+    )
 
 
 def classify(**kwargs) -> RequestContext:
@@ -185,6 +264,19 @@ def classify(**kwargs) -> RequestContext:
     user_id = kwargs.get("user_id")
     tier = kwargs.get("platform_role")
     standing = kwargs.get("context")
+
+    # An installed app is its own principal. Decided first, so a routing that
+    # names an install is never read as a community routing with nobody behind
+    # it.
+    if kwargs.get("install_id") is not None:
+        return _classify_install(kwargs)
+    if any(kwargs.get(k) for k in _INSTALL_TOKEN) or (
+        getattr(standing, "install_id", None) is not None
+    ):
+        raise ContextShapeError(
+            "an install's token values and its context route only with the "
+            "install they belong to"
+        )
 
     pam_named = [k for k in _PAM if _set(kwargs.get(k))]
     routing_named = [k for k in _GUILD_ROUTING if _set(kwargs.get(k))]

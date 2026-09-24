@@ -489,6 +489,16 @@ STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
         "integer",
         "NULLIF(current_setting('app.via_dashboard_id'::text, true), ''::text)::integer",
     ),
+    # An installed app acting in the community: which install, and the
+    # resources its scopes let it read and write. Unset on every request a
+    # person makes.
+    (
+        "install_id",
+        "integer",
+        "NULLIF(current_setting('app.current_install_id'::text, true), ''::text)::integer",
+    ),
+    ("install_read", "text[]", standing_pairs("app.install_read")),
+    ("install_write", "text[]", standing_pairs("app.install_write")),
 )
 _STANDING_NAMES = frozenset(name for name, _type, _expr in STANDING_FIELDS)
 
@@ -567,6 +577,10 @@ class Legs:
     @property
     def pam_write(self) -> str:
         return self.field("pam_write")
+
+    @property
+    def install_id(self) -> str:
+        return self.field("install_id")
 
     @property
     def pam_any(self) -> str:

@@ -8,6 +8,7 @@ two contexts fails here rather than running.
 
 import ast
 import pathlib
+from types import SimpleNamespace
 
 import pytest
 
@@ -176,6 +177,12 @@ def _call_sites() -> list[tuple[str, int, dict]]:
                     kwargs[keyword.arg] = _STAND_IN.get(keyword.arg, 1)
             if splatted:
                 continue
+            if "install_id" in kwargs:
+                # An install's context names the install and community it is
+                # for, so its stand-in names the stand-ins for those.
+                kwargs["context"] = SimpleNamespace(
+                    install_id=kwargs["install_id"], guild_id=kwargs.get("guild_id")
+                )
             found.append((str(path.relative_to(root)), node.lineno, kwargs))
     return found
 
@@ -186,6 +193,7 @@ def _call_sites() -> list[tuple[str, int, dict]]:
 _STAND_IN = {
     "satisfied_providers": None,
     "context": object(),
+    "token_scopes": frozenset(),
 }
 
 

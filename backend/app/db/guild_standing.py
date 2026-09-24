@@ -47,7 +47,13 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence
 from app.core.tools import Tool
 from app.db.authorization import sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
-from app.models.platform.guild import GUILD_LADDER, GuildRole
+from app.models.platform.guild import (
+    GUILD_LADDER,
+    LIVE_STATUS_VALUES,
+    GuildRole,
+    GuildStatus,
+)
+from app.models.tenant.initiative import PermissionKey
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,9 +63,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 __all__ = [
     "GuildContext",
+    "INSTALL_STANDING_SQL",
+    "InstallContext",
     "STANDING_GUCS",
     "STANDING_SQL",
     "compute_guild_standing",
+    "compute_install_standing",
     "empty_standing",
     "standing_bind_params",
 ]
@@ -135,6 +144,8 @@ STANDING_GUCS: tuple[str, ...] = (
     "app.enabled_tools",
     "app.override_initiatives",
     "app.guild_auth_ok",
+    "app.install_read",
+    "app.install_write",
 )
 
 
@@ -225,6 +236,163 @@ SELECT
     ), ''), true) AS override_initiatives,
   set_config('app.guild_auth_ok',
     (SELECT public.guild_auth_satisfied()::text), true) AS guild_auth_ok
+"""
+
+
+# --- An installed app's standing ---------------------------------------------
+#: What the install routing names, read back the way the person statement reads
+#: the user and the community.
+_IID = "NULLIF(current_setting('app.current_install_id', true), '')::int"
+_CLIENT_ID = "NULLIF(current_setting('app.token_client_id', true), '')"
+_TOKEN_SCOPES = (
+    "COALESCE(string_to_array("
+    "NULLIF(current_setting('app.token_scopes', true), ''), ','), ARRAY[]::text[])"
+)
+_SCOPE_INITIATIVE = "NULLIF(current_setting('app.scope_initiative_id', true), '')::int"
+
+#: The community statuses whose content is in use, as the person seam reads
+#: them.
+_LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
+
+
+def _tool_permission_values() -> str:
+    """Each tool's two role keys as a ``VALUES`` list of ``(resource, key,
+    for_write)``: viewing it answers to the tool's read scope, creating it to
+    its write scope. Rendered from the ``Tool`` enum, as the switches are."""
+    return ", ".join(
+        f"('{tool.plural}', '{key}', {str(for_write).lower()})"
+        for tool in Tool
+        for key, for_write in (
+            (tool.view_permission, False),
+            (tool.create_permission, True),
+        )
+    )
+
+
+def _permission_key_values() -> str:
+    """Every initiative role key, as a one-column ``VALUES`` list."""
+    return ", ".join(f"('{key.value}')" for key in PermissionKey)
+
+
+#: An installed app's standing, in one statement. Runs as ``guild_<id>_app``
+#: after the install routing, and binds nothing: the community, the install,
+#: the client the token was issued to, the token's scopes and the narrowed
+#: initiative are read back from that routing.
+#:
+#: ``install`` is the install when it may act at all: the community's status is
+#: one its members use, the install is on, and the operator's registration for
+#: its listing is on, verified, and the client the token names. Every value
+#: below is computed from it, so an install that may not act has an empty
+#: standing. ``live`` says which, and ``read_only`` is the community's status.
+#:
+#: An install is a member of the initiatives it is placed in (narrowed to one
+#: when the token names it), and its initiative role is exactly what its scopes
+#: allow there: a tool's view key for a read scope on it, its create key for a
+#: write scope, and every other key denied, so no member default answers for
+#: it. It administers nothing, manages nothing, holds no initiative role a
+#: share could name, and carries no grant. The community's sign-in rules
+#: govern people signing in; an install's admission is the seat's consent, so
+#: that value is what ``live`` says.
+INSTALL_STANDING_SQL = f"""
+WITH install AS (
+  SELECT a.id, a.granted_scopes, g.status = '{GuildStatus.read_only.value}' AS read_only
+  FROM guild_apps a
+  JOIN public.guilds g ON g.id = {_GID}
+  WHERE a.id = {_IID}
+    AND a.enabled
+    AND g.status IN ({_LIVE_STATUSES_SQL})
+    AND EXISTS (
+      SELECT 1
+      FROM public.app_service_registrations r
+      WHERE r.listing_uid = a.listing_uid
+        AND r.public_id = {_CLIENT_ID}
+        AND r.enabled
+    )
+),
+granted_scope AS (
+  SELECT split_part(s.scope, ':', 1) AS resource,
+         bool_or(split_part(s.scope, ':', 2) = 'write') AS writes
+  FROM install i
+  CROSS JOIN LATERAL unnest(i.granted_scopes) AS s(scope)
+  GROUP BY 1
+),
+token_scope AS (
+  SELECT split_part(t.scope, ':', 1) AS resource,
+         bool_or(split_part(t.scope, ':', 2) = 'write') AS writes
+  FROM unnest({_TOKEN_SCOPES}) AS t(scope)
+  GROUP BY 1
+),
+held AS (
+  SELECT g.resource,
+         g.writes AND t.writes AND NOT i.read_only AS writes
+  FROM granted_scope g
+  JOIN token_scope t ON t.resource = g.resource
+  CROSS JOIN install i
+),
+placed AS (
+  SELECT DISTINCT p.initiative_id
+  FROM app_placements p
+  JOIN install i ON i.id = p.install_id
+  WHERE {_SCOPE_INITIATIVE} IS NULL OR p.initiative_id = {_SCOPE_INITIATIVE}
+),
+granted AS (
+  SELECT DISTINCT p.initiative_id || ':' || k.key AS pair
+  FROM placed p
+  CROSS JOIN (VALUES {_tool_permission_values()}) AS k(resource, key, for_write)
+  JOIN held h ON h.resource = k.resource AND (h.writes OR NOT k.for_write)
+),
+denied AS (
+  SELECT DISTINCT p.initiative_id || ':' || k.key AS pair
+  FROM placed p
+  CROSS JOIN (VALUES {_permission_key_values()}) AS k(key)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM granted gr WHERE gr.pair = p.initiative_id || ':' || k.key
+  )
+)
+SELECT
+  (SELECT EXISTS (SELECT 1 FROM install)) AS live,
+  COALESCE((
+      SELECT g.status = '{GuildStatus.read_only.value}'
+      FROM public.guilds g
+      WHERE g.id = {_GID}
+    ), false) AS read_only,
+  set_config('app.standing_guild_id',
+    COALESCE(NULLIF(current_setting('app.current_guild_id', true), ''), ''),
+    true) AS standing_guild_id,
+  set_config('app.guild_admin', 'false', true) AS guild_admin,
+  set_config('app.guild_seat', 'false', true) AS guild_seat,
+  set_config('app.settings_rung', '', true) AS settings_rung,
+  set_config('app.pam_guild_id', '', true) AS pam_guild_id,
+  set_config('app.pam_read', 'false', true) AS pam_read,
+  set_config('app.pam_write', 'false', true) AS pam_write,
+  set_config('app.member_initiatives', COALESCE((
+      SELECT string_agg(p.initiative_id::text, ',' ORDER BY p.initiative_id)
+      FROM placed p
+    ), ''), true) AS member_initiatives,
+  set_config('app.manager_initiatives', '', true) AS manager_initiatives,
+  set_config('app.member_role_ids', '', true) AS member_role_ids,
+  set_config('app.role_grants', COALESCE((
+      SELECT string_agg(gr.pair, ',' ORDER BY gr.pair) FROM granted gr
+    ), ''), true) AS role_grants,
+  set_config('app.role_denies', COALESCE((
+      SELECT string_agg(d.pair, ',' ORDER BY d.pair) FROM denied d
+    ), ''), true) AS role_denies,
+  set_config('app.enabled_tools', COALESCE((
+      SELECT string_agg(DISTINCT i.id || ':' || t.tool, ',')
+      FROM initiatives i
+      JOIN placed p ON p.initiative_id = i.id
+      CROSS JOIN LATERAL (VALUES {_tool_switch_values()}) AS t(tool, enabled)
+      WHERE t.enabled
+    ), ''), true) AS enabled_tools,
+  set_config('app.override_initiatives', '', true) AS override_initiatives,
+  set_config('app.install_read', COALESCE((
+      SELECT string_agg(DISTINCT h.resource, ',') FROM held h
+    ), ''), true) AS install_read,
+  set_config('app.install_write', COALESCE((
+      SELECT string_agg(DISTINCT h.resource, ',') FROM held h WHERE h.writes
+    ), ''), true) AS install_write,
+  set_config('app.guild_auth_ok',
+    (SELECT EXISTS (SELECT 1 FROM install))::text, true) AS guild_auth_ok
 """
 
 
@@ -479,6 +647,72 @@ class GuildContext:
         )
 
 
+@dataclass(frozen=True)
+class InstallContext:
+    """An installed app's standing in its community, for one request.
+
+    Built only by the establishment seam (``app.api.deps``) from a verified
+    install: the routing names the community, the install, the client and the
+    token's scopes, and the install standing statement computes the rest from
+    rows. Stored on the session as part of the routing parameters, and
+    replayed per transaction with them, like :class:`GuildContext`.
+    """
+
+    guild_id: int
+    install_id: int
+    #: The registration's ``public_id`` the token was issued to.
+    client_id: str
+    #: The scopes the token carries. What the install may use is these and
+    #: the seat's grant together, which the standing computes.
+    token_scopes: frozenset[str]
+    #: The one initiative the token is narrowed to, when it is.
+    scope_initiative_id: Optional[int] = None
+
+    # --- What the install standing statement returned -------------------------
+    #: The community the standing was computed for; ``None`` until it has been.
+    standing_guild_id: Optional[int] = None
+    #: The community is in use, the install is on, and its registration is on,
+    #: verified, and the client the token names.
+    live: bool = False
+    #: The community is in ``read_only`` status.
+    read_only: bool = False
+    #: The initiatives the install is placed in, narrowed to one when asked.
+    member_initiatives: tuple[int, ...] = ()
+    #: ``"<initiative_id>:<permission_key>"`` its scopes allow there.
+    role_grants: tuple[str, ...] = ()
+    #: Every other key, in the same initiatives.
+    role_denies: tuple[str, ...] = ()
+    #: ``"<initiative_id>:<tool>"`` where the initiative's switch is on.
+    enabled_tools: tuple[str, ...] = ()
+    #: The resources its scopes let it read, and write.
+    install_read: tuple[str, ...] = ()
+    install_write: tuple[str, ...] = ()
+
+    @property
+    def guild_auth_ok(self) -> bool:
+        """What the standing wrote for the community's sign-in gate: an install
+        that may act answers it."""
+        return self.live
+
+    def with_standing(self, row: dict[str, Any]) -> "InstallContext":
+        """This context completed with what the install standing statement
+        returned."""
+        return replace(
+            self,
+            standing_guild_id=int(row["standing_guild_id"])
+            if row.get("standing_guild_id")
+            else None,
+            live=bool(row.get("live")),
+            read_only=bool(row.get("read_only")),
+            member_initiatives=_ids(row.get("member_initiatives")),
+            role_grants=_pairs(row.get("role_grants")),
+            role_denies=_pairs(row.get("role_denies")),
+            enabled_tools=_pairs(row.get("enabled_tools")),
+            install_read=_pairs(row.get("install_read")),
+            install_write=_pairs(row.get("install_write")),
+        )
+
+
 def _csv(values: Sequence[Any]) -> str:
     return ",".join(str(v) for v in values)
 
@@ -501,10 +735,14 @@ def empty_standing() -> dict[str, str]:
         "role_denies": "",
         "enabled_tools": "",
         "override_initiatives": "",
+        "install_read": "",
+        "install_write": "",
     }
 
 
-def standing_bind_params(context: Optional[GuildContext]) -> dict[str, str]:
+def standing_bind_params(
+    context: "GuildContext | InstallContext | None",
+) -> dict[str, str]:
     """The routing statement's standing binds for ``context``.
 
     ``None`` — a system route, an unattributed context, the window between the
@@ -512,6 +750,17 @@ def standing_bind_params(context: Optional[GuildContext]) -> dict[str, str]:
     """
     if context is None or context.standing_guild_id is None:
         return empty_standing()
+    if isinstance(context, InstallContext):
+        return {
+            **empty_standing(),
+            "standing_guild_id": str(context.standing_guild_id),
+            "member_initiatives": _csv(context.member_initiatives),
+            "role_grants": _csv(context.role_grants),
+            "role_denies": _csv(context.role_denies),
+            "enabled_tools": _csv(context.enabled_tools),
+            "install_read": _csv(context.install_read),
+            "install_write": _csv(context.install_write),
+        }
     return {
         "standing_guild_id": str(context.standing_guild_id),
         "guild_admin": "true" if context.admin else "false",
@@ -524,6 +773,8 @@ def standing_bind_params(context: Optional[GuildContext]) -> dict[str, str]:
         "role_denies": _csv(context.role_denies),
         "enabled_tools": _csv(context.enabled_tools),
         "override_initiatives": _csv(context.override_initiatives),
+        "install_read": "",
+        "install_write": "",
     }
 
 
@@ -537,4 +788,16 @@ async def compute_guild_standing(session: "AsyncSession") -> dict[str, Any]:
     from sqlalchemy import text
 
     row = (await session.exec(text(STANDING_SQL))).one()
+    return dict(row._mapping)
+
+
+async def compute_install_standing(session: "AsyncSession") -> dict[str, Any]:
+    """Run :data:`INSTALL_STANDING_SQL` and return the row it wrote.
+
+    Binds nothing, as :func:`compute_guild_standing` does not: the install and
+    its community are read back from the routing.
+    """
+    from sqlalchemy import text
+
+    row = (await session.exec(text(INSTALL_STANDING_SQL))).one()
     return dict(row._mapping)

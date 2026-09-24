@@ -496,6 +496,17 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
     return len(policies) + len(triggers) + functions
 
 
+#: What ``guild_<id>_app`` reads outside ``APP_TABLE_ACCESS``: table -> the
+#: columns, or ``()`` for the whole row. The install standing statement reads
+#: the install and where it is placed; the sharing gate reads the grant rows.
+#: No route addresses any of them for an app.
+APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
+    "guild_apps": ("id", "listing_uid", "enabled", "granted_scopes"),
+    "app_placements": ("install_id", "initiative_id"),
+    "resource_grants": (),
+}
+
+
 def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
     """The app role's grants, rendered from ``APP_TABLE_ACCESS`` in table order.
 
@@ -518,6 +529,14 @@ def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
         else:
             verbs = "SELECT"
         stmts.append(f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{app_role}"')
+    # Read by the install standing statement and the gates, never addressed
+    # by an app: the install's own row and its placements, column by column,
+    # and the sharing rows ``resource_access`` reads under the invoker's role.
+    for table, columns in sorted(APP_ROLE_MACHINERY_READS.items()):
+        target = f" ({', '.join(columns)})" if columns else ""
+        stmts.append(
+            f'GRANT SELECT{target} ON TABLE "{schema}"."{table}" TO "{app_role}"'
+        )
     stmts += [
         # Ids of the rows it writes come from the schema's sequences.
         f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{app_role}"',

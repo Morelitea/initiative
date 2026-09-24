@@ -8,6 +8,7 @@ against the pre-existing PAM read-grant leg.
 import pytest
 
 from app.db.schema_provisioning import (
+    guild_app_role_name,
     guild_readonly_role_name,
     guild_schema_name,
     guild_role_name,
@@ -140,6 +141,54 @@ class TestSearchPathNamesEverySchema:
         """One helper renders them all, so no route can drift off the pattern."""
         out = _render_context_bind_params(_params(**overrides))
         assert out["sp"].endswith(", pg_temp")
+
+
+class TestTheInstallRoute:
+    """An installed app routes into the community's app role, as nobody."""
+
+    def _install(self, **overrides):
+        return _render_context_bind_params(
+            {
+                "guild_id": 3,
+                "install_id": 5,
+                "token_client_id": "tests.app",
+                "token_scopes": frozenset({"documents:write", "comments:read"}),
+                **overrides,
+            }
+        )
+
+    def test_it_assumes_the_app_role_and_names_no_person(self):
+        out = self._install()
+        assert out["role"] == guild_app_role_name(3)
+        assert out["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
+        assert out["uid"] == ""
+        assert out["gid"] == "3"
+        assert (out["pgid"], out["setgid"], out["pr"], out["pw"]) == (
+            "",
+            "",
+            "false",
+            "false",
+        )
+        assert out["iid"] == "5"
+        assert out["tcid"] == "tests.app"
+        assert out["tsc"] == "comments:read,documents:write"
+
+    def test_until_its_standing_is_computed_it_stands_nowhere(self):
+        out = self._install()
+        assert out["gok"] == "false"
+        assert (out["sgid"], out["minit"], out["rgr"], out["iread"]) == (
+            "",
+            "",
+            "",
+            "",
+        )
+
+    def test_it_narrows_to_one_initiative(self):
+        assert self._install(scope_initiative_id=9)["sinit"] == "9"
+
+    def test_a_person_route_names_no_install(self):
+        out = _render_context_bind_params(_params(guild_id=3))
+        assert (out["iid"], out["tcid"], out["tsc"], out["iread"]) == ("", "", "", "")
 
 
 class TestTheSeatRoute:
