@@ -179,3 +179,309 @@ def test_markup_that_is_not_an_svg_is_not_an_image(contents: bytes):
 def test_a_raster_is_identified_before_markup():
     """A raster signature settles it; nothing goes looking for markup in a PNG."""
     assert _detect_content_type(TINY_PNG) == "image/png"
+
+
+# ---------------------------------------------------------------------------
+# Pictures pasted into a task's description or a comment
+# ---------------------------------------------------------------------------
+
+
+async def _paste(client: AsyncClient, a) -> str:
+    response = await client.post(
+        a.g("/attachments/pasted"),
+        headers=a.headers,
+        files={"file": ("pasted.png", io.BytesIO(TINY_PNG), "image/png")},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["url"]
+
+
+async def _stored(session, guild_id: int, url: str) -> bool:
+    """Whether the upload's row and its bytes are both still there."""
+    from pathlib import Path
+
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+    from app.services.storage import get_guild_storage
+    from app.testing.schema_harness import route_session_to_guild
+
+    name = Path(url).name
+    await route_session_to_guild(session, guild_id)
+    row = (await session.exec(select(Upload).where(Upload.filename == name))).first()
+    return row is not None and get_guild_storage(guild_id).exists(name)
+
+
+async def _set_description(client: AsyncClient, a, task_id: int, text: str) -> None:
+    response = await client.patch(
+        a.g(f"/tasks/{task_id}"), headers=a.headers, json={"description": text}
+    )
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.integration
+async def test_a_pasted_picture_is_named_as_pasted(client: AsyncClient, acting_user):
+    from app.services.tenant.attachments import PASTED_IMAGE_PREFIX
+
+    a = await acting_user(guild_role=GuildRole.member)
+
+    url = await _paste(client, a)
+
+    assert url.startswith(f"/uploads/{a.guild.id}/{PASTED_IMAGE_PREFIX}")
+
+
+@pytest.mark.integration
+async def test_taking_a_picture_out_of_a_description_deletes_it(
+    client: AsyncClient, session, acting_user
+):
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    await session.commit()
+    url = await _paste(client, a)
+
+    await _set_description(client, a, task.id, f"Look: ![shot]({url})")
+    assert await _stored(session, a.guild.id, url)
+
+    session.expunge_all()
+    await _set_description(client, a, task.id, "Never mind")
+    assert not await _stored(session, a.guild.id, url)
+
+
+@pytest.mark.integration
+async def test_a_picture_another_task_still_shows_stays(
+    client: AsyncClient, session, acting_user
+):
+    """A duplicated task shares its original's pictures."""
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    url = await _paste(client, a)
+    task = await create_task(session, a.project, description=f"![shot]({url})")
+    await create_task(session, a.project, description=f"copy ![shot]({url})")
+    await session.commit()
+
+    await _set_description(client, a, task.id, "Never mind")
+
+    assert await _stored(session, a.guild.id, url)
+
+
+@pytest.mark.integration
+async def test_a_picture_that_is_not_a_description_s_is_never_deleted(
+    client: AsyncClient, session, acting_user
+):
+    """An image pasted from a document keeps its own name, so taking it out of
+    a description leaves the document's picture alone."""
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    response = await client.post(
+        a.g("/attachments/"),
+        headers=a.headers,
+        files={"file": ("doc.png", io.BytesIO(TINY_PNG), "image/png")},
+    )
+    doc_url = response.json()["url"]
+    task = await create_task(session, a.project, description=f"![doc]({doc_url})")
+    await session.commit()
+
+    await _set_description(client, a, task.id, "Never mind")
+
+    assert await _stored(session, a.guild.id, doc_url)
+
+
+@pytest.mark.integration
+async def test_purging_a_task_deletes_its_pictures(
+    client: AsyncClient, session, acting_user
+):
+    from app.services.tenant.soft_delete import hard_purge_entity, soft_delete_entity
+    from app.testing import create_task
+    from app.testing.schema_harness import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    url = await _paste(client, a)
+    task = await create_task(session, a.project, description=f"![shot]({url})")
+    await session.commit()
+
+    await route_session_to_guild(session, a.guild.id)
+    await soft_delete_entity(
+        session, task, deleted_by_user_id=a.user.id, retention_days=30
+    )
+    await session.commit()
+    # In the trash it still pins its pictures — it may come back.
+    assert await _stored(session, a.guild.id, url)
+
+    await hard_purge_entity(session, task)
+    await session.commit()
+
+    assert not await _stored(session, a.guild.id, url)
+
+
+async def _discard(client: AsyncClient, a, url: str) -> None:
+    from pathlib import Path
+
+    response = await client.delete(
+        a.g(f"/attachments/pasted/{Path(url).name}"), headers=a.headers
+    )
+    assert response.status_code == 204, response.text
+
+
+@pytest.mark.integration
+async def test_a_picture_left_unsaved_is_discarded(
+    client: AsyncClient, session, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member)
+    url = await _paste(client, a)
+
+    await _discard(client, a, url)
+
+    assert not await _stored(session, a.guild.id, url)
+
+
+@pytest.mark.integration
+async def test_a_saved_picture_is_not_discarded(
+    client: AsyncClient, session, acting_user
+):
+    """The page asks about everything it pasted; the ones a description kept
+    stay."""
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    url = await _paste(client, a)
+    await create_task(session, a.project, description=f"![shot]({url})")
+    await session.commit()
+
+    await _discard(client, a, url)
+
+    assert await _stored(session, a.guild.id, url)
+
+
+@pytest.mark.integration
+async def test_nobody_discards_somebody_else_s_picture(
+    client: AsyncClient, session, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    url = await _paste(client, a)
+
+    await _discard(client, b, url)
+
+    assert await _stored(session, a.guild.id, url)
+
+
+@pytest.mark.integration
+async def test_only_a_pasted_picture_can_be_discarded(
+    client: AsyncClient, session, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member)
+    response = await client.post(
+        a.g("/attachments/"),
+        headers=a.headers,
+        files={"file": ("doc.png", io.BytesIO(TINY_PNG), "image/png")},
+    )
+    doc_url = response.json()["url"]
+
+    await _discard(client, a, doc_url)
+
+    assert await _stored(session, a.guild.id, doc_url)
+
+
+@pytest.mark.integration
+async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
+    client: AsyncClient, session, acting_user
+):
+    """A tab closed rather than left never discards what it pasted."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.tenant.attachments import (
+        UNCLAIMED_PASTED_IMAGE_GRACE,
+        release_unclaimed_pasted_images,
+    )
+    from app.testing import create_task
+    from app.testing.schema_harness import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    unsaved = await _paste(client, a)
+    saved = await _paste(client, a)
+    await create_task(session, a.project, description=f"![shot]({saved})")
+    await session.commit()
+
+    await route_session_to_guild(session, a.guild.id)
+    now = datetime.now(timezone.utc)
+    # Within the grace period, both stay: the draft may still be saved.
+    assert await release_unclaimed_pasted_images(session, now=now) == set()
+
+    later = now + UNCLAIMED_PASTED_IMAGE_GRACE + timedelta(minutes=1)
+    released = await release_unclaimed_pasted_images(session, now=later)
+
+    assert released == {unsaved.rsplit("/", 1)[1]}
+
+
+async def _edit_comment(client: AsyncClient, a, comment_id: int, text: str) -> None:
+    response = await client.patch(
+        a.g(f"/comments/{comment_id}"), headers=a.headers, json={"content": text}
+    )
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.integration
+async def test_taking_a_picture_out_of_a_comment_deletes_it(
+    client: AsyncClient, session, acting_user
+):
+    from app.testing import create_comment, create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    url = await _paste(client, a)
+    comment = await create_comment(
+        session, a.user, task=task, content=f"Here: ![shot]({url})"
+    )
+    await session.commit()
+
+    await _edit_comment(client, a, comment.id, "Never mind")
+
+    assert not await _stored(session, a.guild.id, url)
+
+
+@pytest.mark.integration
+async def test_a_picture_a_comment_shows_outlives_the_description(
+    client: AsyncClient, session, acting_user
+):
+    """A picture moved between a description and a comment is the same file;
+    either one showing it keeps it."""
+    from app.testing import create_comment, create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    url = await _paste(client, a)
+    task = await create_task(session, a.project, description=f"![shot]({url})")
+    await create_comment(session, a.user, task=task, content=f"again ![shot]({url})")
+    await session.commit()
+
+    await _set_description(client, a, task.id, "Never mind")
+
+    assert await _stored(session, a.guild.id, url)
+
+
+@pytest.mark.integration
+async def test_purging_a_task_takes_its_comments_pictures_too(
+    client: AsyncClient, session, acting_user
+):
+    from app.services.tenant.soft_delete import hard_purge_entity, soft_delete_entity
+    from app.testing import create_comment, create_task
+    from app.testing.schema_harness import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    url = await _paste(client, a)
+    task = await create_task(session, a.project)
+    await create_comment(session, a.user, task=task, content=f"![shot]({url})")
+    await session.commit()
+
+    await route_session_to_guild(session, a.guild.id)
+    await soft_delete_entity(
+        session, task, deleted_by_user_id=a.user.id, retention_days=30
+    )
+    await session.commit()
+    await hard_purge_entity(session, task)
+    await session.commit()
+
+    assert not await _stored(session, a.guild.id, url)

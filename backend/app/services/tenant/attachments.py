@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Set, Tuple
 from urllib.parse import urlparse
@@ -15,6 +17,17 @@ from app.services.storage import get_guild_storage
 logger = logging.getLogger(__name__)
 
 UPLOADS_URL_PREFIX = "/uploads/"
+
+#: What the stored name of a picture pasted into markdown — a task's
+#: description, a comment — starts with. The server chooses every stored name,
+#: so this is how an upload says it was pasted, and only an upload that says so
+#: is ever deleted because the text stopped showing it. An image copied in from
+#: a document or a gallery keeps its own name and is never touched.
+PASTED_IMAGE_PREFIX = "pasted-"
+
+#: An upload's address inside markdown: ``/uploads/{guild_id}/{filename}``,
+#: optionally behind an origin.
+_MARKDOWN_UPLOAD_URL = re.compile(r"(?:https?://[^\s()<>]+?)?/uploads/\d+/[\w.-]+")
 
 # Maximum file size for document uploads: 50 MB
 MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024
@@ -338,6 +351,175 @@ async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> None:
     # Blobs after the rows, so "Upload row exists ⇒ blob exists" holds in any
     # intermediate state.
     delete_uploads_by_urls(urls)
+
+
+def upload_urls_in_markdown(text: str | None) -> Set[str]:
+    """Every upload a markdown body shows, normalized."""
+    urls: Set[str] = set()
+    for match in _MARKDOWN_UPLOAD_URL.findall(text or ""):
+        normalized = normalize_upload_url(match)
+        if normalized:
+            urls.add(normalized)
+    return urls
+
+
+def _is_pasted(url: str) -> bool:
+    return Path(url).name.startswith(PASTED_IMAGE_PREFIX)
+
+
+#: How long a pasted picture waits to be saved before the sweep takes it. The
+#: page that pasted it discards it as soon as it is left without saving; this
+#: is for the tab that was closed instead, and is long enough that a draft left
+#: open overnight still saves with its pictures.
+UNCLAIMED_PASTED_IMAGE_GRACE = timedelta(hours=24)
+
+
+def _pasted_bodies() -> tuple[tuple[type, str], ...]:
+    """The markdown columns a pasted picture can be written into."""
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.task import Task
+
+    return ((Task, "description"), (Comment, "content"))
+
+
+#: The rows a caller is taking the pictures OUT of — they no longer count as
+#: showing anything. Keyed by model.
+Leaving = Mapping[type, Iterable[int]]
+
+
+async def _still_shown(session, filename: str, *, leaving: Leaving) -> bool:
+    """Whether any task description or comment — archived or in the trash
+    included — other than those ``leaving`` shows this stored file."""
+    from sqlalchemy import text
+
+    from app.db.soft_delete_filter import select_including_deleted
+
+    # LIKE wildcards in the name are escaped: a filename carries ``_``. The
+    # name alone is matched — every stored name is unique — so an address
+    # written with or without an origin is found either way.
+    safe = filename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    for model, column in _pasted_bodies():
+        table = model.__tablename__
+        stmt = select_including_deleted(model.id).where(  # type: ignore[attr-defined]
+            text(f"{table}.{column} LIKE :pattern ESCAPE '\\'").bindparams(
+                pattern=f"%{safe}%"
+            )
+        )
+        ids = set(leaving.get(model, ()))
+        if ids:
+            stmt = stmt.where(~model.id.in_(ids))  # type: ignore[attr-defined]
+        if (await session.exec(stmt.limit(1))).first() is not None:
+            return True
+    return False
+
+
+async def _drop_upload_rows(session, filenames: Set[str]) -> None:
+    from sqlalchemy import delete as sa_delete
+
+    from app.models.tenant.upload import Upload
+
+    if filenames:
+        await session.exec(
+            sa_delete(Upload).where(Upload.filename.in_(filenames))  # type: ignore[attr-defined]
+        )
+
+
+async def release_pasted_images(
+    session, urls: Iterable[str], *, leaving: Leaving
+) -> Set[str]:
+    """Delete the ``Upload`` rows of pasted pictures nothing shows any more.
+
+    ``urls`` are what the rows in ``leaving`` stopped showing — an edit took
+    them out, or the rows are being purged. Each is released only if it was
+    pasted (see :data:`PASTED_IMAGE_PREFIX`) and no other task description or
+    comment, archived or in the trash included, still shows it: a duplicated
+    or recurring task shares its original's pictures.
+
+    Returns the URLs released, whose blobs the caller deletes once the rows
+    are gone — after its commit, so a rolled-back write leaves the file.
+    """
+    released = {
+        url
+        for url in {u for u in urls if _is_pasted(u)}
+        if not await _still_shown(session, Path(url).name, leaving=leaving)
+    }
+    await _drop_upload_rows(session, {Path(u).name for u in released})
+    return released
+
+
+async def discard_pasted_image(session, filename: str, *, user_id: int) -> str | None:
+    """Delete a picture its uploader pasted and then did not save.
+
+    Only a pasted picture (see :data:`PASTED_IMAGE_PREFIX`), only one the
+    asking person uploaded, and only while nothing saved shows it — so a page
+    discarding what it pasted cannot take a picture that did get saved, or
+    anybody else's. Returns the stored name when it was deleted, for the caller
+    to remove the blob after its commit; ``None`` when it stays.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+
+    name = Path(filename).name
+    if name != filename or not name.startswith(PASTED_IMAGE_PREFIX):
+        return None
+    upload = (
+        await session.exec(
+            select(Upload).where(Upload.filename == name, Upload.created_by == user_id)
+        )
+    ).first()
+    if upload is None or await _still_shown(session, name, leaving={}):
+        return None
+    await _drop_upload_rows(session, {name})
+    return name
+
+
+async def release_unclaimed_pasted_images(session, *, now: datetime) -> Set[str]:
+    """Delete pictures pasted longer ago than the grace period that nothing
+    shows — the ones a closed tab never got to discard.
+
+    Runs in one routed guild with authority to delete uploads (the trash
+    sweep). Returns the stored names released; the caller commits and then
+    removes the blobs.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+
+    rows = await session.exec(
+        select(Upload.filename)
+        .where(Upload.filename.startswith(PASTED_IMAGE_PREFIX))  # type: ignore[attr-defined]
+        .where(Upload.created_at < now - UNCLAIMED_PASTED_IMAGE_GRACE)
+    )
+    released = {
+        name for name in rows.all() if not await _still_shown(session, name, leaving={})
+    }
+    await _drop_upload_rows(session, released)
+    return released
+
+
+async def purge_pasted_images(session, doomed: Iterable[Any]) -> None:
+    """Delete the pictures pasted into tasks and comments about to be
+    hard-purged, unless something that stays still shows them.
+
+    Caller must use a session that can DELETE from ``uploads``; caller commits.
+    """
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.task import Task
+
+    urls: Set[str] = set()
+    leaving: dict[type, set[int]] = {Task: set(), Comment: set()}
+    for row in doomed:
+        if isinstance(row, Task):
+            urls |= upload_urls_in_markdown(row.description)
+            leaving[Task].add(row.id)
+        elif isinstance(row, Comment):
+            urls |= upload_urls_in_markdown(row.content)
+            leaving[Comment].add(row.id)
+    released = await release_pasted_images(session, urls, leaving=leaving)
+    # Blobs after the rows, so "Upload row exists ⇒ blob exists" holds in any
+    # intermediate state.
+    delete_uploads_by_urls(released)
 
 
 def extract_upload_urls(payload: Any) -> Set[str]:

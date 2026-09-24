@@ -63,6 +63,9 @@ def test_flatten_mentions_keeps_display_text():
     )
     # A `#` word naming no kind is not a mention, here or on screen.
     assert _flatten_mentions("#nope[x](1)") == "#nope[x](1)"
+    # A pasted picture prints as its alt text.
+    assert _flatten_mentions("see ![shot](/uploads/9/pasted-a.png)") == "see shot"
+    assert _flatten_mentions("![](/uploads/9/pasted-a.png)") == "[image]"
 
 
 def test_detail_flattens_mentions_in_the_description():
