@@ -38,6 +38,8 @@ from app.schemas.platform.marketplace import (
     MarketplaceInstallResult,
     MarketplaceListingDetail,
     MarketplaceListingPage,
+    MarketplaceShareRequest,
+    MarketplaceShareResult,
     serialize_listing_summary,
 )
 from app.services.marketplace import catalog as catalog_service
@@ -51,7 +53,17 @@ from app.services.marketplace.installs import (
     listing_is_offered,
     resolve_listing_install,
 )
-from app.services.marketplace.tool_listings import install_tool_listing
+from app.services.marketplace import local_listings
+from app.services.marketplace.publish_profile import export_for_listing
+from app.services.marketplace.tool_listings import (
+    example_is_generated,
+    install_tool_listing,
+)
+from app.core.audit_events import AuditEventType
+from app.core.user_display import handle_of
+from app.db import session as db_session
+from app.services import audit as audit_service
+from app.services.platform import app_settings as app_settings_service
 
 router = APIRouter()
 
@@ -234,6 +246,7 @@ async def install_marketplace_listing(
             guild_id=guild_context.guild_id,
             initiative_id=payload.initiative_id,
             start_from=payload.start_from.value,
+            starts_on=payload.starts_on,
         )
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
@@ -244,4 +257,112 @@ async def install_marketplace_listing(
         listing_uid=listing.uid,
         listing_version=version.version,
         result=result,
+    )
+
+
+@router.post(
+    "/share",
+    response_model=MarketplaceShareResult,
+    status_code=status.HTTP_201_CREATED,
+)
+async def share_to_marketplace(
+    payload: MarketplaceShareRequest,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> MarketplaceShareResult:
+    """Share an item from this community to the deployment's marketplace.
+
+    The item is read the way exporting it reads it, on the member's own
+    session — so a member shares only what they could export — and stripped
+    to what belongs to the work (``publish_profile``). It then becomes a
+    ``local`` listing, on the shelf straight away if the owner lets members
+    publish directly, and otherwise waiting for the owner's review.
+    """
+    if guild_context.is_pam:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=MarketplaceMessages.SHARE_NOT_PERMITTED,
+        )
+    tool = TOOL_LISTING_KINDS.get(payload.kind)
+    if tool is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=MarketplaceMessages.SHARE_INVALID,
+        )
+    if payload.example_entity_id is not None and example_is_generated(tool):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=MarketplaceMessages.SHARE_INVALID,
+        )
+
+    envelope = await export_for_listing(
+        session,
+        tool=tool,
+        entity_id=payload.entity_id,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+    )
+    example = (
+        await export_for_listing(
+            session,
+            tool=tool,
+            entity_id=payload.example_entity_id,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+        )
+        if payload.example_entity_id is not None
+        else None
+    )
+
+    # The catalogue's writer is the system engine; the member's session has
+    # done its part by reading the item.
+    async with db_session.SystemSessionLocal() as system:
+        hold = not await app_settings_service.marketplace_members_publish_directly(
+            system
+        )
+        try:
+            listing, version = await local_listings.submit_share(
+                system,
+                tool=tool,
+                envelope=envelope,
+                example=example,
+                name=payload.name,
+                description=payload.description,
+                long_description=payload.long_description,
+                release_notes=payload.release_notes,
+                # The handle, which names the account the same way on every
+                # shelf; a real name is each community's to show or not.
+                publisher=handle_of(current_user),
+                submitter_id=current_user.id,
+                listing_uid=payload.listing_uid,
+                hold_for_review=hold,
+            )
+        except local_listings.LocalListingError as exc:
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_404_NOT_FOUND
+                    if exc.not_found
+                    else status.HTTP_422_UNPROCESSABLE_CONTENT
+                ),
+                detail=exc.code,
+            ) from exc
+        await audit_service.record(
+            system,
+            event_type=AuditEventType.MARKETPLACE_LISTING_SHARED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            detail={
+                "listing_uid": listing.uid,
+                "kind": listing.kind,
+                "version": version.version,
+                "awaiting_review": version.awaiting_review,
+            },
+        )
+        await system.commit()
+    return MarketplaceShareResult(
+        uid=listing.uid,
+        public_id=listing.public_id,
+        version=version.version,
+        awaiting_review=version.awaiting_review,
     )

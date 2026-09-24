@@ -5330,6 +5330,7 @@ export type ListingSource = (typeof ListingSource)[keyof typeof ListingSource];
 
 export const ListingSource = {
   builtin: "builtin",
+  local: "local",
   operator: "operator",
   registry: "registry",
 } as const;
@@ -5343,6 +5344,22 @@ export const ListingStartFrom = {
   blank: "blank",
   example: "example",
 } as const;
+
+export type ListingUploadRequestManifest = { [key: string]: unknown };
+
+/**
+ * A listing file the owner uploads: the manifest a catalog directory or a
+ * registry carries, published as a ``local`` listing.
+ */
+export interface ListingUploadRequest {
+  manifest: ListingUploadRequestManifest;
+}
+
+export interface ListingUploadResult {
+  uid: string;
+  public_id: string;
+  version: string;
+}
 
 export type LoginMethod = (typeof LoginMethod)[keyof typeof LoginMethod];
 
@@ -5398,6 +5415,7 @@ export interface LoginProvidersResponse {
 export interface MarketplaceInstallRequest {
   initiative_id: number;
   start_from?: ListingStartFrom;
+  starts_on?: string | null;
 }
 
 /**
@@ -5471,6 +5489,94 @@ export interface MarketplaceListingSummary {
 export interface MarketplaceListingPage {
   items: MarketplaceListingSummary[];
   total: number;
+}
+
+/**
+ * How this deployment takes its members' shares.
+ */
+export interface MarketplaceLocalSettings {
+  members_publish_directly: boolean;
+}
+
+export type MarketplacePendingVersionReadDefinition = { [key: string]: unknown };
+
+export type MarketplacePendingVersionReadExample = { [key: string]: unknown } | null;
+
+/**
+ * A shared version waiting for the owner's review, with what it would
+ * publish.
+ */
+export interface MarketplacePendingVersionRead {
+  uid: string;
+  public_id: string;
+  kind: ListingKind;
+  name: string;
+  publisher: string;
+  description: string;
+  version: string;
+  release_notes: string | null;
+  submitted_at: string;
+  is_new_listing: boolean;
+  definition: MarketplacePendingVersionReadDefinition;
+  example: MarketplacePendingVersionReadExample;
+}
+
+/**
+ * Share an item from this community to the deployment's marketplace.
+ *
+ * The item is exported and stripped to what belongs to the work: nobody it
+ * names, nothing it links to outside itself, no uploads. ``listing_uid``
+ * publishes it as a new version of a listing the member shared before, which
+ * keeps that listing's name and description.
+ */
+export interface MarketplaceShareRequest {
+  kind: ListingKind;
+  entity_id: number;
+  example_entity_id?: number | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /**
+   * @minLength 1
+   * @maxLength 500
+   */
+  description: string;
+  long_description?: string | null;
+  release_notes?: string | null;
+  listing_uid?: string | null;
+}
+
+/**
+ * What a share published, and whether it waits for the owner's review.
+ */
+export interface MarketplaceShareResult {
+  uid: string;
+  public_id: string;
+  version: string;
+  awaiting_review: boolean;
+}
+
+/**
+ * A listing the signed-in member shared, with anything still waiting.
+ */
+export interface MarketplaceSharedListingRead {
+  uid: string;
+  public_id: string;
+  kind: ListingKind;
+  source: ListingSource;
+  name: string;
+  publisher: string;
+  description: string;
+  avatar_url: string;
+  images: string[];
+  installs_count: number;
+  available: boolean;
+  latest_version: MarketplaceVersionRead | null;
+  installable: boolean;
+  updated_at: string;
+  pending_versions: string[];
 }
 
 /**

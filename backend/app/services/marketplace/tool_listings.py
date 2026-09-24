@@ -8,11 +8,16 @@ installing it runs that importer into an initiative as the member who asked —
 under RLS, with the importer's own permission check, exactly as importing the
 same file would.
 
-Two things a listing stores differ from a file on disk:
+Three things a listing stores differ from a file on disk:
 
 * **The listing names the item.** An installed copy is called what the listing
   is called, whatever name the envelope carries, so the thing a member picked
   from the shelf is the thing that appears in their initiative.
+* **What belongs to the community stays behind** — people, links out of the
+  item, uploads — and dates become offsets from a fixed day
+  (``publish_profile``). That applies to a listing from any source, so an
+  install never names somebody or points somewhere in the installer's
+  community by accident.
 * **A listing may carry an example** beside what it installs: the same tool's
   envelope, filled in. A tool made of queries over a community's data does not
   take one from its publisher (``example_is_generated`` on the exporter); its
@@ -26,6 +31,7 @@ guild-routed session of the member installing.
 from __future__ import annotations
 
 import json
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -43,8 +49,15 @@ from app.services.import_engine.contract import (
     ImportEngineError,
 )
 from app.services.marketplace.manifest_values import ListingDefinitionError
+from app.services.marketplace.publish_profile import (
+    DATE_ANCHOR,
+    anchor_dates,
+    shift_dates,
+    strip_for_listing,
+)
 
 __all__ = [
+    "ListingTooLargeError",
     "MAX_LISTING_BODY_BYTES",
     "example_is_generated",
     "installable_body",
@@ -52,6 +65,12 @@ __all__ = [
     "normalize_tool_example",
     "normalize_tool_listing",
 ]
+
+
+class ListingTooLargeError(ListingDefinitionError):
+    """A listing over the size or row ceiling — the one refusal a member
+    sharing their own item can act on, by sharing less of it."""
+
 
 #: The largest envelope a listing may carry, as stored JSON. A listing is a
 #: template, not an archive: this is far above any real one and far below what
@@ -106,7 +125,7 @@ def _wrap_dashboard_definition(body: dict[str, Any]) -> dict[str, Any]:
 def _check_size(body: Any, *, what: str) -> None:
     size = len(json.dumps(body, separators=(",", ":")).encode("utf-8"))
     if size > MAX_LISTING_BODY_BYTES:
-        raise ListingDefinitionError(
+        raise ListingTooLargeError(
             f"{what} is {size} bytes; a listing carries at most "
             f"{MAX_LISTING_BODY_BYTES}"
         )
@@ -135,6 +154,11 @@ def normalize_tool_listing(
         )
     _check_size(body, what=what)
 
+    # What belongs to the community stays behind, and the dates become offsets,
+    # before the importer reads it — so the importer's own dump is the last
+    # word on the stored form, and normalizing a stored body again is a no-op.
+    body = anchor_dates(tool, strip_for_listing(tool, body))
+
     importer = _importer(tool)
     try:
         validated = importer.validate(body)
@@ -142,7 +166,7 @@ def normalize_tool_listing(
         raise ListingDefinitionError(f"{what} is not a valid {envelope_type}: {exc}")
     rows = importer.count(validated)
     if rows > import_limits.IMPORT_INLINE_MAX_ROWS:
-        raise ListingDefinitionError(
+        raise ListingTooLargeError(
             f"{what} holds {rows} rows; a listing holds at most "
             f"{import_limits.IMPORT_INLINE_MAX_ROWS}"
         )
@@ -229,6 +253,7 @@ async def install_tool_listing(
     guild_id: int,
     initiative_id: int,
     start_from: str = "blank",
+    starts_on: date | None = None,
 ) -> EnvelopeImportResult:
     """Import a copy of a tool listing into an initiative, as ``user``.
 
@@ -236,6 +261,9 @@ async def install_tool_listing(
     :func:`load_target_initiative` resolves the initiative under RLS and asks
     for the tool's switch and the member's create permission, and the importer
     applies it. The copy then records which listing and version it came from.
+
+    A listing keeps its dates as offsets from :data:`DATE_ANCHOR`; they land
+    relative to ``starts_on``, today when it is not given.
 
     Flush-only, like every apply: the caller commits.
     """
@@ -247,6 +275,9 @@ async def install_tool_listing(
     body = installable_body(version, start_from)
     if body is None:
         raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
+
+    start = starts_on or datetime.now(timezone.utc).date()
+    body = shift_dates(tool, body, (start - DATE_ANCHOR).days)
 
     importer = _importer(tool)
     validated = importer.validate(_named(tool, body, listing.name))
