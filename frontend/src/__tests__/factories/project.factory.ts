@@ -80,6 +80,7 @@ export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead 
     pinned_at: null,
     default_view_mode: null,
     owner: null,
+    owner_app: null,
     initiative: null,
     grants: [],
     can_unarchive: false,

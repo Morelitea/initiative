@@ -1,8 +1,8 @@
-import { ChevronDown, Lock, Users, X } from "lucide-react";
+import { Blocks, ChevronDown, Lock, Users, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import type { OwnerAppSummary, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,9 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useGuildApps } from "@/hooks/useGuildApps";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useUsers } from "@/hooks/useUsers";
+import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
@@ -46,11 +48,29 @@ export interface ShareControlProps {
   onChange: (grants: ResourceGrantSchema[]) => void;
   /** When given, a fixed, non-editable "Owner" row is shown. Omit in create. */
   ownerId?: number | null;
+  /** The installed app that owns the resource, as its read model names it.
+   *  An app owner's row is shown whenever the grants hold one; this supplies
+   *  its name and picture without looking the app up. */
+  ownerApp?: OwnerAppSummary | null;
   /** Viewer can't manage, or a save is in flight. */
   disabled?: boolean;
 }
 
 type ShareLevel = "read" | "write";
+
+/** An app's picture, small, or the generic app mark when it has none. */
+const AppMark = ({ avatarUrl }: { avatarUrl: string | null | undefined }) =>
+  avatarUrl ? (
+    <img
+      src={resolveArtworkUrl(avatarUrl) ?? undefined}
+      alt=""
+      aria-hidden
+      className="h-5 w-5 shrink-0 rounded-sm object-cover"
+      loading="lazy"
+    />
+  ) : (
+    <Blocks className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+  );
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -70,12 +90,17 @@ type ShareLevel = "read" | "write";
  * "Everyone" survives both views because both have one: at guild scope the
  * all-members grant reads as every member of the guild, which is how a guild
  * calendar arrives shared with the guild.
+ *
+ * An installed app may be the owner, or a grantee the community's seat named.
+ * Both are shown by the app's name and never edited here: an app's grant is
+ * the seat's decision, and the server keeps it whatever this list sends.
  */
 export const ShareControl = ({
   initiativeId,
   grants,
   onChange,
   ownerId,
+  ownerApp,
   disabled = false,
 }: ShareControlProps) => {
   const { t } = useTranslation("access");
@@ -140,6 +165,33 @@ export const ShareControl = ({
   );
 
   const allLevel: ShareLevel = allMembersGrant?.level === "write" ? "write" : "read";
+
+  // ── Apps: the owning install, and the ones the seat granted ──────────────
+
+  const ownerAppId = useMemo(
+    () => grants.find((g) => g.level === "owner" && g.app_install_id != null)?.app_install_id,
+    [grants]
+  );
+  const appGrants = useMemo(
+    () => grants.filter((g) => g.app_install_id != null && g.level !== "owner"),
+    [grants]
+  );
+  // The apps list is only read when a grant names an app the read model did
+  // not already describe.
+  const needsAppNames = appGrants.length > 0 || (ownerAppId != null && ownerApp?.id !== ownerAppId);
+  const { data: guildApps } = useGuildApps({ enabled: needsAppNames });
+
+  const appSummary = useCallback(
+    (appId: number): { name: string; avatarUrl: string | null } => {
+      if (ownerApp?.id === appId) return { name: ownerApp.name, avatarUrl: ownerApp.avatar_url };
+      const app = guildApps?.items.find((one) => one.id === appId);
+      return app
+        ? { name: app.name, avatarUrl: app.avatar_url }
+        : { name: t("share.appFallback", { id: appId }), avatarUrl: null };
+    },
+    [ownerApp, guildApps, t]
+  );
+  const owningApp = ownerId == null && ownerAppId != null ? appSummary(ownerAppId) : null;
 
   // ── Lookup helpers ───────────────────────────────────────────────────────
 
@@ -421,6 +473,14 @@ export const ShareControl = ({
                   <Badge variant="secondary">{t("share.owner")}</Badge>
                 </div>
               )}
+              {owningApp && (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                  <AppMark avatarUrl={owningApp.avatarUrl} />
+                  <span className="min-w-0 flex-1 truncate text-sm">{owningApp.name}</span>
+                  <Badge variant="outline">{t("share.app")}</Badge>
+                  <Badge variant="secondary">{t("share.owner")}</Badge>
+                </div>
+              )}
 
               {userGrants.map((grant) => {
                 const userId = grant.user_id as number;
@@ -567,6 +627,35 @@ export const ShareControl = ({
             </div>
           )}
         </>
+      )}
+
+      {/* ── Apps the community granted: shown, never edited here ──────── */}
+      {appGrants.length > 0 && (
+        <div className="space-y-2">
+          <Label className="font-medium text-sm">{t("share.apps")}</Label>
+          <div className="space-y-1">
+            {appGrants.map((grant) => {
+              const appId = grant.app_install_id as number;
+              const app = appSummary(appId);
+              return (
+                <div
+                  key={`app-${appId}`}
+                  className="flex items-center gap-2 rounded-md border px-3 py-2"
+                  title={t("share.appGrantHint")}
+                >
+                  <AppMark avatarUrl={app.avatarUrl} />
+                  <span className="min-w-0 flex-1 truncate text-sm">{app.name}</span>
+                  <span className="w-[110px] shrink-0 px-3 text-muted-foreground text-sm">
+                    {grant.level === "write" ? t("share.editor") : t("share.viewer")}
+                  </span>
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );

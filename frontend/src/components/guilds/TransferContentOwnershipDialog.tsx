@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   OwnedContentResponse,
+  OwnershipTransferRequest,
   OwnershipTransferResponse,
   Tool,
   UserGuildMember,
@@ -28,7 +29,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -55,6 +58,16 @@ const useToolCounts = (counts: Record<string, number> | undefined) => {
   );
 };
 
+/** A recipient in the picker: an admin (`user:<id>`) or an app (`app:<id>`). */
+const personRecipient = (id: number) => `user:${id}`;
+const appRecipient = (id: number) => `app:${id}`;
+
+/** The request body a picked recipient becomes. */
+const transferBody = (recipient: string): OwnershipTransferRequest => {
+  const [kind, id] = recipient.split(":");
+  return kind === "app" ? { new_owner_app_id: Number(id) } : { new_owner_id: Number(id) };
+};
+
 interface TransferContentOwnershipDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,9 +82,11 @@ interface TransferContentOwnershipDialogProps {
 
 /**
  * Moves everything a member owns in this guild to a guild admin, and the only
- * place in the app that does. Recipients are limited to guild admins, who
- * already reach every part of the guild, so a transfer can never widen anyone's
- * access.
+ * place in the app that does. Recipients are guild admins, who already reach
+ * every part of the guild, so a transfer can never widen anyone's access — or
+ * an installed app the server lists as able to own all of it
+ * (`eligible_apps`): one placed where all of it lives and allowed to change
+ * it, which is the reach it already has.
  *
  * With `member` null it claims the guild's unowned content instead — the pile
  * that accumulates as people leave, since departures release ownership rather
@@ -87,7 +102,8 @@ export const TransferContentOwnershipDialog = ({
 }: TransferContentOwnershipDialogProps) => {
   const { t } = useTranslation(["guilds", "common"]);
   const guildId = useActiveGuildId();
-  const [recipientId, setRecipientId] = useState<string>(defaultRecipientId?.toString() ?? "");
+  const defaultRecipient = defaultRecipientId != null ? personRecipient(defaultRecipientId) : "";
+  const [recipientId, setRecipientId] = useState<string>(defaultRecipient);
   const [content, setContent] = useState<OwnedContentResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -101,7 +117,7 @@ export const TransferContentOwnershipDialog = ({
     let cancelled = false;
     setContent(null);
     setLoading(true);
-    setRecipientId(defaultRecipientId?.toString() ?? "");
+    setRecipientId(defaultRecipient);
 
     const load = async () => {
       try {
@@ -124,16 +140,17 @@ export const TransferContentOwnershipDialog = ({
     return () => {
       cancelled = true;
     };
-  }, [open, memberId, guildId, defaultRecipientId]);
+  }, [open, memberId, guildId, defaultRecipient]);
 
   const toolCounts = useToolCounts(content?.counts);
   const nothingToMove = !loading && (content?.total ?? 0) === 0;
+  const eligibleApps = content?.eligible_apps ?? [];
 
   const handleSubmit = async () => {
     if (!recipientId) return;
     setSubmitting(true);
     try {
-      const body = { new_owner_id: Number(recipientId) };
+      const body = transferBody(recipientId);
       const result = (member === null
         ? await claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost(guildId, body)
         : await transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost(
@@ -197,14 +214,33 @@ export const TransferContentOwnershipDialog = ({
                   <SelectValue placeholder={t("transferOwnership.recipientPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {admins.map((admin) => (
-                    <SelectItem key={admin.id} value={admin.id.toString()}>
-                      {getUserDisplayName(admin)}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {eligibleApps.length > 0 && (
+                      <SelectLabel>{t("transferOwnership.adminsGroup")}</SelectLabel>
+                    )}
+                    {admins.map((admin) => (
+                      <SelectItem key={admin.id} value={personRecipient(admin.id)}>
+                        {getUserDisplayName(admin)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  {eligibleApps.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>{t("transferOwnership.appsGroup")}</SelectLabel>
+                      {eligibleApps.map((app) => (
+                        <SelectItem key={app.id} value={appRecipient(app.id)}>
+                          {app.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
-              <p className="text-muted-foreground text-xs">{t("transferOwnership.adminsOnly")}</p>
+              <p className="text-muted-foreground text-xs">
+                {eligibleApps.length > 0
+                  ? t("transferOwnership.adminsOrApps")
+                  : t("transferOwnership.adminsOnly")}
+              </p>
             </div>
           </div>
         )}

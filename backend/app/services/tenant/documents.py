@@ -24,6 +24,7 @@ from app.core.references import unresolve_wikilinks_to
 from app.core.tools import Tool
 from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
 from app.db.session import guild_context, routed_guild_id
@@ -170,6 +171,7 @@ async def get_document(
     if document:
         await tags_service.annotate_tags(session, [document])
         await annotate_comment_counts(session, [document])
+        await ownership_service.annotate_owner_apps(session, [document])
     return document
 
 
@@ -197,6 +199,7 @@ async def get_document_hydrated(
     if document:
         await tags_service.annotate_tags(session, [document])
         await annotate_comment_counts(session, [document])
+        await ownership_service.annotate_owner_apps(session, [document])
     return document
 
 

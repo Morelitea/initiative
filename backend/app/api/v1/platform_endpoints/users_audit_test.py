@@ -173,7 +173,7 @@ async def test_a_claim_records_the_move_with_no_previous_owner(
     project = await TOOL_FACTORIES[Tool.project](session, admin.initiative, admin.user)
     await route_session_to_guild(session, admin.guild.id)
     await ownership_service.set_resource_owner(
-        session, tool=Tool.project, row=project, new_owner_id=None
+        session, tool=Tool.project, row=project, new_owner=None
     )
     await session.commit()
     capfd.readouterr()

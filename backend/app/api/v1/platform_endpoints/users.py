@@ -109,6 +109,7 @@ from app.schemas.platform.api_key import (
 from app.schemas.tenant.ownership import (
     OwnedContentItem,
     OwnedContentResponse,
+    OwnerAppSummary,
     OwnershipTransferRequest,
     OwnershipTransferResponse,
 )
@@ -1663,7 +1664,9 @@ async def _require_receiving_admin(
         )
 
 
-def _ownership_payload(items: list) -> OwnedContentResponse:
+def _ownership_payload(
+    items: list, eligible_apps: list[OwnerAppSummary]
+) -> OwnedContentResponse:
     counts: dict[str, int] = {}
     for item in items:
         counts[item.tool.value] = counts.get(item.tool.value, 0) + 1
@@ -1674,7 +1677,27 @@ def _ownership_payload(items: list) -> OwnedContentResponse:
         ],
         counts=counts,
         total=len(items),
+        eligible_apps=eligible_apps,
     )
+
+
+async def _recipient(
+    session: AsyncSession, *, guild_id: int, payload: OwnershipTransferRequest
+) -> ownership_service.Owner:
+    """Who the request names to receive the content. A person must be an
+    active admin of this guild; an app's eligibility is asked of the content
+    it would receive, by the move itself."""
+    if payload.new_owner_app_id is not None:
+        return ownership_service.Owner(app_install_id=payload.new_owner_app_id)
+    person_id = payload.new_owner_id
+    if person_id is None:
+        # The schema requires one of the two; nobody named is nobody eligible.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.OWNER_MUST_BE_GUILD_ADMIN,
+        )
+    await _require_receiving_admin(session, guild_id=guild_id, new_owner_id=person_id)
+    return ownership_service.Owner(user_id=person_id)
 
 
 def _transfer_payload(counts: dict) -> OwnershipTransferResponse:
@@ -1688,15 +1711,17 @@ async def list_unowned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnedContentResponse:
-    """Everything in this guild that no current member owns.
+    """Everything in this guild that no current member or live app owns, and
+    the apps that may own all of it.
 
     Both the content released when someone left and anything orphaned before
     that — either way nobody who can act on it owns it.
     """
+    items = await ownership_service.summarize_unowned_content(
+        session, guild_id=guild_context.guild_id
+    )
     return _ownership_payload(
-        await ownership_service.summarize_unowned_content(
-            session, guild_id=guild_context.guild_id
-        )
+        items, await ownership_service.eligible_app_owners(session, items)
     )
 
 
@@ -1707,14 +1732,15 @@ async def claim_unowned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
-    """Give everything nobody owns to one guild admin."""
-    await _require_receiving_admin(
-        session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
+    """Give everything nobody owns to one guild admin, or to an app that may
+    own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise)."""
+    recipient = await _recipient(
+        session, guild_id=guild_context.guild_id, payload=payload
     )
     counts = await ownership_service.claim_unowned_content(
         session,
         guild_id=guild_context.guild_id,
-        to_user_id=payload.new_owner_id,
+        to=recipient,
         actor_user_id=current_admin.id,
     )
     await session.commit()
@@ -1728,13 +1754,15 @@ async def list_owned_content(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnedContentResponse:
-    """What this user owns in this guild, for the transfer dialog to list.
+    """What this user owns in this guild, for the transfer dialog to list,
+    and the apps that may own all of it.
 
     Works for anyone the grants still name, member or not — accounts get
     abandoned as often as they get closed.
     """
+    items = await ownership_service.summarize_owned_content(session, user_id)
     return _ownership_payload(
-        await ownership_service.summarize_owned_content(session, user_id)
+        items, await ownership_service.eligible_app_owners(session, items)
     )
 
 
@@ -1748,7 +1776,8 @@ async def transfer_ownership(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> OwnershipTransferResponse:
-    """Move everything ``user_id`` owns in this guild to a guild admin.
+    """Move everything ``user_id`` owns in this guild to a guild admin, or to
+    an app that may own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
 
     The only place ownership is moved by hand, and guild-admin only.
     """
@@ -1757,13 +1786,13 @@ async def transfer_ownership(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.OWNER_ALREADY_HOLDS_CONTENT,
         )
-    await _require_receiving_admin(
-        session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
+    recipient = await _recipient(
+        session, guild_id=guild_context.guild_id, payload=payload
     )
     counts = await ownership_service.transfer_content_ownership(
         session,
         from_user_id=user_id,
-        to_user_id=payload.new_owner_id,
+        to=recipient,
         guild_id=guild_context.guild_id,
         actor_user_id=current_admin.id,
     )

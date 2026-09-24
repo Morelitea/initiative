@@ -34,7 +34,7 @@
         },
         "scopes": {
           "type": "array",
-          "maxItems": 26,
+          "maxItems": 28,
           "uniqueItems": true,
           "items": {
             "enum": [
@@ -62,6 +62,8 @@
               "relationships:write",
               "tags:read",
               "tags:write",
+              "sharing:read",
+              "sharing:write",
               "members:read",
               "initiatives:read"
             ]

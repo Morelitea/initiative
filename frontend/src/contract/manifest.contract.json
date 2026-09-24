@@ -86,6 +86,8 @@
       "relationships:write",
       "tags:read",
       "tags:write",
+      "sharing:read",
+      "sharing:write",
       "members:read",
       "initiatives:read"
     ],

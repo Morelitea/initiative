@@ -26,6 +26,10 @@
     "remove": "Supprimer",
     "fullAccess": "Accès complet",
     "fullAccessHint": "Ce rôle peut consulter et modifier tout le contenu de cette initiative ; il est donc toujours éditeur ici.",
+    "app": "Application",
+    "apps": "Applications",
+    "appFallback": "Application {{id}}",
+    "appGrantHint": "Les paramètres de la communauté décident de ce qu'une application peut atteindre, cela ne se modifie donc pas ici.",
     "settingsDescription": "Choisissez qui peut consulter et modifier ceci."
   },
   "bulkAccess": {

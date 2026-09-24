@@ -374,6 +374,7 @@ async def serialize_document_page(
     """
     await tags_service.annotate_tags(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
+    await ownership_service.annotate_owner_apps(session, documents)
     attached = await attached_projects(session, documents)
     context = require_actor_context(session)
     return [
@@ -553,7 +554,8 @@ async def create_document(
 
         # Apply the initial sharing exactly the way edits do — one grant list,
         # one code path (defaults to Viewer for all members, set on
-        # DocumentCreate.grants). An installed app writes no grant of its own.
+        # DocumentCreate.grants). An installed app's is applied below, when it
+        # asked for one.
         await permissions_service.replace_resource_grants(
             session,
             resource_type="document",
@@ -563,6 +565,16 @@ async def create_document(
             owner_id=current_user.id,
             grants=document_in.grants,
             actor_user_id=current_user.id,
+        )
+    else:
+        await resource_access.apply_app_initial_sharing(
+            session,
+            guild_context,
+            Tool.document,
+            resource_id=document.id,
+            initiative_id=document.initiative_id,
+            payload=document_in,
+            grants=document_in.grants,
         )
 
     # What the new body points at becomes `references` edges.
@@ -1522,8 +1534,8 @@ async def set_document_properties(
 async def read_after_write(
     session: RLSSessionDep,
     document_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> DocumentRead:
     """The document a write answers with: re-read after the commit, serialized.
 
@@ -1534,9 +1546,11 @@ async def read_after_write(
         session,
         document_id=document_id,
         guild_id=guild_context.guild_id,
-        user_id=user.id,
+        user_id=guild_context.user_id,
     )
-    return serialize_document(hydrated, user_id=user.id, context=guild_context)
+    return serialize_document(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 def _download_document_options():

@@ -268,7 +268,7 @@ def serialize_counter_group_summary(
         updated_at=group.updated_at,
         comments_enabled=group.comments_enabled,
         tags=annotated_tags(group),
-        grants=serialize_grants(group),
+        grants=serialize_grants(group, context=context),
     )
 
 

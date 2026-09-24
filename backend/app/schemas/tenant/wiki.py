@@ -328,7 +328,7 @@ def serialize_wiki_summary(
         comments_enabled=wiki.comments_enabled,
         comment_count=getattr(wiki, "comment_count", 0),
         tags=annotated_tags(wiki),
-        grants=serialize_grants(wiki),
+        grants=serialize_grants(wiki, context=context),
     )
 
 

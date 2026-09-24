@@ -233,7 +233,7 @@ async def create_counter_group(
 
         # Apply the initial sharing exactly the way edits do — one grant list,
         # one code path (defaults to Viewer for all initiative members). An
-        # installed app writes no grant of its own.
+        # installed app's is applied below, when it asked for one.
         await permissions_service.replace_resource_grants(
             session,
             resource_type="counter_group",
@@ -243,6 +243,16 @@ async def create_counter_group(
             owner_id=current_user.id,
             grants=group_in.grants,
             actor_user_id=current_user.id,
+        )
+    else:
+        await resource_access.apply_app_initial_sharing(
+            session,
+            guild_context,
+            Tool.counter_group,
+            resource_id=group.id,
+            initiative_id=group.initiative_id,
+            payload=group_in,
+            grants=group_in.grants,
         )
 
     await session.commit()
@@ -802,8 +812,8 @@ async def sort_counters(
 async def read_after_write(
     session: RLSSessionDep,
     group_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> CounterGroupRead:
     """The counter group a write answers with: re-read after the commit,
     serialized.
@@ -812,7 +822,9 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_group(session, group_id)
-    return serialize_counter_group(hydrated, user_id=user.id, context=guild_context)
+    return serialize_counter_group(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -704,6 +704,10 @@ class UserMessages:
     CANNOT_DELETE_SELF = "USER_CANNOT_DELETE_SELF"
     OWNER_MUST_BE_GUILD_ADMIN = "OWNER_MUST_BE_GUILD_ADMIN"
     OWNER_ALREADY_HOLDS_CONTENT = "OWNER_ALREADY_HOLDS_CONTENT"
+    #: The installed app named as the new owner may not own that content: it
+    #: is off or gone, lacks the tool's write scope, or is not placed in the
+    #: content's initiative.
+    OWNER_APP_NOT_ELIGIBLE = "OWNER_APP_NOT_ELIGIBLE"
     NOT_IN_GUILD = "USER_NOT_IN_GUILD"
     AVATAR_INVALID_IMAGE = "USER_AVATAR_INVALID_IMAGE"
     AVATAR_NOT_SQUARE = "USER_AVATAR_NOT_SQUARE"
@@ -1322,8 +1326,9 @@ class AppMessages:
     CONSENT_OUTSIDE_TOKEN = "APP_CONSENT_OUTSIDE_TOKEN"
     #: The install has asked for consent too often; it tries again later.
     CONSENT_RATE_LIMITED = "APP_CONSENT_RATE_LIMITED"
-    #: The request asks an installed app to share something or to name its
-    #: owner. What it creates is its own, and sharing it is a person's to do.
+    #: The request asks an installed app to change sharing without
+    #: ``sharing:write``, or to name an owner for something it creates, which
+    #: is its own.
     SHARING_NOT_AVAILABLE = "APP_SHARING_NOT_AVAILABLE"
 
 

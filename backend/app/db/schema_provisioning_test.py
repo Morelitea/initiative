@@ -350,10 +350,11 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
                 }
                 assert readable == set(columns), table
             assert await held(conn, "resource_grants", "SELECT") is True
-            # The owner grant on what it creates; the row policies decide which.
+            # The owner grant on what it creates, and the shares it rewrites
+            # with sharing:write; the row policies decide which rows.
             assert await held(conn, "resource_grants", "INSERT") is True
-            for verb in ("UPDATE", "DELETE"):
-                assert await held(conn, "resource_grants", verb) is False, verb
+            assert await held(conn, "resource_grants", "DELETE") is True
+            assert await held(conn, "resource_grants", "UPDATE") is False
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)

@@ -21,7 +21,7 @@ Three things here are the wiki's own rather than the generic tool shape:
 """
 
 from copy import deepcopy
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
@@ -219,7 +219,7 @@ async def create_wiki(
 
     # The creator's owner grant, then the initial sharing. An installed app's
     # owner row is written by the table's own trigger as the row goes in, and
-    # it writes no grant of its own.
+    # its initial sharing is applied below, when it asked for one.
     owner_grant = ownership_service.creator_owner_grant(
         guild_context,
         tool=Tool.wiki,
@@ -237,6 +237,16 @@ async def create_wiki(
             owner_id=current_user.id,
             grants=wiki_in.grants,
             actor_user_id=current_user.id,
+        )
+    else:
+        await resource_access.apply_app_initial_sharing(
+            session,
+            guild_context,
+            Tool.wiki,
+            resource_id=wiki.id,
+            initiative_id=initiative.id,
+            payload=wiki_in,
+            grants=wiki_in.grants,
         )
     if wiki_in.tag_ids:
         await tags_service.set_entity_tags(
@@ -336,16 +346,18 @@ async def delete_wiki(
 async def read_after_write(
     session: RLSSessionDep,
     wiki_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> WikiRead:
     """The wiki a write answers with: re-read after the commit, serialized.
 
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_wiki(session, wiki_id, user_id=user.id)
-    return serialize_wiki(hydrated, user_id=user.id, context=guild_context)
+    hydrated = await _refetch_wiki(session, wiki_id, user_id=guild_context.user_id)
+    return serialize_wiki(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 # ---------------------------------------------------------------------------

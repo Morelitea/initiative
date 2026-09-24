@@ -202,8 +202,8 @@ async def create_calendar(
 
         # Apply the initial sharing exactly the way edits do — one grant list,
         # one code path (defaults to Viewer for all initiative members, which
-        # at guild scope reads as every member of the guild). An installed app
-        # writes no grant of its own.
+        # at guild scope reads as every member of the guild). An installed
+        # app's is applied below, when it asked for one.
         await permissions_service.replace_resource_grants(
             session,
             resource_type="calendar",
@@ -213,6 +213,16 @@ async def create_calendar(
             owner_id=current_user.id,
             grants=calendar_in.grants,
             actor_user_id=current_user.id,
+        )
+    else:
+        await resource_access.apply_app_initial_sharing(
+            session,
+            guild_context,
+            Tool.calendar,
+            resource_id=calendar.id,
+            initiative_id=initiative_id,
+            payload=calendar_in,
+            grants=calendar_in.grants,
         )
 
     # The app is the container, so it is answerable for this too: uninstalling
@@ -319,8 +329,8 @@ async def delete_calendar(
 async def read_after_write(
     session: RLSSessionDep,
     calendar_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> CalendarRead:
     """The calendar a write answers with: re-read after the commit, serialized.
 
@@ -328,4 +338,6 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_calendar(session, calendar_id)
-    return serialize_calendar(hydrated, user_id=user.id, context=guild_context)
+    return serialize_calendar(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )

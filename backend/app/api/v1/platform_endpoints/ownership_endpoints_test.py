@@ -29,7 +29,7 @@ async def _released_project(session: AsyncSession, actor):
     project = await TOOL_FACTORIES[Tool.project](session, actor.initiative, actor.user)
     await route_session_to_guild(session, actor.guild.id)
     await ownership_service.set_resource_owner(
-        session, tool=Tool.project, row=project, new_owner_id=None
+        session, tool=Tool.project, row=project, new_owner=None
     )
     await session.commit()
     return project

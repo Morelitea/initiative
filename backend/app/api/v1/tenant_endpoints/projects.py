@@ -591,6 +591,7 @@ async def _project_reads_with_order(
     # parallel-ish (all independent queries batched before we iterate projects)
     await _attach_task_summaries(session, projects)
     await tags_service.annotate_tags(session, projects)
+    await ownership_service.annotate_owner_apps(session, projects)
     order_map: dict[int, float] = {}
     favorite_ids: set[int] = set()
     view_map: dict[int, datetime] = {}
@@ -639,9 +640,11 @@ def _slim_project_reads(
     """Build lightweight ``ProjectRead`` rows for the slim projection.
 
     Carries only ``{id, name, icon, initiative_id, my_permission_level}`` plus
-    the cheap scalar flags; documents/grants/tags/owner/nested initiative are
-    left at their defaults so no heavy relationship is serialized. ``description``
-    is dropped too (it would run rich-text sanitization for no picker benefit).
+    the cheap scalar flags and who owns it (``owner_id``, or ``owner_app`` as
+    the caller annotated it); documents/grants/tags/the owner's profile/nested
+    initiative are left at their defaults so no heavy relationship is
+    serialized. ``description`` is dropped too (it would run rich-text
+    sanitization for no picker benefit).
     """
     reads: List[ProjectRead] = []
     for project in projects:
@@ -651,7 +654,7 @@ def _slim_project_reads(
                 name=project.name,
                 description=None,
                 icon=project.icon,
-                owner_id=ownership_service.owner_id_of(project),
+                owner_id=ownership_service.owner_user_id_of(project),
                 initiative_id=project.initiative_id,
                 created_at=project.created_at,
                 updated_at=project.updated_at,
@@ -663,6 +666,10 @@ def _slim_project_reads(
                 can_configure=permissions_service.can_configure_project(
                     project, context=context
                 ),
+            ).model_copy(
+                # Set after construction: the field's alias keeps
+                # ``model_validate`` off the ORM row.
+                update={"owner_app": ownership_service.owner_app_of(project)}
             )
         )
     return reads
@@ -682,6 +689,7 @@ async def serialize_project_page(
     queries — that is what makes it slim.
     """
     if slim:
+        await ownership_service.annotate_owner_apps(session, projects)
         return _slim_project_reads(
             projects, user_id, context=require_actor_context(session)
         )
@@ -842,13 +850,14 @@ def _build_project_payload(
             "task_summary": summary,
             "task_statuses": _project_task_statuses(project),
             "tags": annotated_tags(project),
-            "grants": permissions_service.serialize_grants(project),
+            "grants": permissions_service.serialize_grants(project, context=context),
             **permissions_service.client_access(project, user_id, context=context),
             "can_configure": permissions_service.can_configure_project(
                 project, context=context
             ),
-            "owner_id": ownership_service.owner_id_of(project),
+            "owner_id": ownership_service.owner_user_id_of(project),
             "owner": _project_owner(project),
+            "owner_app": ownership_service.owner_app_of(project),
         }
     )
 
@@ -921,7 +930,8 @@ async def create_project(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> ProjectRead:
-    resource_access.refuse_app_sharing(guild_context, project_in, "grants", "owner_id")
+    resource_access.refuse_app_sharing(guild_context, project_in, "grants")
+    resource_access.refuse_app_owner(guild_context, project_in, "owner_id")
     template_project: Project | None = None
     if project_in.template_id is not None:
         # Reaching the blueprint is settled first: whether it is a blueprint at
@@ -999,7 +1009,7 @@ async def create_project(
     # Sharing before anything that hangs off it: a status, a preset or a task
     # is reached through the project, so the project has to be reachable first.
     # An installed app's owner row went in with the project, by the table's
-    # trigger, and it writes no other grant.
+    # trigger, and its initial sharing is applied when it asked for one.
     if owner_id is not None:
         owner_permission = ResourceGrant(
             resource_type="project",
@@ -1023,6 +1033,16 @@ async def create_project(
             owner_id=owner_id,
             grants=project_in.grants,
             actor_user_id=guild_context.user_id,
+        )
+    else:
+        await resource_access.apply_app_initial_sharing(
+            session,
+            guild_context,
+            Tool.project,
+            resource_id=project.id,
+            initiative_id=project.initiative_id,
+            payload=project_in,
+            grants=project_in.grants,
         )
 
     await session.flush()
@@ -1281,6 +1301,7 @@ async def favorite_projects(
     )
     attached = await _documents_for_projects(session, list(project_map.values()))
     await tags_service.annotate_tags(session, list(project_map.values()))
+    await ownership_service.annotate_owner_apps(session, list(project_map.values()))
 
     payloads: List[ProjectRead] = []
     for favorite in favorites:
@@ -1706,8 +1727,8 @@ async def delete_project(
 async def read_after_write(
     session: RLSSessionDep,
     project_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> ProjectRead:
     """The project a write answers with: re-read after the commit, serialized.
 
@@ -1715,9 +1736,9 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     project = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, user_id=user.id
+        project_id, session, guild_context.guild_id, user_id=guild_context.user_id
     )
-    return await _project_read_for_user(session, user.id, project)
+    return await _project_read_for_user(session, guild_context.user_id, project)
 
 
 # ── Export / Import ──────────────────────────────────────────────

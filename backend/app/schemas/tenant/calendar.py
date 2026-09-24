@@ -110,7 +110,7 @@ def serialize_calendar_summary(
         **client_access(calendar, user_id, context=context),
         comments_enabled=calendar.comments_enabled,
         tags=annotated_tags(calendar),
-        grants=serialize_grants(calendar),
+        grants=serialize_grants(calendar, context=context),
     )
 
 

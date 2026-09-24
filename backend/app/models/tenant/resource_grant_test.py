@@ -196,7 +196,7 @@ async def test_saving_the_sharing_panel_keeps_an_installs_grant(
             .options(selectinload(Project.grants))
         )
     ).one()
-    reported = permissions_service.serialize_grants(loaded)
+    reported = permissions_service.serialize_grants(loaded, context=None)
     assert any(g.app_install_id == install.id and g.level == "write" for g in reported)
     assert any(g.all_initiative_members for g in reported)
 

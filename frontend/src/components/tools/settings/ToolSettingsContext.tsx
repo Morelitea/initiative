@@ -9,7 +9,12 @@
 
 import { createContext, type ReactNode, useContext } from "react";
 
-import type { ResourceGrantSchema, TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  OwnerAppSummary,
+  ResourceGrantSchema,
+  TagSummary,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import type { ExportFormatOption } from "@/components/exports/ExportButton";
 
 /**
@@ -41,6 +46,12 @@ export interface ToolSettingsEntity {
    * on every other entity, which is why it is optional rather than a union.
    */
   reactions_enabled?: boolean;
+  /**
+   * The installed app that owns it, where the tool's read model names one
+   * (projects and documents). Elsewhere the sharing control finds the app
+   * from the owner grant.
+   */
+  owner_app?: OwnerAppSummary | null;
 }
 
 /**

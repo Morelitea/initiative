@@ -15,6 +15,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
+from app.schemas.tenant.ownership import OwnerAppSummary
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
@@ -78,8 +79,13 @@ class DocumentCopyRequest(SanitizedBaseModel):
 
 
 class DocumentSummary(DocumentBase, ArchiveState):
+    # ``validate_by_name`` so the serializer below can set ``owner`` and
+    # ``owner_app`` by name; their aliases keep ``from_attributes`` from reading
+    # an ORM relationship.
     model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
+        from_attributes=True,
+        json_schema_serialization_defaults_required=True,
+        validate_by_name=True,
     )
 
     id: int
@@ -91,8 +97,14 @@ class DocumentSummary(DocumentBase, ArchiveState):
     created_at: datetime
     updated_at: datetime
     initiative: Optional[InitiativeSummary] = None
-    #: The holder of the document's owner grant, or None when it is unowned.
+    #: The person holding the document's owner grant, or None when it is
+    #: unowned or an app owns it.
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
+    #: The installed app holding the owner grant, or None when a person owns
+    #: the document or nobody does. At most one of ``owner`` and this is set.
+    owner_app: Optional[OwnerAppSummary] = Field(
+        default=None, validation_alias="owner_app_source"
+    )
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
     # When false this entity's comment thread is off — the UI renders none
@@ -240,6 +252,7 @@ def serialize_document_summary(
         if isinstance(url, str) and url:
             smart_link_url = url
     from app.services.permissions import client_access, serialize_grants
+    from app.services.tenant.ownership import owner_app_of
 
     return DocumentSummary(
         id=document.id,
@@ -253,10 +266,11 @@ def serialize_document_summary(
         updated_at=document.updated_at,
         initiative=initiative,
         owner=_document_owner(document),
+        owner_app=owner_app_of(document),
         projects=_serialize_project_links(projects),
         comment_count=getattr(document, "comment_count", 0),
         comments_enabled=document.comments_enabled,
-        grants=serialize_grants(document),
+        grants=serialize_grants(document, context=context),
         tags=annotated_tags(document),
         properties=_serialize_document_properties(document),
         document_type=document.document_type.value

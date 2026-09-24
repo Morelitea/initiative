@@ -269,7 +269,7 @@ def serialize_queue_summary(
         **client_access(queue, user_id, context=context),
         comments_enabled=queue.comments_enabled,
         tags=annotated_tags(queue),
-        grants=serialize_grants(queue),
+        grants=serialize_grants(queue, context=context),
     )
 
 
