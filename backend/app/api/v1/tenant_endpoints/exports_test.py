@@ -105,12 +105,10 @@ async def _job(client: AsyncClient, a, job_id: int) -> dict:
     return resp.json()
 
 
-async def _run_worker(monkeypatch, role_session) -> None:
+async def _run_worker() -> None:
     """Render the queued jobs the way the worker does. It re-queries as the
-    creator on an app_user session, so point its session factory at the test DB
-    (the admin side is patched by the standard harness)."""
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    creator on a read session from the community's cohort, which the standard
+    harness points at the test database."""
     await export_worker.process_export_jobs()
 
 
@@ -126,7 +124,7 @@ async def _rendered_zip(client, a, monkeypatch, role_session, resp) -> zipfile.Z
     """202 -> worker render -> download; returns the opened zip."""
     assert resp.status_code == 202, resp.text
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.done.value, body.get("error")
     dl = await _download(client, a, job_id)
@@ -484,7 +482,7 @@ async def test_worker_renders_job_and_download_succeeds(
     assert resp.status_code == 202
     job_id = resp.json()["id"]
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.done.value, body.get("error")
@@ -564,7 +562,7 @@ async def test_project_export_job_path_renders_json(
     assert resp.status_code == 202
     assert resp.json()["source"] == "project"
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     dl = await _download(client, a, resp.json()["id"])
     envelope = json.loads(_assert_export(dl, "json"))
@@ -917,7 +915,7 @@ async def test_document_export_file_passthrough(
     assert queued.status_code == 202
     job_id = queued.json()["id"]
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     dl = await _download(client, a, job_id)
     assert dl.content == payload
@@ -955,7 +953,7 @@ async def test_passthrough_exports_do_not_collide_by_filename(
     job_a = await queue_export("src-a.pdf", b"AAAA-first-member")
     job_b = await queue_export("src-b.pdf", b"BBBB-second-member")
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     row_a = await session.get(ExportJob, job_a)
     row_b = await session.get(ExportJob, job_b)
@@ -1849,7 +1847,7 @@ async def test_bulk_counter_group_pdf_zip_through_job_path(
     )
     assert queued.status_code == 202
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     dl = await _download(client, a, queued.json()["id"])
     _assert_export(dl, "zip", disposition=("counter-group-",))
@@ -2444,7 +2442,7 @@ async def test_backup_embedded_image_bytes_hit_cap_at_build(
     assert resp.status_code == 202  # pre-flight can't see embedded bytes
     job_id = resp.json()["id"]
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
@@ -2624,7 +2622,7 @@ async def test_guild_export_seat_vacated_fails_closed(
     session.add(a.membership)
     await session.commit()
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
@@ -2992,7 +2990,7 @@ async def test_a_failed_export_is_reported_but_holds_no_door(
     )
 
     job_id = (await _export(client, a, "guild")).json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = (await client.get(a.g("/exports/guild/status"), headers=a.headers)).json()
     assert body["latest"]["id"] == job_id
@@ -3015,7 +3013,7 @@ async def test_an_archive_over_the_download_bound_is_delivered(
     resp = await _export(client, a, "guild")
     assert resp.status_code == 202, resp.text
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.done.value, body.get("error")
@@ -3045,7 +3043,7 @@ async def test_a_delivered_archive_is_not_swept_up_by_artifact_gc(
 
     resp = await _export(client, a, "guild")
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["expires_at"] is None
@@ -3064,7 +3062,7 @@ async def test_over_the_bound_with_no_destination_fails_the_job_clearly(
 
     resp = await _export(client, a, "guild")
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
@@ -3104,7 +3102,7 @@ async def test_download_redirects_when_storage_can_sign_a_url(
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     assert resp.status_code == 202, resp.text
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
     assert (await _job(client, a, job_id))["status"] == ExportJobStatus.done.value
 
     import app.api.v1.tenant_endpoints.exports as exports_module
@@ -3141,7 +3139,7 @@ async def test_download_stays_proxied_unless_the_operator_turns_it_on(
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     import app.api.v1.tenant_endpoints.exports as exports_module
 

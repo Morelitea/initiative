@@ -141,16 +141,13 @@ class AppServiceRegistration(SQLModel, table=True):
         default_factory=list,
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
-    # Public half of the key this app signs delegation tokens with, in JWKS
-    # shape. A set rather than one key because an app rotates by publishing the
-    # replacement alongside the current entry while tokens signed by the first
-    # drain out; every entry carries a ``kid``, which is what a token names.
-    # Public keys only. Null on an app that does not delegate: the column is
-    # kept only while ``grants`` holds ``delegation``, so taking the grant away
-    # takes the keys with it rather than leaving a set nothing displays.
-    delegation_jwks: Optional[dict] = Field(
-        default=None, sa_column=Column(JSONB, nullable=True)
-    )
+    # Public half of the keys this app signs with, in JWKS shape: the client
+    # assertions it presents at the token endpoint, and its delegation tokens.
+    # A set rather than one key because an app rotates by publishing the
+    # replacement alongside the current entry while JWTs signed by the first
+    # drain out; every entry carries a ``kid``, which is what a JWT names.
+    # Public keys only. Null on an app that has not been provisioned with one.
+    jwks: Optional[dict] = Field(default=None, sa_column=Column(JSONB, nullable=True))
     # The most an install of this app may be granted (see module docstring).
     # Validated against ``app.core.app_scopes`` on every write.
     scope_ceiling: List[str] = Field(

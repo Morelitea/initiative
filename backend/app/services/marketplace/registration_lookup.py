@@ -82,10 +82,11 @@ class RegistrationSnapshot:
     allowed_origins: tuple[str, ...]
     #: Operator-conferred powers, for callers that gate on one.
     grants: tuple[str, ...]
-    #: Public verification keys this app signs delegation tokens with, by the
-    #: ``kid`` a token names. Parsed once when the snapshot is built rather than
-    #: per token. Empty on an app that has not been provisioned with one.
-    delegation_keys: Mapping[str, Any]
+    #: Public verification keys this app signs with — its client assertions at
+    #: the token endpoint, and its delegation tokens — by the ``kid`` a JWT
+    #: names. Parsed once when the snapshot is built rather than per token.
+    #: Empty on an app that has not been provisioned with one.
+    keys: Mapping[str, Any]
     #: The deployment installs this app in every guild (§7.7).
     mandatory: bool
     #: The operator's kill switch. False stops every channel this app has.
@@ -110,14 +111,14 @@ class RegistrationSnapshot:
         return browser_base(self)
 
 
-def _parse_delegation_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
+def _parse_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
     """Build the ``kid`` → key index for one registration.
 
     The keys were validated when they were stored, so anything unusable here
     is a surprise worth logging rather than a case to model: the entry is left
     out, and a token naming it finds no key.
     """
-    key_set = row.delegation_jwks or {}
+    key_set = row.jwks or {}
     parsed: dict[str, Any] = {}
     for entry in key_set.get("keys", []) or []:
         kid = entry.get("kid") if isinstance(entry, dict) else None
@@ -127,7 +128,7 @@ def _parse_delegation_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
             parsed[kid] = PyJWK.from_dict(entry).key
         except Exception:
             logger.warning(
-                "app services: %s has an unusable delegation key %r", row.public_id, kid
+                "app services: %s has an unusable key %r", row.public_id, kid
             )
     return MappingProxyType(parsed)
 
@@ -171,7 +172,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             embed_origin=row.embed_origin,
             allowed_origins=tuple(row.allowed_origins or []),
             grants=tuple(row.grants or []),
-            delegation_keys=_parse_delegation_keys(row),
+            keys=_parse_keys(row),
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
             status=row.status,
@@ -375,7 +376,7 @@ async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
         DelegationKey(registration=snapshot, key=key)
         for snapshot in (await load_registrations()).values()
         if snapshot.enabled and "delegation" in snapshot.grants
-        for key in (snapshot.delegation_keys.get(kid),)
+        for key in (snapshot.keys.get(kid),)
         if key is not None
     )
 
@@ -421,9 +422,7 @@ async def any_delegate_registered() -> bool:
     endpoints refuse without one and the outbound dispatcher stays inert.
     """
     return any(
-        snapshot.enabled
-        and "delegation" in snapshot.grants
-        and snapshot.delegation_keys
+        snapshot.enabled and "delegation" in snapshot.grants and snapshot.keys
         for snapshot in (await load_registrations()).values()
     )
 

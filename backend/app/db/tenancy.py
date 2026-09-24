@@ -179,6 +179,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # Hangs off a registration, which is platform-wide, and a single signed
         # request may address any guild — so the guard cannot live in a schema.
         "app_service_nonces",
+        # Spent client-assertion jtis from the app token endpoint. Hangs off a
+        # registration, which is platform-wide, like the nonces above.
+        "app_assertion_jtis",
         # Registry client state: what this deployment last accepted from a
         # signed index, and the artwork that index named, mirrored locally so
         # listing media is served from here. Operator/system state, no guild.

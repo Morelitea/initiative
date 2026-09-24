@@ -143,6 +143,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # (a request that old is refused before the guard is consulted, so pruning
     # constrains nothing). Never updated — a spent nonce has one state.
     "app_service_nonces": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # The token endpoint records each client assertion's jti here, and the
+    # shared jti janitor prunes the ones past their assertion's exp. Never
+    # updated, like the nonces.
+    "app_assertion_jtis": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Registry client state: read and written by the refresh job alone. One row
     # per registry URL, recycled in place, so nothing is ever deleted.
     "marketplace_registry_state": frozenset({"SELECT", "INSERT", "UPDATE"}),
@@ -346,6 +350,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # The app-service replay guard is spent entirely on the system engine, like
     # the billing blocklist; no request-path role reads or writes it.
     "app_service_nonces": None,
+    # Client-assertion jtis: spent on the system engine alone, like the nonces.
+    "app_assertion_jtis": None,
     # Refresh bookkeeping — system engine only, surfaced to an operator through
     # a capability-gated endpoint rather than read on the request path.
     "marketplace_registry_state": None,
@@ -511,6 +517,7 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listing_versions": frozenset({"SELECT"}),
     "app_service_registrations": None,
     "app_service_nonces": None,
+    "app_assertion_jtis": None,
     "marketplace_registry_state": None,
     # 0360: served on the bare login role alone.
     "marketplace_media": None,
@@ -636,6 +643,7 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listing_versions": frozenset({"SELECT"}),
     "app_service_registrations": None,
     "app_service_nonces": None,
+    "app_assertion_jtis": None,
     "marketplace_registry_state": None,
     # 0360: served on the bare login role alone.
     "marketplace_media": None,
@@ -723,6 +731,7 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listing_versions": None,
     "app_service_registrations": None,
     "app_service_nonces": None,
+    "app_assertion_jtis": None,
     "marketplace_registry_state": None,
     "marketplace_media": None,
     "guild_images": None,
@@ -804,6 +813,8 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # install_standing_test beside the one on guilds.
     "app_service_registrations": None,
     "app_service_nonces": None,
+    "app_assertion_jtis": None,
+    "sign_in_locks": None,
     "marketplace_registry_state": None,
     "marketplace_media": None,
     "guild_images": None,

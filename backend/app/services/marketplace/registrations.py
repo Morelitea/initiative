@@ -87,7 +87,7 @@ __all__ = [
     "get_registration",
     "list_registrations",
     "normalize_base_url",
-    "normalize_delegation_jwks",
+    "normalize_jwks",
     "normalize_embed_origin",
     "sign_for_app",
     "normalize_grants",
@@ -264,9 +264,13 @@ PRIVATE_JWK_MEMBERS: frozenset[str] = frozenset(
 )
 
 
-def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
-    """Check a delegation key set holds public verification keys, each carrying
-    the ``kid`` a token names.
+def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
+    """Check an app's key set holds public verification keys, each carrying
+    the ``kid`` a JWT names.
+
+    The set is the app's client credential: the token endpoint verifies the
+    assertions it signs against it, and the delegation path its delegation
+    tokens. So it is kept whatever the registration's grants are.
 
     Parsed on the way in rather than at first use, so an operator provisioning
     a key learns here whether it landed instead of at the first call that
@@ -282,7 +286,7 @@ def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
         return None
     if not isinstance(value, dict):
         raise _bad_request(
-            AppServiceMessages.INVALID_DELEGATION_JWKS,
+            AppServiceMessages.INVALID_JWKS,
             "expected a JWKS object",
         )
     if not value:
@@ -291,7 +295,7 @@ def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
     keys = value.get("keys")
     if not isinstance(keys, list) or not keys:
         raise _bad_request(
-            AppServiceMessages.INVALID_DELEGATION_JWKS,
+            AppServiceMessages.INVALID_JWKS,
             "expected {'keys': [...]} holding at least one key",
         )
 
@@ -299,31 +303,31 @@ def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
     for entry in keys:
         if not isinstance(entry, dict):
             raise _bad_request(
-                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                AppServiceMessages.INVALID_JWKS,
                 "every entry in 'keys' must be an object",
             )
         kid = entry.get("kid")
         if not isinstance(kid, str) or not kid.strip():
             raise _bad_request(
-                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                AppServiceMessages.INVALID_JWKS,
                 "every key needs a 'kid' — a token names one to select it",
             )
         if kid in seen:
             raise _bad_request(
-                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                AppServiceMessages.INVALID_JWKS,
                 f"two keys share the kid {kid!r}",
             )
         seen.add(kid)
         if entry.get("kty") not in PUBLIC_JWK_TYPES:
             raise _bad_request(
-                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                AppServiceMessages.INVALID_JWKS,
                 f"key {kid!r} is not a public key type "
                 f"({', '.join(sorted(PUBLIC_JWK_TYPES))})",
             )
         private = sorted(PRIVATE_JWK_MEMBERS.intersection(entry))
         if private:
             raise _bad_request(
-                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                AppServiceMessages.INVALID_JWKS,
                 f"key {kid!r} carries private material ({', '.join(private)}) — "
                 "provision the public half",
             )
@@ -331,25 +335,11 @@ def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
             PyJWK.from_dict(entry)
         except (PyJWKError, InvalidKeyError, KeyError, TypeError, ValueError) as exc:
             raise _bad_request(
-                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                AppServiceMessages.INVALID_JWKS,
                 f"key {kid!r} is unusable: {exc}",
             ) from exc
 
     return value
-
-
-def _delegation_keys_for(
-    key_set: Optional[dict], grants: Iterable[str]
-) -> Optional[dict]:
-    """Keys are kept only while the registration grants delegation.
-
-    Taking the grant away takes the key material with it, on every path that
-    writes a registration. Otherwise a row that no longer delegates still holds
-    a key set nothing displays — and re-granting later would quietly bring back
-    whichever key was last provisioned, rather than the one the operator is
-    looking at.
-    """
-    return key_set if "delegation" in set(grants) else None
 
 
 def normalize_grants(values: Optional[Iterable[str]]) -> list[str]:
@@ -496,7 +486,7 @@ async def create_registration(
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
-    delegation_jwks: Optional[dict] = None,
+    jwks: Optional[dict] = None,
     scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: bool = False,
     enabled: bool = True,
@@ -519,9 +509,7 @@ async def create_registration(
     embed = normalize_embed_origin(embed_origin) if embed_origin else None
     origins = normalize_origins(allowed_origins, browser_base=embed or base_url)
     grant_list = normalize_grants(grants)
-    key_set = _delegation_keys_for(
-        normalize_delegation_jwks(delegation_jwks), grant_list
-    )
+    key_set = normalize_jwks(jwks)
     ceiling = normalize_scope_ceiling(scope_ceiling)
     declared_id = normalize_public_id(public_id) if public_id else None
     if not secret or not secret.strip():
@@ -588,7 +576,7 @@ async def create_registration(
         manifest_hash=manifest_hash,
         protocol_version=protocol_version,
         grants=grant_list,
-        delegation_jwks=key_set,
+        jwks=key_set,
         scope_ceiling=ceiling,
         mandatory=mandatory,
         enabled=enabled,
@@ -625,7 +613,7 @@ async def update_registration(
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
-    delegation_jwks: Optional[dict] = None,
+    jwks: Optional[dict] = None,
     scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: Optional[bool] = None,
     enabled: Optional[bool] = None,
@@ -673,14 +661,11 @@ async def update_registration(
         row.allowed_origins = normalize_origins(None, browser_base=browser_base(row))
     if grants is not None:
         row.grants = normalize_grants(grants)
-    if delegation_jwks is not None:
+    if jwks is not None:
         # Replaces rather than merges, and an empty object clears: a key set is
         # provisioned whole, so two entries mean a rotation is in flight and
         # one means it is over.
-        row.delegation_jwks = normalize_delegation_jwks(delegation_jwks)
-    # Applied against the grants the row ends the edit with, so dropping the
-    # grant clears the keys even when this call said nothing about them.
-    row.delegation_jwks = _delegation_keys_for(row.delegation_jwks, row.grants or [])
+        row.jwks = normalize_jwks(jwks)
     if scope_ceiling is not None:
         # Replaces rather than merges; an empty list is a ceiling of nothing.
         row.scope_ceiling = normalize_scope_ceiling(scope_ceiling)
@@ -877,9 +862,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 entry.get("allowed_origins"), browser_base=embed or base_url
             )
             grants = normalize_grants(entry.get("grants"))
-            key_set = _delegation_keys_for(
-                normalize_delegation_jwks(entry.get("delegation_jwks")), grants
-            )
+            key_set = normalize_jwks(entry.get("jwks"))
             # Optional: an entry that names none gives the app a ceiling of
             # nothing, so no install of it may be granted a scope.
             ceiling = normalize_scope_ceiling(entry.get("scope_ceiling"))
@@ -923,7 +906,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 allowed_origins=origins,
                 secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
                 grants=grants,
-                delegation_jwks=key_set,
+                jwks=key_set,
                 scope_ceiling=ceiling,
                 mandatory=mandatory,
                 enabled=True,
@@ -950,7 +933,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             or embed != row.embed_origin
             or origins != list(row.allowed_origins or [])
             or grants != list(row.grants or [])
-            or key_set != row.delegation_jwks
+            or key_set != row.jwks
             or ceiling != list(row.scope_ceiling or [])
             or mandatory != row.mandatory
         )
@@ -963,7 +946,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         row.embed_origin = embed
         row.allowed_origins = origins
         row.grants = grants
-        row.delegation_jwks = key_set
+        row.jwks = key_set
         row.scope_ceiling = ceiling
         row.mandatory = mandatory
         if retarget:

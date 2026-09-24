@@ -519,6 +519,16 @@ export interface ApiKeyListResponse {
 }
 
 /**
+ * A successful token response (RFC 6749 §5.1).
+ */
+export interface AppAccessTokenResponse {
+  access_token: string;
+  token_type?: string;
+  expires_in: number;
+  scope: string;
+}
+
+/**
  * Public-safe captcha settings the SPA needs to render a widget.
  *
  * Only the provider name and the (public) site key are exposed —
@@ -682,6 +692,23 @@ export interface AppEndpointRead {
 }
 
 /**
+ * One install of the calling app.
+ */
+export interface AppInstallationRead {
+  installation: string;
+  scopes: string[];
+  initiatives: number[];
+}
+
+/**
+ * An error response (RFC 6749 §5.2).
+ */
+export interface AppOAuthErrorResponse {
+  error: string;
+  error_description: string;
+}
+
+/**
  * One value a parameter permits.
  */
 export interface AppParamOption {
@@ -723,7 +750,7 @@ export interface AppPlacementUpdate {
   role_ids?: number[];
 }
 
-export type AppServiceRegistrationCreateDelegationJwks = { [key: string]: unknown } | null;
+export type AppServiceRegistrationCreateJwks = { [key: string]: unknown } | null;
 
 /**
  * Wire an app service up.
@@ -744,13 +771,13 @@ export interface AppServiceRegistrationCreate {
   embed_origin?: string | null;
   allowed_origins?: string[] | null;
   grants?: string[] | null;
-  delegation_jwks?: AppServiceRegistrationCreateDelegationJwks;
+  jwks?: AppServiceRegistrationCreateJwks;
   scope_ceiling?: string[] | null;
   mandatory?: boolean;
   enabled?: boolean;
 }
 
-export type AppServiceRegistrationReadDelegationJwks = { [key: string]: unknown } | null;
+export type AppServiceRegistrationReadJwks = { [key: string]: unknown } | null;
 
 /**
  * A registration as the owner's settings see it.
@@ -766,7 +793,7 @@ export interface AppServiceRegistrationRead {
   manifest_hash: string | null;
   protocol_version: number | null;
   grants: string[];
-  delegation_jwks: AppServiceRegistrationReadDelegationJwks;
+  jwks: AppServiceRegistrationReadJwks;
   scope_ceiling: string[];
   mandatory: boolean;
   enabled: boolean;
@@ -776,7 +803,7 @@ export interface AppServiceRegistrationRead {
   updated_at: string;
 }
 
-export type AppServiceRegistrationUpdateDelegationJwks = { [key: string]: unknown } | null;
+export type AppServiceRegistrationUpdateJwks = { [key: string]: unknown } | null;
 
 /**
  * Partial edit. Rotating ``secret`` or repointing ``base_url`` clears the
@@ -792,7 +819,7 @@ export interface AppServiceRegistrationUpdate {
   embed_origin?: string | null;
   allowed_origins?: string[] | null;
   grants?: string[] | null;
-  delegation_jwks?: AppServiceRegistrationUpdateDelegationJwks;
+  jwks?: AppServiceRegistrationUpdateJwks;
   scope_ceiling?: string[] | null;
   mandatory?: boolean | null;
   enabled?: boolean | null;
@@ -9491,6 +9518,31 @@ export const CreatePlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdB
   } as const;
 
 export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200 = { [key: string]: unknown };
+
+export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType =
+  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType];
+
+export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType = {
+  client_credentials: "client_credentials",
+} as const;
+
+export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType =
+  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType];
+
+export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType = {
+  "urn:ietf:params:oauth:client-assertion-type:jwt-bearer":
+    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+} as const;
+
+export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody = {
+  grant_type: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType;
+  client_assertion_type: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType;
+  client_assertion: string;
+  client_id?: string;
+  installation?: string;
+  scope?: string;
+  resource?: string;
+};
 
 export type ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams = {
   provider_id: number;

@@ -40,10 +40,10 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     protocol_version: Optional[int] = None
     #: Operator-conferred powers. A manifest can never claim one.
     grants: List[str] = []
-    #: Public keys this app signs delegation tokens with. Shown in full — the
+    #: Public keys this app signs with. Shown in full — the
     #: public half is meant to be read, and an operator provisioning it needs
     #: to see which ``kid`` landed.
-    delegation_jwks: Optional[Dict[str, Any]] = None
+    jwks: Optional[Dict[str, Any]] = None
     #: The most an install of this app may be granted, from the app scope
     #: vocabulary. Empty means no scope may be granted.
     scope_ceiling: List[str] = []
@@ -75,8 +75,8 @@ class AppServiceRegistrationCreate(SanitizedBaseModel):
     embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
     grants: Optional[List[str]] = None
-    #: JWKS holding the public half of the app's delegation signing key.
-    delegation_jwks: Optional[Dict[str, Any]] = None
+    #: JWKS holding the public half of the app's signing keys.
+    jwks: Optional[Dict[str, Any]] = None
     #: The most an install of this app may be granted. Every entry must be a
     #: scope in the app scope vocabulary. Left out, the ceiling is empty.
     scope_ceiling: Optional[List[str]] = None
@@ -98,8 +98,8 @@ class AppServiceRegistrationUpdate(SanitizedBaseModel):
     embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
     grants: Optional[List[str]] = None
-    #: Replace the delegation key set. An empty object clears it.
-    delegation_jwks: Optional[Dict[str, Any]] = None
+    #: Replace the key set. An empty object clears it.
+    jwks: Optional[Dict[str, Any]] = None
     #: Replace the scope ceiling. An empty list clears it.
     scope_ceiling: Optional[List[str]] = None
     mandatory: Optional[bool] = None

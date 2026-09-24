@@ -147,15 +147,21 @@ export const inQueryLane = async <T>(guildId: number, read: () => Promise<T>): P
 export const isQueryBusy = (error: unknown): boolean =>
   getHttpStatus(error) === 429 && getErrorCode(error) === "QUERY_BUSY";
 
+/** A read the database stopped for reasons of its own, such as a replica catching up. */
+export const isQueryInterrupted = (error: unknown): boolean =>
+  getHttpStatus(error) === 503 && getErrorCode(error) === "QUERY_INTERRUPTED";
+
 /**
- * Retry a busy guild, and nothing else.
+ * Retry a busy guild or an interrupted read, and nothing else.
  *
  * A statement either resolves against the registry or it does not, and a
  * refused one is refused the same way every time — so every other failure is
- * final. Slots are the exception: they free as other reads finish.
+ * final. Slots are one exception: they free as other reads finish. An
+ * interrupted read is the other: it said nothing about the statement, so it
+ * is asked once more.
  */
 export const retryWhileBusy = (failureCount: number, error: unknown): boolean =>
-  isQueryBusy(error) && failureCount < 4;
+  (isQueryBusy(error) && failureCount < 4) || (isQueryInterrupted(error) && failureCount < 1);
 
 /**
  * Back off, with jitter, so readers that were refused together do not come

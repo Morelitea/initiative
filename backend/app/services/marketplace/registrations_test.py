@@ -94,34 +94,32 @@ def _rsa_jwk(kid: str) -> dict:
     return jwk
 
 
-def test_delegation_jwks_accepts_a_usable_key_set():
+def test_jwks_accepts_a_usable_key_set():
     key_set = {"keys": [_rsa_jwk("auto.core-delegation-1")]}
-    assert service.normalize_delegation_jwks(key_set) == key_set
+    assert service.normalize_jwks(key_set) == key_set
 
 
-def test_delegation_jwks_treats_empty_as_cleared():
-    assert service.normalize_delegation_jwks(None) is None
-    assert service.normalize_delegation_jwks({}) is None
+def test_jwks_treats_empty_as_cleared():
+    assert service.normalize_jwks(None) is None
+    assert service.normalize_jwks({}) is None
 
 
-def test_delegation_jwks_requires_a_kid_on_every_key():
+def test_jwks_requires_a_kid_on_every_key():
     keyless = _rsa_jwk("dropped")
     del keyless["kid"]
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks({"keys": [keyless]})
+        service.normalize_jwks({"keys": [keyless]})
     assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
-def test_delegation_jwks_refuses_two_keys_sharing_a_kid():
+def test_jwks_refuses_two_keys_sharing_a_kid():
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks(
-            {"keys": [_rsa_jwk("same"), _rsa_jwk("same")]}
-        )
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+        service.normalize_jwks({"keys": [_rsa_jwk("same"), _rsa_jwk("same")]})
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
-def test_delegation_jwks_refuses_a_private_key():
+def test_jwks_refuses_a_private_key():
     """The column is served in full to the owner's settings, so it holds the half
     that is meant to be read."""
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -132,17 +130,17 @@ def test_delegation_jwks_refuses_a_private_key():
     private_jwk["kid"] = "pasted-the-whole-key"
 
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks({"keys": [private_jwk]})
+        service.normalize_jwks({"keys": [private_jwk]})
     assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
-def test_delegation_jwks_refuses_a_symmetric_key():
+def test_jwks_refuses_a_symmetric_key():
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks(
+        service.normalize_jwks(
             {"keys": [{"kid": "shared", "kty": "oct", "k": "c2hhcmVkLXNlY3JldA"}]}
         )
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
 @pytest.mark.parametrize(
@@ -155,11 +153,11 @@ def test_delegation_jwks_refuses_a_symmetric_key():
         {"no_keys_member": True},
     ],
 )
-def test_delegation_jwks_refuses_a_set_it_could_not_verify_with(value):
+def test_jwks_refuses_a_set_it_could_not_verify_with(value):
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks(value)
+        service.normalize_jwks(value)
     assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
 def test_base_url_and_origin_shapes_are_enforced():
@@ -325,7 +323,7 @@ async def test_rotating_the_secret_clears_the_recorded_verification(session):
     assert updated.last_verified_at is None
 
 
-async def test_delegation_keys_are_provisioned_and_cleared_without_re_verifying(
+async def test_keys_are_provisioned_and_cleared_without_re_verifying(
     session,
 ):
     key_set = {"keys": [_rsa_jwk("acme.shopify-delegation-1")]}
@@ -334,54 +332,53 @@ async def test_delegation_keys_are_provisioned_and_cleared_without_re_verifying(
         base_url=BASE_URL,
         secret=SECRET,
         grants=["delegation"],
-        delegation_jwks=key_set,
+        jwks=key_set,
         transport=make_transport(),
     )
-    assert row.delegation_jwks == key_set
+    assert row.jwks == key_set
     assert row.status == AppServiceStatus.OK
 
     rotated = {"keys": [_rsa_jwk("acme.shopify-delegation-2")]}
-    updated = await service.update_registration(
-        session, row.id, delegation_jwks=rotated
-    )
-    assert updated.delegation_jwks == rotated
+    updated = await service.update_registration(session, row.id, jwks=rotated)
+    assert updated.jwks == rotated
     # A key set describes who signs, not what was fetched from the app, so the
     # recorded handshake still stands.
     assert updated.status == AppServiceStatus.OK
 
-    cleared = await service.update_registration(session, row.id, delegation_jwks={})
-    assert cleared.delegation_jwks is None
+    cleared = await service.update_registration(session, row.id, jwks={})
+    assert cleared.jwks is None
 
 
-async def test_dropping_the_delegation_grant_drops_the_keys(session):
-    """Taking the power away takes the key material with it, even when the edit
-    says nothing about the key set."""
+async def test_the_key_set_does_not_follow_the_delegation_grant(session):
+    """The key set is the app's client credential, so dropping the delegation
+    grant leaves it where it is."""
+    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
     row = await service.create_registration(
         session,
         base_url=BASE_URL,
         secret=SECRET,
         grants=["delegation"],
-        delegation_jwks={"keys": [_rsa_jwk("acme.widgets-delegation-1")]},
+        jwks=key_set,
         transport=make_transport(),
     )
-    assert row.delegation_jwks is not None
 
     updated = await service.update_registration(session, row.id, grants=[])
 
     assert updated.grants == []
-    assert updated.delegation_jwks is None
+    assert updated.jwks == key_set
 
 
-async def test_keys_are_not_stored_without_the_grant_that_uses_them(session):
+async def test_keys_are_stored_without_any_grant(session):
+    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
     row = await service.create_registration(
         session,
         base_url=BASE_URL,
         secret=SECRET,
         grants=[],
-        delegation_jwks={"keys": [_rsa_jwk("acme.widgets-delegation-1")]},
+        jwks=key_set,
         transport=make_transport(),
     )
-    assert row.delegation_jwks is None
+    assert row.jwks == key_set
 
 
 async def test_create_keeps_the_handshake_on_the_wire_surface(session):

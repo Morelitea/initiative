@@ -90,6 +90,7 @@ async def gather_across_guilds(
     satisfied_providers: Sequence[int] | str | None = None,
     *,
     for_settings: bool = False,
+    writes: bool = False,
 ) -> list[T]:
     """Route into each guild's schema, call ``fetch(session, guild_id)``, and
     concatenate the results. The identity map is expunged between guilds because
@@ -111,10 +112,13 @@ async def gather_across_guilds(
     ``for_settings``), for a read of what its administrator configures.
 
     With communities divided into cohorts (``app.db.cohorts``), a request-path
-    ``session`` stays where it is and each community gets a read-only session
-    from its own cohort, which is closed before the next one opens; ``fetch``
-    receives that session. Otherwise ``session`` itself is routed into each
-    community in turn and is left routed into the last."""
+    ``session`` stays where it is and each community gets a session from its
+    own cohort, which is closed before the next one opens; ``fetch`` receives
+    that session. It is read-only unless ``writes`` is set, in which case each
+    community's session is committed once its ``fetch`` returns — each
+    community's writes are then a transaction of their own, not the caller's.
+    Otherwise ``session`` itself is routed into each community in turn, is left
+    routed into the last, and what ``fetch`` writes rides its transaction."""
     if not guild_ids:
         return []
     from app.api.deps import (
@@ -177,10 +181,14 @@ async def gather_across_guilds(
         # Each community is read on a session from its own cohort's pool, so
         # this request's connection never opens another cohort's schema.
         for guild_id in guild_ids:
-            async with cohorts.community_session(guild_id) as routed:
+            async with cohorts.community_session(
+                guild_id, read_only=not writes
+            ) as routed:
                 account = await routed.merge(user, load=False)
                 if await enter(routed, account, guild_id):
                     results.extend(await fetch(routed, guild_id))
+                    if writes:
+                        await routed.commit()
         return results
 
     for guild_id in guild_ids:

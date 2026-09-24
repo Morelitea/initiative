@@ -46,6 +46,7 @@ router = APIRouter()
 REFUSAL_STATUS = {
     QueryMessages.BUSY: status.HTTP_429_TOO_MANY_REQUESTS,
     QueryMessages.TIMED_OUT: status.HTTP_504_GATEWAY_TIMEOUT,
+    QueryMessages.INTERRUPTED: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
 

@@ -195,6 +195,32 @@ def test_bootstrap_url_beside_an_owner_database_url_is_refused():
         _owner_settings(DATABASE_URL_BOOTSTRAP=OWNER_URL)
 
 
+def test_query_url_beside_an_owner_url_takes_the_request_login():
+    settings = _owner_settings(
+        DATABASE_URL_QUERY="postgresql+asyncpg://initiative-ro:5432/initiative"
+    )
+
+    url = make_url(settings.DATABASE_URL_QUERY)
+    assert (url.host, url.database) == ("initiative-ro", "initiative")
+    assert url.username == "app_user"
+    assert url.password == derive_database_password(TEST_SECRET_KEY, "app_user")
+
+
+def test_query_url_beside_named_logins_is_used_as_given():
+    query = "postgresql+asyncpg://app:app@replica/app"
+    assert _settings(DATABASE_URL_QUERY=query).DATABASE_URL_QUERY == query
+
+
+def test_query_url_on_another_login_is_refused():
+    with pytest.raises(ValidationError, match="same login as DATABASE_URL_APP"):
+        _settings(DATABASE_URL_QUERY="postgresql+asyncpg://reader:pw@replica/app")
+
+
+def test_no_query_url_leaves_it_unset():
+    assert _owner_settings().DATABASE_URL_QUERY is None
+    assert _settings().DATABASE_URL_QUERY is None
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # PREVIOUS_SECRET_KEY / JWT_SIGNING_KEY / jwt_signing_key
 # ──────────────────────────────────────────────────────────────────────────

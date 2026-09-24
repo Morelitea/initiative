@@ -471,9 +471,11 @@ async def clear_digest_queue_across_guilds(
     session: AsyncSession, user_id: int, models: Sequence[type]
 ) -> None:
     """Platform-path variant: a digest queue is guild-scoped, so visit each
-    of the user's guild schemas. Leaves the session routed into the last guild
-    and the identity map expunged — the caller restores its own context.
-    Deletes are flushed, not committed; they ride the caller's transaction."""
+    of the user's guild schemas. When each community is visited on a session
+    of its own (``gather_across_guilds`` with cohorts), each one's deletes are
+    committed there; otherwise they are flushed on ``session``, which is left
+    routed into the last guild with its identity map expunged, and ride the
+    caller's transaction. Either way the caller restores its own context."""
     from app.services import cross_guild
 
     guild_ids = await cross_guild.member_guild_ids(session, user_id)
@@ -485,7 +487,12 @@ async def clear_digest_queue_across_guilds(
     # Membership-based hygiene, not content access: must reach every guild
     # the user belongs to, including auth-policy-gated ones.
     await cross_guild.gather_across_guilds(
-        session, user_id, guild_ids, _clear, satisfied_providers=SYSTEM_SATISFIED
+        session,
+        user_id,
+        guild_ids,
+        _clear,
+        satisfied_providers=SYSTEM_SATISFIED,
+        writes=True,
     )
 
 

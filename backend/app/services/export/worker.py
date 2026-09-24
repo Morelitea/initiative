@@ -18,11 +18,13 @@ trash-purge maintenance pattern.
 from __future__ import annotations
 
 import logging
+from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta, timezone
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import cohorts
 from app.db import session as db_session
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
@@ -45,10 +47,11 @@ STALE_RUNNING = timedelta(minutes=15)
 _ERROR_MAX_LEN = 500
 
 
-def _open_user_session() -> AsyncSession:
-    """Late-bound (module attribute lookup at call time) so the test
-    harness's sessionmaker patches apply to the worker too."""
-    return db_session.AsyncSessionLocal()
+def _open_read_session(guild_id: int) -> AbstractAsyncContextManager[AsyncSession]:
+    """A read-only session for rendering in ``guild_id``'s community: on the
+    read replica when DATABASE_URL_QUERY names one, from the community's
+    cohort. Resolved at call time, so the test harness's pools apply."""
+    return cohorts.read_session(guild_id)
 
 
 async def process_export_jobs() -> None:
@@ -170,7 +173,7 @@ async def _execute(
     if user is None or user.status != UserStatus.active:
         raise export_engine.ExportError("EXPORT_CREATOR_INACTIVE")
 
-    async with _open_user_session() as user_session:
+    async with _open_read_session(guild_id) as user_session:
         # Resolve membership/PAM and route the session as the creator; raises
         # GuildAccessError (-> failed job) if their access is gone. The job is
         # user-attributed system work — its enqueueing request already passed
