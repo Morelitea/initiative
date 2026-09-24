@@ -400,6 +400,7 @@ DECLARE
     v_resource   integer;
     v_type       text := TG_ARGV[1];
     v_actor      integer;
+    v_install    integer;
     v_new        jsonb;
     v_old        jsonb;
     v_facet      text := TG_ARGV[3];
@@ -535,8 +536,12 @@ BEGIN
         v_parents := COALESCE(v_parents, '[]'::jsonb);
     END IF;
 
+    -- Who wrote it: the person, the installed app, or both when an app acts
+    -- for a member. Each is read on its own from the request context, and an
+    -- anonymous table names neither.
     IF TG_ARGV[9] <> 'anonymous' THEN
         v_actor := NULLIF(current_setting('app.current_user_id', true), '')::integer;
+        v_install := NULLIF(current_setting('app.current_install_id', true), '')::integer;
     END IF;
 
     -- Write to the outbox of the schema the CHANGED ROW lives in, named from
@@ -545,11 +550,12 @@ BEGIN
     -- event belongs to, and it is what the trigger is attached to.
     EXECUTE format(
         'INSERT INTO %I.event_outbox ('
-        '  txn_id, occurred_at, actor_user_id, initiative_id,'
+        '  txn_id, occurred_at, actor_user_id, actor_install_id, initiative_id,'
         '  resource_type, resource_id, action, changed, parents'
-        ') VALUES (txid_current(), now(), $1, $2, $3, $4, $5, $6, $7)',
+        ') VALUES (txid_current(), now(), $1, $2, $3, $4, $5, $6, $7, $8)',
         TG_TABLE_SCHEMA
-    ) USING v_actor, v_initiative, v_type, v_resource, v_action, v_changed, v_parents;
+    ) USING v_actor, v_install, v_initiative, v_type, v_resource, v_action,
+            v_changed, v_parents;
 
     -- Wake whoever is holding sockets for this guild. A hint, not the message:
     -- the row above is the truth, and one that reaches nobody costs a listener

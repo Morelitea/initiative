@@ -155,7 +155,7 @@ async def test_every_subscription_in_a_guild_is_drained(
 
     drained: list[int] = []
 
-    async def _record(session_, subscription, *, guild_id, now):
+    async def _record(session_, subscription, *, guild_id, now, **_reach):
         drained.append(subscription.id)
 
     monkeypatch.setattr(poller, "_drain_subscription", _record)
@@ -499,3 +499,91 @@ def test_a_system_write_names_no_actor():
     )
 
     assert envelope["actor_ref"] is None
+
+
+def test_the_envelope_names_the_app_that_wrote():
+    """An app recognises its own writes by ``actor_app``, its registration's
+    ``public_id``. Set on its own, beside or without a person."""
+    subscription = _subscription()
+    by_app = outbox_poller._envelope(
+        subscription,
+        500,
+        [_row(1, 500, actor_user_id=None, actor_install_id=4)],
+        guild_ref=_GUILD_REF,
+        actor_ref=None,
+        actor_app="tests.app",
+    )
+    assert by_app["actor_app"] == "tests.app"
+    assert by_app["actor_ref"] is None
+    assert "actor_install_id" not in by_app
+
+    by_person = outbox_poller._envelope(
+        subscription, 500, [_row(1, 500)], guild_ref=_GUILD_REF, actor_ref=_ACTOR_REF
+    )
+    assert by_person["actor_app"] is None
+    assert by_person["actor_ref"] == _ACTOR_REF
+
+
+def _reach(**overrides) -> outbox_poller.InstallReach:
+    defaults = dict(live=True, placed=frozenset({11}), readable=frozenset({"projects"}))
+    defaults.update(overrides)
+    return outbox_poller.InstallReach(**defaults)
+
+
+def test_an_apps_subscription_hears_what_its_reach_covers():
+    subscription = _subscription(app_install_id=4)
+    assert outbox_poller._matches(_row(1, 500), subscription, _reach())
+
+
+@pytest.mark.parametrize(
+    "reach",
+    [
+        pytest.param(_reach(placed=frozenset()), id="placement-removed"),
+        pytest.param(_reach(placed=frozenset({12})), id="placed-elsewhere"),
+        pytest.param(_reach(readable=frozenset({"documents"})), id="scope-withdrawn"),
+        pytest.param(_reach(live=False), id="install-not-live"),
+        pytest.param(None, id="no-reach-read"),
+    ],
+)
+def test_an_apps_subscription_hears_nothing_outside_its_reach(reach):
+    subscription = _subscription(app_install_id=4)
+    assert not outbox_poller._matches(_row(1, 500), subscription, reach)
+
+
+def test_a_subscription_no_app_registered_is_not_asked_for_a_reach():
+    assert outbox_poller._matches(_row(1, 500), _subscription(), None)
+
+
+def test_a_community_event_needs_its_scope_and_no_placement():
+    subscription = _subscription(app_install_id=4, event_types=["tags.created"])
+    tag = _row(1, 500, resource_type="tags", initiative_id=None)
+    assert outbox_poller._matches(
+        tag, subscription, _reach(placed=frozenset(), readable=frozenset({"tags"}))
+    )
+    assert not outbox_poller._matches(tag, subscription, _reach())
+
+
+def test_an_event_no_scope_reaches_is_never_an_apps():
+    subscription = _subscription(app_install_id=4, event_types=["apps.created"])
+    install = _row(1, 500, resource_type="apps", initiative_id=None)
+    everything = frozenset(
+        r.value for r in outbox_poller.webhook_events._read_scopes().values() if r
+    )
+    assert not outbox_poller._matches(
+        install, subscription, _reach(readable=everything)
+    )
+
+
+def test_the_reach_reads_what_the_grant_lets_it_read():
+    reach = outbox_poller.InstallReach.from_row(
+        live=True,
+        placed=None,
+        granted_scopes=["projects:write", "tags:read", "no-longer:a-scope"],
+    )
+    assert reach.readable == frozenset({"projects", "tags"})
+    assert reach.placed == frozenset()
+    assert outbox_poller.InstallReach.from_row(
+        live=None, placed=[1], granted_scopes=None
+    ) == outbox_poller.InstallReach(
+        live=False, placed=frozenset({1}), readable=frozenset()
+    )

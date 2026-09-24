@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
@@ -12,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
 from app.core.audit_events import AuditEventType
+from app.db.guild_standing import InstallContext
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
@@ -64,6 +66,57 @@ def assert_vocabulary(event_types: list[str] | None, fields: list[str] | None) -
         raise WebhookSubscriptionVocabularyError(
             WebhookSubscriptionMessages.UNKNOWN_FIELD
         )
+
+
+class WebhookSubscriptionScopeError(Exception):
+    """An installed app asked for a subscription its standing does not cover.
+
+    Carries the message code the endpoint answers with, like
+    :class:`WebhookSubscriptionVocabularyError`.
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def assert_install_may_subscribe(
+    context: InstallContext,
+    *,
+    event_types: Sequence[str],
+    initiative_id: int | None,
+) -> None:
+    """Refuse a subscription an installed app's standing does not cover.
+
+    - Every event type needs the read scope of the resource it reports on
+      (``webhook_events.read_scope_for``), held now: the seat's grant and the
+      token's scopes together, as the standing computed them. An event type
+      no scope reaches (an app's own install changing) is never an app's.
+    - A token narrowed to one initiative subscribes to that initiative only.
+    - A community-wide subscription needs a token that is not narrowed.
+    - A named initiative is one the install is placed in.
+
+    Delivery asks the same of the install again on every pass, against the
+    grant and placements as they are then, so this is what turns a request
+    that could never deliver into a clear refusal.
+    """
+    from app.core.messages import AppMessages
+
+    refused = WebhookSubscriptionScopeError(AppMessages.SCOPE_REQUIRED)
+    readable = set(context.install_read)
+    for event_type in event_types:
+        resource = webhook_events.read_scope_for(event_type)
+        if resource is None or resource.value not in readable:
+            raise refused
+    narrowed = context.scope_initiative_id
+    if initiative_id is None:
+        if narrowed is not None:
+            raise refused
+        return
+    if narrowed is not None and initiative_id != narrowed:
+        raise refused
+    if initiative_id not in context.member_initiatives:
+        raise refused
 
 
 class WebhookSubscriptionNotFoundError(Exception):
@@ -149,7 +202,7 @@ async def create_subscription(
     session: AsyncSession,
     *,
     payload: WebhookSubscriptionCreate,
-    created_by: int,
+    created_by: int | None,
     guild_id: int,
     app_install_id: int | None = None,
 ) -> tuple[WebhookSubscription, str]:
@@ -167,6 +220,8 @@ async def create_subscription(
 
     ``created_by`` is the account this runs as — an app registering one acts as
     the member who authorized it — so it is also who the audit record names.
+    ``None`` for an installed app acting as its community, which names no
+    person (:func:`create_install_subscription`).
     """
     assert_vocabulary(list(payload.event_types), payload.fields)
 
@@ -205,6 +260,33 @@ async def create_subscription(
     await session.commit()
     await session.refresh(subscription)
     return subscription, secret
+
+
+async def create_install_subscription(
+    session: AsyncSession,
+    *,
+    context: InstallContext,
+    payload: WebhookSubscriptionCreate,
+) -> tuple[WebhookSubscription, str]:
+    """An installed app registering a subscription as its community.
+
+    Checked against the install's standing first
+    (:func:`assert_install_may_subscribe`), then written like any other, naming
+    the install and no person. ``session`` is the one the install seam routed.
+    """
+    assert_vocabulary(list(payload.event_types), payload.fields)
+    assert_install_may_subscribe(
+        context,
+        event_types=list(payload.event_types),
+        initiative_id=payload.initiative_id,
+    )
+    return await create_subscription(
+        session,
+        payload=payload,
+        created_by=None,
+        guild_id=context.guild_id,
+        app_install_id=context.install_id,
+    )
 
 
 async def update_subscription(

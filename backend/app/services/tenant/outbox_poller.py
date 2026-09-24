@@ -5,6 +5,12 @@ that initiative's changes; naming none means the community's. ``_matches``
 applies it per change item, before a batch is assembled, and that is the whole
 of the decision — no account's standing is consulted anywhere in a pass.
 
+A subscription an installed app registered is also capped by the app's reach
+as it is now: the install is live, it is placed in the change's initiative, and
+its grant holds the read scope of what changed. That is read with the roster,
+one statement per guild per pass (:class:`InstallReach`), so removing a
+placement or a scope stops delivery from the next pass on.
+
 That is the right granularity because of what a delivery is. An envelope is
 identifiers and changed column **names**; a consumer reads current state back
 through the REST path, where every gate applies to the read. An automation
@@ -53,23 +59,29 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import ARRAY, Integer, bindparam, text
+from sqlalchemy import ARRAY, Integer, and_, bindparam, func, or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import webhook_events
+from app.core.app_scopes import UnknownAppScope, expand
 from app.db import session as db_session
 from app.db.session import (
     set_rls_context,
     set_system_guild_context,
 )
 from app.models.platform.guild import Guild, GuildStatus
+from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import webhook_refs
-from app.services.tenant import webhook_subscriptions
 from app.services.tenant.webhook_dispatcher import deliver
 
 logger = logging.getLogger(__name__)
@@ -118,14 +130,75 @@ def _event_type(row: EventOutbox) -> str:
     return f"{row.resource_type}.{row.action}"
 
 
-def _matches(row: EventOutbox, subscription: WebhookSubscription) -> bool:
+@dataclass(frozen=True)
+class InstallReach:
+    """What an installed app may hear right now, for a subscription it holds.
+
+    Read with the subscription roster, in the same statement, once per pass:
+    whether the install is live, the initiatives it is placed in, and the
+    resources the seat's grant lets it read (writing implies reading).
+    """
+
+    live: bool
+    placed: frozenset[int]
+    readable: frozenset[str]
+
+    @classmethod
+    def from_row(
+        cls,
+        *,
+        live: bool | None,
+        placed: Iterable[int] | None,
+        granted_scopes: Iterable[str] | None,
+    ) -> "InstallReach":
+        readable: set[str] = set()
+        for scope in granted_scopes or ():
+            # A scope the vocabulary no longer has grants nothing.
+            try:
+                read, _write = expand([scope])
+            except UnknownAppScope:
+                continue
+            readable.update(resource.value for resource in read)
+        return cls(
+            live=bool(live),
+            placed=frozenset(placed or ()),
+            readable=frozenset(readable),
+        )
+
+
+def _within_reach(row: EventOutbox, reach: InstallReach) -> bool:
+    """Whether an installed app may hear about this change now: it is live,
+    placed in the change's initiative (or the change belongs to none), and
+    holds the read scope of what changed."""
+    if not reach.live:
+        return False
+    if row.initiative_id is not None and row.initiative_id not in reach.placed:
+        return False
+    resource = webhook_events.read_scope_for(_event_type(row))
+    return resource is not None and resource.value in reach.readable
+
+
+def _matches(
+    row: EventOutbox,
+    subscription: WebhookSubscription,
+    reach: InstallReach | None = None,
+) -> bool:
     """Whether one change-item belongs in this subscription's batch.
 
     Applied per item BEFORE the batch is assembled, so a column filter costs a
     set intersection and no request, and grouping by transaction never widens
     what a subscription receives.
+
+    A subscription an installed app registered also answers to the app's
+    reach (:class:`InstallReach`): its declared scope, capped by where the app
+    is placed and what it is granted now. ``reach`` is ``None`` only for a
+    subscription no app registered.
     """
     if _event_type(row) not in subscription.event_types:
+        return False
+    if subscription.app_install_id is not None and (
+        reach is None or not _within_reach(row, reach)
+    ):
         return False
     if (
         subscription.initiative_id is not None
@@ -147,6 +220,7 @@ def _envelope(
     *,
     guild_ref: str,
     actor_ref: str | None,
+    actor_app: str | None = None,
 ) -> dict[str, Any]:
     """One transaction's matching rows as a single envelope.
 
@@ -158,6 +232,10 @@ def _envelope(
     per-guild-schema id, which says nothing without the guild;
     ``subscription_id`` included, and that one is what a receiver matches a
     delivery to its own record by.
+
+    ``actor_app`` is the ``public_id`` of the app whose request wrote the
+    change, so an app can recognise its own writes. It is set independently of
+    ``actor_ref``: an app acting as its community names no person.
     """
     first = rows[0]
     return {
@@ -165,6 +243,7 @@ def _envelope(
         "subscription_id": subscription.id,
         "guild_ref": guild_ref,
         "actor_ref": actor_ref,
+        "actor_app": actor_app,
         "occurred_at": first.occurred_at.isoformat(),
         "changes": [
             {
@@ -312,6 +391,8 @@ async def _drain_subscription(
     *,
     guild_id: int,
     now: datetime,
+    reach: InstallReach | None = None,
+    app_ids: Mapping[str, str] | None = None,
 ) -> None:
     """Deliver one subscription's pending transactions, within its own scope.
 
@@ -332,6 +413,12 @@ async def _drain_subscription(
 
     Routed with ``guild_id`` alone: a poller is not anybody, so it carries no
     user and no role, and the policies admit it by the connection's own login.
+
+    ``reach`` is what the app that registered this subscription may hear, read
+    with the roster; ``app_ids`` maps an install's ``listing_uid`` to its
+    registration's ``public_id``, for naming the app that wrote a change.
+    Transactions outside the reach are settled like any other non-match, so
+    they are not delivered later either.
     """
     await set_system_guild_context(session, guild_id=guild_id)
     pending = await _pending_transactions(session, subscription, now=now)
@@ -342,14 +429,22 @@ async def _drain_subscription(
         if not await _claim(session, subscription, txn_id, now=now):
             continue
 
+        # The writing app's listing rides along with each row, so naming it
+        # costs no statement of its own.
         rows = list(
             await session.exec(
-                select(EventOutbox)
+                select(EventOutbox, GuildApp.listing_uid)
+                .outerjoin(GuildApp, GuildApp.id == EventOutbox.actor_install_id)
                 .where(EventOutbox.txn_id == txn_id)
                 .order_by(EventOutbox.id.asc())
             )
         )
-        batch = [row for row in rows if _matches(row, subscription)]
+        matched = [
+            (row, listing_uid)
+            for row, listing_uid in rows
+            if _matches(row, subscription, reach)
+        ]
+        batch = [row for row, _listing_uid in matched]
         if not batch:
             # Nothing in this transaction was for this subscriber. Record it so
             # it is not reconsidered every pass; no request was made, so nothing
@@ -361,6 +456,12 @@ async def _drain_subscription(
         # touched. Named for this subscriber, in the sector its install or its
         # own registration gives it.
         actor_id = batch[0].actor_user_id
+        actor_listing = matched[0][1]
+        actor_app = (
+            None
+            if batch[0].actor_install_id is None or actor_listing is None
+            else (app_ids or {}).get(actor_listing)
+        )
         guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
             guild_id=guild_id,
             app_install_id=subscription.app_install_id,
@@ -377,6 +478,7 @@ async def _drain_subscription(
                 batch,
                 guild_ref=guild_ref,
                 actor_ref=None if actor_id is None else actor_refs[actor_id],
+                actor_app=actor_app,
             ),
         )
         dead_lettered = await _settle(
@@ -397,32 +499,85 @@ async def _drain_subscription(
             return
 
 
+def _roster(live_listings: Iterable[str]):
+    """The active subscriptions, each with what its app may hear right now.
+
+    One statement for the whole guild. A subscription an app registered is
+    joined to its install: live when the install is enabled and its
+    registration is (``live_listings``, the listings of the enabled
+    registrations, as the install standing reads them), the initiatives it is
+    placed in, and the scopes its seat granted. A subscription no app
+    registered carries NULLs there and is not asked about any of it.
+    """
+    placed = (
+        select(func.array_agg(AppPlacement.initiative_id))
+        .where(AppPlacement.install_id == WebhookSubscription.app_install_id)
+        .scalar_subquery()
+    )
+    live = and_(
+        GuildApp.enabled.is_(True),
+        GuildApp.listing_uid.in_(sorted(set(live_listings))),
+    )
+    return (
+        select(
+            WebhookSubscription.id,
+            WebhookSubscription.app_install_id,
+            live.label("live"),
+            placed.label("placed"),
+            GuildApp.granted_scopes,
+        )
+        .outerjoin(GuildApp, GuildApp.id == WebhookSubscription.app_install_id)
+        .where(
+            WebhookSubscription.active.is_(True),
+            # The rule ``registered_install_is_live`` states for the
+            # dispatcher, read off the join: an install that is gone is
+            # drained to nobody.
+            or_(
+                WebhookSubscription.app_install_id.is_(None),
+                GuildApp.id.is_not(None),
+            ),
+        )
+        .order_by(WebhookSubscription.id.asc())
+    )
+
+
 async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -> None:
     # Read the subscription roster with full guild authority: which targets are
     # registered is guild configuration, not initiative content. What each of
-    # them may then SEE is decided per subscription in _drain_subscription,
-    # under its own owner's context.
+    # them may then SEE is decided per subscription in _drain_subscription:
+    # the scope it names and, for one an app registered, the app's reach.
+    registrations = (await load_registrations()).values()
+    app_ids = {r.listing_uid: r.public_id for r in registrations if r.listing_uid}
+    live_listings = [
+        r.listing_uid for r in registrations if r.listing_uid and r.enabled
+    ]
     await set_rls_context(session, guild_id=guild_id)
     # Ids, not instances: each pass ends by expunging the identity map (ids
     # repeat across guild schemas), and an instance held across that is detached.
-    subscription_ids = list(
-        await session.exec(
-            select(WebhookSubscription.id)
-            .where(
-                WebhookSubscription.active.is_(True),
-                # Same rule the dispatcher applies: an install that is gone is
-                # drained to nobody.
-                webhook_subscriptions.registered_install_is_live(),
-            )
-            .order_by(WebhookSubscription.id.asc())
+    roster = [
+        (
+            row.id,
+            None
+            if row.app_install_id is None
+            else InstallReach.from_row(
+                live=row.live, placed=row.placed, granted_scopes=row.granted_scopes
+            ),
         )
-    )
-    for subscription_id in subscription_ids:
+        for row in await session.exec(_roster(live_listings))
+    ]
+    for subscription_id, reach in roster:
         try:
             subscription = await session.get(WebhookSubscription, subscription_id)
             if subscription is None or not subscription.active:
                 continue
-            await _drain_subscription(session, subscription, guild_id=guild_id, now=now)
+            await _drain_subscription(
+                session,
+                subscription,
+                guild_id=guild_id,
+                now=now,
+                reach=reach,
+                app_ids=app_ids,
+            )
         except Exception:
             logger.exception(
                 "outbox drain failed: guild=%s subscription=%s",
