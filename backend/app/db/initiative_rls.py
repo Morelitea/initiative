@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
+from app.core.app_scopes import tool_resource
 from app.core.reactions import ReactionTarget
 from app.core.relationships import (
     ENDPOINT_KINDS,
@@ -37,7 +38,7 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
-from app.db.authorization import IN_POLICY, STANDING, in_body
+from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, in_body
 
 #: The legs a policy reads, off this statement's standing.
 _P = IN_POLICY
@@ -214,8 +215,16 @@ def _tool_gate(
     ``creating`` is the INSERT of the governed resource itself — that asks for
     the tool's create right, where every other command asks to view it, and it
     asks gate 4 nothing.
+
+    An installed app is asked two more things first: that it holds the tool's
+    scope, read for SELECT and write for every other command, and, where its
+    token is narrowed to one initiative, that the row belongs to an initiative
+    at all.
     """
-    legs: list[str] = []
+    legs: list[str] = [
+        app_scope(tool_resource(tool), command != "SELECT", _P),
+        app_narrowed(initiative, _P),
+    ]
 
     # Every tool carries a switch on the initiative. A community admin or a PAM
     # grantee reaches the content of a tool that is switched off — the endpoints

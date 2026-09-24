@@ -113,3 +113,10 @@ def _derive() -> dict[str, AppTableAccess]:
 
 
 APP_TABLE_ACCESS: dict[str, AppTableAccess] = _derive()
+
+#: Tables no app reaches, whose policies refuse an installed app outright
+#: beside the grant it does not hold: a reaction and the line queued about it
+#: are one person's gesture, and a recent view one person's history.
+APP_REFUSED_TABLES: frozenset[str] = frozenset(
+    {"reactions", "reaction_digest_items", "recent_views"}
+)

@@ -506,6 +506,13 @@ APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
     "resource_grants": (),
 }
 
+#: What ``guild_<id>_app`` writes outside ``APP_TABLE_ACCESS``: table -> the
+#: verbs. The owner grant on a resource an install creates names the install;
+#: the row policies on ``resource_grants`` admit that row and no other.
+APP_ROLE_MACHINERY_WRITES: dict[str, tuple[str, ...]] = {
+    "resource_grants": ("INSERT",),
+}
+
 
 def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
     """The app role's grants, rendered from ``APP_TABLE_ACCESS`` in table order.
@@ -536,6 +543,10 @@ def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
         target = f" ({', '.join(columns)})" if columns else ""
         stmts.append(
             f'GRANT SELECT{target} ON TABLE "{schema}"."{table}" TO "{app_role}"'
+        )
+    for table, verbs in sorted(APP_ROLE_MACHINERY_WRITES.items()):
+        stmts.append(
+            f'GRANT {", ".join(verbs)} ON TABLE "{schema}"."{table}" TO "{app_role}"'
         )
     stmts += [
         # Ids of the rows it writes come from the schema's sequences.
