@@ -113,7 +113,7 @@ def extract_claim_values(
 
 async def placement_claims(session: AsyncSession, *, provider_id: int) -> set[str]:
     """The verified claims this provider's rules are decided by: the narrowing
-    each community a rule names has for the provider, and the directory a
+    each community that wrote a rule has for the provider, and the directory a
     provider rule names. What :func:`sync_oidc_assignments` reads from
     ``claims`` besides the groups."""
     rules = (
@@ -131,7 +131,9 @@ async def placement_claims(session: AsyncSession, *, provider_id: int) -> set[st
     return names | await guild_connections.narrowing_claims(
         session,
         provider_id=provider_id,
-        guild_ids={rule.guild_id for rule in rules},
+        guild_ids={
+            rule.guild_id for rule in rules if rule.author == ClaimRuleAuthor.community
+        },
     )
 
 
@@ -175,25 +177,18 @@ async def sync_oidc_assignments(
     )
     # The platform's rules for this provider place people where the community
     # accepts them, or everywhere where the deployment says so, and only
-    # arrivals from the directory a rule names, if it names one. A community
-    # that narrows the provider on a connection of its own counts only the
-    # arrivals that narrowing admits, whoever wrote the rule.
-    provider_rule_guilds = {rule.guild_id for rule in provider_rules}
+    # arrivals from the directory a rule names, if it names one. A community's
+    # own narrowing governs the rules it wrote, not these: who a provider rule
+    # places is the operator's to say.
     placeable = await provider_placement.placeable_communities(
-        session, provider_id=provider_id, guild_ids=provider_rule_guilds
-    )
-    narrowed_out = await guild_connections.communities_narrowing_out(
         session,
         provider_id=provider_id,
-        claims=claims,
-        guild_ids=placeable,
+        guild_ids={rule.guild_id for rule in provider_rules},
     )
     mappings = [rule for rule in community_rules if rule.guild_id in admitted] + [
         rule
         for rule in provider_rules
-        if rule.guild_id in placeable
-        and rule.guild_id not in narrowed_out
-        and provider_placement.in_scope(rule, claims)
+        if rule.guild_id in placeable and provider_placement.in_scope(rule, claims)
     ]
     # No early return on an empty set. A provider whose last rule was deleted
     # grants nothing, which is not the same as having nothing to take back —

@@ -646,33 +646,6 @@ async def narrowing_claims(
     }
 
 
-async def communities_narrowing_out(
-    session: AsyncSession,
-    *,
-    provider_id: int,
-    claims: dict,
-    guild_ids: set[int],
-) -> set[int]:
-    """Which of these communities have an enabled connection of their own to
-    this provider whose narrowing does not count this arrival as theirs.
-
-    A community with no connection of its own, or one it disabled, is not
-    among them: nothing it wrote says who on the provider belongs to it.
-    """
-    if not guild_ids:
-        return set()
-    rows = (
-        await session.exec(
-            select(GuildProviderConnection).where(
-                GuildProviderConnection.provider_id == provider_id,
-                GuildProviderConnection.guild_id.in_(guild_ids),
-                GuildProviderConnection.enabled.is_(True),
-            )
-        )
-    ).all()
-    return {row.guild_id for row in rows if not row.admits(claims)}
-
-
 async def join_on_arrival(
     session: AsyncSession,
     *,
