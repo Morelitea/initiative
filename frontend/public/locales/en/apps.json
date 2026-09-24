@@ -146,7 +146,7 @@
   "placement": {
     "title": "Where this app appears",
     "description": "This app offers a page inside initiatives. Choose which ones it appears in.",
-    "all": "Every initiative",
+    "all": "Every current initiative",
     "some": "Only the initiatives I choose",
     "none": "No initiatives chosen, so this app appears only community-wide."
   },

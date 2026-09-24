@@ -146,7 +146,7 @@
   "placement": {
     "title": "Wo diese App erscheint",
     "description": "Diese App bietet eine Seite innerhalb von Initiativen. Wähle aus, in welchen sie erscheint.",
-    "all": "Alle Initiativen",
+    "all": "Alle bestehenden Initiativen",
     "some": "Nur ausgewählte Initiativen",
     "none": "Keine Initiative ausgewählt – diese App erscheint nur Community-weit."
   },

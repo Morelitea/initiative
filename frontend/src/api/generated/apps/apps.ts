@@ -1164,10 +1164,11 @@ export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
  * decides whether an app exists, and the guild decides when it changes under
  * them.
  *
- * Placement says which initiatives an app's initiative-scoped surfaces appear
- * in; ``{}`` is every one of them, which is where an install starts. It is the
- * guild's own answer to where an app belongs rather than a permission, so it
- * reads the same for everyone, admins included.
+ * ``placed_initiative_ids`` is the whole set of initiatives an app's
+ * initiative-scoped surfaces appear in. An initiative that stays placed keeps
+ * the roles it had, a new one starts with its moderator role, and one left out
+ * is removed. It is the community's own answer to where an app belongs rather
+ * than a permission, so it reads the same for everyone, admins included.
  * @summary Update Guild App
  */
 export const updateGuildAppApiV1GGuildIdAppsAppIdPatch = (

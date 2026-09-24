@@ -429,9 +429,10 @@ _SEAT_SECTION = """\
 -- ===========================================================================
 -- Seat-held guild-level tables (app.db.tenancy.SEAT_TABLES): configuration the
 -- community's seat holds. Read within the schema — a member's AI request reads
--- the connection it runs on. Written by the seat (app.guild_seat, from the
--- standing), which a lent seat holds beside a read_write content grant, or by
--- the system engine.
+-- the connection it runs on, and opening an app reads where it is placed.
+-- Written by the seat (app.guild_seat, from the standing), which a lent seat
+-- holds beside a read_write content grant, or by the system engine. A table a
+-- trigger also fills admits that trigger on INSERT.
 -- ==========================================================================="""
 
 _SEAT_WRITE_PREDICATE = (
@@ -439,12 +440,30 @@ _SEAT_WRITE_PREDICATE = (
 )
 
 
-def _policies(table: str, prefix: str, read: str, write: str) -> list[str]:
+# Seat tables a trigger also writes: table -> the leg OR'd into the INSERT
+# policy beside the seat's. ``app_placements`` gains a row for each install that
+# follows new initiatives when an initiative's built-in moderator role is
+# created, by whoever created the initiative.
+_SEAT_TRIGGER_WRITTEN_INSERT: dict[str, str] = {
+    "app_placements": "pg_trigger_depth() > 0",
+}
+
+
+def _policies(
+    table: str,
+    prefix: str,
+    read: str,
+    write: str,
+    *,
+    insert: str | None = None,
+) -> list[str]:
     """One PERMISSIVE policy per command: ``read`` for SELECT, ``write`` for
-    the other three."""
+    the other three — or ``insert`` for INSERT, when given."""
     lines: list[str] = []
     for suffix, command, clause, is_write in _COMMANDS:
         pred = write if is_write else read
+        if command == "INSERT" and insert is not None:
+            pred = insert
         name = f"{prefix}_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
         lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")
@@ -459,12 +478,15 @@ def _policies(table: str, prefix: str, read: str, write: str) -> list[str]:
 
 def _seat_block(table: str) -> str:
     """RLS for a seat-held guild-level table: reading open within the schema,
-    writing by the seat or the system engine."""
+    writing by the seat or the system engine, and inserting by a trigger too
+    where ``_SEAT_TRIGGER_WRITTEN_INSERT`` names one."""
+    trigger = _SEAT_TRIGGER_WRITTEN_INSERT.get(table)
+    insert = f"({trigger} OR {_SEAT_WRITE_PREDICATE})" if trigger else None
     return "\n".join(
         [
             f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
             f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
-            *_policies(table, "seat", "true", _SEAT_WRITE_PREDICATE),
+            *_policies(table, "seat", "true", _SEAT_WRITE_PREDICATE, insert=insert),
         ]
     )
 

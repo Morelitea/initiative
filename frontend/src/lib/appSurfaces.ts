@@ -57,24 +57,22 @@ export interface AppSurfaceSource {
   tool?: string | null;
   artifacts?: { type: string; id: number }[];
   definition?: Record<string, unknown> | null;
-  /** Where the guild put this app. `{}` — the default — is every initiative. */
-  placement?: Record<string, unknown> | null;
+  /** The initiatives the seat placed this app in, one entry each. */
+  placements?: { initiative_id: number }[] | null;
 }
 
 /**
  * Whether an app's initiative surfaces appear in one initiative.
  *
- * Placement is the guild's own answer to where an app belongs, so unlike a
- * surface's audience it reads the same for everyone — an admin who narrowed it
- * narrowed it for themselves too.
+ * An app appears only where it was placed. Placement is the community's own
+ * answer to where an app belongs, so unlike a surface's audience it reads the
+ * same for everyone — an admin who left an initiative out left it out for
+ * themselves too.
  */
 export const placedIn = (
-  app: Pick<AppSurfaceSource, "placement">,
+  app: Pick<AppSurfaceSource, "placements">,
   initiativeId: number
-): boolean => {
-  const chosen = app.placement?.initiatives;
-  return Array.isArray(chosen) ? chosen.includes(initiativeId) : true;
-};
+): boolean => (app.placements ?? []).some((one) => one.initiative_id === initiativeId);
 
 /**
  * Whether a reader clears the rung a surface named.

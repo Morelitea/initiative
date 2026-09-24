@@ -63,6 +63,12 @@ export interface GuildAppArtifact {
   id: number;
 }
 
+/** One initiative an app is placed in, and who may open it there. */
+export interface AppPlacement {
+  initiative_id: number;
+  role_ids: number[];
+}
+
 export interface GuildAppDetail {
   id: number;
   guild_id: number;
@@ -83,8 +89,9 @@ export interface GuildAppDetail {
   features: string[];
   /** The pinned definition, verbatim — what surfaces and connections it has. */
   definition: Record<string, unknown>;
-  /** Which initiatives its initiative surfaces appear in. `{}` is all of them. */
-  placement: Record<string, unknown>;
+  /** The initiatives its initiative surfaces appear in, each with the roles
+   *  allowed to open it there. An initiative not listed is one it is not in. */
+  placements: AppPlacement[];
   admin_only: boolean;
   /** The platform provides this app: no remove, no turning it off. */
   mandatory: boolean;

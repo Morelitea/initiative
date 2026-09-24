@@ -135,21 +135,17 @@ class GuildApp(CreatedByMixin, table=True):
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
 
-    # Which initiatives an app's initiative-scoped surfaces appear in.
+    # Whether this install is placed in each initiative created after it.
     #
-    # ``{}`` means every one of them, which is the default and the reading an
-    # install that never says otherwise keeps. ``{"initiatives": [12, 15]}``
-    # narrows it. One column rather than a mode plus a list, so "all" has
-    # exactly one representation and cannot fall out of step with a stale set of
-    # ids; an initiative that is deleted simply stops matching.
-    #
-    # This is placement, not permission. It is the guild admin's own answer to
-    # "where does this belong", so it applies to them as much as to anyone —
-    # unlike a surface's ``visibility``, which names an audience floor an admin
-    # always clears.
-    placement: dict[str, Any] = Field(
-        default_factory=dict,
-        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    # Where an app appears is ``app_placements``, one row per initiative. An
+    # ordinary install is placed only where the seat puts it. A mandatory one is
+    # placed in every initiative when it is installed, and this flag has a
+    # trigger on ``initiative_roles`` add a row, with the new initiative's
+    # moderator role, when an initiative is created. A placement the seat
+    # removes stays removed: nothing sweeps the existing initiatives.
+    follows_new_initiatives: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
     created_by: int = Field(foreign_key="users.id", nullable=False)

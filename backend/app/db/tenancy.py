@@ -209,6 +209,11 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # at the endpoint (guild admin); what a member may do *inside* an app is
         # decided by that instance's own grants, not by this row.
         "guild_apps",
+        # Where an install appears, one row per initiative, with the roles
+        # allowed to open it there. A fact about the install rather than
+        # initiative content: read within the schema, written by the seat
+        # (SEAT_TABLES below).
+        "app_placements",
         "guild_ai_connections",  # the seat's AI connections (guild config mode);
         # guild-wide config, no initiative scope, written by the seat (SEAT_TABLES
         # below). The api_key ciphertext is never returned by the API (reads
@@ -300,13 +305,15 @@ OWN_ROW_TABLES: dict[str, str] = {
 
 # --- Seat overlay on guild-level tables ---------------------------------------
 # Guild-level configuration the community's seat holds. Read within the schema:
-# a member's AI request reads the connection it runs on. Written by the seat —
-# the membership row's superadmin, or a superadmin settings grant beside a
-# read_write content grant — or the system engine; the same answer the routes
-# in front of it ask for. Rendered as ``seat_*`` policies by
+# a member's AI request reads the connection it runs on, and opening an app
+# reads where it is placed. Written by the seat — the membership row's
+# superadmin, or a superadmin settings grant beside a read_write content grant
+# — or the system engine; the same answer the routes in front of it ask for.
+# A table a trigger also writes names that in
+# ``app.db.guild_ddl._SEAT_TRIGGER_WRITTEN_INSERT``. Rendered as ``seat_*`` policies by
 # ``app.db.guild_ddl.render_guild_rls_ddl``. Every entry here MUST also be in
 # ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
-SEAT_TABLES: frozenset[str] = frozenset({"guild_ai_connections"})
+SEAT_TABLES: frozenset[str] = frozenset({"app_placements", "guild_ai_connections"})
 
 # --- Ledger overlay on guild-level tables -------------------------------------
 # Guild-level bookkeeping a system job keeps about a parent row: table ->
@@ -345,6 +352,9 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "guild_app_user_connections",
         "guild_app_user_delegations",
         "post_reads",
+        # A fact about an install: where it appears. The rows a new initiative's
+        # trigger writes have no person placing them.
+        "app_placements",
         # A ballot: ``user_id`` is the voter, which is both the author of the
         # row and its whole content.
         "post_poll_votes",

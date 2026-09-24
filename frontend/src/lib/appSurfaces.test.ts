@@ -170,7 +170,11 @@ describe("guildAppPath", () => {
 });
 
 describe("initiativeAppPath", () => {
-  const app = (embeds: ReturnType<typeof embed>[]) => ({ id: 7, definition: { embeds } });
+  const app = (embeds: ReturnType<typeof embed>[]) => ({
+    id: 7,
+    definition: { embeds },
+    placements: [{ initiative_id: 4 }],
+  });
 
   it("gives a manager a row inside their initiative", () => {
     const declaration = app([embed("runs", ["initiative"], "initiative_manager")]);
@@ -196,28 +200,23 @@ describe("initiativeAppPath", () => {
 });
 
 describe("placedIn", () => {
-  it("offers an unplaced app in every initiative", () => {
-    expect(placedIn({ placement: {} }, 4)).toBe(true);
-    expect(placedIn({ placement: null }, 4)).toBe(true);
-    expect(placedIn({}, 4)).toBe(true);
+  it("offers an app placed nowhere in no initiative", () => {
+    expect(placedIn({ placements: [] }, 4)).toBe(false);
+    expect(placedIn({ placements: null }, 4)).toBe(false);
+    expect(placedIn({}, 4)).toBe(false);
   });
 
   it("offers a placed app only where it was placed", () => {
-    expect(placedIn({ placement: { initiatives: [4, 9] } }, 4)).toBe(true);
-    expect(placedIn({ placement: { initiatives: [4, 9] } }, 5)).toBe(false);
-  });
-
-  it("reads an empty choice as nowhere rather than everywhere", () => {
-    // Distinct from `{}`: the guild kept the guild-wide surface and dropped
-    // the per-initiative ones.
-    expect(placedIn({ placement: { initiatives: [] } }, 4)).toBe(false);
+    const app = { placements: [{ initiative_id: 4 }, { initiative_id: 9 }] };
+    expect(placedIn(app, 4)).toBe(true);
+    expect(placedIn(app, 5)).toBe(false);
   });
 
   it("keeps a row out of an initiative the app was placed away from", () => {
     // Placement is where the app goes, so it reads the same for an admin.
     const app = {
       id: 7,
-      placement: { initiatives: [9] },
+      placements: [{ initiative_id: 9 }],
       definition: {
         embeds: [{ id: "runs", path: "/embed", name: { en: "Runs" }, scopes: ["initiative"] }],
       },

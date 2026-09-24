@@ -21,13 +21,17 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.tenant.initiatives import get_moderator_role
 from app.services.tenant.mandatory_apps import backfill_mandatory_apps
 from app.testing import (
     create_app_service_registration,
     create_guild,
+    create_guild_app,
     create_guild_membership,
+    create_initiative,
     create_marketplace_listing,
     create_user,
     get_auth_headers,
@@ -72,7 +76,13 @@ async def mandatory_registration(session: AsyncSession, provided_listing):
 
 async def _installed_apps(session: AsyncSession, guild_id: int) -> list[GuildApp]:
     await route_session_to_guild(session, guild_id)
-    return list((await session.exec(select(GuildApp))).all())
+    return list(
+        (
+            await session.exec(
+                select(GuildApp).execution_options(populate_existing=True)
+            )
+        ).all()
+    )
 
 
 class TestAtGuildCreation:
@@ -255,3 +265,67 @@ class TestBackfill:
         await backfill_mandatory_apps()
 
         assert len(await _installed_apps(session, guild.id)) == 1
+
+
+class TestPlacement:
+    async def test_it_is_placed_in_every_initiative_and_each_new_one(
+        self, session: AsyncSession, mandatory_registration
+    ):
+        """In every initiative there is when it lands, with the moderator role,
+        and in each initiative created afterwards."""
+        creator = await create_user(session, email="placed@example.com")
+        guild = await create_guild(session, creator=creator, name="Placed guild")
+        await create_guild_membership(
+            session, user=creator, guild=guild, role=GuildRole.admin
+        )
+        before = await create_initiative(session, guild, creator, name="Before")
+
+        await backfill_mandatory_apps()
+        [app] = await _installed_apps(session, guild.id)
+        assert app.follows_new_initiatives is True
+
+        after = await create_initiative(session, guild, creator, name="After")
+
+        await route_session_to_guild(session, guild.id)
+        rows = (
+            await session.exec(
+                select(AppPlacement).where(AppPlacement.install_id == app.id)
+            )
+        ).all()
+        placed = {row.initiative_id: list(row.role_ids) for row in rows}
+        expected = {}
+        for initiative in (before, after):
+            role = await get_moderator_role(session, initiative_id=initiative.id)
+            assert role is not None
+            expected[initiative.id] = [role.id]
+        assert placed == expected
+
+    async def test_an_install_already_there_starts_following(
+        self, session: AsyncSession, mandatory_registration
+    ):
+        """Marked mandatory after it landed: it follows new initiatives from
+        then on, and the initiatives already there keep the seat's placement."""
+        creator = await create_user(session, email="late@example.com")
+        guild = await create_guild(session, creator=creator, name="Late guild")
+        await create_guild_membership(
+            session, user=creator, guild=guild, role=GuildRole.admin
+        )
+        await create_initiative(session, guild, creator, name="Existing")
+        await create_guild_app(
+            session,
+            guild,
+            creator,
+            definition=PROVIDED_DEFINITION,
+            listing_uid=PROVIDED_UID,
+        )
+
+        await backfill_mandatory_apps()
+
+        [app] = await _installed_apps(session, guild.id)
+        assert app.follows_new_initiatives is True
+        await route_session_to_guild(session, guild.id)
+        assert (
+            await session.exec(
+                select(AppPlacement).where(AppPlacement.install_id == app.id)
+            )
+        ).all() == []

@@ -47,8 +47,13 @@ vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: roster, isLoading: false }),
 }));
 
-const app = (placement: Record<string, unknown>) =>
-  ({ id: 7, name: "Automations", placement }) as unknown as GuildAppDetail;
+/** An install placed in these initiatives. */
+const app = (placed: number[]) =>
+  ({
+    id: 7,
+    name: "Automations",
+    placements: placed.map((initiative_id) => ({ initiative_id, role_ids: [] })),
+  }) as unknown as GuildAppDetail;
 
 beforeEach(() => {
   sent.length = 0;
@@ -65,17 +70,14 @@ const tick = async (name: string) => (await screen.findByLabelText(name)).click(
 
 describe("AppPlacementPanel", () => {
   it("sends the selection the admin built, one tick at a time", async () => {
-    renderPage(() => <AppPlacementPanel app={app({ initiatives: [] })} />);
+    renderPage(() => <AppPlacementPanel app={app([])} />);
 
     await tick("Platform");
-    await waitFor(() => expect(sent).toEqual([{ placement: { initiatives: [1] } }]));
+    await waitFor(() => expect(sent).toEqual([{ placed_initiative_ids: [1] }]));
 
     await tick("Marketing");
     await waitFor(() =>
-      expect(sent).toEqual([
-        { placement: { initiatives: [1] } },
-        { placement: { initiatives: [1, 2] } },
-      ])
+      expect(sent).toEqual([{ placed_initiative_ids: [1] }, { placed_initiative_ids: [1, 2] }])
     );
   });
 
@@ -83,7 +85,7 @@ describe("AppPlacementPanel", () => {
     // Both boxes are ticked before either save answers. Concurrent requests
     // could be stored in either order; chained ones cannot.
     holdSaves = true;
-    renderPage(() => <AppPlacementPanel app={app({ initiatives: [] })} />);
+    renderPage(() => <AppPlacementPanel app={app([])} />);
 
     await tick("Platform");
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
@@ -94,16 +96,16 @@ describe("AppPlacementPanel", () => {
 
     release[0]?.();
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
-    expect(sent[1]).toEqual({ placement: { initiatives: [1, 2] } });
+    expect(sent[1]).toEqual({ placed_initiative_ids: [1, 2] });
   });
 
   it("drops an id whose initiative is gone rather than resubmitting it", async () => {
     // Initiative 9 was chosen once and has since been deleted: it is in the
     // stored placement and on no row of the roster.
-    renderPage(() => <AppPlacementPanel app={app({ initiatives: [1, 9] })} />);
+    renderPage(() => <AppPlacementPanel app={app([1, 9])} />);
 
     await tick("Marketing");
-    await waitFor(() => expect(sent).toEqual([{ placement: { initiatives: [1, 2] } }]));
+    await waitFor(() => expect(sent).toEqual([{ placed_initiative_ids: [1, 2] }]));
   });
 
   it("leaves the next edit building on what the server kept", async () => {
@@ -117,25 +119,41 @@ describe("AppPlacementPanel", () => {
         rejectFirst = reject;
       });
     });
-    renderPage(() => <AppPlacementPanel app={app({ initiatives: [] })} />);
+    renderPage(() => <AppPlacementPanel app={app([])} />);
 
     await tick("Platform");
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
     await tick("Marketing");
 
     rejectFirst(new Error("refused"));
-    await waitFor(() => expect(sent[1]).toEqual({ placement: { initiatives: [1, 2] } }));
+    await waitFor(() => expect(sent[1]).toEqual({ placed_initiative_ids: [1, 2] }));
 
     // Untick the first one. Built on [1, 2] — what the server took — rather
     // than on the empty selection the failed save would have rolled back to.
     await tick("Platform");
-    await waitFor(() => expect(sent[2]).toEqual({ placement: { initiatives: [2] } }));
+    await waitFor(() => expect(sent[2]).toEqual({ placed_initiative_ids: [2] }));
   });
 
-  it("places the app everywhere again in one choice", async () => {
-    renderPage(() => <AppPlacementPanel app={app({ initiatives: [1] })} />);
+  it("places the app in every current initiative in one choice", async () => {
+    renderPage(() => <AppPlacementPanel app={app([1])} />);
 
-    (await screen.findByLabelText("Every initiative")).click();
-    await waitFor(() => expect(sent).toEqual([{ placement: {} }]));
+    (await screen.findByLabelText("Every current initiative")).click();
+    await waitFor(() => expect(sent).toEqual([{ placed_initiative_ids: [1, 2] }]));
+  });
+
+  it("reads an app placed in every initiative as every current one", async () => {
+    renderPage(() => <AppPlacementPanel app={app([1, 2])} />);
+
+    expect(await screen.findByLabelText("Every current initiative")).toBeChecked();
+    expect(screen.queryByLabelText("Platform")).toBeNull();
+  });
+
+  it("choosing to pick shows the current placements and saves nothing", async () => {
+    renderPage(() => <AppPlacementPanel app={app([1, 2])} />);
+
+    (await screen.findByLabelText("Only the initiatives I choose")).click();
+    expect(await screen.findByLabelText("Platform")).toBeChecked();
+    expect(screen.getByLabelText("Marketing")).toBeChecked();
+    expect(sent).toEqual([]);
   });
 });

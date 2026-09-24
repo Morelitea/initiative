@@ -1178,8 +1178,7 @@ class GuildAppMessages:
     #: The surface is declared for an initiative's managers, was opened in an
     #: initiative, and the caller does not manage it.
     SURFACE_MANAGER_ONLY = "GUILD_APP_SURFACE_MANAGER_ONLY"
-    #: The placement sent is not a shape this build stores, or it names an
-    #: initiative that is not one of this guild's.
+    #: The placement sent names an initiative that is not one of this guild's.
     PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
 
 

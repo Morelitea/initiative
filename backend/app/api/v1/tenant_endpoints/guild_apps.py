@@ -122,8 +122,9 @@ CurrentUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 #: What an admin sets on an install itself, as opposed to its configuration or
-#: its version. A record of one of these says which of them moved.
-_APP_SETTINGS_FIELDS = ("name", "enabled", "auto_update", "placement")
+#: its version. A record of one of these says which of them moved; placement is
+#: recorded beside them as ``placed_initiative_ids``.
+_APP_SETTINGS_FIELDS = ("name", "enabled", "auto_update")
 
 
 # ---------------------------------------------------------------------------
@@ -177,15 +178,24 @@ async def _load_initiative(
     return initiative
 
 
-async def _normalized_placement(session: RLSSessionDep, raw: Any) -> dict[str, Any]:
-    """What an admin chose, checked against the initiatives they have.
+async def _placements(session: AsyncSession, app: GuildApp) -> list:
+    """One install's placement rows, for its serializer."""
+    grouped = await guild_apps_service.placements_by_install(session, [app.id])
+    return grouped.get(app.id, [])
 
-    The ids come from the same routed session the rest of the request runs on,
-    so a placement can only ever name an initiative of this guild.
+
+async def _set_placement(
+    session: RLSSessionDep, app: GuildApp, initiative_ids: list[int]
+) -> None:
+    """Place the install in exactly these initiatives, or a 422.
+
+    The ids are checked on the same routed session the rest of the request runs
+    on, so a placement can only ever name an initiative of this guild.
     """
-    ids = set((await session.exec(select(Initiative.id))).all())
     try:
-        return guild_apps_service.normalize_placement(raw, initiative_ids=ids)
+        await guild_apps_service.set_placed_initiatives(
+            session, app, set(initiative_ids)
+        )
     except guild_apps_service.PlacementError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -331,6 +341,9 @@ async def list_guild_apps(
     avatars = await catalog_service.listing_avatars(
         session, [app.listing_uid for app in apps]
     )
+    placements = await guild_apps_service.placements_by_install(
+        session, [app.id for app in apps]
+    )
     return GuildAppListResponse(
         items=[
             serialize_guild_app(
@@ -338,6 +351,7 @@ async def list_guild_apps(
                 install_state=await registration_lookup.install_state(app.definition),
                 avatar_url=avatars.get(app.listing_uid),
                 context=guild_context,
+                placements=placements.get(app.id, []),
             )
             for app in apps
         ]
@@ -368,6 +382,7 @@ async def get_guild_app(
         ),
         update_version=await app_updates_service.update_version(session, app),
         context=guild_context,
+        placements=await _placements(session, app),
     )
 
 
@@ -436,6 +451,7 @@ async def install_guild_app(
         install_state=await registration_lookup.install_state(app.definition),
         avatar_url=await _app_avatar(session, app),
         context=guild_context,
+        placements=await _placements(session, app),
     )
     await _count_install(listing.id)
     return installed
@@ -513,6 +529,7 @@ async def upgrade_guild_app(
         install_state=await registration_lookup.install_state(app.definition),
         update_version=await app_updates_service.update_version(session, app),
         context=guild_context,
+        placements=await _placements(session, app),
     )
 
 
@@ -537,15 +554,21 @@ async def update_guild_app(
     decides whether an app exists, and the guild decides when it changes under
     them.
 
-    Placement says which initiatives an app's initiative-scoped surfaces appear
-    in; ``{}`` is every one of them, which is where an install starts. It is the
-    guild's own answer to where an app belongs rather than a permission, so it
-    reads the same for everyone, admins included.
+    ``placed_initiative_ids`` is the whole set of initiatives an app's
+    initiative-scoped surfaces appear in. An initiative that stays placed keeps
+    the roles it had, a new one starts with its moderator role, and one left out
+    is removed. It is the community's own answer to where an app belongs rather
+    than a permission, so it reads the same for everyone, admins included.
     """
     require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
-    before = audit_service.snapshot(app, _APP_SETTINGS_FIELDS)
+    before = {
+        **audit_service.snapshot(app, _APP_SETTINGS_FIELDS),
+        "placed_initiative_ids": sorted(
+            await guild_apps_service.placed_initiative_ids(session, app.id)
+        ),
+    }
     data = payload.model_dump(exclude_unset=True)
     if data.get("name"):
         app.name = data["name"].strip()
@@ -555,13 +578,17 @@ async def update_guild_app(
         app.enabled = data["enabled"]
     if data.get("auto_update") is not None:
         app.auto_update = data["auto_update"]
-    if "placement" in data:
-        app.placement = await _normalized_placement(session, data["placement"])
+    if data.get("placed_initiative_ids") is not None:
+        await _set_placement(session, app, data["placed_initiative_ids"])
     app.updated_at = datetime.now(timezone.utc)
     session.add(app)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(app, _APP_SETTINGS_FIELDS)
-    )
+    after = {
+        **audit_service.snapshot(app, _APP_SETTINGS_FIELDS),
+        "placed_initiative_ids": sorted(
+            await guild_apps_service.placed_initiative_ids(session, app.id)
+        ),
+    }
+    changed = audit_service.changed_fields(before, after)
     if changed["changed"]:
         await audit_service.record(
             session,
@@ -579,6 +606,7 @@ async def update_guild_app(
         install_state=await registration_lookup.install_state(app.definition),
         avatar_url=await _app_avatar(session, app),
         context=guild_context,
+        placements=await _placements(session, app),
     )
 
 
@@ -777,6 +805,7 @@ async def update_guild_app_config(
         install_state=await registration_lookup.install_state(app.definition),
         update_version=await app_updates_service.update_version(session, app),
         context=guild_context,
+        placements=await _placements(session, app),
     )
 
 

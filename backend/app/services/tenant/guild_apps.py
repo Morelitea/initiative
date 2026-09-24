@@ -39,16 +39,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Iterable, Optional
 
-from sqlalchemy import cast, update
+from sqlalchemy import cast, delete, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
+from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import audit as audit_service
 from app.services.tenant.soft_delete import soft_delete_entity
@@ -62,12 +64,15 @@ __all__ = [
     "find_mounting_app",
     "get_app_content_id",
     "install_app",
+    "is_placed",
     "legacy_artifacts",
     "lock_install",
-    "normalize_placement",
-    "placed_in",
+    "place_in_every_initiative",
+    "placed_initiative_ids",
+    "placements_by_install",
     "record_artifact",
     "remove_app_artifacts",
+    "set_placed_initiatives",
     "touch",
 ]
 
@@ -417,63 +422,149 @@ def touch(app: GuildApp) -> None:
 
 # --- placement --------------------------------------------------------------
 #
-# Where an app's initiative-scoped surfaces appear. Placement is the guild
-# admin's own answer to "where does this belong", so it applies to everyone
-# including them — unlike a surface's ``visibility``, which names an audience
-# floor an admin always clears.
+# Where an app's initiative-scoped surfaces appear: one ``app_placements`` row
+# per initiative, carrying the initiative roles allowed to open the app there.
+# An initiative with no row is one the app is not placed in. Placement is the
+# seat's answer to "where does this belong", so it applies to everyone
+# including guild admins — unlike a surface's ``visibility``, which names an
+# audience floor an admin always clears.
 
 
 class PlacementError(ValueError):
     """A placement that names something this guild cannot place an app in."""
 
 
-def normalize_placement(raw: Any, *, initiative_ids: set[int]) -> dict[str, Any]:
-    """Canonicalize what an admin chose, or refuse it.
-
-    Three states, and each has exactly one representation:
-
-    * ``{}`` — every initiative. The default, and what an install that never
-      says otherwise keeps.
-    * ``{"initiatives": [12, 15]}`` — only these.
-    * ``{"initiatives": []}`` — none of them, which keeps the guild-wide
-      surface and drops the per-initiative ones. A real choice rather than an
-      accident, so it is stored as asked rather than coerced into "all".
-
-    Ids are checked against the guild's own initiatives, which is what bounds
-    the list — there is no count to cap, because a guild may place an app in as
-    many initiatives as it has.
-    """
-    if raw is None or raw == {}:
+async def _moderator_role_ids(
+    session: AsyncSession, initiative_ids: Iterable[int]
+) -> dict[int, int]:
+    """Each initiative's built-in moderator role, keyed by initiative."""
+    ids = list(initiative_ids)
+    if not ids:
         return {}
-    if not isinstance(raw, dict):
-        raise PlacementError("placement must be an object")
-    unknown = set(raw) - {"initiatives"}
-    if unknown:
-        raise PlacementError(f"placement does not take {sorted(unknown)[0]!r}")
-
-    entries = raw.get("initiatives")
-    if not isinstance(entries, list):
-        raise PlacementError("placement.initiatives must be a list of ids")
-
-    cleaned: list[int] = []
-    for entry in entries:
-        if isinstance(entry, bool) or not isinstance(entry, int):
-            raise PlacementError("placement.initiatives must be a list of ids")
-        if entry not in initiative_ids:
-            raise PlacementError(f"initiative {entry} is not one of this guild's")
-        if entry not in cleaned:
-            cleaned.append(entry)
-    return {"initiatives": sorted(cleaned)}
+    rows = await session.exec(
+        select(InitiativeRoleModel.initiative_id, InitiativeRoleModel.id)
+        .where(
+            InitiativeRoleModel.initiative_id.in_(ids),
+            InitiativeRoleModel.name == "moderator",
+            InitiativeRoleModel.is_builtin.is_(True),
+        )
+        .order_by(InitiativeRoleModel.id)
+    )
+    roles: dict[int, int] = {}
+    for initiative_id, role_id in rows.all():
+        roles.setdefault(initiative_id, role_id)
+    return roles
 
 
-def placed_in(app: GuildApp, initiative_id: Optional[int]) -> bool:
+def _default_role_ids(roles: dict[int, int], initiative_id: int) -> list[int]:
+    """The role set a new placement starts with: the initiative's moderators."""
+    role_id = roles.get(initiative_id)
+    return [role_id] if role_id is not None else []
+
+
+async def placements_by_install(
+    session: AsyncSession, install_ids: Iterable[int]
+) -> dict[int, list[AppPlacement]]:
+    """Every placement of each install, ordered by initiative, in one query."""
+    ids = list(install_ids)
+    if not ids:
+        return {}
+    rows = await session.exec(
+        select(AppPlacement)
+        .where(AppPlacement.install_id.in_(ids))
+        .order_by(AppPlacement.install_id, AppPlacement.initiative_id)
+    )
+    grouped: dict[int, list[AppPlacement]] = {install_id: [] for install_id in ids}
+    for row in rows.all():
+        grouped.setdefault(row.install_id, []).append(row)
+    return grouped
+
+
+async def placed_initiative_ids(session: AsyncSession, install_id: int) -> set[int]:
+    """The initiatives this install is placed in."""
+    rows = await session.exec(
+        select(AppPlacement.initiative_id).where(AppPlacement.install_id == install_id)
+    )
+    return set(rows.all())
+
+
+async def is_placed(
+    session: AsyncSession, install_id: int, initiative_id: Optional[int]
+) -> bool:
     """Whether this install offers its initiative surfaces in that initiative.
 
     ``None`` is the guild-wide reading, which placement says nothing about.
     """
     if initiative_id is None:
         return True
-    entries = (app.placement or {}).get("initiatives")
-    if not isinstance(entries, list):
-        return True
-    return initiative_id in entries
+    row = (
+        await session.exec(
+            select(AppPlacement.initiative_id).where(
+                AppPlacement.install_id == install_id,
+                AppPlacement.initiative_id == initiative_id,
+            )
+        )
+    ).first()
+    return row is not None
+
+
+async def set_placed_initiatives(
+    session: AsyncSession, app: GuildApp, initiative_ids: set[int]
+) -> None:
+    """Place the install in exactly these initiatives.
+
+    Every id must be one of this guild's initiatives, read on the same routed
+    session. A placement that stays keeps the roles it had; one that is new
+    starts with the initiative's built-in moderator role; one not listed is
+    removed.
+    """
+    for entry in initiative_ids:
+        if isinstance(entry, bool) or not isinstance(entry, int):
+            raise PlacementError("placement must be a list of initiative ids")
+    known = set((await session.exec(select(Initiative.id))).all())
+    unknown = sorted(initiative_ids - known)
+    if unknown:
+        raise PlacementError(f"initiative {unknown[0]} is not one of this guild's")
+
+    current = await placed_initiative_ids(session, app.id)
+    removed = current - initiative_ids
+    if removed:
+        await session.exec(
+            delete(AppPlacement).where(
+                AppPlacement.install_id == app.id,
+                AppPlacement.initiative_id.in_(sorted(removed)),
+            )
+        )
+    added = sorted(initiative_ids - current)
+    roles = await _moderator_role_ids(session, added)
+    for initiative_id in added:
+        session.add(
+            AppPlacement(
+                install_id=app.id,
+                initiative_id=initiative_id,
+                role_ids=_default_role_ids(roles, initiative_id),
+            )
+        )
+    await session.flush()
+
+
+async def place_in_every_initiative(session: AsyncSession, app: GuildApp) -> None:
+    """Place the install in every initiative that exists now.
+
+    What installing a mandatory app does. Initiatives created afterwards are
+    placed by the ``initiative_roles`` trigger, which reads
+    ``follows_new_initiatives``.
+    """
+    every = set((await session.exec(select(Initiative.id))).all())
+    current = await placed_initiative_ids(session, app.id)
+    added = sorted(every - current)
+    roles = await _moderator_role_ids(session, added)
+    for initiative_id in added:
+        session.add(
+            AppPlacement(
+                install_id=app.id,
+                initiative_id=initiative_id,
+                role_ids=_default_role_ids(roles, initiative_id),
+            )
+        )
+    await session.flush()

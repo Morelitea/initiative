@@ -5,7 +5,7 @@ An operator says so on the registration (``mandatory``), and this is what that
 statement does — every guild has the app, already there, with no admin
 discovering it in a catalog and no admin able to remove it.
 
-Four properties, and each one is a deliberate choice:
+Five properties, and each one is a deliberate choice:
 
 * **A guild gets it at creation, and an existing guild gets it at boot.** The
   same sweep pattern that reprovisions stale schemas, so the flag reaches guilds
@@ -16,6 +16,10 @@ Four properties, and each one is a deliberate choice:
   next boot tries again.
 * **The kill switch outranks the flag.** A registration the operator turned off
   installs nowhere new — deactivating an app stops it exactly like any other.
+* **It is placed in every initiative.** Each one that exists when it is
+  installed, and each one created afterwards (``follows_new_initiatives``). The
+  seat may still remove it from any single initiative, and that stays removed:
+  nothing sweeps the initiatives that already exist.
 * **Clearing the flag destroys nothing.** Nothing here removes an install, so an
   app that stops being mandatory simply becomes an ordinary one a guild admin
   may now remove. Tearing an app down is uninstalling it, which is a different
@@ -142,6 +146,12 @@ async def install_mandatory_apps(
             )
         ).first()
         if existing is not None:
+            # An install the registration marked mandatory after it landed
+            # follows new initiatives from here on. The initiatives that exist
+            # already keep whatever placement the seat gave them.
+            if not existing.follows_new_initiatives:
+                existing.follows_new_initiatives = True
+                session.add(existing)
             continue
 
         try:
@@ -165,7 +175,7 @@ async def install_mandatory_apps(
             )
             continue
 
-        await guild_apps_service.install_app(
+        app = await guild_apps_service.install_app(
             session,
             listing_uid=listing.uid,
             listing_version=version.version,
@@ -176,6 +186,11 @@ async def install_mandatory_apps(
             actor_user_id=created_by,
             via="mandatory",
         )
+        # Placed in every initiative there is, and in each one created later.
+        app.follows_new_initiatives = True
+        session.add(app)
+        await session.flush()
+        await guild_apps_service.place_in_every_initiative(session, app)
         installed.append(listing.uid)
 
     return installed

@@ -1,7 +1,9 @@
-"""Two guild-level tables the database decides for itself.
+"""Guild-level tables the database decides for itself.
 
 ``guild_ai_connections`` is read within the community — a member's AI request
 reads the connection it runs on — and written by the seat alone.
+``app_placements`` has the same shape: read within the community, placed by
+the seat.
 ``webhook_deliveries`` is read through its subscription and written by the
 system engine. Each test acts on the real request login, routed through the
 seam, and carries no guard of its own: what the database accepts is what the
@@ -21,9 +23,11 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.models.tenant.ai_connection import GuildAIConnection
+from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.testing import (
     create_access_grant,
+    create_guild_app,
     create_initiative,
     create_user,
     route_as,
@@ -132,6 +136,72 @@ async def test_a_lent_seat_writes_only_beside_read_write(
     s.add(GuildAIConnection(label="By the pair", provider="openai"))
     await s.commit()
     assert await _labels(session, seat.guild.id) == ["By the pair", "Shared"]
+
+
+# ---------------------------------------------------------------------------
+# app_placements
+# ---------------------------------------------------------------------------
+
+_APP_DEFINITION = {
+    "app_kind": "service",
+    "service": {"public_id": "tests.placed", "protocol": 1},
+}
+
+
+async def _placed_initiatives(session, guild_id: int) -> list[int]:
+    await route_session_to_guild(session, guild_id)
+    return sorted(
+        (await session.exec(select(AppPlacement.initiative_id))).all()  # type: ignore[arg-type]
+    )
+
+
+async def test_a_member_reads_placements_and_does_not_write_one(
+    session, acting_user, role_session
+):
+    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    app = await create_guild_app(
+        session, seat.guild, seat.user, definition=_APP_DEFINITION
+    )
+    await route_session_to_guild(session, seat.guild.id)
+    session.add(AppPlacement(install_id=app.id, initiative_id=seat.initiative.id))
+    await session.commit()
+    other = await create_initiative(session, seat.guild, seat.user)
+
+    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    s = await _as(role_session, user_id=member.user.id, guild_id=seat.guild.id)
+    assert list(await s.exec(select(AppPlacement.initiative_id))) == [
+        seat.initiative.id
+    ]
+    s.add(AppPlacement(install_id=app.id, initiative_id=other.id))
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await s.commit()
+    await s.rollback()
+    assert await _placed_initiatives(session, seat.guild.id) == [seat.initiative.id]
+
+
+async def test_an_admin_below_the_seat_does_not_place_an_app(
+    session, acting_user, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    app = await create_guild_app(session, a.guild, a.user, definition=_APP_DEFINITION)
+    s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
+    s.add(AppPlacement(install_id=app.id, initiative_id=a.initiative.id))
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await s.commit()
+    await s.rollback()
+    assert await _placed_initiatives(session, a.guild.id) == []
+
+
+async def test_the_seat_places_an_app(session, acting_user, role_session):
+    """On the content route the placement endpoint uses."""
+    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    app = await create_guild_app(
+        session, seat.guild, seat.user, definition=_APP_DEFINITION
+    )
+    s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
+    s.add(AppPlacement(install_id=app.id, initiative_id=seat.initiative.id))
+    await s.commit()
+    assert await _placed_initiatives(session, seat.guild.id) == [seat.initiative.id]
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Apps appear where they are placed** — an app placed in "every initiative" is placed in each initiative that exists when you save, and an initiative created later does not get it until you add it under **Community settings → Integrations**. Apps your deployment requires are still added to new initiatives, and can be removed from any one of them.
 - **Exporting a tool belongs to whoever can delete it** — export moved to each tool's **Settings → Advanced**, for its owner, community admins and roles with full access. Every tool can be exported there. Galleries download as a zip with their pictures, and wikis as PDF, Markdown, Word or an importable zip that brings their filed documents along; both zips import back.
 - **Suspension means no access** — a suspended community or account reaches nothing, settings included, until the suspension is lifted, and sees a notice saying who to contact. Nothing is deleted.
 - **Imports live with the community** — Todoist, TickTick and Vikunja imports moved from **My Settings** to **Community settings → Data**. They now bring due dates, tags, assignees and comments along.
