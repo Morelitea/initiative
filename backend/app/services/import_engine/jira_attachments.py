@@ -121,6 +121,20 @@ class ImageReport:
     file_bytes: int = 0
     files_by_issue: dict[str, list[StoredImage]] = field(default_factory=dict)
 
+    def absorb(self, other: "ImageReport") -> None:
+        """Add another page's report to this one."""
+        self.images += other.images
+        self.image_bytes += other.image_bytes
+        self.oversize += other.oversize
+        self.other_files += other.other_files
+        self.unreadable += other.unreadable
+        self.files += other.files
+        self.file_bytes += other.file_bytes
+        for key, stored in other.by_issue.items():
+            self.by_issue.setdefault(key, []).extend(stored)
+        for key, stored in other.files_by_issue.items():
+            self.files_by_issue.setdefault(key, []).extend(stored)
+
 
 def issue_attachments(issue: Any) -> list[Attachment]:
     """The attachments an issue lists, skipping anything malformed."""

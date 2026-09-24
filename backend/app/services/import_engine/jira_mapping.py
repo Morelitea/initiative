@@ -33,7 +33,7 @@ from app.services.import_engine.jira_attachments import (
     media_urls,
     unreferenced_section,
 )
-from app.services.import_engine.jira_fields import map_fields
+from app.services.import_engine.jira_fields import FieldMapper
 from app.services.import_engine.mapping import (
     DEFAULT_TAG_COLOR,
     POSITION_STEP,
@@ -575,6 +575,137 @@ def _timestamp(value: Any) -> Optional[str]:
         return None
 
 
+class ProjectMapper:
+    """:func:`build_project_envelope` a page of issues at a time.
+
+    Each page is mapped to tasks as it arrives, so the site's issue JSON is
+    held one page at a time rather than for the whole project. The property
+    definitions depend on every issue, so each task's values are attached in
+    :meth:`finish`.
+    """
+
+    def __init__(
+        self,
+        *,
+        project: Any,
+        issue_type_statuses: Iterable[Any],
+        board_column_order: Optional[list[str]] = None,
+        app_version: str,
+        site_url: str | None = None,
+        field_catalog: Any = None,
+        include_comments: bool = False,
+        guild_id: Optional[int] = None,
+    ) -> None:
+        statuses = collect_statuses(
+            issue_type_statuses, board_column_order=board_column_order
+        )
+        if not statuses:
+            # An envelope with no statuses cannot be applied (the importer
+            # refuses it), and a project with no workflow is not a thing Jira
+            # has — but the fetch must not produce something unapplyable, so
+            # one honest column stands in.
+            statuses = fallback_statuses()
+        self._statuses = statuses
+        self._status_names = {status["name"] for status in statuses}
+        self._default_status_name = next(
+            (status["name"] for status in statuses if status["is_default"]),
+            statuses[0]["name"],
+        )
+        self._project = project
+        self._app_version = app_version
+        self._site_url = site_url
+        self._include_comments = include_comments
+        self._guild_id = guild_id
+        self._fields = FieldMapper(field_catalog)
+        self._tasks: list[dict[str, Any]] = []
+        self._position = 0
+        self._dropped_nodes = 0
+        self._skipped_issues = 0
+
+    def add(
+        self,
+        issues: Iterable[Any],
+        *,
+        images_by_issue: Optional[dict[str, list[StoredImage]]] = None,
+        files_by_issue: Optional[dict[str, list[StoredImage]]] = None,
+    ) -> None:
+        """Map the next issues in Rank order.
+
+        ``files_by_issue`` are the attached files that are not pictures, each
+        coming over as a document the task is attached to.
+        """
+        issues = list(issues)
+        self._fields.add(issues)
+        for issue in issues:
+            self._position += 1
+            mapped = map_issue(
+                issue,
+                position=self._position * POSITION_STEP,
+                status_names=self._status_names,
+                default_status_name=self._default_status_name,
+                include_comments=self._include_comments,
+                images=(images_by_issue or {}).get(
+                    str(issue.get("key") or "") if isinstance(issue, dict) else ""
+                ),
+                guild_id=self._guild_id,
+            )
+            if mapped is None:
+                self._skipped_issues += 1
+                continue
+            task, lost = mapped
+            key = task["external_ref"].removeprefix("jira:")
+            # Each file the issue had attached is a document of its own, and
+            # the task is attached to it once both exist. Named by its
+            # manifest entry, which is its asset's path.
+            task["links"].extend(
+                {
+                    "type": "attached",
+                    "target_external_ref": f"entry:assets/{f.storage_key}",
+                }
+                for f in (files_by_issue or {}).get(key, [])
+            )
+            self._tasks.append(task)
+            self._dropped_nodes += lost
+
+    def finish(self) -> MappedProject:
+        """The envelope, once every issue has been added."""
+        fields = self._fields.finish()
+        for task in self._tasks:
+            key = task["external_ref"].removeprefix("jira:")
+            task["property_values"] = fields.values_by_issue.get(key, [])
+            if key in fields.start_dates:
+                task["start_date"] = fields.start_dates[key]
+
+        project_fields = self._project if isinstance(self._project, dict) else {}
+        description = adf_to_markdown(project_fields.get("description")).markdown
+        if not description and isinstance(project_fields.get("description"), str):
+            # A project description comes back as plain text on some sites and
+            # as ADF on others.
+            description = str(project_fields["description"]).strip()
+
+        return MappedProject(
+            envelope=build_envelope(
+                name=str(project_fields.get("name") or "Imported project"),
+                description=description or None,
+                statuses=self._statuses,
+                tasks=self._tasks,
+                app_version=self._app_version,
+                source_url=self._site_url,
+                property_definitions=fields.definitions,
+            ),
+            dropped_nodes=self._dropped_nodes,
+            skipped_rows=self._skipped_issues,
+            properties={
+                definition["name"]: (
+                    definition["type"],
+                    fields.issue_counts.get(definition["name"], 0),
+                )
+                for definition in fields.definitions
+            },
+            dropped_fields=fields.dropped_fields,
+        )
+
+
 def build_project_envelope(
     *,
     project: Any,
@@ -599,82 +730,15 @@ def build_project_envelope(
     ``files_by_issue`` are the attached files that are not pictures, each
     coming over as a document the task is attached to.
     """
-    statuses = collect_statuses(
-        issue_type_statuses, board_column_order=board_column_order
+    mapper = ProjectMapper(
+        project=project,
+        issue_type_statuses=issue_type_statuses,
+        board_column_order=board_column_order,
+        app_version=app_version,
+        site_url=site_url,
+        field_catalog=field_catalog,
+        include_comments=include_comments,
+        guild_id=guild_id,
     )
-    if not statuses:
-        # An envelope with no statuses cannot be applied (the importer
-        # refuses it), and a project with no workflow is not a thing Jira
-        # has — but the fetch must not produce something unapplyable, so one
-        # honest column stands in.
-        statuses = fallback_statuses()
-    status_names = {status["name"] for status in statuses}
-    default_status_name = next(
-        (status["name"] for status in statuses if status["is_default"]),
-        statuses[0]["name"],
-    )
-
-    issues = list(issues)
-    fields = map_fields(field_catalog, issues)
-
-    tasks: list[dict[str, Any]] = []
-    dropped_nodes = 0
-    skipped_issues = 0
-    for index, issue in enumerate(issues):
-        mapped = map_issue(
-            issue,
-            position=(index + 1) * POSITION_STEP,
-            status_names=status_names,
-            default_status_name=default_status_name,
-            include_comments=include_comments,
-            images=(images_by_issue or {}).get(
-                str(issue.get("key") or "") if isinstance(issue, dict) else ""
-            ),
-            guild_id=guild_id,
-        )
-        if mapped is None:
-            skipped_issues += 1
-            continue
-        task, lost = mapped
-        key = task["external_ref"].removeprefix("jira:")
-        # Each file the issue had attached is a document of its own, and the
-        # task is attached to it once both exist. Named by its manifest entry,
-        # which is its asset's path.
-        task["links"].extend(
-            {"type": "attached", "target_external_ref": f"entry:assets/{f.storage_key}"}
-            for f in (files_by_issue or {}).get(key, [])
-        )
-        task["property_values"] = fields.values_by_issue.get(key, [])
-        if key in fields.start_dates:
-            task["start_date"] = fields.start_dates[key]
-        tasks.append(task)
-        dropped_nodes += lost
-
-    project_fields = project if isinstance(project, dict) else {}
-    description = adf_to_markdown(project_fields.get("description")).markdown
-    if not description and isinstance(project_fields.get("description"), str):
-        # A project description comes back as plain text on some sites and as
-        # ADF on others.
-        description = str(project_fields["description"]).strip()
-
-    return MappedProject(
-        envelope=build_envelope(
-            name=str(project_fields.get("name") or "Imported project"),
-            description=description or None,
-            statuses=statuses,
-            tasks=tasks,
-            app_version=app_version,
-            source_url=site_url,
-            property_definitions=fields.definitions,
-        ),
-        dropped_nodes=dropped_nodes,
-        skipped_rows=skipped_issues,
-        properties={
-            definition["name"]: (
-                definition["type"],
-                fields.issue_counts.get(definition["name"], 0),
-            )
-            for definition in fields.definitions
-        },
-        dropped_fields=fields.dropped_fields,
-    )
+    mapper.add(issues, images_by_issue=images_by_issue, files_by_issue=files_by_issue)
+    return mapper.finish()
