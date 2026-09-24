@@ -22,7 +22,12 @@ from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User
-from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
+from app.services.oidc_sync import (
+    extract_claim_values,
+    placement_claims,
+    sync_oidc_assignments,
+)
+from app.services.platform import provider_placement
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +57,17 @@ async def _refresh_and_sync_identity(
     userinfo_endpoint: str,
     client_id: str,
     client_secret: str,
-    claim_path: str,
+    claim_path: str | None,
+    placement_claim_names: set[str],
 ) -> bool:
-    """Refresh one identity link's token and sync claims. True on success."""
+    """Refresh one identity link's token and sync claims. True on success.
+
+    ``placement_claim_names`` are the claims the provider's rules are decided
+    by besides the groups (:func:`placement_claims`). A refresh that carries no
+    id_token and whose userinfo lacks one of them is not reconciled this pass:
+    those claims are read from the id_token at sign-in, and a reconciliation
+    without them would read as an arrival none of the rules count.
+    """
     try:
         refresh_token = decrypt_token(secret.refresh_token_encrypted)
     except Exception:
@@ -136,12 +149,33 @@ async def _refresh_and_sync_identity(
                     exc,
                 )
 
-    claim_values = extract_claim_values(profile, id_token_claims, claim_path)
+    claim_values = (
+        extract_claim_values(profile, id_token_claims, claim_path)
+        if claim_path
+        else set()
+    )
     # The id_token came straight from the token endpoint; userinfo fills in
     # what it does not carry, as it does at sign-in.
     claims = dict(id_token_claims or {})
     for key, value in profile.items():
         claims.setdefault(key, value)
+    if id_token_claims is None:
+        missing = sorted(
+            name
+            for name in placement_claim_names
+            if not extract_claim_values(claims, None, name)
+        )
+        if missing:
+            logger.info(
+                "OIDC refresh sync for %s: no id_token and userinfo lacks %s; "
+                "memberships left as they are until the next sign-in or refresh",
+                user.id,
+                ", ".join(missing),
+            )
+            identity.last_synced_at = datetime.now(timezone.utc)
+            session.add(identity)
+            await session.commit()
+            return True
     sync_result = await sync_oidc_assignments(
         session,
         user_id=user.id,
@@ -169,7 +203,8 @@ async def _refresh_and_sync_identity(
 
 
 async def process_oidc_refresh_sync() -> None:
-    """Re-read group claims for every provider that asserts them.
+    """Re-read claims for every provider whose arrivals are reconciled
+    against its rules (:func:`provider_placement.syncs_placement`).
 
     Each provider is swept on its own: its identities, its claim path, its
     credentials. A membership one provider granted is reconciled by that
@@ -180,7 +215,7 @@ async def process_oidc_refresh_sync() -> None:
             await session.exec(
                 select(AuthProvider.id).where(
                     AuthProvider.enabled == True,  # noqa: E712
-                    AuthProvider.role_claim_path.is_not(None),
+                    provider_placement.syncs_placement(),
                     AuthProvider.issuer.is_not(None),
                     AuthProvider.client_id.is_not(None),
                 )
@@ -206,7 +241,11 @@ async def process_oidc_refresh_sync() -> None:
 
 async def _sweep_provider(session: AsyncSession, provider: AuthProvider) -> None:
     claim_path = provider.role_claim_path
-    if not claim_path or not provider.issuer or not provider.client_id:
+    if not provider.issuer or not provider.client_id:
+        return
+    if not await provider_placement.provider_syncs_placement(
+        session, provider_id=provider.id
+    ):
         return
     secret_row = await session.get(AuthProviderSecret, provider.id)
     secret_ciphertext = secret_row.client_secret_encrypted if secret_row else None
@@ -255,6 +294,7 @@ async def _sweep_provider(session: AsyncSession, provider: AuthProvider) -> None
         )
         return
 
+    placement_claim_names = await placement_claims(session, provider_id=provider.id)
     succeeded = 0
     revoked = 0
     for identity, secret, user in due:
@@ -268,6 +308,7 @@ async def _sweep_provider(session: AsyncSession, provider: AuthProvider) -> None
             client_id=provider.client_id,
             client_secret=decrypt_field(secret_ciphertext, SALT_OIDC_CLIENT_SECRET),
             claim_path=claim_path,
+            placement_claim_names=placement_claim_names,
         )
         if ok:
             succeeded += 1

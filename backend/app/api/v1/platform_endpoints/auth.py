@@ -1982,7 +1982,7 @@ async def _complete_provider_login(
     # connection counts this arrival as one of its own.
     try:
         claim_path = provider_row.role_claim_path
-        if claim_path or await provider_placement.has_directory_rules(
+        if await provider_placement.provider_syncs_placement(
             system_session, provider_id=provider_row.id
         ):
             claim_values = (

@@ -27,6 +27,8 @@ import contextvars
 import uuid
 from dataclasses import dataclass
 
+from app.core.login_methods import SecondFactorRequirement
+
 _satisfied_providers: contextvars.ContextVar[frozenset[int] | str] = (
     contextvars.ContextVar("auth_satisfied_providers", default=frozenset())
 )
@@ -150,6 +152,22 @@ def set_platform_factor(value: bool) -> None:
 
 def platform_factor() -> bool:
     return _platform_factor.get()
+
+
+#: What the deployment asks of an account, as the credential validator read it
+#: beside the account itself. ``None`` where nothing read it — every credential
+#: but the session — and the question is then read when it is asked.
+_asked_of_account: contextvars.ContextVar[SecondFactorRequirement | None] = (
+    contextvars.ContextVar("auth_asked_of_account", default=None)
+)
+
+
+def set_asked_of_account(value: SecondFactorRequirement | None) -> None:
+    _asked_of_account.set(value)
+
+
+def asked_of_account() -> SecondFactorRequirement | None:
+    return _asked_of_account.get()
 
 
 #: Whether a personal API key is what authenticated this request. Recorded by

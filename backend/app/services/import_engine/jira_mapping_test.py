@@ -752,7 +752,7 @@ def _media_doc(filename, text="See"):
 def _stored(filename, key):
     from app.services.import_engine.jira_attachments import StoredImage
 
-    return StoredImage(filename, key, "image/png", b"")
+    return StoredImage(filename, key, "image/png", 0)
 
 
 def test_an_embedded_image_renders_from_its_upload_where_it_sat():
@@ -820,3 +820,50 @@ def test_an_image_embedded_in_a_comment_renders_there_too():
 def test_without_images_a_media_node_is_its_filename():
     task = _map(_issue("ACME-1", "One", description=_media_doc("door.png")))
     assert "door.png" in task["description"] and "/uploads/" not in task["description"]
+
+
+def test_a_project_mapped_a_page_at_a_time_is_the_project_mapped_whole():
+    """The fetch maps each page of issues as it arrives. The envelope has to
+    come out the same as mapping every issue at once: positions keep
+    counting across pages, and the property definitions still cover what any
+    page filled in."""
+    catalog = [
+        {
+            "id": "customfield_1",
+            "name": "Team",
+            "custom": True,
+            "schema": {"type": "option", "custom": "select"},
+        }
+    ]
+    issues = [
+        _issue("ACME-1", "One", priority={"name": "High"}, labels=["ui"]),
+        _issue("ACME-2", "Two", customfield_1={"value": "Core"}),
+        {"key": "", "fields": "not an issue"},
+        _issue("ACME-3", "Three", customfield_1={"value": "Web"}, labels=["api"]),
+        _issue("ACME-4", "Four", priority={"name": "Lowest"}),
+    ]
+    files = {"ACME-3": [_stored("spec.pdf", "k-spec.pdf")]}
+    shared = dict(
+        project={"key": "ACME", "name": "Acme Board"},
+        issue_type_statuses=[
+            {"statuses": [_status("To Do", "new"), _status("Done", "done")]}
+        ],
+        app_version="0.0.0-test",
+        field_catalog=catalog,
+    )
+
+    whole = jm.build_project_envelope(issues=issues, files_by_issue=files, **shared)
+    mapper = jm.ProjectMapper(**shared)
+    mapper.add(issues[:2])
+    mapper.add(issues[2:4], files_by_issue=files)
+    mapper.add(issues[4:])
+    paged = mapper.finish()
+
+    whole.envelope.pop("exported_at", None)
+    paged.envelope.pop("exported_at", None)
+    assert paged.envelope == whole.envelope
+    assert (paged.skipped_rows, paged.properties) == (
+        whole.skipped_rows,
+        whole.properties,
+    )
+    assert "Team" in paged.properties

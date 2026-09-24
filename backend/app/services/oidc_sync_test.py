@@ -702,3 +702,30 @@ async def test_a_provider_rule_naming_a_directory_places_only_its_arrivals(
 
     assert await _joined(session, from_acme.id) == {acme.id, everyone.id}
     assert await _joined(session, from_elsewhere.id) == set()
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_places_whatever_the_communitys_own_narrowing_says(
+    session: AsyncSession,
+):
+    """A community that narrows a shared provider for its own rules still takes
+    the arrivals a provider rule places, in its tenant or not: who a provider
+    rule places is the operator's to say."""
+    owner = await create_user(session)
+    accepting = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="shared")
+    await create_guild_provider_connection(
+        session, guild=accepting, provider=provider, accepts_provider_placement=True
+    )
+    await _provider_rule(session, provider_id=provider.id, guild_id=accepting.id)
+    out_of_tenant = await create_user(session)
+    await session.commit()
+
+    await _sync(
+        session,
+        user_id=out_of_tenant.id,
+        provider_id=provider.id,
+        claims={NARROWED_CLAIM: "elsewhere.example"},
+    )
+
+    assert await _joined(session, out_of_tenant.id) == {accepting.id}

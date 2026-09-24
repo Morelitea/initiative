@@ -15,6 +15,7 @@ From there it is the same mapping, the same attachments, the same bundle.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
 import mimetypes
@@ -34,7 +35,7 @@ from app.services.import_engine.confluence_fetch import (
 )
 from app.services.import_engine.confluence_storage import _Element, _parse, _text_of
 from app.services.import_engine.contract import ImportEngineError
-from app.services.import_engine.jira_attachments import AssetBudget
+from app.services.import_engine.jira_attachments import AssetBudget, AssetSink
 from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
@@ -732,13 +733,14 @@ async def export_to_fetched(
     app_version: str,
     asset_budget: Optional[AssetBudget],
     documents: bool,
+    store: Optional[AssetSink] = None,
     max_rows: Optional[int] = None,
 ) -> tuple[ConfluenceFetched, str]:
     """The export as a site fetch would have read it, and the site its pages
     point issues at, when they do.
 
-    ``asset_budget`` is what the bundle can hold for attachments; without one
-    none are brought. ``documents`` false is an initiative that cannot take
+    ``asset_budget`` is what the bundle can hold for attachments, and
+    ``store`` where each one goes; without a budget none are brought. ``documents`` false is an initiative that cannot take
     file documents: only the pictures the pages show come.
     """
     space = read_export(archive)
@@ -759,9 +761,11 @@ async def export_to_fetched(
         for page in space.pages[: max(0, budget_rows - 1)]
     ]
 
+    if asset_budget is not None and store is None:
+        raise ValueError("attachments need somewhere to be stored")
     gathered = Gathered()
     media: dict[str, confluence_attachments.PageMedia] = {}
-    if asset_budget is not None:
+    if asset_budget is not None and store is not None:
         for page in space.pages[: len(pages)]:
 
             async def read(item: Any, max_bytes: int) -> bytes:
@@ -782,6 +786,7 @@ async def export_to_fetched(
                 ],
                 guild_id=guild_id,
                 download=read,
+                store=store,
                 budget=asset_budget,
                 report=gathered.downloads,
                 documents=documents,
@@ -793,7 +798,8 @@ async def export_to_fetched(
         key=lambda p: (p.position is None, p.position or 0),
     )
     home = roots[0].id if roots and roots[0].id.isdigit() else None
-    mapped = confluence_mapping.build_wiki_envelope(
+    mapped = await asyncio.to_thread(
+        confluence_mapping.build_wiki_envelope,
         space={"key": space.key, "name": space.name, "homepageId": home},
         pages=pages,
         users=space.users,

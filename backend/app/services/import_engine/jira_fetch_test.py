@@ -888,3 +888,26 @@ async def test_images_can_be_left_behind(monkeypatch):
     assert not [c for c in calls if "/attachment/content/" in c["url"]]
     assert report.images == 0
     assert read_manifest(open_backup_zip(payload)).assets == []
+
+
+async def test_a_cancel_reaches_a_fetch_inside_one_project(monkeypatch):
+    """Progress is heard between pages too, not only between projects, so a
+    cancel stops a large project part way through."""
+    monkeypatch.setattr(atlassian, "HEARTBEAT_SECONDS", 0)
+    calls = _site(
+        monkeypatch,
+        pages=[
+            ([_issue("ACME-1", "One")], "cursor-1"),
+            ([_issue("ACME-2", "Two")], None),
+        ],
+    )
+
+    class Stop(Exception):
+        pass
+
+    async def progress(report):
+        raise Stop
+
+    with pytest.raises(Stop):
+        await _bundle(monkeypatch, progress=progress)
+    assert sum("search/jql" in call["url"] for call in calls) == 1

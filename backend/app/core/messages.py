@@ -764,6 +764,8 @@ class ImportEngineMessages:
     IMPORT_SOURCE_AUTH = "IMPORT_SOURCE_AUTH"
     #: The site asked us to slow down more than the job is willing to wait.
     IMPORT_SOURCE_RATE_LIMITED = "IMPORT_SOURCE_RATE_LIMITED"
+    #: The site was still being read when the fetch's time ran out.
+    IMPORT_SOURCE_TOO_SLOW = "IMPORT_SOURCE_TOO_SLOW"
     #: The address resolves inside a private network, which this client will
     #: not connect to — the same rule webhooks and the AI client follow.
     IMPORT_SOURCE_PRIVATE_HOST = "IMPORT_SOURCE_PRIVATE_HOST"

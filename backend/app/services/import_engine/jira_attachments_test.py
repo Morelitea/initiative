@@ -30,6 +30,16 @@ def _downloader(payloads=None, errors=None):
     return download
 
 
+def _sink():
+    kept: dict[str, bytes] = {}
+
+    async def store(stored, data):
+        kept[stored.storage_key] = data
+
+    store.kept = kept  # type: ignore[attr-defined]
+    return store
+
+
 def test_attachments_are_read_and_malformed_ones_skipped():
     issue = _issue(
         "ACME-1",
@@ -58,6 +68,7 @@ async def test_images_come_over_and_everything_else_is_counted():
             )
         ],
         download=download,
+        store=_sink(),
         budget_bytes=10_000,
         max_files=100,
     )
@@ -73,6 +84,7 @@ async def test_the_storage_key_is_ours_not_the_sites_filename():
     report = await ja.download_images(
         [_issue("ACME-1", _att("10", "../../etc/passwd.png"))],
         download=_downloader(),
+        store=_sink(),
         budget_bytes=10_000,
         max_files=100,
     )
@@ -85,6 +97,7 @@ async def test_an_image_over_the_cap_is_never_downloaded():
     report = await ja.download_images(
         [_issue("ACME-1", _att("10", "huge.png", size=ja.MAX_IMAGE_BYTES + 1))],
         download=download,
+        store=_sink(),
         budget_bytes=10**12,
         max_files=100,
     )
@@ -104,6 +117,7 @@ async def test_the_bundle_budget_stops_downloads_by_bytes_and_by_count():
             )
         ],
         download=download,
+        store=_sink(),
         budget_bytes=10_000,
         max_files=2,
     )
@@ -112,6 +126,7 @@ async def test_the_bundle_budget_stops_downloads_by_bytes_and_by_count():
     report = await ja.download_images(
         [_issue("ACME-1", _att("10", "a.png", size=10), _att("11", "b.png", size=10))],
         download=_downloader(),
+        store=_sink(),
         budget_bytes=15,
         max_files=100,
     )
@@ -124,6 +139,7 @@ async def test_a_file_bigger_than_declared_is_counted_as_oversize():
     report = await ja.download_images(
         [_issue("ACME-1", _att("10", "liar.png", size=10))],
         download=_downloader(errors={"10": ImportEngineMessages.IMPORT_TOO_LARGE}),
+        store=_sink(),
         budget_bytes=10_000,
         max_files=100,
     )
@@ -134,6 +150,7 @@ async def test_an_image_the_site_withholds_is_counted_but_throttling_stops_it():
     report = await ja.download_images(
         [_issue("ACME-1", _att("10", "a.png"), _att("11", "b.png"))],
         download=_downloader(errors={"10": ImportEngineMessages.IMPORT_SOURCE_AUTH}),
+        store=_sink(),
         budget_bytes=10_000,
         max_files=100,
     )
@@ -145,6 +162,7 @@ async def test_an_image_the_site_withholds_is_counted_but_throttling_stops_it():
             download=_downloader(
                 errors={"10": ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED}
             ),
+            store=_sink(),
             budget_bytes=10_000,
             max_files=100,
         )
@@ -153,8 +171,8 @@ async def test_an_image_the_site_withholds_is_counted_but_throttling_stops_it():
 
 def test_images_are_found_by_filename_and_the_rest_listed_at_the_foot():
     images = [
-        ja.StoredImage("door.png", "k1.png", "image/png", b""),
-        ja.StoredImage("hinge.png", "k2.png", "image/png", b""),
+        ja.StoredImage("door.png", "k1.png", "image/png", 0),
+        ja.StoredImage("hinge.png", "k2.png", "image/png", 0),
     ]
     assert ja.media_urls(images, guild_id=5) == {
         "door.png": "/uploads/5/k1.png",
@@ -171,6 +189,7 @@ def test_images_are_found_by_filename_and_the_rest_listed_at_the_foot():
 
 async def test_other_files_come_over_as_documents_when_asked_for():
     download = _downloader()
+    store = _sink()
     report = await ja.download_images(
         [
             _issue(
@@ -181,6 +200,7 @@ async def test_other_files_come_over_as_documents_when_asked_for():
             )
         ],
         download=download,
+        store=store,
         budget_bytes=10_000,
         max_files=100,
         documents=True,
@@ -189,4 +209,4 @@ async def test_other_files_come_over_as_documents_when_asked_for():
     assert (report.images, report.files, report.other_files) == (1, 1, 1)
     (pdf,) = report.files_by_issue["ACME-1"]
     assert pdf.filename == "spec.pdf" and pdf.storage_key.endswith(".pdf")
-    assert report.file_bytes == len(pdf.data)
+    assert report.file_bytes == pdf.size_bytes == len(store.kept[pdf.storage_key])

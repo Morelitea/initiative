@@ -11,6 +11,7 @@ the person picked, carried as ``target_initiative_id``.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from collections import Counter
@@ -22,11 +23,17 @@ from app.core.messages import ImportEngineMessages
 from app.services.import_engine import confluence_attachments, confluence_mapping
 from app.services.import_engine.atlassian import (
     AtlassianCredential,
+    Heartbeat,
     get_bytes,
     get_json,
+    throttled,
 )
 from app.services.import_engine.contract import ImportEngineError
-from app.services.import_engine.jira_attachments import AssetBudget, StoredImage
+from app.services.import_engine.jira_attachments import (
+    AssetBudget,
+    AssetSink,
+    StoredImage,
+)
 from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
@@ -269,8 +276,10 @@ async def fetch_page_media(
     *,
     guild_id: int,
     budget: AssetBudget,
+    store: AssetSink,
     report: confluence_attachments.AttachmentReport,
     documents: bool,
+    tick: Optional[Heartbeat] = None,
 ) -> confluence_attachments.PageMedia:
     """A page's attachments, downloaded within what the bundle can hold."""
 
@@ -290,9 +299,11 @@ async def fetch_page_media(
         await fetch_attachments(credential, page_id),
         guild_id=guild_id,
         download=download,
+        store=store,
         budget=budget,
         report=report,
         documents=documents,
+        tick=tick,
     )
 
 
@@ -396,21 +407,25 @@ async def fetch_spaces_bundle(
     target_initiative_id: int,
     **kwargs: Any,
 ) -> tuple[bytes, ConfluenceFetchReport]:
-    """:func:`fetch_spaces`, written into a bundle of its own."""
-    from app.services.import_engine.atlassian_bundle import merge_people, write_bundle
+    """:func:`fetch_spaces`, written into a bundle of its own and read back
+    whole — a convenience for small reads, not the job's path."""
+    from app.services.import_engine.atlassian_bundle import BundleWriter, merge_people
 
-    fetched = await fetch_spaces(credential, guild_id=guild_id, **kwargs)
-    bundle = write_bundle(
-        images=fetched.images,
-        wikis=fetched.envelopes,
-        wiki_files=fetched.files,
-        people=merge_people([], fetched.people),
-        guild_id=guild_id,
-        guild_name=guild_name,
-        target_initiative_id=target_initiative_id,
-        app_version=kwargs["app_version"],
-        site_url=credential.site_url,
-    )
+    with BundleWriter() as writer:
+        fetched = await fetch_spaces(
+            credential, guild_id=guild_id, store=writer.put_asset, **kwargs
+        )
+        bundle = writer.finish(
+            images=fetched.images,
+            wikis=fetched.envelopes,
+            wiki_files=fetched.files,
+            people=merge_people([], fetched.people),
+            guild_id=guild_id,
+            guild_name=guild_name,
+            target_initiative_id=target_initiative_id,
+            app_version=kwargs["app_version"],
+            site_url=credential.site_url,
+        ).read_bytes()
     return bundle, fetched.report
 
 
@@ -423,6 +438,7 @@ async def fetch_spaces(
     max_rows: Optional[int] = None,
     guild_id: Optional[int] = None,
     asset_budget: Optional[AssetBudget] = None,
+    store: Optional[AssetSink] = None,
     documents: bool = True,
     include_comments: bool = False,
 ) -> ConfluenceFetched:
@@ -442,9 +458,17 @@ async def fetch_spaces(
     """
     if not space_keys:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
+    if asset_budget is not None and store is None:
+        raise ValueError("attachments need somewhere to be stored")
 
     gathered = Gathered()
     report = gathered.report
+
+    async def beat() -> None:
+        if progress is not None:
+            await progress(report)
+
+    tick = throttled(beat)
     remaining = import_limits.IMPORT_MAX_ROWS if max_rows is None else max_rows
     downloads = gathered.downloads
     max_bytes = max(
@@ -471,6 +495,7 @@ async def fetch_spaces(
                 )
                 if page is not None:
                     pages.append(page)
+                await tick()
             for raw in await fetch_folders(credential, raw_pages):
                 folder = confluence_mapping.read_folder(raw)
                 if folder is not None:
@@ -485,9 +510,10 @@ async def fetch_spaces(
                     if thread:
                         comments[page.id] = thread
                         room -= len(thread)
+                    await tick()
             users = await fetch_user_names(credential, _account_ids(pages, comments))
             media: dict[str, confluence_attachments.PageMedia] = {}
-            if asset_budget is not None and guild_id is not None:
+            if asset_budget is not None and store is not None and guild_id is not None:
                 for page in pages:
                     if not page.is_folder:
                         media[page.id] = await fetch_page_media(
@@ -495,16 +521,20 @@ async def fetch_spaces(
                             page.id,
                             guild_id=guild_id,
                             budget=asset_budget,
+                            store=store,
                             report=downloads,
                             documents=documents,
+                            tick=tick,
                         )
+                        await tick()
         except ImportEngineError as exc:
             if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
                 raise
             logger.info("confluence space unreadable key=%s code=%s", key, exc.code)
             report.unreadable_spaces.append(key)
         else:
-            mapped = confluence_mapping.build_wiki_envelope(
+            mapped = await asyncio.to_thread(
+                confluence_mapping.build_wiki_envelope,
                 space=space,
                 pages=pages,
                 users=users,
@@ -566,7 +596,7 @@ class Gathered:
         report.images += len(mapped.uploads)
         report.files += len(mapped.documents)
         report.attachment_bytes += sum(
-            len(blob.data)
+            blob.size_bytes
             for blob in (*mapped.uploads, *(f.stored for f in mapped.documents))
         )
         self._unshown_blocked += mapped.documents_blocked

@@ -26,16 +26,19 @@ applies to an import from Jira without being written twice.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import jira_attachments, jira_mapping, jira_sprints
 from app.services.import_engine.atlassian import (
     AtlassianCredential,
+    Heartbeat,
     get_bytes,
     get_json,
+    throttled,
 )
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
@@ -192,7 +195,7 @@ async def fetch_board_column_order(
     return jira_mapping.board_column_statuses(configuration)
 
 
-async def fetch_issues(
+async def iter_issue_pages(
     credential: AtlassianCredential,
     project_key: str,
     *,
@@ -200,7 +203,7 @@ async def fetch_issues(
     max_issues: int,
     include_comments: bool = False,
     include_attachments: bool = False,
-) -> list[Any]:
+) -> AsyncIterator[list[Any]]:
     """Every issue in the project, in Rank order, a page at a time.
 
     Rank order is what the team dragged them into, and it is the only ordering
@@ -221,12 +224,12 @@ async def fetch_issues(
         clause = f"{clause} AND ({jql_extra.strip()})"
     jql = f"{clause} ORDER BY Rank ASC"
 
-    issues: list[Any] = []
+    seen = 0
     token: str | None = None
     for _ in range(MAX_ISSUE_PAGES):
         body: dict[str, Any] = {
             "jql": jql,
-            "maxResults": min(ISSUE_PAGE_SIZE, max_issues - len(issues)),
+            "maxResults": min(ISSUE_PAGE_SIZE, max_issues - seen),
             "fields": [
                 *ISSUE_FIELDS,
                 *([COMMENT_FIELD] if include_comments else []),
@@ -241,15 +244,29 @@ async def fetch_issues(
         if not isinstance(payload, dict):
             break
         page = payload.get("issues")
-        if isinstance(page, list):
-            issues.extend(page)
+        if isinstance(page, list) and page:
+            page = page[: max_issues - seen]
+            seen += len(page)
+            yield page
         # The cursor is the site's to hand back, so it is checked rather
         # than trusted: anything that is not a non-empty string ends the walk.
         cursor = payload.get("nextPageToken")
-        if not isinstance(cursor, str) or not cursor or len(issues) >= max_issues:
+        if not isinstance(cursor, str) or not cursor or seen >= max_issues:
             break
         token = cursor
-    return issues[:max_issues]
+
+
+async def fetch_issues(
+    credential: AtlassianCredential,
+    project_key: str,
+    **kwargs: Any,
+) -> list[Any]:
+    """:func:`iter_issue_pages`, every page in one list."""
+    return [
+        issue
+        async for page in iter_issue_pages(credential, project_key, **kwargs)
+        for issue in page
+    ]
 
 
 async def fetch_field_catalog(credential: AtlassianCredential) -> list[Any]:
@@ -342,8 +359,10 @@ async def fetch_project_envelope(
     field_catalog: Any = None,
     include_comments: bool = False,
     image_budget: Optional[jira_attachments.AssetBudget] = None,
+    store: Optional[jira_attachments.AssetSink] = None,
     guild_id: Optional[int] = None,
     documents: bool = False,
+    tick: Optional[Heartbeat] = None,
 ) -> FetchedProject:
     """One Jira project as an envelope, how many issues it cost, and what its
     issues are linked to.
@@ -377,22 +396,22 @@ async def fetch_project_envelope(
             if status_id in names_by_id
         ]
 
-    issues = await fetch_issues(
-        credential,
-        key,
-        jql_extra=jql_extra,
-        max_issues=max_issues,
+    mapper = jira_mapping.ProjectMapper(
+        project=project,
+        issue_type_statuses=statuses,
+        board_column_order=column_names,
+        app_version=app_version,
+        site_url=credential.site_url,
+        field_catalog=field_catalog,
         include_comments=include_comments,
-        include_attachments=image_budget is not None,
+        guild_id=guild_id,
     )
-    if include_comments:
-        for issue in issues:
-            await complete_comments(credential, issue)
-
-    images = jira_attachments.ImageReport()
+    download: Optional[jira_attachments.Downloader] = None
     if image_budget is not None and guild_id is not None:
+        if store is None:
+            raise ValueError("attachments need somewhere to be stored")
 
-        async def download(attachment_id: str, max_bytes: int) -> bytes:
+        async def fetch_attachment(attachment_id: str, max_bytes: int) -> bytes:
             # redirect=false: the content itself, not a hop to a media host
             # this client would refuse to follow.
             return await get_bytes(
@@ -401,51 +420,74 @@ async def fetch_project_envelope(
                 max_bytes=max_bytes,
             )
 
-        images = await jira_attachments.download_images(
-            issues,
-            download=download,
-            budget_bytes=image_budget.bytes_left,
-            max_files=image_budget.files_left,
-            documents=documents,
-        )
-        image_budget.bytes_left -= images.image_bytes + images.file_bytes
-        image_budget.files_left -= images.images + images.files
+        download = fetch_attachment
 
-    mapped = jira_mapping.build_project_envelope(
-        project=project,
-        issue_type_statuses=statuses,
-        issues=issues,
-        board_column_order=column_names,
-        app_version=app_version,
-        site_url=credential.site_url,
-        field_catalog=field_catalog,
-        include_comments=include_comments,
-        images_by_issue=images.by_issue,
-        files_by_issue=images.files_by_issue,
-        guild_id=guild_id,
-    )
-    link_ends = [end for issue in issues for end in jira_mapping.link_far_ends(issue)]
     # Which sprints each issue was in, keyed by issue key. Built into events
     # only once every project is read: one sprint can hold issues from several.
     sprint_fields = jira_sprints.sprint_field_ids(field_catalog)
-    sprints = {
-        str(issue.get("key") or ""): found
-        for issue in issues
-        if isinstance(issue, dict)
-        and (found := jira_sprints.issue_sprints(issue, sprint_fields))
-    }
-    restricted = (
-        sum(
-            jira_mapping.restricted_comment_count(issue.get("fields"))
-            for issue in issues
-            if isinstance(issue, dict)
+    images = jira_attachments.ImageReport()
+    link_ends: list[tuple[str, str]] = []
+    sprints: dict[str, list[jira_sprints.Sprint]] = {}
+    restricted = 0
+    issues_used = 0
+
+    # A page at a time: each is completed, its files downloaded and its
+    # issues mapped before the next is asked for, so the site's JSON for the
+    # whole project is never held at once.
+    async for page in iter_issue_pages(
+        credential,
+        key,
+        jql_extra=jql_extra,
+        max_issues=max_issues,
+        include_comments=include_comments,
+        include_attachments=image_budget is not None,
+    ):
+        issues_used += len(page)
+        if include_comments:
+            for issue in page:
+                await complete_comments(credential, issue)
+                if tick is not None:
+                    await tick()
+
+        page_images = jira_attachments.ImageReport()
+        if download is not None and image_budget is not None and store is not None:
+            page_images = await jira_attachments.download_images(
+                page,
+                download=download,
+                store=store,
+                budget_bytes=image_budget.bytes_left,
+                max_files=image_budget.files_left,
+                documents=documents,
+                tick=tick,
+            )
+            image_budget.bytes_left -= page_images.image_bytes + page_images.file_bytes
+            image_budget.files_left -= page_images.images + page_images.files
+            images.absorb(page_images)
+
+        await asyncio.to_thread(
+            mapper.add,
+            page,
+            images_by_issue=page_images.by_issue,
+            files_by_issue=page_images.files_by_issue,
         )
-        if include_comments
-        else 0
-    )
+        link_ends.extend(
+            end for issue in page for end in jira_mapping.link_far_ends(issue)
+        )
+        for issue in page:
+            if not isinstance(issue, dict):
+                continue
+            found = jira_sprints.issue_sprints(issue, sprint_fields)
+            if found:
+                sprints[str(issue.get("key") or "")] = found
+            if include_comments:
+                restricted += jira_mapping.restricted_comment_count(issue.get("fields"))
+        if tick is not None:
+            await tick()
+
+    mapped = await asyncio.to_thread(mapper.finish)
     return FetchedProject(
         mapped=mapped,
-        issues_used=len(issues),
+        issues_used=issues_used,
         link_ends=link_ends,
         sprints=sprints,
         restricted_comments=restricted,
@@ -544,22 +586,26 @@ async def fetch_projects_bundle(
     target_initiative_id: int,
     **kwargs: Any,
 ) -> tuple[bytes, FetchReport]:
-    """:func:`fetch_projects`, written into a bundle of its own."""
-    from app.services.import_engine.atlassian_bundle import write_bundle
+    """:func:`fetch_projects`, written into a bundle of its own and read back
+    whole — a convenience for small reads, not the job's path."""
+    from app.services.import_engine.atlassian_bundle import BundleWriter
 
-    fetched = await fetch_projects(credential, guild_id=guild_id, **kwargs)
-    bundle = write_bundle(
-        projects=fetched.envelopes,
-        task_files=fetched.files,
-        calendars=fetched.calendars,
-        images=fetched.images,
-        people=fetched.people,
-        guild_id=guild_id,
-        guild_name=guild_name,
-        target_initiative_id=target_initiative_id,
-        app_version=kwargs["app_version"],
-        site_url=credential.site_url,
-    )
+    with BundleWriter() as writer:
+        fetched = await fetch_projects(
+            credential, guild_id=guild_id, store=writer.put_asset, **kwargs
+        )
+        bundle = writer.finish(
+            projects=fetched.envelopes,
+            task_files=fetched.files,
+            calendars=fetched.calendars,
+            images=fetched.images,
+            people=fetched.people,
+            guild_id=guild_id,
+            guild_name=guild_name,
+            target_initiative_id=target_initiative_id,
+            app_version=kwargs["app_version"],
+            site_url=credential.site_url,
+        ).read_bytes()
     return bundle, fetched.report
 
 
@@ -576,6 +622,7 @@ async def fetch_projects(
     include_attachments: bool = True,
     link_pages: bool = False,
     asset_budget: Optional[jira_attachments.AssetBudget] = None,
+    store: Optional[jira_attachments.AssetSink] = None,
     documents: bool = False,
 ) -> JiraFetched:
     """Read the chosen projects and return what was read plus what it found.
@@ -600,6 +647,12 @@ async def fetch_projects(
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
 
     report = FetchReport()
+
+    async def beat() -> None:
+        if progress is not None:
+            await progress(report)
+
+    tick = throttled(beat)
     link_ends: list[tuple[str, str]] = []
     remaining = import_limits.IMPORT_MAX_ROWS
     envelopes: list[tuple[str, dict[str, Any]]] = []
@@ -634,8 +687,10 @@ async def fetch_projects(
                 field_catalog=field_catalog,
                 include_comments=include_comments,
                 image_budget=image_budget,
+                store=store,
                 guild_id=guild_id,
                 documents=documents,
+                tick=tick,
             )
             mapped = fetched.mapped
         except ImportEngineError as exc:

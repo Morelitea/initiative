@@ -55,10 +55,14 @@ async def _download(attachments, *, bytes_left=10_000, files_left=100, **kw):
             raise ImportEngineError(failures[item.id])
         return blobs.get(item.id, b"x" * item.size)
 
+    async def store(stored, data):
+        pass
+
     media = await ca.download_page_attachments(
         attachments,
         guild_id=7,
         download=download,
+        store=store,
         budget=budget,
         report=report,
         **kw,

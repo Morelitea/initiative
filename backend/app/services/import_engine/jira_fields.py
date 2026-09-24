@@ -272,6 +272,129 @@ def _value_entry(spec: FieldSpec, value: Any) -> dict[str, Any]:
     return entry
 
 
+class FieldMapper:
+    """:func:`map_fields` a page of issues at a time.
+
+    Each page's values are read as it arrives, so the issues themselves can
+    go once they are mapped. Which fields become definitions — only those
+    somebody filled, with the options somebody used — is known only after
+    the last page, which is what :meth:`finish` decides.
+    """
+
+    def __init__(self, catalog: Any) -> None:
+        entries = (
+            [e for e in catalog if isinstance(e, dict)]
+            if isinstance(catalog, list)
+            else []
+        )
+        taken: set[str] = {JIRA_KEY_PROPERTY.lower()}
+        self._specs: list[FieldSpec] = []
+        self._no_home: dict[str, str] = {}
+        self._start_date_id: Optional[str] = None
+
+        for field_id, (name, ptype, reader) in _SYSTEM_FIELDS.items():
+            self._specs.append(FieldSpec(field_id, _unique(name, taken), ptype, reader))
+
+        for entry in entries:
+            field_id = str(entry.get("id") or "")
+            name = str(entry.get("name") or "").strip()
+            if not field_id or not name or not entry.get("custom"):
+                continue
+            schema = (
+                entry.get("schema") if isinstance(entry.get("schema"), dict) else {}
+            )
+            if str(schema.get("custom") or "") in _HANDLED_ELSEWHERE:
+                continue
+            ptype, reader = _custom_spec(entry)
+            if ptype is PropertyType.date and name.lower() == START_DATE_FIELD_NAME:
+                self._start_date_id = field_id
+                continue
+            if ptype is None:
+                self._no_home[field_id] = name
+                continue
+            self._specs.append(FieldSpec(field_id, _unique(name, taken), ptype, reader))
+
+        self._result = MappedFields()
+        self._options: dict[str, list[str]] = {}
+        self._dropped: dict[str, str] = {}
+
+    def add(self, issues: list[Any]) -> None:
+        """Read what these issues filled in."""
+        result = self._result
+        options = self._options
+        for issue in issues:
+            if not isinstance(issue, dict) or not isinstance(issue.get("fields"), dict):
+                continue
+            key = str(issue.get("key") or "").strip()
+            if not key:
+                continue
+            fields = issue["fields"]
+            values = [
+                {
+                    "property_name": JIRA_KEY_PROPERTY,
+                    "property_type": PropertyType.text.value,
+                    "value_text": key,
+                }
+            ]
+            result.issue_counts[JIRA_KEY_PROPERTY] = (
+                result.issue_counts.get(JIRA_KEY_PROPERTY, 0) + 1
+            )
+            for spec in self._specs:
+                value = spec.read(fields.get(spec.field_id))
+                if _is_empty(value):
+                    continue
+                values.append(_value_entry(spec, value))
+                result.issue_counts[spec.name] = (
+                    result.issue_counts.get(spec.name, 0) + 1
+                )
+                if spec.property_type == PropertyType.select:
+                    seen = options.setdefault(spec.name, [])
+                    if value not in seen:
+                        seen.append(value)
+                elif spec.property_type == PropertyType.multi_select:
+                    seen = options.setdefault(spec.name, [])
+                    for item in value:
+                        if item not in seen:
+                            seen.append(item)
+            if self._start_date_id is not None:
+                start = _date(fields.get(self._start_date_id))
+                if start:
+                    result.start_dates[key] = start
+            for field_id, name in self._no_home.items():
+                if not _is_empty(fields.get(field_id)):
+                    self._dropped[field_id] = name
+            result.values_by_issue[key] = values
+
+    def finish(self) -> MappedFields:
+        """The definitions for what somebody filled, and every value read."""
+        result = self._result
+        # Definitions only for what somebody filled, in the order specs were
+        # declared: the built-ins first, then the site's own in catalog order.
+        filled = [spec for spec in self._specs if spec.name in result.issue_counts]
+        if result.values_by_issue:
+            result.definitions.append(
+                {
+                    "name": JIRA_KEY_PROPERTY,
+                    "type": PropertyType.text.value,
+                    "position": 0,
+                }
+            )
+        for spec in filled:
+            definition: dict[str, Any] = {
+                "name": spec.name,
+                "type": spec.property_type.value,
+                "position": len(result.definitions),
+            }
+            if spec.name in self._options:
+                definition["options"] = [
+                    {"value": option, "label": option}
+                    for option in self._options[spec.name]
+                ]
+            result.definitions.append(definition)
+        result.dropped_fields = sorted(self._dropped.values(), key=str.lower)
+        return result
+
+
 def map_fields(catalog: Any, issues: list[Any]) -> MappedFields:
     """Turn what the issues filled in into definitions and values.
 
@@ -279,96 +402,6 @@ def map_fields(catalog: Any, issues: list[Any]) -> MappedFields:
     still map — their ids are Jira's own — and a site's custom fields cannot
     be typed, so they are left out rather than guessed at.
     """
-    entries = (
-        [e for e in catalog if isinstance(e, dict)] if isinstance(catalog, list) else []
-    )
-    taken: set[str] = {JIRA_KEY_PROPERTY.lower()}
-    specs: list[FieldSpec] = []
-    no_home: dict[str, str] = {}
-    start_date_id: Optional[str] = None
-
-    for field_id, (name, ptype, reader) in _SYSTEM_FIELDS.items():
-        specs.append(FieldSpec(field_id, _unique(name, taken), ptype, reader))
-
-    for entry in entries:
-        field_id = str(entry.get("id") or "")
-        name = str(entry.get("name") or "").strip()
-        if not field_id or not name or not entry.get("custom"):
-            continue
-        schema = entry.get("schema") if isinstance(entry.get("schema"), dict) else {}
-        if str(schema.get("custom") or "") in _HANDLED_ELSEWHERE:
-            continue
-        ptype, reader = _custom_spec(entry)
-        if ptype is PropertyType.date and name.lower() == START_DATE_FIELD_NAME:
-            start_date_id = field_id
-            continue
-        if ptype is None:
-            no_home[field_id] = name
-            continue
-        specs.append(FieldSpec(field_id, _unique(name, taken), ptype, reader))
-
-    result = MappedFields()
-    options: dict[str, list[str]] = {}
-    dropped: dict[str, str] = {}
-
-    for issue in issues:
-        if not isinstance(issue, dict) or not isinstance(issue.get("fields"), dict):
-            continue
-        key = str(issue.get("key") or "").strip()
-        if not key:
-            continue
-        fields = issue["fields"]
-        values = [
-            {
-                "property_name": JIRA_KEY_PROPERTY,
-                "property_type": PropertyType.text.value,
-                "value_text": key,
-            }
-        ]
-        result.issue_counts[JIRA_KEY_PROPERTY] = (
-            result.issue_counts.get(JIRA_KEY_PROPERTY, 0) + 1
-        )
-        for spec in specs:
-            value = spec.read(fields.get(spec.field_id))
-            if _is_empty(value):
-                continue
-            values.append(_value_entry(spec, value))
-            result.issue_counts[spec.name] = result.issue_counts.get(spec.name, 0) + 1
-            if spec.property_type == PropertyType.select:
-                seen = options.setdefault(spec.name, [])
-                if value not in seen:
-                    seen.append(value)
-            elif spec.property_type == PropertyType.multi_select:
-                seen = options.setdefault(spec.name, [])
-                for item in value:
-                    if item not in seen:
-                        seen.append(item)
-        if start_date_id is not None:
-            start = _date(fields.get(start_date_id))
-            if start:
-                result.start_dates[key] = start
-        for field_id, name in no_home.items():
-            if not _is_empty(fields.get(field_id)):
-                dropped[field_id] = name
-        result.values_by_issue[key] = values
-
-    # Definitions only for what somebody filled, in the order specs were
-    # declared: the built-ins first, then the site's own in catalog order.
-    filled = [spec for spec in specs if spec.name in result.issue_counts]
-    if result.values_by_issue:
-        result.definitions.append(
-            {"name": JIRA_KEY_PROPERTY, "type": PropertyType.text.value, "position": 0}
-        )
-    for spec in filled:
-        definition: dict[str, Any] = {
-            "name": spec.name,
-            "type": spec.property_type.value,
-            "position": len(result.definitions),
-        }
-        if spec.name in options:
-            definition["options"] = [
-                {"value": option, "label": option} for option in options[spec.name]
-            ]
-        result.definitions.append(definition)
-    result.dropped_fields = sorted(dropped.values(), key=str.lower)
-    return result
+    mapper = FieldMapper(catalog)
+    mapper.add(issues)
+    return mapper.finish()
