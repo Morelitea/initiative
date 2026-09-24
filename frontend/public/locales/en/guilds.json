@@ -300,6 +300,7 @@
     "accountUnsuspended": "Your account is no longer suspended.",
     "guildOnHold": "{{community}} is on hold. Contact whoever runs this server to sort it out.",
     "appConsentRequested": "{{app}} asks to act as you: “{{label}}”",
+    "appUpdatePending": "{{app}} version {{version}} asks for more access",
     "guildOnHoldWithContact": "{{community}} is on hold. Contact {{contact}} to sort it out.",
     "defaultNotification": "You have a new notification.",
     "push": {

@@ -32,6 +32,15 @@
     "upToDate": "À jour",
     "upgraded": "Mise à jour vers {{version}}."
   },
+  "updates": {
+    "wants": "La version {{version}} souhaite :",
+    "newSurface": "Afficher « {{name}} » dans les initiatives",
+    "accept": "Accepter et mettre à jour",
+    "decline": "Refuser",
+    "declined": "Vous avez refusé la version {{version}}. L'application reste sur sa version actuelle.",
+    "declinedDone": "Version {{version}} refusée.",
+    "moved": "Une autre version est maintenant disponible. Vérifiez ce qu'elle demande."
+  },
   "install": {
     "title": "Ajouter {{name}}",
     "description": "Cela ajoute quelque chose pour toute la communauté. Vous pourrez la renommer maintenant ou plus tard.",
@@ -39,7 +48,17 @@
     "action": "Ajouter à la communauté",
     "done": "{{name}} ajoutée.",
     "adminOnly": "Demandez à un administrateur de communauté d'ajouter cette application.",
-    "unknownState": "Impossible de vérifier si cette application est déjà ajoutée."
+    "unknownState": "Impossible de vérifier si cette application est déjà ajoutée.",
+    "reachTitle": "Ce à quoi elle a accès",
+    "reachNone": "Cette application ne demande aucun accès au contenu de votre communauté.",
+    "whereTitle": "Où elle apparaît",
+    "whereDescription": "Cette application propose une page à l'intérieur des initiatives.",
+    "whoTitle": "Qui peut l'y ouvrir",
+    "roles": {
+      "moderator": "Modérateurs",
+      "project_manager": "Chefs de projet",
+      "member": "Membres"
+    }
   },
   "connections": {
     "none": "Cette application ne demande aucune configuration.",
@@ -221,6 +240,70 @@
       "sharing": "Partage",
       "members": "Membres",
       "initiatives": "Initiatives"
+    },
+    "sentences": {
+      "projects": {
+        "read": "Lire les projets",
+        "write": "Lire et modifier les projets"
+      },
+      "documents": {
+        "read": "Lire les documents",
+        "write": "Lire et modifier les documents"
+      },
+      "queues": {
+        "read": "Lire les files",
+        "write": "Lire et modifier les files"
+      },
+      "counter_groups": {
+        "read": "Lire les compteurs",
+        "write": "Lire et modifier les compteurs"
+      },
+      "calendars": {
+        "read": "Lire les calendriers",
+        "write": "Lire et modifier les calendriers"
+      },
+      "dashboards": {
+        "read": "Lire les tableaux de bord",
+        "write": "Lire et modifier les tableaux de bord"
+      },
+      "posts": {
+        "read": "Lire les publications",
+        "write": "Lire et modifier les publications"
+      },
+      "galleries": {
+        "read": "Lire les galeries",
+        "write": "Lire et modifier les galeries"
+      },
+      "wikis": {
+        "read": "Lire les wikis",
+        "write": "Lire et modifier les wikis"
+      },
+      "comments": {
+        "read": "Lire les commentaires",
+        "write": "Lire et écrire des commentaires"
+      },
+      "relationships": {
+        "read": "Lire les liens entre les éléments",
+        "write": "Lire et modifier les liens entre les éléments"
+      },
+      "tags": {
+        "read": "Lire les étiquettes",
+        "write": "Lire et modifier les étiquettes"
+      },
+      "sharing": {
+        "read": "Voir qui a accès à quoi",
+        "write": "Voir et modifier qui a accès à quoi"
+      },
+      "members": {
+        "read": "Voir qui fait partie de votre communauté"
+      },
+      "initiatives": {
+        "read": "Voir les initiatives de votre communauté"
+      },
+      "fallback": {
+        "read": "Lire : {{resource}}",
+        "write": "Lire et modifier : {{resource}}"
+      }
     }
   }
 }

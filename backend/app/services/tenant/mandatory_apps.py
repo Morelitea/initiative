@@ -211,10 +211,10 @@ async def install_mandatory_apps(
             name=(definition.get("default_name") or listing.name).strip(),
             actor_user_id=created_by,
             via="mandatory",
+            granted_scopes=mandatory_grant(definition, registration),
         )
         # Placed in every initiative there is, and in each one created later.
         app.follows_new_initiatives = True
-        app.granted_scopes = mandatory_grant(definition, registration)
         session.add(app)
         await session.flush()
         await guild_apps_service.place_in_every_initiative(session, app)

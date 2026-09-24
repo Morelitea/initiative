@@ -448,6 +448,11 @@ export const notificationText = (
         app: typeof data.app_name === "string" ? data.app_name : "",
         label: typeof data.label === "string" ? data.label : "",
       });
+    case "app_update_pending":
+      return t("notifications.appUpdatePending", {
+        app: typeof data.app_name === "string" ? data.app_name : "",
+        version: typeof data.version === "string" ? data.version : "",
+      });
     case "guild_on_hold": {
       const community = typeof data.community === "string" ? data.community : "";
       return typeof data.contact === "string" && data.contact.trim()

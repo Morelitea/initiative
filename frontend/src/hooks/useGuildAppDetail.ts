@@ -17,6 +17,7 @@ import {
   type AppMembersResponse,
   blockMemberConnection,
   connectGuildApp,
+  declineGuildAppUpgrade,
   disconnectGuildApp,
   type GuildAppDetail,
   getGuildApp,
@@ -33,7 +34,11 @@ import {
   updateGuildAppConfig,
   upgradeGuildApp,
 } from "@/api/appConnections";
-import type { ConsentAccess, GuildAppConsentRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ConsentAccess,
+  GuildAppConsentRead,
+  GuildAppUpgrade,
+} from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 
@@ -74,11 +79,23 @@ export const useUpdateAppConfig = (appId: number) => {
   });
 };
 
+/** Apply the offered version; pass the seat's consent when it asks for more. */
 export const useUpgradeApp = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useMutation<GuildAppDetail, unknown, void>({
-    mutationFn: () => upgradeGuildApp(guildId, appId),
-    onSuccess: () => invalidate(q.apps()),
+  return useMutation<GuildAppDetail, unknown, GuildAppUpgrade | undefined>({
+    mutationFn: (consent) => upgradeGuildApp(guildId, appId, consent),
+    // Refreshed on failure too: a refusal means the offer moved, and the panel
+    // should show what is offered now.
+    onSettled: () => invalidate(q.apps()),
+  });
+};
+
+/** Keep the pinned version and stop being asked about this one. */
+export const useDeclineAppUpgrade = (appId: number) => {
+  const guildId = useActiveGuildId();
+  return useMutation<GuildAppDetail, unknown, string>({
+    mutationFn: (version) => declineGuildAppUpgrade(guildId, appId, version),
+    onSettled: () => invalidate(q.apps()),
   });
 };
 

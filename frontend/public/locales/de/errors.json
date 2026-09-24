@@ -409,6 +409,8 @@
   "GUILD_APP_PLACEMENT_ROLE_INVALID": "Wähle Rollen aus dieser Initiative.",
   "GUILD_APP_SCOPE_NOT_REQUESTED": "Diese App fragt diesen Zugriff nicht an.",
   "GUILD_APP_SCOPE_ABOVE_CEILING": "Dieser Server erlaubt dieser App diesen Zugriff nicht.",
+  "GUILD_APP_UPGRADE_NEEDS_CONSENT": "Diese Version fragt nach mehr Zugriff. Prüfe, was sie möchte, bevor du aktualisierst.",
+  "GUILD_APP_UPGRADE_VERSION_MOVED": "Inzwischen gibt es eine andere Version. Prüfe sie und versuche es erneut.",
   "GUILD_APP_LISTING_NOT_AN_APP": "Dieser Eintrag kann nicht als App installiert werden.",
   "GUILD_APP_ALREADY_INSTALLED": "Diese Community hat diese App bereits installiert.",
   "GUILD_APP_KIND_NOT_INSTALLABLE": "Diese Art von App kann in dieser Version von Initiative noch nicht installiert werden.",

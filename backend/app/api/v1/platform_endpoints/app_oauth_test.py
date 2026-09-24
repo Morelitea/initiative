@@ -11,6 +11,7 @@ import time
 
 import pytest
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.app_access_token import (
@@ -19,8 +20,11 @@ from app.core.app_access_token import (
     InstallAccessToken,
     unseal_access_token,
 )
+from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import app_oauth
 from app.services.marketplace.app_refs import ensure_app_guild_ref
+from app.services.tenant import app_revocation, app_updates
+from app.testing import route_session_to_guild
 from app.testing.app_clients import (
     CLIENT,
     RSA_KID,
@@ -176,6 +180,59 @@ async def test_a_scope_beyond_the_grant_is_refused(
 
     assert response.status_code == 400
     assert _error(response) == "invalid_scope"
+
+
+async def _upgrade_dropping(session: AsyncSession, installed: InstalledApp, keep):
+    """Move the install to a version whose manifest requests only ``keep``,
+    through the same re-pin the Update button and the sweep use."""
+    await route_session_to_guild(session, installed.guild.id)
+    row = (
+        await session.exec(select(GuildApp).where(GuildApp.id == installed.app.id))
+    ).one()
+    definition = {
+        **row.definition,
+        "service": {**row.definition["service"], "scopes": list(keep)},
+    }
+    await app_updates.apply_version(
+        session, row, app_updates.PendingUpdate(version="1.1.0", definition=definition)
+    )
+    await session.commit()
+    app_revocation.drain_revocations(session)
+
+
+@pytest.mark.integration
+async def test_a_scope_the_pinned_version_dropped_is_not_issued(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """The seat's grant is left as it was; the next token carries only what
+    the pinned version still requests, and so does the installs list."""
+    installed = await install_app(
+        session,
+        acting_user,
+        role_session,
+        granted=["documents:write", "comments:read"],
+    )
+    installation = await _installation(installed)
+    before = await _ask(client, installation=installation)
+    assert before.json()["scope"] == "comments:read documents:write"
+
+    await _upgrade_dropping(session, installed, ["comments:read"])
+
+    after = await _ask(client, installation=installation)
+    assert after.status_code == 200, after.text
+    assert after.json()["scope"] == "comments:read"
+    refused = await _ask(client, installation=installation, scope="documents:write")
+    assert refused.status_code == 400
+    assert _error(refused) == "invalid_scope"
+
+    app_token = (await _ask(client)).json()["access_token"]
+    listed = await client.get(
+        INSTALLATIONS_URL, headers={"Authorization": f"Bearer {app_token}"}
+    )
+    assert listed.json()[0]["scopes"] == ["comments:read"]
+
+    (row,) = (await session.exec(select(GuildApp))).all()
+    assert sorted(row.granted_scopes) == ["comments:read", "documents:write"]
 
 
 @pytest.mark.integration

@@ -11,7 +11,17 @@ catalog, so an install describes the form it was actually configured against.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+    Union,
+)
 
 from pydantic import ConfigDict, Field
 
@@ -31,15 +41,31 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class GuildAppInstall(SanitizedBaseModel):
-    """Install a listing into this guild.
+    """Install a listing into this guild, with the seat's consent.
 
-    Names a listing and nothing else that matters: the definition comes from the
-    catalog, and the content the install creates is made server-side.
+    The definition comes from the catalog, and the content the install creates
+    is made server-side. What the request adds is the seat's answer to the
+    install dialog: what the app may reach, where it appears, and who opens it
+    there. The install, its grant and its placements are one transaction.
     """
 
     listing_uid: str = Field(max_length=14)
     #: Overrides the listing's own default for the content this creates.
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    #: The scopes the seat grants. Each must be one the manifest requests and
+    #: one the registration's ceiling allows, as for ``PUT …/scopes``. Left
+    #: out, nothing is granted.
+    granted_scopes: List[str] = Field(default_factory=list, max_length=64)
+    #: Where the app's initiative surfaces appear: ``"all"`` for every
+    #: initiative that exists now, or a list of this guild's initiative ids.
+    #: Left out, the app is placed nowhere.
+    placements: Union[Literal["all"], Annotated[List[int], Field(max_length=1000)]] = (
+        Field(default_factory=list)
+    )
+    #: The built-in initiative roles that may open the app in each placement,
+    #: by name (``moderator``, ``project_manager``, ``member``), resolved to
+    #: each initiative's own role of that name.
+    role_kinds: List[str] = Field(default_factory=lambda: ["moderator"], max_length=10)
 
 
 class GuildAppUpdate(SanitizedBaseModel):
@@ -313,6 +339,51 @@ class GuildAppMemberDelegation(SanitizedBaseModel):
     updated_at: datetime
 
 
+class AppSurfaceSummary(SanitizedBaseModel):
+    """One of an app's embedded surfaces, by id and by its localized name."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: str
+    name: Dict[str, str] = {}
+
+
+class GuildAppUpgradeAsks(SanitizedBaseModel):
+    """A version that asks for more than the install holds.
+
+    ``added_scopes`` are grantable scopes neither the grant nor the pinned
+    version names; ``added_surfaces`` are surfaces inside initiatives the
+    pinned version does not have. ``declined`` says the seat declined this
+    version: the install stays where it is and the sweep does not ask again.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    version: str
+    added_scopes: List[str] = []
+    added_surfaces: List[AppSurfaceSummary] = []
+    declined: bool = False
+
+
+class GuildAppUpgrade(SanitizedBaseModel):
+    """The seat's consent to a version that asks for more.
+
+    ``version`` is the version the seat was shown; if the catalog offers a
+    different one now, nothing is applied. ``add_scopes`` are the scopes the
+    seat grants with it, each requested by that version and within the
+    ceiling. Consenting to a version's new surfaces alone sends none.
+    """
+
+    version: str = Field(max_length=32)
+    add_scopes: List[str] = Field(default_factory=list, max_length=64)
+
+
+class GuildAppDecline(SanitizedBaseModel):
+    """Keep the pinned version, and stop being asked about this one."""
+
+    version: str = Field(max_length=32)
+
+
 class GuildAppDetail(GuildAppRead):
     """An install plus its connections, for the settings page.
 
@@ -340,6 +411,10 @@ class GuildAppDetail(GuildAppRead):
     #: The requested scopes this deployment allows the seat to grant. A
     #: requested scope missing here is one the server would refuse.
     grantable_scopes: List[str] = []
+    #: What ``update_version`` asks for beyond what the install holds, when it
+    #: asks for anything. Absent for a version that asks nothing new, which
+    #: applies without consent.
+    pending_update: Optional[GuildAppUpgradeAsks] = None
 
 
 class GuildAppListResponse(SanitizedBaseModel):
@@ -558,14 +633,14 @@ def serialize_guild_app_detail(
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
     delegation_row: Any = None,
-    update_version: Optional[str] = None,
+    update_offer: Any = None,
     placements: Sequence[Any] = (),
     consent_rows: Sequence[Any] = (),
 ) -> GuildAppDetail:
     """The install and its connections, from the viewer's own perspective.
 
-    ``update_version`` is resolved by the caller, which is the layer holding a
-    session that can read the catalog.
+    ``update_offer`` (an ``app_updates.UpdateOffer``) is resolved by the
+    caller, which is the layer holding a session that can read the catalog.
     """
     base = serialize_guild_app(
         app,
@@ -585,11 +660,40 @@ def serialize_guild_app_detail(
         connections=connections,
         delegation=serialize_delegation(delegation_row),
         consents=[serialize_consent(row) for row in consent_rows],
-        update_version=update_version,
+        update_version=update_offer.version if update_offer is not None else None,
+        pending_update=serialize_upgrade_asks(app, update_offer),
         requested_scopes=requested_scopes(app.definition),
         grantable_scopes=grantable_scopes(
             app.definition, (install_state or InstallState()).scope_ceiling
         ),
+    )
+
+
+def upgrade_asks_read(version: str, asks: Any, *, declined: bool = False):
+    """What a version asks for, as the client reads it."""
+    return GuildAppUpgradeAsks(
+        version=version,
+        added_scopes=list(asks.added_scopes),
+        added_surfaces=[
+            AppSurfaceSummary(
+                id=surface["id"],
+                name={
+                    str(key): str(value)
+                    for key, value in (surface.get("name") or {}).items()
+                },
+            )
+            for surface in asks.added_surfaces
+        ],
+        declined=declined,
+    )
+
+
+def serialize_upgrade_asks(app: Any, offer: Any) -> Optional[GuildAppUpgradeAsks]:
+    """The offered version's asks, or ``None`` when it asks nothing new."""
+    if offer is None or not offer.asks.asks_more:
+        return None
+    return upgrade_asks_read(
+        offer.version, offer.asks, declined=app.declined_version == offer.version
     )
 
 

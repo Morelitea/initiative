@@ -23,6 +23,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.app_access_token import seal_install_token
+from app.core.app_scopes import ALL_SCOPES
 
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
@@ -137,10 +138,14 @@ async def install_app(
     listing_uid: str = LISTING,
     register: bool = True,
     enabled: bool = True,
+    requested: Optional[Sequence[str]] = None,
 ) -> InstalledApp:
     """An install of ``client_id``'s listing, placed in one of two
     initiatives and granted ``granted`` by the community's seat, with the
-    operator's registration publishing :func:`client_jwks`."""
+    operator's registration publishing :func:`client_jwks`.
+
+    The pinned manifest requests ``requested``, every scope by default, so
+    the grant is what decides what a token carries."""
     seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
     unplaced = await create_initiative(session, seat.guild, seat.user, name="B")
     app = await create_guild_app(
@@ -149,7 +154,11 @@ async def install_app(
         seat.user,
         definition={
             "app_kind": "service",
-            "service": {"public_id": client_id, "protocol": 1},
+            "service": {
+                "public_id": client_id,
+                "protocol": 1,
+                "scopes": list(ALL_SCOPES if requested is None else requested),
+            },
         },
         listing_uid=listing_uid,
     )

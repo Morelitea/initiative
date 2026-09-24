@@ -73,6 +73,7 @@ from app.schemas.tenant.guild_app import (
     GuildAppConnectStart,
     GuildAppConsentAnswer,
     GuildAppConsentRead,
+    GuildAppDecline,
     GuildAppDelegationGrant,
     GuildAppDelegationRead,
     GuildAppDetail,
@@ -82,12 +83,14 @@ from app.schemas.tenant.guild_app import (
     GuildAppMembersResponse,
     GuildAppRead,
     GuildAppUpdate,
+    GuildAppUpgrade,
     serialize_consent,
     serialize_delegation,
     serialize_guild_app,
     serialize_guild_app_detail,
     serialize_member_connection,
     serialize_member_delegation,
+    upgrade_asks_read,
 )
 from app.services import audit as audit_service
 from app.services.marketplace import app_refs
@@ -209,6 +212,26 @@ async def _set_placement(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=GuildAppMessages.PLACEMENT_INVALID,
         ) from exc
+
+
+async def _require_grantable(granted: set[str], definition: dict) -> None:
+    """Refuse a grant the manifest does not request, or the ceiling does not allow.
+
+    The one check every write of a grant makes: setting the scopes, installing
+    with them, and consenting to a version's new ones.
+    """
+    if not granted <= set(guild_apps_service.requested_scopes(definition)):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.SCOPE_NOT_REQUESTED,
+        )
+    registration = await registration_lookup.registration_for_definition(definition)
+    ceiling = set(registration.scope_ceiling) if registration is not None else set()
+    if not granted <= ceiling:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.SCOPE_ABOVE_CEILING,
+        )
 
 
 async def _load(
@@ -388,7 +411,7 @@ async def get_guild_app(
         delegation_row=await delegations_service.get_delegation(
             session, app_id=app.id, user_id=current_user.id
         ),
-        update_version=await app_updates_service.update_version(session, app),
+        update_offer=await app_updates_service.update_offer(session, app),
         context=guild_context,
         placements=await _placements(session, app),
         consent_rows=await consents_service.list_member_consents(
@@ -414,8 +437,20 @@ async def install_guild_app(
     Nothing about connections gates this. An app whose credentials are all
     supplied per member installs with none present, and members connect their
     own accounts afterwards if they want what those unlock.
+
+    The install dialog is the seat's consent, and it lands with the install in
+    one transaction: the scopes granted (checked as ``PUT …/scopes`` checks
+    them), the initiatives the app is placed in (``"all"`` is every initiative
+    that exists now), and the built-in roles that open it in each. Anything
+    refused is refused before the install exists.
     """
     require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
+    unknown_roles = set(payload.role_kinds) - set(guild_apps_service.BUILTIN_ROLE_NAMES)
+    if unknown_roles:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.PLACEMENT_ROLE_INVALID,
+        )
 
     listing, version = await _resolve_app_listing(session, payload.listing_uid)
 
@@ -430,6 +465,8 @@ async def install_guild_app(
 
     definition = dict(version.definition)
     _require_installable_kind(definition)
+    granted = set(payload.granted_scopes)
+    await _require_grantable(granted, definition)
 
     name = (payload.name or definition.get("default_name") or listing.name).strip()
     try:
@@ -442,8 +479,26 @@ async def install_guild_app(
             created_by=current_user.id,
             name=name,
             actor_user_id=current_user.id,
+            granted_scopes=sorted(granted),
         )
+        if payload.placements:
+            await guild_apps_service.place_with_roles(
+                session,
+                app,
+                None if payload.placements == "all" else payload.placements,
+                payload.role_kinds,
+            )
         await session.commit()
+    except guild_apps_service.PlacementError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                GuildAppMessages.PLACEMENT_ROLE_INVALID
+                if isinstance(exc, guild_apps_service.PlacementRoleError)
+                else GuildAppMessages.PLACEMENT_INVALID
+            ),
+        ) from exc
     except IntegrityError as exc:
         # The look-up above and this insert are not one atomic step, so two
         # installs arriving together both get past it. The unique constraint is
@@ -474,6 +529,7 @@ async def upgrade_guild_app(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    payload: Optional[GuildAppUpgrade] = None,
 ) -> GuildAppDetail:
     """Re-pin an installed app to its listing's current version, now.
 
@@ -487,6 +543,12 @@ async def upgrade_guild_app(
     declaring — a value cannot outlive the field it was typed into. Per-member
     connections the new version dropped go the same way, and are revoked rather
     than orphaned.
+
+    A version that asks for more than the install holds (a new scope, or a
+    new surface inside initiatives) is applied only with the seat's consent:
+    ``payload`` names the version the seat was shown and the scopes it grants
+    with it. Without it the answer is 409, carrying what the version asks
+    for; so is a consent naming a version the catalog no longer offers.
     """
     require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     # Upgrading prunes both configuration maps to the new definition, so it
@@ -509,14 +571,56 @@ async def upgrade_guild_app(
     definition = dict(version.definition)
     _require_installable_kind(definition)
 
+    registration = await registration_lookup.registration_for_definition(definition)
+    asks = app_updates_service.upgrade_asks(
+        app, definition, registration.scope_ceiling if registration else ()
+    )
+    if (payload is not None and payload.version != version.version) or (
+        payload is None and asks.asks_more
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": (
+                    GuildAppMessages.UPGRADE_NEEDS_CONSENT
+                    if payload is None
+                    else GuildAppMessages.UPGRADE_VERSION_MOVED
+                ),
+                **upgrade_asks_read(
+                    version.version,
+                    asks,
+                    declined=app.declined_version == version.version,
+                ).model_dump(),
+            },
+        )
+    add_scopes = set(payload.add_scopes) if payload is not None else set()
+    await _require_grantable(add_scopes, definition)
+
     previous_version = app.listing_version
+    previous_grant = sorted(app.granted_scopes or [])
     await app_updates_service.apply_version(
         session,
         app,
         app_updates_service.PendingUpdate(
             version=version.version, definition=definition
         ),
+        add_scopes=add_scopes,
     )
+    record: dict[str, Any] = {
+        "area": "version",
+        "from": previous_version,
+        "to": version.version,
+    }
+    if sorted(app.granted_scopes or []) != previous_grant:
+        # Scope names are the platform's own vocabulary, so the values are
+        # recorded rather than only the fact that they moved.
+        record["changed"] = ["granted_scopes"]
+        record["values"] = {
+            "granted_scopes": {
+                "from": previous_grant,
+                "to": sorted(app.granted_scopes or []),
+            }
+        }
     await audit_service.record(
         session,
         event_type=AuditEventType.APP_UPDATED,
@@ -524,11 +628,7 @@ async def upgrade_guild_app(
         guild_id=guild_context.guild_id,
         target_type="app",
         target_id=app.id,
-        detail={
-            "area": "version",
-            "from": previous_version,
-            "to": version.version,
-        },
+        detail=record,
     )
     await session.commit()
     await _flush_revocations(session)
@@ -538,7 +638,59 @@ async def upgrade_guild_app(
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
-        update_version=await app_updates_service.update_version(session, app),
+        update_offer=await app_updates_service.update_offer(session, app),
+        context=guild_context,
+        placements=await _placements(session, app),
+    )
+
+
+@router.post("/{app_id}/upgrade/decline", response_model=GuildAppDetail)
+async def decline_guild_app_upgrade(
+    app_id: int,
+    payload: GuildAppDecline,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> GuildAppDetail:
+    """Keep the pinned version, and stop being asked about this one.
+
+    The install goes on running the version it has, with the grant it has.
+    The sweep does not ask about the declined version again; a newer one is
+    asked about afresh. Accepting it later is still the Update button.
+    """
+    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
+    app = await _load(session, app_id, for_update=True)
+    offer = await app_updates_service.update_offer(session, app)
+    if offer is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MarketplaceMessages.ALREADY_LATEST_VERSION,
+        )
+    if offer.version != payload.version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=GuildAppMessages.UPGRADE_VERSION_MOVED,
+        )
+    if app.declined_version != payload.version:
+        app_updates_service.decline_version(app, payload.version)
+        session.add(app)
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_UPDATED,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="app",
+            target_id=app.id,
+            detail={"area": "version", "declined": payload.version},
+        )
+    await session.commit()
+    await session.refresh(app)
+    return serialize_guild_app_detail(
+        app,
+        avatar_url=await _app_avatar(session, app),
+        member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
+        install_state=await registration_lookup.install_state(app.definition),
+        update_offer=offer,
         context=guild_context,
         placements=await _placements(session, app),
     )
@@ -814,7 +966,7 @@ async def update_guild_app_config(
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
-        update_version=await app_updates_service.update_version(session, app),
+        update_offer=await app_updates_service.update_offer(session, app),
         context=guild_context,
         placements=await _placements(session, app),
     )
@@ -958,18 +1110,7 @@ async def put_guild_app_scopes(
     app = await _load(session, app_id, for_update=True)
 
     granted = set(payload.granted)
-    if not granted <= set(guild_apps_service.requested_scopes(app.definition)):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=GuildAppMessages.SCOPE_NOT_REQUESTED,
-        )
-    registration = await registration_lookup.registration_for_definition(app.definition)
-    ceiling = set(registration.scope_ceiling) if registration is not None else set()
-    if not granted <= ceiling:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=GuildAppMessages.SCOPE_ABOVE_CEILING,
-        )
+    await _require_grantable(granted, app.definition)
 
     before = sorted(app.granted_scopes or [])
     after = sorted(granted)
