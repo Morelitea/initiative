@@ -6,8 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
+import { ToolExportCard } from "@/components/tools/settings/ToolExportCard";
+import { ToolSettingsProvider } from "@/components/tools/settings/ToolSettingsContext";
 
-import { DocumentExportMenu } from "./DocumentExportMenu";
+import { useDocumentExportOptions } from "./useDocumentExportOptions";
 
 vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
 vi.mock("@/lib/chesterToast", () => ({
@@ -25,7 +30,49 @@ import { exportToBlob } from "@excalidraw/excalidraw";
 
 import { downloadBlob } from "@/lib/csv";
 
-describe("DocumentExportMenu", () => {
+const noopMutation = () => ({ mutate: vi.fn(), isPending: false });
+
+/** A document's export card, as its settings page mounts it. */
+function DocumentExportCard({
+  documentId,
+  documentType,
+  title,
+  whiteboardScene,
+}: {
+  documentId: number;
+  documentType: DocumentReadDocumentType;
+  title: string;
+  whiteboardScene?: WhiteboardScene;
+}) {
+  const exportOptions = useDocumentExportOptions(documentType, title, whiteboardScene);
+  return (
+    <ToolSettingsProvider
+      value={{
+        tool: Tool.document,
+        entity: {
+          id: documentId,
+          name: title,
+          initiative_id: 1,
+          my_permission_level: "owner",
+          tags: [],
+          grants: [],
+          comments_enabled: true,
+          archived_at: null,
+          can_unarchive: false,
+        },
+        canManage: true,
+        isOwner: true,
+        setGrants: noopMutation(),
+        remove: noopMutation(),
+        exportOptions,
+      }}
+    >
+      <ToolExportCard />
+    </ToolSettingsProvider>
+  );
+}
+
+describe("a document's export card", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -47,7 +94,7 @@ describe("DocumentExportMenu", () => {
       })
     );
     renderWithProviders(
-      <DocumentExportMenu documentId={9} documentType="spreadsheet" title="Budget" />
+      <DocumentExportCard documentId={9} documentType="spreadsheet" title="Budget" />
     );
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
@@ -72,7 +119,7 @@ describe("DocumentExportMenu", () => {
           })
       )
     );
-    renderWithProviders(<DocumentExportMenu documentId={5} documentType="native" title="Notes" />);
+    renderWithProviders(<DocumentExportCard documentId={5} documentType="native" title="Notes" />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /json/i }));
@@ -91,7 +138,7 @@ describe("DocumentExportMenu", () => {
       })
     );
     renderWithProviders(
-      <DocumentExportMenu
+      <DocumentExportCard
         documentId={4}
         documentType="whiteboard"
         title="Board"
@@ -119,7 +166,7 @@ describe("DocumentExportMenu", () => {
           })
       )
     );
-    renderWithProviders(<DocumentExportMenu documentId={2} documentType="file" title="Upload" />);
+    renderWithProviders(<DocumentExportCard documentId={2} documentType="file" title="Upload" />);
 
     // Single engine format, no extras: the button itself exports.
     await userEvent.click(screen.getByRole("button", { name: /export/i }));

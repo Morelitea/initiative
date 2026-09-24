@@ -24,8 +24,6 @@ import {
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { ExportButton } from "@/components/exports/ExportButton";
-import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   CalendarPanelDropdown,
@@ -64,13 +62,12 @@ import { useProjects } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
-import { eventRoute, taskRoute, toolExportEndpoint, toolSettingsRoute } from "@/lib/tools";
+import { eventRoute, taskRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
@@ -633,21 +630,6 @@ export const CalendarsView = ({
               <Plus className="h-4 w-4" />
               {t("createCalendar")}
             </Button>
-          ) : null
-        }
-        trailing={
-          /* Export and tool import aggregate across calendars, which is not
-             what a single guild calendar's surface is; ICS import stays — a
-             club calendar is exactly what one imports events into.
-             `trailing`, not `actions`: export has no bottom-nav equivalent, so
-             the desktop-only slot would put it out of reach on a phone. */
-          !guildOnly ? (
-            <ExportButton
-              endpoint={toolExportEndpoint(Tool.calendar)}
-              params={initiativeId ? { initiative_id: initiativeId } : {}}
-              formats={TOOL_EXPORT_FORMATS[Tool.calendar] ?? []}
-              filenameStem={exportFilenameStem(t("title"), "calendars")}
-            />
           ) : null
         }
         menuItems={

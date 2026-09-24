@@ -7,6 +7,7 @@
     "failed": "L'export a échoué. Réessayez ou affinez le filtre.",
     "error": "Impossible d'exporter. Réessayez.",
     "selected": "Exporter la sélection",
+    "ownerRequired": "Seule la personne qui peut tous les supprimer peut les exporter.",
     "headingBackup": "Sauvegarde",
     "headingReport": "Rapport",
     "formatPdf": "Document PDF",

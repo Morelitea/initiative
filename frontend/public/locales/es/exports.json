@@ -7,6 +7,7 @@
     "failed": "La exportación falló. Inténtalo de nuevo o reduce el filtro.",
     "error": "No se pudo exportar. Inténtalo de nuevo.",
     "selected": "Exportar selección",
+    "ownerRequired": "Solo quien puede eliminar todos estos elementos puede exportarlos.",
     "headingBackup": "Copia de seguridad",
     "headingReport": "Informe",
     "formatPdf": "Documento PDF",

@@ -1725,25 +1725,28 @@ async def build_project_export_for_user(
     guild_id: int,
     *,
     project_id: int,
-    access: str = "write",
+    access: str = permissions_service.EXPORT_ACCESS,
 ) -> ProjectExportEnvelope:
-    """The project-export adapter's build seam: the same access rule and
-    envelope as the retired ``GET /{project_id}/export`` route. Cross-row
-    references (tags, statuses, properties, assignees) are encoded by string
-    keys (name / handle) so the file imports cleanly on another instance.
-    The initiative/guild aggregate export passes ``access="read"`` — its
-    deliberate relaxation; standalone exports keep write."""
+    """The project-export adapter's build seam. Cross-row references (tags,
+    statuses, properties, assignees) are encoded by string keys (name /
+    handle) so the file imports cleanly on another instance. A project
+    exported on its own takes its owner rung, as every tool's export does
+    (``permissions.require_export_access``); the initiative/guild aggregate
+    export passes ``access="read"`` — its deliberate relaxation."""
     project = await _get_project_or_404(
         project_id, session, guild_id, user_id=current_user.id
     )
     # The loader above eager-loads the grants and memberships the decision
     # reads. The standing is the session's own: an export replays on a worker,
     # where the routing it ran under is what answers.
+    context = require_guild_context(session)
     resource_access.authorize(
-        Tool.project,
+        Tool.project, project, current_user, context=context, access="read"
+    )
+    permissions_service.require_export_access(
+        permissions_service.DAC_RESOURCES[Tool.project],
         project,
-        current_user,
-        context=require_guild_context(session),
+        context=context,
         access=access,
     )
     return await project_export_service.build_project_export(

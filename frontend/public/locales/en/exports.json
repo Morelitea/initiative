@@ -7,6 +7,7 @@
     "failed": "The export failed. Try again or narrow the filter.",
     "error": "Could not export. Please try again.",
     "selected": "Export Selected",
+    "ownerRequired": "Only whoever can delete all of these can export them.",
     "headingBackup": "Backup",
     "headingReport": "Report",
     "formatPdf": "PDF document",

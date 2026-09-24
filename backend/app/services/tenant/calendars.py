@@ -113,12 +113,14 @@ async def get_calendar_for_export(
     guild_id: int,
     *,
     calendar_id: int,
+    access: str = "owner",
 ) -> Calendar:
-    """The calendar-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read. The guild role is resolved here rather than
-    taken from a request context, so the seam works transport-free. Events are
-    eager-loaded with everything export serialization needs."""
+    """The calendar-export adapter's seam: fetch + authorize in one place so
+    the rule holds on the worker's render-time replay too. It takes the owner
+    rung, or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The guild role is resolved here
+    rather than taken from a request context, so the seam works transport-free.
+    Events are eager-loaded with everything export serialization needs."""
     from app.services import permissions as permissions_service
 
     stmt = (
@@ -143,11 +145,11 @@ async def get_calendar_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.calendar.feature_disabled_code,
         )
-    permissions_service.require_access(
+    permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.calendar],
         calendar,
         context=db_session.guild_context(session),
-        access="read",
+        access=access,
     )
     await tags_service.annotate_tags(session, [calendar])
     await tags_service.annotate_tags(session, calendar.events or [])

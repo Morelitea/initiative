@@ -440,15 +440,6 @@
     "commentedOn": "a commenté sur",
     "loadMore": "Charger plus"
   },
-  "export": {
-    "title": "Exporter le projet",
-    "description": "Téléchargez ce projet sous forme de sauvegarde JSON portable ou de rapport mis en forme (PDF, CSV ou Excel).",
-    "detail": "La sauvegarde JSON peut être réimportée sur cette instance ou toute autre installation d'Initiative — les références utilisent des noms et des e-mails afin qu'aucun ID de cette base ne fuite. Les formats de rapport couvrent les tâches non archivées du projet.",
-    "exportButton": "Exporter",
-    "noWriteAccess": "Vous devez avoir un accès en écriture sur ce projet pour l'exporter.",
-    "success": "Projet exporté",
-    "error": "Impossible d'exporter le projet. Veuillez réessayer."
-  },
   "status": {
     "label": "Afficher",
     "active": "Actifs",

@@ -2,31 +2,24 @@ import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
-import { ExportButton } from "@/components/exports/ExportButton";
 import { DOCUMENT_TYPE_FORMATS } from "@/components/exports/formats";
+import type { ToolExportOptions } from "@/components/tools/settings/ToolSettingsContext";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { exportFilenameStem } from "@/lib/exportDownload";
-import { toolExportEndpoint } from "@/lib/tools";
 
-interface DocumentExportMenuProps {
-  documentId: number;
-  documentType: DocumentReadDocumentType;
-  title: string;
-  /** Whiteboards only: the live scene, for client-side PNG/SVG rendering —
-   * only Excalidraw's own renderer draws scenes faithfully, so pixels are
-   * produced in the browser while the engine handles the importable JSON. */
-  whiteboardScene?: WhiteboardScene;
-}
-
-export function DocumentExportMenu({
-  documentId,
-  documentType,
-  title,
-  whiteboardScene,
-}: DocumentExportMenuProps) {
+/**
+ * What a document's export card offers: the engine formats its type has, and
+ * — for a whiteboard — PNG and SVG, which only Excalidraw's own renderer draws
+ * faithfully, so they are made in the browser from the scene while the engine
+ * handles the importable JSON.
+ */
+export function useDocumentExportOptions(
+  documentType: DocumentReadDocumentType,
+  title: string,
+  whiteboardScene?: WhiteboardScene
+): ToolExportOptions {
   const { t } = useTranslation("exports");
   const stem = exportFilenameStem(title, "document");
   // Engine entries are debounced by ExportButton's busy state; the
@@ -39,8 +32,7 @@ export function DocumentExportMenu({
     }
     sceneExporting.current = true;
     try {
-      // Lazy: the excalidraw bundle is heavy and the menu renders on every
-      // document page.
+      // Lazy: the excalidraw bundle is heavy.
       const { exportToBlob, exportToSvg } = await import("@excalidraw/excalidraw");
       if (kind === "png") {
         const blob = await exportToBlob({
@@ -67,21 +59,14 @@ export function DocumentExportMenu({
     }
   };
 
-  const extraActions =
-    documentType === "whiteboard" && whiteboardScene
-      ? [
-          { labelKey: "export.formatPng", onSelect: () => void exportScene("png") },
-          { labelKey: "export.formatSvg", onSelect: () => void exportScene("svg") },
-        ]
-      : undefined;
-
-  return (
-    <ExportButton
-      endpoint={toolExportEndpoint(Tool.document)}
-      params={{ document_id: documentId }}
-      formats={DOCUMENT_TYPE_FORMATS[documentType] ?? []}
-      filenameStem={stem}
-      extraActions={extraActions}
-    />
-  );
+  return {
+    formats: DOCUMENT_TYPE_FORMATS[documentType] ?? [],
+    extraActions:
+      documentType === "whiteboard" && whiteboardScene
+        ? [
+            { labelKey: "export.formatPng", onSelect: () => void exportScene("png") },
+            { labelKey: "export.formatSvg", onSelect: () => void exportScene("svg") },
+          ]
+        : undefined,
+  };
 }

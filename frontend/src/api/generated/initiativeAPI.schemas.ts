@@ -9929,6 +9929,45 @@ export type ExportDashboardApiV1GGuildIdExportsDashboardGetParams = {
   tz?: string | null;
 };
 
+export type ExportPostApiV1GGuildIdExportsPostGetParams = {
+  post_id?: number | null;
+  /**
+   * Bulk selection: one artifact per post, zipped
+   */
+  post_ids?: number[] | null;
+  format?: "json";
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportWikiApiV1GGuildIdExportsWikiGetParams = {
+  wiki_id?: number | null;
+  /**
+   * Bulk selection: one artifact per wiki, zipped
+   */
+  wiki_ids?: number[] | null;
+  format?: "json";
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportGalleryApiV1GGuildIdExportsGalleryGetParams = {
+  gallery_id?: number | null;
+  /**
+   * Bulk selection: one artifact per gallery, zipped
+   */
+  gallery_ids?: number[] | null;
+  format?: "json";
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
 export type ExportCalendarsApiV1GGuildIdExportsCalendarGetParams = {
   calendar_id?: number | null;
   /**

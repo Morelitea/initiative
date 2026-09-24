@@ -158,7 +158,7 @@ async def export_project(
 ) -> Union[Response, JSONResponse]:
     """Export a project: ``json`` is the self-contained backup envelope (the
     same JSON ``POST /projects/import`` consumes); ``pdf``/``csv``/``xlsx``
-    render a project report (unarchived tasks). Requires write access on the
+    render a project report (unarchived tasks). Takes the owner rung on the
     project. Small projects return the file inline; large ones return ``202``
     with a queued job to poll and download."""
     try:
@@ -206,8 +206,8 @@ async def export_document(
     """Export a document. Valid formats depend on the document type:
     ``json`` for Lexical (importable envelope) and whiteboards (standard
     Excalidraw file), ``csv``/``xlsx`` for spreadsheets, ``file`` for uploaded
-    files (unconverted, original name), ``md`` for smart links. Read access
-    suffices. Small documents return the file inline; large ones return
+    files (unconverted, original name), ``md`` for smart links. Takes the owner
+    rung on the document. Small documents return the file inline; large ones return
     ``202`` with a queued job to poll and download."""
     try:
         result = await start_export(
@@ -250,8 +250,8 @@ async def export_queue(
     """Export a queue: ``json`` is an importable envelope (items, rotation
     state, tags by name — member assignments and linked documents/tasks ride
     along as display text); ``pdf``/``csv``/``xlsx`` render the turn order as
-    a table and ``md`` as a numbered list. Read access suffices.
-    Small queues return the file inline; large ones return ``202`` with a
+    a table and ``md`` as a numbered list. Takes the owner rung on the
+    queue. Small queues return the file inline; large ones return ``202`` with a
     queued job to poll and download."""
     try:
         result = await start_export(
@@ -289,7 +289,8 @@ async def export_counter_group(
 ) -> Union[Response, JSONResponse]:
     """Export a counter group: ``json`` is an importable envelope (every
     counter's configuration and current value); ``pdf``/``csv``/``xlsx``/
-    ``md`` render the counters as a table. Read access suffices. Small groups
+    ``md`` render the counters as a table. Takes the owner rung on the
+    group. Small groups
     return the file inline; large ones return ``202`` with a queued job to
     poll and download."""
     try:
@@ -332,8 +333,8 @@ async def export_dashboard(
 ) -> Union[Response, JSONResponse]:
     """Export a dashboard as an importable envelope: its presentation spec and
     canvas config. A dashboard owns no child content — the data it displays
-    belongs to the tools it points at — so there is no report format. Read
-    access suffices. A dashboard built on an app this build does not ship
+    belongs to the tools it points at — so there is no report format. Takes
+    the owner rung on it. A dashboard built on an app this build does not ship
     cannot be exported; install that app where you want it instead. Small
     selections return the file inline; large ones return ``202`` with a queued
     job to poll and download."""
@@ -347,6 +348,132 @@ async def export_dashboard(
             params={
                 "dashboard_id": dashboard_id,
                 "dashboard_ids": dashboard_ids,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
+
+
+@router.get("/post", response_model=None)
+async def export_post(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    post_id: Optional[int] = Query(default=None),
+    post_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per post, zipped"
+    ),
+    format: Literal["json"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export a post as an importable envelope: its body, tags and poll.
+    A notice has no report shape, so there is no rendered format. Takes the owner rung on it. Small selections
+    return the file inline; large ones return ``202`` with a queued job to
+    poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="post",
+            format=format,
+            params={
+                "post_id": post_id,
+                "post_ids": post_ids,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
+
+
+@router.get("/wiki", response_model=None)
+async def export_wiki(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    wiki_id: Optional[int] = Query(default=None),
+    wiki_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per wiki, zipped"
+    ),
+    format: Literal["json"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export a wiki as an importable envelope: every page, the tree they
+    sit in, and its home page. Takes the owner rung on it. Small selections
+    return the file inline; large ones return ``202`` with a queued job to
+    poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="wiki",
+            format=format,
+            params={
+                "wiki_id": wiki_id,
+                "wiki_ids": wiki_ids,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
+
+
+@router.get("/gallery", response_model=None)
+async def export_gallery(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    gallery_id: Optional[int] = Query(default=None),
+    gallery_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per gallery, zipped"
+    ),
+    format: Literal["json"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export a gallery as an importable envelope naming each picture by
+    its stored file; the pictures themselves travel in a backup. Takes the owner rung on it. Small selections
+    return the file inline; large ones return ``202`` with a queued job to
+    poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="gallery",
+            format=format,
+            params={
+                "gallery_id": gallery_id,
+                "gallery_ids": gallery_ids,
                 "tz": tz,
             },
             allow_job=_allow_job(guild_context),
@@ -383,10 +510,11 @@ async def export_calendars(
 ) -> Union[Response, JSONResponse]:
     """Export calendars: ``ics`` is one iCalendar file per calendar (RRULE and
     attendee RSVPs preserved); ``json`` is one importable envelope per
-    calendar holding its events. With no ids and no initiative, every calendar
-    visible to the caller in the guild exports — calendar sharing applies
-    throughout. Read access suffices. Small exports return the file inline;
-    large ones return ``202`` with a queued job to poll and download."""
+    calendar holding its events. Each calendar takes the owner rung on it: with
+    no ids, every calendar the caller may export in the initiative (or across
+    the guild) is included, and the rest are left out. Small exports return the
+    file inline; large ones return ``202`` with a queued job to poll and
+    download."""
     try:
         result = await start_export(
             session,

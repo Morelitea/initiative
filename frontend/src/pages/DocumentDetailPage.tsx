@@ -24,7 +24,6 @@ import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
-import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
 import {
   DocumentOutlinePanel,
   DocumentOutlineScope,
@@ -1080,16 +1079,6 @@ export const DocumentDetailPage = () => {
           trail={[{ label: document.name }]}
         />
         <div className="flex items-center gap-2">
-          <DocumentExportMenu
-            documentId={document.id}
-            documentType={document.document_type}
-            title={document.name}
-            whiteboardScene={
-              document.document_type === "whiteboard" && whiteboardSceneReady
-                ? whiteboardScene
-                : undefined
-            }
-          />
           {canEditDocument && (
             <Button asChild variant="outline" size="sm">
               <Link

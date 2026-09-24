@@ -86,23 +86,34 @@ class CalendarAdapter(ToolExportAdapter):
         params: dict,
         format: str,
     ) -> list[Calendar]:
-        """An explicit selection, or every calendar the creator can reach in
-        one initiative (or across the guild) — the enumeration applies the
-        same per-calendar sharing."""
+        """An explicit selection, or every calendar the creator may export in
+        one initiative (or across the guild). A selection naming one they may
+        not export is refused; the enumeration leaves those out instead, the
+        way it leaves out calendars they cannot read at all."""
         if _is_selection(params):
-            calendar_ids = self.selection(params)
-        else:
-            from app.services.tenant.calendars import list_calendar_ids_for_export
+            return [
+                await self.fetch(session, user, guild_id, calendar_id)
+                for calendar_id in self.selection(params)
+            ]
+        from app.services.permissions import EXPORT_ACCESS, level_of
+        from app.services.tenant.calendars import (
+            get_calendar_for_export,
+            list_calendar_ids_for_export,
+        )
 
-            calendar_ids = await list_calendar_ids_for_export(
+        calendars = [
+            await get_calendar_for_export(
+                session, user, guild_id, calendar_id=calendar_id, access="read"
+            )
+            for calendar_id in await list_calendar_ids_for_export(
                 session,
                 user,
                 guild_id,
                 initiative_id=_optional_int(params, "initiative_id"),
             )
+        ]
         return [
-            await self.fetch(session, user, guild_id, calendar_id)
-            for calendar_id in calendar_ids
+            calendar for calendar in calendars if level_of(calendar) == EXPORT_ACCESS
         ]
 
     async def fetch(

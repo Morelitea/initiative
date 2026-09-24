@@ -30,7 +30,7 @@ from sqlmodel import select
 from app.api import deps as api_deps
 from app.core.config import settings
 from app.core.search import SearchEntityType
-from app.core.tools import TOGGLEABLE_TOOLS
+from app.core.tools import TOGGLEABLE_TOOLS, Tool, tool_export_source
 from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
@@ -64,7 +64,9 @@ from app.testing.factories import (
     create_relationship,
     create_tag,
     create_task,
+    create_tool_entity,
     create_upload,
+    enable_all_tools,
 )
 from app.services.export import limits as export_limits
 
@@ -1274,6 +1276,52 @@ async def test_export_of_content_outside_the_callers_initiative_is_not_found(
 
 
 # ---------------------------------------------------------------------------
+# Who may export a tool
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("tool", list(Tool), ids=lambda tool: tool.value)
+async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
+    client: AsyncClient, acting_user, session, tool
+):
+    """An export hands the whole thing over, so it is for whoever may delete
+    it: its owner, and anyone with full access to it — the community's admin,
+    an initiative role that overrides sharing. Somebody it is shared with to
+    edit may read and change it, and still may not take a copy away. Every
+    tool, from the registry."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await enable_all_tools(session, a.initiative)
+    entity = await create_tool_entity(session, tool, a.initiative, a.user)
+    editor = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await route_session_to_guild(session, a.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type=tool.value,
+            resource_id=entity.id,
+            user_id=editor.user.id,
+            level=ResourceAccessLevel.write,
+            initiative_id=a.initiative.id,
+        )
+    )
+    await session.commit()
+    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    source = tool_export_source(tool)
+    params = {f"{tool.value}_id": entity.id, "format": "json"}
+
+    refused = await _export(client, a, source, headers=editor.headers, **params)
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "EXPORT_OWNER_REQUIRED"
+    for who in (a, admin):
+        resp = await _export(client, a, source, headers=who.headers, **params)
+        assert resp.status_code == 200, (who.user.id, resp.text)
+
+
+# ---------------------------------------------------------------------------
 # Report chrome: locale, timezone, branding, detailed layout
 # ---------------------------------------------------------------------------
 
@@ -1704,9 +1752,10 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
 async def test_calendar_export_applies_calendar_sharing(
     client: AsyncClient, acting_user, session
 ):
-    """Calendar sharing holds for exports: a calendar not shared with the
-    exporter stays OUT of their export-all — while a guild admin still reaches
-    it by explicit selection."""
+    """Calendar sharing holds for exports: export-all carries the calendars the
+    exporter may export — the ones they own — and leaves out one they can only
+    read as well as one not shared with them at all. Asking for either by id
+    is refused, while a guild admin still reaches them by explicit selection."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     b = await acting_user(
@@ -1715,9 +1764,11 @@ async def test_calendar_export_applies_calendar_sharing(
         initiative=a.initiative,
         initiative_role="member",
     )
-    open_cal = await create_calendar(session, a.initiative, a.user, name="Open")
+    own_cal = await create_calendar(session, a.initiative, b.user, name="Theirs")
+    read_cal = await create_calendar(session, a.initiative, a.user, name="Readable")
     secret_cal = await create_calendar(session, a.initiative, a.user, name="Secret")
-    await create_calendar_event(session, open_cal, a.user, title="Open session")
+    await create_calendar_event(session, own_cal, b.user, title="Their session")
+    await create_calendar_event(session, read_cal, a.user, title="Read only")
     secret = await create_calendar_event(session, secret_cal, a.user, title="Hidden")
     # Strip every grant except the creator's own — b can no longer see it.
     # (is_distinct_from: role grants carry a NULL user_id, which a plain
@@ -1734,19 +1785,20 @@ async def test_calendar_export_applies_calendar_sharing(
 
     resp = await _export(client, a, "calendar", headers=b.headers, format="json")
     envelope = json.loads(_assert_export(resp, "json"))
-    assert envelope["name"] == "Open"
-    assert {e["title"] for e in envelope["events"]} == {"Open session"}
+    assert envelope["name"] == "Theirs"
+    assert {e["title"] for e in envelope["events"]} == {"Their session"}
 
-    # Explicitly requesting the hidden calendar is refused outright.
-    denied = await _export(
-        client,
-        a,
-        "calendar",
-        headers=b.headers,
-        format="ics",
-        calendar_ids=[secret_cal.id],
-    )
-    assert denied.status_code == 403
+    # Explicitly requesting one they may not export is refused outright.
+    for calendar in (read_cal, secret_cal):
+        denied = await _export(
+            client,
+            a,
+            "calendar",
+            headers=b.headers,
+            format="ics",
+            calendar_ids=[calendar.id],
+        )
+        assert denied.status_code == 403, calendar.name
 
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     admin_resp = await _export(

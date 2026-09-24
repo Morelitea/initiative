@@ -7,6 +7,7 @@
     "failed": "Der Export ist fehlgeschlagen. Versuche es erneut oder grenze den Filter ein.",
     "error": "Export fehlgeschlagen. Versuche es erneut.",
     "selected": "Auswahl exportieren",
+    "ownerRequired": "Exportieren kann nur, wer all diese Einträge auch löschen darf.",
     "headingBackup": "Sicherung",
     "headingReport": "Bericht",
     "formatPdf": "PDF-Dokument",

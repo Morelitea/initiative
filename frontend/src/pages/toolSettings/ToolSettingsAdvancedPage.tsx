@@ -1,9 +1,10 @@
 /**
- * `/settings/advanced` — the tool's own extra operations, and deletion.
+ * `/settings/advanced` — the tool's own extra operations, exporting, and
+ * deletion.
  *
- * Deleting is the owner's alone, so the danger card is absent for everyone
- * else however they reached the address — and when that leaves the section
- * with nothing at all, it says so rather than rendering a blank page. The tab
+ * Exporting and deleting are the owner's alone, so those cards are absent for
+ * everyone else however they reached the address — and when that leaves the
+ * section with nothing at all, it says so rather than rendering a blank page. The tab
  * bar hides the link on the same condition; this is the answer for the address
  * someone typed or bookmarked.
  */
@@ -14,6 +15,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { canUseArchiveCard, ToolArchiveCard } from "@/components/tools/settings/ToolArchiveCard";
+import { ToolExportCard } from "@/components/tools/settings/ToolExportCard";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,8 @@ export const ToolSettingsAdvancedPage = () => {
   return (
     <div className="space-y-6">
       {advancedExtra}
+
+      <ToolExportCard />
 
       <ToolArchiveCard />
 

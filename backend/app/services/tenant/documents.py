@@ -206,12 +206,13 @@ async def get_document_for_export(
     guild_id: int,
     *,
     document_id: int,
+    access: str = "owner",
 ) -> Document:
     """The document-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. READ access
-    suffices — exporting is a formatted read, unlike the project backup
-    (which requires write). The guild role is resolved here rather than taken
-    from a request context, so the seam works transport-free."""
+    the rule holds on the worker's render-time replay too. It takes the owner
+    rung, or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The guild role is resolved here
+    rather than taken from a request context, so the seam works transport-free."""
     from fastapi import HTTPException, status as http_status
 
     from app.services import permissions as permissions_service
@@ -222,11 +223,11 @@ async def get_document_for_export(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=Tool.document.not_found_code,
         )
-    permissions_service.require_access(
+    permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.document],
         document,
         context=guild_context(session),
-        access="read",
+        access=access,
     )
     return document
 

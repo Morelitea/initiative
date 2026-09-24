@@ -169,7 +169,9 @@ Next time, start *from* it and skip the fiddling. Ideal for anything you do more
 
 ## Exporting a project
 
-**Export a project** to a portable file — an offline copy, a move somewhere else, or a backup of one specific project. It imports back in later.
+**Export a project** to a portable file — an offline copy, a move somewhere else, or a backup of one specific project. It imports back in later. It's in **Project settings → Advanced**, next to deleting it, and it belongs to the same people: whoever owns the project, and anyone who can see everything in its initiative.
+
+The task list's own **Export** — the tasks you've filtered to, or the ones you've selected, as a PDF, a spreadsheet or Markdown — stays where it is.
 
 !!! note "People are named by handle"
     An export identifies assignees, event attendees and person-type fields by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't.

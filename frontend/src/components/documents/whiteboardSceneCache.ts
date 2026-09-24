@@ -88,13 +88,15 @@ export const loadWhiteboardScene = (
     removeItem(key);
   }
 
-  const raw = content ?? {};
+  return { scene: loadWhiteboardSceneFromContent(content), fromCache: false };
+};
+
+/** The scene a whiteboard's stored `content` holds, with nothing missing. */
+export const loadWhiteboardSceneFromContent = (content: unknown): WhiteboardScene => {
+  const raw = (content ?? {}) as Partial<WhiteboardScene>;
   return {
-    scene: {
-      elements: raw.elements ?? [],
-      appState: raw.appState ?? {},
-      files: raw.files ?? {},
-    },
-    fromCache: false,
+    elements: raw.elements ?? [],
+    appState: raw.appState ?? {},
+    files: raw.files ?? {},
   };
 };

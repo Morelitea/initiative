@@ -4,10 +4,12 @@ import { useTranslation } from "react-i18next";
 
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { BulkExportUnavailable } from "@/components/exports/BulkExportButton";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { documentSelectionFormats } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
 import { exportFilenameStem } from "@/lib/exportDownload";
+import { canExportAll } from "@/lib/permissions";
 import { toolExportEndpoint, toolExportIdsParam } from "@/lib/tools";
 
 interface DocumentsBulkBarProps {
@@ -41,11 +43,12 @@ export function DocumentsBulkBar({
   isBulkDeleting,
   onExit,
 }: DocumentsBulkBarProps) {
-  const { t } = useTranslation(["documents", "common"]);
+  const { t } = useTranslation(["documents", "common", "exports"]);
   const count = selectedDocuments.length;
 
   // Export requires a format valid for every selected document's type — the
-  // menu offers the intersection (read access suffices, so no can* gate).
+  // menu offers the intersection — and the owner's rung on every one of them.
+  const canExportSelected = canExportAll(selectedDocuments);
   const exportFormats = useMemo(
     () => documentSelectionFormats(selectedDocuments.map((d) => d.document_type)),
     [selectedDocuments]
@@ -56,7 +59,9 @@ export function DocumentsBulkBar({
       <div className="font-medium text-sm">{t("documents:bulk.selected", { count })}</div>
       <div className="flex flex-wrap items-center gap-2">
         {count > 0 &&
-          (exportFormats.length > 0 ? (
+          (!canExportSelected ? (
+            <BulkExportUnavailable title={t("exports:export.ownerRequired")} />
+          ) : exportFormats.length > 0 ? (
             <ExportButton
               endpoint={toolExportEndpoint(Tool.document)}
               params={{

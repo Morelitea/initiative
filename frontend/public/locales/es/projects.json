@@ -440,15 +440,6 @@
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
   },
-  "export": {
-    "title": "Exportar proyecto",
-    "description": "Descarga este proyecto como copia de seguridad JSON portátil o como informe con formato (PDF, CSV o Excel).",
-    "detail": "La copia JSON puede reimportarse en esta instancia o en cualquier otra instalación de Initiative: las referencias usan nombres y correos para que no se filtren IDs de esta base de datos. Los formatos de informe cubren las tareas no archivadas del proyecto.",
-    "exportButton": "Exportar",
-    "noWriteAccess": "Necesitas acceso de escritura en este proyecto para exportarlo.",
-    "success": "Proyecto exportado",
-    "error": "No se pudo exportar el proyecto. Inténtalo de nuevo."
-  },
   "status": {
     "label": "Mostrar",
     "active": "Activos",

@@ -182,3 +182,11 @@ export const changesGuildSettings = (
 
 export const hasWriteAccess = (level: string | null | undefined): boolean =>
   level === "owner" || level === "write";
+
+/** Whether this rung may export the thing: an export hands the whole thing
+ *  over, so it is the owner's, as deleting it is. The server asks the same. */
+export const canExport = (level: string | null | undefined): boolean => level === "owner";
+
+/** Whether every selected item may be exported by this viewer. */
+export const canExportAll = (items: { my_permission_level?: string | null }[]): boolean =>
+  items.length > 0 && items.every((item) => canExport(item.my_permission_level));

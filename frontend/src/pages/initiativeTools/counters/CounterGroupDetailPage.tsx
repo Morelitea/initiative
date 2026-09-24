@@ -21,8 +21,6 @@ import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { ExportButton } from "@/components/exports/ExportButton";
-import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { type CounterLayout, CounterRow } from "@/components/initiativeTools/counters/CounterRow";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -54,10 +52,9 @@ import {
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { counterRoute, toolExportEndpoint, toolListRoute, toolSettingsRoute } from "@/lib/tools";
+import { counterRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 
@@ -211,12 +208,6 @@ export function CounterGroupDetailPage() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ExportButton
-            endpoint={toolExportEndpoint(Tool.counter_group)}
-            params={{ counter_group_id: group.id }}
-            formats={TOOL_EXPORT_FORMATS[Tool.counter_group] ?? []}
-            filenameStem={exportFilenameStem(group.name, "counters")}
-          />
           <Button
             variant="outline"
             size="icon-sm"

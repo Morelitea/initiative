@@ -105,6 +105,11 @@
       "archived": "„{{name}}“ archiviert",
       "unarchived": "„{{name}}“ ist zurück"
     },
+    "export": {
+      "title": "Exportieren",
+      "description": "Eine Kopie herunterladen – als Datei, die sich hier oder auf einem anderen Server importieren lässt, oder als Bericht zum Lesen. Exportieren kann nur, wer dies auch löschen darf.",
+      "button": "Exportieren"
+    },
     "title": "Einstellungen",
     "description": "Verwalte Details, Zugriff und erweiterte Optionen.",
     "tabDetails": "Details",

@@ -580,10 +580,12 @@ async def get_wiki_for_export(
     guild_id: int,
     *,
     wiki_id: int,
+    access: str = "owner",
 ) -> tuple[Wiki, list[WikiPage]]:
     """The wiki-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read.
+    rule holds on the worker's render-time replay too. It takes the owner rung,
+    or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``).
 
     The pages come back with it, in reading order, because a wiki without its
     pages is not a thing anyone wanted a copy of.
@@ -601,11 +603,11 @@ async def get_wiki_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.wiki.feature_disabled_code,
         )
-    permissions_service.require_access(
+    permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.wiki],
         wiki,
         context=db_session.guild_context(session),
-        access="read",
+        access=access,
     )
     pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
     await tags_service.annotate_tags(session, pages)

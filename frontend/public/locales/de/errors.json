@@ -284,6 +284,7 @@
   "EXPORT_TOO_LARGE": "Dieser Export ist zu groß. Grenze den Filter ein und versuche es erneut.",
   "EXPORT_JOB_LIMIT_REACHED": "Zu viele Exporte in Bearbeitung. Warte, bis einer abgeschlossen ist, und versuche es erneut.",
   "EXPORT_WRITE_REQUIRED": "Dieser Export ist zu groß, um ihn mit Lesezugriff zu erstellen.",
+  "EXPORT_OWNER_REQUIRED": "Exportieren kann nur, wer dies auch löschen darf.",
   "EXPORT_JOB_NOT_FOUND": "Export nicht gefunden.",
   "EXPORT_NOT_READY": "Dieser Export ist noch nicht zum Herunterladen bereit.",
   "EXPORT_SUPERADMIN_REQUIRED": "Nur ein Superadmin kann die gesamte Community exportieren.",

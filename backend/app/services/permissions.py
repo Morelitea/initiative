@@ -44,6 +44,7 @@ from app.db.frozen import ancestor_is_frozen, row_is_frozen
 from app.db.authorization import standing_arg
 from app.core.messages import (
     CommonMessages,
+    ExportMessages,
     SharingMessages,
     ProjectMessages,
 )
@@ -677,6 +678,35 @@ def require_access(
     if access == "write" and effective == "read":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
+        )
+
+
+#: What exporting one tool asks for. An export hands the whole thing over at
+#: once, so it takes the rung that may also delete it: an owner grant, or full
+#: access to its initiative (its managers, the community's admins). The
+#: initiative and community backups read what their scope reaches instead, and
+#: pass ``"read"``.
+EXPORT_ACCESS = "owner"
+
+
+def require_export_access(
+    resource: DacResource,
+    row: Any,
+    *,
+    context: GuildContext | None,
+    access: str = EXPORT_ACCESS,
+) -> None:
+    """Raise unless the request may export ``row``: read it at all, and — for
+    a tool exported on its own — hold its owner rung.
+
+    Checked against the rung the database answered rather than the one a
+    client is shown, so archived content and a read-only community stay
+    exportable by whoever owns them: an export changes nothing."""
+    require_access(resource, row, context=context, access="read")
+    if access == EXPORT_ACCESS and level_of(row) != EXPORT_ACCESS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ExportMessages.EXPORT_OWNER_REQUIRED,
         )
 
 
