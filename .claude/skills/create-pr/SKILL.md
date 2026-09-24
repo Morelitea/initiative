@@ -199,10 +199,10 @@ Summarize for the user:
 
 ## Notes on pacing
 
-- **Budget the real numbers.** Backend Lint & Tests runs up to ~26 minutes on a
+- **Budget the real numbers.** Backend Lint & Tests runs up to ~60 minutes on a
   full-suite PR; the frontend and generated-types jobs land in a few. Greptile
   typically posts within the first minute or two. The §4 loop exists so those
-  25 minutes aren't dead time.
+  60 minutes aren't dead time.
 - A 30s poll is right for a run of this length; anything tighter just burns API
   calls. Always background the loop — a foreground Bash call maxes out at 10
   minutes, less than half a backend cycle.
