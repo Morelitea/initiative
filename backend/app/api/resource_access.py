@@ -23,8 +23,10 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
 from app.core.messages import AppMessages
 from app.core.tools import Tool
+from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
 from app.models.tenant.initiative import PermissionKey
 from app.models.platform.user import User
@@ -204,22 +206,115 @@ async def require_create(
     )
 
 
+#: The scope an installed app holds to change a resource's sharing.
+SHARING_WRITE = "sharing:write"
+
+#: What else an installed app's sharing change reads: the initiative's roster,
+#: and the roles on it, which validate the grantees and settle who keeps
+#: write access afterwards.
+_SHARING_READS = ("members:read", "initiatives:read")
+
+
 def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
-    """Raise 403 when an installed app's create sets any of ``fields`` — the
-    initial sharing or a named owner.
+    """Raise 403 when an installed app's create sets any of ``fields`` — its
+    initial sharing — without ``sharing:write``.
 
     What an app creates is owned by its install, whose owner row the tool
-    table's trigger writes; it writes no other grant. A field left at its
-    default is not a request to share, so only the ones the payload sets are
-    refused.
+    table's trigger writes. With the scope, the initial sharing is applied as
+    a later share would be (:func:`apply_app_initial_sharing`). A field left at
+    its default is not a request to share, so only the ones the payload sets
+    are refused.
     """
-    if actor.user_id is not None:
+    if not isinstance(actor, InstallContext):
+        return
+    if not any(field in payload.model_fields_set for field in fields):
+        return
+    require_install_may_share(actor, None)
+
+
+def refuse_app_owner(actor: ActorContext, payload: Any, *fields: str) -> None:
+    """Raise 403 when an installed app's create names an owner in any of
+    ``fields``. What it creates is its own: the tool table's trigger writes
+    that owner row."""
+    if not isinstance(actor, InstallContext):
         return
     if any(field in payload.model_fields_set for field in fields):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AppMessages.SHARING_NOT_AVAILABLE,
         )
+
+
+def require_install_may_share(actor: ActorContext, kind: Optional[Tool]) -> None:
+    """Raise 403 unless an installed app's standing lets it change sharing:
+    ``sharing:write``, the tool's write scope when ``kind`` is named, and the
+    roster reads a sharing change makes. A person passes; their rung on the
+    resource is asked by :func:`authorize`, as the install's is too.
+    """
+    if not isinstance(actor, InstallContext):
+        return
+    if not actor.holds(SHARING_WRITE):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AppMessages.SHARING_NOT_AVAILABLE,
+        )
+    needed = list(_SHARING_READS)
+    if kind is not None:
+        needed.append(scope_name(tool_resource(kind), AppScopeAccess.write))
+    if not all(actor.holds(scope) for scope in needed):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AppMessages.SCOPE_REQUIRED,
+        )
+
+
+def refuse_install_community_share(
+    actor: ActorContext, initiative_id: Optional[int]
+) -> None:
+    """Raise 403 when an installed app would share a resource that belongs to
+    no initiative. Such a resource is shared with the community's members,
+    whom an app does not read."""
+    if isinstance(actor, InstallContext) and initiative_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AppMessages.SHARING_NOT_AVAILABLE,
+        )
+
+
+async def apply_app_initial_sharing(
+    session: Any,
+    actor: ActorContext,
+    kind: Tool,
+    *,
+    resource_id: int,
+    initiative_id: Optional[int],
+    payload: Any,
+    grants: list[ResourceGrantSchema],
+) -> None:
+    """Apply the initial sharing an installed app's create asked for.
+
+    Only when the payload set ``grants``: an app's content is otherwise shared
+    with nobody beyond its owner row until it shares it. The install's own
+    owner row went in with the resource, so its rung there is the owner's, and
+    the database asks the same of each grant row it writes. Caller flushes.
+    """
+    if not isinstance(actor, InstallContext):
+        return
+    if "grants" not in payload.model_fields_set:
+        return
+    require_install_may_share(actor, kind)
+    refuse_install_community_share(actor, initiative_id)
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type=kind.value,
+        resource_id=resource_id,
+        guild_id=actor.guild_id,
+        initiative_id=initiative_id,
+        # A member token's creation is owned by the member it acts for.
+        owner_id=actor.member_user_id,
+        grants=grants,
+        by_install=True,
+    )
 
 
 def authorize(
@@ -362,8 +457,8 @@ async def set_resource_grants(
     session: Any,
     kind: Tool,
     resource_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
     grants: list[ResourceGrantSchema],
 ) -> None:
     """Replace one resource's sharing the unified way: load + 404, authorize
@@ -371,7 +466,12 @@ async def set_resource_grants(
     ``grants`` (owner preserved), then run the resource's optional post-change side
     effect. Commits. Raises ``HTTPException`` 404 (missing) / 403 (no manage
     access). The single source of truth behind the per-resource grant endpoints and
-    the bulk endpoint."""
+    the bulk endpoint.
+
+    An installed app changes sharing where a person with its rung could, and
+    only with ``sharing:write`` and the tool's write scope
+    (:func:`require_install_may_share`)."""
+    require_install_may_share(guild_context, kind)
     row = await load_authorized(
         session,
         kind,
@@ -381,6 +481,7 @@ async def set_resource_grants(
         access="write",
         manage_access=True,
     )
+    refuse_install_community_share(guild_context, row.initiative_id)
     hooks = GRANT_HOOKS.get(kind)
     if hooks and hooks.precheck:
         hooks.precheck(row)
@@ -396,9 +497,10 @@ async def set_resource_grants(
         resource_id=row.id,
         guild_id=guild_context.guild_id,
         initiative_id=row.initiative_id,
-        owner_id=ownership_service.owner_id_of(row),
+        owner_id=ownership_service.owner_user_id_of(row),
         grants=grants,
-        actor_user_id=user.id,
+        actor_user_id=guild_context.user_id,
+        by_install=isinstance(guild_context, InstallContext),
     )
     await session.commit()
 

@@ -228,7 +228,7 @@ def serialize_gallery_summary(
         comments_enabled=gallery.comments_enabled,
         comment_count=getattr(gallery, "comment_count", 0),
         tags=annotated_tags(gallery),
-        grants=serialize_grants(gallery),
+        grants=serialize_grants(gallery, context=context),
     )
 
 

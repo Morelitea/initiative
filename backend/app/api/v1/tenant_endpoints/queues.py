@@ -360,7 +360,7 @@ async def create_queue(
 
         # Apply the initial sharing exactly the way edits do — one grant list,
         # one code path (empty default = owner-only until shared). An installed
-        # app writes no grant of its own.
+        # app's is applied below, when it asked for one.
         await permissions_service.replace_resource_grants(
             session,
             resource_type="queue",
@@ -370,6 +370,16 @@ async def create_queue(
             owner_id=current_user.id,
             grants=queue_in.grants,
             actor_user_id=current_user.id,
+        )
+    else:
+        await resource_access.apply_app_initial_sharing(
+            session,
+            guild_context,
+            Tool.queue,
+            resource_id=queue.id,
+            initiative_id=queue.initiative_id,
+            payload=queue_in,
+            grants=queue_in.grants,
         )
 
     await session.commit()
@@ -896,8 +906,8 @@ async def set_queue_item_tags(
 async def read_after_write(
     session: RLSSessionDep,
     queue_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> QueueRead:
     """The queue a write answers with: re-read after the commit, serialized.
 
@@ -905,7 +915,7 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_queue(session, queue_id)
-    return await _serialized_queue(session, hydrated, user_id=user.id)
+    return await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
 
 
 # ---------------------------------------------------------------------------

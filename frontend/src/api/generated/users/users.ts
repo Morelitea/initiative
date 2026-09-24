@@ -3659,7 +3659,8 @@ export const useApproveUserApiV1CGuildIdUsersUserIdApprovePost = <
   );
 };
 /**
- * Everything in this guild that no current member owns.
+ * Everything in this guild that no current member or live app owns, and
+ * the apps that may own all of it.
  *
  * Both the content released when someone left and anything orphaned before
  * that — either way nobody who can act on it owns it.
@@ -3828,7 +3829,8 @@ export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
 }
 
 /**
- * Give everything nobody owns to one guild admin.
+ * Give everything nobody owns to one guild admin, or to an app that may
+ * own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
  * @summary Claim Unowned Content
  */
 export const claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost = (
@@ -3934,7 +3936,8 @@ export const useClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost = <
   );
 };
 /**
- * What this user owns in this guild, for the transfer dialog to list.
+ * What this user owns in this guild, for the transfer dialog to list,
+ * and the apps that may own all of it.
  *
  * Works for anyone the grants still name, member or not — accounts get
  * abandoned as often as they get closed.
@@ -4116,7 +4119,8 @@ export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
 }
 
 /**
- * Move everything ``user_id`` owns in this guild to a guild admin.
+ * Move everything ``user_id`` owns in this guild to a guild admin, or to
+ * an app that may own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
  *
  * The only place ownership is moved by hand, and guild-admin only.
  * @summary Transfer Ownership

@@ -21,6 +21,11 @@ refreshed it.
 Each route keeps the path, method, tag, name, summary, description and
 parameters its tool already had, so the published surface and the generated
 client are unchanged.
+
+An installed app reaches the route for each tool that serves apps, under
+``sharing:write``. What it may change is decided as for a person, by its rung
+on the resource, with the tool's write scope beside the sharing scope
+(``resource_access.require_install_may_share``).
 """
 
 # NOT ``from __future__ import annotations``: the handlers are built per tool
@@ -28,14 +33,19 @@ client are unchanged.
 # stringized annotations re-evaluate it where that local is out of scope.
 
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, Path
 
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     GuildContext,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
@@ -45,10 +55,13 @@ from app.models.platform.user import User
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services.stream_authz import authority as stream_authority
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
+SharingWrite = Annotated[
+    ActorContext, Depends(app_scope(resource_access.SHARING_WRITE))
+]
 
 
 def _segment(tool: Tool) -> str:
@@ -69,12 +82,12 @@ def _mount(
         int, Path(alias=cfg.path_param, title=_title(cfg.path_param))
     ]
 
-    async def set_grants(
-        entity_id: entity_id_param,
+    async def replace(
+        session: Any,
+        entity_id: int,
         grants: list[ResourceGrantSchema],
-        session: RLSSessionDep,
-        current_user: CurrentUserDep,
-        guild_context: GuildContextDep,
+        current_user: Optional[User],
+        guild_context: ActorContext,
     ):
         await resource_access.set_resource_grants(
             session, tool, entity_id, current_user, guild_context, grants
@@ -88,6 +101,32 @@ def _mount(
             {"grants": [grant.model_dump(mode="json") for grant in result.grants]},
         )
         return result
+
+    if spec.serves_apps:
+
+        async def set_grants(
+            entity_id: entity_id_param,
+            grants: list[ResourceGrantSchema],
+            session: ActorSessionDep,
+            current_user: ActorUserDep,
+            guild_context: SharingWrite,
+        ):
+            return await replace(
+                session, entity_id, grants, current_user, guild_context
+            )
+
+    else:
+
+        async def set_grants(
+            entity_id: entity_id_param,
+            grants: list[ResourceGrantSchema],
+            session: RLSSessionDep,
+            current_user: CurrentUserDep,
+            guild_context: GuildContextDep,
+        ):
+            return await replace(
+                session, entity_id, grants, current_user, guild_context
+            )
 
     tags: list[str | Enum] = [spec.tag or tool.plural]
     router.add_api_route(

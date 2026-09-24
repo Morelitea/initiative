@@ -30,6 +30,8 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.schema import CheckConstraint, CreateTable
 
+from app.core.app_scopes import AppScopeResource, tool_resource
+from app.core.tools import Tool
 from app.db.app_rls import APP_REFUSED_TABLES, APP_TABLE_ACCESS, AppTableKind
 from app.db.initiative_rls import (
     ANSWERED,
@@ -46,11 +48,13 @@ from app.db.authorization import (
     IN_POLICY,
     RETIRED_GUILD_FUNCTION_SIGNATURES,
     SETTINGS_ADMIN,
+    STANDING,
     STANDING_IS_THIS_GUILD,
     SYSTEM_SESSION,
     app_refused,
     app_scope,
     render_guild_authorization_functions,
+    sql_values,
     standing_ids,
 )
 from app.db.frozen import (
@@ -536,9 +540,11 @@ _APP_SECTION = """\
 -- lifecycle checks on its writes read them. An install sees and changes its
 -- own event subscriptions and no one else's. The change log and the search
 -- index are written by triggers, and an install reaches them only there. The
--- one grant an install's request writes is the owner row naming it (the
+-- grants an install's request writes are the owner row naming it (the
 -- member, for a member token), written by the trigger on the resource it
--- creates. Reactions and recent views are refused. A member token also reads
+-- creates, and, with sharing:write and the tool's write scope, the read and
+-- write shares of a resource it holds write on. Reactions and recent views
+-- are refused. A member token also reads
 -- the member's own roster rows and the roles they name, and its own install's
 -- consent rows, which its standing reads; it writes no consent.
 -- ==========================================================================="""
@@ -562,19 +568,53 @@ def _app_placed_initiatives() -> str:
 #: an installation token, which then matches no row.
 _APP_MEMBER = "NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
 
-#: The one grant row an installed app's request writes: the owner row on a
-#: tool's resource it creates, written by
+#: The owner row on a tool's resource an installed app creates, written by
 #: ``public.fn_install_owns_what_it_creates`` and never by the request itself.
 #: It names the install, or, for a member token, the member it acts for.
-_APP_OWNER_GRANT = (
-    f"({_IID} IS NULL OR ("
-    "pg_trigger_depth() > 0"
+_APP_CREATED_OWNER_ROW = (
+    "(pg_trigger_depth() > 0"
     f" AND level = '{ResourceAccessLevel.owner.value}'"
     " AND role_id IS NULL"
     " AND NOT all_initiative_members AND dashboard_id IS NULL"
     f" AND ((app_install_id = {_IID} AND user_id IS NULL AND {_APP_MEMBER} IS NULL)"
-    f" OR (user_id = {_APP_MEMBER} AND app_install_id IS NULL))))"
+    f" OR (user_id = {_APP_MEMBER} AND app_install_id IS NULL)))"
 )
+
+#: The write scope of the tool a grant row is about: the row names its tool
+#: by value, and the scope by the tool's plural.
+_GRANT_TOOL_SCOPE = (
+    "(CASE resource_grants.resource_type "
+    + " ".join(
+        f"WHEN '{tool.value}' THEN '{tool_resource(tool).value}'" for tool in Tool
+    )
+    + " END)"
+)
+
+#: The rungs a share gives; owner is held, never shared.
+_SHARED_LEVELS = (ResourceAccessLevel.read, ResourceAccessLevel.write)
+
+#: A sharing row an installed app with ``sharing:write`` changes, as a person
+#: with its rung changes one: it holds the scope and the tool's write scope,
+#: and the rung that lets a person share, which is write on the resource
+#: (``resource_access`` asked at write, through the grantee leg). The row
+#: shares with a person, a role or all initiative members at read or write;
+#: owner rows, a published view's rows and app grants are not a share.
+_APP_SHARE_ROW = (
+    f"('{AppScopeResource.sharing.value}' = ANY ({IN_POLICY.field('install_write')})"
+    f" AND COALESCE({_GRANT_TOOL_SCOPE}"
+    f" = ANY ({IN_POLICY.field('install_write')}), false)"
+    f" AND level IN ({sql_values(level.value for level in _SHARED_LEVELS)})"
+    " AND app_install_id IS NULL AND dashboard_id IS NULL"
+    " AND resource_access(resource_grants.resource_type, resource_grants.resource_id,"
+    f" {_APP_MEMBER}, resource_grants.initiative_id, true, {STANDING}))"
+)
+
+#: What an installed app's request writes on ``resource_grants``: the owner
+#: row on what it creates, and, with ``sharing:write``, the sharing rows of a
+#: resource it may share. A share is rewritten by deleting and inserting rows,
+#: so an install updates none.
+_APP_GRANT_INSERT = f"({_IID} IS NULL OR {_APP_CREATED_OWNER_ROW} OR {_APP_SHARE_ROW})"
+_APP_GRANT_DELETE = f"({_IID} IS NULL OR {_APP_SHARE_ROW})"
 
 #: What a member token's standing reads of the member's own place in their
 #: initiatives, whatever its scopes: their roster rows, and the roles those
@@ -599,7 +639,11 @@ def _app_predicates(table: str) -> dict[str, str]:
     the table's own policies ask. Empty where a tool's gate already asks it."""
     refused = app_refused(IN_POLICY)
     if table == "resource_grants":
-        return {"INSERT": _APP_OWNER_GRANT, "UPDATE": refused, "DELETE": refused}
+        return {
+            "INSERT": _APP_GRANT_INSERT,
+            "UPDATE": refused,
+            "DELETE": _APP_GRANT_DELETE,
+        }
     if table == "app_member_consents":
         return {
             "SELECT": _APP_CONSENT_READ,

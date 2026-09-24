@@ -446,7 +446,7 @@ async def create_post(
 
         # Apply the initial sharing exactly the way edits do — one grant list,
         # one code path (defaults to Viewer for all initiative members). An
-        # installed app writes no grant of its own.
+        # installed app's is applied below, when it asked for one.
         await permissions_service.replace_resource_grants(
             session,
             resource_type="post",
@@ -456,6 +456,16 @@ async def create_post(
             owner_id=current_user.id,
             grants=post_in.grants,
             actor_user_id=current_user.id,
+        )
+    else:
+        await resource_access.apply_app_initial_sharing(
+            session,
+            guild_context,
+            Tool.post,
+            resource_id=post.id,
+            initiative_id=initiative.id,
+            payload=post_in,
+            grants=post_in.grants,
         )
 
     # What the new body points at becomes `references` edges.
@@ -720,16 +730,18 @@ async def set_post_reaction_settings(
 async def read_after_write(
     session: RLSSessionDep,
     post_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> PostRead:
     """The notice a write answers with: re-read after the commit, serialized.
 
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_post(session, post_id, user_id=user.id)
-    return serialize_post(hydrated, user_id=user.id, context=guild_context)
+    hydrated = await _refetch_post(session, post_id, user_id=guild_context.user_id)
+    return serialize_post(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 # ---------------------------------------------------------------------------

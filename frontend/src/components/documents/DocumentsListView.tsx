@@ -177,6 +177,10 @@ export const DocumentsListView = ({
         id: "owner",
         header: t("documents:columns.owner"),
         cell: ({ row }) => {
+          // An installed app owns what it made; its name is the owner's name.
+          if (row.original.owner_app) {
+            return <span>{row.original.owner_app.name}</span>;
+          }
           const ownerGrant = (row.original.grants ?? []).find((g) => g.level === "owner");
           if (!ownerGrant || ownerGrant.user_id == null) {
             return <span className="text-muted-foreground">—</span>;

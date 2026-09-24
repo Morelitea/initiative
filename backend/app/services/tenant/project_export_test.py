@@ -193,7 +193,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert new_project.initiative_id == target_initiative.id
     assert new_project.name == "Source Project"
     assert new_project.icon == "🚀"
-    assert ownership_service.owner_id_of(new_project) == owner.id
+    assert ownership_service.owner_user_id_of(new_project) == owner.id
     assert len(new_project.tasks) == 1
     new_task = new_project.tasks[0]
     assert new_task.title == "Fix the thing"

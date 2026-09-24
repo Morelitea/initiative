@@ -193,8 +193,9 @@ async def test_a_document_a_person_made_names_them_by_reference(
     assert read.status_code == 200, read.text
     body = read.json()
     assert isinstance(body["created_by"], str)
-    owners = [g["user_id"] for g in body["grants"] if g["level"] == "owner"]
-    assert owners == [body["created_by"]]
+    assert body["owner"]["id"] == body["created_by"]
+    # Without sharing:read the install is shown who owns it, not the grants.
+    assert body["grants"] == []
     assert_names_nobody(read.text, [installed.seat.user.id, installed.guild.id])
 
     listed = await client.get(_g(installed.guild.id, "/documents/"), headers=headers)

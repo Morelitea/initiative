@@ -3367,6 +3367,16 @@ export interface InitiativeSummary {
   color: string | null;
 }
 
+/**
+ * An installed app that owns a resource, or may be handed one: the
+ * install's id, its name in this community, and its listing's picture.
+ */
+export interface OwnerAppSummary {
+  id: number;
+  name: string;
+  avatar_url: string | null;
+}
+
 export interface DocumentProjectLink {
   project_id: number;
   project_name?: string | null;
@@ -3400,6 +3410,7 @@ export interface DocumentSummary {
   updated_at: string;
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
+  owner_app: OwnerAppSummary | null;
   projects: DocumentProjectLink[];
   comment_count: number;
   comments_enabled: boolean;
@@ -3453,6 +3464,7 @@ export interface DocumentRead {
   updated_at: string;
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
+  owner_app: OwnerAppSummary | null;
   projects: DocumentProjectLink[];
   comment_count: number;
   comments_enabled: boolean;
@@ -6332,12 +6344,15 @@ export type OwnedContentResponseCounts = { [key: string]: number };
  * What a user owns in this guild, or what no current member owns.
  *
  * ``counts`` is per tool, keyed by the ``Tool`` value, so the dialog can say
- * "3 projects, 1 calendar" without walking the list.
+ * "3 projects, 1 calendar" without walking the list. ``eligible_apps`` are the
+ * installed apps that may own every item listed, which the dialog offers
+ * beside the community's admins.
  */
 export interface OwnedContentResponse {
   items: OwnedContentItem[];
   counts: OwnedContentResponseCounts;
   total: number;
+  eligible_apps: OwnerAppSummary[];
 }
 
 /**
@@ -6349,10 +6364,13 @@ export interface OwnedDecorationsResponse {
 }
 
 /**
- * Who should end up owning it. Must be an active admin of this guild.
+ * Who should end up owning it: an active admin of this guild
+ * (``new_owner_id``), or an installed app that may own all of it
+ * (``new_owner_app_id``). Exactly one is set.
  */
 export interface OwnershipTransferRequest {
-  new_owner_id: number;
+  new_owner_id?: number | null;
+  new_owner_app_id?: number | null;
 }
 
 export type OwnershipTransferResponseCounts = { [key: string]: number };
@@ -7076,6 +7094,7 @@ export interface ProjectRead {
   pinned_at: string | null;
   default_view_mode: string | null;
   owner: UserPublic | null;
+  owner_app: OwnerAppSummary | null;
   initiative: InitiativeSummary | null;
   can_configure: boolean;
   sort_order: number | null;

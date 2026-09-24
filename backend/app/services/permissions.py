@@ -259,13 +259,22 @@ def _grant_level(level: Any) -> str:
     return level.value if hasattr(level, "value") else level
 
 
-def serialize_grants(row: Any) -> list:
+#: The scope that lets an installed app see a resource's sharing.
+SHARING_READ = "sharing:read"
+
+
+def serialize_grants(row: Any, *, context: ActorContext | None) -> list:
     """Serialize a resource's eager-loaded ``grants`` into the unified grant list
     — one ``ResourceGrantSchema`` per ``resource_grants`` row (user, role,
     all-initiative-members, the dashboard a published view reads it
-    through, or an installed app), owner included."""
+    through, or an installed app), owner included.
+
+    An installed app sees the list only with ``sharing:read``; without it the
+    list is empty. Who owns the resource is reported beside it either way."""
     from app.schemas.tenant.resource_grant import ResourceGrantSchema
 
+    if isinstance(context, InstallContext) and not context.holds(SHARING_READ):
+        return []
     return [
         ResourceGrantSchema(
             level=_grant_level(g.level),
@@ -407,7 +416,7 @@ def _levels_by_grantee(grants: Any) -> dict[_Grantee, str]:
 async def _record_grant_changes(
     session: Any,
     *,
-    actor_user_id: int,
+    actor_user_id: int | None,
     resource_type: str,
     resource_id: int,
     guild_id: int,
@@ -447,9 +456,10 @@ async def replace_resource_grants(
     resource_id: int,
     guild_id: int,
     initiative_id: int | None,
-    owner_id: int,
+    owner_id: int | None,
     grants: Any,
     actor_user_id: int | None = None,
+    by_install: bool = False,
 ) -> None:
     """Rebuild a resource's non-owner grants from ``grants`` (a list of
     ResourceAccessGrant rows). Each row is sorted by grantee kind — all-members,
@@ -460,9 +470,14 @@ async def replace_resource_grants(
     means the guild's, and a named grantee is validated against guild
     membership; role grants are not resolvable (see below).
 
+    ``owner_id`` is the person holding the owner grant, or None when nobody
+    does or an installed app does; a named grantee equal to it is skipped.
+
     ``actor_user_id`` is who is making the change; pass it on any request path
     and the move of every grantee whose level actually changed is recorded in
-    the same transaction. Left ``None``, nothing is recorded."""
+    the same transaction. ``by_install`` records an installed app's change the
+    same way, with no person as its actor. Left at neither, nothing is
+    recorded."""
     all_members_level: str | None = None
     user_levels: dict[int, str] = {}
     role_levels: dict[int, str] = {}
@@ -620,7 +635,7 @@ async def replace_resource_grants(
         if rid in valid_roles
     )
 
-    if actor_user_id is not None:
+    if actor_user_id is not None or by_install:
         after: dict[_Grantee, str] = {}
         if all_members_level is not None:
             after[("all_members", None)] = all_members_level

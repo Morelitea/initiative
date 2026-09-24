@@ -15,30 +15,50 @@ exactly the things that have an owner, so :data:`OWNABLE` derives from that enum
 and ``ownership_test.py`` fails if a tool is ever missing from it.
 
 **Ownership is optional.** There is no "ownerless" grant row — the
-``resource_grants_one_grantee`` constraint requires every row to name a user, a
-role, or all members — so having no owner is the *absence* of an owner grant,
-which is also the honest way to say it. Two rules follow:
+``resource_grants_one_grantee`` constraint requires every row to name one
+grantee — so having no owner is the *absence* of an owner grant, which is also
+the honest way to say it. The owner row names a person or an installed app
+(:class:`Owner`), and one rule follows:
 
-    An owner is always a current member of the guild, or there is no owner.
+    An owner is a current member of the guild, a live install, or nobody.
+
+A live install is one that is switched on. What an app owns stays its own while
+it is off, and is listed as unowned until it is switched back on; uninstalling
+removes its owner rows with it (the foreign key cascades), so its content
+becomes unowned like a departed member's.
 
 Leaving a guild drops the person's owner grants rather than handing them to
 someone else: nobody inherits privilege they did not ask for, which matters most
 in a guild with heavy turnover. Guild admins still administer unowned content
-through their guild-admin authority, and can claim it whenever they choose.
+through their guild-admin authority, and can claim it whenever they choose, or
+hand it to an app that may own it (:func:`eligible_app_owners`).
 """
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy import select as sa_select
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.app_scopes import (
+    AppScopeResource,
+    UnknownAppScope,
+    expand,
+    tool_resource,
+)
 from app.core.audit_events import AuditEventType
+from app.core.messages import UserMessages
 from app.core.tools import Tool
 from app.db.guild_standing import ActorContext
+from app.db.session import install_context
 from app.models.tenant._mixins import tool_models
 from app.models.platform.guild import GuildMembership
+from app.models.tenant.app_placement import AppPlacement
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
@@ -49,7 +69,9 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.schemas.tenant.ownership import OwnerAppSummary
 from app.services import audit as audit_service
+from app.services.marketplace import catalog as catalog_service
 
 
 @dataclass(frozen=True)
@@ -111,10 +133,36 @@ class OwnedItem:
     tool: Tool
     id: int
     name: str
+    #: The initiative the row belongs to, which an app owner must be placed in.
+    initiative_id: Optional[int] = None
 
 
-def owner_id_of(row: Any) -> Optional[int]:
-    """The user holding this resource's owner grant, or None if nobody does.
+@dataclass(frozen=True)
+class Owner:
+    """Who holds a resource's owner grant: a person or an installed app.
+    Exactly one of the two is set."""
+
+    user_id: Optional[int] = None
+    app_install_id: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if (self.user_id is None) == (self.app_install_id is None):
+            raise ValueError("an owner is a person or an app, and exactly one")
+
+
+def _grant_owner(grant: Any) -> Optional[Owner]:
+    """The owner an owner-level grant row names, or None for any other row."""
+    if grant.level != ResourceAccessLevel.owner:
+        return None
+    if grant.user_id is not None:
+        return Owner(user_id=grant.user_id)
+    if grant.app_install_id is not None:
+        return Owner(app_install_id=grant.app_install_id)
+    return None
+
+
+def owner_of(row: Any) -> Optional[Owner]:
+    """Who holds this resource's owner grant, or None if nobody does.
 
     Reads ``row.grants``, which the caller must have eagerly loaded — this is
     deliberately a function rather than a model property so that requirement is
@@ -122,9 +170,69 @@ def owner_id_of(row: Any) -> Optional[int]:
     under async.
     """
     for grant in row.grants or []:
-        if grant.user_id is not None and grant.level == ResourceAccessLevel.owner:
-            return grant.user_id
+        owner = _grant_owner(grant)
+        if owner is not None:
+            return owner
     return None
+
+
+def owner_user_id_of(row: Any) -> Optional[int]:
+    """The person holding this resource's owner grant, or None when nobody
+    does or an app does. Reads ``row.grants`` as :func:`owner_of` does."""
+    owner = owner_of(row)
+    return owner.user_id if owner is not None else None
+
+
+#: Where :func:`annotate_owner_apps` leaves a row's owning app.
+_OWNER_APP_ATTRIBUTE = "_owner_app"
+
+
+def owner_app_of(row: Any) -> Optional[OwnerAppSummary]:
+    """The installed app that owns ``row``, as :func:`annotate_owner_apps`
+    left it; None when a person owns it, nobody does, or it was not
+    annotated."""
+    return getattr(row, _OWNER_APP_ATTRIBUTE, None)
+
+
+async def annotate_owner_apps(session: AsyncSession, rows: Iterable[Any]) -> None:
+    """Set the owning app on each row an installed app owns, for its serializer
+    (:func:`owner_app_of`). Reads each row's eagerly loaded ``grants``.
+
+    One query for the installs, and none when no row is app-owned. The picture
+    is the listing's, read from the catalog for a person's request; an
+    installed app's response names the app without it.
+    """
+    owned: list[tuple[Any, int]] = []
+    for row in rows:
+        if row is None:
+            continue
+        owner = owner_of(row)
+        install_id = owner.app_install_id if owner is not None else None
+        object.__setattr__(row, _OWNER_APP_ATTRIBUTE, None)
+        if install_id is not None:
+            owned.append((row, install_id))
+    if not owned:
+        return
+    installs = (
+        await session.exec(
+            select(GuildApp.id, GuildApp.name, GuildApp.listing_uid).where(
+                GuildApp.id.in_({install_id for _row, install_id in owned})
+            )
+        )
+    ).all()
+    avatars: dict[str, str] = {}
+    if install_context(session) is None:
+        avatars = await catalog_service.listing_avatars(
+            session, [listing_uid for _id, _name, listing_uid in installs]
+        )
+    summaries = {
+        install_id: OwnerAppSummary(
+            id=install_id, name=name, avatar_url=avatars.get(listing_uid)
+        )
+        for install_id, name, listing_uid in installs
+    }
+    for row, install_id in owned:
+        object.__setattr__(row, _OWNER_APP_ATTRIBUTE, summaries.get(install_id))
 
 
 # ── Reading what is owned ────────────────────────────────────────────────────
@@ -152,32 +260,41 @@ async def _owned_rows(session: AsyncSession, tool: Tool, user_id: int) -> list[A
 async def _unowned_rows(
     session: AsyncSession, tool: Tool, *, guild_id: int
 ) -> list[Any]:
-    """Rows of ``tool`` that no current member of the guild owns.
+    """Rows of ``tool`` that no current member of the guild and no live
+    install owns.
 
-    Two situations, one condition, because they are the same problem: the
-    resource has no owner grant at all (a member left and released it), or its
+    Three situations, one condition, because they are the same problem: the
+    resource has no owner grant at all (a member left and released it), its
     owner grant names someone who is no longer in the guild (content orphaned
-    before ownership was released on departure). Either way nobody who can act
-    on it owns it, and an admin claiming it is the same click.
+    before ownership was released on departure), or it names an app that is
+    switched off. Either way nobody who can act on it owns it, and an admin
+    claiming it is the same click.
     """
     member_ids = sa_select(GuildMembership.user_id).where(
         GuildMembership.guild_id == guild_id
     )
-    owned_by_member = sa_select(ResourceGrant.resource_id).where(
+    live_installs = sa_select(GuildApp.id).where(GuildApp.enabled.is_(True))
+    owned = sa_select(ResourceGrant.resource_id).where(
         ResourceGrant.resource_type == tool.value,
         ResourceGrant.level == ResourceAccessLevel.owner,
-        ResourceGrant.user_id.in_(member_ids),
+        or_(
+            ResourceGrant.user_id.in_(member_ids),
+            ResourceGrant.app_install_id.in_(live_installs),
+        ),
     )
-    stmt = select(OWNABLE[tool].model).where(
-        OWNABLE[tool].model.id.not_in(owned_by_member)
-    )
+    stmt = select(OWNABLE[tool].model).where(OWNABLE[tool].model.id.not_in(owned))
     return list((await session.exec(stmt)).unique().all())
 
 
 def _as_items(tool: Tool, rows: list[Any]) -> list[OwnedItem]:
     column = OWNABLE[tool].display_column
     return [
-        OwnedItem(tool=tool, id=row.id, name=getattr(row, column, None) or "")
+        OwnedItem(
+            tool=tool,
+            id=row.id,
+            name=getattr(row, column, None) or "",
+            initiative_id=row.initiative_id,
+        )
         for row in rows
     ]
 
@@ -206,6 +323,94 @@ async def summarize_unowned_content(
     return items
 
 
+# ── Which apps may own ───────────────────────────────────────────────────────
+
+
+def _written_resources(scopes: Iterable[str]) -> frozenset[AppScopeResource]:
+    """The resources ``scopes`` let an app write. A scope the vocabulary no
+    longer names grants nothing."""
+    known: list[str] = []
+    for scope in scopes or ():
+        try:
+            expand([scope])
+        except UnknownAppScope:
+            continue
+        known.append(scope)
+    return expand(known)[1]
+
+
+async def eligible_app_owners(
+    session: AsyncSession, items: Sequence[OwnedItem]
+) -> list[OwnerAppSummary]:
+    """The installed apps that may own every one of ``items``, by name.
+
+    An install may own a resource when it is switched on, the community's
+    grant to it holds that tool's write scope, and it is placed in the
+    resource's initiative: the same test the install passes when it creates
+    one. A resource that belongs to no initiative is placed nowhere, so no app
+    may own it. Nothing to own is nobody's to offer.
+    """
+    if not items:
+        return []
+    installs = (
+        await session.exec(
+            select(
+                GuildApp.id,
+                GuildApp.name,
+                GuildApp.listing_uid,
+                GuildApp.granted_scopes,
+            )
+            .where(GuildApp.enabled.is_(True))
+            .order_by(GuildApp.name, GuildApp.id)
+        )
+    ).all()
+    if not installs:
+        return []
+    placed: dict[int, set[int]] = {}
+    for install_id, initiative_id in (
+        await session.exec(
+            select(AppPlacement.install_id, AppPlacement.initiative_id).where(
+                AppPlacement.install_id.in_([row[0] for row in installs])
+            )
+        )
+    ).all():
+        placed.setdefault(install_id, set()).add(initiative_id)
+
+    eligible: list[tuple[int, str, str]] = []
+    for install_id, name, listing_uid, granted_scopes in installs:
+        written = _written_resources(granted_scopes)
+        where = placed.get(install_id, set())
+        if all(
+            tool_resource(item.tool) in written
+            and item.initiative_id is not None
+            and item.initiative_id in where
+            for item in items
+        ):
+            eligible.append((install_id, name, listing_uid))
+    if not eligible:
+        return []
+    avatars = await catalog_service.listing_avatars(
+        session, [listing_uid for _id, _name, listing_uid in eligible]
+    )
+    return [
+        OwnerAppSummary(id=install_id, name=name, avatar_url=avatars.get(listing_uid))
+        for install_id, name, listing_uid in eligible
+    ]
+
+
+async def require_app_owner_eligible(
+    session: AsyncSession, *, install_id: int, items: Sequence[OwnedItem]
+) -> None:
+    """Raise 422 ``OWNER_APP_NOT_ELIGIBLE`` unless ``install_id`` may own
+    every one of ``items`` (:func:`eligible_app_owners`)."""
+    eligible = await eligible_app_owners(session, items)
+    if not items or install_id not in {app.id for app in eligible}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=UserMessages.OWNER_APP_NOT_ELIGIBLE,
+        )
+
+
 # ── Changing it ──────────────────────────────────────────────────────────────
 
 
@@ -224,8 +429,14 @@ async def _clear_owner_grants(session: AsyncSession, *, tool: Tool, row: Any) ->
     ownership now. A role's or everyone's is demoted to ``write`` instead —
     dropping it would take editing away from people who have it today, and the
     sharing panel skips owner rows, so no admin ever saw one to decide about.
-    Nothing can collide with the demoted row: ``resource_grants_unique_grantee``
-    already allows each grantee one grant per resource.
+    An installed app's is demoted to ``write`` too: it is the owner being
+    replaced, and it keeps editing what it managed. Nothing can collide with the
+    demoted row: ``resource_grants_unique_grantee`` already allows each grantee
+    one grant per resource.
+
+    Callers reach this only for a resource whose owner they are replacing, so
+    a live install's content is never cleared by a claim: the unowned list does
+    not hold it.
     """
     grants = (
         await session.exec(
@@ -276,10 +487,11 @@ def creator_owner_grant(
 
 
 async def set_resource_owner(
-    session: AsyncSession, *, tool: Tool, row: Any, new_owner_id: Optional[int]
+    session: AsyncSession, *, tool: Tool, row: Any, new_owner: Optional[Owner]
 ) -> None:
-    """Make ``new_owner_id`` the resource's owner, or leave it unowned when None.
-    Caller commits.
+    """Make ``new_owner`` the resource's owner, or leave it unowned when None.
+    Caller commits, and has decided the new owner may hold it (an app, by
+    :func:`require_app_owner_eligible`).
 
     Clears any existing owner grant, then gives the recipient one at ``owner`` —
     upgrading a lower grant they already hold rather than colliding with the
@@ -288,16 +500,21 @@ async def set_resource_owner(
     """
     await _clear_owner_grants(session, tool=tool, row=row)
 
-    if new_owner_id is None:
+    if new_owner is None:
         await session.flush()
         return
 
+    grantee = (
+        ResourceGrant.user_id == new_owner.user_id
+        if new_owner.user_id is not None
+        else ResourceGrant.app_install_id == new_owner.app_install_id
+    )
     existing = (
         await session.exec(
             select(ResourceGrant).where(
                 ResourceGrant.resource_type == tool.value,
                 ResourceGrant.resource_id == row.id,
-                ResourceGrant.user_id == new_owner_id,
+                grantee,
             )
         )
     ).one_or_none()
@@ -309,7 +526,8 @@ async def set_resource_owner(
             ResourceGrant(
                 resource_type=tool.value,
                 resource_id=row.id,
-                user_id=new_owner_id,
+                user_id=new_owner.user_id,
+                app_install_id=new_owner.app_install_id,
                 role_id=None,
                 level=ResourceAccessLevel.owner,
                 initiative_id=row.initiative_id,
@@ -318,23 +536,24 @@ async def set_resource_owner(
     await session.flush()
 
 
-async def current_owner_id(
+async def current_owner(
     session: AsyncSession, *, tool: Tool, resource_id: int
-) -> Optional[int]:
+) -> Optional[Owner]:
     """Who owns this resource right now, straight from the grants.
 
-    Unlike :func:`owner_id_of` this issues a query, for callers holding a row
+    Unlike :func:`owner_of` this issues a query, for callers holding a row
     whose grants were never loaded.
     """
-    return (
+    grant = (
         await session.exec(
-            select(ResourceGrant.user_id).where(
+            select(ResourceGrant).where(
                 ResourceGrant.resource_type == tool.value,
                 ResourceGrant.resource_id == resource_id,
                 ResourceGrant.level == ResourceAccessLevel.owner,
             )
         )
     ).one_or_none()
+    return _grant_owner(grant) if grant is not None else None
 
 
 async def restore_ownership_to_author(
@@ -360,7 +579,7 @@ async def restore_ownership_to_author(
     if author_id is None:
         return False
 
-    if await current_owner_id(session, tool=tool, resource_id=row.id) is not None:
+    if await current_owner(session, tool=tool, resource_id=row.id) is not None:
         return False
 
     still_a_member = (
@@ -374,7 +593,9 @@ async def restore_ownership_to_author(
     if still_a_member is None:
         return False
 
-    await set_resource_owner(session, tool=tool, row=row, new_owner_id=author_id)
+    await set_resource_owner(
+        session, tool=tool, row=row, new_owner=Owner(user_id=author_id)
+    )
     return True
 
 
@@ -383,7 +604,7 @@ async def _record_ownership_move(
     *,
     actor_user_id: Optional[int],
     from_user_id: Optional[int],
-    to_user_id: int,
+    to: Owner,
     guild_id: Optional[int],
     counts: dict[Tool, int],
 ) -> None:
@@ -403,38 +624,59 @@ async def _record_ownership_move(
         guild_id=guild_id,
         detail={
             "from_user_id": from_user_id,
-            "to_user_id": to_user_id,
+            "to_user_id": to.user_id,
+            "to_app_install_id": to.app_install_id,
             "counts": {tool.value: count for tool, count in counts.items()},
         },
     )
+
+
+async def _move(
+    session: AsyncSession,
+    rows_by_tool: dict[Tool, list[Any]],
+    to: Owner,
+) -> dict[Tool, int]:
+    """Hand every row to ``to``, refusing an app that may not own all of them.
+    Returns a per-tool count; moving nothing is nothing to refuse."""
+    items = [
+        item for tool, rows in rows_by_tool.items() for item in _as_items(tool, rows)
+    ]
+    if to.app_install_id is not None and items:
+        await require_app_owner_eligible(
+            session, install_id=to.app_install_id, items=items
+        )
+    moved: dict[Tool, int] = {}
+    for tool, rows in rows_by_tool.items():
+        for row in rows:
+            await set_resource_owner(session, tool=tool, row=row, new_owner=to)
+        if rows:
+            moved[tool] = len(rows)
+    return moved
 
 
 async def transfer_content_ownership(
     session: AsyncSession,
     *,
     from_user_id: int,
-    to_user_id: int,
+    to: Owner,
     guild_id: Optional[int] = None,
     actor_user_id: Optional[int] = None,
 ) -> dict[Tool, int]:
-    """Move everything ``from_user_id`` owns in the routed guild to
-    ``to_user_id``. Returns a per-tool count of what moved. Caller commits.
+    """Move everything ``from_user_id`` owns in the routed guild to ``to``.
+    Returns a per-tool count of what moved. Caller commits.
 
-    ``actor_user_id`` is who did it; without one the move is unrecorded."""
-    moved: dict[Tool, int] = {}
-    for tool in OWNABLE:
-        rows = await _owned_rows(session, tool, from_user_id)
-        for row in rows:
-            await set_resource_owner(
-                session, tool=tool, row=row, new_owner_id=to_user_id
-            )
-        if rows:
-            moved[tool] = len(rows)
+    An app receives it only when it may own every item; otherwise nothing
+    moves and the answer is 422 ``OWNER_APP_NOT_ELIGIBLE``. ``actor_user_id``
+    is who did it; without one the move is unrecorded."""
+    rows_by_tool = {
+        tool: await _owned_rows(session, tool, from_user_id) for tool in OWNABLE
+    }
+    moved = await _move(session, rows_by_tool, to)
     await _record_ownership_move(
         session,
         actor_user_id=actor_user_id,
         from_user_id=from_user_id,
-        to_user_id=to_user_id,
+        to=to,
         guild_id=guild_id,
         counts=moved,
     )
@@ -445,28 +687,24 @@ async def claim_unowned_content(
     session: AsyncSession,
     *,
     guild_id: int,
-    to_user_id: int,
+    to: Owner,
     actor_user_id: Optional[int] = None,
 ) -> dict[Tool, int]:
-    """Give every resource no current member owns to ``to_user_id``.
+    """Give every resource no current member or live install owns to ``to``.
     Returns a per-tool count. Caller commits.
 
+    An app receives it only when it may own every item, as for a transfer.
     ``actor_user_id`` is who did it; without one the claim is unrecorded."""
-    claimed: dict[Tool, int] = {}
-    for tool in OWNABLE:
-        rows = await _unowned_rows(session, tool, guild_id=guild_id)
-        for row in rows:
-            await set_resource_owner(
-                session, tool=tool, row=row, new_owner_id=to_user_id
-            )
-        if rows:
-            claimed[tool] = len(rows)
+    rows_by_tool = {
+        tool: await _unowned_rows(session, tool, guild_id=guild_id) for tool in OWNABLE
+    }
+    claimed = await _move(session, rows_by_tool, to)
     await _record_ownership_move(
         session,
         actor_user_id=actor_user_id,
         # Nobody held it, so there is no previous owner to name.
         from_user_id=None,
-        to_user_id=to_user_id,
+        to=to,
         guild_id=guild_id,
         counts=claimed,
     )
@@ -491,7 +729,7 @@ async def release_owned_content(
     for tool in OWNABLE:
         rows = await _owned_rows(session, tool, user_id)
         for row in rows:
-            await set_resource_owner(session, tool=tool, row=row, new_owner_id=None)
+            await set_resource_owner(session, tool=tool, row=row, new_owner=None)
         if rows:
             released[tool] = len(rows)
     return released
@@ -499,8 +737,14 @@ async def release_owned_content(
 
 __all__ = [
     "OWNABLE",
-    "current_owner_id",
-    "owner_id_of",
+    "Owner",
+    "annotate_owner_apps",
+    "current_owner",
+    "eligible_app_owners",
+    "owner_app_of",
+    "owner_of",
+    "owner_user_id_of",
+    "require_app_owner_eligible",
     "restore_ownership_to_author",
     "tool_for_row",
     "OwnableSpec",

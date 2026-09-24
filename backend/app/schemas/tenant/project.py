@@ -11,6 +11,7 @@ from app.schemas.tenant.archive import ArchiveState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeSummary
+from app.schemas.tenant.ownership import OwnerAppSummary
 from app.schemas.tenant.document import ProjectDocumentSummary
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.task_status import TaskStatusRead
@@ -84,8 +85,9 @@ class ProjectRead(ProjectBase, ArchiveState):
     )
 
     id: int
-    # Who owns the project: the holder of its owner-level grant, or None
-    # when nobody does. ``owner`` carries the same fact with the user attached;
+    # Who owns the project: the person holding its owner-level grant, or None
+    # when nobody does or an app does (``owner_app``). ``owner`` carries the
+    # same fact with the user attached;
     # its ``validation_alias`` (an attribute the ORM row never has) keeps
     # ``model_validate(project)`` from reaching for a relationship that may not
     # be loaded — it is set explicitly in ``_build_project_payload``.
@@ -101,6 +103,11 @@ class ProjectRead(ProjectBase, ArchiveState):
     pinned_at: Optional[datetime] = None
     default_view_mode: Optional[str] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
+    #: The installed app holding the owner grant, or None when a person owns
+    #: the project or nobody does. At most one of ``owner_id`` and this is set.
+    owner_app: Optional[OwnerAppSummary] = Field(
+        default=None, validation_alias="owner_app_source"
+    )
     initiative: Optional[InitiativeSummary] = None
     #: Whether the reader may configure the project itself — pin it, set its
     #: default view, curate its filter presets. The server's own answer, the

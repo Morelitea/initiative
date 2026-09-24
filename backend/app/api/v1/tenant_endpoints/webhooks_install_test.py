@@ -62,7 +62,7 @@ def _mock_public_dns():
 
 
 def _url(guild_id: int, suffix: str = "") -> str:
-    return f"/api/v1/g/{guild_id}/webhooks/subscriptions{suffix}"
+    return f"/api/v1/c/{guild_id}/webhooks/subscriptions{suffix}"
 
 
 def _body(**overrides: Any) -> dict:

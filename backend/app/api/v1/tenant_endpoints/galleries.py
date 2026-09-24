@@ -423,7 +423,7 @@ async def create_gallery(
 
     # The creator's owner grant, then the initial sharing. An installed app's
     # owner row is written by the table's own trigger as the row goes in, and
-    # it writes no grant of its own.
+    # its initial sharing is applied below, when it asked for one.
     owner_grant = ownership_service.creator_owner_grant(
         guild_context,
         tool=Tool.gallery,
@@ -441,6 +441,16 @@ async def create_gallery(
             owner_id=current_user.id,
             grants=gallery_in.grants,
             actor_user_id=current_user.id,
+        )
+    else:
+        await resource_access.apply_app_initial_sharing(
+            session,
+            guild_context,
+            Tool.gallery,
+            resource_id=gallery.id,
+            initiative_id=initiative.id,
+            payload=gallery_in,
+            grants=gallery_in.grants,
         )
     if gallery_in.tag_ids:
         await tags_service.set_entity_tags(
@@ -540,16 +550,20 @@ async def delete_gallery(
 async def read_after_write(
     session: RLSSessionDep,
     gallery_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> GalleryRead:
     """The gallery a write answers with: re-read after the commit, serialized.
 
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_gallery(session, gallery_id, user_id=user.id)
-    return serialize_gallery(hydrated, user_id=user.id, context=guild_context)
+    hydrated = await _refetch_gallery(
+        session, gallery_id, user_id=guild_context.user_id
+    )
+    return serialize_gallery(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 # ---------------------------------------------------------------------------

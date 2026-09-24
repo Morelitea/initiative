@@ -520,10 +520,11 @@ APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
 }
 
 #: What ``guild_<id>_app`` writes outside ``APP_TABLE_ACCESS``: table -> the
-#: verbs. The owner grant on a resource an install creates names the install;
-#: the row policies on ``resource_grants`` admit that row and no other.
+#: verbs. The owner grant on a resource an install creates names the install,
+#: and an install with ``sharing:write`` rewrites a resource's shares; the row
+#: policies on ``resource_grants`` admit those rows and no other.
 APP_ROLE_MACHINERY_WRITES: dict[str, tuple[str, ...]] = {
-    "resource_grants": ("INSERT",),
+    "resource_grants": ("INSERT", "DELETE"),
 }
 
 

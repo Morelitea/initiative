@@ -324,7 +324,7 @@ def serialize_dashboard_summary(
         **client_access(dashboard, user_id, context=context),
         comments_enabled=dashboard.comments_enabled,
         tags=annotated_tags(dashboard),
-        grants=serialize_grants(dashboard),
+        grants=serialize_grants(dashboard, context=context),
     )
 
 

@@ -380,7 +380,7 @@ def serialize_post_summary(
         reactions_enabled=post.reactions_enabled,
         comment_count=getattr(post, "comment_count", 0),
         tags=annotated_tags(post),
-        grants=serialize_grants(post),
+        grants=serialize_grants(post, context=context),
         reactions=(
             reactions_service.summarize(reaction_rows, viewer_id=user_id)
             if reaction_rows and post.reactions_enabled
