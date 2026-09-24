@@ -39,6 +39,7 @@ from app.models.platform.federated_identity_secret import FederatedIdentitySecre
 from app.models.platform.user import User, UserStatus
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
+from app.testing.captcha import captcha_switched_on
 from app.testing.factories import (
     create_auth_provider,
     create_federated_identity,
@@ -267,22 +268,18 @@ async def test_register_requires_captcha_token_when_configured(
     user must include a token — bot signups can't slip through by just
     omitting the field. The bootstrap user already exists in this test
     so the first-user skip doesn't apply."""
-    from app.core.config import settings as app_settings
-
     await create_user(session)  # exhaust the bootstrap-first-user skip
-    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
 
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "needs-captcha@example.com",
-            "username": "needs-captcha",
-            "full_name": "Needs Captcha",
-            "password": "password1234",
-        },
-    )
+    with captcha_switched_on():
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "needs-captcha@example.com",
+                "username": "needs-captcha",
+                "full_name": "Needs Captcha",
+                "password": "password1234",
+            },
+        )
     assert response.status_code == 400
     assert response.json()["detail"] == "CAPTCHA_REQUIRED"
 
@@ -295,21 +292,16 @@ async def test_register_skips_captcha_for_bootstrap_first_user(
     """Fresh deployments shouldn't be locked out by a captcha config
     the operator may not have wired up yet — the first user always
     bypasses the check."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
-
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "bootstrap@example.com",
-            "username": "bootstrap",
-            "full_name": "Bootstrap",
-            "password": "password1234",
-        },
-    )
+    with captcha_switched_on():
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "bootstrap@example.com",
+                "username": "bootstrap",
+                "full_name": "Bootstrap",
+                "password": "password1234",
+            },
+        )
     assert response.status_code == 201
 
 
@@ -347,29 +339,26 @@ async def test_register_with_valid_captcha_token_succeeds(
     """Happy path: valid token from the provider → registration completes.
     The provider call is stubbed at the verifier-service layer so this
     test doesn't need network access."""
-    from app.core.config import settings as app_settings
     from app.services import captcha as captcha_service
 
     await create_user(session)  # second-user path
-    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
 
     async def _ok(*_args, **_kwargs):
         return None
 
     monkeypatch.setattr(captcha_service, "verify_or_raise", _ok)
 
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "good-token@example.com",
-            "username": "good-token",
-            "full_name": "Good Token",
-            "password": "password1234",
-            "captcha_token": "stub-valid-token",
-        },
-    )
+    with captcha_switched_on():
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "good-token@example.com",
+                "username": "good-token",
+                "full_name": "Good Token",
+                "password": "password1234",
+                "captcha_token": "stub-valid-token",
+            },
+        )
     assert response.status_code == 201
 
 

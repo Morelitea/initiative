@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.testing import create_user
+from app.testing import captcha_switched_on, create_user
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -23,22 +23,6 @@ async def _permit(session: AsyncSession, *, mail: bool = True) -> None:
     row.login_methods = ["password", "sso", "totp", "passkey", "email_otp"]
     session.add(row)
     await session.commit()
-
-
-def _captcha_configured(monkeypatch) -> None:
-    """A deployment whose settings hold a captcha, as the process has read them."""
-    import time
-
-    from app.services import captcha_config
-
-    monkeypatch.setattr(
-        captcha_config,
-        "_resolved",
-        captcha_config.ResolvedCaptchaConfig(
-            provider="hcaptcha", site_key="site", secret_key="secret"
-        ),
-    )
-    monkeypatch.setattr(captcha_config, "_loaded_at", time.monotonic())
 
 
 def _catch_codes(monkeypatch) -> list[tuple[str, str]]:
@@ -583,9 +567,9 @@ async def test_the_send_asks_for_the_captcha_where_one_is_configured(
     is checked before the address is looked at.
     """
     await _permit(session)
-    _captcha_configured(monkeypatch)
 
-    refused = await client.post(SEND_URL, json={"email": "reader@example.com"})
+    with captcha_switched_on():
+        refused = await client.post(SEND_URL, json={"email": "reader@example.com"})
 
     assert refused.status_code == 400
     assert refused.json()["detail"] == "CAPTCHA_REQUIRED"
@@ -600,16 +584,16 @@ async def test_the_send_takes_the_token_the_card_carries(
     await _permit(session)
     caught = _catch_codes(monkeypatch)
     await create_user(session, email="reader@example.com")
-    _captcha_configured(monkeypatch)
 
     async def _accept(token, *, remote_ip):
         assert token == "solved"
 
     monkeypatch.setattr(captcha_service, "verify_or_raise", _accept)
 
-    sent = await client.post(
-        SEND_URL, json={"email": "reader@example.com", "captcha_token": "solved"}
-    )
+    with captcha_switched_on():
+        sent = await client.post(
+            SEND_URL, json={"email": "reader@example.com", "captcha_token": "solved"}
+        )
 
     assert sent.status_code == 200, sent.text
     assert [address for address, _ in caught] == ["reader@example.com"]

@@ -923,6 +923,10 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         # transaction-local context died with the request's rollback.
         clear_rls_context(req_session)
         clear_search_path_pin(req_session)
+        # A fresh session also starts with an empty identity map: a row an
+        # earlier request loaded would otherwise come back as that request saw
+        # it, not as the database now holds it.
+        req_session.expunge_all()
         try:
             yield req_session
         finally:
@@ -932,6 +936,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         await _publish_setup_state()
         clear_rls_context(system_session)
         clear_search_path_pin(system_session)
+        system_session.expunge_all()
         try:
             yield system_session
         finally:
