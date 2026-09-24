@@ -166,7 +166,7 @@ class CounterGroupSummary(CounterGroupBase, ArchiveState):
     id: int
     initiative_id: int
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     counter_count: int = 0
     my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none

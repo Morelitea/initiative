@@ -14,7 +14,7 @@ from sqlalchemy import insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.tenant.queue import QueueItem
+from app.models.tenant.queue import Queue, QueueItem
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -138,3 +138,18 @@ async def test_a_system_session_stamps_nothing(session: AsyncSession):
     await session.flush()
 
     assert (await _reload(session, item.id)).created_by is None
+
+
+async def test_content_an_app_writes_may_name_no_author(session: AsyncSession):
+    """An app acting as its community has no one to name either, on the tool
+    tables its scopes can write."""
+    guild, queue, _ = await _workspace(session)
+
+    await _route(session, guild.id, None)
+    written = Queue(initiative_id=queue.initiative_id, name="written by an app")
+    session.add(written)
+    await session.flush()
+    session.expunge_all()
+
+    reloaded = (await session.exec(select(Queue).where(Queue.id == written.id))).one()
+    assert reloaded.created_by is None

@@ -1449,7 +1449,7 @@ export interface CalendarEventSummary {
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   attendee_count: number;
   attendee_names: string[];
   attendee_previews: CalendarEventAttendeePreview[];
@@ -1749,7 +1749,7 @@ export interface CalendarEventRead {
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   attendee_count: number;
   attendee_names: string[];
   attendee_previews: CalendarEventAttendeePreview[];
@@ -1787,7 +1787,7 @@ export interface CalendarSummary {
   id: number;
   initiative_id: number | null;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
@@ -1818,7 +1818,7 @@ export interface CalendarRead {
   id: number;
   initiative_id: number | null;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
@@ -2098,7 +2098,7 @@ export interface ReactionGroup {
 export interface CommentRead {
   content: string;
   id: number;
-  created_by: number;
+  created_by: number | null;
   task_id: number | null;
   wiki_page_id: number | null;
   document_id: number | null;
@@ -2472,7 +2472,7 @@ export interface CounterGroupSummary {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   counter_count: number;
   my_permission_level: string | null;
   comments_enabled: boolean;
@@ -2525,7 +2525,7 @@ export interface CounterGroupRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   counter_count: number;
   my_permission_level: string | null;
   comments_enabled: boolean;
@@ -2653,7 +2653,7 @@ export interface DashboardSummary {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   listing_uid: string | null;
@@ -2697,7 +2697,7 @@ export interface DashboardRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   listing_uid: string | null;
@@ -3240,7 +3240,7 @@ export interface DocumentSummary {
   is_template: boolean;
   id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   initiative: InitiativeSummary | null;
@@ -3293,7 +3293,7 @@ export interface DocumentRead {
   is_template: boolean;
   id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   initiative: InitiativeSummary | null;
@@ -3878,7 +3878,7 @@ export interface GallerySummary {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   image_count: number;
@@ -3916,7 +3916,7 @@ export interface GalleryRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   image_count: number;
@@ -6681,7 +6681,7 @@ export interface PostRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   author: CommentAuthor | null;
   created_at: string;
   updated_at: string;
@@ -7372,7 +7372,7 @@ export interface QueueSummary {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   current_round: number;
   is_active: boolean;
   item_count: number;
@@ -7404,7 +7404,7 @@ export interface QueueRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   current_round: number;
   is_active: boolean;
   item_count: number;
@@ -8849,7 +8849,7 @@ export interface WebhookSubscriptionCreated {
   id: number;
   guild_ref: string;
   initiative_id: number | null;
-  created_by_ref: string;
+  created_by_ref: string | null;
   target_url: string;
   event_types: string[];
   fields: string[] | null;
@@ -8873,7 +8873,7 @@ export interface WebhookSubscriptionRead {
   id: number;
   guild_ref: string;
   initiative_id: number | null;
-  created_by_ref: string;
+  created_by_ref: string | null;
   target_url: string;
   event_types: string[];
   fields: string[] | null;
@@ -9004,7 +9004,7 @@ export interface WikiSummary {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   page_count: number;
@@ -9124,7 +9124,7 @@ export interface WikiPageRead {
   is_draft: boolean;
   title: string;
   slug: string;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   headings: WikiPageHeading[];
@@ -9154,7 +9154,7 @@ export interface WikiPageSummary {
   is_draft: boolean;
   title: string;
   slug: string;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   headings: WikiPageHeading[];
@@ -9208,7 +9208,7 @@ export interface WikiRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by: number;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
   page_count: number;

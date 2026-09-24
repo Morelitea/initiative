@@ -65,7 +65,6 @@ class Calendar(
             String(length=32), nullable=False, server_default=DEFAULT_CALENDAR_COLOR
         ),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

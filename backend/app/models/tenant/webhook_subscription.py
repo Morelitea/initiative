@@ -39,18 +39,6 @@ class WebhookSubscription(CreatedByMixin, table=True):
             nullable=True,
         ),
     )
-    # Who registered it, and nothing more. This named the account a delivery
-    # was read as until ``history/webhook-scope-not-principal-design.md``; a
-    # subscription's reach is the scope it declares, so the column is ordinary
-    # authorship now. NOT NULL because the one path that makes one of these is
-    # a person's request — the mixin is the floor, not a ceiling.
-    created_by: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("users.id"),
-            nullable=False,
-        )
-    )
 
     # Which install registered this, when an app did. NULL for a subscription a
     # member registered against a URL of their own.

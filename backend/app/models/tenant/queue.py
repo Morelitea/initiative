@@ -49,7 +49,6 @@ class Queue(
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     name: str = Field(nullable=False, max_length=255)
     description: Optional[str] = Field(default=None)
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     current_item_id: Optional[int] = Field(
         default=None,
         sa_column=Column(

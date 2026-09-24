@@ -86,7 +86,7 @@ class DocumentSummary(DocumentBase, ArchiveState):
     # download, media) by the document's guild rather than ambient context,
     # which matters on cross-guild surfaces like My Documents.
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     created_at: datetime
     updated_at: datetime
     initiative: Optional[InitiativeSummary] = None

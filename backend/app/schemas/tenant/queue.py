@@ -147,7 +147,7 @@ class QueueSummary(QueueBase, ArchiveState):
     id: int
     initiative_id: int
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     current_round: int
     is_active: bool
     item_count: int = 0

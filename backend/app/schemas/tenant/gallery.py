@@ -64,7 +64,7 @@ class GallerySummary(GalleryBase, ArchiveState):
     id: int
     initiative_id: int
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     created_at: datetime
     updated_at: datetime
     #: How many pictures it holds. Served with the row so a list of galleries
