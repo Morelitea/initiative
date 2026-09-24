@@ -105,4 +105,7 @@ def _page_envelope(page: WikiPage, by_id: dict[int, WikiPage]) -> dict[str, Any]
         # wiki's reading order is usually checked against.
         "created_at": page.created_at.isoformat() if page.created_at else None,
         "updated_at": page.updated_at.isoformat() if page.updated_at else None,
+        # The name this page answers to across one import, so a reference to
+        # it elsewhere in the same restore points at the page it became.
+        "external_ref": f"wiki_page:{page.id}",
     }

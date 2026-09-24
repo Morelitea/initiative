@@ -2619,6 +2619,345 @@ async def test_a_mention_nobody_places_is_restored_as_a_name(
     assert "mentionHandle" not in mention
 
 
+def _reference_node(entity_type: str, entity_id: int, text: str) -> dict:
+    return {
+        "type": "entity-mention",
+        "version": 1,
+        "entityType": entity_type,
+        "entityId": entity_id,
+        "text": text,
+    }
+
+
+def _chip_node(chip_kind: str, entity_id: int, text: str) -> dict:
+    return {
+        "type": "smart-chip",
+        "version": 1,
+        "chipKind": chip_kind,
+        "entityId": entity_id,
+        "text": text,
+    }
+
+
+def _wikilink_node(document_id: int, title: str) -> dict:
+    return {
+        "type": "wikilink",
+        "version": 1,
+        "documentId": document_id,
+        "documentTitle": title,
+        "text": title,
+    }
+
+
+async def _referencing_initiative(session, a) -> dict:
+    """An initiative whose bodies name each other: a task naming a task, a
+    document and a document in another initiative; a comment naming a wiki
+    page; a document naming a task, its status, a counter's value and another
+    document; a post naming the project; a page naming the post."""
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+    from app.testing.factories import (
+        create_comment,
+        create_counter,
+        create_post,
+        create_wiki,
+        create_wiki_page,
+    )
+
+    await _all_tools_enabled(session, a.initiative)
+    elsewhere = await _second_initiative(session, a)
+    outside = await create_document(session, elsewhere, a.user, name="Elsewhere")
+
+    fix = await create_task(session, a.project, title="Fix the bug")
+    spec = await create_document(session, a.initiative, a.user, name="Spec")
+    group = await create_counter_group(session, a.initiative, a.user, name="Tally")
+    counter = await create_counter(session, group, name="Wins")
+    post = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Notice",
+        body=_editor_state(_reference_node("project", a.project.id, "Roadmap")),
+    )
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    start = await create_wiki_page(
+        session,
+        wiki,
+        a.user,
+        title="Start",
+        content=_editor_state(_reference_node("post", post.id, "Notice")),
+    )
+    await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="Plan",
+        content=_editor_state(
+            _reference_node("task", fix.id, "Fix the bug"),
+            _chip_node("task:status", fix.id, "To do"),
+            _chip_node("counter:value", counter.id, "3"),
+            _wikilink_node(spec.id, "Spec"),
+        ),
+    )
+    ship = await create_task(
+        session,
+        a.project,
+        title="Ship it",
+        description=(
+            f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id}) "
+            f"and #document[Elsewhere]({outside.id})"
+        ),
+    )
+    await create_comment(
+        session,
+        a.user,
+        task=ship,
+        content=f"Written up in #wiki-page[Start]({start.id})",
+    )
+    return {"outside": outside}
+
+
+async def _restore_referencing_backup(
+    client, a, monkeypatch, role_session, *, elsewhere: bool
+) -> int:
+    """Back the initiative up and restore it into the same community — or, with
+    ``elsewhere``, as a backup taken from another community. Returns the
+    restored initiative's id."""
+    from app.api.v1.tenant_endpoints.exports_test import _export, _rendered_zip
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as rezipped:
+        for name in archive.namelist():
+            data = archive.read(name)
+            if name == "manifest.json" and elsewhere:
+                manifest = json.loads(data)
+                manifest["guild"]["id"] = a.guild.id + 1000
+                data = json.dumps(manifest).encode()
+            rezipped.writestr(name, data)
+    job = await _apply_backup(client, a, buffer.getvalue(), monkeypatch, role_session)
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    return job["result"]["initiatives"][0]["initiative_id"]
+
+
+async def _restored(session, initiative_id: int) -> dict:
+    """The restored rows the referencing initiative's bodies name, by name."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.counter import Counter, CounterGroup
+    from app.models.tenant.document import Document
+    from app.models.tenant.post import Post
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.models.tenant.wiki import Wiki, WikiPage
+
+    project = (
+        await session.exec(
+            select(Project).where(Project.initiative_id == initiative_id)
+        )
+    ).one()
+    tasks = {
+        task.title: task
+        for task in (
+            await session.exec(select(Task).where(Task.project_id == project.id))
+        ).all()
+    }
+    documents = {
+        document.name: document
+        for document in (
+            await session.exec(
+                select(Document).where(Document.initiative_id == initiative_id)
+            )
+        ).all()
+    }
+    wiki = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == initiative_id))
+    ).one()
+    counter = (
+        await session.exec(
+            select(Counter)
+            .join(CounterGroup, CounterGroup.id == Counter.counter_group_id)
+            .where(CounterGroup.initiative_id == initiative_id)
+        )
+    ).one()
+    return {
+        "project": project,
+        "tasks": tasks,
+        "documents": documents,
+        "counter": counter,
+        "post": (
+            await session.exec(select(Post).where(Post.initiative_id == initiative_id))
+        ).one(),
+        "page": (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+        ).one(),
+        "comment": (
+            await session.exec(
+                select(Comment).where(Comment.task_id == tasks["Ship it"].id)
+            )
+        ).one(),
+    }
+
+
+def _nodes(content: dict) -> list[dict]:
+    return content["root"]["children"][0]["children"]
+
+
+async def test_a_restored_reference_points_at_the_restored_copy(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A reference names what it points at by id, and a restore makes new
+    rows — so the backup carries each reference by the ref it had, and the
+    restore points it at the copy that ref became: in a task's description, a
+    comment, a document (a mention, a live chip, a ``[[ ]]`` link), a post and
+    a wiki page. Restored into the community it came from, a reference to
+    something the backup did not carry still names what it named there. The
+    restored bodies' references are edges from the start, as a save's are."""
+    from sqlmodel import select
+
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.api.v1.tenant_endpoints.exports_test import _export, _rendered_zip
+    from app.models.tenant.relationship import EntityRelationship
+    from app.services.import_engine.references import SOURCE_REF
+    from app.services.tenant.relationships import Endpoint
+
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    scene = await _referencing_initiative(session, a)
+    outside = scene["outside"]
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    [project_entry] = [
+        name for name in archive.namelist() if name.endswith(".initiative-project.json")
+    ]
+    exported = json.loads(archive.read(project_entry))
+    [ship_env] = [t for t in exported["tasks"] if t["title"] == "Ship it"]
+    # The archive names what it points at by ref, never by a bare id.
+    assert f"#document[Elsewhere](document:{outside.id})" in ship_env["description"]
+    assert exported["source_guild_id"] == a.guild.id
+
+    restored_id = await _restore_referencing_backup(
+        client, a, monkeypatch, role_session, elsewhere=False
+    )
+    r = await _restored(session, restored_id)
+    fix, ship = r["tasks"]["Fix the bug"], r["tasks"]["Ship it"]
+    spec, plan = r["documents"]["Spec"], r["documents"]["Plan"]
+
+    assert ship.description == (
+        f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id}) "
+        f"and #document[Elsewhere]({outside.id})"
+    )
+    assert r["comment"].content == f"Written up in #wiki-page[Start]({r['page'].id})"
+    mention, status, value, wikilink = _nodes(plan.content)
+    assert mention["entityId"] == fix.id
+    assert status["entityId"] == fix.id
+    assert value["entityId"] == r["counter"].id
+    assert wikilink["documentId"] == spec.id
+    [project_mention] = _nodes(r["post"].body)
+    assert project_mention["entityId"] == r["project"].id
+    [post_mention] = _nodes(r["page"].content)
+    assert post_mention["entityId"] == r["post"].id
+    for body in (plan.content, r["post"].body, r["page"].content):
+        assert SOURCE_REF not in json.dumps(body)
+
+    async def references(endpoint: Endpoint) -> set[tuple[str, int]]:
+        rows = await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.source_node == endpoint.node,
+                EntityRelationship.relationship_type
+                == RelationshipType.references.value,
+                EntityRelationship.removed_at.is_(None),
+            )
+        )
+        return {(row.target_type, row.target_id) for row in rows.all()}
+
+    # A chip is a reading rather than a link, so the document's edges are its
+    # mention and its ``[[ ]]`` link; a task's come from what is said on it.
+    assert await references(Endpoint(SearchEntityType.document, plan.id)) == {
+        ("task", fix.id),
+        ("document", spec.id),
+    }
+    assert await references(Endpoint(SearchEntityType.task, ship.id)) == {
+        ("wiki_page", r["page"].id)
+    }
+    assert await references(Endpoint(SearchEntityType.wiki_page, r["page"].id)) == {
+        ("post", r["post"].id)
+    }
+
+
+async def test_a_reference_restored_elsewhere_to_something_left_behind_is_its_title(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Restored anywhere but the community it came from, a reference to
+    something the backup did not carry has nothing here to point at, and its
+    id names something else or nothing — so it is its title again. What the
+    backup did carry still resolves."""
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    await _referencing_initiative(session, a)
+
+    restored_id = await _restore_referencing_backup(
+        client, a, monkeypatch, role_session, elsewhere=True
+    )
+    r = await _restored(session, restored_id)
+    fix, ship = r["tasks"]["Fix the bug"], r["tasks"]["Ship it"]
+
+    assert ship.description == (
+        f"After #task[Fix the bug]({fix.id}), "
+        f"per #doc[Spec]({r['documents']['Spec'].id}) and Elsewhere"
+    )
+
+
+async def test_a_lone_envelope_resolves_what_it_carries(client, acting_user, session):
+    """A project exported on its own points a task's reference at a sibling's
+    new copy. A reference to something outside it keeps naming the original
+    when imported into the community it came from, and is its title anywhere
+    else."""
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    target = await _second_initiative(session, a)
+    spec = await create_document(session, a.initiative, a.user, name="Spec")
+    fix = await create_task(session, a.project, title="Fix the bug")
+    await create_task(
+        session,
+        a.project,
+        title="Ship it",
+        description=f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id})",
+    )
+
+    envelope = await _export_json(
+        client, a, "/exports/project", {"project_id": a.project.id}
+    )
+    elsewhere = {**envelope, "source_guild_id": a.guild.id + 1000}
+
+    descriptions = []
+    for sent in (envelope, elsewhere):
+        resp = await _import_envelope(client, a, sent, target.id)
+        assert resp.status_code == 201, resp.text
+        project_id = resp.json()["result"]["entity_id"]
+        tasks = {
+            task.title: task
+            for task in (
+                await session.exec(select(Task).where(Task.project_id == project_id))
+            ).all()
+        }
+        assert (await session.get(Project, project_id)).initiative_id == target.id
+        descriptions.append((tasks["Fix the bug"].id, tasks["Ship it"].description))
+
+    (here_fix, here), (there_fix, there) = descriptions
+    assert here == f"After #task[Fix the bug]({here_fix}), per #doc[Spec]({spec.id})"
+    assert there == f"After #task[Fix the bug]({there_fix}), per Spec"
+
+
 async def test_a_mapping_naming_a_non_member_is_dropped(
     client, acting_user, session, monkeypatch, role_session
 ):

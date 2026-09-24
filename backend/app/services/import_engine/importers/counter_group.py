@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup, CounterViewMode
@@ -79,20 +80,24 @@ class CounterGroupImporter(QuotesNobody):
                 view_mode = CounterViewMode(c.view_mode)
             except ValueError:
                 view_mode = CounterViewMode.number
-            session.add(
-                Counter(
-                    counter_group_id=group.id,
-                    name=c.name,
-                    color=c.color,
-                    count=_dec(c.count),
-                    min=_dec(c.min),
-                    max=_dec(c.max),
-                    step=_dec(c.step),
-                    initial_count=_dec(c.initial_count),
-                    view_mode=view_mode,
-                    position=_dec(c.position),
-                )
+            counter = Counter(
+                counter_group_id=group.id,
+                name=c.name,
+                color=c.color,
+                count=_dec(c.count),
+                min=_dec(c.min),
+                max=_dec(c.max),
+                step=_dec(c.step),
+                initial_count=_dec(c.initial_count),
+                view_mode=view_mode,
+                position=_dec(c.position),
             )
+            session.add(counter)
+            if context is not None and c.external_ref:
+                await session.flush()
+                context.links.register(
+                    c.external_ref, SearchEntityType.counter, counter.id
+                )
 
         await session.flush()
         return EnvelopeImportResult(

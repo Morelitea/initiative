@@ -54,6 +54,10 @@ from app.schemas.tenant.project_export import (
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.links import links_to_pages
+from app.services.import_engine.references import (
+    has_source_references,
+    note_or_settle,
+)
 from app.services.import_engine.people import (
     PeopleMap,
     initiative_member_id,
@@ -409,6 +413,11 @@ async def _import_task(
 
     if context is not None and links_to_pages(task.description):
         context.links.note_body(SearchEntityType.task, task.id)
+    # An exported description names other things by the refs they had; they
+    # are placed once every entry of the job has been written.
+    task.description = note_or_settle(
+        context, SearchEntityType.task, task.id, task.description
+    )
 
     # What this task was called at the source, and what it says it points at.
     # Both are handed to the job's collector and resolved once every entry has
@@ -458,6 +467,11 @@ async def _import_task(
         if context is not None and links_to_pages(comment.content):
             await session.flush()
             context.links.note_body(SearchEntityType.comment, comment.id)
+        if has_source_references(comment.content):
+            await session.flush()
+            comment.content = note_or_settle(
+                context, SearchEntityType.comment, comment.id, comment.content
+            )
         ref = envelope_comment.external_ref
         if ref is not None and ref in answered and ref not in written:
             await session.flush()

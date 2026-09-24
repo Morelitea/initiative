@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -36,6 +37,7 @@ from app.services.import_engine.importers._base import (
     parse_envelope,
 )
 from app.services.import_engine.mentions import place_mentions
+from app.services.import_engine.references import note_or_settle
 from app.services.import_engine.people import PeopleMap
 from app.services.tenant import tags as tags_service
 
@@ -111,6 +113,7 @@ class PostImporter(NamesPeopleInPassing):
         )
         session.add(post)
         await session.flush()
+        post.body = note_or_settle(context, SearchEntityType.post, post.id, post.body)
 
         await grant_ownership(
             session,

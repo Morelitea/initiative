@@ -108,8 +108,13 @@ _REFERENCE_NODES: dict[str, str] = {
 
 #: A reference written into running text: ``#task[Fix the bug](12)``. The kind
 #: is part of the syntax, so one pattern reads every kind rather than one
-#: pattern per kind.
-_TEXT_REFERENCE = re.compile(r"#([a-z_]+)\[[^\]]*\]\((\d+)\)")
+#: pattern per kind. The word after ``#`` is spelled the way the composer
+#: writes it — see :func:`kind_for_trigger`.
+TEXT_REFERENCE = re.compile(r"#([\w-]+)\[([^\]]*)\]\((\d+)\)")
+
+#: What the composer wrote for a document before the trigger words were
+#: derived from the kinds, and what stored comments still say.
+_LEGACY_TRIGGERS: dict[str, SearchEntityType] = {"doc": SearchEntityType.document}
 
 
 def _kind(value: str) -> SearchEntityType | None:
@@ -118,6 +123,18 @@ def _kind(value: str) -> SearchEntityType | None:
         return SearchEntityType(value)
     except ValueError:
         return None
+
+
+def kind_for_trigger(word: str) -> SearchEntityType | None:
+    """The kind the word after a ``#`` names in running text.
+
+    The composer writes a kind kebabed — ``#wiki-page``, ``#counter-group`` —
+    and once wrote ``#doc``; the kind's own spelling reads too.
+    """
+    legacy = _LEGACY_TRIGGERS.get(word)
+    if legacy is not None:
+        return legacy
+    return _kind(word.replace("-", "_"))
 
 
 def references_in_body(content: Any) -> set[tuple[SearchEntityType, int]]:
@@ -159,8 +176,8 @@ def references_in_text(content: str | None) -> set[tuple[SearchEntityType, int]]
     if not content:
         return set()
     found: set[tuple[SearchEntityType, int]] = set()
-    for raw_kind, raw_id in _TEXT_REFERENCE.findall(content):
-        kind = _kind(raw_kind)
+    for raw_kind, _label, raw_id in TEXT_REFERENCE.findall(content):
+        kind = kind_for_trigger(raw_kind)
         if kind is not None:
             found.add((kind, int(raw_id)))
     return found

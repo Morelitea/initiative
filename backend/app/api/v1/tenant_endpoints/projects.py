@@ -1751,6 +1751,7 @@ async def build_project_export_for_user(
         project_id=project.id,
         exported_by_handle=handle_of(current_user),
         source_instance_url=app_settings.APP_URL,
+        source_guild_id=guild_id,
     )
 
 

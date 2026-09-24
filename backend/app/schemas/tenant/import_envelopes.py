@@ -27,6 +27,12 @@ class _EnvelopeBase(SanitizedBaseModel):
     model_config = ConfigDict(extra="ignore")
 
     schema_version: int = CURRENT_SCHEMA_VERSION
+    #: Where the export was taken — the server and the community. A reference
+    #: to something the envelope does not carry is kept only when both are
+    #: where it is being imported, because only there does its id still name
+    #: the same thing.
+    source_instance_url: Optional[str] = None
+    source_guild_id: Optional[int] = None
 
 
 class EnvelopePropertyValue(SanitizedBaseModel):
@@ -154,6 +160,9 @@ class GalleryImageEnvelope(SanitizedBaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     tags: list[str] = []
+    #: What this picture was called where it came from — a thing a reference
+    #: elsewhere in the same import can name. Refs live for one job.
+    external_ref: Optional[str] = None
 
 
 class GalleryEnvelope(_EnvelopeBase):
@@ -186,6 +195,9 @@ class QueueEnvelopeItem(SanitizedBaseModel):
     # `member`, `documents`, `tasks` are informational display text in the
     # export — ignored here (extra="ignore"), counted as a warning on apply.
     member: Optional[str] = None
+    #: What this item was called where it came from — a thing a reference
+    #: elsewhere in the same import can name. Refs live for one job.
+    external_ref: Optional[str] = None
 
 
 class QueueEnvelope(_EnvelopeBase):
@@ -209,6 +221,9 @@ class CounterEnvelopeItem(SanitizedBaseModel):
     initial_count: float = 0
     view_mode: str = "number"
     position: float = 0
+    #: What this counter was called where it came from — a thing a reference
+    #: elsewhere in the same import can name. Refs live for one job.
+    external_ref: Optional[str] = None
 
 
 class CounterGroupEnvelope(_EnvelopeBase):

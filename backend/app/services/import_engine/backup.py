@@ -38,6 +38,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
+from app.core.references import format_ref
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
@@ -63,8 +64,13 @@ from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
 )
-from app.services.import_engine.context import ImportContext, excluded_property_names
+from app.services.import_engine.context import (
+    ImportContext,
+    excluded_property_names,
+    exported_from_here,
+)
 from app.services.import_engine.links import resolve_page_links
+from app.services.import_engine.references import resolve_references
 from app.services.tenant import tags as tags_service
 from app.services.import_engine import limits as import_limits
 
@@ -379,6 +385,9 @@ async def apply_backup(
         people=await resolve_people_map(session, guild_id=guild_id, raw=people_map),
         excluded_properties=excluded_property_names(exclude_properties),
         source_url=manifest.source_instance_url,
+        same_community=exported_from_here(
+            manifest.source_instance_url, manifest.guild.id, guild_id=guild_id
+        ),
     )
 
     for mi in manifest.initiatives:
@@ -466,6 +475,8 @@ async def apply_backup(
     resolution = await context.links.resolve(session, created_by=user.id)
     result.links_created = resolution.created
     result.links_unresolved = resolution.unresolved
+    # What a body names is placed on what it became here.
+    await resolve_references(session, context, author_id=user.id)
     # And a link written in a task to a page that came over in the same
     # bundle becomes a mention of that page.
     await resolve_page_links(session, context.links, site_url=context.source_url)
@@ -651,6 +662,9 @@ def _record_entry(
     if kind is None or entity_id is None:
         return
     context.links.register(_entry_ref(entry.path), kind, entity_id)
+    # And by what it was where it was exported, which is how a reference in
+    # somebody else's body names it.
+    context.links.register(format_ref(kind, entry.entity_id), kind, entity_id)
     if entry.attach_to is None:
         return
     relationship = _ATTACH_RELATIONSHIPS.get(entry.attach_to.kind)

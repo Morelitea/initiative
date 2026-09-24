@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -95,6 +96,10 @@ class QueueImporter(QuotesNobody):
             )
             session.add(row)
             await session.flush()
+            if context is not None:
+                context.links.register(
+                    item.external_ref, SearchEntityType.queue_item, row.id
+                )
             if item.is_current and current_item_id is None:
                 current_item_id = row.id
             if item.member:

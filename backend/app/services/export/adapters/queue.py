@@ -179,6 +179,8 @@ def _envelope(
                     for related in attachments.tasks.get(item.id, [])
                     if related.entity is not None
                 ),
+                # What a reference to this item points at across one import.
+                "external_ref": f"queue_item:{item.id}",
             }
             for item in items
         ],

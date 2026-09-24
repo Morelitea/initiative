@@ -198,6 +198,10 @@ class ProjectExportEnvelope(SanitizedBaseModel):
     exported_at: datetime
     exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None
+    # The community it was taken from. With the server above, it says whether
+    # a reference to something the envelope does not carry still names the
+    # same thing where it is imported.
+    source_guild_id: Optional[int] = None
 
     project: ProjectExportProject
     tags: List[ProjectExportTag]
