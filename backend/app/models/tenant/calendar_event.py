@@ -44,7 +44,6 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(Text, nullable=True),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

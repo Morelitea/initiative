@@ -94,11 +94,14 @@ export const CommentThread = ({
   // wrote the row rather than whoever said this.
   const importedAuthorName = comment.imported_author_name?.trim() || null;
   const anonymizedAuthor = !importedAuthorName && isAnonymizedUser(comment.author);
+  // A comment an app wrote as its community names no account.
   const displayName =
     importedAuthorName ??
-    (comment.author
-      ? getUserDisplayName(comment.author, `User #${comment.created_by}`)
-      : `User #${comment.created_by}`);
+    (comment.created_by == null
+      ? t("comments:appAuthor")
+      : comment.author
+        ? getUserDisplayName(comment.author, `User #${comment.created_by}`)
+        : `User #${comment.created_by}`);
   const canDelete = currentUserId === comment.created_by || canModerate;
   const canEdit = currentUserId === comment.created_by;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);

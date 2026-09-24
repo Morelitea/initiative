@@ -96,7 +96,7 @@ class DashboardSummary(DashboardBase, ArchiveState):
     id: int
     initiative_id: int
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     created_at: datetime
     updated_at: datetime
     # Marketplace provenance; both null for a dashboard authored from scratch.

@@ -146,7 +146,7 @@ class CalendarEventSummary(CalendarEventBase):
     # a guild-level calendar.
     initiative_id: Optional[int] = None
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)
     attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)

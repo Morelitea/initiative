@@ -124,7 +124,7 @@ class PostSummary(PostBase, ArchiveState):
     id: int
     initiative_id: int
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     #: Who wrote it, ready to draw: handle, picture, what they wear around it,
     #: and how they are appearing. The same shape a comment's author takes, so
     #: a person looks the same wherever the app shows them.

@@ -121,7 +121,7 @@ class CommentRead(CommentBase):
     )
 
     id: int
-    created_by: int
+    created_by: int | None = None
     task_id: Optional[int] = None
     wiki_page_id: Optional[int] = None
     document_id: Optional[int] = None

@@ -111,13 +111,13 @@ async def _named(
         guild_id=guild_id,
         app_install_id=row.app_install_id,
         subscription_id=row.id,
-        actor_ids=(row.created_by,),
+        actor_ids=() if row.created_by is None else (row.created_by,),
     )
     return WebhookSubscriptionRead(
         id=row.id,
         guild_ref=guild_ref,
         initiative_id=row.initiative_id,
-        created_by_ref=actor_refs[row.created_by],
+        created_by_ref=(None if row.created_by is None else actor_refs[row.created_by]),
         target_url=row.target_url,
         event_types=row.event_types,
         fields=row.fields,

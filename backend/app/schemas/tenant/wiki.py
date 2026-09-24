@@ -75,7 +75,7 @@ class WikiSummary(WikiBase, ArchiveState):
     id: int
     initiative_id: int
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     created_at: datetime
     updated_at: datetime
     #: How many pages it holds. Served with the row so a list of wikis can say
@@ -221,7 +221,7 @@ class WikiPageSummary(SanitizedBaseModel):
     is_draft: bool = False
     title: str
     slug: str
-    created_by: int
+    created_by: int | None = None
     created_at: datetime
     updated_at: datetime
     #: What is written on the page, so the navigation can nest it without

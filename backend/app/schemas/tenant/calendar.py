@@ -60,7 +60,7 @@ class CalendarSummary(CalendarBase, ArchiveState):
     #: guild rather than to any initiative.
     initiative_id: Optional[int] = None
     guild_id: int
-    created_by: int
+    created_by: int | None = None
     created_at: datetime
     updated_at: datetime
     my_permission_level: Optional[str] = None
