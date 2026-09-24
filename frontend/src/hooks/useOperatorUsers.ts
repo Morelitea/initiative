@@ -17,6 +17,7 @@ import {
   exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet,
   getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey,
   getListAllUsersApiV1OperatorUsersGetQueryKey,
+  liftSignInLockApiV1OperatorUsersUserIdSignInLockDelete,
   listAllUsersApiV1OperatorUsersGet,
   reactivateUserApiV1OperatorUsersUserIdReactivatePost,
   removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete,
@@ -168,6 +169,17 @@ export const useOperatorClearAgeBlock = (options?: MutationOpts<OperatorUserRead
   useApiMutation<OperatorUserRead, number>(
     {
       mutationFn: (userId) => clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
+    },
+    options
+  );
+
+/** Turn an account's password and code sign-in back on after wrong answers
+ *  turned it off (``users.manage``). */
+export const useOperatorLiftSignInLock = (options?: MutationOpts<OperatorUserRead, number>) =>
+  useApiMutation<OperatorUserRead, number>(
+    {
+      mutationFn: (userId) => liftSignInLockApiV1OperatorUsersUserIdSignInLockDelete(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options

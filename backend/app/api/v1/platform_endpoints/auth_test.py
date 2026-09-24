@@ -466,6 +466,125 @@ async def test_password_token_refusal_does_not_reveal_account_resolution(
     ]
 
 
+@pytest.fixture
+def two_refusals_per_address(client, monkeypatch):
+    """The limiter on, with an address allowance two refusals wide.
+
+    Narrow enough that each test stays inside the per-client route limits, so
+    what it meets is the address allowance alone. Takes ``client`` for the
+    reason ``rate_limit_of_one_per_minute`` does.
+    """
+    from limits import parse
+
+    from app.core import rate_limit
+
+    monkeypatch.setattr(rate_limit.limiter, "enabled", True)
+    monkeypatch.setattr(rate_limit, "SIGN_IN_FAILURES_PER_ADDRESS", parse("2/hour"))
+    rate_limit.limiter.reset()
+    yield
+    rate_limit.limiter.reset()
+
+
+async def _sign_in(client: AsyncClient, email: str, password: str) -> httpx.Response:
+    return await client.post(
+        "/api/v1/auth/token", data={"username": email, "password": password}
+    )
+
+
+async def test_address_out_of_refusals_refuses_the_right_password(
+    client: AsyncClient, session: AsyncSession, two_refusals_per_address
+) -> None:
+    for email in ("held@example.com", "other@example.com"):
+        await create_user(
+            session,
+            email=email,
+            hashed_password=get_password_hash("right-password"),
+            status=UserStatus.active,
+            email_verified=True,
+        )
+
+    assert (await _sign_in(client, "held@example.com", "wrong")).status_code == 400
+    assert (await _sign_in(client, "held@example.com", "wrong")).status_code == 400
+    refused = await _sign_in(client, "held@example.com", "right-password")
+    assert refused.status_code == 429
+    assert refused.json() == {"detail": "SIGN_IN_LOCKED"}
+
+    # Another address from the same client has its own allowance.
+    other = await _sign_in(client, "other@example.com", "right-password")
+    assert other.status_code == 200
+
+
+async def test_address_allowance_is_shared_and_ignores_whether_anyone_holds_it(
+    client: AsyncClient, two_refusals_per_address
+) -> None:
+    """Both password routes draw on one allowance, and an address nobody holds
+    runs out the same way as one somebody does."""
+    await _sign_in(client, "Nobody@Example.com ", "wrong")
+    await _sign_in(client, "nobody@example.com", "wrong")
+
+    response = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "nobody@example.com",
+            "password": "wrong",
+            "device_name": "test-phone",
+        },
+    )
+    assert response.status_code == 429
+    assert response.json() == {"detail": "SIGN_IN_LOCKED"}
+
+
+async def test_signing_in_starts_the_address_count_over(
+    client: AsyncClient, session: AsyncSession, two_refusals_per_address
+) -> None:
+    await create_user(
+        session,
+        email="typo@example.com",
+        hashed_password=get_password_hash("right-password"),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+
+    assert (await _sign_in(client, "typo@example.com", "wrong")).status_code == 400
+    assert (
+        await _sign_in(client, "typo@example.com", "right-password")
+    ).status_code == 200
+    assert (await _sign_in(client, "typo@example.com", "wrong")).status_code == 400
+    assert (
+        await _sign_in(client, "typo@example.com", "right-password")
+    ).status_code == 200
+
+
+async def test_five_wrong_passwords_lock_the_account(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Counted by account whatever the client, so with the per-client limits
+    off (as the suite runs) the account lock is what refuses."""
+    await create_user(
+        session,
+        email="five@example.com",
+        hashed_password=get_password_hash("right-password"),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    for _ in range(5):
+        assert (await _sign_in(client, "five@example.com", "wrong")).status_code == 400
+
+    refused = await _sign_in(client, "five@example.com", "right-password")
+    assert refused.status_code == 429
+    assert refused.json() == {"detail": "SIGN_IN_LOCKED"}
+
+    app_refused = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "five@example.com",
+            "password": "right-password",
+            "device_name": "test-phone",
+        },
+    )
+    assert app_refused.status_code == 429
+
+
 async def test_login_refused_for_account_without_password(
     client: AsyncClient, session: AsyncSession
 ):

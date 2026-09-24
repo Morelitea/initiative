@@ -140,6 +140,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
         "user_emails",  # the addresses an account signs in with; app_admin-only
         "user_email_assertions",  # which providers assert them; app_admin-only
+        "sign_in_locks",  # recent wrong answers per account; app_admin-only
         # The account's own second factor, the seed behind it, and the codes
         # that stand in for it. All app_admin-only: presented while signing in.
         "user_totp",

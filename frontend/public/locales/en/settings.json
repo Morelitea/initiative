@@ -762,6 +762,9 @@
     "actionError": "That could not be done. Try again.",
     "clearAgeBlock": "Reset age question",
     "ageBlockCleared": "They can answer the age question again.",
+    "signInLocked": "Password sign-in off",
+    "liftSignInLock": "Turn password sign-in back on",
+    "signInLockLifted": "They can sign in with a password again.",
     "sheet": {
       "open": "Manage",
       "openLabel": "Manage account {{handle}}",

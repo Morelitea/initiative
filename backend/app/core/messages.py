@@ -38,6 +38,9 @@ class AuthMessages:
     REGISTRATION_REQUIRES_INVITE = "REGISTRATION_REQUIRES_INVITE"
     UNABLE_TO_CREATE_USER = "UNABLE_TO_CREATE_USER"
     INCORRECT_CREDENTIALS = "INCORRECT_CREDENTIALS"
+    #: Too many wrong passwords or codes lately: password and code sign-in are
+    #: turned off for now. Passkeys are unaffected.
+    SIGN_IN_LOCKED = "SIGN_IN_LOCKED"
     REQUEST_ORIGIN_NOT_RECOGNIZED = "REQUEST_ORIGIN_NOT_RECOGNIZED"
     INACTIVE_USER = "INACTIVE_USER"
     ACCOUNT_SUSPENDED = "ACCOUNT_SUSPENDED"
@@ -686,6 +689,8 @@ class UserMessages:
     AGE_ANSWER_STANDS = "USER_AGE_ANSWER_STANDS"
     #: Asked to lift an age block on an account that has none.
     AGE_NOT_BLOCKED = "USER_AGE_NOT_BLOCKED"
+    #: Asked to turn password sign-in back on for an account where it is on.
+    SIGN_IN_NOT_LOCKED = "USER_SIGN_IN_NOT_LOCKED"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
     INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"

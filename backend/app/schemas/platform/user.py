@@ -664,6 +664,12 @@ class OperatorUserRead(UserRead):
     #: columns beside it rather than stored, so the window is stated once.
     purge_at: Optional[datetime] = None
 
+    #: Set while wrong passwords or codes have turned the account's password
+    #: and code sign-in off. ``sign_in_held_at`` stays until a moderator lifts
+    #: it; ``sign_in_locked_until`` lifts on its own at that time.
+    sign_in_held_at: Optional[datetime] = None
+    sign_in_locked_until: Optional[datetime] = None
+
     @field_validator("email", mode="after")
     @classmethod
     def _mask_email(cls, value: str) -> str:

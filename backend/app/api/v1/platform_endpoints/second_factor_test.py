@@ -191,6 +191,45 @@ async def test_a_wrong_code_leaves_the_challenge_standing(
     assert accepted.status_code == 200, accepted.text
 
 
+async def _wrong_code(client: AsyncClient, challenge: str) -> Response:
+    return await client.post(
+        "/api/v1/auth/token/totp", json={"challenge": challenge, "code": "000000"}
+    )
+
+
+async def test_five_wrong_codes_lock_the_password_too(
+    client: AsyncClient, session: AsyncSession
+):
+    _user, secret, _codes = await _enrol(client, session, "fivecodes@example.com")
+    challenge = (await _sign_in(client, "fivecodes@example.com")).json()["challenge"]
+    for _ in range(5):
+        assert (await _wrong_code(client, challenge)).status_code == 400
+
+    locked = await _sign_in(client, "fivecodes@example.com")
+    assert locked.status_code == 429
+    assert locked.json() == {"detail": "SIGN_IN_LOCKED"}
+
+
+async def test_the_right_password_does_not_start_the_count_over(
+    client: AsyncClient, session: AsyncSession
+):
+    """Only a session opening does: the password alone is half a sign-in here."""
+    _user, secret, _codes = await _enrol(client, session, "halfway@example.com")
+    first = (await _sign_in(client, "halfway@example.com")).json()["challenge"]
+    for _ in range(4):
+        assert (await _wrong_code(client, first)).status_code == 400
+
+    second = (await _sign_in(client, "halfway@example.com")).json()["challenge"]
+    assert (await _wrong_code(client, second)).status_code == 400
+
+    refused = await client.post(
+        "/api/v1/auth/token/totp",
+        json={"challenge": second, "code": _next_code(secret)},
+    )
+    assert refused.status_code == 429
+    assert refused.json() == {"detail": "SIGN_IN_LOCKED"}
+
+
 async def test_a_challenge_is_spent_by_the_session_it_bought(
     client: AsyncClient, session: AsyncSession
 ):

@@ -21,8 +21,10 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.platform_endpoints.session_opening import (
+    count_wrong_answer,
     open_session,
     record_sign_in_failure,
+    refuse_if_locked,
     require_login_method,
 )
 from app.core.audit_events import AuditEventType
@@ -215,12 +217,23 @@ async def verify_sign_in_code(
 ) -> Token | Response:
     """Take the code back and open the session it earned."""
     await require_login_method(session, LoginMethod.email_otp)
-    challenge = await email_otp_service.claim(
+    claimed = await email_otp_service.claim(
         system_session, handle=payload.challenge, code=payload.code
     )
-    if challenge is None:
+    owner_id = claimed.challenge.user_id if claimed.challenge is not None else None
+    if owner_id is not None:
+        try:
+            await refuse_if_locked(system_session, owner_id)
+        except HTTPException:
+            # The attempt the claim took stands.
+            await system_session.commit()
+            raise
+    challenge = claimed.challenge
+    if challenge is None or not claimed.answered:
         # The attempt is counted whether or not the code was any good, so the
         # commit comes before the refusal.
+        if owner_id is not None:
+            await count_wrong_answer(system_session, owner_id)
         await system_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

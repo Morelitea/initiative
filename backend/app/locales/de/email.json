@@ -381,5 +381,21 @@
     "textDeletion": "Ist sie am {{date}} noch pausiert, wird sie gelöscht.",
     "textContact": "Wende dich an {{contact}}, um das zu klären.",
     "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären."
+  },
+  "signInLocked": {
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "fallbackText": "Wenn du das warst, musst du nichts weiter tun. Wenn nicht, kennt vielleicht jemand deine E-Mail-Adresse. Dein Passwort ist weiterhin sicher, aber überlege, dich mit einem Passkey anzumelden.",
+    "locked": {
+      "subject": "Anmeldung mit Passwort für dein Konto pausiert",
+      "title": "Anmeldung mit Passwort pausiert",
+      "body": "Jemand hat 5-mal ein falsches Passwort oder einen falschen Code für dein Konto eingegeben, deshalb ist die Anmeldung mit Passwort oder Code für 15 Minuten ausgeschaltet. Passkeys funktionieren weiterhin, und wo du schon angemeldet bist, bleibst du angemeldet.",
+      "textBody": "Jemand hat 5-mal ein falsches Passwort oder einen falschen Code für dein Konto eingegeben, deshalb ist die Anmeldung mit Passwort oder Code für 15 Minuten ausgeschaltet. Passkeys funktionieren weiterhin."
+    },
+    "held": {
+      "subject": "Anmeldung mit Passwort für dein Konto ausgeschaltet",
+      "title": "Anmeldung mit Passwort ausgeschaltet",
+      "body": "Für dein Konto kamen immer wieder falsche Passwörter oder Codes an, deshalb ist die Anmeldung mit Passwort oder Code ausgeschaltet, bis ein Moderator sie wieder einschaltet. Passkeys funktionieren weiterhin, und wo du schon angemeldet bist, bleibst du angemeldet. Wende dich an die Betreiber dieser Seite, damit sie sie wieder einschalten.",
+      "textBody": "Für dein Konto kamen immer wieder falsche Passwörter oder Codes an, deshalb ist die Anmeldung mit Passwort oder Code ausgeschaltet, bis ein Moderator sie wieder einschaltet. Passkeys funktionieren weiterhin."
+    }
   }
 }

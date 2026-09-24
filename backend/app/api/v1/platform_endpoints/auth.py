@@ -30,7 +30,13 @@ from app.db.session import get_system_session, set_rls_context
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import auth_context
-from app.core.rate_limit import get_inet_client_ip, limiter
+from app.core.rate_limit import (
+    clear_sign_in_failures,
+    count_sign_in_failure,
+    get_inet_client_ip,
+    limiter,
+    sign_in_allowance_left,
+)
 from app.core.encryption import (
     decrypt_field,
     SALT_OIDC_CLIENT_SECRET,
@@ -65,10 +71,12 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.api.v1.platform_endpoints.session_opening import (
     access_ttl_for,
+    count_wrong_answer,
     current_session_row,
     MOBILE_CALLBACK_URI,
     open_session,
     record_sign_in_failure,
+    refuse_if_locked,
     require_login_method,
 )
 from app.core.audit_events import AuditEventType
@@ -120,6 +128,7 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
+from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.auth.assurance import (
     passkey_amr,
@@ -771,6 +780,20 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     }
 
 
+async def _require_sign_in_allowance(address: str) -> None:
+    """Refuse a password for an address that has run out of refusals.
+
+    Before the password is looked at, so a right one is turned away too until
+    the window turns over. Counted by address as well as by account, so an
+    address nobody holds runs out the same way one somebody holds does.
+    """
+    if not await sign_in_allowance_left(address):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=AuthMessages.SIGN_IN_LOCKED,
+        )
+
+
 @router.post("/token", response_model=Token)
 @limiter.limit("5/15minutes")
 async def login_access_token(
@@ -782,6 +805,7 @@ async def login_access_token(
 ) -> Token | JSONResponse:
     await require_login_method(session, LoginMethod.password)
     normalized_email = form_data.username.lower().strip()
+    await _require_sign_in_allowance(normalized_email)
     # Any of the account's addresses signs it in, resolved on the system engine
     # because there is nobody to scope a policy to until it returns.
     user = await addresses.find_user_by_address(system_session, normalized_email)
@@ -793,6 +817,8 @@ async def login_access_token(
         else None
     )
     user = user or unconfirmed
+    if user is not None:
+        await refuse_if_locked(system_session, user.id)
     # Unconditional, and deliberately not folded into the `or` below: that
     # short-circuits, and every sign-in pays the same work. See T123.
     password_matches = verify_sign_in_password(
@@ -803,9 +829,12 @@ async def login_access_token(
         # against addresses nobody holds is the shape worth seeing, and the
         # record keeps no identity when there was none to keep. The volume is
         # bounded by the rate limit above.
+        await count_sign_in_failure(normalized_email)
         await record_sign_in_failure(
             system_session, user, method="password", reason="bad_password"
         )
+        if user is not None:
+            await count_wrong_answer(system_session, user.id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -838,6 +867,7 @@ async def login_access_token(
     # Which of the account's addresses was used, for the account page and for
     # telling an address in use from one nobody has signed in with.
     await addresses.note_sign_in(system_session, email=normalized_email)
+    await clear_sign_in_failures(normalized_email)
 
     # ``user`` is attached to ``system_session``, so a rollback inside the
     # helper expires its attributes; the plain values are captured up front.
@@ -904,6 +934,12 @@ async def answer_second_factor(
         )
 
     user_id = challenge.user_id
+    try:
+        await refuse_if_locked(system_session, user_id)
+    except HTTPException:
+        # The attempt the claim took stands.
+        await system_session.commit()
+        raise
     # Before the factor is read, not after: a code presented to an account that
     # cannot sign in anyway should not be spent on finding that out.
     user = await system_session.get(User, user_id)
@@ -938,7 +974,7 @@ async def answer_second_factor(
             target_id=user_id,
             detail={"method": method},
         )
-        await system_session.commit()
+        await count_wrong_answer(system_session, user_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
     if not await challenge_service.consume(system_session, challenge):
@@ -1268,6 +1304,8 @@ async def create_device_token(
     Device tokens do not expire and can be used instead of JWT tokens.
     """
     normalized_email = payload.email.lower().strip()
+    # One allowance for both routes that take a password.
+    await _require_sign_in_allowance(normalized_email)
     user = await addresses.find_user_by_address(system_session, normalized_email)
     # Same reason as the token route.
     unconfirmed = (
@@ -1276,15 +1314,20 @@ async def create_device_token(
         else None
     )
     user = user or unconfirmed
+    if user is not None:
+        await refuse_if_locked(system_session, user.id)
     # Same reason as the token route: paid before the branch, never inside it.
     password_matches = verify_sign_in_password(
         payload.password, user.hashed_password if user is not None else None
     )
     if not user or not password_matches:
         # Recorded either way, like the token route.
+        await count_sign_in_failure(normalized_email)
         await record_sign_in_failure(
             system_session, user, method="password", reason="bad_password"
         )
+        if user is not None:
+            await count_wrong_answer(system_session, user.id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INCORRECT_CREDENTIALS,
@@ -1299,6 +1342,8 @@ async def create_device_token(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_NOT_VERIFIED,
         )
+
+    await clear_sign_in_failures(normalized_email)
 
     if password_needs_rehash(user.hashed_password):
         await _upgrade_password_hash(
@@ -1371,6 +1416,7 @@ async def create_device_token(
         subject = await subject_service.subject_for_user(
             system_session, user_id=user_id
         )
+        await sign_in_locks.record_success(system_session, user_id)
         await system_session.commit()
     except Exception as exc:
         await system_session.rollback()

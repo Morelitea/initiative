@@ -762,6 +762,9 @@
     "actionError": "No se pudo completar. Inténtalo de nuevo.",
     "clearAgeBlock": "Restablecer pregunta de edad",
     "ageBlockCleared": "Puede volver a responder la pregunta sobre la edad.",
+    "signInLocked": "Inicio con contraseña desactivado",
+    "liftSignInLock": "Reactivar el inicio de sesión con contraseña",
+    "signInLockLifted": "Ya puede volver a iniciar sesión con contraseña.",
     "sheet": {
       "open": "Gestionar",
       "openLabel": "Gestionar la cuenta {{handle}}",

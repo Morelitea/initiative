@@ -47,6 +47,7 @@ from app.models.platform.user import User
 from app.schemas.platform.token import Token
 from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
+from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.platform import auth_posture
 
@@ -189,6 +190,37 @@ def access_ttl_for(row: AuthSession, *, now: datetime) -> timedelta | None:
     return remaining if remaining < standard else None
 
 
+async def refuse_if_locked(system_session: AsyncSession, user_id: int) -> None:
+    """Refuse a password or code for an account whose password and codes are
+    turned off right now.
+
+    Asked before the answer is checked, so a right one is refused too.
+    """
+    if await sign_in_locks.is_locked(system_session, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=AuthMessages.SIGN_IN_LOCKED,
+        )
+
+
+async def count_wrong_answer(system_session: AsyncSession, user_id: int) -> None:
+    """Count a wrong password or code against the account, commit it, and tell
+    the holder if that placed a lock they have not heard about."""
+    failure = await sign_in_locks.record_failure(system_session, user_id)
+    await system_session.commit()
+    if not failure.notify:
+        return
+    from app.services import email as email_service
+
+    user = await system_session.get(User, user_id)
+    if user is not None:
+        await email_service.announce_sign_in_locked(
+            system_session,
+            user,
+            held=failure.outcome is sign_in_locks.Outcome.held,
+        )
+
+
 async def open_session(
     request: Request,
     response: Response,
@@ -239,6 +271,8 @@ async def open_session(
         subject = await subject_service.subject_for_user(
             system_session, user_id=user_id
         )
+        # Signed in, so the wrong answers before this no longer add up to a lock.
+        await sign_in_locks.record_success(system_session, user_id)
         await system_session.commit()
     except Exception as exc:
         await system_session.rollback()

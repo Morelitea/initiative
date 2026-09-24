@@ -41,6 +41,7 @@ from app.services.platform import csv_export
 from app.services import email as email_service
 from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
+from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
 from app.services.stream_authz import authority as stream_authority
 from app.services import notifications as notifications_service
@@ -544,6 +545,44 @@ async def set_user_suspension(
         # guild to name.
         await stream_authority.revoke_user_everywhere(user_id)
 
+    return await users_service.to_operator_read_one(user)
+
+
+@router.delete("/users/{user_id}/sign-in-lock", response_model=OperatorUserRead)
+async def lift_sign_in_lock(
+    user_id: int,
+    session: SystemSessionDep,
+    current_user: UsersManageDep,
+) -> OperatorUserRead:
+    """Turn an account's password and code sign-in back on.
+
+    Wrong passwords or codes turn them off: for fifteen minutes at a time, and
+    until somebody lifts it once the locks add up. This lifts either, and
+    starts the count over.
+
+    Gated on ``users.manage`` (moderator and above), like a suspension.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if not await sign_in_locks.lift(session, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.SIGN_IN_NOT_LOCKED,
+        )
+
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_SIGN_IN_LOCK_LIFTED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={},
+    )
+    await session.commit()
     return await users_service.to_operator_read_one(user)
 
 

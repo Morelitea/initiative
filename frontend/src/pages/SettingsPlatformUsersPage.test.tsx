@@ -27,6 +27,7 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
   useOperatorTriggerPasswordReset: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorSetUsername: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorLiftSignInLock: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorSetSuspension: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorReactivateUser: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorRestoreUser: () => ({ mutate: vi.fn(), isPending: false }),
@@ -85,6 +86,15 @@ describe("SettingsPlatformUsersPage", () => {
     // The name somebody filled in is theirs, and an operator needs none of it.
     expect(screen.queryByText("Wilhelmina Fitzgerald")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Name/ })).not.toBeInTheDocument();
+  });
+
+  it("marks an account whose password sign-in is turned off", async () => {
+    const rows = masked();
+    rows[1].sign_in_held_at = "2026-09-24T12:00:00Z";
+    renderRoster(rows);
+
+    await screen.findByText("owner");
+    expect(screen.getAllByText("Password sign-in off")).toHaveLength(1);
   });
 
   it("matches a whole handle pasted in, not just the name part", async () => {

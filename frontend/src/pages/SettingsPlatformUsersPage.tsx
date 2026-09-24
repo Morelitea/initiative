@@ -1,4 +1,4 @@
-import { CalendarClock, Download, Mail, Trash2, UserCheck } from "lucide-react";
+import { CalendarClock, Download, LockOpen, Mail, Trash2, UserCheck } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   useExportPlatformUsersCsv,
   useOperatorClearAgeBlock,
+  useOperatorLiftSignInLock,
   useOperatorReactivateUser,
   useOperatorRestoreUser,
   useOperatorTriggerPasswordReset,
@@ -116,6 +117,11 @@ export const SettingsPlatformUsersPage = () => {
 
   const clearAgeBlock = useOperatorClearAgeBlock({
     onSuccess: () => toast.success(t("settings:platformUsers.ageBlockCleared")),
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
+  });
+
+  const liftSignInLock = useOperatorLiftSignInLock({
+    onSuccess: () => toast.success(t("settings:platformUsers.signInLockLifted")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
@@ -260,7 +266,17 @@ export const SettingsPlatformUsersPage = () => {
           platformUser.status === "active"
             ? "text-sm text-green-600 dark:text-green-400"
             : "text-muted-foreground text-sm";
-        return <span className={className}>{t(labelKey)}</span>;
+        const signInLocked = platformUser.sign_in_held_at || platformUser.sign_in_locked_until;
+        return (
+          <div className="space-y-0.5">
+            <span className={className}>{t(labelKey)}</span>
+            {signInLocked && (
+              <div>
+                <Badge variant="outline">{t("platformUsers.signInLocked")}</Badge>
+              </div>
+            )}
+          </div>
+        );
       },
     },
     {
@@ -326,6 +342,16 @@ export const SettingsPlatformUsersPage = () => {
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
               </DropdownMenuItem>
             )}
+            {abilities.canManageUsers &&
+              (platformUser.sign_in_held_at || platformUser.sign_in_locked_until) && (
+                <DropdownMenuItem
+                  onSelect={() => liftSignInLock.mutate(platformUser.id)}
+                  disabled={liftSignInLock.isPending}
+                >
+                  <LockOpen className="h-4 w-4" />
+                  {t("platformUsers.liftSignInLock")}
+                </DropdownMenuItem>
+              )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
               <DropdownMenuItem
                 onSelect={() => clearAgeBlock.mutate(platformUser.id)}

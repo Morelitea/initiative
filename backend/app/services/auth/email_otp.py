@@ -109,27 +109,35 @@ async def issue(
     return IssuedCode(handle=issued.value, code=code)
 
 
-async def claim(
-    session: AsyncSession, *, handle: str, code: str
-) -> AuthChallenge | None:
-    """The challenge this pair answers, or ``None``.
+@dataclass(frozen=True)
+class Claim:
+    """What a handle and a code came to.
 
-    Spends one of the challenge's attempts whether or not the code is right,
-    which is the point of looking it up by the handle. ``None`` covers every
-    way this can fail to be a sign-in — no such handle, expired, spent, out of
-    attempts, or the wrong code — and they read the same from here.
+    ``challenge`` is the challenge the handle names, with one of its attempts
+    taken, or ``None`` when there is no live one: no such handle, expired,
+    spent or out of attempts. ``answered`` is whether the code was right.
+    """
 
-    The attempt is taken in this session and the caller commits it, including
-    on the way to refusing.
+    challenge: AuthChallenge | None
+    answered: bool
+
+
+async def claim(session: AsyncSession, *, handle: str, code: str) -> Claim:
+    """Take one of the handle's attempts and check the code against it.
+
+    The attempt is spent whether or not the code is right, which is the point
+    of looking it up by the handle. It is taken in this session and the caller
+    commits it, including on the way to refusing.
     """
     challenge = await challenge_service.claim_attempt(
         session, value=handle, purposes=PURPOSES
     )
     if challenge is None:
-        return None
-    if not challenge_service.answered_by(challenge, value=handle, answer=code):
-        return None
-    return challenge
+        return Claim(challenge=None, answered=False)
+    return Claim(
+        challenge=challenge,
+        answered=challenge_service.answered_by(challenge, value=handle, answer=code),
+    )
 
 
 async def issue_ticket(session: AsyncSession, *, email: str, native: bool) -> str:

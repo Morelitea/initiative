@@ -59,6 +59,11 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "I've been signed out and can't get back in"
     Changing your password signs out every device — that one's deliberate. If you didn't change it, use **Forgot password** on the sign-in screen. If your server uses single sign-on there may be no password to reset; sign in the way you normally do.
 
+??? question "It says password sign-in is turned off"
+    Five wrong passwords or codes within fifteen minutes will do that, whoever typed them. Password and code sign-in switch off for fifteen minutes, and your email addresses get a note saying so.
+
+    Wait it out, or sign in with a passkey, which works the whole time. If it happens three times in a day it stays off until a moderator turns it back on, so that's the point to [ask whoever runs the server](#still-stuck).
+
 ## The age question
 
 ??? question "Why am I being asked my date of birth?"
