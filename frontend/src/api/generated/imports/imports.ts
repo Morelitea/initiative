@@ -1105,7 +1105,8 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
  * nothing but that payload, so stopping one mid-read is safe — the worker
  * notices at the next project and throws away what it had. A running or
  * terminal job is not cancellable — 409 (an interrupted apply would leave
- * half-committed content).
+ * half-committed content). The row is locked, as the worker locks it to
+ * claim, so the status read here is the one the cancel replaces.
  * @summary Cancel Import Job
  */
 export const cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = (
