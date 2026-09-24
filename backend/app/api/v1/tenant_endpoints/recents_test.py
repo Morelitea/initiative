@@ -153,7 +153,7 @@ async def test_clear_recent_is_guild_addressed(
 
     # Close guild A's tab while in guild B — addressed by the guild path.
     r = await client.delete(
-        f"/api/v1/g/{a.guild.id}/recents/project/{project.id}",
+        f"/api/v1/c/{a.guild.id}/recents/project/{project.id}",
         headers=a.headers,
     )
     assert r.status_code == 204

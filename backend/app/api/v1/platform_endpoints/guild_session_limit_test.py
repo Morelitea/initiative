@@ -34,26 +34,26 @@ async def test_the_seat_switches_the_standard_and_the_guild_list_reads_it(
     )
     headers = get_auth_headers(admin)
 
-    listed = await client.get("/api/v1/guilds/", headers=headers)
+    listed = await client.get("/api/v1/communities/", headers=headers)
     assert [
         g["enforce_compliance_session"] for g in listed.json() if g["id"] == guild.id
     ] == [False]
 
     on = await client.put(
-        f"/api/v1/guilds/{guild.id}/session-limit",
+        f"/api/v1/communities/{guild.id}/session-limit",
         headers=headers,
         json={"enforce_compliance_session": True},
     )
     assert on.status_code == 200, on.text
     assert on.json() == {"enforce_compliance_session": True}
 
-    listed = await client.get("/api/v1/guilds/", headers=headers)
+    listed = await client.get("/api/v1/communities/", headers=headers)
     assert [
         g["enforce_compliance_session"] for g in listed.json() if g["id"] == guild.id
     ] == [True]
 
     off = await client.put(
-        f"/api/v1/guilds/{guild.id}/session-limit",
+        f"/api/v1/communities/{guild.id}/session-limit",
         headers=headers,
         json={"enforce_compliance_session": False},
     )
@@ -70,7 +70,7 @@ async def test_only_the_seat_switches_the_standard(
     await create_guild_membership(session, user=user, guild=guild, role=role)
 
     response = await client.put(
-        f"/api/v1/guilds/{guild.id}/session-limit",
+        f"/api/v1/communities/{guild.id}/session-limit",
         headers=get_auth_headers(user),
         json={"enforce_compliance_session": True},
     )
@@ -89,7 +89,7 @@ async def test_the_standard_waits_on_the_master_entitlement(
     )
 
     response = await client.put(
-        f"/api/v1/guilds/{guild.id}/session-limit",
+        f"/api/v1/communities/{guild.id}/session-limit",
         headers=get_auth_headers(admin),
         json={"enforce_compliance_session": True},
     )
@@ -107,7 +107,7 @@ async def test_a_member_is_not_told_the_standard(
         session, user=admin, guild=guild, role=GuildRole.superadmin
     )
     await client.put(
-        f"/api/v1/guilds/{guild.id}/session-limit",
+        f"/api/v1/communities/{guild.id}/session-limit",
         headers=get_auth_headers(admin),
         json={"enforce_compliance_session": True},
     )
@@ -116,7 +116,7 @@ async def test_a_member_is_not_told_the_standard(
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
-    listed = await client.get("/api/v1/guilds/", headers=get_auth_headers(member))
+    listed = await client.get("/api/v1/communities/", headers=get_auth_headers(member))
     assert [
         g["enforce_compliance_session"] for g in listed.json() if g["id"] == guild.id
     ] == [None]
@@ -144,7 +144,7 @@ async def test_turning_it_on_reaches_a_phone_already_signed_in(
     await session.commit()
 
     response = await client.put(
-        f"/api/v1/guilds/{guild.id}/session-limit",
+        f"/api/v1/communities/{guild.id}/session-limit",
         headers=get_auth_headers(admin),
         json={"enforce_compliance_session": True},
     )

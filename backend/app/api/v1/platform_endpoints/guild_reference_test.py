@@ -32,7 +32,7 @@ from app.services.platform.identity_refs import ensure_ref
 from app.testing import create_guild, create_user
 from app.testing.delegation import DELEGATE_PUBLIC_ID, install_delegate
 
-ROUTE = "/api/v1/app-platform/guild-reference"
+ROUTE = "/api/v1/app-platform/community-reference"
 SECRET = "a-bundled-service-secret-for-tests"
 
 pytestmark = pytest.mark.integration

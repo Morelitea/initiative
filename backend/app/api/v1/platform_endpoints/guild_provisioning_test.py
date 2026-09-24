@@ -59,7 +59,7 @@ async def test_create_guild_provisions_schema_and_role(
     headers = get_auth_headers(user)
 
     resp = await client.post(
-        "/api/v1/guilds/", headers=headers, json={"name": "Prov Guild"}
+        "/api/v1/communities/", headers=headers, json={"name": "Prov Guild"}
     )
     assert resp.status_code == 201
     gid = resp.json()["id"]
@@ -86,7 +86,7 @@ async def test_delete_guild_keeps_the_schema_until_the_purge(
     headers = get_auth_headers(user)
 
     resp = await client.post(
-        "/api/v1/guilds/", headers=headers, json={"name": "Del Prov"}
+        "/api/v1/communities/", headers=headers, json={"name": "Del Prov"}
     )
     gid = resp.json()["id"]
     schema, role = guild_schema_name(gid), guild_role_name(gid)
@@ -94,7 +94,7 @@ async def test_delete_guild_keeps_the_schema_until_the_purge(
 
     resp = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{gid}",
+        f"/api/v1/communities/{gid}",
         headers=headers,
         json={
             "password": "testpassword123",
@@ -147,7 +147,7 @@ async def test_create_guild_rolls_back_when_provisioning_fails(
     user = await create_user(session, email="rollback@example.com")
     headers = get_auth_headers(user)
     resp = await client.post(
-        "/api/v1/guilds/", headers=headers, json={"name": "Rollback Guild"}
+        "/api/v1/communities/", headers=headers, json={"name": "Rollback Guild"}
     )
 
     assert resp.status_code == 500
@@ -168,13 +168,13 @@ async def test_purge_succeeds_even_if_deprovision_fails(
     user = await create_user(session, email="deprov-fail@example.com")
     headers = get_auth_headers(user)
     resp = await client.post(
-        "/api/v1/guilds/", headers=headers, json={"name": "Teardown Fail"}
+        "/api/v1/communities/", headers=headers, json={"name": "Teardown Fail"}
     )
     gid = resp.json()["id"]
 
     resp = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{gid}",
+        f"/api/v1/communities/{gid}",
         headers=headers,
         json={
             "password": "testpassword123",
@@ -201,7 +201,7 @@ async def test_purge_succeeds_even_if_deprovision_fails(
     assert await _schema_exists(engine, guild_schema_name(gid))
 
     resp = await client.post(
-        "/api/v1/guilds/", headers=headers, json={"name": "Still Here"}
+        "/api/v1/communities/", headers=headers, json={"name": "Still Here"}
     )
     live_gid = resp.json()["id"]
 

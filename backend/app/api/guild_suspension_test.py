@@ -107,15 +107,19 @@ async def test_admin_of_suspended_guild_reaches_nothing(
     refusals = [
         await client.get(a.g("/initiatives/"), headers=a.headers),
         await client.patch(
-            f"/api/v1/guilds/{a.guild.id}",
+            f"/api/v1/communities/{a.guild.id}",
             headers=a.headers,
             json={"name": "Still Ours"},
         ),
-        await client.get(f"/api/v1/guilds/{a.guild.id}/auth-policy", headers=a.headers),
         await client.get(
-            f"/api/v1/guilds/{a.guild.id}/billing/payment-issue", headers=a.headers
+            f"/api/v1/communities/{a.guild.id}/auth-policy", headers=a.headers
         ),
-        await client.delete(f"/api/v1/guilds/{a.guild.id}/leave", headers=a.headers),
+        await client.get(
+            f"/api/v1/communities/{a.guild.id}/billing/payment-issue", headers=a.headers
+        ),
+        await client.delete(
+            f"/api/v1/communities/{a.guild.id}/leave", headers=a.headers
+        ),
     ]
     for resp in refusals:
         assert resp.status_code == 403, (resp.request.url, resp.text)
@@ -123,7 +127,7 @@ async def test_admin_of_suspended_guild_reaches_nothing(
 
     await session.refresh(a.guild)
     assert a.guild.name != "Still Ours"
-    resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    resp = await client.get("/api/v1/communities/", headers=a.headers)
     assert a.guild.id in [g["id"] for g in resp.json()], "membership is kept"
 
 
@@ -139,13 +143,17 @@ async def test_a_guild_on_hold_is_gone_for_everyone_in_it(
 
     for resp in (
         await client.get(a.g("/initiatives/"), headers=a.headers),
-        await client.get(f"/api/v1/guilds/{a.guild.id}/auth-policy", headers=a.headers),
-        await client.delete(f"/api/v1/guilds/{a.guild.id}/leave", headers=a.headers),
+        await client.get(
+            f"/api/v1/communities/{a.guild.id}/auth-policy", headers=a.headers
+        ),
+        await client.delete(
+            f"/api/v1/communities/{a.guild.id}/leave", headers=a.headers
+        ),
     ):
         assert resp.status_code == 403, (resp.request.url, resp.text)
         assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
 
-    listed = (await client.get("/api/v1/guilds/", headers=a.headers)).json()
+    listed = (await client.get("/api/v1/communities/", headers=a.headers)).json()
     assert a.guild.id not in [g["id"] for g in listed]
 
 
@@ -159,11 +167,11 @@ async def test_suspended_guild_hidden_from_members_listed_for_admins(
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
     await _set_status(session, admin.guild, GuildStatus.suspended)
 
-    resp = await client.get("/api/v1/guilds/", headers=member.headers)
+    resp = await client.get("/api/v1/communities/", headers=member.headers)
     assert resp.status_code == 200
     assert admin.guild.id not in [g["id"] for g in resp.json()]
 
-    resp = await client.get("/api/v1/guilds/", headers=admin.headers)
+    resp = await client.get("/api/v1/communities/", headers=admin.headers)
     assert resp.status_code == 200
     listed = [g for g in resp.json() if g["id"] == admin.guild.id]
     assert listed, "admin must still see the suspended guild"
@@ -188,7 +196,7 @@ async def test_suspended_guild_names_who_to_contact_for_admins(
     def entry(body, guild):
         return next(g for g in body if g["id"] == guild.id)
 
-    body = (await client.get("/api/v1/guilds/", headers=admin.headers)).json()
+    body = (await client.get("/api/v1/communities/", headers=admin.headers)).json()
     assert entry(body, admin.guild)["contact_email"] == "ops@example.com"
     assert entry(body, other_guild)["contact_email"] is None
 
@@ -196,7 +204,7 @@ async def test_suspended_guild_names_who_to_contact_for_admins(
     settings_row.intake_contacts = {"moderation": "trust@example.com"}
     session.add(settings_row)
     await session.commit()
-    body = (await client.get("/api/v1/guilds/", headers=admin.headers)).json()
+    body = (await client.get("/api/v1/communities/", headers=admin.headers)).json()
     assert entry(body, admin.guild)["contact_email"] == "trust@example.com"
 
 
@@ -211,12 +219,16 @@ async def test_read_only_status_visible_to_admin_not_member(
 
     admin_row = [
         g
-        for g in (await client.get("/api/v1/guilds/", headers=admin.headers)).json()
+        for g in (
+            await client.get("/api/v1/communities/", headers=admin.headers)
+        ).json()
         if g["id"] == admin.guild.id
     ][0]
     member_row = [
         g
-        for g in (await client.get("/api/v1/guilds/", headers=member.headers)).json()
+        for g in (
+            await client.get("/api/v1/communities/", headers=member.headers)
+        ).json()
         if g["id"] == admin.guild.id
     ][0]
     assert admin_row["status"] == "read_only"
@@ -426,7 +438,7 @@ async def test_read_only_admin_settings_still_writable(
     await _set_status(session, a.guild, GuildStatus.read_only)
 
     resp = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"description": "billing sorted soon"},
     )
@@ -466,13 +478,13 @@ async def test_break_glass_reads_a_suspended_guild(
     assert resp.status_code == 201, resp.text
 
     # Read.
-    resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    resp = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert resp.status_code == 200, resp.text
     assert any(i["name"] == "Frozen Wing" for i in resp.json())
 
     # And gets no further than any other grantee would.
     resp = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}",
         headers=headers,
         json={"description": "reviewed under a grant"},
     )
@@ -480,7 +492,9 @@ async def test_break_glass_reads_a_suspended_guild(
 
     # The settings grant beside it reaches the community's configuration,
     # which its own administrators no longer do.
-    resp = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
+    resp = await client.get(
+        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+    )
     assert resp.status_code == 200, resp.text
 
 
@@ -498,7 +512,7 @@ async def test_scoped_read_grant_reads_suspended_guild(
     await _live_grant(session, user=support, guild=guild, level="read")
 
     resp = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(support)
+        f"/api/v1/c/{guild.id}/initiatives/", headers=get_auth_headers(support)
     )
     assert resp.status_code == 200, resp.text
     assert any(i["name"] == "Held Wing" for i in resp.json())
@@ -523,7 +537,7 @@ async def test_scoped_read_write_grant_edits_suspended_guild(
     await _live_grant(session, user=support, guild=guild, level="read_write")
 
     resp = await client.patch(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}",
+        f"/api/v1/c/{guild.id}/tasks/{task.id}",
         headers=get_auth_headers(support),
         json={"title": "edited under grant"},
     )
@@ -562,7 +576,7 @@ async def test_invite_redemption_refused_on_non_active_guild(
 
     joiner = await acting_user()
     resp = await client.post(
-        "/api/v1/guilds/invite/accept",
+        "/api/v1/communities/invite/accept",
         headers=joiner.headers,
         json={"code": invite.code},
     )
@@ -571,7 +585,7 @@ async def test_invite_redemption_refused_on_non_active_guild(
 
     # The describe endpoint reports it like any expired code.
     resp = await client.get(
-        f"/api/v1/guilds/invite/{invite.code}", headers=joiner.headers
+        f"/api/v1/communities/invite/{invite.code}", headers=joiner.headers
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -590,7 +604,7 @@ async def test_invite_redemption_refused_on_non_active_guild(
 async def test_suspended_guild_content_hidden_from_me_aggregates(
     client: AsyncClient, session: AsyncSession, acting_user, role
 ):
-    """/me/* visits each member guild's schema directly (no ``/g/`` choke
+    """/me/* visits each member guild's schema directly (no ``/c/`` choke
     point), so it must apply the same suspension rule itself: a suspended
     guild's content vanishes from the aggregates — for admins too, who keep
     only the settings surface."""
@@ -637,7 +651,9 @@ async def test_content_read_only_flag_serialized_to_members(
 
     row = [
         g
-        for g in (await client.get("/api/v1/guilds/", headers=member.headers)).json()
+        for g in (
+            await client.get("/api/v1/communities/", headers=member.headers)
+        ).json()
         if g["id"] == admin.guild.id
     ][0]
     assert row["content_read_only"] is False
@@ -646,7 +662,9 @@ async def test_content_read_only_flag_serialized_to_members(
 
     row = [
         g
-        for g in (await client.get("/api/v1/guilds/", headers=member.headers)).json()
+        for g in (
+            await client.get("/api/v1/communities/", headers=member.headers)
+        ).json()
         if g["id"] == admin.guild.id
     ][0]
     assert row["content_read_only"] is True
@@ -666,7 +684,7 @@ async def test_guild_admin_patch_cannot_touch_enforcement_fields(
     a = await acting_user(guild_role=GuildRole.admin)
 
     resp = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={
             "name": "Renamed",
@@ -754,7 +772,7 @@ async def test_platform_guild_status_endpoint_requires_guilds_manage(
     a = await acting_user(guild_role=GuildRole.admin)
 
     resp = await client.patch(
-        f"/api/v1/settings/guilds/{a.guild.id}",
+        f"/api/v1/settings/communities/{a.guild.id}",
         headers=a.headers,
         json={"status": "suspended"},
     )
@@ -762,7 +780,7 @@ async def test_platform_guild_status_endpoint_requires_guilds_manage(
 
     platform_operator = await create_user(session, role=UserRole.operator)
     resp = await client.patch(
-        f"/api/v1/settings/guilds/{a.guild.id}",
+        f"/api/v1/settings/communities/{a.guild.id}",
         headers=get_auth_headers(platform_operator),
         json={"status": "suspended"},
     )

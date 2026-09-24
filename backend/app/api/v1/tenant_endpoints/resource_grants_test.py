@@ -1,6 +1,6 @@
 """Integration tests for the unified bulk resource-grants endpoint.
 
-``PUT /g/{guild}/resource-grants/bulk`` replaces sharing on many resources
+``PUT /c/{guild}/resource-grants/bulk`` replaces sharing on many resources
 (possibly of different types) in one call, best-effort per item: each item is
 authorized independently and reported ``ok`` / ``forbidden`` / ``not_found``,
 and a bad item never blocks the good ones.
@@ -22,7 +22,7 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-BULK = "/api/v1/g/{guild}/resource-grants/bulk"
+BULK = "/api/v1/c/{guild}/resource-grants/bulk"
 
 
 def _results_by_id(body: dict) -> dict[int, str]:
@@ -70,7 +70,7 @@ async def test_bulk_applies_grants_across_many_projects(
     # The grants actually applied (visible on the project reads).
     for pid, level in ((p1.id, "write"), (p2.id, "read")):
         detail = await client.get(
-            f"/api/v1/g/{guild.id}/projects/{pid}", headers=headers
+            f"/api/v1/c/{guild.id}/projects/{pid}", headers=headers
         )
         assert detail.status_code == 200
         grants = detail.json()["grants"]
@@ -159,7 +159,7 @@ async def test_bulk_is_best_effort_per_item(client: AsyncClient, session: AsyncS
 
     # The valid item applied despite its bad sibling.
     detail = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+        f"/api/v1/c/{guild.id}/projects/{project.id}", headers=headers
     )
     assert any(g["user_id"] == member.id for g in detail.json()["grants"])
 
@@ -199,7 +199,7 @@ async def test_bulk_reports_forbidden_for_unmanageable_item(
     # Nothing changed — the member did not self-grant write.
     owner_headers = get_auth_headers(owner)
     detail = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=owner_headers
+        f"/api/v1/c/{guild.id}/projects/{project.id}", headers=owner_headers
     )
     assert not any(
         g["user_id"] == member.id and g["level"] == "write"

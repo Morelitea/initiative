@@ -9,9 +9,9 @@ pytestmark = pytest.mark.unit
     "value",
     [
         "/",
-        "/g/5/projects/3",
+        "/c/5/projects/3",
         "/settings?tab=auth",
-        "/g/5/documents/7#section",
+        "/c/5/documents/7#section",
     ],
 )
 def test_safe_next_paths_accepted(value: str):

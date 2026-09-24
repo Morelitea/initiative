@@ -62,7 +62,7 @@ async def test_exporting_a_guild_records_its_own_event(
     capfd.readouterr()
 
     response = await client.get(
-        a.g("/exports/guild"),
+        a.g("/exports/community"),
         headers=a.headers,
         params={"mode": "backup", "include_uploads": False},
     )
@@ -97,7 +97,7 @@ async def test_a_refused_guild_export_records_nothing(
     admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
     capfd.readouterr()
 
-    response = await client.get(admin.g("/exports/guild"), headers=admin.headers)
+    response = await client.get(admin.g("/exports/community"), headers=admin.headers)
     assert response.status_code == 403
 
     assert emitted(capfd, AuditEventType.GUILD_EXPORTED) == []

@@ -12,7 +12,7 @@ an address — it names a read endpoint on an installed app, and this route turn
 that into one bounded call to the app's own service. The request carries the dashboard the
 widget sits on, and that is what makes the gates run **before** anything else:
 
-* the URL is ``/g/{guild_id}/…`` under a session that assumes the guild's own
+* the URL is ``/c/{guild_id}/…`` under a session that assumes the guild's own
   Postgres role, so the install row is reachable only from inside the guild;
 * the dashboard is loaded through the ordinary resource path, so a member of the
   guild who is not in the dashboard's initiative gets the same answer they would

@@ -34,7 +34,7 @@ async def list_my_trash(
 
     User-scoped: shows what *you* deleted, in any guild — this is the personal
     trash on the user settings page. The all-guild view (everything in one
-    guild's trash) is the separate admin-only ``GET /g/{guild_id}/trash/``.
+    guild's trash) is the separate admin-only ``GET /c/{guild_id}/trash/``.
     Restore/purge stay guild-scoped; the client addresses them with each item's
     ``guild_id``. ``retention_days`` is per-guild, so it is omitted here.
     """

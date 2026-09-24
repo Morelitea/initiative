@@ -1,6 +1,6 @@
 """Integration tests for the calendar-entries aggregate endpoints.
 
-``GET /g/{guild_id}/calendar-entries`` and ``GET /me/calendar-entries`` return a
+``GET /c/{guild_id}/calendar-entries`` and ``GET /me/calendar-entries`` return a
 union of calendar events + task markers over a date window. They must be a union
 *under the existing gates* — the same events/tasks the separate list endpoints
 would return for the same actor, never more.

@@ -46,7 +46,7 @@ from app.services.tenant.recent_views import RecentEntityType
 
 router = APIRouter()
 # Guild-scoped sub-router: closing a tab (the delete) is the one guild-scoped
-# recents operation and mounts under /g/{guild_id}/recents. The cross-guild
+# recents operation and mounts under /c/{guild_id}/recents. The cross-guild
 # tabs-bar list stays on the top-level router above — fully separate endpoints.
 guild_router = APIRouter()
 
@@ -229,7 +229,7 @@ async def clear_recent(
 ) -> None:
     """Close a tab: delete the caller's own recent-view row.
 
-    Guild-scoped — mounted under /g/{guild_id}/recents because a tab can belong
+    Guild-scoped — mounted under /c/{guild_id}/recents because a tab can belong
     to any of the user's guilds and per-schema ids are only unique within a
     guild. Idempotent.
     """

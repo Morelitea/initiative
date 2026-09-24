@@ -72,7 +72,7 @@ async def test_a_member_cannot_read_or_change_the_settings(client, acting_user):
     ).status_code == 403
     assert (
         await client.put(
-            "/api/v1/settings/intake/guild",
+            "/api/v1/settings/intake/community",
             json={"guild_id": 1},
             headers=actor.headers,
         )
@@ -81,7 +81,7 @@ async def test_a_member_cannot_read_or_change_the_settings(client, acting_user):
 
 async def test_pointing_at_a_guild_that_does_not_exist_is_refused(client, owner):
     response = await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": 99_999},
         headers=owner["actor"].headers,
     )
@@ -111,7 +111,7 @@ async def test_an_unknown_stream_is_not_a_stream(client, owner):
 
 async def test_setting_a_stream_up_from_its_blueprint(client, session, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -139,7 +139,7 @@ async def test_setting_a_stream_up_from_its_blueprint(client, session, owner):
 
 async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -153,7 +153,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
     )
 
     response = await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": None},
         headers=owner["actor"].headers,
     )
@@ -162,7 +162,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
 
     # The binding is untouched: pointing back restores what was there.
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -173,7 +173,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
 
 async def test_unbinding_keeps_the_project(client, session, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -201,7 +201,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
 ):
     """Gate 2, unchanged: the bound project's initiative is who reads its cases."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -226,7 +226,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
     assert outcome is not None
 
     response = await client.get(
-        f"/api/v1/g/{owner['guild_id']}/tasks/{outcome.task_id}",
+        f"/api/v1/c/{owner['guild_id']}/tasks/{outcome.task_id}",
         headers=get_auth_headers(outsider),
     )
     assert response.status_code == 404
@@ -234,7 +234,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
 
 async def test_a_status_from_another_project_is_refused(client, session, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -281,7 +281,7 @@ async def test_a_status_from_another_project_is_refused(client, session, owner):
 async def test_the_pointer_is_cleared_when_the_guild_goes(client, session, owner):
     """``ON DELETE SET NULL``: nothing is left naming a guild that is gone."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -302,7 +302,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
 ):
     """Cases are keyed by project, so a repeat follows the binding."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -353,7 +353,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
 async def test_rebinding_the_same_project_finds_the_open_case(client, session, owner):
     """Unbinding keeps the history, so a repeat does not open a second case."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -389,7 +389,7 @@ async def test_rebinding_the_same_project_finds_the_open_case(client, session, o
 async def test_the_last_case_time_ignores_ordinary_tasks(client, owner):
     """A blueprint's seed task is not a case, and must not read as one."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -416,7 +416,7 @@ async def test_options_are_empty_before_a_guild_is_named(client, owner):
 
 async def test_options_offer_the_operations_guilds_projects(client, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -455,7 +455,7 @@ async def test_a_member_cannot_read_the_options(client, acting_user):
 async def test_a_stream_cannot_be_bound_to_an_archived_project(client, session, owner):
     """Archived content takes no writes, so a case could never land there."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -488,7 +488,7 @@ async def test_a_binding_says_when_its_project_has_been_archived(
 ):
     """Archiving the destination later is a state the page has to show."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )

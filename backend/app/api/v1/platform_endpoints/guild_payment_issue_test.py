@@ -45,7 +45,7 @@ async def _guild_with_seat(session: AsyncSession, status: GuildStatus):
 
 
 def _url(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/billing/payment-issue"
+    return f"/api/v1/communities/{guild_id}/billing/payment-issue"
 
 
 async def test_only_the_seat_may_ask(client: AsyncClient, session: AsyncSession, asked):

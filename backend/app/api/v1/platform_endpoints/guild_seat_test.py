@@ -30,7 +30,7 @@ async def test_whoever_makes_a_community_holds_its_seat(
     founder = await create_user(session)
 
     created = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=get_auth_headers(founder),
         json={"name": "Founders"},
     )
@@ -137,7 +137,8 @@ async def test_billing_is_the_seats_too(
     await session.commit()
 
     refused = await client.post(
-        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(admin)
+        f"/api/v1/communities/{guild.id}/billing/handoff",
+        headers=get_auth_headers(admin),
     )
     assert refused.status_code == 403
     assert refused.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
@@ -145,7 +146,8 @@ async def test_billing_is_the_seats_too(
     # The seat gets past the gate; whether a portal is configured is the
     # deployment's business and the next thing the endpoint checks.
     allowed = await client.post(
-        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(seat)
+        f"/api/v1/communities/{guild.id}/billing/handoff",
+        headers=get_auth_headers(seat),
     )
     assert allowed.status_code != 403, allowed.text
 
@@ -191,7 +193,7 @@ async def test_the_seat_deletes_the_community_and_then_itself(
     # The seat's own way through: delete the community.
     deleted = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=headers,
         json={
             "password": "testpassword123",

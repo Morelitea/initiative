@@ -228,7 +228,7 @@ def test_every_tool_read_schema_reports_the_comment_switch():
     for tool in Tool:
         segment = tool.plural.replace("_", "-")
         pattern = re.compile(
-            r"^/api/v1/g/\{guild_id\}/" + re.escape(segment) + r"/\{\w+\}$"
+            r"^/api/v1/c/\{guild_id\}/" + re.escape(segment) + r"/\{\w+\}$"
         )
         detail = next(
             (
@@ -295,11 +295,11 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
         for path, item in spec["paths"].items()
         if "put" in item and path.endswith("/tags")
     }
-    generic = "/api/v1/g/{guild_id}/tools/{tool}/{tool_id}/tags"
+    generic = "/api/v1/c/{guild_id}/tools/{tool}/{tool_id}/tags"
     extras = {
-        "/api/v1/g/{guild_id}/tasks/{task_id}/tags",
-        "/api/v1/g/{guild_id}/queues/{queue_id}/items/{item_id}/tags",
-        "/api/v1/g/{guild_id}/calendar-events/{event_id}/tags",
+        "/api/v1/c/{guild_id}/tasks/{task_id}/tags",
+        "/api/v1/c/{guild_id}/queues/{queue_id}/items/{item_id}/tags",
+        "/api/v1/c/{guild_id}/calendar-events/{event_id}/tags",
     }
     assert put_tag_paths == {generic} | extras
 
@@ -324,7 +324,7 @@ def test_every_tool_mounts_both_recent_view_routes():
     spec = app.openapi()
     mounted = {path for path in spec["paths"] if path.endswith("/view")}
     expected = {
-        f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+        f"/api/v1/c/{{guild_id}}/{tool.plural.replace('_', '-')}"
         f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
         for tool in Tool
     }
@@ -332,7 +332,7 @@ def test_every_tool_mounts_both_recent_view_routes():
 
     for tool in Tool:
         path = (
-            f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+            f"/api/v1/c/{{guild_id}}/{tool.plural.replace('_', '-')}"
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
         )
         item = spec["paths"][path]
@@ -356,9 +356,9 @@ def test_every_tool_mounts_both_list_routes():
     spec = app.openapi()
     for tool in Tool:
         segment = tool.plural.replace("_", "-")
-        listing = spec["paths"][f"/api/v1/g/{{guild_id}}/{segment}/"]["get"]
+        listing = spec["paths"][f"/api/v1/c/{{guild_id}}/{segment}/"]["get"]
         counts = spec["paths"][
-            f"/api/v1/g/{{guild_id}}/{segment}/counts/by-initiative"
+            f"/api/v1/c/{{guild_id}}/{segment}/counts/by-initiative"
         ]["get"]
         assert listing["operationId"].startswith(f"list_{tool.plural}_"), tool
         assert counts["operationId"].startswith(
@@ -380,7 +380,7 @@ def test_every_tool_mounts_the_grants_route():
     spec = app.openapi()
     mounted = {path for path in spec["paths"] if path.endswith("/grants")}
     expected = {
-        f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+        f"/api/v1/c/{{guild_id}}/{tool.plural.replace('_', '-')}"
         f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         for tool in Tool
     }
@@ -388,7 +388,7 @@ def test_every_tool_mounts_the_grants_route():
 
     for tool in Tool:
         path = (
-            f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+            f"/api/v1/c/{{guild_id}}/{tool.plural.replace('_', '-')}"
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         )
         item = spec["paths"][path]

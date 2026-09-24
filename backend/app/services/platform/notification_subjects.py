@@ -4,7 +4,7 @@ A notification names the thing it is about — a task, a document, the post
 somebody published — and the bell needs that thing's title to say anything
 useful. The row itself carries only the identifiers, so the titles are read
 here, from the community's own schema, through the same seam a
-``/g/{guild_id}`` request goes through.
+``/c/{guild_id}`` request goes through.
 
 Reading them rather than storing them is what keeps a line honest: a task
 renamed after the mention shows its new name, and a line whose subject the

@@ -37,7 +37,7 @@ async def _seat(session: AsyncSession, *, auth_options: list[str] | None = None)
 
 
 def _base(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/auth/rules"
+    return f"/api/v1/communities/{guild_id}/auth/rules"
 
 
 async def _connected(session: AsyncSession, guild, **provider_kwargs):

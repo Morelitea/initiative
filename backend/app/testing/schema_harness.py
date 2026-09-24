@@ -1,7 +1,7 @@
 """Test-only harness: route guild-scoped ORM work to the active guild's schema.
 
 In production, ``set_rls_context`` sets ``search_path`` per request from the
-guild in the ``/g/{guild_id}`` URL path, so guild-scoped reads/writes land in
+guild in the ``/c/{guild_id}`` URL path, so guild-scoped reads/writes land in
 ``guild_<id>``. Direct-session tests (a factory + a raw session, no HTTP
 request) have no such context, so without help their guild-scoped statements
 would resolve against ``public`` — where, since the v0.53.5 baseline squash,

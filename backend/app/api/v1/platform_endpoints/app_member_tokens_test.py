@@ -3,7 +3,7 @@ member token that follows.
 
 An app asks on its installation token (``POST /app-platform/consent-requests``)
 for one purpose; the member is notified and answers on their consent screen
-(``/g/{guild_id}/apps/{app_id}/consents``); the app then presents a JWT-bearer
+(``/c/{guild_id}/apps/{app_id}/consents``); the app then presents a JWT-bearer
 assertion at the token endpoint and is issued a member token only while that
 answer stands. The token's reach is the install standing's member branch
 (``app/db/member_standing_test.py``); here the probe route reads through it.
@@ -48,7 +48,7 @@ CONSENT_URL = "/api/v1/app-platform/consent-requests"
 TOKEN_URL = "/api/v1/app-platform/oauth/token"
 JWT_BEARER = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 
-_PROBE_PATH = "/api/v1/g/{guild_id}/member-token-probe/documents"
+_PROBE_PATH = "/api/v1/c/{guild_id}/member-token-probe/documents"
 _read_documents = app_scope("documents:read")
 _probe = APIRouter(route_class=ActorRoute)
 

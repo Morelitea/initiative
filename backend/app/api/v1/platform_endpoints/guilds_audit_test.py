@@ -64,7 +64,7 @@ async def test_creating_a_guild_records_the_guild_and_its_first_member(
     capfd.readouterr()
 
     response = await client.post(
-        "/api/v1/guilds/", headers=get_auth_headers(user), json={"name": "Audited"}
+        "/api/v1/communities/", headers=get_auth_headers(user), json={"name": "Audited"}
     )
     assert response.status_code == 201, response.text
     guild_id = response.json()["id"]
@@ -91,7 +91,7 @@ async def test_an_invite_is_recorded_when_it_is_minted_redeemed_and_withdrawn(
     capfd.readouterr()
 
     minted = await client.post(
-        f"/api/v1/guilds/{guild_id}/invites",
+        f"/api/v1/communities/{guild_id}/invites",
         headers=get_auth_headers(admin),
         json={"max_uses": 3},
     )
@@ -110,7 +110,7 @@ async def test_an_invite_is_recorded_when_it_is_minted_redeemed_and_withdrawn(
     joiner = await create_user(session)
     joiner_id = joiner.id
     accepted = await client.post(
-        "/api/v1/guilds/invite/accept",
+        "/api/v1/communities/invite/accept",
         headers=get_auth_headers(joiner),
         json={"code": invite["code"]},
     )
@@ -127,7 +127,7 @@ async def test_an_invite_is_recorded_when_it_is_minted_redeemed_and_withdrawn(
     }
 
     withdrawn = await client.delete(
-        f"/api/v1/guilds/{guild_id}/invites/{invite['id']}",
+        f"/api/v1/communities/{guild_id}/invites/{invite['id']}",
         headers=get_auth_headers(admin),
     )
     assert withdrawn.status_code == 204, withdrawn.text
@@ -144,7 +144,7 @@ async def test_withdrawing_an_invite_that_is_not_there_records_nothing(
     capfd.readouterr()
 
     response = await client.delete(
-        f"/api/v1/guilds/{guild.id}/invites/9999999",
+        f"/api/v1/communities/{guild.id}/invites/9999999",
         headers=get_auth_headers(admin),
     )
     assert response.status_code == 204, response.text
@@ -165,7 +165,7 @@ async def test_leaving_a_guild_is_recorded_against_the_leaver(
     capfd.readouterr()
 
     response = await client.delete(
-        f"/api/v1/guilds/{guild_id}/leave", headers=get_auth_headers(member)
+        f"/api/v1/communities/{guild_id}/leave", headers=get_auth_headers(member)
     )
     assert response.status_code == 204, response.text
 
@@ -189,7 +189,7 @@ async def test_a_role_change_short_of_the_seat_is_its_own_event(
     capfd.readouterr()
 
     promoted = await client.patch(
-        f"/api/v1/guilds/{guild_id}/members/{member_id}",
+        f"/api/v1/communities/{guild_id}/members/{member_id}",
         headers=get_auth_headers(owner),
         json={"role": "admin"},
     )
@@ -206,7 +206,7 @@ async def test_a_role_change_short_of_the_seat_is_its_own_event(
 
     # Restating the role they already hold moved nothing.
     again = await client.patch(
-        f"/api/v1/guilds/{guild_id}/members/{member_id}",
+        f"/api/v1/communities/{guild_id}/members/{member_id}",
         headers=get_auth_headers(owner),
         json={"role": "admin"},
     )
@@ -225,7 +225,7 @@ async def test_a_profile_edit_names_the_fields_that_moved_and_copies_neither(
     capfd.readouterr()
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild_id}",
+        f"/api/v1/communities/{guild_id}",
         headers=get_auth_headers(admin),
         json={"name": "Renamed", "description": "Now described"},
     )
@@ -242,7 +242,7 @@ async def test_a_profile_edit_names_the_fields_that_moved_and_copies_neither(
     assert detail["values"] == {}
 
     unchanged = await client.patch(
-        f"/api/v1/guilds/{guild_id}",
+        f"/api/v1/communities/{guild_id}",
         headers=get_auth_headers(admin),
         json={"name": "Renamed"},
     )
@@ -258,7 +258,7 @@ async def test_retention_is_recorded_as_its_own_area_with_its_values(
     capfd.readouterr()
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild_id}",
+        f"/api/v1/communities/{guild_id}",
         headers=get_auth_headers(admin),
         json={"retention_days": 30},
     )
@@ -284,14 +284,14 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
     capfd.readouterr()
 
     api_access = await client.put(
-        f"/api/v1/guilds/{guild_id}/api-access",
+        f"/api/v1/communities/{guild_id}/api-access",
         headers=headers,
         json={"allow_api_keys": False},
     )
     assert api_access.status_code == 200, api_access.text
 
     session_limit = await client.put(
-        f"/api/v1/guilds/{guild_id}/session-limit",
+        f"/api/v1/communities/{guild_id}/session-limit",
         headers=headers,
         json={"enforce_compliance_session": True},
     )
@@ -317,7 +317,7 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
 
     # Setting a switch to what it already reads changed nothing.
     again = await client.put(
-        f"/api/v1/guilds/{guild_id}/api-access",
+        f"/api/v1/communities/{guild_id}/api-access",
         headers=headers,
         json={"allow_api_keys": False},
     )
@@ -341,7 +341,7 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
     capfd.readouterr()
 
     required = await client.put(
-        f"/api/v1/guilds/{guild_id}/auth-policy", headers=headers, json=body
+        f"/api/v1/communities/{guild_id}/auth-policy", headers=headers, json=body
     )
     assert required.status_code == 200, required.text
 
@@ -358,13 +358,13 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
 
     # Restating the same requirement moved nothing.
     restated = await client.put(
-        f"/api/v1/guilds/{guild_id}/auth-policy", headers=headers, json=body
+        f"/api/v1/communities/{guild_id}/auth-policy", headers=headers, json=body
     )
     assert restated.status_code == 200, restated.text
     assert emitted(capfd, AuditEventType.GUILD_AUTH_POLICY_CHANGED) == []
 
     cleared = await client.put(
-        f"/api/v1/guilds/{guild_id}/auth-policy",
+        f"/api/v1/communities/{guild_id}/auth-policy",
         headers=headers,
         json={"policy": "open"},
     )
@@ -392,7 +392,7 @@ async def test_deleting_a_guild_is_recorded_in_the_transaction_that_deletes_it(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild_id}",
+        f"/api/v1/communities/{guild_id}",
         headers=get_auth_headers(admin),
         json={
             "password": PASSWORD,
@@ -422,7 +422,7 @@ async def test_a_refused_guild_deletion_records_nothing(
 
     response = await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=get_auth_headers(admin),
         json={"password": PASSWORD, "confirmation_text": "DELETE COMMUNITY WRONG"},
     )

@@ -1,4 +1,4 @@
-"""`/api/v1/g/{guild_id}/smart-chips` — what a document's chips say now.
+"""`/api/v1/c/{guild_id}/smart-chips` — what a document's chips say now.
 
 Guild-scoped like any other content read: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so a chip answers under the same

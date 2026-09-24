@@ -24,7 +24,7 @@ so the published surface — its operation id included — is unchanged.
 All nine run on ``UserSessionDep``: the caller is resolved against the shared
 tables as their own platform role, and each guild is then entered with the
 membership role they hold there (``cross_guild.gather_across_guilds``), which
-is the same ``SET ROLE guild_<id>`` a ``/g/{guild_id}`` request makes.
+is the same ``SET ROLE guild_<id>`` a ``/c/{guild_id}`` request makes.
 """
 
 # NOT ``from __future__ import annotations``: the list handlers are built per

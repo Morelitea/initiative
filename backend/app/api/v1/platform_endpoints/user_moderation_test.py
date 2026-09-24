@@ -171,14 +171,14 @@ class TestSuspension:
     async def test_it_reaches_no_guild(self, client, session, moderator_and_member):
         moderator, member, guild = moderator_and_member
         before = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(member)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(member)
         )
         assert before.status_code == 200
 
         await self._suspend(client, moderator, member)
 
         after = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(member)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(member)
         )
         # Refused before any guild is looked at: the account is in time out.
         assert after.status_code == 403
@@ -190,7 +190,9 @@ class TestSuspension:
         moderator, member, _guild = moderator_and_member
         await self._suspend(client, moderator, member)
 
-        response = await client.get("/api/v1/guilds/", headers=get_auth_headers(member))
+        response = await client.get(
+            "/api/v1/communities/", headers=get_auth_headers(member)
+        )
 
         assert response.status_code == 403
         assert response.json()["detail"] == "ACCOUNT_SUSPENDED"
@@ -204,7 +206,7 @@ class TestSuspension:
         await self._suspend(client, moderator, member, suspended=False)
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(member)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(member)
         )
         assert response.status_code == 200
         assert member.id in {row["id"] for row in response.json()}
@@ -221,7 +223,7 @@ class TestSuspension:
         await self._suspend(client, moderator, member)
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(onlooker)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(onlooker)
         )
         assert member.id not in {row["id"] for row in response.json()}
 
@@ -237,7 +239,7 @@ class TestSuspension:
         await self._suspend(client, moderator, member)
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/search", headers=get_auth_headers(onlooker)
+            f"/api/v1/c/{guild.id}/users/search", headers=get_auth_headers(onlooker)
         )
         assert member.id not in {row["id"] for row in response.json()["items"]}
 
@@ -523,7 +525,7 @@ class TestTimeOut:
         headers = get_auth_headers(suspended)
         for method, path, body in (
             ("patch", "/api/v1/users/me", {"full_name": "Changed"}),
-            ("post", "/api/v1/guilds/", {"name": "Mine"}),
+            ("post", "/api/v1/communities/", {"name": "Mine"}),
             ("post", "/api/v1/users/me/delete-account", {}),
             ("get", "/api/v1/me/contacts", None),
             ("get", "/api/v1/me/tasks", None),

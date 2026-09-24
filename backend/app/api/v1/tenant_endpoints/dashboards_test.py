@@ -423,7 +423,7 @@ async def test_widget_catalog_requires_guild_membership(
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     other = await create_guild(session)
     response = await client.get(
-        f"/api/v1/g/{other.id}/dashboards/widget-catalog", headers=a.headers
+        f"/api/v1/c/{other.id}/dashboards/widget-catalog", headers=a.headers
     )
     assert response.status_code == 403
 

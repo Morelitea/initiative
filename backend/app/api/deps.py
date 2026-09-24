@@ -188,7 +188,7 @@ async def _authenticate_auto_delegation(
     ``request.state.delegated_guild_id``: delegation tokens are minted for
     exactly one guild, and a machine caller has no guild context of its own to
     resolve from. The resolved guild is validated against the user's memberships
-    and must agree with the ``/g/{guild_id}`` path, so an auto workflow always
+    and must agree with the ``/c/{guild_id}`` path, so an auto workflow always
     acts in the guild its token was issued for.
     """
     if not delegation_possible():
@@ -316,7 +316,7 @@ def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
 
     ``read_only`` keys may only issue safe (non-mutating) HTTP methods. A
     ``guild_id``-bound key stashes its guild on ``request.state`` for
-    ``get_guild_membership`` to pin against the ``/g/{guild_id}`` path — the one
+    ``get_guild_membership`` to pin against the ``/c/{guild_id}`` path — the one
     place that sees both the token's guild and the path's, mirroring how
     delegation tokens are pinned.
     """
@@ -925,7 +925,7 @@ async def _load_guild_context(
     """Resolve and validate the guild context for one guild.
 
     ``guild_id`` is the single guild the request operates in (on REST it comes
-    from the ``/g/{guild_id}/...`` path, which is only a selector, never a trust
+    from the ``/c/{guild_id}/...`` path, which is only a selector, never a trust
     boundary). Access is validated fresh on every call — real membership or a
     live PAM grant, else ``GuildAccessError`` — so a stale or mistyped guild id
     fails closed. The caller has already coerced ``guild_id`` to ``int`` before
@@ -1106,7 +1106,7 @@ async def get_guild_membership(
     """The establishment seam for a REST request: who this reader is in the
     community the path addresses, and the session routed to match.
 
-    Every guild-scoped router mounts under ``/g/{guild_id}``, so FastAPI injects
+    Every guild-scoped router mounts under ``/c/{guild_id}``, so FastAPI injects
     the segment here; :func:`addressed_guild_id` decides whether that is the
     answer or whether the call's delegation already gave one. Membership (or a
     live PAM grant) is validated fresh; a non-member or stale grant gets 403. A

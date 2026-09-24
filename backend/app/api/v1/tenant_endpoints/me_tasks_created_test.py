@@ -90,7 +90,7 @@ async def test_create_task_sets_created_by(client: AsyncClient, session: AsyncSe
         "task_status_id": status.id,
     }
     response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/", headers=headers, json=payload
+        f"/api/v1/c/{guild.id}/tasks/", headers=headers, json=payload
     )
 
     assert response.status_code == 201

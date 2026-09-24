@@ -6,7 +6,7 @@ JWTs minted by initiative-auto:
 * signature, audience, issuer (negative tests against tampered tokens)
 * one-shot replay rejection via the jti blocklist
 * the guild_ref JWT claim IS the request's guild context (validated against the
-  user's memberships; the ``/g/{guild_id}`` segment is not read on a delegated
+  user's memberships; the ``/c/{guild_id}`` segment is not read on a delegated
   call — see ``history/opaque-identity-design.md`` §13)
 * deactivated users can't be impersonated even with a valid token
 
@@ -120,7 +120,7 @@ async def test_delegation_reaches_the_guild_its_token_names_whatever_the_path_sa
     """The token's guild_ref claim IS the request's guild context.
 
     A delegate holds one credential for one guild, so it addresses nothing: the
-    ``/g/{guild_id}`` segment exists for browsers, which have nowhere else to
+    ``/c/{guild_id}`` segment exists for browsers, which have nowhere else to
     carry a guild, and a delegated call does not read it. Here the path names
     the OTHER guild this person belongs to, and the call still answers about
     the one the token was minted for.
@@ -143,7 +143,7 @@ async def test_delegation_reaches_the_guild_its_token_names_whatever_the_path_sa
     )
 
     response = await client.get(
-        f"/api/v1/g/{other_guild.id}/initiatives/",
+        f"/api/v1/c/{other_guild.id}/initiatives/",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -171,7 +171,7 @@ async def test_delegation_token_guild_claim_provides_context(
     )
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200

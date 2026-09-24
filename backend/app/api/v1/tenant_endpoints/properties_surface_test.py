@@ -55,7 +55,7 @@ class Surface:
     """One entity's property endpoints, and how a test gets an entity to hit."""
 
     kind: str
-    #: Path segment under ``/g/{guild}/``.
+    #: Path segment under ``/c/{guild}/``.
     path: str
     #: Key the entity's read schema keeps its values under.
     values_key: str
@@ -409,7 +409,7 @@ async def test_put_on_an_entity_of_another_community_is_not_found(
     entity_b = await surface.make(session, a, parent_b, "B")
 
     response = await client.put(
-        f"/api/v1/g/{a.guild.id}/{surface.path}/{entity_b}/properties",
+        f"/api/v1/c/{a.guild.id}/{surface.path}/{entity_b}/properties",
         headers=a.headers,
         json={"values": []},
     )

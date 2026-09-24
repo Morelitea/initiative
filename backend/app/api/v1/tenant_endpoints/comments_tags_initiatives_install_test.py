@@ -47,7 +47,7 @@ def _cold_reference_cache():
 
 
 def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/g/{guild_id}{path}"
+    return f"/api/v1/c/{guild_id}{path}"
 
 
 async def _open_documents(session: Any, installed: Any) -> tuple[Any, Any]:

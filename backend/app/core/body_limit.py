@@ -54,14 +54,14 @@ ATLASSIAN_MAX_REQUEST_BYTES = 16 * 1024
 # settings lazily — the limit is a property of request time, not boot time.
 _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
     (
-        re.compile(r"^/api/v1/g/\d+/imports/envelope$"),
+        re.compile(r"^/api/v1/c/\d+/imports/envelope$"),
         lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (
         # A foreign export travels as its own text in a JSON body — the same
         # order of size as an envelope, and bounded the same way.
-        re.compile(r"^/api/v1/g/\d+/imports/foreign/[^/]+(/preview)?$"),
+        re.compile(r"^/api/v1/c/\d+/imports/foreign/[^/]+(/preview)?$"),
         lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
@@ -71,7 +71,7 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # framing overhead around the zip; allow 1 MiB slack over the cap the
         # handler's bounded read enforces exactly.
         re.compile(
-            r"^/api/v1/g/\d+/imports/(backup|atlassian/export|envelope/archive)$"
+            r"^/api/v1/c/\d+/imports/(backup|atlassian/export|envelope/archive)$"
         ),
         lambda: import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
         "IMPORT_TOO_LARGE",
@@ -81,7 +81,7 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # business arriving as a megabyte, and both routes reach outward on
         # what they are given, so the transport refuses an oversized one
         # before a handler ever looks at it.
-        re.compile(r"^/api/v1/g/\d+/imports/atlassian/(connect|import)$"),
+        re.compile(r"^/api/v1/c/\d+/imports/atlassian/(connect|import)$"),
         lambda: ATLASSIAN_MAX_REQUEST_BYTES,
         "IMPORT_TOO_LARGE",
     ),
@@ -99,7 +99,7 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # The routes that write a document's content: create, update, a wiki
         # page, and the save a closing tab sends.
         re.compile(
-            r"^/api/v1/g/\d+/("
+            r"^/api/v1/c/\d+/("
             r"documents(/\d+)?"
             r"|wikis/\d+/pages(/\d+)?"
             r"|collaboration/documents/\d+/sync-content"

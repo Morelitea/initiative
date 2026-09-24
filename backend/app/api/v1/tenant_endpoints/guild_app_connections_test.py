@@ -1135,7 +1135,7 @@ class TestRelationshipCascades:
         _, member = await _connected_member(client, acting_user, session, a)
 
         response = await client.delete(
-            f"/api/v1/guilds/{a.guild.id}/leave", headers=member.headers
+            f"/api/v1/communities/{a.guild.id}/leave", headers=member.headers
         )
         assert response.status_code == 204, response.text
         assert await _rows(session, a.guild.id) == []
@@ -1167,12 +1167,12 @@ class TestRelationshipCascades:
         _, member = await _connected_member(client, acting_user, session, a)
         app_b = await _install(session, b)
         await client.post(
-            f"/api/v1/g/{b.guild.id}/apps/{app_b.id}/connections/github/connect",
+            f"/api/v1/c/{b.guild.id}/apps/{app_b.id}/connections/github/connect",
             headers=b.headers,
         )
 
         await client.delete(
-            f"/api/v1/guilds/{a.guild.id}/leave", headers=member.headers
+            f"/api/v1/communities/{a.guild.id}/leave", headers=member.headers
         )
         assert await _rows(session, a.guild.id) == []
         assert len(await _rows(session, b.guild.id)) == 1
@@ -1190,7 +1190,7 @@ class TestRelationshipCascades:
         )
 
         await client.delete(
-            f"/api/v1/guilds/{a.guild.id}/leave", headers=member.headers
+            f"/api/v1/communities/{a.guild.id}/leave", headers=member.headers
         )
         rows = await _rows(session, a.guild.id)
         assert len(rows) == 1
@@ -1211,7 +1211,7 @@ class TestRelationshipCascades:
 
         response = await client.request(
             "DELETE",
-            f"/api/v1/guilds/{a.guild.id}",
+            f"/api/v1/communities/{a.guild.id}",
             headers=a.headers,
             json={
                 "password": "testpassword123",
@@ -1239,7 +1239,7 @@ class TestAccountDeletionSweep:
         app_b = await _install(session, admin_b)
         await create_guild_membership(session, user=member.user, guild=admin_b.guild)
         connected = await client.post(
-            f"/api/v1/g/{admin_b.guild.id}/apps/{app_b.id}/connections/github/connect",
+            f"/api/v1/c/{admin_b.guild.id}/apps/{app_b.id}/connections/github/connect",
             headers=member.headers,
         )
         assert connected.status_code == 200, connected.text

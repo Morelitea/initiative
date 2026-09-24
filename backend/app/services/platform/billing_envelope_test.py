@@ -17,7 +17,7 @@ from app.services.platform.billing import (
 
 NOW = 2_000_000_000
 METHOD = "POST"
-PATH = "/api/v1/billing/guild-tier"
+PATH = "/api/v1/billing/community-tier"
 BODY = b'{"guild_id":1}'
 CURRENT_SIGNATURE = "4fedc9943a673e2f49696595ff0d6dfb666afeb5f1bd8ae0470aab3a501d4857"
 PREVIOUS_SIGNATURE = "20c9eb333669a3bccbce217bd922d8701c14cb0122914e856e45f2c8be8b2fa9"

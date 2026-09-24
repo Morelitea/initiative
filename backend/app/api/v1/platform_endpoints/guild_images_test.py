@@ -94,7 +94,7 @@ def _icon_files(
 
 async def _set_icon(client: AsyncClient, guild_id: int, headers: dict) -> dict:
     response = await client.put(
-        f"/api/v1/guilds/{guild_id}/icon", headers=headers, files=_icon_files()
+        f"/api/v1/communities/{guild_id}/icon", headers=headers, files=_icon_files()
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -102,7 +102,7 @@ async def _set_icon(client: AsyncClient, guild_id: int, headers: dict) -> dict:
 
 async def _set_banner(client: AsyncClient, guild_id: int, headers: dict) -> dict:
     response = await client.put(
-        f"/api/v1/guilds/{guild_id}/banner", headers=headers, files=_banner_files()
+        f"/api/v1/communities/{guild_id}/banner", headers=headers, files=_banner_files()
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -133,7 +133,7 @@ async def _variant_url(
             )
         )
     ).one()
-    return f"/api/v1/guilds/{guild_id}/image/{digest}"
+    return f"/api/v1/communities/{guild_id}/image/{digest}"
 
 
 async def _card_url(session: AsyncSession, guild_id: int) -> str:
@@ -161,7 +161,7 @@ async def test_admin_sets_banner_and_gets_its_url_back(
 
     assert payload["banner"]["image_url"] is not None
     assert payload["banner"]["image_url"].startswith(
-        f"/api/v1/guilds/{a.guild.id}/image/"
+        f"/api/v1/communities/{a.guild.id}/image/"
     )
 
 
@@ -171,7 +171,9 @@ async def test_member_cannot_set_the_banner(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.member)
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner", headers=a.headers, files=_banner_files()
+        f"/api/v1/communities/{a.guild.id}/banner",
+        headers=a.headers,
+        files=_banner_files(),
     )
 
     assert response.status_code == 403
@@ -186,7 +188,7 @@ async def test_replacing_a_banner_leaves_one_of_each_rendition(
     await _set_banner(client, a.guild.id, a.headers)
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner",
+        f"/api/v1/communities/{a.guild.id}/banner",
         headers=a.headers,
         files=_banner_files(full=_spec_png(GuildImageVariant.full, padding=64)),
     )
@@ -208,7 +210,7 @@ async def test_clearing_a_banner_removes_both_renditions(
     await _set_banner(client, a.guild.id, a.headers)
 
     response = await client.delete(
-        f"/api/v1/guilds/{a.guild.id}/banner", headers=a.headers
+        f"/api/v1/communities/{a.guild.id}/banner", headers=a.headers
     )
 
     assert response.status_code == 200
@@ -228,7 +230,7 @@ async def test_svg_is_refused(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner",
+        f"/api/v1/communities/{a.guild.id}/banner",
         headers=a.headers,
         files={
             "full": (
@@ -256,7 +258,7 @@ async def test_a_declared_content_type_does_not_decide(
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner",
+        f"/api/v1/communities/{a.guild.id}/banner",
         headers=a.headers,
         files={
             "full": ("full.png", io.BytesIO(b"not an image at all"), "image/png"),
@@ -276,7 +278,7 @@ async def test_a_card_carrying_the_full_image_is_refused(
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner",
+        f"/api/v1/communities/{a.guild.id}/banner",
         headers=a.headers,
         files=_banner_files(card=_spec_png(GuildImageVariant.full)),
     )
@@ -292,7 +294,7 @@ async def test_a_rendition_that_is_not_four_to_one_is_refused(
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner",
+        f"/api/v1/communities/{a.guild.id}/banner",
         headers=a.headers,
         files=_banner_files(full=_png(1200, 600)),
     )
@@ -307,7 +309,7 @@ async def test_an_oversized_rendition_is_refused(client: AsyncClient, acting_use
     over = IMAGE_SPECS[GuildImageVariant.card].max_bytes + 1
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner",
+        f"/api/v1/communities/{a.guild.id}/banner",
         headers=a.headers,
         files=_banner_files(card=_spec_png(GuildImageVariant.card, padding=over)),
     )
@@ -423,7 +425,7 @@ async def test_a_replaced_banners_url_stops_resolving(client: AsyncClient, actin
     first = await _set_banner(client, a.guild.id, a.headers)
 
     await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner",
+        f"/api/v1/communities/{a.guild.id}/banner",
         headers=a.headers,
         files=_banner_files(full=_spec_png(GuildImageVariant.full, padding=128)),
     )
@@ -449,7 +451,7 @@ async def test_the_guild_list_names_the_banner(client: AsyncClient, acting_user)
     a = await acting_user(guild_role=GuildRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
 
-    response = await client.get("/api/v1/guilds/", headers=a.headers)
+    response = await client.get("/api/v1/communities/", headers=a.headers)
 
     assert response.status_code == 200
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
@@ -467,7 +469,7 @@ async def test_the_directory_names_the_card_rendition(
     stranger = await create_user(session, email="visitor@example.com")
 
     response = await client.get(
-        "/api/v1/guilds/communities", headers=get_auth_headers(stranger)
+        "/api/v1/communities/directory", headers=get_auth_headers(stranger)
     )
 
     assert response.status_code == 200
@@ -479,7 +481,7 @@ async def test_the_directory_names_the_card_rendition(
 async def test_a_guild_without_a_banner_names_none(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin)
 
-    response = await client.get("/api/v1/guilds/", headers=a.headers)
+    response = await client.get("/api/v1/communities/", headers=a.headers)
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
     assert entry["banner"]["image_url"] is None
@@ -565,7 +567,7 @@ async def test_a_guild_can_choose_a_colour_instead(
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(color=sent)},
     )
@@ -579,7 +581,7 @@ async def test_a_colour_that_is_not_one_is_refused(client: AsyncClient, acting_u
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(color="rebeccapurple")},
     )
@@ -594,13 +596,13 @@ async def test_a_null_banner_is_a_reset_not_a_removal(client: AsyncClient, actin
     nothing for null to clear — it puts the whole default back."""
     a = await acting_user(guild_role=GuildRole.admin)
     await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(color="#101010", text_align="left", fade="weak")},
     )
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}", headers=a.headers, json={"banner": None}
+        f"/api/v1/communities/{a.guild.id}", headers=a.headers, json={"banner": None}
     )
 
     assert response.status_code == 200
@@ -617,7 +619,7 @@ async def test_every_guild_starts_with_a_banner(client: AsyncClient, acting_user
     that has none."""
     a = await acting_user(guild_role=GuildRole.admin)
 
-    response = await client.get("/api/v1/guilds/", headers=a.headers)
+    response = await client.get("/api/v1/communities/", headers=a.headers)
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
     assert entry["banner"] == {"image_url": None, **DEFAULT_BANNER}
@@ -631,7 +633,7 @@ async def test_the_banner_text_colour_is_the_guilds_to_set(
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(color="#f5f0e8", text_color="#000000")},
     )
@@ -648,7 +650,7 @@ async def test_the_directory_carries_the_colour(
     that was already being sent."""
     a = await acting_user(guild_role=GuildRole.admin)
     await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(color="#2a9d8f")},
     )
@@ -656,7 +658,7 @@ async def test_the_directory_carries_the_colour(
     stranger = await create_user(session, email="colourblind@example.com")
 
     response = await client.get(
-        "/api/v1/guilds/communities", headers=get_auth_headers(stranger)
+        "/api/v1/communities/directory", headers=get_auth_headers(stranger)
     )
 
     card = next(g for g in response.json()["items"] if g["id"] == a.guild.id)
@@ -687,7 +689,9 @@ async def test_a_guild_without_the_artwork_entitlement_cannot_upload(
     await session.commit()
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/banner", headers=a.headers, files=_banner_files()
+        f"/api/v1/communities/{a.guild.id}/banner",
+        headers=a.headers,
+        files=_banner_files(),
     )
 
     assert response.status_code == 403
@@ -714,7 +718,7 @@ async def test_the_colour_is_still_available_without_the_entitlement(
     await session.commit()
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(color="#8d5524")},
     )
@@ -779,7 +783,7 @@ async def test_admin_sets_the_icon_and_gets_its_url_back(
     payload = await _set_icon(client, a.guild.id, a.headers)
 
     assert payload["icon_url"] is not None
-    assert payload["icon_url"].startswith(f"/api/v1/guilds/{a.guild.id}/image/")
+    assert payload["icon_url"].startswith(f"/api/v1/communities/{a.guild.id}/image/")
 
 
 @pytest.mark.integration
@@ -796,7 +800,7 @@ async def test_the_icon_and_the_banner_do_not_disturb_each_other(
     assert payload["banner"]["image_url"] is not None
 
     cleared = await client.delete(
-        f"/api/v1/guilds/{a.guild.id}/icon", headers=a.headers
+        f"/api/v1/communities/{a.guild.id}/icon", headers=a.headers
     )
     assert cleared.status_code == 200
     assert cleared.json()["icon_url"] is None
@@ -832,7 +836,7 @@ async def test_a_non_square_icon_is_refused(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/icon",
+        f"/api/v1/communities/{a.guild.id}/icon",
         headers=a.headers,
         files=_icon_files(icon=_png(256, 128)),
     )
@@ -882,7 +886,7 @@ async def test_the_directory_names_the_icon(
     stranger = await create_user(session, email="icon-visitor@example.com")
 
     response = await client.get(
-        "/api/v1/guilds/communities", headers=get_auth_headers(stranger)
+        "/api/v1/communities/directory", headers=get_auth_headers(stranger)
     )
 
     card = next(g for g in response.json()["items"] if g["id"] == a.guild.id)
@@ -897,7 +901,7 @@ async def test_the_guild_list_names_the_icon(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin)
     await _set_icon(client, a.guild.id, a.headers)
 
-    response = await client.get("/api/v1/guilds/", headers=a.headers)
+    response = await client.get("/api/v1/communities/", headers=a.headers)
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
     assert entry["icon_url"] is not None
@@ -912,7 +916,7 @@ async def test_a_guild_admin_reads_their_own_entitlements(
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.get(
-        f"/api/v1/guilds/{a.guild.id}/entitlements", headers=a.headers
+        f"/api/v1/communities/{a.guild.id}/entitlements", headers=a.headers
     )
 
     assert response.status_code == 200
@@ -938,7 +942,7 @@ async def test_entitlements_follow_the_operator(
     await session.commit()
 
     response = await client.get(
-        f"/api/v1/guilds/{a.guild.id}/entitlements", headers=a.headers
+        f"/api/v1/communities/{a.guild.id}/entitlements", headers=a.headers
     )
 
     assert response.json()["banner_image_enabled"] is False
@@ -950,7 +954,7 @@ async def test_a_member_does_not_read_entitlements(client: AsyncClient, acting_u
     a = await acting_user(guild_role=GuildRole.member)
 
     response = await client.get(
-        f"/api/v1/guilds/{a.guild.id}/entitlements", headers=a.headers
+        f"/api/v1/communities/{a.guild.id}/entitlements", headers=a.headers
     )
 
     assert response.status_code == 403
@@ -967,7 +971,7 @@ async def test_a_truncated_image_is_a_bad_upload_not_a_fault(
     stub = b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR"
 
     response = await client.put(
-        f"/api/v1/guilds/{a.guild.id}/icon",
+        f"/api/v1/communities/{a.guild.id}/icon",
         headers=a.headers,
         files=_icon_files(icon=stub),
     )
@@ -1008,7 +1012,7 @@ async def test_dropping_below_the_seat_floor_stops_publishing_artwork(
     assert (await client.get(icon, headers=headers)).status_code == 404
     assert (await client.get(card, headers=headers)).status_code == 404
     # The directory it left agrees.
-    directory = await client.get("/api/v1/guilds/communities", headers=headers)
+    directory = await client.get("/api/v1/communities/directory", headers=headers)
     assert all(g["id"] != a.guild.id for g in directory.json()["items"])
 
 
@@ -1021,12 +1025,12 @@ async def test_banner_text_is_black_or_white_and_nothing_else(
     a = await acting_user(guild_role=GuildRole.admin)
 
     refused = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(text_color="#808080")},
     )
     accepted = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(text_color="#000000")},
     )
@@ -1046,7 +1050,7 @@ async def test_a_banner_starts_centred_and_dissolving(client: AsyncClient, actin
     dissolve is the default, and the hard edge is what a guild opts into."""
     a = await acting_user(guild_role=GuildRole.admin)
 
-    response = await client.get("/api/v1/guilds/", headers=a.headers)
+    response = await client.get("/api/v1/communities/", headers=a.headers)
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
     assert entry["banner"]["text_align"] == DEFAULT_BANNER["text_align"] == "center"
@@ -1060,7 +1064,7 @@ async def test_an_admin_sets_the_alignment_and_the_fade(
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(text_align="left", fade="strong")},
     )
@@ -1079,12 +1083,12 @@ async def test_a_layout_outside_the_vocabulary_is_refused(
     a = await acting_user(guild_role=GuildRole.admin)
 
     align = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(text_align="justify")},
     )
     fade = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": _banner(fade="extreme")},
     )
@@ -1100,7 +1104,7 @@ async def test_half_a_banner_is_not_a_banner(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=a.headers,
         json={"banner": {"color": "#101010", "text_color": "#ffffff"}},
     )
@@ -1114,7 +1118,7 @@ async def test_a_member_cannot_lay_out_the_banner(client: AsyncClient, acting_us
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
+        f"/api/v1/communities/{a.guild.id}",
         headers=b.headers,
         json={"banner": _banner(fade="strong")},
     )
@@ -1131,7 +1135,7 @@ async def test_the_guild_list_says_how_many_are_here_now(
     half is zero — what matters is that it is stated rather than absent."""
     a = await acting_user(guild_role=GuildRole.admin)
 
-    response = await client.get("/api/v1/guilds/", headers=a.headers)
+    response = await client.get("/api/v1/communities/", headers=a.headers)
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
     assert entry["member_count"] == 1

@@ -32,12 +32,12 @@ def _limit(path: str) -> int | None:
 def test_the_atlassian_routes_are_bounded_where_they_are():
     """The connect and the import take a handful of strings; the export
     upload takes a zip as large as a backup."""
-    connect = _limit("/api/v1/g/1/imports/atlassian/connect")
-    start = _limit("/api/v1/g/1/imports/atlassian/import")
-    export = _limit("/api/v1/g/1/imports/atlassian/export")
+    connect = _limit("/api/v1/c/1/imports/atlassian/connect")
+    start = _limit("/api/v1/c/1/imports/atlassian/import")
+    export = _limit("/api/v1/c/1/imports/atlassian/export")
     assert connect is not None and connect == start
     assert export is not None and export > import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
-    assert export == _limit("/api/v1/g/1/imports/backup")
+    assert export == _limit("/api/v1/c/1/imports/backup")
 
 
 def _bound(path: str, content_type: bytes = b"application/json") -> tuple[int, str]:
@@ -45,7 +45,7 @@ def _bound(path: str, content_type: bytes = b"application/json") -> tuple[int, s
 
 
 def test_a_route_no_rule_names_still_has_a_bound():
-    assert _bound("/api/v1/g/1/tasks/") == (
+    assert _bound("/api/v1/c/1/tasks/") == (
         DEFAULT_MAX_REQUEST_BYTES,
         CommonMessages.REQUEST_TOO_LARGE,
     )
@@ -57,7 +57,7 @@ def test_a_route_no_rule_names_still_has_a_bound():
 
 def test_a_multipart_upload_gets_room_for_the_largest_file_a_route_takes():
     limit, _ = _bound(
-        "/api/v1/g/1/documents/upload",
+        "/api/v1/c/1/documents/upload",
         b"multipart/form-data; boundary=x",
     )
     assert limit == MULTIPART_MAX_REQUEST_BYTES
@@ -79,12 +79,12 @@ def test_the_default_leaves_room_for_a_calendar_import():
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/v1/g/1/documents/",
-        "/api/v1/g/1/documents",
-        "/api/v1/g/1/documents/42",
-        "/api/v1/g/1/wikis/3/pages",
-        "/api/v1/g/1/wikis/3/pages/9",
-        "/api/v1/g/1/collaboration/documents/42/sync-content",
+        "/api/v1/c/1/documents/",
+        "/api/v1/c/1/documents",
+        "/api/v1/c/1/documents/42",
+        "/api/v1/c/1/wikis/3/pages",
+        "/api/v1/c/1/wikis/3/pages/9",
+        "/api/v1/c/1/collaboration/documents/42/sync-content",
     ],
 )
 def test_the_routes_that_write_a_document_take_a_whiteboard(path):
@@ -94,9 +94,9 @@ def test_the_routes_that_write_a_document_take_a_whiteboard(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/v1/g/1/documents/42/comments",
-        "/api/v1/g/1/documents/42/duplicate",
-        "/api/v1/g/1/wikis/3",
+        "/api/v1/c/1/documents/42/comments",
+        "/api/v1/c/1/documents/42/duplicate",
+        "/api/v1/c/1/wikis/3",
     ],
 )
 def test_the_document_rule_names_only_the_routes_that_carry_content(path):
@@ -127,7 +127,7 @@ async def _run(
     async def send(message):
         sent.append(message)
 
-    scope = {"type": "http", "path": "/api/v1/g/1/tasks/", "headers": headers}
+    scope = {"type": "http", "path": "/api/v1/c/1/tasks/", "headers": headers}
     await BodySizeLimitMiddleware(app)(scope, receive, send)
     return sent[0]["status"], b"".join(m.get("body", b"") for m in sent[1:])
 

@@ -147,7 +147,7 @@ async def _collaborate(
 
     Protocol:
     1. Client connects and sends MSG_AUTH with {token} as first message; the
-       guild comes from the ``/g/{guild_id}`` path segment
+       guild comes from the ``/c/{guild_id}`` path segment
     2. Server validates auth and sends current Yjs state (SYNC_STEP2)
     3. Client sends incremental updates (UPDATE)
     4. Server broadcasts updates to other clients
@@ -517,7 +517,7 @@ async def sync_document_content(
     session cookie on web, a short-lived uploads-scoped ``?token=`` on native —
     so the long-lived session JWT never rides in a URL (SEC-12), unlike the
     earlier ``?token=<session jwt>`` version. The guild comes from the
-    ``/g/{guild_id}`` path — the document being synced was open inside it.
+    ``/c/{guild_id}`` path — the document being synced was open inside it.
 
     The request body should contain the Lexical serialized state as JSON.
     """

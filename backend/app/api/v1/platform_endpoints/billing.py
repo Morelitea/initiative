@@ -129,7 +129,7 @@ async def _burn_jti(session, claims) -> None:
         ) from exc
 
 
-@router.post("/guild-tier", response_model=BillingGuildTierRead)
+@router.post("/community-tier", response_model=BillingGuildTierRead)
 async def apply_guild_tier(
     request: Request, session: SessionDep
 ) -> BillingGuildTierRead:
@@ -171,7 +171,7 @@ async def apply_guild_tier(
     return result
 
 
-@router.post("/guild-name", response_model=BillingGuildNameRead)
+@router.post("/community-name", response_model=BillingGuildNameRead)
 async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameRead:
     """Signed read: what one guild calls itself.
 
@@ -197,7 +197,7 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
     return BillingGuildNameRead(guild_ref=payload.guild_ref, name=name)
 
 
-@router.post("/guild-status", response_model=BillingGuildStatusRead)
+@router.post("/community-status", response_model=BillingGuildStatusRead)
 async def guild_status(request: Request, session: SessionDep) -> BillingGuildStatusRead:
     """Signed read: one guild's lifecycle status, ``deleted`` included.
 
