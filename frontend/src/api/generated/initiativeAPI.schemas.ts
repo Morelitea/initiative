@@ -703,6 +703,14 @@ export interface AppParamOptionsResponse {
   unavailable?: string | null;
 }
 
+/**
+ * One initiative an app is placed in, and who may open it there.
+ */
+export interface AppPlacementRead {
+  initiative_id: number;
+  role_ids: number[];
+}
+
 export type AppServiceRegistrationCreateDelegationJwks = { [key: string]: unknown } | null;
 
 /**
@@ -4097,8 +4105,6 @@ export interface GuildAppDelegationRead {
 
 export type GuildAppDetailDefinition = { [key: string]: unknown };
 
-export type GuildAppDetailPlacement = { [key: string]: unknown };
-
 /**
  * An install plus its connections, for the settings page.
  *
@@ -4122,7 +4128,7 @@ export interface GuildAppDetail {
   avatar_url: string | null;
   features: string[];
   definition: GuildAppDetailDefinition;
-  placement: GuildAppDetailPlacement;
+  placements: AppPlacementRead[];
   mandatory: boolean;
   available: boolean;
   delegates: boolean;
@@ -4164,8 +4170,6 @@ export interface GuildAppInstall {
 
 export type GuildAppReadDefinition = { [key: string]: unknown };
 
-export type GuildAppReadPlacement = { [key: string]: unknown };
-
 export interface GuildAppRead {
   id: number;
   guild_id: number;
@@ -4183,7 +4187,7 @@ export interface GuildAppRead {
   avatar_url: string | null;
   features: string[];
   definition: GuildAppReadDefinition;
-  placement: GuildAppReadPlacement;
+  placements: AppPlacementRead[];
   mandatory: boolean;
   available: boolean;
   delegates: boolean;
@@ -4234,13 +4238,11 @@ export interface GuildAppMembersResponse {
   delegations: GuildAppMemberDelegation[];
 }
 
-export type GuildAppUpdatePlacement = { [key: string]: unknown } | null;
-
 export interface GuildAppUpdate {
   name?: string | null;
   enabled?: boolean | null;
   auto_update?: boolean | null;
-  placement?: GuildAppUpdatePlacement;
+  placed_initiative_ids?: number[] | null;
 }
 
 export type GuildAuthOption = (typeof GuildAuthOption)[keyof typeof GuildAuthOption];

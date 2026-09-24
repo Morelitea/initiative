@@ -53,7 +53,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.marketplace import app_refs, registration_lookup
 from app.services.marketplace.service_apps import clears_visibility
-from app.services.tenant.guild_apps import placed_in
+from app.services.tenant.guild_apps import is_placed
 
 __all__ = [
     "APP_EMBED_HANDOFF_LIFETIME",
@@ -194,7 +194,7 @@ async def mint_embed_handoff(
     # scope, or the guild placed its initiative surfaces somewhere else. Same
     # answer, because from this route both mean the same thing.
     embed = embed_by_id(app.definition, surface_id, scope=scope)
-    if embed is None or not placed_in(app, initiative_id):
+    if embed is None or not await is_placed(session, app.id, initiative_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildAppMessages.SURFACE_NOT_FOUND,

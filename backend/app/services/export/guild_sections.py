@@ -215,9 +215,12 @@ async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
             )
     if not kept:
         return None
+    from app.services.tenant.guild_apps import placements_by_install
+
+    placements = await placements_by_install(ctx.session, [row.id for row in kept])
     payload = {
         "type": "guild-apps",
-        "schema_version": 1,
+        "schema_version": 2,
         "apps": [
             {
                 "listing_uid": row.listing_uid,
@@ -227,7 +230,13 @@ async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
                 "enabled": row.enabled,
                 "auto_update": row.auto_update,
                 "config": dict(row.config or {}),
-                "placement": dict(row.placement or {}),
+                "placements": [
+                    {
+                        "initiative_id": placement.initiative_id,
+                        "role_ids": list(placement.role_ids or []),
+                    }
+                    for placement in placements.get(row.id, [])
+                ],
             }
             for row in kept
         ],
@@ -272,6 +281,8 @@ SECTION_TABLES: dict[str, str] = {
     "guild_settings": "settings",
     "tags": "tags",
     "guild_apps": "apps",
+    # Each install's placements ride inside its entry in the apps section.
+    "app_placements": "apps",
     # Carried per-initiative rather than at the guild root: an initiative's
     # roster and role set belong beside its content, not in one flat file.
     "initiatives": "initiatives",

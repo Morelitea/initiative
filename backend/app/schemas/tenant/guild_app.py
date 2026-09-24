@@ -11,7 +11,7 @@ catalog, so an install describes the form it was actually configured against.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
@@ -43,10 +43,10 @@ class GuildAppUpdate(SanitizedBaseModel):
     #: Whether published versions are applied on their own. On until a guild
     #: admin turns it off, after which the Update button is how they land.
     auto_update: Optional[bool] = None
-    #: Which initiatives this app's initiative-scoped surfaces appear in.
-    #: ``{}`` is every one of them; ``{"initiatives": [12, 15]}`` narrows it.
-    #: Left out entirely, the current placement is untouched.
-    placement: Optional[Dict[str, Any]] = None
+    #: The initiatives this app's initiative-scoped surfaces appear in, as the
+    #: whole set: an initiative left out is no longer placed. An empty list
+    #: places the app in none. Left out entirely, placement is untouched.
+    placed_initiative_ids: Optional[List[int]] = None
 
 
 class GuildAppConfigUpdate(SanitizedBaseModel):
@@ -112,6 +112,16 @@ class GuildAppConnectionRead(SanitizedBaseModel):
     blocked: bool = False
 
 
+class AppPlacementRead(SanitizedBaseModel):
+    """One initiative an app is placed in, and who may open it there."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    initiative_id: int
+    #: The initiative roles allowed to open the app's surfaces here.
+    role_ids: List[int] = []
+
+
 class GuildAppRead(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -156,11 +166,12 @@ class GuildAppRead(SanitizedBaseModel):
     #: definition describes the form, and what was typed into it lives in
     #: columns nothing here reads.
     definition: Dict[str, Any] = {}
-    #: Which initiatives this app's initiative-scoped surfaces appear in, as the
-    #: guild's admins set it. ``{}`` — the default — is every one of them.
-    #: Placement rather than permission: it is the guild's own answer to where
-    #: an app belongs, so it reads the same for everyone.
-    placement: Dict[str, Any] = {}
+    #: The initiatives this app's initiative-scoped surfaces appear in, as the
+    #: seat set them, each with the roles allowed to open it there. An
+    #: initiative not listed is one the app does not appear in. Placement
+    #: rather than permission: it is the community's own answer to where an
+    #: app belongs, so it reads the same for everyone.
+    placements: List[AppPlacementRead] = []
     #: The deployment provides this app to every guild, and a guild admin
     #: neither removes nor disables it. The affordances are absent rather than
     #: erroring, so the client is told which installs those are.
@@ -345,13 +356,15 @@ def serialize_guild_app(
     context: "GuildContext",
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
+    placements: Sequence[Any] = (),
 ) -> GuildAppRead:
     """One install as the client sees it.
 
     ``install_state`` is what this deployment's registration says about the app
     (§7.7): whether the platform provides it, and whether it can be reached at
     all. It is passed in rather than looked up here so a list of installs
-    resolves it once.
+    resolves it once. ``placements`` are the install's ``app_placements`` rows,
+    loaded by the caller for the same reason.
     """
     definition = app.definition or {}
     state = app_config_service.config_state(app)
@@ -374,7 +387,12 @@ def serialize_guild_app(
         avatar_url=avatar_url,
         features=list(features) if isinstance(features, list) else [],
         definition=definition,
-        placement=app.placement or {},
+        placements=[
+            AppPlacementRead(
+                initiative_id=row.initiative_id, role_ids=list(row.role_ids or [])
+            )
+            for row in sorted(placements, key=lambda row: row.initiative_id)
+        ],
         mandatory=service_state.mandatory,
         available=service_state.available,
         delegates=service_state.delegates,
@@ -438,6 +456,7 @@ def serialize_guild_app_detail(
     avatar_url: Optional[str] = None,
     delegation_row: Any = None,
     update_version: Optional[str] = None,
+    placements: Sequence[Any] = (),
 ) -> GuildAppDetail:
     """The install and its connections, from the viewer's own perspective.
 
@@ -445,7 +464,11 @@ def serialize_guild_app_detail(
     session that can read the catalog.
     """
     base = serialize_guild_app(
-        app, context=context, install_state=install_state, avatar_url=avatar_url
+        app,
+        context=context,
+        install_state=install_state,
+        avatar_url=avatar_url,
+        placements=placements,
     )
     connections = [
         serialize_connection(

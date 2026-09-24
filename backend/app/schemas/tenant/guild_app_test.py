@@ -76,9 +76,6 @@ def _app(**overrides) -> SimpleNamespace:
             "config_state": "ok",
             "config_state_detail": None,
             "artifacts": [],
-            # Every initiative, which is what an install that never narrowed it
-            # says and what the serializer reads.
-            "placement": {},
             "created_by": 11,
             "created_at": now,
             "updated_at": now,
@@ -133,3 +130,19 @@ def test_needs_config_still_reads_from_presence():
         is True
     )
     assert serialize_guild_app(_app(), context=CONTEXT).needs_config is False
+
+
+def test_placements_are_the_rows_handed_in_ordered_by_initiative():
+    """The serializer reads no placement off the install: the caller loads the
+    rows, once for a whole list."""
+    rows = [
+        SimpleNamespace(initiative_id=9, role_ids=[4]),
+        SimpleNamespace(initiative_id=2, role_ids=[]),
+    ]
+    payload = serialize_guild_app(_app(), context=CONTEXT, placements=rows)
+
+    assert [p.model_dump() for p in payload.placements] == [
+        {"initiative_id": 2, "role_ids": []},
+        {"initiative_id": 9, "role_ids": [4]},
+    ]
+    assert serialize_guild_app(_app(), context=CONTEXT).placements == []

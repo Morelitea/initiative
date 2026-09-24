@@ -9,6 +9,7 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.platform.guild_administration import GuildAdministration
+from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
@@ -237,6 +238,7 @@ __all__ = [
     "GuildAIConnection",
     "GuildAIMemberKey",
     "GuildAIMemberPref",
+    "AppPlacement",
     "GuildApp",
     "GuildAppUserConnection",
     "GuildAppUserDelegation",

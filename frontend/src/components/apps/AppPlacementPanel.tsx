@@ -1,10 +1,11 @@
 /**
  * Where an app's initiative surfaces appear.
  *
- * An app that offers a surface inside an initiative offers it in every one of
- * them unless the guild says otherwise. This is where a guild admin says
- * otherwise — placement rather than permission, so it reads the same for
- * everyone afterwards, including the admin who set it.
+ * An app appears in the initiatives it is placed in and no others. This is
+ * where the seat places it — placement rather than permission, so it reads the
+ * same for everyone afterwards, including the admin who set it. "Every current
+ * initiative" places it in each initiative that exists now; one created later
+ * is placed here like any other.
  *
  * Absent for an app with no initiative surface to place: there would be nothing
  * for the choice to move.
@@ -27,11 +28,9 @@ export interface AppPlacementPanelProps {
   app: GuildAppDetail;
 }
 
-/** The chosen initiatives, or null when the app is placed in all of them. */
-const chosenIds = (placement: Record<string, unknown> | null | undefined): number[] | null => {
-  const chosen = placement?.initiatives;
-  return Array.isArray(chosen) ? chosen.filter((id): id is number => typeof id === "number") : null;
-};
+/** The initiatives the app is placed in. */
+const placedIds = (app: GuildAppDetail): number[] =>
+  (app.placements ?? []).map((one) => one.initiative_id);
 
 export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
   const { t } = useTranslation(["apps", "common"]);
@@ -39,7 +38,10 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
   const update = useUpdateGuildApp(app.id);
   // What the admin is choosing right now. Seeded from the app and kept locally
   // so ticking several initiatives is one decision, saved per change.
-  const [chosen, setChosen] = useState<number[] | null>(() => chosenIds(app.placement));
+  const [chosen, setChosen] = useState<number[]>(() => placedIds(app));
+  // Whether the admin asked to pick initiatives one by one. Until they do, an
+  // app placed in every initiative there is reads as "every current one".
+  const [picking, setPicking] = useState(false);
   // The last selection the server took, so a failed save falls back to
   // something true rather than to whatever the cache happens to hold.
   const settled = useRef(chosen);
@@ -52,7 +54,11 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
   // worked would otherwise roll the panel back past a choice the server kept.
   const outstanding = useRef(0);
 
-  const save = (next: number[] | null) => {
+  const roster = initiatives.data ?? [];
+  const everywhere = roster.length > 0 && roster.every((one) => chosen.includes(one.id));
+  const mode = picking || !everywhere ? "some" : "all";
+
+  const save = (next: number[]) => {
     setChosen(next);
     outstanding.current += 1;
     queue.current = queue.current
@@ -62,13 +68,10 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
         // after it was chosen leaves an id nothing on screen shows, and
         // resubmitting it would fail every later edit for a reason the admin
         // cannot see.
-        const live =
-          next === null || !initiatives.data
-            ? next
-            : next.filter((id) => initiatives.data?.some((one) => one.id === id));
-        await update.mutateAsync({
-          placement: live === null ? {} : { initiatives: live },
-        });
+        const live = !initiatives.data
+          ? next
+          : next.filter((id) => initiatives.data?.some((one) => one.id === id));
+        await update.mutateAsync({ placed_initiative_ids: live });
         settled.current = live;
       })
       .catch((error) => {
@@ -85,8 +88,21 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
   };
 
   const toggle = (id: number, on: boolean) => {
-    const current = chosen ?? [];
-    save(on ? [...current, id] : current.filter((one) => one !== id));
+    // Ticking the last box keeps the list open rather than folding it into
+    // "every current initiative" under the admin's cursor.
+    setPicking(true);
+    save(on ? [...chosen, id] : chosen.filter((one) => one !== id));
+  };
+
+  const choose = (value: string) => {
+    if (value === "all") {
+      setPicking(false);
+      save(roster.map((one) => one.id));
+    } else {
+      // Nothing moves until a box is ticked: the current placements stay as
+      // they are, shown ticked.
+      setPicking(true);
+    }
   };
 
   return (
@@ -96,11 +112,7 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
         <p className="text-muted-foreground text-sm">{t("apps:placement.description")}</p>
       </div>
 
-      <RadioGroup
-        value={chosen === null ? "all" : "some"}
-        onValueChange={(value) => save(value === "all" ? null : [])}
-        className="space-y-2"
-      >
+      <RadioGroup value={mode} onValueChange={choose} className="space-y-2">
         <div className="flex items-center gap-2">
           <RadioGroupItem value="all" id={`placement-all-${app.id}`} />
           <Label htmlFor={`placement-all-${app.id}`} className="font-normal">
@@ -115,7 +127,7 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
         </div>
       </RadioGroup>
 
-      {chosen !== null && (
+      {mode === "some" && (
         <div className="space-y-2 border-l pl-4">
           {initiatives.isLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -123,7 +135,7 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
               {t("common:loading")}
             </div>
           ) : (
-            (initiatives.data ?? []).map((initiative) => (
+            roster.map((initiative) => (
               <div key={initiative.id} className="flex items-center gap-2">
                 <Checkbox
                   id={`placement-${app.id}-${initiative.id}`}

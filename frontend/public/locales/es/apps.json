@@ -146,7 +146,7 @@
   "placement": {
     "title": "Dónde aparece esta aplicación",
     "description": "Esta aplicación ofrece una página dentro de las iniciativas. Elige en cuáles aparece.",
-    "all": "Todas las iniciativas",
+    "all": "Todas las iniciativas actuales",
     "some": "Solo las iniciativas que yo elija",
     "none": "No se eligió ninguna iniciativa, así que esta aplicación solo aparece a nivel de comunidad."
   },
