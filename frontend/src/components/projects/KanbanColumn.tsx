@@ -351,7 +351,12 @@ const KanbanCardContent = memo(
             <p className="wrap-break-word w-full min-w-0 font-medium opacity-70">{task.title}</p>
           )}
           {shows("description") && task.description ? (
-            <Markdown content={task.description} className="line-clamp-2 w-full min-w-0" mentions />
+            <Markdown
+              content={task.description}
+              // Two lines of words, not a picture that fills the card.
+              className="line-clamp-2 w-full min-w-0 [&_img]:hidden"
+              mentions
+            />
           ) : null}
           <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">
             {shows("assignees") && task.assignees.length > 0 ? (

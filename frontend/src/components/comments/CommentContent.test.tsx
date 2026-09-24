@@ -188,3 +188,32 @@ describe("CommentContent", () => {
     expect(container.querySelector("b")).toBeNull();
   });
 });
+
+describe("pictures in a comment", () => {
+  it("shows a picture stored here", () => {
+    const { container } = renderContent("Look: ![shot](/uploads/9/pasted-a.png)");
+
+    const img = container.querySelector("img");
+    expect(img).toHaveAttribute("src", "/uploads/9/pasted-a.png");
+    expect(img).toHaveAttribute("alt", "shot");
+  });
+
+  it("turns a picture from anywhere else into a link, so reading fetches nothing", () => {
+    const { container } = renderContent("![pixel](https://tracker.example/p.gif)");
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("link", { name: "pixel" })).toHaveAttribute(
+      "href",
+      "https://tracker.example/p.gif"
+    );
+  });
+
+  it("names a stored picture in a clamped preview rather than drawing it", () => {
+    const { container } = renderWithProviders(
+      <CommentContent content="![shot](/uploads/9/pasted-a.png)" compact />
+    );
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("shot")).toBeInTheDocument();
+  });
+});

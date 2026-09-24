@@ -290,3 +290,17 @@ export const continueList = ({
     end: caret,
   };
 };
+
+/** The pictures in something pasted or dropped — files only, text is text. */
+export const imagesIn = (data: DataTransfer | null): File[] =>
+  Array.from(data?.files ?? []).filter((file) => file.type.startsWith("image/"));
+
+/**
+ * A stored picture, written as markdown. The alt text is the file's name
+ * without its extension — what a screen reader says, and what shows if the
+ * picture cannot load — with the characters the syntax is built from taken out.
+ */
+export const imageMarkdown = (fileName: string, url: string): string => {
+  const alt = fileName.replace(/\.[^.]+$/, "").replace(/[[\]()]/g, "") || "image";
+  return `![${alt}](${url})`;
+};

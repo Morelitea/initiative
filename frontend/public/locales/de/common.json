@@ -216,7 +216,10 @@
     "bulletedList": "Aufzählung",
     "numberedList": "Nummerierte Liste",
     "taskList": "Aufgabenliste",
-    "more": "Weitere Formatierung"
+    "more": "Weitere Formatierung",
+    "image": "Bild",
+    "uploadingImage": "{{name}} wird hochgeladen…",
+    "imageUploadFailed": "Das Bild konnte nicht hinzugefügt werden."
   },
   "errorPage": {
     "title": "Etwas ist schiefgelaufen",

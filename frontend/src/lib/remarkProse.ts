@@ -29,13 +29,23 @@ export function visitParents(node: MdastNode, fn: (parent: MdastNode) => void) {
   for (const child of node.children) visitParents(child, fn);
 }
 
+/** Whether an address is a picture stored in this app, rather than one
+ *  somewhere else on the web. */
+export const isStoredUpload = (url: string): boolean => url.startsWith("/uploads/");
+
+interface ImageLinkOptions {
+  /** Images to leave as images — pictures this app stores, which a reader
+   *  fetches from the server they are already talking to. */
+  keep?: (url: string) => boolean;
+}
+
 /**
  * Turn an image into a link to itself, named by its alt text, so a comment
  * reports what it points at rather than fetching it. An image the author
  * already wrapped in a link contributes only its name: the wrapping link keeps
  * its own destination, and a link cannot legally hold another.
  */
-export function remarkImageLinks() {
+export function remarkImageLinks(options: ImageLinkOptions = {}) {
   return (tree: MdastNode) => {
     // A reference-style image names a definition elsewhere in the document
     // rather than carrying its own address.
@@ -65,6 +75,7 @@ export function remarkImageLinks() {
         }
 
         const url = urlOf(child);
+        if (url && options.keep?.(url)) continue;
         const label = child.alt || url || "";
         if (!label) {
           children.splice(i, 1);

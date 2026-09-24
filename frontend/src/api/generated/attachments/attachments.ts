@@ -15,6 +15,7 @@ import type {
 import type {
   AttachmentUploadResponse,
   BodyUploadAttachmentApiV1GGuildIdAttachmentsPost,
+  BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
 
@@ -123,6 +124,217 @@ export const useUploadAttachmentApiV1GGuildIdAttachmentsPost = <
 > => {
   return useMutation(
     getUploadAttachmentApiV1GGuildIdAttachmentsPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Store a picture pasted into markdown — a task's description, a comment.
+ *
+ * The picture belongs to the text it is written into: taking it back out, or
+ * purging what it is in, deletes it once nothing else shows it.
+ * @summary Upload Pasted Image
+ */
+export const uploadPastedImageApiV1GGuildIdAttachmentsPastedPost = (
+  guildId: number,
+  bodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost: BodyType<BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`file`, bodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost.file);
+
+  return apiMutator<AttachmentUploadResponse>(
+    {
+      url: `/api/v1/g/${guildId}/attachments/pasted`,
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationKey = () =>
+  ["uploadPastedImageApiV1GGuildIdAttachmentsPastedPost"] as const;
+
+export const getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+    TError,
+    UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+  TError,
+  UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+    UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return uploadPastedImageApiV1GGuildIdAttachmentsPastedPost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>
+>;
+export type UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationBody =
+  BodyType<BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost>;
+export type UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables = {
+  guildId: number;
+  data: BodyType<BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost>;
+};
+
+/**
+ * @summary Upload Pasted Image
+ */
+export const useUploadPastedImageApiV1GGuildIdAttachmentsPastedPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+      TError,
+      UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+  TError,
+  UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Discard a picture that was pasted and never saved.
+ *
+ * Asked by the page that pasted it, as it is left. A picture something saved
+ * shows, or that somebody else uploaded, stays — and says so no differently,
+ * so the answer is the same whatever the name.
+ * @summary Discard Pasted Image
+ */
+export const discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete = (
+  guildId: number,
+  filename: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/attachments/pasted/${filename}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationKey = () =>
+  ["discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete"] as const;
+
+export const getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+    TError,
+    DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+  TError,
+  DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+    DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables
+  > = (props) => {
+    const { guildId, filename } = props ?? {};
+
+    return discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete(
+      guildId,
+      filename,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>
+  >;
+
+export type DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables = {
+  guildId: number;
+  filename: string;
+};
+
+/**
+ * @summary Discard Pasted Image
+ */
+export const useDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+      TError,
+      DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+  TError,
+  DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationOptions(options),
     queryClient
   );
 };

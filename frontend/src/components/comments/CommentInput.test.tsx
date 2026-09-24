@@ -4,7 +4,7 @@
  * run, it sets state on something that is gone — and when the test environment
  * has been torn down by then, on a `window` that no longer exists.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -28,7 +28,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("the comment field", () => {
   it("cancels its blur timer when it goes away", async () => {
     const cleared = vi.spyOn(window, "clearTimeout");
-    const { getByRole, unmount } = render(
+    const { getByRole, unmount } = renderWithProviders(
       <CommentInput initiativeId={1} value="" onChange={vi.fn()} onSubmit={vi.fn()} />
     );
 

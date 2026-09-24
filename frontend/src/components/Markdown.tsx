@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 
 import { LinkedMentionSpan } from "@/components/comments/MentionSpan";
 import { remarkMentions } from "@/components/comments/remarkCommentPlugins";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 interface MarkdownProps {
@@ -69,11 +70,20 @@ function MarkdownAnchor({ node: _node, href, children, ...props }: AnchorProps) 
   );
 }
 
+type ImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
+
+/** A picture stored here is addressed at the server, which on the native app is
+ *  not the origin the page is served from. */
+function MarkdownImage({ node: _node, src, alt, ...props }: ImageProps) {
+  const resolved = typeof src === "string" ? (resolveUploadUrl(src) ?? src) : src;
+  return <img src={resolved} alt={alt ?? ""} loading="lazy" {...props} />;
+}
+
 const PLAIN_PLUGINS = [remarkGfm];
 const MENTION_PLUGINS = [remarkGfm, remarkMentions];
 const REHYPE_PLUGINS = [rehypeSlug];
-const PLAIN_COMPONENTS = { a: MarkdownAnchor };
-const MENTION_COMPONENTS = { a: MarkdownAnchor, span: LinkedMentionSpan };
+const PLAIN_COMPONENTS = { a: MarkdownAnchor, img: MarkdownImage };
+const MENTION_COMPONENTS = { a: MarkdownAnchor, img: MarkdownImage, span: LinkedMentionSpan };
 
 export const Markdown = ({ content, className, mentions = false }: MarkdownProps) => {
   if (!content) {
