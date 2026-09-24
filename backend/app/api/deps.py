@@ -1,7 +1,7 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Annotated, NoReturn, Optional
+from typing import Annotated, Any, NoReturn, Optional
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -10,7 +10,19 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_scopes import UnknownAppScope, validate_scopes
+from app.core.app_access_token import (
+    AccessTokenError,
+    InstallAccessToken,
+    is_access_token,
+    unseal_access_token,
+)
+from app.core.app_scopes import (
+    AppScopeAccess,
+    UnknownAppScope,
+    expand,
+    parse_scope,
+    validate_scopes,
+)
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
@@ -37,6 +49,7 @@ from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.core import audit_context
 from app.core.messages import (
     AccessGrantMessages,
+    AppMessages,
     AuthMessages,
     DirectMessageMessages,
     GuildMessages,
@@ -107,6 +120,9 @@ CREDENTIAL_SESSION = "session"
 CREDENTIAL_API_KEY = "api_key"
 CREDENTIAL_DEVICE_TOKEN = "device_token"
 CREDENTIAL_DELEGATION = "delegation"
+#: An installed app's access token. Only a route that names an app scope
+#: admits one (:func:`app_scope`).
+CREDENTIAL_INSTALL = "install"
 
 #: The credentials that are somebody signing in, as opposed to something acting
 #: for them in their absence. The native app trades an email and password for a
@@ -351,6 +367,16 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # An installed app's access token is never a person. It is refused here,
+    # before anything is read, and admitted only by a route that names an app
+    # scope (``app_scope``), which reads it without coming through here.
+    if is_access_token(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -1535,6 +1561,164 @@ async def establish_install_access(
     return completed
 
 
+#: Who a scoped route is serving: a person's standing in the community, or an
+#: installed app's.
+ActorContext = GuildContext | InstallContext
+
+#: The attribute a scoped route's dependency carries its scope on, for a walk
+#: over the routes.
+APP_SCOPE_ATTRIBUTE = "__app_scope__"
+
+
+def _refuse_install_credential() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def scope_covers(scopes: frozenset[str], scope: str) -> bool:
+    """Whether ``scopes`` include ``scope``. Writing implies reading."""
+    resource, access = parse_scope(scope)
+    try:
+        read, write = expand(scopes)
+    except UnknownAppScope:
+        return False
+    return resource in (write if access is AppScopeAccess.write else read)
+
+
+async def _establish_install_request(
+    request: Request, session: AsyncSession, token: str, scope: str
+) -> InstallContext:
+    """Admit an installed app's request to a route that names ``scope``.
+
+    The token is read locally; nothing reaches the database until it has been
+    unsealed and found to be an installation token. Then the seam routes the
+    request's session as the install and computes its standing, the two
+    statements an install pays before its handler.
+    """
+    try:
+        unsealed = unseal_access_token(token)
+    except AccessTokenError as exc:
+        raise _refuse_install_credential() from exc
+    if not isinstance(unsealed, InstallAccessToken):
+        raise _refuse_install_credential()
+
+    install = VerifiedInstall(
+        guild_id=unsealed.guild_id,
+        install_id=unsealed.install_id,
+        client_id=unsealed.client_id,
+        scopes=unsealed.scopes,
+        initiative_id=unsealed.initiative_id,
+    )
+    try:
+        context = await establish_install_access(session, install)
+    except InstallAccessError as exc:
+        raise _refuse_install_credential() from exc
+
+    request.state.credential = CREDENTIAL_INSTALL
+    # Whose request this is, for the rate limiter's key (see
+    # ``app.core.rate_limit.get_user_or_ip_key``).
+    request.state.app_install = (
+        context.client_id,
+        context.guild_id,
+        context.install_id,
+    )
+    if not scope_covers(context.token_scopes, scope):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AppMessages.SCOPE_REQUIRED,
+        )
+    return context
+
+
+def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
+    """The dependency a route names to admit an installed app, at ``scope``.
+
+    A person passes through to the ordinary seam, exactly as
+    :data:`GuildContextDep` would take them, so one route serves both. An
+    installation token is admitted only here: :func:`get_current_user` refuses
+    one, so a route that names no scope cannot be reached by an app. For an
+    install, the guild comes from the token and the path's ``{guild_id}`` is
+    not read (``history/opaque-identity-design.md`` §13); a token whose scopes
+    do not cover ``scope`` gets 403 (``APP_SCOPE_REQUIRED``).
+
+    Either way the request's session — the one :data:`SessionDep` hands out,
+    which FastAPI resolves once per request — is routed before the handler
+    runs. A scoped route reads it through :data:`ActorSessionDep`.
+
+    The returned callable carries ``scope`` on :data:`APP_SCOPE_ATTRIBUTE`.
+    A route names it the way the type checker reads, as a module-level alias
+    or inline::
+
+        DocumentsRead = Annotated[ActorContext, Depends(app_scope("documents:read"))]
+
+        async def list_documents(actor: DocumentsRead, session: ActorSessionDep): ...
+    """
+    parse_scope(scope)
+
+    async def dependency(
+        request: Request,
+        session: SessionDep,
+        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+        session_cookie: Annotated[
+            Optional[str], Cookie(alias=SESSION_COOKIE_NAME)
+        ] = None,
+    ) -> ActorContext:
+        if bearer_token and is_access_token(bearer_token):
+            return await _establish_install_request(
+                request, session, bearer_token, scope
+            )
+        # A person: the same three dependencies a content route composes, in
+        # the same order, called here so an install never passes through them.
+        user = await get_current_user(request, session, bearer_token, session_cookie)
+        user = await get_current_active_user(request, session, user)
+        context = await get_guild_membership(request, session, user, guild_id)
+        if context.is_settings_only:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_ACCESS_DENIED,
+            )
+        return context
+
+    setattr(dependency, APP_SCOPE_ATTRIBUTE, scope)
+    dependency.__name__ = f"app_scope_{scope.replace(':', '_')}"
+    dependency.__qualname__ = dependency.__name__
+    return dependency
+
+
+def route_app_scope(route: Any) -> str | None:
+    """The app scope a route names, or ``None``: read from its dependencies."""
+    dependant = getattr(route, "dependant", None)
+    pending = list(getattr(dependant, "dependencies", ()) or ())
+    while pending:
+        current = pending.pop()
+        found = getattr(current.call, APP_SCOPE_ATTRIBUTE, None)
+        if isinstance(found, str):
+            return found
+        pending.extend(current.dependencies or ())
+    return None
+
+
+async def get_actor_session(request: Request, session: SessionDep) -> AsyncSession:
+    """The session a scoped route's :func:`app_scope` dependency routed.
+
+    The same instance, since FastAPI resolves :data:`SessionDep` once per
+    request, and every dependency resolves before the handler runs, so by then
+    it is routed as the person or the install. A route that takes this without
+    naming a scope is a wiring mistake, and is refused as one.
+    """
+    if route_app_scope(request.scope.get("route")) is None:
+        raise RuntimeError("ActorSessionDep is for a route that names an app scope")
+    return session
+
+
+#: The routed session of a route that names an app scope.
+ActorSessionDep = Annotated[AsyncSession, Depends(get_actor_session)]
+
+
 async def get_guild_seat_context(
     guild_id: int,
     session: SessionDep,
@@ -1888,6 +2072,15 @@ async def _resolve_upload_user(
         )
 
     token = header_token
+
+    # An installed app's access token is never a person, here as on every
+    # other route that names no app scope.
+    if is_access_token(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     # A personal API key names itself by its prefix; anything else is not one.
     api_auth = (

@@ -32,6 +32,10 @@ SALT_APP_SERVICE_SECRET = b"app-service-secret"
 SALT_APP_CONFIG = b"app-config"
 # The base32 seed behind an account's authenticator-app factor.
 SALT_TOTP_SECRET = b"totp-secret"
+# The access tokens the app platform's token endpoint issues. Transient: a
+# token lives ten minutes and is never stored, so a key rotation ends the ones
+# in flight and their apps ask again.
+SALT_APP_ACCESS_TOKEN = b"app-access-token"
 # The value a job needs to read a foreign site. Kept under its original
 # name so values written before the job carried it still decrypt.
 SALT_IMPORT_CREDENTIAL = b"import-credential"

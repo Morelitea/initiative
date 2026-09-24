@@ -1,7 +1,8 @@
 """One periodic worker that prunes every one-shot replay-guard table.
 
 The guards — the billing service JWT blocklist, the initiative-auto delegation
-blocklist, and the nonces spent on the app-service channel — are the same
+blocklist, the nonces spent on the app-service channel, and the client
+assertions spent at the app token endpoint — are the same
 maintenance concern: shared ``public`` tables of spent one-shot values that grow
 forever unless swept. They run on one hourly cadence, so one worker sweeps them
 all rather than a near-identical janitor per table (the per-table DELETE lives
@@ -24,8 +25,9 @@ from typing import Callable
 
 from sqlmodel import SQLModel
 
-from app.core.security import delegation_possible
+from app.core.security import app_platform_signing_enabled, delegation_possible
 from app.db.jti_blocklist import purge_expired_jtis
+from app.models.platform.app_assertion_jti import AppAssertionJti
 from app.models.platform.app_service_nonce import AppServiceNonce
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
 from app.models.platform.billing import BillingJti
@@ -52,6 +54,9 @@ _BLOCKLISTS: tuple[_Blocklist, ...] = (
     _Blocklist(BillingJti, billing_inbound_enabled, "billing"),
     _Blocklist(AutoDelegationJti, delegation_possible, "auto-delegation"),
     _Blocklist(AppServiceNonce, app_channel_possible, "app-service"),
+    # A registration exists only where the app platform can sign, so that is
+    # also where an app can have presented a client assertion.
+    _Blocklist(AppAssertionJti, app_platform_signing_enabled, "app-assertion"),
 )
 
 

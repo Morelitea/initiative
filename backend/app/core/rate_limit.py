@@ -104,9 +104,14 @@ def get_user_or_ip_key(request: Request) -> str:
     """The counter key for a route only a signed-in account reaches.
 
     The account when the request carries one, so everybody behind a shared
-    address gets their own allowance; the client address otherwise, which is
-    what the rest of the limits use.
+    address gets their own allowance; an installed app's install, by the
+    client and the install, when the request is one of those; and the client
+    address when it is neither, which is what the rest of the limits use.
     """
+    install = getattr(request.state, "app_install", None)
+    if install is not None:
+        client_id, guild_id, install_id = install
+        return f"install:{client_id}:{guild_id}:{install_id}"
     user_id = getattr(request.state, "user_id", None)
     if user_id is not None:
         return f"user:{user_id}"

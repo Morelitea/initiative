@@ -136,7 +136,7 @@ async def register_delegate(
         allowed_origins=["http://auto.test:8080"],
         secret_encrypted=None,
         grants=list(grants),
-        delegation_jwks=delegation_jwks() if key_set is None else key_set,
+        jwks=delegation_jwks() if key_set is None else key_set,
         enabled=enabled,
         status=AppServiceStatus.OK,
     )

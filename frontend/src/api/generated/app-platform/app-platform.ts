@@ -4,23 +4,32 @@
  * Initiative API
  * OpenAPI spec version: 0.72.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200 } from "../initiativeAPI.schemas";
+import type {
+  AppAccessTokenResponse,
+  AppInstallationRead,
+  AppOAuthErrorResponse,
+  IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody,
+  ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200,
+} from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
-import type { ErrorType } from "../../mutator";
+import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -183,6 +192,287 @@ export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadAppPlatformJwksApiV1AppPlatformJwksJsonGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Issue an app token, or an installation token for one of the app's
+ * installs. See the module docstring for the parameters.
+ * @summary Issue App Access Token
+ */
+export const issueAppAccessTokenApiV1AppPlatformOauthTokenPost = (
+  issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody: BodyType<IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formUrlEncoded = new URLSearchParams();
+  formUrlEncoded.append(
+    `grant_type`,
+    issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.grant_type
+  );
+  formUrlEncoded.append(
+    `client_assertion_type`,
+    issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion_type
+  );
+  formUrlEncoded.append(
+    `client_assertion`,
+    issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_assertion
+  );
+  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_id !== undefined) {
+    formUrlEncoded.append(
+      `client_id`,
+      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.client_id
+    );
+  }
+  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.installation !== undefined) {
+    formUrlEncoded.append(
+      `installation`,
+      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.installation
+    );
+  }
+  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.scope !== undefined) {
+    formUrlEncoded.append(`scope`, issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.scope);
+  }
+  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.resource !== undefined) {
+    formUrlEncoded.append(
+      `resource`,
+      issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.resource
+    );
+  }
+
+  return apiMutator<AppAccessTokenResponse>(
+    {
+      url: `/api/v1/app-platform/oauth/token`,
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      data: formUrlEncoded,
+      signal,
+    },
+    options
+  );
+};
+
+export const getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationKey = () =>
+  ["issueAppAccessTokenApiV1AppPlatformOauthTokenPost"] as const;
+
+export const getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationOptions = <
+  TError = ErrorType<AppOAuthErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+    TError,
+    IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+  TError,
+  IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+    IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return issueAppAccessTokenApiV1AppPlatformOauthTokenPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>
+>;
+export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationBody =
+  BodyType<IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody>;
+export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationError =
+  ErrorType<AppOAuthErrorResponse>;
+export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables = {
+  data: BodyType<IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody>;
+};
+
+/**
+ * @summary Issue App Access Token
+ */
+export const useIssueAppAccessTokenApiV1AppPlatformOauthTokenPost = <
+  TError = ErrorType<AppOAuthErrorResponse>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+      TError,
+      IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof issueAppAccessTokenApiV1AppPlatformOauthTokenPost>>,
+  TError,
+  IssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getIssueAppAccessTokenApiV1AppPlatformOauthTokenPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Every install of the calling app, with what it has been granted and
+ * where it is placed. Takes an app token.
+ * @summary List App Installations
+ */
+export const listAppInstallationsApiV1AppPlatformInstallationsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppInstallationRead[]>(
+    { url: `/api/v1/app-platform/installations`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListAppInstallationsApiV1AppPlatformInstallationsGetQueryKey = () => {
+  return [`/api/v1/app-platform/installations`] as const;
+};
+
+export const getListAppInstallationsApiV1AppPlatformInstallationsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAppInstallationsApiV1AppPlatformInstallationsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
+  > = ({ signal }) => listAppInstallationsApiV1AppPlatformInstallationsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListAppInstallationsApiV1AppPlatformInstallationsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
+>;
+export type ListAppInstallationsApiV1AppPlatformInstallationsGetQueryError = ErrorType<unknown>;
+
+export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
+  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
+  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
+  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List App Installations
+ */
+
+export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
+  TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListAppInstallationsApiV1AppPlatformInstallationsGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
