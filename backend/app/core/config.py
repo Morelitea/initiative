@@ -16,6 +16,7 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
@@ -210,9 +211,10 @@ RUNTIME_SEEDED_SETTINGS = frozenset(
 #: tool has to carry it as a secret. Prefer the seeded set above.
 ENV_ONLY_FEATURE_CREDENTIALS: frozenset[str] = frozenset()
 
-#: The logins the app makes for itself when ``DATABASE_URL`` names the database
-#: owner, each with the setting its connection URL is written to.
-DERIVED_DATABASE_LOGINS: tuple[tuple[str, str], ...] = (
+#: The app's three logins: the setting whose URL connects as each, and the
+#: login's canonical name — what the app calls it when it makes the login
+#: itself, and what a URL naming no user is read as.
+DATABASE_LOGINS: tuple[tuple[str, str], ...] = (
     ("DATABASE_URL", "app_provisioner"),
     ("DATABASE_URL_APP", "app_user"),
     ("DATABASE_URL_ADMIN", "app_admin"),
@@ -241,7 +243,7 @@ class Settings(BaseSettings):
     #
     # Usually the database owner, with DATABASE_URL_APP and DATABASE_URL_ADMIN
     # left unset. The app then makes its three logins itself (see
-    # DERIVED_DATABASE_LOGINS), with passwords derived from SECRET_KEY, and
+    # DATABASE_LOGINS), with passwords derived from SECRET_KEY, and
     # `_resolve_database_logins` rewrites these four settings into the second
     # shape, so nothing that reads them needs to know which one was given.
     #
@@ -378,7 +380,7 @@ class Settings(BaseSettings):
             )
         owner = make_url(self.DATABASE_URL)
         self.DATABASE_URL_BOOTSTRAP = self.DATABASE_URL
-        for setting, role in DERIVED_DATABASE_LOGINS:
+        for setting, role in DATABASE_LOGINS:
             login = owner.set(
                 username=role,
                 password=derive_database_password(self.SECRET_KEY, role),
@@ -391,6 +393,19 @@ class Settings(BaseSettings):
     def database_logins_derived(self) -> bool:
         """Whether DATABASE_URL named the owner and the app made its logins."""
         return self._database_logins_derived
+
+    def database_login(self, setting: str) -> tuple[str, str | None]:
+        """The (name, password) one of the DATABASE_LOGINS settings connects as.
+
+        A deployment may name its logins anything; this is the name its URL
+        gives, or the canonical one when the URL gives none.
+        """
+        canonical = dict(DATABASE_LOGINS)[setting]
+        try:
+            url = make_url(getattr(self, setting))
+        except ArgumentError:
+            return canonical, None
+        return url.username or canonical, url.password or None
 
     @property
     def jwt_signing_key(self) -> str:

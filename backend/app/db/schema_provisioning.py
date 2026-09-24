@@ -28,7 +28,6 @@ import logging
 from dataclasses import dataclass, field
 
 from sqlalchemy import text
-from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
@@ -42,8 +41,8 @@ logger = logging.getLogger(__name__)
 # routing (search_path) sends guild-scoped queries there: app_user for the RLS
 # request path, app_admin for guild creation / seeding / background jobs.
 # (Tightening to per-guild roles + SET ROLE is the fail-closed step.)
-APP_LOGIN_ROLE = make_url(settings.DATABASE_URL_APP).username
-SYSTEM_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
+APP_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_APP")
+SYSTEM_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_ADMIN")
 
 
 def guild_schema_name(guild_id: int) -> str:
@@ -659,7 +658,7 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     # is gone, and this drop is idempotent so that retry recovers cleanly.
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
-    provisioning_login = make_url(settings.DATABASE_URL).username
+    provisioning_login, _ = settings.database_login("DATABASE_URL")
     for role in (
         guild_role_name(guild_id),
         guild_readonly_role_name(guild_id),
@@ -859,18 +858,9 @@ async def reject_privileged_database_url() -> None:
     )
 
 
-SEARCH_OPCLASS = "tsvector_search_ops"
-#: Re-exported from the module that installs it, so the name has one home.
+#: Re-exported from the module that installs them, so each name has one home.
+SEARCH_OPCLASS = bootstrap.SEARCH_OPCLASS
 SEARCH_MATCH_FUNCTION = bootstrap.SEARCH_MATCH_FUNCTION
-
-_SEARCH_OPERATOR_SQL = text(
-    "SELECT "
-    "  EXISTS (SELECT 1 FROM pg_opclass c JOIN pg_namespace n ON n.oid = c.opcnamespace"
-    "          WHERE n.nspname = 'public' AND c.opcname = :opclass) AS opclass_present,"
-    "  coalesce((SELECT p.proleakproof FROM pg_proc p"
-    "            JOIN pg_namespace n ON n.oid = p.pronamespace"
-    "            WHERE n.nspname = 'public' AND p.proname = :fn), false) AS fn_leakproof"
-)
 
 
 #: Cached at boot by :func:`search_operator_ready`. ``False`` until checked, so
@@ -891,14 +881,9 @@ async def search_operator_ready() -> bool:
     class; both must be present.
     """
     async with db_session.provisioning_engine.connect() as conn:
-        row = (
-            await conn.execute(
-                _SEARCH_OPERATOR_SQL,
-                {"opclass": SEARCH_OPCLASS, "fn": SEARCH_MATCH_FUNCTION},
-            )
-        ).one()
+        ready = await bootstrap.search_operator_present(conn)
     global _search_operator_ready
-    _search_operator_ready = bool(row.opclass_present and row.fn_leakproof)
+    _search_operator_ready = ready
     return _search_operator_ready
 
 

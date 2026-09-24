@@ -12,7 +12,6 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import event, text
-from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy.pool import NullPool
@@ -46,7 +45,7 @@ system_engine = create_async_engine(
     echo=False,
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
-_SYSTEM_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
+_SYSTEM_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_ADMIN")
 
 # Provisioning engine: superuser credentials (same as migrations) for privileged
 # DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
