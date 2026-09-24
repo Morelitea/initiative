@@ -24,6 +24,7 @@ import type {
   AtlassianConnectRequest,
   AtlassianConnectResponse,
   AtlassianImportRequest,
+  BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost,
   BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost,
   BodyUploadBackupApiV1GGuildIdImportsBackupPost,
   ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
@@ -160,6 +161,132 @@ export const useImportEnvelopeApiV1GGuildIdImportsEnvelopePost = <
 > => {
   return useMutation(
     getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Import an export that travels as a zip — a gallery with its pictures —
+ * into the chosen initiative. The zip holds one envelope at its top level and
+ * the files it names under ``assets/``; the files are stored first, then the
+ * envelope imports exactly as ``POST /imports/envelope`` imports one, with
+ * the same responses.
+ * @summary Import Envelope Archive
+ */
+export const importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost = (
+  guildId: number,
+  bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost: BodyType<BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`file`, bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.file);
+  formData.append(
+    `initiative_id`,
+    bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.initiative_id.toString()
+  );
+  if (
+    bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.envelope_type !== undefined &&
+    bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.envelope_type !== null
+  ) {
+    formData.append(
+      `envelope_type`,
+      bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.envelope_type
+    );
+  }
+
+  return apiMutator<unknown>(
+    {
+      url: `/api/v1/g/${guildId}/imports/envelope/archive`,
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationKey = () =>
+  ["importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost"] as const;
+
+export const getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+    TError,
+    ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+  TError,
+  ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+    ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost(
+      guildId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>
+  >;
+export type ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationBody =
+  BodyType<BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>;
+export type ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables = {
+  guildId: number;
+  data: BodyType<BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>;
+};
+
+/**
+ * @summary Import Envelope Archive
+ */
+export const useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+      TError,
+      ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+  TError,
+  ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationOptions(options),
     queryClient
   );
 };

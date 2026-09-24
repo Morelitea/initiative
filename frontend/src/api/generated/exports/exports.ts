@@ -1300,10 +1300,13 @@ export function useExportPostApiV1GGuildIdExportsPostGet<
 }
 
 /**
- * Export a wiki as an importable envelope: every page, the tree they
- * sit in, and its home page. Takes the owner rung on it. Small selections
- * return the file inline; large ones return ``202`` with a queued job to
- * poll and download.
+ * Export a wiki: ``json`` is an importable envelope (every page, the tree
+ * they sit in, and its home page); ``pdf``/``md``/``docx`` are the published
+ * pages as one document, each under a heading at its depth. The download is
+ * always a zip: the wiki, and under ``documents/`` each document filed in it
+ * that the caller could export on its own. Takes the owner rung on
+ * the wiki. Small selections return the file inline; large ones return
+ * ``202`` with a queued job to poll and download.
  * @summary Export Wiki
  */
 export const exportWikiApiV1GGuildIdExportsWikiGet = (
@@ -1475,8 +1478,8 @@ export function useExportWikiApiV1GGuildIdExportsWikiGet<
 }
 
 /**
- * Export a gallery as an importable envelope naming each picture by
- * its stored file; the pictures themselves travel in a backup. Takes the owner rung on it. Small selections
+ * Export a gallery as a zip: its importable envelope, and each picture it
+ * names under ``assets/``. Takes the owner rung on it. Small selections
  * return the file inline; large ones return ``202`` with a queued job to
  * poll and download.
  * @summary Export Gallery

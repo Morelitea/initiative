@@ -27,6 +27,7 @@ vi.mock("@/hooks/useInitiativeAccess", () => ({
       [Tool.queue]: { create: true },
       [Tool.document]: { create: true },
       [Tool.project]: { create: true },
+      [Tool.gallery]: { create: true },
     }),
   }),
 }));
@@ -76,6 +77,40 @@ describe("EnvelopeImportDialog", () => {
     });
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("Restored Queue"))
+    );
+  });
+
+  it("sends a zipped export as it is, saying which tool it is for", async () => {
+    let sent: string | null = null;
+    server.use(
+      guildHttp.post("/imports/envelope/archive", async ({ request }) => {
+        sent = await request.text();
+        return HttpResponse.json(
+          { result: { entity_title: "Barovia maps", created: {}, unmatched_handles: [] } },
+          { status: 201 }
+        );
+      })
+    );
+
+    renderWithProviders(<EnvelopeImportDialog tool={Tool.gallery} open onOpenChange={() => {}} />);
+
+    const input = screen.getByLabelText(/export file/i) as HTMLInputElement;
+    const file = new File(["PK"], "barovia.zip", { type: "application/zip" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(await screen.findByText(/zipped export/i)).toBeInTheDocument();
+    const importBtn = screen.getByRole("button", { name: /^import$/i });
+    await waitFor(() => expect(importBtn).not.toBeDisabled());
+    await userEvent.click(importBtn);
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    // Multipart: the zip itself, the initiative, and the tool it is for.
+    expect(sent).toMatch(/name="file"/);
+    expect(sent).toContain("initiative-gallery");
+    expect(sent).toMatch(/name="initiative_id"\r?\n\r?\n7/);
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("Barovia maps"))
     );
   });
 

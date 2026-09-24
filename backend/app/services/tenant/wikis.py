@@ -250,12 +250,26 @@ def document_parent(wiki: Wiki, document_id: int) -> int | None:
     return _placement(wiki, document_id)[1]
 
 
-def file_document(wiki: Wiki, document_id: int, *, parent_page_id: int | None) -> None:
-    """File a document under a page (or at the top), at the end of what is
-    already there. For an import, which places each file under the page it
-    was attached to without a drag."""
+def document_position(wiki: Wiki, document_id: int) -> int:
+    """Where among its siblings this wiki puts the document."""
+    return _placement(wiki, document_id)[0]
+
+
+def file_document(
+    wiki: Wiki,
+    document_id: int,
+    *,
+    parent_page_id: int | None,
+    position: int | None = None,
+) -> None:
+    """File a document under a page (or at the top) — at ``position``, or at
+    the end of what is already there. For an import, which places each file
+    under the page it was attached to without a drag."""
     placements = dict(wiki.document_positions or {})
-    placements[str(document_id)] = {"position": UNPLACED, "parent": parent_page_id}
+    placements[str(document_id)] = {
+        "position": UNPLACED if position is None else position,
+        "parent": parent_page_id,
+    }
     wiki.document_positions = placements
 
 

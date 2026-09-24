@@ -24,7 +24,7 @@ import {
 } from "@/lib/tools";
 
 export const ToolExportCard = () => {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation(["common", "exports"]);
   const { tool, entity, isOwner, exportOptions } = useToolSettings();
 
   const baseFormats = exportOptions?.formats ?? TOOL_EXPORT_FORMATS[tool] ?? [];
@@ -43,8 +43,8 @@ export const ToolExportCard = () => {
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>{t("toolSettings.export.title")}</CardTitle>
-        <CardDescription>{t("toolSettings.export.description")}</CardDescription>
+        <CardTitle>{t("common:toolSettings.export.title")}</CardTitle>
+        <CardDescription>{t("common:toolSettings.export.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <ExportButton
@@ -53,7 +53,13 @@ export const ToolExportCard = () => {
           formats={formats}
           filenameStem={stem}
           extraActions={exportOptions?.extraActions}
-          label={t("toolSettings.export.button")}
+          // A single format is the button itself, so the button names the file
+          // it downloads; with a menu, each entry does.
+          label={
+            formats.length === 1 && !exportOptions?.extraActions?.length
+              ? t(`exports:${formats[0].labelKey}` as never)
+              : t("common:toolSettings.export.button")
+          }
           variant="default"
         />
       </CardContent>

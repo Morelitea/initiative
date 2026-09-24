@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Exporting a tool belongs to whoever can delete it** — export moved from the top of each tool's page to its **Settings → Advanced**, and only the tool's owner, a community admin or a role with full access to the initiative can use it. Posts, wikis and galleries can now be exported one at a time too. Bulk export from a list works when you could delete everything selected. A project's task-list export and initiative and community backups are unchanged.
+- **Exporting a tool belongs to whoever can delete it** — export moved from the top of each tool's page to its **Settings → Advanced**, and only the tool's owner, a community admin or a role with full access to the initiative can use it. Posts, wikis and galleries can now be exported one at a time too. A gallery downloads as a zip holding its pictures, which imports back from the gallery page with them. A wiki exports as PDF, Markdown or Word, with each page starting a new page in PDF and Word, or as an importable file — always a zip holding the documents filed in it, and importing that zip files them back under the same pages. Each export button says what file it downloads. Bulk export from a list works when you could delete everything selected. A project's task-list export and initiative and community backups are unchanged.
 - **Suspension means no access** — a suspended community or account reaches nothing, settings included, until the suspension is lifted, and sees a notice saying who to contact. Nothing is deleted.
 - **Imports live with the community** — Todoist, TickTick and Vikunja imports moved from **My Settings** to **Community settings → Data**. They now bring due dates, tags, assignees and comments along.
 - **Sign-in group rules are set per community** — they moved from platform settings to **Community settings → Security**. Rules that were already saved keep working.
@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The access-grant approval queue is now `GET /api/v1/access-grants/queue`.
   - `CAPTCHA_*` and `FCM_*` are read on first boot only. After that, set the captcha in **Settings → Platform → Security** and push notifications in **Settings → Platform → Push notifications**, with no restart.
   - The `PAM_*_MINUTES` variables are no longer read. Access grants now last up to 4 hours for support, 8 for moderators, 24 for operators and owners, and 4 for break-glass.
-  - `GET /exports/{project,document,queue,counter-group,dashboard,calendar}` answer `403 EXPORT_OWNER_REQUIRED` unless the caller holds the owner rung on every selected item. `/exports/calendar` without ids includes only calendars the caller may export. `GET /exports/post`, `/exports/wiki` and `/exports/gallery` are new.
+  - `GET /exports/{project,document,queue,counter-group,dashboard,calendar}` answer `403 EXPORT_OWNER_REQUIRED` unless the caller holds the owner rung on every selected item. `/exports/calendar` without ids includes only calendars the caller may export. `GET /exports/post`, `/exports/wiki` and `/exports/gallery` are new; `/exports/gallery` returns a zip, and `/exports/wiki` takes `pdf`, `md` and `docx` and always returns a zip with the wiki's filed documents. `POST /imports/envelope/archive` imports an export zipped with its files.
 
 ### Fixed
 

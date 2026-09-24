@@ -78,6 +78,12 @@ A wiki opens on whichever page you nominate as its home — **Set as home page**
 
 Make the home page a contents page. A short one. Three sentences saying what this wiki is, and links to the four places most people are actually going.
 
+## Taking a copy
+
+**Settings → Advanced** on the wiki exports it, for whoever could also delete it. As a **PDF**, **Markdown** or **Word** file it's the whole wiki as one document: every page under a heading with its title, nested as deep as the page sits, each starting a new page in PDF and Word, drafts left out. As an **importable file** it keeps every page, the tree, the home page and the documents filed in it — import it from another wiki page and the documents are filed back under the same pages.
+
+Whichever you pick, the download is a zip: the wiki, and the documents filed in it, each in the format that suits it — text in the format you picked, spreadsheets as Excel, uploads as themselves. A document you couldn't export on its own stays behind.
+
 ## Deleting a page
 
 A page goes to the trash and takes its sub-pages with it, because putting away a section means putting away the section. It's all restorable from **Trash** for as long as your community keeps deleted things.

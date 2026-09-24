@@ -18,6 +18,7 @@ links to them, and a mention of a page links to the page it became.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -50,6 +51,8 @@ from app.services.import_engine.references import note_or_settle
 from app.services.import_engine.people import PeopleMap, quoted_account
 from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.schemas.tenant.backup_export import ManifestPerson
@@ -93,6 +96,19 @@ class WikiImporter:
                 )
                 if person.name is None:
                     person.name = name
+        # A text document filed in it mentions people the same way a page does.
+        for filed in envelope.documents:
+            if filed.envelope is None:
+                continue
+            for handle in filed.envelope.mention_handles:
+                handle = (handle or "").strip()
+                if not handle:
+                    continue
+                key = handle_key(handle)
+                counts[key] = counts.get(key, 0) + 1
+                seen.setdefault(
+                    key, ManifestPerson(handle=handle, name=None, comment_count=0)
+                )
         for key, person in seen.items():
             person.comment_count = comments.get(key, 0)
         return sorted(
@@ -103,10 +119,27 @@ class WikiImporter:
     def count(self, validated: BaseModel) -> int:
         envelope: WikiEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
         # A wiki's size is what is written in it, plus the row naming it. A
-        # comment is a row like a page is.
+        # comment is a row like a page is, and so is a document filed in it.
         return (
-            len(envelope.pages) + sum(len(page.comments) for page in envelope.pages) + 1
+            len(envelope.pages)
+            + sum(len(page.comments) for page in envelope.pages)
+            + len(envelope.documents)
+            + 1
         )
+
+    def archive_assets(
+        self, envelope: dict[str, Any]
+    ) -> list[tuple[dict[str, Any], str]]:
+        """The uploads filed in an exported wiki, whose bytes its zip carries
+        under ``assets/``."""
+        filed = envelope.get("documents")
+        if not isinstance(filed, list):
+            return []
+        return [
+            (entry["upload"], "file")
+            for entry in filed
+            if isinstance(entry, dict) and isinstance(entry.get("upload"), dict)
+        ]
 
     async def apply(
         self,
@@ -305,6 +338,17 @@ class WikiImporter:
         elif env.home_page:
             warnings.append("missing_home_page:1")
 
+        filed = await _file_documents(
+            session,
+            env,
+            wiki,
+            pages_by_slug,
+            target_initiative=target_initiative,
+            importer=importer,
+            context=context,
+            warnings=warnings,
+        )
+
         await session.flush()
         return EnvelopeImportResult(
             entity_id=wiki.id,
@@ -314,10 +358,158 @@ class WikiImporter:
                 "pages": len(env.pages),
                 "comments": comment_count,
                 "tags": tags_created,
+                "documents": filed,
             },
             matched={"tags": tags_matched},
             warnings=warnings,
         )
+
+
+async def _file_documents(
+    session: AsyncSession,
+    env: WikiEnvelope,
+    wiki: Wiki,
+    pages_by_slug: dict[str, int],
+    *,
+    target_initiative: Initiative,
+    importer: User,
+    context: ImportContext | None,
+    warnings: list[str],
+) -> int:
+    """Create the documents the wiki's export carried and file each where it
+    sat: under its page, at its place, and joined to the wiki by the edge
+    that says it belongs there. Returns how many were filed.
+
+    Creating a document takes what creating one anywhere takes, so an
+    initiative with documents off, or somebody who may not create them there,
+    gets the wiki without them and is told so.
+    """
+    if not env.documents:
+        return 0
+    from app.core.relationships import RelationshipType
+    from app.db.session import routed_guild_id
+    from app.services.import_engine import engine as import_engine
+    from app.services.import_engine.contract import ImportEngineError
+    from app.services.import_engine.importers.document import DocumentImporter
+    from app.services.import_engine.links import IMPORT_PROVENANCE
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant import wikis as wikis_service
+    from app.services.tenant.relationships import Endpoint
+
+    documents = DocumentImporter()
+    try:
+        await import_engine.load_target_initiative(
+            session,
+            guild_id=routed_guild_id(session),
+            initiative_id=target_initiative.id,
+            importer=documents,
+            user=importer,
+        )
+    except ImportEngineError:
+        warnings.append(f"documents_left_behind:{len(env.documents)}")
+        return 0
+
+    filed = 0
+    missing = 0
+    for entry in env.documents:
+        document_id: int | None = None
+        try:
+            async with session.begin_nested():
+                if entry.envelope is not None:
+                    result = await documents.apply(
+                        session,
+                        envelope=entry.envelope,
+                        target_initiative=target_initiative,
+                        importer=importer,
+                        context=context,
+                    )
+                    document_id = result.entity_id
+                elif entry.upload is not None:
+                    document_id = await _upload_document(
+                        session,
+                        entry.upload,
+                        target_initiative=target_initiative,
+                        importer=importer,
+                    )
+        except Exception:
+            logger.exception("wiki import: a filed document failed")
+            document_id = None
+        if document_id is None:
+            missing += 1
+            continue
+        if context is not None:
+            context.links.register(
+                entry.external_ref, SearchEntityType.document, document_id
+            )
+        await relationships_service.create(
+            session,
+            source=Endpoint(SearchEntityType.document, document_id),
+            relationship_type=RelationshipType.part_of,
+            target=Endpoint(SearchEntityType.wiki, wiki.id),
+            provenance=IMPORT_PROVENANCE,
+            created_by=importer.id,
+        )
+        wikis_service.file_document(
+            wiki,
+            document_id,
+            parent_page_id=pages_by_slug.get(entry.page) if entry.page else None,
+            position=entry.position,
+        )
+        session.add(wiki)
+        filed += 1
+    if missing:
+        warnings.append(f"missing_filed_documents:{missing}")
+    return filed
+
+
+async def _upload_document(
+    session: AsyncSession,
+    upload: Any,
+    *,
+    target_initiative: Initiative,
+    importer: User,
+) -> int | None:
+    """A filed upload, as a file document over the bytes its zip brought. One
+    whose file is not stored here — left out of the zip, or refused on the way
+    in — is not created."""
+    from app.db.session import routed_guild_id
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.upload import Upload
+
+    key = (upload.storage_key or "").strip()
+    stored = (
+        await session.exec(select(Upload).where(Upload.filename == key))
+    ).one_or_none()
+    if not key or stored is None:
+        return None
+    document = Document(
+        name=upload.name,
+        document_type=DocumentType.file,
+        content={},
+        initiative_id=target_initiative.id,
+        created_by=importer.id,
+        file_url=f"/uploads/{routed_guild_id(session)}/{key}",
+        original_filename=upload.original_filename or key,
+        file_content_type=stored.content_type,
+        file_size=stored.size_bytes,
+    )
+    session.add(document)
+    await session.flush()
+    await grant_ownership(
+        session,
+        tool=Tool.document,
+        entity_id=document.id,
+        target_initiative=target_initiative,
+        importer=importer,
+    )
+    for tag_name in upload.tags:
+        resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
+        session.add(
+            tags_service.tag_edge(
+                tags_service.TAG_LINKS["document"], document.id, resolved.id
+            )
+        )
+    return document.id
 
 
 async def _write_comments(

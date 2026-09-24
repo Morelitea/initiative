@@ -47,10 +47,13 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         "IMPORT_TOO_LARGE",
     ),
     (
-        # A backup, or a Confluence space's HTML export. Multipart adds
+        # A backup, a Confluence space's HTML export, or one tool's export
+        # zipped with its files. Multipart adds
         # framing overhead around the zip; allow 1 MiB slack over the cap the
         # handler's bounded read enforces exactly.
-        re.compile(r"^/api/v1/g/\d+/imports/(backup|atlassian/export)$"),
+        re.compile(
+            r"^/api/v1/g/\d+/imports/(backup|atlassian/export|envelope/archive)$"
+        ),
         lambda: import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
         "IMPORT_TOO_LARGE",
     ),

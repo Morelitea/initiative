@@ -168,8 +168,9 @@ describe("a document's export card", () => {
     );
     renderWithProviders(<DocumentExportCard documentId={2} documentType="file" title="Upload" />);
 
-    // Single engine format, no extras: the button itself exports.
-    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    // Single engine format, no extras: the button itself exports, and says
+    // what it downloads.
+    await userEvent.click(screen.getByRole("button", { name: "Original file" }));
     expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
   });

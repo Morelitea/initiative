@@ -1139,6 +1139,13 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
+export interface BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost {
+  file: Blob;
+  initiative_id: number;
+  /** The envelope type the import was started for; a zip holding another tool's export is refused */
+  envelope_type?: string | null;
+}
+
 export interface BodyImportSpreadsheetFileApiV1GGuildIdDocumentsDocumentIdSpreadsheetImportPost {
   file: Blob;
 }
@@ -9948,12 +9955,22 @@ export type ExportWikiApiV1GGuildIdExportsWikiGetParams = {
    * Bulk selection: one artifact per wiki, zipped
    */
   wiki_ids?: number[] | null;
-  format?: "json";
+  format?: ExportWikiApiV1GGuildIdExportsWikiGetFormat;
   /**
    * IANA timezone for report timestamps
    */
   tz?: string | null;
 };
+
+export type ExportWikiApiV1GGuildIdExportsWikiGetFormat =
+  (typeof ExportWikiApiV1GGuildIdExportsWikiGetFormat)[keyof typeof ExportWikiApiV1GGuildIdExportsWikiGetFormat];
+
+export const ExportWikiApiV1GGuildIdExportsWikiGetFormat = {
+  json: "json",
+  pdf: "pdf",
+  md: "md",
+  docx: "docx",
+} as const;
 
 export type ExportGalleryApiV1GGuildIdExportsGalleryGetParams = {
   gallery_id?: number | null;

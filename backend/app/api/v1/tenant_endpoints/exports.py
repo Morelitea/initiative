@@ -413,15 +413,18 @@ async def export_wiki(
     wiki_ids: Optional[list[int]] = Query(
         default=None, description="Bulk selection: one artifact per wiki, zipped"
     ),
-    format: Literal["json"] = Query(default="json"),
+    format: Literal["json", "pdf", "md", "docx"] = Query(default="json"),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
     ),
 ) -> Union[Response, JSONResponse]:
-    """Export a wiki as an importable envelope: every page, the tree they
-    sit in, and its home page. Takes the owner rung on it. Small selections
-    return the file inline; large ones return ``202`` with a queued job to
-    poll and download."""
+    """Export a wiki: ``json`` is an importable envelope (every page, the tree
+    they sit in, and its home page); ``pdf``/``md``/``docx`` are the published
+    pages as one document, each under a heading at its depth. The download is
+    always a zip: the wiki, and under ``documents/`` each document filed in it
+    that the caller could export on its own. Takes the owner rung on
+    the wiki. Small selections return the file inline; large ones return
+    ``202`` with a queued job to poll and download."""
     try:
         result = await start_export(
             session,
@@ -460,8 +463,8 @@ async def export_gallery(
         default=None, max_length=64, description="IANA timezone for report timestamps"
     ),
 ) -> Union[Response, JSONResponse]:
-    """Export a gallery as an importable envelope naming each picture by
-    its stored file; the pictures themselves travel in a backup. Takes the owner rung on it. Small selections
+    """Export a gallery as a zip: its importable envelope, and each picture it
+    names under ``assets/``. Takes the owner rung on it. Small selections
     return the file inline; large ones return ``202`` with a queued job to
     poll and download."""
     try:

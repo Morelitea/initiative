@@ -117,6 +117,11 @@ class ToolExportAdapter:
         """Serialise one entity into its render item."""
         raise NotImplementedError
 
+    def items(self, entity: Any, ctx: BuildContext, /) -> tuple[RenderItem, ...]:
+        """Every file one entity becomes. One, unless its contents travel
+        beside it — a gallery's pictures ride next to its envelope."""
+        return (self.item(entity, ctx),)
+
     async def prepare(self, session: AsyncSession, entities: list[Any], /) -> Any:
         """Anything the item builders need across the whole batch, loaded in
         one pass (they are synchronous and hold no session)."""
@@ -178,7 +183,7 @@ class ToolExportAdapter:
             now=localize_now(datetime.now(timezone.utc), params.get("tz")),
             prepared=await self.prepare(session, entities),
         )
-        batch = tuple(self.item(entity, ctx) for entity in entities)
+        batch = tuple(item for entity in entities for item in self.items(entity, ctx))
         if format == "json":
             # An envelope names people by handle, never by id — including the
             # people its body mentions, which the item builders cannot look

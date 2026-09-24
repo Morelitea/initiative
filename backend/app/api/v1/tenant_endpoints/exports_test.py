@@ -1321,6 +1321,222 @@ async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
         assert resp.status_code == 200, (who.user.id, resp.text)
 
 
+def _page_body(text: str) -> dict:
+    return {
+        "root": {
+            "type": "root",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "text": text, "format": 0}],
+                }
+            ],
+        }
+    }
+
+
+async def _wiki_with_filed_documents(session, a, acting_user):
+    """A wiki whose pages nest, one draft, and four documents filed in it: a
+    text document, a spreadsheet and an upload the exporter owns — the upload
+    filed under the first page — and one they can only read."""
+    from app.core.relationships import RelationshipType
+    from app.testing.factories import create_wiki, create_wiki_page
+
+    await enable_all_tools(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    # Written child-first: the export must still put the parent above it.
+    parent = await create_wiki_page(
+        session, wiki, a.user, title="Rules", content=_page_body("Be kind"), position=0
+    )
+    await create_wiki_page(
+        session,
+        wiki,
+        a.user,
+        title="Combat",
+        content=_page_body("Roll initiative"),
+        parent_page_id=parent.id,
+        position=0,
+    )
+    await create_wiki_page(
+        session,
+        wiki,
+        a.user,
+        title="Secret plans",
+        content=_page_body("Not yet"),
+        is_draft=True,
+        position=1,
+    )
+    notes = await create_document(
+        session, a.initiative, a.user, name="Session notes", content=_page_body("Hi")
+    )
+    sheet = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="Loot",
+        document_type=DocumentType.spreadsheet,
+        content={},
+    )
+    other = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    theirs = await create_document(
+        session, a.initiative, other.user, name="Their map", content=_page_body("x")
+    )
+    await route_session_to_guild(session, a.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=theirs.id,
+            user_id=a.user.id,
+            level=ResourceAccessLevel.read,
+            initiative_id=a.initiative.id,
+        )
+    )
+    await session.commit()
+    handout = await _file_document(
+        session,
+        a,
+        name="Handout",
+        key="handout-key.pdf",
+        filename="handout.pdf",
+        payload=MINIMAL_PDF,
+        content_type="application/pdf",
+    )
+    for document in (notes, sheet, theirs, handout):
+        await create_relationship(
+            session,
+            a.guild,
+            source=(SearchEntityType.document, document.id),
+            target=(SearchEntityType.wiki, wiki.id),
+            relationship_type=RelationshipType.part_of,
+        )
+    from app.models.tenant.wiki import Wiki
+    from app.services.tenant.wikis import file_document
+
+    await route_session_to_guild(session, a.guild.id)
+    row = await session.get(Wiki, wiki.id)
+    file_document(row, handout.id, parent_page_id=parent.id, position=3)
+    session.add(row)
+    await session.commit()
+    return wiki
+
+
+#: The smallest file a document upload is recognised as a PDF from.
+MINIMAL_PDF = (
+    b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    b"2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n"
+    b"trailer<</Root 1 0 R>>\n%%EOF\n"
+)
+
+
+async def test_a_wiki_exports_as_one_document_with_its_filed_documents(
+    client: AsyncClient, acting_user, session
+):
+    """A wiki reads as one document — each published page under a heading at
+    its depth, parents before children, drafts left out — and the documents
+    filed in it that the exporter could export on their own ride beside it
+    under ``documents/``, in the format their type allows."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+
+    resp = await _export(client, a, "wiki", wiki_id=wiki.id, format="md")
+    assert resp.status_code == 200, resp.text
+    archive = _zip(resp)
+    names = sorted(archive.namelist())
+    [page_file] = [n for n in names if not n.startswith("documents/")]
+    text = archive.read(page_file).decode()
+    assert text.index("# Rules") < text.index("Be kind") < text.index("## Combat")
+    assert "Roll initiative" in text
+    assert "Secret plans" not in text
+    filed = [n for n in names if n.startswith("documents/")]
+    assert any(
+        n.startswith("documents/session_notes") and n.endswith(".md") for n in filed
+    )
+    assert any(n.startswith("documents/loot") and n.endswith(".xlsx") for n in filed)
+    assert "documents/handout.pdf" in filed
+    assert not any("their_map" in n for n in filed)
+
+    # Each page starts a page of its own: two published pages, one break.
+    docx_zip = _zip(await _export(client, a, "wiki", wiki_id=wiki.id, format="docx"))
+    [wiki_docx] = [
+        n for n in docx_zip.namelist() if n.endswith(".docx") and "/" not in n
+    ]
+    with zipfile.ZipFile(io.BytesIO(docx_zip.read(wiki_docx))) as package:
+        body = package.read("word/document.xml").decode()
+    assert body.count('w:type="page"') == 1
+
+    pdf_zip = _zip(await _export(client, a, "wiki", wiki_id=wiki.id, format="pdf"))
+    [wiki_pdf] = [n for n in pdf_zip.namelist() if n.endswith(".pdf") and "/" not in n]
+    pages = PdfReader(io.BytesIO(pdf_zip.read(wiki_pdf))).pages
+    assert len(pages) >= 2
+    assert "Combat" not in pages[0].extract_text()
+
+
+async def test_a_wikis_importable_file_carries_its_filed_documents(
+    client: AsyncClient, acting_user, session
+):
+    """The importable file carries the filed documents inside the wiki's
+    envelope, each with where it is filed, and an upload's bytes beside it
+    under ``assets/``."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+
+    resp = await _export(client, a, "wiki", wiki_id=wiki.id, format="json")
+    assert resp.status_code == 200, resp.text
+    archive = _zip(resp)
+    assert "assets/handout-key.pdf" in archive.namelist()
+    [envelope_name] = [n for n in archive.namelist() if n.endswith(".json")]
+    envelope = json.loads(archive.read(envelope_name))
+    by_name = {
+        (entry.get("envelope") or entry.get("upload"))["name"]: entry
+        for entry in envelope["documents"]
+    }
+    assert set(by_name) == {"Session notes", "Loot", "Handout"}
+    assert by_name["Handout"]["page"] == "rules"
+    assert by_name["Handout"]["upload"]["storage_key"] == "handout-key.pdf"
+    assert by_name["Session notes"]["envelope"]["type"] == "initiative-document"
+
+
+async def test_a_gallery_exports_as_a_zip_of_its_envelope_and_pictures(
+    client: AsyncClient, acting_user, session
+):
+    """A gallery's envelope names its pictures by storage key, so the download
+    carries the pictures beside it under ``assets/``. One whose file is gone is
+    still listed and left out of the zip, which is what an import expects."""
+    from app.testing.factories import create_gallery, create_gallery_image
+    from app.services.storage import get_guild_storage
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await enable_all_tools(session, a.initiative)
+    gallery = await create_gallery(session, a.initiative, a.user, name="Barovia maps")
+    kept = await create_gallery_image(session, gallery, a.user, title="Village")
+    gone = await create_gallery_image(
+        session, gallery, a.user, title="Castle", write_blob=False
+    )
+    kept_key = kept.file_url.rsplit("/", 1)[-1]
+    gone_key = gone.file_url.rsplit("/", 1)[-1]
+
+    resp = await _export(client, a, "gallery", gallery_id=gallery.id, format="json")
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"] == "application/zip"
+    archive = _zip(resp)
+    [envelope_name] = [n for n in archive.namelist() if n.endswith(".json")]
+    assert envelope_name.endswith(".initiative-gallery.json")
+    envelope = json.loads(archive.read(envelope_name))
+    assert {image["storage_key"] for image in envelope["images"]} == {
+        kept_key,
+        gone_key,
+    }
+    assert sorted(archive.namelist()) == sorted([envelope_name, f"assets/{kept_key}"])
+    stored = get_guild_storage(a.guild.id).open_readable(kept_key)
+    assert stored is not None and stored.path is not None
+    assert archive.read(f"assets/{kept_key}") == stored.path.read_bytes()
+
+
 # ---------------------------------------------------------------------------
 # Report chrome: locale, timezone, branding, detailed layout
 # ---------------------------------------------------------------------------
