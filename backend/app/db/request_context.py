@@ -132,11 +132,13 @@ class PamGrantee:
 class InstallScoped:
     """An installed app acting in the community it is installed in.
 
-    No person: the install is the principal, routed into ``guild_<id>_app``.
-    ``standing`` is the ``InstallContext`` the establishment seam built, which
-    names the same community and install. It narrows to one initiative the way
-    a person's read does; no other narrowing, grant or credential value belongs
-    to it.
+    The install is the principal, routed into ``guild_<id>_app``. ``standing``
+    is the ``InstallContext`` the establishment seam built, which names the
+    same community and install. A member token also names the member it acts
+    for (``member_user_id``) and the purpose they consented to, both carried by
+    that context; it is never a person's own routing. It narrows to one
+    initiative the way a person's read does; no other narrowing, grant or
+    credential value belongs to it.
     """
 
     guild_id: int
@@ -145,6 +147,8 @@ class InstallScoped:
     token_client_id: Optional[str] = None
     token_scopes: frozenset[str] = frozenset()
     scope_initiative_id: Optional[int] = None
+    member_user_id: Optional[int] = None
+    token_purpose: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -184,7 +188,7 @@ _NARROWING = (
 _PAM = ("pam_guild_id", "pam_read", "pam_write")
 
 #: Keywords naming what an install's token says of it.
-_INSTALL_TOKEN = ("token_client_id", "token_scopes")
+_INSTALL_TOKEN = ("token_client_id", "token_scopes", "member_user_id", "token_purpose")
 
 #: Keywords an install routing leaves unset: they describe a person, a grant,
 #: a surface, or a routing an install does not take.
@@ -243,6 +247,17 @@ def _classify_install(kwargs: dict) -> InstallScoped:
         )
     if not kwargs.get("token_client_id"):
         raise ContextShapeError("an install routing names its token's client")
+    member_user_id = kwargs.get("member_user_id")
+    token_purpose = kwargs.get("token_purpose")
+    if token_purpose is not None and member_user_id is None:
+        raise ContextShapeError("a purpose belongs to a member token")
+    if (
+        getattr(standing, "member_user_id", None) != member_user_id
+        or getattr(standing, "purpose", None) != token_purpose
+    ):
+        raise ContextShapeError(
+            "a member token's routing and its context name the same member and purpose"
+        )
     return InstallScoped(
         guild_id=int(guild_id),
         install_id=int(install_id),
@@ -250,6 +265,8 @@ def _classify_install(kwargs: dict) -> InstallScoped:
         token_client_id=kwargs.get("token_client_id"),
         token_scopes=frozenset(kwargs.get("token_scopes") or ()),
         scope_initiative_id=kwargs.get("scope_initiative_id"),
+        member_user_id=None if member_user_id is None else int(member_user_id),
+        token_purpose=token_purpose,
     )
 
 

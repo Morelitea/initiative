@@ -28,6 +28,8 @@ import type {
   AppWidgetCatalogResponse,
   GuildAppConfigUpdate,
   GuildAppConnectStart,
+  GuildAppConsentAnswer,
+  GuildAppConsentRead,
   GuildAppDelegationGrant,
   GuildAppDelegationRead,
   GuildAppDetail,
@@ -2880,6 +2882,399 @@ export const useRevokeMyDelegationApiV1GGuildIdAppsAppIdDelegationDelete = <
   );
 };
 /**
+ * What this app has asked to do as you, one line per purpose, and how you
+ * answered. Yours only.
+ * @summary List My Consents
+ */
+export const listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet = (
+  guildId: number,
+  appId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppConsentRead[]>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}/consents`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMyConsentsApiV1GGuildIdAppsAppIdConsentsGetQueryKey = (
+  guildId: number,
+  appId: number
+) => {
+  return [`/api/v1/g/${guildId}/apps/${appId}/consents`] as const;
+};
+
+export const getListMyConsentsApiV1GGuildIdAppsAppIdConsentsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListMyConsentsApiV1GGuildIdAppsAppIdConsentsGetQueryKey(guildId, appId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>
+  > = ({ signal }) =>
+    listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet(guildId, appId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && appId !== null && appId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyConsentsApiV1GGuildIdAppsAppIdConsentsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>
+>;
+export type ListMyConsentsApiV1GGuildIdAppsAppIdConsentsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListMyConsentsApiV1GGuildIdAppsAppIdConsentsGet<
+  TData = Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyConsentsApiV1GGuildIdAppsAppIdConsentsGet<
+  TData = Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyConsentsApiV1GGuildIdAppsAppIdConsentsGet<
+  TData = Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Consents
+ */
+
+export function useListMyConsentsApiV1GGuildIdAppsAppIdConsentsGet<
+  TData = Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyConsentsApiV1GGuildIdAppsAppIdConsentsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyConsentsApiV1GGuildIdAppsAppIdConsentsGetQueryOptions(
+    guildId,
+    appId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Allow this app to act as you for one of its requests, at ``access``.
+ *
+ * Never more than the app asked for. Acts on the caller alone and takes no
+ * user id. Signed-in only (``require_first_party_session``), and the way you
+ * signed in is recorded with the answer.
+ * @summary Grant My Consent
+ */
+export const grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut = (
+  guildId: number,
+  appId: number,
+  consentId: number,
+  guildAppConsentAnswer: BodyType<GuildAppConsentAnswer>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppConsentRead>(
+    {
+      url: `/api/v1/g/${guildId}/apps/${appId}/consents/${consentId}`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildAppConsentAnswer,
+      signal,
+    },
+    options
+  );
+};
+
+export const getGrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationKey = () =>
+  ["grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut"] as const;
+
+export const getGrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut>>,
+    TError,
+    GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut>>,
+  TError,
+  GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationVariables,
+  TContext
+> => {
+  const mutationKey = getGrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut>>,
+    GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationVariables
+  > = (props) => {
+    const { guildId, appId, consentId, data } = props ?? {};
+
+    return grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut(
+      guildId,
+      appId,
+      consentId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut>>
+>;
+export type GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationBody =
+  BodyType<GuildAppConsentAnswer>;
+export type GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationError =
+  ErrorType<HTTPValidationError>;
+export type GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationVariables = {
+  guildId: number;
+  appId: number;
+  consentId: number;
+  data: BodyType<GuildAppConsentAnswer>;
+};
+
+/**
+ * @summary Grant My Consent
+ */
+export const useGrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut>>,
+      TError,
+      GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof grantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPut>>,
+  TError,
+  GrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getGrantMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Decline one of this app's requests, or withdraw what you allowed. The
+ * app stops acting as you for it on its next request.
+ * @summary Revoke My Consent
+ */
+export const revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete = (
+  guildId: number,
+  appId: number,
+  consentId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}/consents/${consentId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationKey = () =>
+  ["revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete"] as const;
+
+export const getRevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete>>,
+    TError,
+    RevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete>>,
+  TError,
+  RevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete>>,
+    RevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables
+  > = (props) => {
+    const { guildId, appId, consentId } = props ?? {};
+
+    return revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete(
+      guildId,
+      appId,
+      consentId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete>>
+  >;
+
+export type RevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type RevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables = {
+  guildId: number;
+  appId: number;
+  consentId: number;
+};
+
+/**
+ * @summary Revoke My Consent
+ */
+export const useRevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete>>,
+      TError,
+      RevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDelete>>,
+  TError,
+  RevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRevokeMyConsentApiV1GGuildIdAppsAppIdConsentsConsentIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Who has connected which of this app's per-member connections.
  *
  * Guild admins only, and never secret values: what this supports is governance
@@ -3457,7 +3852,8 @@ export const useUnblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnec
     );
   };
 /**
- * Withdraw one member's authorization for this app.
+ * Withdraw one member's authorization for this app, and every answer they
+ * gave its requests to act as them.
  *
  * An admin ends it and cannot give it back: the member authorizes again
  * themselves, or nobody does. Governance runs one way here, which is what
@@ -3579,7 +3975,8 @@ export const useRevokeMemberDelegationApiV1GGuildIdAppsAppIdMembersUserIdDelegat
 /**
  * Stop this app acting as anybody, without uninstalling it.
  *
- * The companion to ``revoke-all`` for connections: for a suspected app
+ * Withdraws every member's authorization, and every answer to the app's
+ * requests to act as them, pending ones included. The companion to ``revoke-all`` for connections: for a suspected app
  * compromise, reacting fast should not cost the guild its configuration.
  * Members may authorize again once the guild is satisfied.
  * @summary Revoke All Member Delegations

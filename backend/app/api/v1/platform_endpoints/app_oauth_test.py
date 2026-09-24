@@ -253,14 +253,28 @@ async def test_another_clients_installation_is_refused(
 
 
 @pytest.mark.integration
-async def test_member_tokens_are_not_issued_yet(
+async def test_the_member_grant_takes_no_client_assertion(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
+    """Its assertion authenticates the client (RFC 7523 §3); the member grant
+    itself is in ``app_member_tokens_test``."""
     await install_app(session, acting_user, role_session, granted=["documents:read"])
 
     response = await _ask(
         client, grant_type="urn:ietf:params:oauth:grant-type:jwt-bearer"
     )
+
+    assert response.status_code == 400
+    assert _error(response) == "invalid_request"
+
+
+@pytest.mark.integration
+async def test_an_unknown_grant_type_is_unsupported(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    await install_app(session, acting_user, role_session, granted=["documents:read"])
+
+    response = await _ask(client, grant_type="password")
 
     assert response.status_code == 400
     assert _error(response) == "unsupported_grant_type"

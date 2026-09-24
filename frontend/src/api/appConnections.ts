@@ -15,6 +15,7 @@
  */
 
 import { apiClient } from "@/api/client";
+import type { ConsentAccess, GuildAppConsentRead } from "@/api/generated/initiativeAPI.schemas";
 
 /** A localized label, as the manifest supplies it. */
 export type LocalizedText = Record<string, string>;
@@ -113,6 +114,9 @@ export interface GuildAppDetail {
   /** The viewer's own authorization, so the page draws it without a second
    *  request. Says nothing about anybody else. */
   delegation?: AppDelegation | null;
+  /** The viewer's own answers to this app's requests to act as them, one per
+   *  purpose, the app-wide one first. Nobody else's. */
+  consents?: GuildAppConsentRead[];
   /** The version an update would move this install to. Absent when there is
    *  none — already newest, or nothing published this build can run. */
   update_version?: string | null;
@@ -271,3 +275,21 @@ export const revokeMemberDelegation = (guildId: number, appId: number, userId: n
 
 export const revokeAllMemberDelegations = (guildId: number, appId: number) =>
   apiClient.post<void>(`${base(guildId, appId)}/delegations/revoke-all`).then(() => undefined);
+
+// An app asks for one purpose at a time; the member answers each on its own.
+// Again no user id: the caller is the member being asked.
+
+/** Allow one of the app's requests, at `access` — never more than it asked. */
+export const grantAppConsent = (
+  guildId: number,
+  appId: number,
+  consentId: number,
+  access: ConsentAccess
+) =>
+  apiClient
+    .put<GuildAppConsentRead>(`${base(guildId, appId)}/consents/${consentId}`, { access })
+    .then((r) => r.data);
+
+/** Decline a request, or withdraw what was allowed. */
+export const revokeAppConsent = (guildId: number, appId: number, consentId: number) =>
+  apiClient.delete<void>(`${base(guildId, appId)}/consents/${consentId}`).then(() => undefined);

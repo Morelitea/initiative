@@ -536,9 +536,11 @@ _APP_SECTION = """\
 -- lifecycle checks on its writes read them. An install sees and changes its
 -- own event subscriptions and no one else's. The change log and the search
 -- index are written by triggers, and an install reaches them only there. The
--- one grant an install's request writes is the owner row naming it, written
--- by the trigger on the resource it creates. Reactions and recent views are
--- refused.
+-- one grant an install's request writes is the owner row naming it (the
+-- member, for a member token), written by the trigger on the resource it
+-- creates. Reactions and recent views are refused. A member token also reads
+-- the member's own roster rows and the roles they name, and its own install's
+-- consent rows, which its standing reads; it writes no consent.
 -- ==========================================================================="""
 
 _APP_POLICY_PREFIX = "app_scope"
@@ -556,17 +558,40 @@ def _app_placed_initiatives() -> str:
     )
 
 
-#: The one grant row an installed app's request writes: the owner row naming
-#: the install, written by ``public.fn_install_owns_what_it_creates`` when the
-#: install creates a tool's resource. Never by the request itself.
+#: The member a member token acts for, read back from the routing. Empty for
+#: an installation token, which then matches no row.
+_APP_MEMBER = "NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
+
+#: The one grant row an installed app's request writes: the owner row on a
+#: tool's resource it creates, written by
+#: ``public.fn_install_owns_what_it_creates`` and never by the request itself.
+#: It names the install, or, for a member token, the member it acts for.
 _APP_OWNER_GRANT = (
     f"({_IID} IS NULL OR ("
     "pg_trigger_depth() > 0"
     f" AND level = '{ResourceAccessLevel.owner.value}'"
-    f" AND app_install_id = {_IID}"
-    " AND user_id IS NULL AND role_id IS NULL"
-    " AND NOT all_initiative_members AND dashboard_id IS NULL))"
+    " AND role_id IS NULL"
+    " AND NOT all_initiative_members AND dashboard_id IS NULL"
+    f" AND ((app_install_id = {_IID} AND user_id IS NULL AND {_APP_MEMBER} IS NULL)"
+    f" OR (user_id = {_APP_MEMBER} AND app_install_id IS NULL))))"
 )
+
+#: What a member token's standing reads of the member's own place in their
+#: initiatives, whatever its scopes: their roster rows, and the roles those
+#: rows name. Read beside the resource's scope, never instead of the row's own
+#: policies.
+_APP_MEMBER_OWN_READ: dict[str, str] = {
+    "initiative_members": f"initiative_members.user_id = {_APP_MEMBER}",
+    "initiative_roles": (
+        "initiative_roles.id IN (SELECT im.role_id FROM initiative_members im"
+        f" WHERE im.user_id = {_APP_MEMBER})"
+    ),
+}
+
+#: A member's answers to the apps asking to act as them. A member token's
+#: standing reads the one for its own install and purpose; nothing an app
+#: sends reads or writes the table otherwise.
+_APP_CONSENT_READ = f"({_IID} IS NULL OR app_member_consents.install_id = {_IID})"
 
 
 def _app_predicates(table: str) -> dict[str, str]:
@@ -575,6 +600,13 @@ def _app_predicates(table: str) -> dict[str, str]:
     refused = app_refused(IN_POLICY)
     if table == "resource_grants":
         return {"INSERT": _APP_OWNER_GRANT, "UPDATE": refused, "DELETE": refused}
+    if table == "app_member_consents":
+        return {
+            "SELECT": _APP_CONSENT_READ,
+            "INSERT": refused,
+            "UPDATE": refused,
+            "DELETE": refused,
+        }
     if table in APP_REFUSED_TABLES:
         return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), refused)
     access = APP_TABLE_ACCESS[table]
@@ -591,6 +623,8 @@ def _app_predicates(table: str) -> dict[str, str]:
     read = app_scope(access.resource, False, IN_POLICY)
     if table == "initiatives":
         read = f"({read} OR initiatives.id IN {_app_placed_initiatives()})"
+    elif table in _APP_MEMBER_OWN_READ:
+        read = f"({read} OR {_APP_MEMBER_OWN_READ[table]})"
     write = app_scope(access.resource, True, IN_POLICY) if access.writable else refused
     return {"SELECT": read, "INSERT": write, "UPDATE": write, "DELETE": write}
 
@@ -598,7 +632,12 @@ def _app_predicates(table: str) -> dict[str, str]:
 #: Every table carrying the policies above.
 APP_POLICY_TABLES: frozenset[str] = frozenset(
     t
-    for t in (*APP_TABLE_ACCESS, *APP_REFUSED_TABLES, "resource_grants")
+    for t in (
+        *APP_TABLE_ACCESS,
+        *APP_REFUSED_TABLES,
+        "resource_grants",
+        "app_member_consents",
+    )
     if _app_predicates(t)
 )
 

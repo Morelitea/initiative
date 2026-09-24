@@ -11,7 +11,9 @@ Two kinds:
   app's installs;
 * an **installation token** names the community, the install, the client, the
   scopes it carries and, when narrowed, one initiative. It is what a scoped
-  route admits.
+  route admits. A **member token** is an installation token that also names
+  the member it acts for and the purpose the member consented to; the install
+  standing then computes the member's reach rather than the install's.
 
 Reading one is local: a prefix check, one decrypt and MAC, and a parse. No
 database read and no key fetch. A token grants nothing on its own: the install
@@ -80,6 +82,11 @@ class InstallAccessToken:
     scopes: frozenset[str]
     initiative_id: int | None
     exp: int
+    #: The member a member token acts for; ``None`` for the install itself.
+    user_id: int | None = None
+    #: The purpose the member consented to; ``None`` for app-wide consent, and
+    #: always ``None`` without a member.
+    purpose: str | None = None
 
 
 def is_access_token(value: str | None) -> bool:
@@ -110,24 +117,28 @@ def seal_install_token(
     client_id: str,
     scopes: frozenset[str],
     initiative_id: int | None,
+    user_id: int | None = None,
+    purpose: str | None = None,
     now: float | None = None,
 ) -> tuple[str, int]:
-    """An installation token, and the ``exp`` it carries."""
+    """An installation token, and the ``exp`` it carries. ``user_id`` makes it
+    a member token for that member, at ``purpose``."""
+    if purpose is not None and user_id is None:
+        raise ValueError("a purpose belongs to a member token")
     exp = _expiry(now)
-    return (
-        _seal(
-            {
-                "kind": _KIND_INSTALL,
-                "guild_id": int(guild_id),
-                "install_id": int(install_id),
-                "client": client_id,
-                "scopes": sorted(scopes),
-                "initiative": int(initiative_id) if initiative_id is not None else None,
-                "exp": exp,
-            }
-        ),
-        exp,
-    )
+    payload: dict[str, Any] = {
+        "kind": _KIND_INSTALL,
+        "guild_id": int(guild_id),
+        "install_id": int(install_id),
+        "client": client_id,
+        "scopes": sorted(scopes),
+        "initiative": int(initiative_id) if initiative_id is not None else None,
+        "exp": exp,
+    }
+    if user_id is not None:
+        payload["user"] = int(user_id)
+        payload["purpose"] = purpose
+    return _seal(payload), exp
 
 
 def _int(value: Any) -> int:
@@ -185,6 +196,10 @@ def unseal_access_token(
     ):
         raise AccessTokenError("scopes must be a list of strings")
     initiative = payload.get("initiative")
+    user = payload.get("user")
+    purpose = payload.get("purpose")
+    if user is None and purpose is not None:
+        raise AccessTokenError("a purpose belongs to a member token")
     return InstallAccessToken(
         guild_id=_int(payload.get("guild_id")),
         install_id=_int(payload.get("install_id")),
@@ -192,4 +207,6 @@ def unseal_access_token(
         scopes=frozenset(scopes),
         initiative_id=None if initiative is None else _int(initiative),
         exp=exp,
+        user_id=None if user is None else _int(user),
+        purpose=None if purpose is None else _str(purpose),
     )

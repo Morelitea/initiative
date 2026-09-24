@@ -61,7 +61,9 @@ from app.models.platform.identity_ref import (
     IdentityPurpose,
     ref_prefix,
 )
-from app.models.tenant.initiative import PermissionKey
+from app.models.platform.user import UserStatus
+from app.models.tenant.app_member_consent import ConsentAccess
+from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -258,6 +260,9 @@ _TOKEN_SCOPES = (
     "NULLIF(current_setting('app.token_scopes', true), ''), ','), ARRAY[]::text[])"
 )
 _SCOPE_INITIATIVE = "NULLIF(current_setting('app.scope_initiative_id', true), '')::int"
+#: The purpose a member token's consent names; unset for app-wide consent, and
+#: for an installation token.
+_TOKEN_PURPOSE = "NULLIF(current_setting('app.token_purpose', true), '')"
 
 #: The community statuses whose content is in use, as the person seam reads
 #: them.
@@ -295,11 +300,21 @@ def _permission_key_values() -> str:
     return ", ".join(f"('{key.value}')" for key in PermissionKey)
 
 
+def _permission_default_values() -> str:
+    """Every initiative role key with the answer it gets where a role has no
+    row for it, as a ``VALUES`` list of ``(key, is_default)``: the defaults
+    the content policies hand ``initiative_role_permits``."""
+    return ", ".join(
+        f"('{key.value}', {str(DEFAULT_PERMISSION_VALUES.get(key, False)).lower()})"
+        for key in PermissionKey
+    )
+
+
 #: An installed app's standing, in one statement. Runs as ``guild_<id>_app``
 #: after the install routing. The community, the install, the client the token
-#: was issued to, the token's scopes and the narrowed initiative are read back
-#: from that routing; the one bind, ``:named_refs``, is the references the
-#: request names (below).
+#: was issued to, the token's scopes, the narrowed initiative and, for a member
+#: token, the member and the purpose are read back from that routing; the one
+#: bind, ``:named_refs``, is the references the request names (below).
 #:
 #: ``install`` is the install when it may act at all: the community's status is
 #: one its members use, the install is on, and the operator's registration for
@@ -316,6 +331,20 @@ def _permission_key_values() -> str:
 #: govern people signing in; an install's admission is the seat's consent, so
 #: that value is what ``live`` says.
 #:
+#: A **member token** names a member (``app.current_user_id``) and the purpose
+#: they consented to (``app.token_purpose``). ``install`` then also asks that
+#: the member still belongs to the community, their account is active, and
+#: their consent for this install and purpose is granted and not revoked (and,
+#: when it is bound to an initiative, that the token is narrowed to it). What it
+#: reaches is the member's own within the install's: the initiatives the member
+#: is in and the install is placed in; there, the keys the member's role
+#: permits (a manager role, a stored yes, or a default no stored row turns off)
+#: that the scopes also allow, and every other key denied; the member's roles
+#: and "Full access" within those initiatives; and writes only when the
+#: consent is ``read_write``. It is never an admin, the seat, a grantee or a
+#: manager. The consent was given from a session that met the community's
+#: sign-in rules, so that value too is what ``live`` says.
+#:
 #: Two more columns carry what the install calls things, both read only in its
 #: own sector (``purpose = 'app'``, the routed community and the routed
 #: install): ``guild_ref``, its live reference for the community, and
@@ -324,7 +353,19 @@ def _permission_key_values() -> str:
 #: for its grace window, as ``identity_refs.resolve_ref`` has it. The array
 #: chooses which rows are looked up; the sector is the routing's.
 INSTALL_STANDING_SQL = f"""
-WITH install AS (
+WITH consent AS (
+  SELECT c.initiative_id,
+         c.granted_access = '{ConsentAccess.read_write.value}' AS writes
+  FROM app_member_consents c
+  WHERE {_UID} IS NOT NULL
+    AND c.install_id = {_IID}
+    AND c.user_id = {_UID}
+    AND c.purpose IS NOT DISTINCT FROM {_TOKEN_PURPOSE}
+    AND c.granted_access IS NOT NULL
+    AND c.revoked_at IS NULL
+    AND (c.initiative_id IS NULL OR c.initiative_id = {_SCOPE_INITIATIVE})
+),
+install AS (
   SELECT a.id, a.granted_scopes, g.status = '{GuildStatus.read_only.value}' AS read_only
   FROM guild_apps a
   JOIN public.guilds g ON g.id = {_GID}
@@ -338,6 +379,19 @@ WITH install AS (
         AND r.public_id = {_CLIENT_ID}
         AND r.enabled
     )
+    AND ({_UID} IS NULL OR (
+      EXISTS (SELECT 1 FROM consent)
+      AND EXISTS (
+        SELECT 1
+        FROM public.guild_memberships m
+        WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.users u
+        WHERE u.id = {_UID} AND u.status = '{UserStatus.active.value}'
+      )
+    ))
 ),
 granted_scope AS (
   SELECT split_part(s.scope, ':', 1) AS resource,
@@ -354,22 +408,61 @@ token_scope AS (
 ),
 held AS (
   SELECT g.resource,
-         g.writes AND t.writes AND NOT i.read_only AS writes
+         g.writes AND t.writes AND NOT i.read_only
+           AND ({_UID} IS NULL OR EXISTS (SELECT 1 FROM consent c WHERE c.writes))
+           AS writes
   FROM granted_scope g
   JOIN token_scope t ON t.resource = g.resource
   CROSS JOIN install i
+),
+member_role AS (
+  SELECT im.initiative_id, im.role_id,
+         COALESCE(r.is_manager, false) AS is_manager,
+         COALESCE(r.override_share_restrictions, false) AS overrides
+  FROM initiative_members im
+  LEFT JOIN initiative_roles r ON r.id = im.role_id
+  WHERE {_UID} IS NOT NULL AND im.user_id = {_UID}
 ),
 placed AS (
   SELECT DISTINCT p.initiative_id
   FROM app_placements p
   JOIN install i ON i.id = p.install_id
-  WHERE {_SCOPE_INITIATIVE} IS NULL OR p.initiative_id = {_SCOPE_INITIATIVE}
+  WHERE ({_SCOPE_INITIATIVE} IS NULL OR p.initiative_id = {_SCOPE_INITIATIVE})
+    AND ({_UID} IS NULL OR (
+      p.initiative_id IN (SELECT mr.initiative_id FROM member_role mr)
+      AND NOT EXISTS (
+        SELECT 1 FROM consent c WHERE c.initiative_id <> p.initiative_id
+      )
+    ))
+),
+permitted AS (
+  SELECT p.initiative_id, k.key
+  FROM placed p
+  JOIN member_role mr ON mr.initiative_id = p.initiative_id
+  CROSS JOIN (VALUES {_permission_default_values()}) AS k(key, is_default)
+  WHERE mr.is_manager
+     OR EXISTS (
+       SELECT 1 FROM initiative_role_permissions rp
+       WHERE rp.initiative_role_id = mr.role_id
+         AND rp.permission_key = k.key
+         AND rp.enabled
+     )
+     OR (k.is_default AND NOT EXISTS (
+       SELECT 1 FROM initiative_role_permissions rp
+       WHERE rp.initiative_role_id = mr.role_id
+         AND rp.permission_key = k.key
+         AND NOT rp.enabled
+     ))
 ),
 granted AS (
   SELECT DISTINCT p.initiative_id || ':' || k.key AS pair
   FROM placed p
   CROSS JOIN (VALUES {_tool_permission_values()}) AS k(resource, key, for_write)
   JOIN held h ON h.resource = k.resource AND (h.writes OR NOT k.for_write)
+  WHERE {_UID} IS NULL OR EXISTS (
+    SELECT 1 FROM permitted pm
+    WHERE pm.initiative_id = p.initiative_id AND pm.key = k.key
+  )
 ),
 denied AS (
   SELECT DISTINCT p.initiative_id || ':' || k.key AS pair
@@ -400,7 +493,12 @@ SELECT
       FROM placed p
     ), ''), true) AS member_initiatives,
   set_config('app.manager_initiatives', '', true) AS manager_initiatives,
-  set_config('app.member_role_ids', '', true) AS member_role_ids,
+  set_config('app.member_role_ids', COALESCE((
+      SELECT string_agg(DISTINCT mr.role_id::text, ',')
+      FROM member_role mr
+      JOIN placed p ON p.initiative_id = mr.initiative_id
+      WHERE mr.role_id IS NOT NULL
+    ), ''), true) AS member_role_ids,
   set_config('app.role_grants', COALESCE((
       SELECT string_agg(gr.pair, ',' ORDER BY gr.pair) FROM granted gr
     ), ''), true) AS role_grants,
@@ -414,7 +512,12 @@ SELECT
       CROSS JOIN LATERAL (VALUES {_tool_switch_values()}) AS t(tool, enabled)
       WHERE t.enabled
     ), ''), true) AS enabled_tools,
-  set_config('app.override_initiatives', '', true) AS override_initiatives,
+  set_config('app.override_initiatives', COALESCE((
+      SELECT string_agg(DISTINCT mr.initiative_id::text, ',')
+      FROM member_role mr
+      JOIN placed p ON p.initiative_id = mr.initiative_id
+      WHERE mr.overrides
+    ), ''), true) AS override_initiatives,
   set_config('app.install_read', COALESCE((
       SELECT string_agg(DISTINCT h.resource, ',') FROM held h
     ), ''), true) AS install_read,
@@ -714,6 +817,12 @@ class InstallContext:
     token_scopes: frozenset[str]
     #: The one initiative the token is narrowed to, when it is.
     scope_initiative_id: Optional[int] = None
+    #: The member a member token acts for, and the purpose they consented to
+    #: (``None`` for app-wide consent). ``None`` for the install itself. A write
+    #: that names its author, such as the owner grant on something created,
+    #: names this member.
+    member_user_id: Optional[int] = None
+    purpose: Optional[str] = None
 
     # --- What the install standing statement returned -------------------------
     #: The community the standing was computed for; ``None`` until it has been.
@@ -731,6 +840,11 @@ class InstallContext:
     role_denies: tuple[str, ...] = ()
     #: ``"<initiative_id>:<tool>"`` where the initiative's switch is on.
     enabled_tools: tuple[str, ...] = ()
+    #: For a member token, the member's initiative roles, and the initiatives
+    #: where their role holds "Full access", within ``member_initiatives``.
+    #: Empty for the install itself.
+    member_role_ids: tuple[int, ...] = ()
+    override_initiatives: tuple[int, ...] = ()
     #: The resources its scopes let it read, and write.
     install_read: tuple[str, ...] = ()
     install_write: tuple[str, ...] = ()
@@ -747,6 +861,16 @@ class InstallContext:
         that may act answers it."""
         return self.live
 
+    @property
+    def is_member_token(self) -> bool:
+        """Whether this request acts for a member rather than as the install."""
+        return self.member_user_id is not None
+
+    def overrides_sharing(self, initiative_id: Optional[int]) -> bool:
+        """Whether the member a member token acts for holds "Full access" in
+        ``initiative_id``. Never, for the install itself."""
+        return initiative_id is not None and initiative_id in self.override_initiatives
+
     def with_standing(self, row: dict[str, Any]) -> "InstallContext":
         """This context completed with what the install standing statement
         returned."""
@@ -761,6 +885,8 @@ class InstallContext:
             role_grants=_pairs(row.get("role_grants")),
             role_denies=_pairs(row.get("role_denies")),
             enabled_tools=_pairs(row.get("enabled_tools")),
+            member_role_ids=_ids(row.get("member_role_ids")),
+            override_initiatives=_ids(row.get("override_initiatives")),
             install_read=_pairs(row.get("install_read")),
             install_write=_pairs(row.get("install_write")),
             guild_ref=row.get("guild_ref") or None,
@@ -827,6 +953,8 @@ def standing_bind_params(
             "role_grants": _csv(context.role_grants),
             "role_denies": _csv(context.role_denies),
             "enabled_tools": _csv(context.enabled_tools),
+            "member_role_ids": _csv(context.member_role_ids),
+            "override_initiatives": _csv(context.override_initiatives),
             "install_read": _csv(context.install_read),
             "install_write": _csv(context.install_write),
         }

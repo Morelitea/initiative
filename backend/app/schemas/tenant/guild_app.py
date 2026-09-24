@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.models.tenant.app_member_consent import ConsentAccess, ConsentStatus
 from app.schemas.base import SanitizedBaseModel
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
@@ -268,6 +269,36 @@ class GuildAppDelegationGrant(SanitizedBaseModel):
     can_write: bool = False
 
 
+class GuildAppConsentRead(SanitizedBaseModel):
+    """One request from this app to act as the viewer, and their answer.
+
+    ``label`` is the app's own description of what it wants to do, shown as
+    the app's words. ``purpose`` is the app's id for it; absent for app-wide
+    consent.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    purpose: Optional[str] = None
+    label: str
+    #: The one initiative the purpose is bound to, when it is.
+    initiative_id: Optional[int] = None
+    requested_access: ConsentAccess
+    granted_access: Optional[ConsentAccess] = None
+    status: ConsentStatus
+    requested_at: datetime
+    granted_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+
+
+class GuildAppConsentAnswer(SanitizedBaseModel):
+    """Allow a request, at ``access``: never more than the app asked for.
+    Declining is withdrawing a request that was never granted."""
+
+    access: ConsentAccess
+
+
 class GuildAppMemberDelegation(SanitizedBaseModel):
     """One member's authorization, in the admin's Members view."""
 
@@ -294,6 +325,9 @@ class GuildAppDetail(GuildAppRead):
     #: install so the settings page can draw the question without a second
     #: request; it says nothing about anybody else.
     delegation: Optional[GuildAppDelegationRead] = None
+    #: The viewer's own answers to this app's requests to act as them, one per
+    #: purpose, the app-wide one first. Nobody else's.
+    consents: List[GuildAppConsentRead] = []
     #: The version this install would move to if it updated now, and absent
     #: when there is none — an install already on the newest, and one whose
     #: listing is gone or has published nothing this build can run, are one
@@ -526,6 +560,7 @@ def serialize_guild_app_detail(
     delegation_row: Any = None,
     update_version: Optional[str] = None,
     placements: Sequence[Any] = (),
+    consent_rows: Sequence[Any] = (),
 ) -> GuildAppDetail:
     """The install and its connections, from the viewer's own perspective.
 
@@ -549,6 +584,7 @@ def serialize_guild_app_detail(
         **base.model_dump(),
         connections=connections,
         delegation=serialize_delegation(delegation_row),
+        consents=[serialize_consent(row) for row in consent_rows],
         update_version=update_version,
         requested_scopes=requested_scopes(app.definition),
         grantable_scopes=grantable_scopes(
@@ -603,6 +639,23 @@ class GuildAppServiceRead(SanitizedBaseModel):
     #: Whether anything may flow through this app right now: the guild's own
     #: switch and the operator's, together.
     available: bool
+
+
+def serialize_consent(row: Any) -> GuildAppConsentRead:
+    return GuildAppConsentRead(
+        id=row.id,
+        purpose=row.purpose,
+        label=row.label,
+        initiative_id=row.initiative_id,
+        requested_access=ConsentAccess(row.requested_access),
+        granted_access=(
+            ConsentAccess(row.granted_access) if row.granted_access else None
+        ),
+        status=row.status,
+        requested_at=row.requested_at,
+        granted_at=row.granted_at,
+        revoked_at=row.revoked_at,
+    )
 
 
 def serialize_member_delegation(row: Any) -> GuildAppMemberDelegation:

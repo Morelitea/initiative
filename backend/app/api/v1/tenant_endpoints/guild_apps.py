@@ -32,7 +32,7 @@ nothing, whether or not the guild wanted it.
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, List, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -59,6 +59,7 @@ from app.core.messages import (
 from app.db import session as db_session
 from app.models.platform.guild import GuildMembership
 from app.models.platform.user import User
+from app.models.tenant.app_member_consent import AppMemberConsent
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.guild_app import (
@@ -69,6 +70,8 @@ from app.schemas.tenant.guild_app import (
     GuildAppConfigUpdate,
     GuildAppConnectionSummary,
     GuildAppConnectStart,
+    GuildAppConsentAnswer,
+    GuildAppConsentRead,
     GuildAppDelegationGrant,
     GuildAppDelegationRead,
     GuildAppDetail,
@@ -78,6 +81,7 @@ from app.schemas.tenant.guild_app import (
     GuildAppMembersResponse,
     GuildAppRead,
     GuildAppUpdate,
+    serialize_consent,
     serialize_delegation,
     serialize_guild_app,
     serialize_guild_app_detail,
@@ -102,6 +106,7 @@ from app.services.platform import guilds as guilds_service
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connections as connections_service
 from app.services.tenant import app_delegations as delegations_service
+from app.services.tenant import app_member_consents as consents_service
 from app.services.tenant import app_handoff as handoff_service
 from app.services.tenant import app_revocation as revocation_service
 from app.services.tenant import app_updates as app_updates_service
@@ -385,6 +390,9 @@ async def get_guild_app(
         update_version=await app_updates_service.update_version(session, app),
         context=guild_context,
         placements=await _placements(session, app),
+        consent_rows=await consents_service.list_member_consents(
+            session, install_id=app.id, user_id=current_user.id
+        ),
     )
 
 
@@ -1539,6 +1547,102 @@ async def revoke_my_delegation(
     await session.commit()
 
 
+async def _own_consent(
+    session: AsyncSession, *, app_id: int, consent_id: int, user_id: int
+) -> AppMemberConsent:
+    """One of the caller's own requests from this app, or 404."""
+    row = await consents_service.get_member_consent(
+        session, consent_id=consent_id, install_id=app_id, user_id=user_id
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildAppMessages.CONSENT_NOT_FOUND,
+        )
+    return row
+
+
+@router.get("/{app_id}/consents", response_model=List[GuildAppConsentRead])
+async def list_my_consents(
+    app_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> List[GuildAppConsentRead]:
+    """What this app has asked to do as you, one line per purpose, and how you
+    answered. Yours only."""
+    app = await _load(session, app_id)
+    return [
+        serialize_consent(row)
+        for row in await consents_service.list_member_consents(
+            session, install_id=app.id, user_id=current_user.id
+        )
+    ]
+
+
+@router.put("/{app_id}/consents/{consent_id}", response_model=GuildAppConsentRead)
+async def grant_my_consent(
+    app_id: int,
+    consent_id: int,
+    payload: GuildAppConsentAnswer,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+    credential: Annotated[str, Depends(require_first_party_session)],
+) -> GuildAppConsentRead:
+    """Allow this app to act as you for one of its requests, at ``access``.
+
+    Never more than the app asked for. Acts on the caller alone and takes no
+    user id. Signed-in only (``require_first_party_session``), and the way you
+    signed in is recorded with the answer.
+    """
+    app = await _load(session, app_id)
+    row = await _own_consent(
+        session, app_id=app.id, consent_id=consent_id, user_id=current_user.id
+    )
+    try:
+        row = await consents_service.grant(
+            session,
+            row,
+            access=payload.access,
+            confirmed_factor=credential,
+            actor_user_id=current_user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildAppMessages.CONSENT_EXCEEDS_REQUEST,
+        ) from exc
+    await session.commit()
+    await session.refresh(row)
+    return serialize_consent(row)
+
+
+@router.delete(
+    "/{app_id}/consents/{consent_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def revoke_my_consent(
+    app_id: int,
+    consent_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> None:
+    """Decline one of this app's requests, or withdraw what you allowed. The
+    app stops acting as you for it on its next request."""
+    app = await _load(session, app_id)
+    row = await _own_consent(
+        session, app_id=app.id, consent_id=consent_id, user_id=current_user.id
+    )
+    await consents_service.revoke(
+        session,
+        row,
+        revoked_by_id=current_user.id,
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+
+
 # ---------------------------------------------------------------------------
 # Admin governance of members' connections
 # ---------------------------------------------------------------------------
@@ -1693,7 +1797,8 @@ async def revoke_member_delegation(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> None:
-    """Withdraw one member's authorization for this app.
+    """Withdraw one member's authorization for this app, and every answer they
+    gave its requests to act as them.
 
     An admin ends it and cannot give it back: the member authorizes again
     themselves, or nobody does. Governance runs one way here, which is what
@@ -1710,6 +1815,13 @@ async def revoke_member_delegation(
         actor_user_id=current_user.id,
         via="admin",
     )
+    await consents_service.revoke_member_consents(
+        session,
+        install_id=app.id,
+        user_id=user_id,
+        revoked_by_id=current_user.id,
+        actor_user_id=current_user.id,
+    )
     await session.commit()
 
 
@@ -1722,7 +1834,8 @@ async def revoke_all_member_delegations(
 ) -> None:
     """Stop this app acting as anybody, without uninstalling it.
 
-    The companion to ``revoke-all`` for connections: for a suspected app
+    Withdraws every member's authorization, and every answer to the app's
+    requests to act as them, pending ones included. The companion to ``revoke-all`` for connections: for a suspected app
     compromise, reacting fast should not cost the guild its configuration.
     Members may authorize again once the guild is satisfied.
     """
@@ -1735,6 +1848,12 @@ async def revoke_all_member_delegations(
         revoked_by_id=current_user.id,
         actor_user_id=current_user.id,
         via="admin",
+    )
+    await consents_service.revoke_all(
+        session,
+        install_id=app.id,
+        revoked_by_id=current_user.id,
+        actor_user_id=current_user.id,
     )
     await session.commit()
 

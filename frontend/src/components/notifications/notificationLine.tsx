@@ -442,6 +442,12 @@ export const notificationText = (
         : t("notifications.accountSuspended");
     case "account_unsuspended":
       return t("notifications.accountUnsuspended");
+    case "app_consent_requested":
+      // The label is the app's own words, quoted as such by the string.
+      return t("notifications.appConsentRequested", {
+        app: typeof data.app_name === "string" ? data.app_name : "",
+        label: typeof data.label === "string" ? data.label : "",
+      });
     case "guild_on_hold": {
       const community = typeof data.community === "string" ? data.community : "";
       return typeof data.contact === "string" && data.contact.trim()

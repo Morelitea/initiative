@@ -85,8 +85,14 @@ export function AppSettingsDialog({
             {/* Yours first. An app that acts as people asks the question of
                 everybody, admins included — a guild admin's own name is not
                 something their role answers for. */}
-            {app.delegates && (
-              <AppDelegationPanel appId={app.id} appName={app.name} delegation={app.delegation} />
+            {(app.delegates || (app.consents?.length ?? 0) > 0) && (
+              <AppDelegationPanel
+                appId={app.id}
+                appName={app.name}
+                delegation={app.delegation}
+                delegates={app.delegates}
+                consents={app.consents ?? []}
+              />
             )}
 
             <AppConnectionsPanel

@@ -456,6 +456,7 @@ async def test_support_role_write_capped_on_protected_tables(engine):
                 "resource_grants",
                 "guild_app_user_connections",
                 "guild_app_user_delegations",
+                "app_member_consents",
             ):
                 assert table in SUPPORT_WRITE_PROTECTED_TABLES, table
 

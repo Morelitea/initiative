@@ -76,12 +76,14 @@ def mint_client_assertion(
     lifetime: int = 60,
     jti: Optional[str] = None,
     subject: Optional[str] = None,
+    extra: Optional[dict[str, Any]] = None,
 ) -> str:
     """A client assertion signed by one of the app's keys.
 
     ``key`` picks the signing key; ``kid`` and ``algorithm`` default to that
     key's own, and either may be set to something else to make the header
-    disagree with the key.
+    disagree with the key. ``extra`` adds claims, as a member grant's
+    ``installation`` and ``purpose``.
     """
     private = _rsa_key if key == "rsa" else _ec_key
     default_kid = RSA_KID if key == "rsa" else EC_KID
@@ -94,6 +96,7 @@ def mint_client_assertion(
         "jti": jti or secrets.token_urlsafe(16),
         "iat": iat,
         "exp": iat + lifetime,
+        **(extra or {}),
     }
     return jwt.encode(
         claims,

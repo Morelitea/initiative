@@ -302,11 +302,13 @@ _CONTEXT_SQL = (
     "set_config('app.query', :q, true), "
     "set_config('app.guild_auth_ok', :gok, true), "
     # The installed app this routes, when it is one: which install, the client
-    # its token was issued to, and the scopes the token carries. Written from
-    # the verified install, the way the user is written from the credential.
+    # its token was issued to, the scopes the token carries and, for a member
+    # token, the purpose its member consented to. Written from the verified
+    # install, the way the user is written from the credential.
     "set_config('app.current_install_id', :iid, true), "
     "set_config('app.token_client_id', :tcid, true), "
     "set_config('app.token_scopes', :tsc, true), "
+    "set_config('app.token_purpose', :tpur, true), "
     # The reader's standing in the community this routes into — written here
     # so a routing always states it, and stated as nothing until the statement
     # that computes it has run. See app.db.guild_standing.
@@ -411,6 +413,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "iid": "",
             "tcid": "",
             "tsc": "",
+            "tpur": "",
             "sinit": "",
             "vdash": "",
             "q": "false",
@@ -545,6 +548,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "iid": "",
         "tcid": "",
         "tsc": "",
+        "tpur": "",
         "gok": "true" if guild_auth_ok else "false",
         **_standing_binds(standing),
         "sinit": str(int(scope_initiative_id))
@@ -563,11 +567,12 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
 def _render_install_bind_params(params: dict[str, Any]) -> dict[str, str]:
     """The routing binds for an installed app acting in its community.
 
-    Assumes ``guild_<id>_app`` with the community's schema on the path. No
-    person: the user, every credential value and the grant flags are written
-    empty. The install, its client and its token's scopes are the routing's own
-    values, and the standing is what the install standing statement computed —
-    or nothing, until it has run.
+    Assumes ``guild_<id>_app`` with the community's schema on the path. Every
+    credential value and the grant flags are written empty. The user is the
+    member a member token acts for, and empty for the install itself. The
+    install, its client, its token's scopes and the member's purpose are the
+    routing's own values, and the standing is what the install standing
+    statement computed — or nothing, until it has run.
     """
     from app.db.schema_provisioning import guild_app_role_name, guild_schema_name
 
@@ -577,8 +582,9 @@ def _render_install_bind_params(params: dict[str, Any]) -> dict[str, str]:
         isinstance(context, InstallContext) and context.standing_guild_id is not None
     )
     scope_initiative_id = params.get("scope_initiative_id")
+    member_user_id = params.get("member_user_id")
     return {
-        "uid": "",
+        "uid": str(int(member_user_id)) if member_user_id is not None else "",
         "gid": str(guild_id),
         "pgid": "",
         "setgid": "",
@@ -595,6 +601,7 @@ def _render_install_bind_params(params: dict[str, Any]) -> dict[str, str]:
         # The vocabulary is closed (``app.core.app_scopes``), so the delimiter
         # cannot appear inside a scope; sorted so one token writes one string.
         "tsc": ",".join(sorted(params.get("token_scopes") or ())),
+        "tpur": str(params.get("token_purpose") or ""),
         "sinit": str(int(scope_initiative_id))
         if scope_initiative_id is not None
         else "",
@@ -663,6 +670,8 @@ async def set_rls_context(
     install_id: Optional[int] = None,
     token_client_id: Optional[str] = None,
     token_scopes: frozenset[str] | None = None,
+    member_user_id: Optional[int] = None,
+    token_purpose: Optional[str] = None,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -723,9 +732,11 @@ async def set_rls_context(
     ``guild_id``: it assumes ``guild_<id>_app`` and writes no person.
     ``token_client_id`` and ``token_scopes`` are the client the install's token
     was issued to and the scopes it carries, and ``scope_initiative_id`` the
-    initiative it is narrowed to. ``context`` is then the ``InstallContext``
-    the establishment seam built (``app.api.deps.establish_install_access``),
-    and a routing that names an install without one is refused.
+    initiative it is narrowed to. ``member_user_id`` and ``token_purpose`` are
+    the member a member token acts for, written as the request's user, and the
+    purpose they consented to. ``context`` is then the ``InstallContext`` the
+    establishment seam built (``app.api.deps.establish_install_access``), and a
+    routing that names an install without one is refused.
 
     ``platform_factor`` says whether the account answers the deployment's own
     second-factor rule — a factor it holds, or one this session presented. It
@@ -788,6 +799,8 @@ async def set_rls_context(
         install_id=install_id,
         token_client_id=token_client_id,
         token_scopes=token_scopes,
+        member_user_id=member_user_id,
+        token_purpose=token_purpose,
     )
     # Whether the account answers the deployment's own second-factor rule.
     # Ambient by default, from the context the request's gate resolved once —
@@ -853,6 +866,8 @@ async def set_rls_context(
         "install_id": install_id,
         "token_client_id": token_client_id,
         "token_scopes": token_scopes,
+        "member_user_id": member_user_id,
+        "token_purpose": token_purpose,
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 

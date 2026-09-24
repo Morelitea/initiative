@@ -263,7 +263,8 @@ async def delete_app_delegations(session: AsyncSession, *, app_id: int) -> int:
 
 
 async def delete_member_delegations(session: AsyncSession, *, user_id: int) -> int:
-    """Every grant one member holds in the routed guild.
+    """Every grant one member holds in the routed guild, their answers to apps
+    asking to act as them (``app_member_consents``) included.
 
     For the paths where the person's relationship with the guild ends — leaving,
     being removed, deactivating or deleting their account. Their grants in other
@@ -271,12 +272,17 @@ async def delete_member_delegations(session: AsyncSession, *, user_id: int) -> i
 
     The session must already be routed into the guild.
     """
+    from app.services.tenant import app_member_consents
+
     result = await session.exec(
         sa_delete(GuildAppUserDelegation).where(
             GuildAppUserDelegation.user_id == user_id
         )
     )
-    return result.rowcount or 0
+    consents = await app_member_consents.delete_member_consents(
+        session, user_id=user_id
+    )
+    return (result.rowcount or 0) + consents
 
 
 # --- the read the auth path makes -------------------------------------------

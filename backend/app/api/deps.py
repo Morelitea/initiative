@@ -1491,13 +1491,16 @@ async def establish_guild_access(
 class VerifiedInstall:
     """An install whose token has been verified: the community it is installed
     in, the install, the client the token was issued to, the scopes it carries,
-    and the one initiative it is narrowed to, when it is."""
+    the one initiative it is narrowed to, when it is, and, for a member token,
+    the member it acts for and the purpose they consented to."""
 
     guild_id: int
     install_id: int
     client_id: str
     scopes: frozenset[str]
     initiative_id: int | None = None
+    user_id: int | None = None
+    purpose: str | None = None
 
 
 class InstallAccessError(Exception):
@@ -1518,9 +1521,11 @@ async def establish_install_access(
     establishment seam for an install, beside :func:`establish_guild_access`.
 
     Two statements and no lookup ahead of them: the routing (the community's
-    ``guild_<id>_app`` role, the install, its client, its token's scopes and
-    the narrowed initiative, all from ``install``), and the install standing
-    statement, which reads everything else from rows. The context it returns
+    ``guild_<id>_app`` role, the install, its client, its token's scopes, the
+    narrowed initiative and, for a member token, the member and the purpose,
+    all from ``install``), and the install standing statement, which reads
+    everything else from rows — for a member token, the member's membership,
+    account and consent among them. The context it returns
     is what that statement computed, and is stored with the routing for the
     replay hook.
 
@@ -1530,8 +1535,9 @@ async def establish_install_access(
     choose rows to look up and decide nothing about access.
 
     Raises :class:`InstallAccessError` when the standing is not live — the
-    community is not in use, the install or its registration is off, or the
-    registration is not the client the token names — and when the community
+    community is not in use, the install or its registration is off, the
+    registration is not the client the token names, or a member token's member
+    has left, is not active or has no live consent — and when the community
     has no role or schema to route into. The session is left unrouted after a
     refusal of the second kind, with its transaction rolled back.
     """
@@ -1547,6 +1553,8 @@ async def establish_install_access(
         scope_initiative_id=(
             int(install.initiative_id) if install.initiative_id is not None else None
         ),
+        member_user_id=int(install.user_id) if install.user_id is not None else None,
+        purpose=install.purpose if install.user_id is not None else None,
     )
     try:
         await set_rls_context(
@@ -1557,6 +1565,8 @@ async def establish_install_access(
             token_client_id=pending.client_id,
             token_scopes=pending.token_scopes,
             scope_initiative_id=pending.scope_initiative_id,
+            member_user_id=pending.member_user_id,
+            token_purpose=pending.purpose,
         )
         completed = await apply_install_standing(session, pending, named_refs)
     except DBAPIError as exc:
@@ -1658,6 +1668,8 @@ async def _establish_install_request(
         client_id=unsealed.client_id,
         scopes=unsealed.scopes,
         initiative_id=unsealed.initiative_id,
+        user_id=unsealed.user_id,
+        purpose=unsealed.purpose,
     )
     named = await _named_refs(request)
     try:

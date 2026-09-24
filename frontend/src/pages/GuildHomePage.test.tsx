@@ -593,6 +593,43 @@ describe("GuildHomePage", () => {
     );
   });
 
+  it("opens an app's settings from the address, where the reader answers what it asked", async () => {
+    stubInitiatives();
+    stubTools();
+    server.use(
+      guildHttp.get("/apps/3", () =>
+        HttpResponse.json({
+          id: 3,
+          name: "Auto",
+          definition: {},
+          enabled: true,
+          delegates: false,
+          connections: [],
+          delegation: null,
+          consents: [
+            {
+              id: 41,
+              purpose: "node-1",
+              label: "Comment on the linked issue",
+              initiative_id: null,
+              requested_access: "read",
+              granted_access: null,
+              status: "pending",
+              requested_at: "2026-09-24T00:00:00Z",
+              granted_at: null,
+              revoked_at: null,
+            },
+          ],
+        })
+      )
+    );
+
+    renderHomeAsMember({ app: 3 });
+
+    expect(await screen.findByText("Auto: “Comment on the linked issue”")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for you")).toBeInTheDocument();
+  });
+
   it("keeps the comment feed while the rail switches tools", async () => {
     stubInitiatives({ queues_enabled: true });
     stubTools({ queues: [] });

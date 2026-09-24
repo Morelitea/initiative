@@ -120,3 +120,47 @@ APP_TABLE_ACCESS: dict[str, AppTableAccess] = _derive()
 APP_REFUSED_TABLES: frozenset[str] = frozenset(
     {"reactions", "reaction_digest_items", "recent_views"}
 )
+
+
+#: The trigger function every tool table carries (``tr_<table>_install_owns``,
+#: attached with the tool's value as its argument): when an installed app's
+#: request creates a tool's resource, it writes the one owner row. That row
+#: names the install, or, for a member token, the member it acts for. A
+#: request a person makes names no install, and the function writes nothing.
+#: Shared, in ``public``; the row lands in the schema the trigger fired in.
+#: Restated in full by the migration that sets it (20260924_0385).
+INSTALL_OWNS_WHAT_IT_CREATES = """
+CREATE OR REPLACE FUNCTION public.fn_install_owns_what_it_creates() RETURNS trigger
+    LANGUAGE plpgsql AS $owns$
+DECLARE
+    v_install integer := NULLIF(
+        current_setting('app.current_install_id', true), ''
+    )::integer;
+    v_member integer := NULLIF(
+        current_setting('app.current_user_id', true), ''
+    )::integer;
+BEGIN
+    IF v_install IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF v_member IS NULL THEN
+        EXECUTE format(
+            'INSERT INTO %I.resource_grants '
+            '(resource_type, resource_id, initiative_id, app_install_id, level, '
+            'all_initiative_members, created_at) '
+            'VALUES ($1, $2, $3, $4, ''owner'', false, now())',
+            TG_TABLE_SCHEMA
+        ) USING TG_ARGV[0], NEW.id, NEW.initiative_id, v_install;
+    ELSE
+        EXECUTE format(
+            'INSERT INTO %I.resource_grants '
+            '(resource_type, resource_id, initiative_id, user_id, level, '
+            'all_initiative_members, created_at) '
+            'VALUES ($1, $2, $3, $4, ''owner'', false, now())',
+            TG_TABLE_SCHEMA
+        ) USING TG_ARGV[0], NEW.id, NEW.initiative_id, v_member;
+    END IF;
+    RETURN NULL;
+END;
+$owns$;
+"""

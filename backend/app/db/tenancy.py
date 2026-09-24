@@ -273,6 +273,13 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # governed access rather than private property — so own_row_* policies,
         # owner OR guild admin.
         "guild_app_user_delegations",
+        # A member's answer to an installed app asking to act as them, one per
+        # purpose. The same shape as the delegations beside it: no FK to any
+        # initiative is required (a purpose may be app-wide), one owner per
+        # row, and the community's administration reads and revokes, so
+        # own_row_* policies. A member token's standing reads the member's own
+        # row for its install.
+        "app_member_consents",
     }
 )
 
@@ -308,6 +315,7 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_prefs": "user_id",
     "guild_app_user_connections": "user_id",
     "guild_app_user_delegations": "user_id",
+    "app_member_consents": "user_id",
 }
 
 # --- Seat overlay on guild-level tables ---------------------------------------
@@ -358,6 +366,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "guild_ai_member_prefs",
         "guild_app_user_connections",
         "guild_app_user_delegations",
+        "app_member_consents",
         "post_reads",
         # A fact about an install: where it appears. The rows a new initiative's
         # trigger writes have no person placing them.

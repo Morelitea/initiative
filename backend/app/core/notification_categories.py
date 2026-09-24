@@ -189,6 +189,7 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
                 NotificationType.initiative_join_requested,
                 NotificationType.user_pending_approval,
                 NotificationType.access_grant_requested,
+                NotificationType.app_consent_requested,
             }
         ),
         group=CategoryGroup.community,
