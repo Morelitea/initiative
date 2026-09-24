@@ -25,13 +25,13 @@ import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { Markdown } from "@/components/Markdown";
-import { MarkdownComposer } from "@/components/markdown/MarkdownComposer";
+import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { normalizePropertyValue } from "@/components/properties/PropertyFields";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
+import { TaskDescription } from "@/components/tasks/TaskDescription";
 import {
   emptyTaskFormValue,
   serializeTaskFormValue,
@@ -77,6 +77,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
+import { referenceRef } from "@/lib/smartChips";
 import { dateTimePattern } from "@/lib/timeFormat";
 import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import {
@@ -85,6 +86,9 @@ import {
   getUserDisplayName,
   isAnonymizedUser,
 } from "@/lib/userDisplay";
+
+/** The preview of a description being edited reads the way the saved one will. */
+const renderDescription = (draft: string) => <TaskDescription content={draft} />;
 
 const toLocalInputValue = (value?: string | null) => {
   if (!value) {
@@ -569,16 +573,19 @@ export const TaskEditPage = () => {
       {isReadOnly ? (
         description ? (
           <div className="rounded-md border border-border/70 border-dashed bg-muted/40 px-3 py-2">
-            <Markdown content={description} />
+            <TaskDescription content={description} />
           </div>
         ) : (
           <p className="text-muted-foreground text-sm italic">{t("edit.noDescriptionReadOnly")}</p>
         )
       ) : (
-        <MarkdownComposer
+        <MentionComposer
           id="task-description"
           value={description}
           onChange={setDescription}
+          initiativeId={initiativeId ?? 0}
+          subject={referenceRef(SearchEntityType.task, parsedTaskId)}
+          renderPreview={renderDescription}
           defaultMode="preview"
           placeholder={t("edit.descriptionPlaceholder")}
           actions={

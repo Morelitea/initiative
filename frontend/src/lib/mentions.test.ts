@@ -6,6 +6,7 @@ import {
   entityMentionSyntax,
   hasReservedSigil,
   MENTIONABLE_TYPES,
+  mentionsAsText,
   RESERVED_SIGILS,
   supportsEntityMentions,
   typeForTrigger,
@@ -81,6 +82,19 @@ describe("what gets written into the comment", () => {
     expect(entityMentionSyntax(SearchEntityType.counter_group, "Q1", 7)).toBe(
       "#counter-group[Q1](7)"
     );
+  });
+});
+
+describe("mentions read as a line of text", () => {
+  it("keeps a person's name and a thing's label, and drops the syntax", () => {
+    expect(mentionsAsText("Ask @[Ada Lovelace](4) about #task[Ship it](12).")).toBe(
+      "Ask @Ada Lovelace about Ship it."
+    );
+    expect(mentionsAsText("(#counter-group[Q1](7))")).toBe("(Q1)");
+  });
+
+  it("leaves an ordinary link and an email-shaped one alone", () => {
+    expect(mentionsAsText("see [docs](12) or a@[b](1)")).toBe("see [docs](12) or a@[b](1)");
   });
 });
 
