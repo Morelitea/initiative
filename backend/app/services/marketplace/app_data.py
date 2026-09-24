@@ -62,15 +62,14 @@ from app.core.security import (
     app_platform_signing_enabled,
 )
 from app.db import session as db_session
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
-    is_live,
-)
+from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.publisher import Publisher
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.fields.spec import FieldType
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.context_jwt import mint_context_token
+from app.services.marketplace.registration_lookup import live_registration_clause
 from app.services.query.rows import RowColumn
 from app.services.marketplace.service_apps import is_admin_only
 from app.services.safe_http import build_validated_request
@@ -524,16 +523,17 @@ async def _load_registration(public_id: str) -> AppServiceRegistration:
     operator's kill switch takes effect on the next request in every worker.
     """
     async with db_session.SystemSessionLocal() as system_session:
-        row = (
+        found = (
             await system_session.exec(
-                select(AppServiceRegistration).where(
-                    AppServiceRegistration.public_id == public_id
-                )
+                select(AppServiceRegistration, live_registration_clause())
+                .join(Publisher, Publisher.id == AppServiceRegistration.publisher_id)
+                .where(AppServiceRegistration.public_id == public_id)
             )
         ).first()
-    if row is None:
+    if found is None:
         raise AppDataError(AppDataMessages.SERVICE_NOT_REGISTERED, 404)
-    if not is_live(row):
+    row, live = found
+    if not live:
         raise AppDataError(AppDataMessages.SERVICE_DISABLED, 409)
     return row
 

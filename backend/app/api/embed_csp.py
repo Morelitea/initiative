@@ -5,16 +5,15 @@ An embedded app runs in a cross-origin iframe, which the app-wide
 deployment's own registrations: ``app_service_registrations`` is the operator's
 trusted-site list, and the live ones' origins are what ``frame-src`` names.
 
-An origin reaches that list one way — an operator wires up an app service, and
-that service's handshake confirms the manifest it serves. So the header
-describes what this deployment runs. It names no guild, no install and no
+An origin reaches that list one way — an operator wires up an app service. So
+the header describes what this deployment runs. It names no guild, no install and no
 reader, and it is the same header on every document, which is what makes it
 answerable without a session and stable for as long as the operator's
 configuration is.
 
-The kill switch reaches it too: a registration that is stopped, or whose last
-verification found a different manifest behind it, is not live, and its origins
-leave the header within the registration cache's TTL.
+The kill switch reaches it too: a registration that is stopped, whose
+publisher is stopped, or that has no key set is not live, and its origins leave
+the header within the registration cache's TTL.
 
 ``connect-src`` is untouched — an app's data reaches the browser same-origin
 through the proxy.

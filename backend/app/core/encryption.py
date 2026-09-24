@@ -25,7 +25,6 @@ SALT_CAPTCHA_SECRET_KEY = b"captcha-secret-key"
 SALT_FCM_SERVICE_ACCOUNT = b"fcm-service-account"
 SALT_EMAIL = b"email"
 SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
-SALT_APP_SERVICE_SECRET = b"app-service-secret"
 # Values a guild (or one of its members) supplies to an installed app's
 # connection form. Held per key inside a JSONB map rather than in a column of
 # its own, because one install can hold several.

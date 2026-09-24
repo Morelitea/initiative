@@ -16,10 +16,13 @@ it was flushed. Raw ``session.add()`` of tenant models in tests is covered by
 the fail-closed flush router in ``schema_harness``.
 """
 
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from cryptography.hazmat.primitives.asymmetric import ec
+from jwt.algorithms import ECAlgorithm
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -28,16 +31,13 @@ from app.core.relationships import Provenance, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import relationships as relationships_service
-from app.core.encryption import (
-    encrypt_field,
-    SALT_APP_SERVICE_SECRET,
-)
 from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.core.security import (
     get_password_hash,
     mint_access_token,
 )
 from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.publisher import Publisher, publisher_prefix
 from app.core.reactions import ReactionTarget
 from app.models.tenant.calendar import Calendar
 from app.models.platform.marketplace import (
@@ -1244,6 +1244,46 @@ async def create_guild_app(
     return app
 
 
+_TEST_APP_KEY = ec.generate_private_key(ec.SECP256R1())
+
+
+def sample_app_jwks(kid: str = "tests-app-key") -> dict[str, Any]:
+    """A public key set for a test registration: one P-256 key under ``kid``.
+
+    A registration is live only with a key set, so every test registration
+    carries one unless the test says otherwise.
+    """
+    entry = json.loads(ECAlgorithm.to_jwk(_TEST_APP_KEY.public_key()))
+    entry["kid"] = kid
+    return {"keys": [entry]}
+
+
+async def create_publisher(
+    session: AsyncSession,
+    *,
+    prefix: str = "tests",
+    display_name: str | None = None,
+    verified: bool = True,
+    enabled: bool = True,
+) -> Publisher:
+    """The publisher for ``prefix``: the existing row, or a new one."""
+    row = (
+        await session.exec(select(Publisher).where(Publisher.prefix == prefix))
+    ).first()
+    if row is None:
+        row = Publisher(
+            prefix=prefix,
+            display_name=display_name or prefix,
+            verified=verified,
+            enabled=enabled,
+        )
+        session.add(row)
+        await session.commit()
+        await session.refresh(row)
+        invalidate_registrations()
+    return row
+
+
 async def create_app_service_registration(
     session: AsyncSession,
     *,
@@ -1254,32 +1294,33 @@ async def create_app_service_registration(
     grants: list[str] | None = None,
     mandatory: bool = False,
     enabled: bool = True,
-    status: str = "ok",
+    jwks: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> AppServiceRegistration:
     """A deployment-level registration, written straight into ``public``.
 
-    Deliberately not routed through :mod:`app.services.marketplace.registrations`:
-    creating one there runs the handshake against a live container, which a test
-    has no business standing up. The row is what everything downstream reads, so
-    this is the wiring an operator would have done.
+    Its publisher is the row for its ``public_id`` prefix, made when there is
+    none. It carries :func:`sample_app_jwks` unless ``jwks`` is given, so it is
+    live unless the test switches it or its publisher off; pass
+    ``jwks={}`` for one with no key set.
 
     The in-process snapshot is dropped afterwards, so the very next read sees
     this registration rather than whatever a previous test left cached.
     """
+    publisher = await create_publisher(session, prefix=publisher_prefix(public_id))
     row = AppServiceRegistration(
         **{
             "public_id": public_id,
             "listing_uid": listing_uid,
+            "publisher_id": publisher.id,
             "base_url": base_url,
             "allowed_origins": allowed_origins
             if allowed_origins is not None
             else [base_url],
-            "secret_encrypted": encrypt_field("test-secret", SALT_APP_SERVICE_SECRET),
             "grants": grants or [],
+            "jwks": (jwks or None) if jwks is not None else sample_app_jwks(),
             "mandatory": mandatory,
             "enabled": enabled,
-            "status": status,
             **overrides,
         }
     )

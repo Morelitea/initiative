@@ -1190,12 +1190,11 @@ PUBLIC_RLS: dict[str, TableRls] = {
             ),
         ),
     ),
-    "app_service_nonces": FORCED_NO_POLICY,
     "app_assertion_jtis": FORCED_NO_POLICY,
     "app_setting_secrets": FORCED_NO_POLICY,
     # Everything else is the system engine's. An installed app's standing reads
     # the registration its token was issued to (its column grant is public_id,
-    # listing_uid, enabled and status alone).
+    # listing_uid, enabled, publisher_id, jwks and jwks_uri alone).
     "app_service_registrations": TableRls(
         policies=(
             Policy(
@@ -1203,6 +1202,23 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 SELECT,
                 ("app_install_base",),
                 using=f"public_id = {TOKEN_CLIENT_ID}",
+            ),
+        ),
+    ),
+    # Everything else is the system engine's. An installed app's standing reads
+    # whether the publisher of its token's registration is on (its column grant
+    # is id and enabled alone).
+    "publishers": TableRls(
+        policies=(
+            Policy(
+                "install_reads_its_publisher",
+                SELECT,
+                ("app_install_base",),
+                using=(
+                    "EXISTS (SELECT 1 FROM public.app_service_registrations r "
+                    "WHERE r.publisher_id = publishers.id "
+                    f"AND r.public_id = {TOKEN_CLIENT_ID})"
+                ),
             ),
         ),
     ),

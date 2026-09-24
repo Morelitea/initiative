@@ -165,10 +165,9 @@ def version_is_compatible(min_app_version: Optional[str]) -> bool:
 async def _unoffered_app() -> Exists:
     """Matches an app listing this deployment does not run the service for.
 
-    Read from the registration snapshot rather than joined from the table: the
-    row holds the app's shared secret, so nothing on the request path holds a
-    grant on it, and the non-secret half is loaded on the system engine
-    instead.
+    Read from the registration snapshot rather than joined from the table:
+    nothing on the request path holds a grant on it, so it is loaded on the
+    system engine instead.
 
     A listing with no published version and one whose definition names no
     service — an app that mounts one of this build's own tools — match nothing

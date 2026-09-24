@@ -447,18 +447,28 @@ async def prepare_database() -> None:
             )
         except Exception:
             logger.exception("marketplace: operator catalog scan failed")
+    # This project's own app publisher. Added once; a row that exists is left
+    # exactly as it is, so an operator's switch survives a restart.
+    try:
+        from app.services.marketplace import publishers as app_publishers
+
+        async with SystemSessionLocal() as publisher_session:
+            if await app_publishers.seed_publishers(publisher_session):
+                logger.info("app publishers: seeded this project's publisher")
+    except Exception:
+        logger.exception("app publishers: seeding failed")
     # App services the deployment declares in a mounted file (APP_SERVICES_CONFIG).
-    # Database-only: an app's container may boot after this one, so the handshake
-    # is a separate step and a declared registration lands unverified rather than
-    # holding up startup. No-op when the setting is unset.
+    # Database-only: an app's container may boot after this one, and nothing is
+    # fetched from it. No-op when the setting is unset.
     if settings.APP_SERVICES_CONFIG:
         if not app_platform_signing_enabled():
-            # Registrations reconcile fine, but verifying one (and later minting
-            # its context tokens) needs the platform's own keypair.
+            # Registrations reconcile fine, but minting what Initiative sends an
+            # app (its context tokens and handoffs) needs the platform's own
+            # keypair.
             logger.warning(
                 "APP_SERVICES_CONFIG is set but APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM "
-                "is not; app service verification will fail closed until a signing "
-                "key is configured."
+                "is not; app services will fail closed until a signing key is "
+                "configured."
             )
         try:
             from app.services.marketplace import registrations as app_registrations

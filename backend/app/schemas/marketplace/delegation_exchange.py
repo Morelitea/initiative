@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import Field
 
 from app.schemas.base import SanitizedBaseModel
-from app.services.marketplace.app_channel_auth import MAX_APP_ID_LENGTH
+from app.models.platform.app_service_registration import MAX_APP_ID_LENGTH
 
 
 class DelegationExchangeRequest(SanitizedBaseModel):

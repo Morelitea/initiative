@@ -370,6 +370,7 @@ class TestDefinitionReading:
         browser address is for what a browser opens."""
         registration = AppServiceRegistration(
             public_id="acme.shop",
+            publisher_id=1,
             base_url="http://acme-shop:8200",
             embed_origin="https://shop.example.com",
         )

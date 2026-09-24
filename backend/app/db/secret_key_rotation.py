@@ -48,7 +48,6 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.config import settings
 from app.core.encryption import (
     SALT_AI_API_KEY,
-    SALT_APP_SERVICE_SECRET,
     SALT_APP_CONFIG,
     SALT_EMAIL,
     SALT_IMPORT_CREDENTIAL,
@@ -99,15 +98,6 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # ciphertext and same salt as the two address columns above, so it is
     # re-keyed with them.
     ("auth_challenges", "email_encrypted", SALT_EMAIL),
-    # The shared secret an app service signs its requests with. Left out, a
-    # rotation would strand it: the registration would still be there and still
-    # look healthy, and every verification and boot reconciliation that decrypts
-    # it would fail once the previous key was retired.
-    (
-        "app_service_registrations",
-        "secret_encrypted",
-        SALT_APP_SERVICE_SECRET,
-    ),
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies). The member

@@ -1,24 +1,22 @@
 """Managing the deployment's app service registrations.
 
-Two ways a registration arrives, and they meet in the same upsert:
+Two ways a registration arrives, and they meet in the same checks:
 
-* **An operator adds one** through the ``apps.manage`` endpoints. That path runs
-  the handshake (:mod:`app.services.marketplace.handshake`) so the row is born
-  either verified or carrying the reason it is not.
+* **An operator adds one** through the ``apps.manage`` endpoints.
 * **The deployment declares them** in ``APP_SERVICES_CONFIG``, a file a chart
-  mounts. That path is deliberately **offline**: reconciliation touches the
-  database only, because an app container may well boot after Initiative does
-  and a startup step must not depend on it. Rows land ``unverified`` and are
-  confirmed by the operator's verify, or by a later sweep.
+  mounts, reconciled at boot. Reconciliation touches the database only, so a
+  boot never waits on an app's container.
 
-Two rules the reconciler keeps, both about not undoing a person:
+Either way the registration states everything about itself: its
+``public_id``, the ``listing_uid`` of the listing it speaks for, where it
+lives, and its public keys (a pasted key set, a ``jwks_uri`` on its own
+origin, or both). Nothing is fetched from the app to fill any of it in, and
+nothing is secret. Its publisher is the row for its ``public_id`` prefix
+(:mod:`app.services.marketplace.publishers`).
 
-* it never re-enables a registration an operator disabled — deactivating an app
-  is the incident-response lever, so a restart must not quietly reverse it;
-* changing the base URL or the secret clears the recorded verification, because
-  a stored manifest hash describes the target it was fetched from and nothing
-  else. The browser address is not that target, so moving it changes nothing
-  about what was verified.
+One rule the reconciler keeps, about not undoing a person: it never re-enables
+a registration an operator disabled — deactivating an app is the
+incident-response lever, so a restart must not quietly reverse it.
 
 Everything here runs on the system engine: ``app_service_registrations`` has no
 request-path write grant.
@@ -26,18 +24,14 @@ request-path write grant.
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence
 from urllib.parse import urlparse
 
-import httpx
 from fastapi import HTTPException, status as http_status
 from jwt import PyJWK
 from jwt.exceptions import InvalidKeyError, PyJWKError
@@ -47,65 +41,74 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.app_scopes import UnknownAppScope, validate_scopes
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.db import session as db_session
-from app.core.encryption import SALT_APP_SERVICE_SECRET, decrypt_field, encrypt_field
 from app.core.messages import AppServiceMessages
 from app.core.security import app_platform_signing_enabled
 from app.models.platform.app_service_registration import (
     APP_SERVICE_GRANTS,
+    MAX_APP_ID_LENGTH,
     AppServiceRegistration,
-    AppServiceStatus,
     browser_base,
 )
+from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
+from app.models.platform.publisher import Publisher, publisher_prefix
 from app.services import audit as audit_service
-from app.services.marketplace.handshake import HandshakeError, perform_handshake
-from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.marketplace.app_keys import (
+    PRIVATE_JWK_MEMBERS,
+    PUBLIC_JWK_TYPES,
+    jwks_uri_allowed,
+)
+from app.services.marketplace.publishers import ensure_publisher
+from app.services.marketplace.registration_lookup import (
+    invalidate_registrations,
+    live_registration_clause,
+)
 
 logger = logging.getLogger(__name__)
 
-#: What a registration confers and where it points, for the record. The shared
-#: secret is not among them — it is reported as a boolean beside the diff.
+#: What a registration confers and where it points, for the record.
 AUDITED_FIELDS: tuple[str, ...] = (
     "public_id",
+    "listing_uid",
+    "publisher_id",
     "base_url",
     "embed_origin",
     "allowed_origins",
+    "jwks_uri",
     "grants",
     "scope_ceiling",
     "mandatory",
     "enabled",
-    "status",
-    "protocol_version",
 )
 
 __all__ = [
     "ReconcileResult",
+    "RegistrationView",
     "check_signing_configured",
     "create_registration",
-    "decrypt_secret",
     "delete_registration",
     "get_registration",
     "list_registrations",
     "normalize_base_url",
     "normalize_jwks",
+    "normalize_jwks_uri",
     "normalize_embed_origin",
-    "sign_for_app",
     "normalize_grants",
+    "normalize_listing_uid",
     "normalize_origin",
     "normalize_origins",
     "normalize_public_id",
     "normalize_scope_ceiling",
     "origin_of",
     "reconcile_from_config",
+    "registration_views",
     "update_registration",
-    "verify_registration",
 ]
 
 #: Characters a ``public_id`` may use: ``<publisher>.<slug>``, lowercase — the
 #: same shape the catalog requires, checked as an explicit set so a stored id is
 #: exactly what a URL and a JWT audience will carry.
 _PUBLIC_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-_")
-_MAX_PUBLIC_ID = 120
+_MAX_PUBLIC_ID = MAX_APP_ID_LENGTH
 _MAX_BASE_URL = 1000
 _MAX_ORIGIN = 253 + 16
 _MAX_ORIGINS = 20
@@ -252,25 +255,14 @@ def normalize_origins(
     return normalized
 
 
-#: Key types a verification key may be. ``oct`` is absent deliberately: a
-#: symmetric key is the signing key, and this column holds the half that is
-#: meant to be read.
-PUBLIC_JWK_TYPES: frozenset[str] = frozenset({"RSA", "EC", "OKP"})
-
-#: JWK members that only ever appear on a private key (RFC 7517 §9.3 / RFC
-#: 7518). Their presence means the whole key was pasted, not its public half.
-PRIVATE_JWK_MEMBERS: frozenset[str] = frozenset(
-    {"d", "p", "q", "dp", "dq", "qi", "oth", "k"}
-)
-
-
 def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
     """Check an app's key set holds public verification keys, each carrying
     the ``kid`` a JWT names.
 
     The set is the app's client credential: the token endpoint verifies the
     assertions it signs against it, and the delegation path its delegation
-    tokens. So it is kept whatever the registration's grants are.
+    tokens. So it is kept whatever the registration's grants are. A
+    registration with neither this set nor a ``jwks_uri`` is not live.
 
     Parsed on the way in rather than at first use, so an operator provisioning
     a key learns here whether it landed instead of at the first call that
@@ -342,6 +334,42 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
     return value
 
 
+def normalize_listing_uid(value: Optional[str]) -> str:
+    """The catalog uid of the listing a registration speaks for: required, and
+    held to the catalog's own alphabet and length."""
+    cleaned = (value or "").strip()
+    if len(cleaned) != UID_LENGTH or any(c not in UID_ALPHABET for c in cleaned):
+        raise _bad_request(
+            AppServiceMessages.INVALID_LISTING_UID,
+            f"listing_uid must be a {UID_LENGTH}-character catalog uid",
+        )
+    return cleaned
+
+
+def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
+    """Where the app publishes its key set: https, on ``base_url``'s own
+    origin, with no query, fragment or credentials. Empty clears it."""
+    cleaned = (value or "").strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > _MAX_BASE_URL:
+        raise _bad_request(
+            AppServiceMessages.INVALID_JWKS_URI, "jwks_uri has an unusable length"
+        )
+    parsed = urlparse(cleaned)
+    if parsed.query or parsed.fragment or parsed.username or parsed.password:
+        raise _bad_request(
+            AppServiceMessages.INVALID_JWKS_URI,
+            "jwks_uri carries no query, fragment, or credentials",
+        )
+    if not jwks_uri_allowed(cleaned, base_url):
+        raise _bad_request(
+            AppServiceMessages.INVALID_JWKS_URI,
+            "jwks_uri must be https on base_url's own origin",
+        )
+    return cleaned
+
+
 def normalize_grants(values: Optional[Iterable[str]]) -> list[str]:
     """Check operator-conferred powers against the closed vocabulary.
 
@@ -402,6 +430,34 @@ async def list_registrations(
     return result.all()
 
 
+@dataclass(frozen=True)
+class RegistrationView:
+    """A registration with its publisher, and whether it is live."""
+
+    row: AppServiceRegistration
+    publisher: Publisher
+    live: bool
+
+
+async def registration_views(
+    session: AsyncSession, registration_id: Optional[int] = None
+) -> list[RegistrationView]:
+    """Every registration, or the one ``registration_id`` names, each with its
+    publisher and whether it is live, in one statement."""
+    query = (
+        select(AppServiceRegistration, Publisher, live_registration_clause())
+        .join(Publisher, Publisher.id == AppServiceRegistration.publisher_id)
+        .order_by(AppServiceRegistration.public_id.asc())
+    )
+    if registration_id is not None:
+        query = query.where(AppServiceRegistration.id == registration_id)
+    rows = (await session.exec(query)).all()
+    return [
+        RegistrationView(row=row, publisher=publisher, live=bool(live))
+        for row, publisher, live in rows
+    ]
+
+
 async def get_registration(
     session: AsyncSession, registration_id: int
 ) -> AppServiceRegistration:
@@ -425,163 +481,62 @@ async def _by_public_id(
     return result.first()
 
 
-async def sign_for_app(public_id: str, message: str) -> Optional[str]:
-    """MAC one value under an app's shared secret, without handing it over.
-
-    The registration's secret is how Initiative and one app already prove things
-    to each other, and this borrows it for a value that travels through a
-    *browser* rather than over the channel: the address an app sends a member
-    back to when a vendor flow ends.
-
-    Signed rather than merely stated because the browser carries it, so anybody
-    can propose one. An app that followed whatever the query string offered
-    would be a redirector on a hostname people trust, reached through a real
-    vendor login — so the app checks this MAC and refuses an address Initiative
-    did not write.
-
-    Runs on the system engine, like everything else that touches this table, and
-    returns the MAC alone: the secret does not leave this function. ``None``
-    means there is nothing to sign with — no such registration, or one wired up
-    without a secret — and the caller sends no address rather than an unsigned
-    one.
-    """
-    async with db_session.SystemSessionLocal() as session:
-        row = await _by_public_id(session, public_id)
-        if row is None or not row.secret_encrypted:
-            return None
-        secret = decrypt_field(row.secret_encrypted, SALT_APP_SERVICE_SECRET)
-    return hmac.new(
-        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
-    ).hexdigest()
-
-
-def decrypt_secret(row: AppServiceRegistration) -> str:
-    """The registration's shared secret, or a refusal when it has none."""
-    if not row.secret_encrypted:
-        raise HTTPException(
-            status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.SECRET_REQUIRED,
-        )
-    return decrypt_field(row.secret_encrypted, SALT_APP_SERVICE_SECRET)
-
-
 # --- writes ------------------------------------------------------------------
-
-
-def _clear_verification(row: AppServiceRegistration) -> None:
-    """Forget what an earlier handshake established. Called whenever the target
-    or the secret changes — a manifest hash describes one destination."""
-    row.status = AppServiceStatus.UNVERIFIED
-    row.manifest_hash = None
-    row.protocol_version = None
-    row.last_verified_at = None
 
 
 async def create_registration(
     session: AsyncSession,
     *,
+    public_id: str,
+    listing_uid: str,
     base_url: str,
-    secret: str,
-    public_id: Optional[str] = None,
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
     jwks: Optional[dict] = None,
+    jwks_uri: Optional[str] = None,
     scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: bool = False,
     enabled: bool = True,
-    transport: httpx.AsyncBaseTransport | None = None,
     actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
-    """Wire an app service up, verifying it on the way in.
+    """Wire an app service up, as stated.
 
-    The handshake decides what the row knows about itself. When it succeeds the
-    manifest supplies ``public_id`` and the catalog uid; when it fails, an
-    operator who named the app anyway still gets a row — carrying the failure —
-    so a service that has not booted yet can be registered ahead of time and
-    verified once it answers.
-
-    The handshake runs against ``base_url``: what this checks is the app on the
-    wire, and an ``embed_origin`` names the same app to a browser.
+    Nothing is fetched from the app: the operator names it, its listing, its
+    addresses and its keys. Its publisher is the row for its prefix, added
+    unverified when there is none.
     """
     check_signing_configured()
+    resolved_id = normalize_public_id(public_id)
+    uid = normalize_listing_uid(listing_uid)
     base_url = normalize_base_url(base_url)
     embed = normalize_embed_origin(embed_origin) if embed_origin else None
     origins = normalize_origins(allowed_origins, browser_base=embed or base_url)
     grant_list = normalize_grants(grants)
     key_set = normalize_jwks(jwks)
+    key_uri = normalize_jwks_uri(jwks_uri, base_url=base_url)
     ceiling = normalize_scope_ceiling(scope_ceiling)
-    declared_id = normalize_public_id(public_id) if public_id else None
-    if not secret or not secret.strip():
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=AppServiceMessages.SECRET_REQUIRED,
-        )
 
-    listing_uid: Optional[str] = None
-    manifest_hash: Optional[str] = None
-    protocol_version: Optional[int] = None
-    verified_at: Optional[datetime] = None
-    row_status = AppServiceStatus.OK
-    resolved_id = declared_id
-
-    try:
-        result = await perform_handshake(
-            base_url=base_url, secret=secret, transport=transport
-        )
-    except HandshakeError as exc:
-        if declared_id is None:
-            # Nothing names the row: without a manifest and without an operator
-            # saying which app this is, there is no registration to store.
-            raise HTTPException(
-                status_code=http_status.HTTP_502_BAD_GATEWAY, detail=exc.code
-            ) from exc
-        row_status = exc.status
-    else:
-        # Normalized before it is compared or stored: how an app spells its own
-        # id in its manifest is its business, but one canonical form is what
-        # every later lookup and audience is built from.
-        result_id = normalize_public_id(result.public_id)
-        if declared_id is not None and declared_id != result_id:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail=AppServiceMessages.PUBLIC_ID_MISMATCH,
-            )
-        resolved_id = result_id
-        listing_uid = result.listing_uid
-        manifest_hash = result.manifest_hash
-        protocol_version = result.protocol_version
-        verified_at = _now()
-
-    if resolved_id is None:
-        # Unreachable: the failure branch above returns when nothing names the
-        # row, and the success branch takes the name from the manifest.
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=AppServiceMessages.INVALID_PUBLIC_ID,
-        )
     if await _by_public_id(session, resolved_id) is not None:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
             detail=AppServiceMessages.DUPLICATE_PUBLIC_ID,
         )
+    publisher = await ensure_publisher(session, publisher_prefix(resolved_id))
 
     row = AppServiceRegistration(
         public_id=resolved_id,
-        listing_uid=listing_uid,
+        listing_uid=uid,
+        publisher_id=publisher.id,
         base_url=base_url,
         embed_origin=embed,
         allowed_origins=origins,
-        secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
-        manifest_hash=manifest_hash,
-        protocol_version=protocol_version,
         grants=grant_list,
         jwks=key_set,
+        jwks_uri=key_uri,
         scope_ceiling=ceiling,
         mandatory=mandatory,
         enabled=enabled,
-        status=row_status,
-        last_verified_at=verified_at,
     )
     session.add(row)
     await session.flush()
@@ -591,12 +546,9 @@ async def create_registration(
         actor_user_id=actor_user_id,
         target_type="app_service_registration",
         target_id=row.id,
-        detail={
-            **audit_service.changed_fields(
-                {}, audit_service.snapshot(row, AUDITED_FIELDS)
-            ),
-            "secret_changed": bool(row.secret_encrypted),
-        },
+        detail=audit_service.changed_fields(
+            {}, audit_service.snapshot(row, AUDITED_FIELDS)
+        ),
     )
     await session.commit()
     await session.refresh(row)
@@ -608,29 +560,26 @@ async def update_registration(
     session: AsyncSession,
     registration_id: int,
     *,
+    listing_uid: Optional[str] = None,
     base_url: Optional[str] = None,
-    secret: Optional[str] = None,
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
     jwks: Optional[dict] = None,
+    jwks_uri: Optional[str] = None,
     scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: Optional[bool] = None,
     enabled: Optional[bool] = None,
     actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
-    """Edit a registration. Rotating the secret or repointing the base URL
-    discards the recorded verification — re-verify after either.
+    """Edit a registration.
 
-    ``embed_origin`` is the exception: it names the same app to a browser and
-    the handshake never goes there, so changing it leaves the verification
-    standing. An empty string clears it, putting both surfaces back on
-    ``base_url``.
+    An empty ``embed_origin`` clears it, putting both surfaces back on
+    ``base_url``; an empty ``jwks_uri`` clears it. A ``jwks_uri`` kept while
+    ``base_url`` moves is checked against the new origin.
     """
     row = await get_registration(session, registration_id)
     before = audit_service.snapshot(row, AUDITED_FIELDS)
-    secret_before = row.secret_encrypted
-    retarget = False
     # Whether the origin list is still just the app's own origin. An untouched
     # list follows the address it was derived from; one an operator typed is
     # theirs and is left exactly as typed.
@@ -638,21 +587,13 @@ async def update_registration(
         origin_of(browser_base(row))
     ]
 
+    if listing_uid is not None:
+        row.listing_uid = normalize_listing_uid(listing_uid)
     if base_url is not None:
-        new_url = normalize_base_url(base_url)
-        retarget = retarget or new_url != row.base_url
-        row.base_url = new_url
+        row.base_url = normalize_base_url(base_url)
     if embed_origin is not None:
         cleaned = embed_origin.strip()
         row.embed_origin = normalize_embed_origin(cleaned) if cleaned else None
-    if secret is not None:
-        if not secret.strip():
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail=AppServiceMessages.SECRET_REQUIRED,
-            )
-        row.secret_encrypted = encrypt_field(secret, SALT_APP_SERVICE_SECRET)
-        retarget = True
     if allowed_origins is not None:
         row.allowed_origins = normalize_origins(
             allowed_origins, browser_base=browser_base(row)
@@ -666,6 +607,10 @@ async def update_registration(
         # provisioned whole, so two entries mean a rotation is in flight and
         # one means it is over.
         row.jwks = normalize_jwks(jwks)
+    if jwks_uri is not None:
+        row.jwks_uri = normalize_jwks_uri(jwks_uri, base_url=row.base_url)
+    elif row.jwks_uri is not None and base_url is not None:
+        row.jwks_uri = normalize_jwks_uri(row.jwks_uri, base_url=row.base_url)
     if scope_ceiling is not None:
         # Replaces rather than merges; an empty list is a ceiling of nothing.
         row.scope_ceiling = normalize_scope_ceiling(scope_ceiling)
@@ -674,28 +619,25 @@ async def update_registration(
     if enabled is not None:
         row.enabled = enabled
 
-    if retarget:
-        _clear_verification(row)
     row.updated_at = _now()
     session.add(row)
-    secret_changed = row.secret_encrypted != secret_before
     changed = audit_service.changed_fields(
         before, audit_service.snapshot(row, AUDITED_FIELDS)
     )
-    if changed["changed"] or secret_changed:
+    if changed["changed"]:
         await audit_service.record(
             session,
             event_type=AuditEventType.APP_SERVICE_UPDATED,
             actor_user_id=actor_user_id,
             target_type="app_service_registration",
             target_id=row.id,
-            detail={**changed, "secret_changed": secret_changed},
+            detail=changed,
         )
     await session.commit()
     await session.refresh(row)
-    # The kill switch, the mandatory flag and the origin list are all read
-    # through a cached snapshot on the request path, so an operator's edit drops
-    # it rather than waiting out its TTL.
+    # The kill switch, the mandatory flag, the keys and the origin list are all
+    # read through a cached snapshot on the request path, so an operator's edit
+    # drops it rather than waiting out its TTL.
     invalidate_registrations()
     return row
 
@@ -715,82 +657,6 @@ async def delete_registration(
     )
     await session.commit()
     invalidate_registrations()
-
-
-async def verify_registration(
-    session: AsyncSession,
-    registration_id: int,
-    *,
-    accept_manifest_change: bool = False,
-    transport: httpx.AsyncBaseTransport | None = None,
-    actor_user_id: int | None = None,
-) -> AppServiceRegistration:
-    """Re-run the handshake and record what it found.
-
-    The outcome is persisted before any refusal is raised, so the row always
-    reflects the most recent attempt — an operator reading the list sees the
-    same answer the request returned. The audit record rides the same write,
-    carrying the status the attempt ended on.
-    """
-    check_signing_configured()
-    row = await get_registration(session, registration_id)
-    secret = decrypt_secret(row)
-
-    async def _persist(**fields: Any) -> None:
-        for key, value in fields.items():
-            setattr(row, key, value)
-        row.updated_at = _now()
-        session.add(row)
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.APP_SERVICE_VERIFIED,
-            actor_user_id=actor_user_id,
-            target_type="app_service_registration",
-            target_id=row.id,
-            detail={
-                "status": row.status,
-                "protocol_version": row.protocol_version,
-            },
-        )
-        await session.commit()
-        await session.refresh(row)
-        invalidate_registrations()
-
-    try:
-        result = await perform_handshake(
-            base_url=row.base_url, secret=secret, transport=transport
-        )
-    except HandshakeError as exc:
-        await _persist(status=exc.status)
-        raise HTTPException(
-            status_code=http_status.HTTP_502_BAD_GATEWAY, detail=exc.code
-        ) from exc
-
-    if result.public_id != row.public_id:
-        await _persist(status=AppServiceStatus.MANIFEST_MISMATCH)
-        raise HTTPException(
-            status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.PUBLIC_ID_MISMATCH,
-        )
-
-    changed = (
-        row.manifest_hash is not None and row.manifest_hash != result.manifest_hash
-    )
-    if changed and not accept_manifest_change:
-        await _persist(status=AppServiceStatus.MANIFEST_MISMATCH)
-        raise HTTPException(
-            status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.MANIFEST_CHANGED,
-        )
-
-    await _persist(
-        status=AppServiceStatus.OK,
-        listing_uid=result.listing_uid,
-        manifest_hash=result.manifest_hash,
-        protocol_version=result.protocol_version,
-        last_verified_at=_now(),
-    )
-    return row
 
 
 # --- boot reconciliation -----------------------------------------------------
@@ -822,12 +688,13 @@ def _load_entries(path: Path) -> list[dict[str, Any]]:
 async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     """Bring the table in line with the mounted config file.
 
-    Offline by design: this upserts rows and stops. Verification is a separate,
-    network-bound step so a boot never waits on someone else's container.
+    Each entry is ``{public_id, listing_uid, base_url}`` and optionally
+    ``embed_origin``, ``allowed_origins``, ``grants``, ``jwks``, ``jwks_uri``,
+    ``scope_ceiling`` and ``mandatory``. Database-only: this upserts rows and
+    stops.
 
-    A malformed file, an unreadable path, or an entry naming an environment
-    variable that is not set costs that entry (or that file) and nothing else —
-    the caller keeps booting.
+    A malformed file or an unreadable path costs that file, and a refused entry
+    costs that entry, and nothing else — the caller keeps booting.
     """
     configured = settings.APP_SERVICES_CONFIG
     if not configured:
@@ -844,7 +711,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     # The rows this pass touched, with what the updated ones looked like
     # before. Recorded after the loop, when the inserts have their ids.
     born: list[AppServiceRegistration] = []
-    edited: list[tuple[AppServiceRegistration, dict, bool]] = []
+    edited: list[tuple[AppServiceRegistration, dict]] = []
     # A public_id already handled in this pass. The row for it is pending rather
     # than flushed, so a second entry naming it would look absent, insert a
     # duplicate, and fail the unique constraint at the shared commit — taking
@@ -853,6 +720,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     for entry in entries:
         try:
             public_id = normalize_public_id(str(entry.get("public_id", "")))
+            listing_uid = normalize_listing_uid(str(entry.get("listing_uid") or ""))
             base_url = normalize_base_url(str(entry.get("base_url", "")))
             declared_embed = entry.get("embed_origin")
             embed = (
@@ -863,6 +731,10 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             )
             grants = normalize_grants(entry.get("grants"))
             key_set = normalize_jwks(entry.get("jwks"))
+            declared_uri = entry.get("jwks_uri")
+            key_uri = normalize_jwks_uri(
+                str(declared_uri) if declared_uri else None, base_url=base_url
+            )
             # Optional: an entry that names none gives the app a ceiling of
             # nothing, so no install of it may be granted a scope.
             ceiling = normalize_scope_ceiling(entry.get("scope_ceiling"))
@@ -885,32 +757,23 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             continue
         seen.add(public_id)
 
-        secret_env = entry.get("secret_env")
-        secret = os.environ.get(secret_env) if isinstance(secret_env, str) else None
-        if not secret:
-            logger.warning(
-                "app services: %s names secret_env %r, which is not set — skipped",
-                public_id,
-                secret_env,
-            )
-            skipped += 1
-            continue
-
         mandatory = bool(entry.get("mandatory", False))
         row = await _by_public_id(session, public_id)
         if row is None:
+            publisher = await ensure_publisher(session, publisher_prefix(public_id))
             fresh = AppServiceRegistration(
                 public_id=public_id,
+                listing_uid=listing_uid,
+                publisher_id=publisher.id,
                 base_url=base_url,
                 embed_origin=embed,
                 allowed_origins=origins,
-                secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
                 grants=grants,
                 jwks=key_set,
+                jwks_uri=key_uri,
                 scope_ceiling=ceiling,
                 mandatory=mandatory,
                 enabled=True,
-                status=AppServiceStatus.UNVERIFIED,
             )
             session.add(fresh)
             born.append(fresh)
@@ -920,20 +783,14 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         # The file is the declarative source for what the app IS and may do.
         # `enabled` is deliberately not reconciled: turning a registration off
         # is an operator action, and a restart must not reverse it.
-        current_secret = (
-            decrypt_field(row.secret_encrypted, SALT_APP_SERVICE_SECRET)
-            if row.secret_encrypted
-            else None
-        )
-        # Only the wire surface and the secret retarget the handshake; where a
-        # browser loads the app is not something the handshake ever visits.
-        retarget = base_url != row.base_url or secret != current_secret
         dirty = (
-            retarget
+            listing_uid != row.listing_uid
+            or base_url != row.base_url
             or embed != row.embed_origin
             or origins != list(row.allowed_origins or [])
             or grants != list(row.grants or [])
             or key_set != row.jwks
+            or key_uri != row.jwks_uri
             or ceiling != list(row.scope_ceiling or [])
             or mandatory != row.mandatory
         )
@@ -942,19 +799,18 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             continue
 
         before = audit_service.snapshot(row, AUDITED_FIELDS)
+        row.listing_uid = listing_uid
         row.base_url = base_url
         row.embed_origin = embed
         row.allowed_origins = origins
         row.grants = grants
         row.jwks = key_set
+        row.jwks_uri = key_uri
         row.scope_ceiling = ceiling
         row.mandatory = mandatory
-        if retarget:
-            row.secret_encrypted = encrypt_field(secret, SALT_APP_SERVICE_SECRET)
-            _clear_verification(row)
         row.updated_at = _now()
         session.add(row)
-        edited.append((row, before, secret != current_secret))
+        edited.append((row, before))
         updated += 1
 
     # One flush so every insert has its id, then a record apiece. The file is
@@ -973,10 +829,9 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 **audit_service.changed_fields(
                     {}, audit_service.snapshot(fresh, AUDITED_FIELDS)
                 ),
-                "secret_changed": True,
             },
         )
-    for edit, was, secret_changed in edited:
+    for edit, was in edited:
         await audit_service.record(
             session,
             event_type=AuditEventType.APP_SERVICE_UPDATED,
@@ -988,7 +843,6 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 **audit_service.changed_fields(
                     was, audit_service.snapshot(edit, AUDITED_FIELDS)
                 ),
-                "secret_changed": secret_changed,
             },
         )
     await session.commit()

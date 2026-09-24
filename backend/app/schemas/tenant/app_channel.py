@@ -1,8 +1,9 @@
 """What an app service sees of its own installs.
 
-These payloads serialize per-guild install state for the machine-to-machine
-channel an app calls back on, so they are shaped by two rules the browser-facing
-schemas in :mod:`app.schemas.tenant.guild_app` do not share:
+These payloads serialize one install's state for the calls an app makes about
+its own installation (``/app-platform/installation/*``), so they are shaped by
+two rules the browser-facing schemas in :mod:`app.schemas.tenant.guild_app` do
+not share:
 
 * **Credentials do appear here — in exactly one payload.**
   :class:`AppInstallConfigRead` is the custody channel: the app is the party
@@ -29,44 +30,12 @@ __all__ = [
     "AppConnectionRead",
     "AppConnectionsResponse",
     "AppConnectionWrite",
-    "AppEventIngest",
     "AppInstallConfigRead",
-    "AppInstallRead",
-    "AppInstallsResponse",
+    "AppInstallationEvent",
     "AppMemberConfigRead",
     "AppStatusReport",
     "AppStatusRead",
 ]
-
-
-class AppInstallRead(SanitizedBaseModel):
-    """One guild that has this app installed.
-
-    Ids and state only — which guild, which install, which version it is pinned
-    to, and whether the guild has it switched on. Nothing about the guild's
-    members, and nothing an app would need a second channel to be told.
-    """
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    install_id: int
-    guild_ref: str
-    listing_uid: str
-    listing_version: str
-    name: str
-    enabled: bool
-    #: The app's own last verdict, echoed back so it can tell what it reported.
-    config_state: str = "unverified"
-    config_state_detail: Optional[str] = None
-    #: Whether a guild admin still has a guild-wide connection to fill in.
-    needs_config: bool = False
-    updated_at: datetime
-
-
-class AppInstallsResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    items: List[AppInstallRead] = []
 
 
 class AppMemberConfigRead(SanitizedBaseModel):
@@ -166,14 +135,13 @@ class AppStatusRead(SanitizedBaseModel):
     config_state_detail: Optional[str] = None
 
 
-class AppEventIngest(SanitizedBaseModel):
-    """A third-party event an app is re-emitting into a guild.
+class AppInstallationEvent(SanitizedBaseModel):
+    """A third-party event an app is re-emitting into the community whose
+    install its token names.
 
-    The guild is named because one app serves many; the *app* is not, because it
-    is established from the request's signature. ``event_type`` is checked
-    against the pinned definition and against the caller's own namespace.
+    ``event_type`` is checked against the pinned definition and against the
+    caller's own namespace.
     """
 
-    guild_ref: str
     event_type: str = Field(max_length=200)
     payload: Dict[str, Any] = {}

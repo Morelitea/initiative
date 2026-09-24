@@ -39,10 +39,11 @@ MULTIPART_MAX_REQUEST_BYTES = 50 * 1024 * 1024 + 1_048_576
 #: inline in the scene, so a board is far larger than any other JSON body.
 DOCUMENT_MAX_REQUEST_BYTES = 64 * 1024 * 1024
 
-#: The most any app-service request may carry. Sized for the largest route on
-#: that surface — events — plus its envelope, and kept here rather than imported
-#: from the router so this module stays free of app-layer imports.
-APP_SERVICE_MAX_REQUEST_BYTES = 64 * 1024 + 8 * 1024
+#: The most an installed app's installation call may carry. Sized for the
+#: largest route on that surface — events — plus its envelope, and kept here
+#: rather than imported from the router so this module stays free of app-layer
+#: imports.
+APP_INSTALLATION_MAX_REQUEST_BYTES = 64 * 1024 + 8 * 1024
 
 #: The most an Atlassian request may carry. A connect is a site URL, an
 #: account's address and an API token; a start is a credential id, an
@@ -86,13 +87,11 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         "IMPORT_TOO_LARGE",
     ),
     (
-        # Every app-service route buffers its body before authenticating —
-        # the signature covers those bytes, so they have to be read to check
-        # it. Without a ceiling here that read is unbounded and happens for a
-        # caller who has not proved anything yet, so the transport refuses an
-        # oversized body first and the handler's exact cap still applies after.
-        re.compile(r"^/api/v1/app-service(/|$)"),
-        lambda: APP_SERVICE_MAX_REQUEST_BYTES,
+        # An installed app's installation calls are configuration writes and
+        # events, none larger than an event. The transport refuses a body past
+        # that first, and the handler's exact cap still applies after.
+        re.compile(r"^/api/v1/app-platform/installation(/|$)"),
+        lambda: APP_INSTALLATION_MAX_REQUEST_BYTES,
         "APP_CHANNEL_EVENT_TOO_LARGE",
     ),
     (

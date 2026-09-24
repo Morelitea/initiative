@@ -880,12 +880,6 @@ class Settings(BaseSettings):
     # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
     # re-enables a registration an operator disabled, and never blocks boot.
     APP_SERVICES_CONFIG: str | None = None
-    # How often enabled registrations are re-verified in the background, so an
-    # app that went away (or changed what it claims) is marked rather than
-    # discovered by a member clicking it. 0 turns the sweep off; it also does
-    # not run at all without the signing keypair, since the app platform is
-    # inert without one.
-    APP_SERVICE_VERIFY_INTERVAL_SECONDS: int = Field(default=3600, ge=0)
 
     # --- Billing (hosted deployments only; default OFF) -------------------
     # Billing is an optional EXTERNAL service. Every BILLING_* setting below

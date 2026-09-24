@@ -125,7 +125,7 @@ from app.models.platform.marketplace_registry import (
 )
 from app.models.platform.ai_connection import PlatformAIConnection
 from app.models.platform.app_service_registration import AppServiceRegistration
-from app.models.platform.app_service_nonce import AppServiceNonce
+from app.models.platform.publisher import Publisher
 from app.models.platform.app_assertion_jti import AppAssertionJti
 from app.models.tenant.ai_connection import GuildAIConnection
 from app.models.tenant.ai_member_key import GuildAIMemberKey
@@ -235,7 +235,7 @@ __all__ = [
     "ModerationReport",
     "ModerationReportReporter",
     "AppServiceRegistration",
-    "AppServiceNonce",
+    "Publisher",
     "AppAssertionJti",
     "MarketplaceMedia",
     "MarketplaceRegistryState",

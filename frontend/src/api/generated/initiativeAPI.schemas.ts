@@ -805,28 +805,62 @@ export interface AppPlacementUpdate {
   role_ids?: number[];
 }
 
+/**
+ * Add a publisher for a prefix, unverified.
+ */
+export interface AppPublisherCreate {
+  /** @maxLength 120 */
+  prefix: string;
+  /** @maxLength 200 */
+  display_name: string;
+  enabled?: boolean;
+}
+
+/**
+ * A publisher as the owner's settings see it.
+ */
+export interface AppPublisherRead {
+  id: number;
+  prefix: string;
+  display_name: string;
+  verified: boolean;
+  enabled: boolean;
+  created_at: string;
+}
+
+/**
+ * Rename a publisher, or switch it on or off.
+ */
+export interface AppPublisherUpdate {
+  display_name?: string | null;
+  enabled?: boolean | null;
+}
+
 export type AppServiceRegistrationCreateJwks = { [key: string]: unknown } | null;
 
 /**
  * Wire an app service up.
  *
- * ``public_id`` is optional: a reachable service names itself in its manifest.
- * Supplying it lets a registration be created before the service answers (the
- * declarative case), and is checked against the manifest when one arrives.
+ * ``public_id`` and ``listing_uid`` name the app and the listing it speaks
+ * for. ``embed_origin`` is optional, and unset is the ordinary case: an app
+ * reachable at one address needs only ``base_url``. Give one when the
+ * address a browser must use is not the address this deployment calls.
  *
- * ``embed_origin`` is optional too, and unset is the ordinary case: an app
- * reachable at one address needs only ``base_url``. Give one when the address
- * a browser must use is not the address this deployment calls.
+ * Keys are a pasted ``jwks``, a ``jwks_uri`` on ``base_url``'s own origin
+ * over https, or both. A registration with neither is not live.
  */
 export interface AppServiceRegistrationCreate {
+  /** @maxLength 120 */
+  public_id: string;
+  /** @maxLength 14 */
+  listing_uid: string;
   /** @maxLength 1000 */
   base_url: string;
-  secret: string;
-  public_id?: string | null;
   embed_origin?: string | null;
   allowed_origins?: string[] | null;
   grants?: string[] | null;
   jwks?: AppServiceRegistrationCreateJwks;
+  jwks_uri?: string | null;
   scope_ceiling?: string[] | null;
   mandatory?: boolean;
   enabled?: boolean;
@@ -841,19 +875,20 @@ export interface AppServiceRegistrationRead {
   id: number;
   public_id: string;
   listing_uid: string | null;
+  publisher_id: number;
+  publisher_prefix: string;
+  publisher_name: string;
+  publisher_enabled: boolean;
   base_url: string;
   embed_origin: string | null;
   allowed_origins: string[];
-  has_secret: boolean;
-  manifest_hash: string | null;
-  protocol_version: number | null;
   grants: string[];
   jwks: AppServiceRegistrationReadJwks;
+  jwks_uri: string | null;
   scope_ceiling: string[];
   mandatory: boolean;
   enabled: boolean;
-  status: string;
-  last_verified_at: string | null;
+  live: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -861,34 +896,23 @@ export interface AppServiceRegistrationRead {
 export type AppServiceRegistrationUpdateJwks = { [key: string]: unknown } | null;
 
 /**
- * Partial edit. Rotating ``secret`` or repointing ``base_url`` clears the
- * recorded verification — the stored manifest hash described the old target.
+ * Partial edit.
  *
- * Repointing ``embed_origin`` does not: the handshake is a server-to-server
- * call to ``base_url``, and it never visits the browser address. An empty
- * string clears it, putting both surfaces back on ``base_url``.
+ * An empty ``embed_origin`` clears it, putting both surfaces back on
+ * ``base_url``. An empty ``jwks_uri`` clears it, and an empty ``jwks``
+ * object clears the pasted set.
  */
 export interface AppServiceRegistrationUpdate {
+  listing_uid?: string | null;
   base_url?: string | null;
-  secret?: string | null;
   embed_origin?: string | null;
   allowed_origins?: string[] | null;
   grants?: string[] | null;
   jwks?: AppServiceRegistrationUpdateJwks;
+  jwks_uri?: string | null;
   scope_ceiling?: string[] | null;
   mandatory?: boolean | null;
   enabled?: boolean | null;
-}
-
-/**
- * Re-run the handshake.
- *
- * ``accept_manifest_change`` adopts a manifest that no longer hashes to the
- * recorded one. It defaults to false so an app changing what it declares is
- * surfaced to the operator rather than absorbed.
- */
-export interface AppServiceVerifyRequest {
-  accept_manifest_change?: boolean;
 }
 
 /**

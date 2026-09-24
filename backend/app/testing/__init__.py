@@ -13,12 +13,6 @@ guild's ``guild_<id>`` schema before touching the database (see
 from app.testing.actor import Actor, make_actor
 from app.testing.audit import emitted
 from app.testing.captcha import captcha_switched_on
-from app.testing.app_channel import (
-    APP_CHANNEL_SECRET,
-    channel_headers,
-    encode_body,
-    register_app_service,
-)
 from app.testing.factories import (
     create_access_grant,
     grant_role_permission,
@@ -28,6 +22,8 @@ from app.testing.factories import (
     create_tool_entity,
     create_app_delegation,
     create_app_service_registration,
+    create_publisher,
+    sample_app_jwks,
     create_auth_provider,
     create_guild_provider_connection,
     NARROWED_CLAIM,
@@ -98,10 +94,6 @@ __all__ = [
     "registration_for",
     "stub_assertion",
     "stub_registration",
-    "APP_CHANNEL_SECRET",
-    "channel_headers",
-    "encode_body",
-    "register_app_service",
     "TOOL_FACTORIES",
     "billing_guild_ref",
     "enable_all_tools",
@@ -111,6 +103,8 @@ __all__ = [
     "emitted",
     "create_app_delegation",
     "create_app_service_registration",
+    "create_publisher",
+    "sample_app_jwks",
     "create_auth_provider",
     "create_guild_provider_connection",
     "NARROWED_CLAIM",

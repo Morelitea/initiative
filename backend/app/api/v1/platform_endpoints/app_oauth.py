@@ -208,7 +208,7 @@ async def list_app_installations(
     where it is placed. Takes an app token."""
     token = _app_token(request)
     client = (await registration_lookup.load_registrations()).get(token.client_id)
-    if client is None or not client.enabled:
+    if client is None or not client.live:
         raise _refuse()
     listings = await app_oauth.list_installations(session, client)
     return [

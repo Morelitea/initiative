@@ -300,6 +300,8 @@ async def _set_guild_status(session, install: _Install, status: GuildStatus) -> 
     [
         "install_disabled",
         "registration_disabled",
+        "registration_keyless",
+        "publisher_disabled",
         "another_client",
         "guild_suspended",
         "guild_on_hold",
@@ -316,6 +318,17 @@ async def test_an_install_that_may_not_act_is_refused(
         await _disable_install(session, install)
     elif reason == "registration_disabled":
         await _set_registration(session, "enabled", False)
+    elif reason == "registration_keyless":
+        await _set_registration(session, "jwks", None)
+    elif reason == "publisher_disabled":
+        await session.exec(
+            text(
+                "UPDATE public.publishers SET enabled = false WHERE id = "
+                "(SELECT publisher_id FROM public.app_service_registrations "
+                "WHERE public_id = :c)"
+            ).bindparams(c=CLIENT)
+        )
+        await session.commit()
     elif reason == "another_client":
         client = "tests.someone-else"
     elif reason == "guild_suspended":
@@ -556,8 +569,10 @@ async def test_a_new_transaction_replays_the_install(
         ("guilds", {"id", "status"}),
         (
             "app_service_registrations",
-            {"public_id", "listing_uid", "enabled"},
+            {"public_id", "listing_uid", "enabled", "publisher_id", "jwks", "jwks_uri"},
         ),
+        # Whether the registration's publisher is on.
+        ("publishers", {"id", "enabled"}),
         # A member token's standing: the member's own membership row and
         # whether their account is active.
         ("guild_memberships", {"guild_id", "user_id"}),

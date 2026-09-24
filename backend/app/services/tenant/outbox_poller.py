@@ -504,8 +504,8 @@ def _roster(live_listings: Iterable[str]):
 
     One statement for the whole guild. A subscription an app registered is
     joined to its install: live when the install is enabled and its
-    registration is (``live_listings``, the listings of the enabled
-    registrations, as the install standing reads them), the initiatives it is
+    registration is (``live_listings``, the listings of the live registrations,
+    by the rule the install standing reads), the initiatives it is
     placed in, and the scopes its seat granted. A subscription no app
     registered carries NULLs there and is not asked about any of it.
     """
@@ -548,9 +548,7 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
     # the scope it names and, for one an app registered, the app's reach.
     registrations = (await load_registrations()).values()
     app_ids = {r.listing_uid: r.public_id for r in registrations if r.listing_uid}
-    live_listings = [
-        r.listing_uid for r in registrations if r.listing_uid and r.enabled
-    ]
+    live_listings = [r.listing_uid for r in registrations if r.listing_uid and r.live]
     await set_rls_context(session, guild_id=guild_id)
     # Ids, not instances: each pass ends by expunging the identity map (ids
     # repeat across guild schemas), and an instance held across that is detached.
