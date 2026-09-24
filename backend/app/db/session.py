@@ -899,7 +899,9 @@ async def apply_guild_standing(
 
 
 async def apply_install_standing(
-    session: AsyncSession, context: InstallContext
+    session: AsyncSession,
+    context: InstallContext,
+    named_refs: Sequence[str] = (),
 ) -> InstallContext:
     """Compute an installed app's standing and record it on the session.
 
@@ -908,8 +910,13 @@ async def apply_install_standing(
     standing key, and :data:`app.db.guild_standing.INSTALL_STANDING_SQL`
     writes the whole of it. The completed context is stored with the routing
     parameters, so the replay hook re-applies both together.
+
+    ``named_refs`` are the references the request names; the same statement
+    resolves them in the install's own sector.
     """
-    completed = context.with_standing(await compute_install_standing(session))
+    completed = context.with_standing(
+        await compute_install_standing(session, named_refs)
+    )
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     if params is not None:
         params["context"] = completed

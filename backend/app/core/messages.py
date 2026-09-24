@@ -1305,6 +1305,9 @@ class AppMessages:
 
     #: The route names a scope the token does not carry.
     SCOPE_REQUIRED = "APP_SCOPE_REQUIRED"
+    #: The request names a person or a community by something that is not one
+    #: of this install's references.
+    REFERENCE_UNKNOWN = "APP_REFERENCE_UNKNOWN"
 
 
 class AppDataMessages:

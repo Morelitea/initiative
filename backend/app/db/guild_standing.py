@@ -41,6 +41,7 @@ routing of one community and the standing of another.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
@@ -52,6 +53,13 @@ from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
     GuildRole,
     GuildStatus,
+)
+from app.models.platform.identity_ref import (
+    REF_GRACE_PERIOD,
+    REF_MAX_LENGTH,
+    IdentityEntity,
+    IdentityPurpose,
+    ref_prefix,
 )
 from app.models.tenant.initiative import PermissionKey
 
@@ -70,6 +78,7 @@ __all__ = [
     "compute_guild_standing",
     "compute_install_standing",
     "empty_standing",
+    "named_ref_candidates",
     "standing_bind_params",
 ]
 
@@ -254,6 +263,18 @@ _SCOPE_INITIATIVE = "NULLIF(current_setting('app.scope_initiative_id', true), ''
 #: them.
 _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
 
+#: A reference row in this install's own sector: the app purpose, the routed
+#: community and the routed install. The same predicate the ``identity_refs``
+#: policies for the install floor hold every read and insert to
+#: (``app.db.public_rls``).
+_IN_INSTALL_SECTOR = (
+    f"r.purpose = '{IdentityPurpose.app.value}'"
+    f" AND r.sector_guild_id = {_GID}"
+    f" AND r.sector_id = {_IID}"
+)
+#: How long a replaced reference keeps resolving, as an interval.
+_GRACE_INTERVAL = f"interval '{int(REF_GRACE_PERIOD.total_seconds())} seconds'"
+
 
 def _tool_permission_values() -> str:
     """Each tool's two role keys as a ``VALUES`` list of ``(resource, key,
@@ -275,9 +296,10 @@ def _permission_key_values() -> str:
 
 
 #: An installed app's standing, in one statement. Runs as ``guild_<id>_app``
-#: after the install routing, and binds nothing: the community, the install,
-#: the client the token was issued to, the token's scopes and the narrowed
-#: initiative are read back from that routing.
+#: after the install routing. The community, the install, the client the token
+#: was issued to, the token's scopes and the narrowed initiative are read back
+#: from that routing; the one bind, ``:named_refs``, is the references the
+#: request names (below).
 #:
 #: ``install`` is the install when it may act at all: the community's status is
 #: one its members use, the install is on, and the operator's registration for
@@ -293,6 +315,14 @@ def _permission_key_values() -> str:
 #: share could name, and carries no grant. The community's sign-in rules
 #: govern people signing in; an install's admission is the seat's consent, so
 #: that value is what ``live`` says.
+#:
+#: Two more columns carry what the install calls things, both read only in its
+#: own sector (``purpose = 'app'``, the routed community and the routed
+#: install): ``guild_ref``, its live reference for the community, and
+#: ``named_refs``, the references in ``:named_refs`` that name somebody there,
+#: as ``{ref: [entity_type, entity_id]}``. A replaced reference still resolves
+#: for its grace window, as ``identity_refs.resolve_ref`` has it. The array
+#: chooses which rows are looked up; the sector is the routing's.
 INSTALL_STANDING_SQL = f"""
 WITH install AS (
   SELECT a.id, a.granted_scopes, g.status = '{GuildStatus.read_only.value}' AS read_only
@@ -392,7 +422,24 @@ SELECT
       SELECT string_agg(DISTINCT h.resource, ',') FROM held h WHERE h.writes
     ), ''), true) AS install_write,
   set_config('app.guild_auth_ok',
-    (SELECT EXISTS (SELECT 1 FROM install))::text, true) AS guild_auth_ok
+    (SELECT EXISTS (SELECT 1 FROM install))::text, true) AS guild_auth_ok,
+  (
+    SELECT r.ref
+    FROM public.identity_refs r
+    WHERE {_IN_INSTALL_SECTOR}
+      AND r.entity_type = '{IdentityEntity.guild.value}'
+      AND r.entity_id = {_GID}
+      AND r.retired_at IS NULL
+      AND EXISTS (SELECT 1 FROM install)
+  ) AS guild_ref,
+  COALESCE((
+      SELECT jsonb_object_agg(r.ref, jsonb_build_array(r.entity_type, r.entity_id))
+      FROM public.identity_refs r
+      WHERE r.ref = ANY(CAST(:named_refs AS text[]))
+        AND {_IN_INSTALL_SECTOR}
+        AND (r.retired_at IS NULL OR r.retired_at > now() - {_GRACE_INTERVAL})
+        AND EXISTS (SELECT 1 FROM install)
+    ), '{{}}'::jsonb) AS named_refs
 """
 
 
@@ -687,6 +734,12 @@ class InstallContext:
     #: The resources its scopes let it read, and write.
     install_read: tuple[str, ...] = ()
     install_write: tuple[str, ...] = ()
+    #: What this install calls its community, when it has been named to it.
+    guild_ref: Optional[str] = None
+    #: The references this request named that resolve in the install's own
+    #: sector, as ``(ref, entity_type, entity_id)``. For this request only:
+    #: the replay writes the standing, and names nobody.
+    named_refs: tuple[tuple[str, str, int], ...] = ()
 
     @property
     def guild_auth_ok(self) -> bool:
@@ -710,7 +763,23 @@ class InstallContext:
             enabled_tools=_pairs(row.get("enabled_tools")),
             install_read=_pairs(row.get("install_read")),
             install_write=_pairs(row.get("install_write")),
+            guild_ref=row.get("guild_ref") or None,
+            named_refs=_named_refs(row.get("named_refs")),
         )
+
+
+def _named_refs(value: Any) -> tuple[tuple[str, str, int], ...]:
+    """The statement's ``named_refs`` column as sorted triples. The driver hands
+    a ``jsonb`` column read through ``text()`` back as its text."""
+    if not value:
+        return ()
+    mapping = json.loads(value) if isinstance(value, (str, bytes)) else value
+    return tuple(
+        sorted(
+            (str(ref), str(entity_type), int(entity_id))
+            for ref, (entity_type, entity_id) in mapping.items()
+        )
+    )
 
 
 def _csv(values: Sequence[Any]) -> str:
@@ -791,13 +860,40 @@ async def compute_guild_standing(session: "AsyncSession") -> dict[str, Any]:
     return dict(row._mapping)
 
 
-async def compute_install_standing(session: "AsyncSession") -> dict[str, Any]:
+def named_ref_candidates(values: Sequence[str]) -> list[str]:
+    """The strings among ``values`` shaped like a reference an install holds,
+    once each: its ``app`` prefix for a person or a community, and no longer
+    than a reference can be. What the install standing statement is asked to
+    look up."""
+    prefixes = tuple(
+        f"{ref_prefix(entity, IdentityPurpose.app)}_" for entity in IdentityEntity
+    )
+    return sorted(
+        {
+            value
+            for value in values
+            if len(value) <= REF_MAX_LENGTH and value.startswith(prefixes)
+        }
+    )
+
+
+async def compute_install_standing(
+    session: "AsyncSession", named_refs: Sequence[str] = ()
+) -> dict[str, Any]:
     """Run :data:`INSTALL_STANDING_SQL` and return the row it wrote.
 
-    Binds nothing, as :func:`compute_guild_standing` does not: the install and
-    its community are read back from the routing.
+    The install and its community are read back from the routing, as
+    :func:`compute_guild_standing` reads the person back. ``named_refs`` is
+    the one bind: the references the request names, resolved in the same
+    statement, in the install's own sector.
     """
     from sqlalchemy import text
 
-    row = (await session.exec(text(INSTALL_STANDING_SQL))).one()
+    row = (
+        await session.exec(
+            text(INSTALL_STANDING_SQL).bindparams(
+                named_refs=named_ref_candidates(named_refs)
+            )
+        )
+    ).one()
     return dict(row._mapping)

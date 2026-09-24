@@ -417,6 +417,7 @@
   "APP_SERVICE_INVALID_BASE_URL": "Diese Adresse ist ungültig. Gib die Basis-URL der App an, ohne Abfrageparameter.",
   "APP_SERVICE_INVALID_ORIGIN": "Eine erlaubte Herkunft ist ungültig. Verwende schema://host mit optionalem Port und ohne Pfad.",
   "APP_SERVICE_INVALID_JWKS": "Mit diesem Schlüsselsatz kann diese Installation keine Signatur prüfen.",
+  "APP_REFERENCE_UNKNOWN": "Diese App hat eine Person oder Community genannt, die sie nicht kennt.",
   "APP_SCOPE_REQUIRED": "Das Token dieser App enthält nicht den Bereich, den diese Aktion braucht.",
   "APP_SERVICE_UNKNOWN_GRANT": "Diese Berechtigung kann einem App-Dienst nicht erteilt werden.",
   "APP_SERVICE_UNKNOWN_SCOPE": "Dieser Bereich kann einer App nicht erteilt werden.",
