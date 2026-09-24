@@ -338,6 +338,7 @@
   "IMPORT_CREATOR_INACTIVE": "La importación falló porque la cuenta solicitante está inactiva.",
   "IMPORT_SUPERADMIN_REQUIRED": "Solo un superadministrador puede importar una copia de seguridad.",
   "IMPORT_NOT_CONFIRMABLE": "Esta importación no se puede confirmar; puede haber caducado o ya haber comenzado.",
+  "IMPORT_PEOPLE_MAP_SELF_ONLY": "Solo un administrador de la comunidad puede asignar personas importadas a otros miembros. Asígnalas a ti o déjalas sin asignar.",
   "IMPORT_ZIP_INVALID": "Este archivo no es una copia de seguridad válida de Initiative.",
   "IMPORT_QUOTA_EXCEEDED": "Los archivos de la copia de seguridad no caben en el almacenamiento de esta comunidad.",
   "INVALID_TAG_IDS": "Una o más etiquetas ya no existen",

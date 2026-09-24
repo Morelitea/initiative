@@ -46,7 +46,11 @@ from app.services.import_engine.importers._base import (
 )
 from app.services.import_engine.links import links_to_pages, wiki_page_slug_ref
 from app.services.import_engine.mentions import MENTION_HANDLE, place_mention_node
-from app.services.import_engine.people import PeopleMap, quoted_account
+from app.services.import_engine.people import (
+    PeopleMap,
+    author_account,
+    quoted_account,
+)
 from app.services.tenant import tags as tags_service
 from app.services.tenant.wikis import slugify_page_title
 
@@ -179,8 +183,11 @@ class WikiImporter:
         page_ids: dict[str, int] = {}
         rows: list[WikiPage] = []
         for page_env, slug in zip(env.pages, slugs):
-            author = quoted_account(
-                page_env.author_handle, people=people, member_handles=member_handles
+            author = author_account(
+                page_env.author_handle,
+                people=people,
+                member_handles=member_handles,
+                importer_id=importer.id,
             )
             row = WikiPage(
                 wiki_id=wiki.id,
@@ -328,10 +335,11 @@ async def _write_comments(
     """Write what was said on one page, as its comment thread.
 
     Each body's references are placed the way the page's own are, and then
-    written as comment text. A comment belongs to the account the people step
-    placed its author on; anybody else's is written by the importer with the
-    source's name beside it, never under somebody else's face. A reply whose
-    parent did not come stands on its own.
+    written as comment text. A comment belongs to the account its author was
+    placed on, where the importer may credit that account
+    (``people.author_account``); anybody else's is written by the importer
+    with the source's name beside it, never under somebody else's face. A
+    reply whose parent did not come stands on its own.
     """
     from datetime import timezone
 
@@ -345,8 +353,11 @@ async def _write_comments(
         body = comment_markdown(place(content, comment_env.mention_handles) or content)
         if not body:
             continue
-        author = quoted_account(
-            comment_env.author_handle, people=people, member_handles=member_handles
+        author = author_account(
+            comment_env.author_handle,
+            people=people,
+            member_handles=member_handles,
+            importer_id=importer.id,
         )
         source_name = (
             comment_env.author_name or comment_env.author_handle or ""

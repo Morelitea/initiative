@@ -1932,7 +1932,7 @@ async def test_mentions_link_to_whoever_the_people_step_names(
     from app.models.tenant.comment import Comment
     from app.models.tenant.task import Task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     envelope = _project_envelope_with_comment("Robin", "Robin")
     task = envelope["tasks"][0]
@@ -2230,7 +2230,7 @@ async def test_the_people_map_decides_who_an_envelopes_assignee_is(
 
     from app.models.tenant.task import Task, TaskAssignee
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     inside = await acting_user(
         guild_role=GuildRole.member,
         guild=a.guild,
@@ -2274,13 +2274,14 @@ async def test_an_exact_handle_match_makes_the_comment_theirs(
     client, acting_user, session
 ):
     """A handle that is already a member of the initiative it is landing in
-    needs nobody to confirm it: it is the same identifier."""
+    needs nobody to confirm it: it is the same identifier. The importer is the
+    community's admin, who may credit anybody."""
     from sqlmodel import select
 
     from app.core.user_display import handle_of
     from app.models.tenant.comment import Comment
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     b = await acting_user(
         guild_role=GuildRole.member,
         guild=a.guild,
@@ -2299,6 +2300,187 @@ async def test_an_exact_handle_match_makes_the_comment_theirs(
     ).one()
     assert comment.created_by == b.user.id
     assert comment.imported_author_name is None
+
+
+async def _comment_by_its_body(session):
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+
+    session.expunge_all()
+    return (
+        await session.exec(
+            select(Comment).where(Comment.content == "The frame is out of true")
+        )
+    ).one()
+
+
+async def test_a_members_import_keeps_another_members_comment_as_a_name(
+    client, acting_user, session
+):
+    """An exact handle match credits the comment to that member only when the
+    importer may credit others. A member's import writes it as an unmatched
+    author's: by the importer, with the source's name beside it."""
+    from app.core.user_display import handle_of
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    envelope = _project_envelope_with_comment(handle_of(b.user), "Someone Else")
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 201, resp.text
+
+    comment = await _comment_by_its_body(session)
+    assert comment.created_by == a.user.id
+    assert comment.imported_author_name == "Someone Else"
+
+
+async def test_a_members_own_handle_still_makes_the_comment_theirs(
+    client, acting_user, session
+):
+    from app.core.user_display import handle_of
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment(handle_of(a.user), "Me Elsewhere")
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 201, resp.text
+
+    comment = await _comment_by_its_body(session)
+    assert comment.created_by == a.user.id
+    assert comment.imported_author_name is None
+
+
+async def test_a_member_may_not_map_a_person_to_somebody_else(
+    client, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    job = (await _import_envelope(client, a, envelope, a.initiative.id)).json()
+    assert job["status"] == "staged"
+
+    refused = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"stranger#4321": b.user.id}},
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "IMPORT_PEOPLE_MAP_SELF_ONLY"
+
+    still = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert still["status"] == "staged"
+
+
+async def test_a_member_may_map_a_person_to_themselves(
+    client, acting_user, session, monkeypatch, role_session
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    job = (await _import_envelope(client, a, envelope, a.initiative.id)).json()
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"stranger#4321": a.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    comment = await _comment_by_its_body(session)
+    assert comment.created_by == a.user.id
+    assert comment.imported_author_name is None
+
+
+async def test_an_admin_maps_a_person_to_another_member(
+    client, acting_user, session, monkeypatch, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    job = (await _import_envelope(client, a, envelope, a.initiative.id)).json()
+    assert job["status"] == "staged"
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"stranger#4321": b.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    comment = await _comment_by_its_body(session)
+    assert comment.created_by == b.user.id
+    assert comment.imported_author_name is None
+
+
+async def test_a_members_recorded_mapping_to_somebody_else_is_dropped_at_apply(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The apply reads the importer's standing again, so a people map on the
+    job row naming another member credits nobody but the importer."""
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    job_id = (await _import_envelope(client, a, envelope, a.initiative.id)).json()["id"]
+
+    await route_session_to_guild(session, a.guild.id)
+    job = await session.get(ImportJob, job_id)
+    job.params = {**(job.params or {}), "people_map": {"stranger#4321": b.user.id}}
+    job.status = ImportJobStatus.queued
+    session.add(job)
+    await session.commit()
+
+    await _run_import_worker(monkeypatch, role_session)
+
+    comment = await _comment_by_its_body(session)
+    assert comment.created_by == a.user.id
+    assert comment.imported_author_name == "Alice Chen"
+
+
+async def test_a_members_plan_suggests_only_themselves(client, acting_user, session):
+    """The people step offers what the confirm accepts: a member's plan keeps
+    the suggestion naming them and drops the one naming somebody else."""
+    from app.core.user_display import handle_of
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["assignee_handles"] = [handle_of(a.user), handle_of(b.user)]
+
+    job = (await _import_envelope(client, a, envelope, a.initiative.id)).json()
+    assert job["status"] == "staged"
+    suggested = {
+        person["handle"]: person["suggested_user_id"]
+        for person in job["plan"]["people"]
+    }
+    assert suggested[handle_of(a.user)] == a.user.id
+    assert suggested[handle_of(b.user)] is None
+    assert suggested["stranger#4321"] is None
 
 
 async def test_the_plan_lists_the_people_and_suggests_the_exact_matches(
@@ -4187,7 +4369,7 @@ async def test_a_confluence_space_becomes_a_wiki_with_its_tree_and_its_people(
     from app.models.tenant.wiki import Wiki, WikiPage
     from app.services.import_engine import atlassian as atlassian_service
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     site = _confluence_site(
         pages=[
@@ -4463,7 +4645,7 @@ async def test_a_confluence_pages_comments_arrive_on_its_wiki_page(
         },
     )
     monkeypatch.setattr(atlassian_service, "request_public_target", site)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
     job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
@@ -4532,7 +4714,7 @@ async def test_a_confluence_html_export_becomes_a_wiki(
     from app.services.import_engine.confluence_export_test import export_bytes
     from app.services.tenant.wikis import document_parent
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
     resp = await _upload_export(

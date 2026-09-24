@@ -84,9 +84,11 @@
     "people": {
       "prompt": "Who are these people here?",
       "note": "Pick who each person is here. Exact handle matches are filled in; leave one blank to keep just their name.",
+      "noteSelfOnly": "If a name is yours, pick Me. Only a community admin can match names to other members, so the rest keep just their name.",
       "comments_one": "{{count}} comment",
       "comments_other": "{{count}} comments",
       "unmapped": "Nobody here",
+      "me": "Me",
       "pickerLabel": "Who {{name}} is here"
     },
     "progress": {

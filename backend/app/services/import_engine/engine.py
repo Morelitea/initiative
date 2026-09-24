@@ -204,6 +204,25 @@ async def start_envelope_import(
         session, guild_id=guild_id, importer=importer, validated=validated
     )
     unplaced = [person for person in people if person.suggested_user_id is None]
+    if unplaced:
+        # The plan suggests only what this importer may answer with. Whether
+        # to ask at all is still decided by the whole roster: an exact match
+        # the importer may not credit is written the way an unmatched author
+        # is, which is what leaving that row blank would do.
+        from app.db.session import guild_context
+        from app.services.import_engine.people import creditable_account
+
+        standing = guild_context(session)
+        people = [
+            person.model_copy(
+                update={
+                    "suggested_user_id": creditable_account(
+                        person.suggested_user_id, context=standing
+                    )
+                }
+            )
+            for person in people
+        ]
 
     if not unplaced and rows <= import_limits.IMPORT_INLINE_MAX_ROWS:
         result = await apply_one_envelope(

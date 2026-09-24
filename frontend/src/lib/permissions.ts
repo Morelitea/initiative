@@ -169,6 +169,18 @@ export const administersGuildContent = (
 ): boolean => administersGuild(guild) && reachesGuildContent(guild);
 
 /**
+ * Whether this request may credit imported work to members other than itself.
+ *
+ * Mirrors `people.credits_others` on the backend, which is what decides at the
+ * import's confirm and again at its apply: the community's admin through a
+ * membership, or its seat. Anybody else matches an import's people to
+ * themselves or leaves them as names.
+ */
+export const creditsImportsToOthers = (
+  guild: { role?: string | null; accessType?: string } | null | undefined
+): boolean => holdsGuildSeat(guild) || (administersGuild(guild) && guild?.accessType !== "grant");
+
+/**
  * Whether this request may change the community configuration it reaches.
  *
  * The server's answer (`GuildRead.can_write_settings`), the same rule the

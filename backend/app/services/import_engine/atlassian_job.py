@@ -57,6 +57,7 @@ from app.services.import_engine import (
 )
 from app.services.import_engine.atlassian import AtlassianCredential
 from app.services.import_engine.common import load_guild_member_handles
+from app.services.import_engine.people import creditable_roster
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
 
@@ -337,7 +338,10 @@ async def _fetch_export(
                 )
             except ImportEngineError:
                 documents_allowed = False
-        roster = await load_guild_member_handles(user_session, guild_id=guild_id)
+        roster = creditable_roster(
+            await load_guild_member_handles(user_session, guild_id=guild_id),
+            context=context,
+        )
 
     fetched, site_url = await confluence_export.export_to_fetched(
         open_backup_zip(payload),
@@ -577,8 +581,12 @@ async def fetch(
             except ImportEngineError:
                 documents_allowed = False
         # The community's roster, so the plan can suggest who each person the
-        # site names is — read now, as the person, like a backup upload does.
-        roster = await load_guild_member_handles(user_session, guild_id=guild_id)
+        # site names is — read now, as the person, like a backup upload does,
+        # and narrowed to the accounts this person may credit.
+        roster = creditable_roster(
+            await load_guild_member_handles(user_session, guild_id=guild_id),
+            context=context,
+        )
 
     credential = AtlassianCredential(
         site_url=site_url, email=principal, api_token=api_token

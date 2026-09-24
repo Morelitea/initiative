@@ -65,6 +65,7 @@ from app.services.import_engine.engine import (
     count_active_jobs_locked,
     stage_payload,
 )
+from app.services.import_engine.people import credits_others
 from app.services.tenant.attachments import (
     FileTooLargeError,
     read_upload_bounded,
@@ -574,7 +575,10 @@ async def confirm_import(
     names properties unticked on the review, which are then not created, and
     whose values are left out with them. All are recorded on the job and read
     at apply time; the mapping is re-checked against real membership there,
-    because this confirm may be hours old by then.
+    because this confirm may be hours old by then. Only the community's admin
+    or its seat may map a person to somebody else's account; anybody else
+    maps people to themselves or leaves them unmatched (403
+    ``IMPORT_PEOPLE_MAP_SELF_ONLY`` otherwise).
 
     Two kinds of job reach this, and they are gated differently because they
     were created differently. A **backup** puts a whole community back, so it
@@ -641,8 +645,18 @@ async def confirm_import(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ImportEngineMessages.IMPORT_INVALID_PARAMS,
             )
+        # An admin or the seat matches people to anybody; everybody else
+        # matches people to themselves or leaves them as names.
+        if not credits_others(guild_context) and any(
+            user_id != current_user.id for user_id in people_map.values()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ImportEngineMessages.IMPORT_PEOPLE_MAP_SELF_ONLY,
+            )
         # Stored as given; the ids are proved to be members of this guild at
-        # apply time, on the session that will actually write the rows.
+        # apply time, on the session that will actually write the rows, and
+        # the importer's standing is read again there.
         job.params = {**(job.params or {}), "people_map": people_map}
     exclude_properties = (body or {}).get("exclude_properties")
     if exclude_properties is not None:

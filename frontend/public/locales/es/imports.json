@@ -84,9 +84,11 @@
     "people": {
       "prompt": "¿Quiénes son estas personas aquí?",
       "note": "Elige quién es cada persona aquí. Las coincidencias exactas de identificador ya están rellenadas; si dejas una en blanco, solo se conserva su nombre.",
+      "noteSelfOnly": "Si un nombre es tuyo, elige Yo. Solo un administrador de la comunidad puede asignar nombres a otros miembros, así que del resto solo se conserva el nombre.",
       "comments_one": "{{count}} comentario",
       "comments_other": "{{count}} comentarios",
       "unmapped": "Nadie aquí",
+      "me": "Yo",
       "pickerLabel": "Quién es {{name}} aquí"
     },
     "progress": {

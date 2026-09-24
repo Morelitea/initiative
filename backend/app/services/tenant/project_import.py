@@ -56,6 +56,7 @@ from app.services.import_engine.context import ImportContext
 from app.services.import_engine.links import links_to_pages
 from app.services.import_engine.people import (
     PeopleMap,
+    author_account,
     initiative_member_id,
     quoted_account,
 )
@@ -65,7 +66,6 @@ from app.services.import_engine.common import (
     decode_property_value,
     ensure_tag,
     load_initiative_member_handles,
-    handle_key,
     resolve_property_definitions,
 )
 from app.services.tenant import tags as tags_service
@@ -490,10 +490,9 @@ def _link_mentions(
 ) -> str | None:
     """``text`` with each ``@<handle>`` it mentions linked to an account here.
 
-    Placed the way a comment's author is (:func:`_comment_author`): the
-    account the people step mapped the handle to, else a member of the target
-    initiative with that exact handle. A mention nobody places stays the name
-    it arrived as. Handles are tried longest first, so ``@Ann Lee`` is never
+    Placed through ``people.quoted_account``: the account the people step
+    mapped the handle to, else a member of the target initiative with that
+    exact handle. A mention nobody places stays the name it arrived as. Handles are tried longest first, so ``@Ann Lee`` is never
     read as ``@Ann`` followed by a surname.
     """
     if not text or not handles:
@@ -545,19 +544,24 @@ def _comment_author(
        rides beside it as ``imported_author_name`` — a name, not an account,
        so the comment shows no avatar and links to no profile.
 
+    The first two are kept only where the importer may credit that account
+    (``people.author_account``): anybody, for the community's admin or its
+    seat; their own account, for anybody else. What they may not credit is
+    answer 3.
+
     What is deliberately missing is a fourth: a near match. A display name
     that looks similar is how one person's words end up under another
     person's face, and telling those two apart is the whole reason the
     wizard asks.
     """
-    handle = envelope_comment.author_handle
-    mapped = context.people.user_id(handle) if context is not None else None
-    if mapped is not None:
-        return mapped, None
-    if handle:
-        member = initiative_member_handles.get(handle_key(handle))
-        if member is not None:
-            return member, None
+    account = author_account(
+        envelope_comment.author_handle,
+        people=context.people if context is not None else PeopleMap(),
+        member_handles=initiative_member_handles,
+        importer_id=importer_id,
+    )
+    if account is not None:
+        return account, None
     source_name = (
         envelope_comment.author_name or envelope_comment.author_handle or ""
     ).strip()

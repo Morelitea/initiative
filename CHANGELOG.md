@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sign-in group rules are set per community** — they moved from platform settings to **Community settings → Security**. Rules that were already saved keep working.
 - **Signing out affects only the device you're on.** Changing your password still signs out everywhere.
 - **Names and titles are capped at 255 characters.**
+- **Only community admins match imported people to other members** — anyone else importing can mark a person in the file as themselves, or leave them as a name.
+- **Tailscale addresses count as private** — webhook targets, AI providers and imports treat `100.64.0.0/10` the way they treat a LAN address. A webhook sent to a tailnet host needs `WEBHOOK_ALLOW_PRIVATE_TARGETS=true`, and an Ollama connection set on the platform keeps working.
 - **Breaking API and configuration changes**
   - `/api/v1/admin/*` is now `/api/v1/operator/*`, and `/api/v1/announcements/admin/*` is now `/api/v1/announcements/operator/*`. The matching `Admin*` schemas are renamed `Operator*`.
   - `/api/v1/settings/oidc-mappings` and the operator routes for initiative and community members were removed. Use `PATCH /api/v1/guilds/{guild_id}/members/{user_id}` and `/api/v1/guilds/{guild_id}/auth/rules` instead.

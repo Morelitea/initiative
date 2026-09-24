@@ -84,9 +84,11 @@
     "people": {
       "prompt": "Wer sind diese Personen hier?",
       "note": "Wähle, wer jede Person hier ist. Genaue Handle-Treffer sind schon eingetragen; leer gelassen bleibt nur der Name.",
+      "noteSelfOnly": "Wenn ein Name deiner ist, wähle Ich. Nur ein Community-Admin kann Namen anderen Mitgliedern zuordnen, daher bleibt beim Rest nur der Name.",
       "comments_one": "{{count}} Kommentar",
       "comments_other": "{{count}} Kommentare",
       "unmapped": "Niemand hier",
+      "me": "Ich",
       "pickerLabel": "Wer {{name}} hier ist"
     },
     "progress": {

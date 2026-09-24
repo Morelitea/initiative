@@ -17,6 +17,12 @@ never attached to whoever looked closest.
 The mapping is re-checked here, at apply time, against real guild membership
 on the caller's own routed session — the confirm may have been hours ago, and
 somebody named in it may have left since.
+
+Who imported writing is credited to follows the importer's standing. A
+community admin, or the seat, answers the people step for everybody the bundle
+quotes. Anybody else answers it for themselves only: a person maps to their own
+account or stays a name, and every other author is written the way an
+unmatched one is — by the importer, with the source's name beside it.
 """
 
 from __future__ import annotations
@@ -24,14 +30,48 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.import_engine.common import handle_key
 
+if TYPE_CHECKING:
+    from app.db.guild_standing import GuildContext
+
 logger = logging.getLogger(__name__)
+
+
+def credits_others(context: "GuildContext | None") -> bool:
+    """Whether this request may credit imported writing to an account other
+    than its own: the community's admin or its seat. Without a standing, no."""
+    return context is not None and (context.is_admin or context.seat)
+
+
+def creditable_account(
+    user_id: int | None, *, context: "GuildContext | None"
+) -> int | None:
+    """``user_id`` when this request may credit imported writing to it — its
+    own account always, anybody's for an admin or the seat — else None."""
+    if user_id is None or context is None:
+        return None
+    if credits_others(context) or user_id == context.user_id:
+        return user_id
+    return None
+
+
+def creditable_roster(
+    roster: Mapping[str, int], *, context: "GuildContext | None"
+) -> dict[str, int]:
+    """``roster`` narrowed to the accounts this request may credit, which is
+    what the people step suggests: a suggestion is an answer the importer
+    could give, and the confirm accepts no other."""
+    return {
+        handle: user_id
+        for handle, user_id in roster.items()
+        if creditable_account(user_id, context=context) is not None
+    }
 
 
 @dataclass
@@ -40,9 +80,15 @@ class PeopleMap:
 
     Empty is the ordinary case, not a failure: an import nobody mapped anybody
     for behaves exactly as it did before there was a mapping step.
+
+    ``credits_others`` is whether authorship may land on an account other than
+    the importer's (:func:`author_account`). It is set from the importer's
+    standing by :func:`resolve_people_map`; a map built any other way credits
+    nobody but the importer.
     """
 
     _by_handle: dict[str, int] = field(default_factory=dict)
+    credits_others: bool = False
 
     def user_id(self, handle: str | None) -> int | None:
         """The account this handle was mapped to, or None if nobody claimed
@@ -70,20 +116,31 @@ async def resolve_people_map(
     of this guild **now** is dropped and logged — the confirm proved they were
     reachable when it was made, and this proves it again at the moment the
     rows are actually written.
+
+    The session's standing decides the rest, read now rather than at the
+    confirm: an importer who is neither the community's admin nor its seat
+    keeps only the entries naming their own account, and the map credits
+    nobody else (:func:`author_account`).
     """
+    from app.db.session import guild_context
+
+    standing = guild_context(session)
+    may_credit_others = credits_others(standing)
     if not isinstance(raw, dict) or not raw:
-        return PeopleMap()
+        return PeopleMap(credits_others=may_credit_others)
 
     wanted: dict[str, int] = {}
     for source_handle, user_id in raw.items():
         if not isinstance(source_handle, str):
             continue
         try:
-            wanted[handle_key(source_handle)] = int(user_id)
+            account = creditable_account(int(user_id), context=standing)
         except (TypeError, ValueError):
             continue
+        if account is not None:
+            wanted[handle_key(source_handle)] = account
     if not wanted:
-        return PeopleMap()
+        return PeopleMap(credits_others=may_credit_others)
 
     members = set(
         await guild_member_ids(
@@ -101,7 +158,7 @@ async def resolve_people_map(
             "y" if dropped == 1 else "ies",
             guild_id,
         )
-    return PeopleMap(resolved)
+    return PeopleMap(resolved, credits_others=may_credit_others)
 
 
 async def guild_member_ids(
@@ -137,13 +194,13 @@ def initiative_member_id(
     1. The account somebody mapped this handle to in the wizard's people step.
     2. A member whose handle is the same string.
 
-    That gate is the whole difference between this and the rule authorship
-    follows (``_comment_author`` in ``services.tenant.project_import``). Being
-    quoted as the author of a comment is a fact about the past and can be
-    recorded about anybody the community knows; being assigned a task is a
-    statement about who is working on something here, now, and only the
-    initiative's roster can answer it. So the map says *which account* a
-    handle means — it never puts somebody into an initiative they are not in.
+    That gate is the whole difference between this and the rule a mention
+    follows (:func:`quoted_account`). Being named in some writing is a fact
+    about the past and can be recorded about anybody the community knows;
+    being assigned a task is a statement about who is working on something
+    here, now, and only the initiative's roster can answer it. So the map says
+    *which account* a handle means — it never puts somebody into an initiative
+    they are not in.
 
     Returns ``None`` when neither answer lands, and the caller counts the
     handle as unmatched.
@@ -162,14 +219,16 @@ def quoted_account(
     people: PeopleMap,
     member_handles: Mapping[str, int],
 ) -> int | None:
-    """Who a handle quoted in some writing — its author, somebody it
-    mentions — is here.
+    """Who a handle quoted in some writing — somebody it mentions — is here.
 
     The account the people step mapped it to, else a member of the target
     initiative whose handle is the same string. Unlike
     :func:`initiative_member_id` the mapped account need not be in the
-    initiative: who wrote or was named in something is a fact about the past,
-    and can be recorded about anybody the community knows.
+    initiative: who was named in something is a fact about the past, and can
+    be recorded about anybody the community knows.
+
+    Who *wrote* something is asked through :func:`author_account`, which
+    answers the same way and then applies the importer's standing.
     """
     if not handle:
         return None
@@ -177,6 +236,31 @@ def quoted_account(
     if mapped is not None:
         return mapped
     return member_handles.get(handle_key(handle))
+
+
+def author_account(
+    handle: str | None,
+    *,
+    people: PeopleMap,
+    member_handles: Mapping[str, int],
+    importer_id: int,
+) -> int | None:
+    """Who wrote something, here: the account a comment or a page is
+    credited to.
+
+    Found the way :func:`quoted_account` finds anybody — the people step's
+    answer, else an exact handle in the target initiative — and then kept
+    only if the map credits others (an admin's or the seat's import) or the
+    account is the importer's own. ``None`` otherwise, and the caller writes
+    the row as it writes an unmatched author's: by the importer, with the
+    source's name beside it where the row carries one.
+    """
+    account = quoted_account(handle, people=people, member_handles=member_handles)
+    if account is None:
+        return None
+    if people.credits_others or account == importer_id:
+        return account
+    return None
 
 
 def user_reference_handles(payload: Any) -> list[str]:

@@ -2,6 +2,16 @@ import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { MemberSelect } from "@/components/members/MemberSearchSelect";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
+import { creditsImportsToOthers } from "@/lib/permissions";
 
 /** One row of the plan's `people` list.
  *
@@ -32,13 +42,22 @@ export interface ImportPeopleStepProps {
  * is how one person's words end up under another person's face.
  *
  * Leaving a row blank is a real answer, not an unfinished one: those comments
- * keep the name they arrived with and are credited to no account at all. */
+ * keep the name they arrived with and are credited to no account at all.
+ *
+ * Matching a name to another member is the community admin's (or the seat's)
+ * to do; anybody else is offered themselves or nobody, the same rule the
+ * server applies to the confirm. */
 export function ImportPeopleStep({ people, value, onChange }: ImportPeopleStepProps) {
   const { t } = useTranslation("imports");
+  const { user } = useAuth();
+  const { activeGuild } = useGuilds();
+  const anyMember = creditsImportsToOthers(activeGuild);
 
   return (
     <div className="space-y-4">
-      <p className="text-muted-foreground text-xs">{t("wizard.people.note")}</p>
+      <p className="text-muted-foreground text-xs">
+        {anyMember ? t("wizard.people.note") : t("wizard.people.noteSelfOnly")}
+      </p>
       <ul className="space-y-3">
         {people.map((person) => {
           const who = person.name?.trim() || person.handle;
@@ -57,13 +76,33 @@ export function ImportPeopleStep({ people, value, onChange }: ImportPeopleStepPr
                   </span>
                 )}
               </p>
-              <MemberSelect
-                scope={{ type: "guild" }}
-                value={value[person.handle] ?? null}
-                onChange={(id) => onChange({ ...value, [person.handle]: id })}
-                placeholder={t("wizard.people.unmapped")}
-                aria-label={t("wizard.people.pickerLabel", { name: who })}
-              />
+              {anyMember ? (
+                <MemberSelect
+                  scope={{ type: "guild" }}
+                  value={value[person.handle] ?? null}
+                  onChange={(id) => onChange({ ...value, [person.handle]: id })}
+                  placeholder={t("wizard.people.unmapped")}
+                  aria-label={t("wizard.people.pickerLabel", { name: who })}
+                />
+              ) : (
+                <Select
+                  value={user != null && value[person.handle] === user.id ? "me" : "nobody"}
+                  onValueChange={(choice) =>
+                    onChange({
+                      ...value,
+                      [person.handle]: choice === "me" && user != null ? user.id : null,
+                    })
+                  }
+                >
+                  <SelectTrigger aria-label={t("wizard.people.pickerLabel", { name: who })}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nobody">{t("wizard.people.unmapped")}</SelectItem>
+                    {user != null && <SelectItem value="me">{t("wizard.people.me")}</SelectItem>}
+                  </SelectContent>
+                </Select>
+              )}
             </li>
           );
         })}

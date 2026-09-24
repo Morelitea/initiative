@@ -338,6 +338,7 @@
   "IMPORT_CREATOR_INACTIVE": "L'import a échoué car le compte demandeur est inactif.",
   "IMPORT_SUPERADMIN_REQUIRED": "Seul un superadmin peut importer une sauvegarde.",
   "IMPORT_NOT_CONFIRMABLE": "Cet import ne peut pas être confirmé — il a peut-être expiré ou déjà commencé.",
+  "IMPORT_PEOPLE_MAP_SELF_ONLY": "Seul un admin de la communauté peut associer des personnes importées à d'autres membres. Associez-les à vous-même ou laissez-les sans correspondance.",
   "IMPORT_ZIP_INVALID": "Ce fichier n'est pas une sauvegarde Initiative valide.",
   "IMPORT_QUOTA_EXCEEDED": "Les fichiers de la sauvegarde ne tiennent pas dans le stockage de cette communauté.",
   "INVALID_TAG_IDS": "Une ou plusieurs étiquettes n'existent plus",

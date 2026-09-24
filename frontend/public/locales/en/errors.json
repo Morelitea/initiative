@@ -338,6 +338,7 @@
   "IMPORT_CREATOR_INACTIVE": "The import failed because the requesting account is inactive.",
   "IMPORT_SUPERADMIN_REQUIRED": "Only a superadmin can import a backup.",
   "IMPORT_NOT_CONFIRMABLE": "This import can't be confirmed — it may have expired or already started.",
+  "IMPORT_PEOPLE_MAP_SELF_ONLY": "Only a community admin can match imported people to other members. Match people to yourself or leave them unmatched.",
   "IMPORT_ZIP_INVALID": "This file isn't a valid Initiative backup.",
   "IMPORT_QUOTA_EXCEEDED": "The backup's files don't fit in this community's storage.",
   "INVALID_TAG_IDS": "One or more tags no longer exist",
