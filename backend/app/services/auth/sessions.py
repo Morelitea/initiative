@@ -26,7 +26,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Collection
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -46,6 +46,7 @@ __all__ = [
     "create_session",
     "get_live_session_by_refresh_token",
     "list_live_for_user",
+    "live_chain_tips",
     "rotate_session",
     "revoke_session",
     "revoke_chain",
@@ -443,6 +444,56 @@ async def list_live_for_user(
         _LIVE_SESSIONS_SQL, {"uid": user_id, "now": now or _now()}
     )
     return [LiveSession(**row) for row in result.mappings()]
+
+
+#: For each session id given, the live row its rotation chain has reached.
+#
+# A refresh spends the row it rotates and mints a child, so a sign-in that
+# named row A an hour ago is row C now. The walk goes forward from each given
+# row through spent ones only and stops at the first live one; a chain ended
+# by ``revoke_chain`` or ``revoke_all_for_user`` has no live row to stop at,
+# and one left alone past its expiry has none either. A caller that keeps the
+# answer and asks from there next time walks one or two rows per ask.
+_LIVE_CHAIN_TIPS_SQL = text(
+    """
+    WITH RECURSIVE walk AS (
+        SELECT id AS origin, id, revoked_at, expires_at
+        FROM auth_sessions
+        WHERE id = ANY(CAST(:ids AS uuid[]))
+        UNION ALL
+        SELECT w.origin, s.id, s.revoked_at, s.expires_at
+        FROM walk w JOIN auth_sessions s ON s.parent_id = w.id
+        WHERE w.revoked_at IS NOT NULL
+    )
+    SELECT DISTINCT ON (origin) origin, id
+    FROM walk
+    WHERE revoked_at IS NULL AND expires_at > :now
+    ORDER BY origin, expires_at DESC
+    """
+)
+
+
+async def live_chain_tips(
+    session: AsyncSession,
+    *,
+    session_ids: Collection[uuid.UUID],
+    now: datetime | None = None,
+) -> dict[uuid.UUID, uuid.UUID]:
+    """Map each given session id to the live row its chain has reached.
+
+    An id whose chain has ended — revoked, or expired without a renewal — is
+    absent from the answer. One statement for any number of ids, which is what
+    lets a sweep over many open connections ask about all of their sign-ins
+    at once.
+    """
+    if not session_ids:
+        return {}
+    connection = await session.connection()
+    result = await connection.execute(
+        _LIVE_CHAIN_TIPS_SQL,
+        {"ids": list(session_ids), "now": now or _now()},
+    )
+    return {row.origin: row.id for row in result}
 
 
 async def revoke_session(

@@ -24,6 +24,8 @@ delegation JWTs) fail closed against policy-gated guilds.
 from __future__ import annotations
 
 import contextvars
+import uuid
+from dataclasses import dataclass
 
 _satisfied_providers: contextvars.ContextVar[frozenset[int] | str] = (
     contextvars.ContextVar("auth_satisfied_providers", default=frozenset())
@@ -190,3 +192,34 @@ def device_token_id() -> int | None:
     """The device token recorded for this request, if it was authenticated by
     one."""
     return _device_token_id.get()
+
+
+@dataclass(frozen=True)
+class SessionCredential:
+    """The session JWT that authenticated this request, by the two values
+    that say whether it still stands: the ``auth_sessions`` row its ``sid``
+    names, and the ``users.token_version`` it was minted at.
+
+    Recorded by the WebSocket authenticator so a stream registered on the
+    socket can ask again later, after the request that opened it is long gone.
+    ``None`` for every other credential.
+    """
+
+    session_id: uuid.UUID
+    token_version: int
+
+
+_session_credential: contextvars.ContextVar[SessionCredential | None] = (
+    contextvars.ContextVar("auth_session_credential", default=None)
+)
+
+
+def set_session_credential(value: SessionCredential | None) -> None:
+    """Record the session JWT that authenticated this request (or clear it)."""
+    _session_credential.set(value)
+
+
+def session_credential() -> SessionCredential | None:
+    """The session JWT recorded for this request, if it was authenticated by
+    one."""
+    return _session_credential.get()

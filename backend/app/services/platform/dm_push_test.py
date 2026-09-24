@@ -30,7 +30,7 @@ from app.models.platform.dm_device import DmDevice
 from app.models.platform.push_token import PushToken
 from app.models.platform.user_dm_settings import DmPolicy
 from app.services.platform import user_tokens
-from app.testing import set_notification_prefs
+from app.testing import push_switched_on, set_notification_prefs
 
 pytestmark = pytest.mark.asyncio
 
@@ -39,7 +39,7 @@ pytestmark = pytest.mark.asyncio
 def fcm_configured():
     """A deployment with push switched on. Off is the default and its own short
     circuit, which would make every assertion below pass for the wrong reason."""
-    with patch("app.services.platform.push_notifications.settings.FCM_ENABLED", True):
+    with push_switched_on():
         yield
 
 

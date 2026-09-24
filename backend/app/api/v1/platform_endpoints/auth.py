@@ -74,6 +74,7 @@ from app.api.v1.platform_endpoints.session_opening import (
 from app.core.audit_events import AuditEventType
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
+from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import (
     LOGIN_STATUSES,
     SIGN_IN_STATUSES,
@@ -160,6 +161,7 @@ from app.services import email as email_service
 from app.services.platform import user_tokens
 from app.services.platform import guilds as guilds_service
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
+from app.services.stream_authz import authority as stream_authority
 from app.services.platform import provider_placement
 from app.models.platform.user_token import UserTokenPurpose
 
@@ -1122,19 +1124,32 @@ async def _revoke_signed_out_login(
     a refresh replaces the row it rotates, so a credential minted earlier in
     the chain still names the live one.
     """
-    raw = request.cookies.get(REFRESH_COOKIE_NAME) or (
-        payload.refresh_token if payload is not None else None
-    )
-    if raw:
-        row = await session_service.get_live_session_by_refresh_token(
-            system_session, raw
-        )
-        if row is not None and row.user_id == user_id:
-            await session_service.revoke_chain(system_session, session_id=row.id)
-            return
+    row = await _presented_live_session(request, system_session, payload=payload)
+    if row is not None and row.user_id == user_id:
+        await session_service.revoke_chain(system_session, session_id=row.id)
+        return
     session_id = current_session_row(request)
     if session_id is not None:
         await session_service.revoke_chain(system_session, session_id=session_id)
+
+
+async def _presented_live_session(
+    request: Request,
+    system_session: AsyncSession,
+    *,
+    payload: RefreshRequest | None,
+) -> AuthSession | None:
+    """The live session the refresh token this request presents belongs to.
+
+    A cookie for the browser, the body for a native client. ``None`` where
+    neither carries one, or the one carried names no live session.
+    """
+    raw = request.cookies.get(REFRESH_COOKIE_NAME) or (
+        payload.refresh_token if payload is not None else None
+    )
+    if not raw:
+        return None
+    return await session_service.get_live_session_by_refresh_token(system_session, raw)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -1161,7 +1176,16 @@ async def logout(
     A native client authenticating with a device token consumes that row too —
     the token is one installed client's, so consuming it is the same per-device
     scope by another name.
+
+    A client whose access token has already expired still signs out: the
+    refresh token it presents names its session, and holding it is what
+    renewing would have asked for. That session's chain is revoked and no
+    other.
+
+    Connections opened on the ended session or device token are re-checked
+    once it commits, and close.
     """
+    signed_out: int | None = None
     # ``auth_sessions`` and ``user_tokens`` are both reached on the system
     # engine, so the device token, the login chain and the record commit
     # together.
@@ -1178,12 +1202,20 @@ async def logout(
         await _revoke_signed_out_login(
             request, system_session, payload=payload, user_id=current_user.id
         )
+        signed_out = current_user.id
+    else:
+        row = await _presented_live_session(request, system_session, payload=payload)
+        if row is not None:
+            await session_service.revoke_chain(system_session, session_id=row.id)
+            signed_out = row.user_id
+    if signed_out is not None:
         await audit_service.record(
             system_session,
             event_type=AuditEventType.AUTH_SIGNED_OUT,
-            actor_user_id=current_user.id,
+            actor_user_id=signed_out,
         )
         await system_session.commit()
+        await stream_authority.revoke_user_everywhere(signed_out)
     response.delete_cookie(
         key=SESSION_COOKIE_NAME,
         path="/",
@@ -1485,6 +1517,9 @@ async def revoke_device_token(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.TOKEN_NOT_FOUND
         )
+    # Connections the device opened with it close now rather than at the next
+    # sweep.
+    await stream_authority.revoke_user_everywhere(current_user.id)
 
 
 def _provider_state_key(row: AuthProvider) -> str:
@@ -1947,7 +1982,7 @@ async def _complete_provider_login(
     # connection counts this arrival as one of its own.
     try:
         claim_path = provider_row.role_claim_path
-        if claim_path or await provider_placement.has_directory_rules(
+        if await provider_placement.provider_syncs_placement(
             system_session, provider_id=provider_row.id
         ):
             claim_values = (
@@ -2332,4 +2367,6 @@ async def reset_password(
     user.updated_at = datetime.now(timezone.utc)
     system_session.add(user)
     await system_session.commit()
+    # Open connections stand on credentials the reset has just ended.
+    await stream_authority.revoke_user_everywhere(record.user_id)
     return VerificationSendResponse(status="reset")

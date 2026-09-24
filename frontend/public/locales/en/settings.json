@@ -561,6 +561,63 @@
     "saveSuccess": "Email settings saved",
     "saveError": "Unable to save email settings"
   },
+  "push": {
+    "platformOnly": "Only the platform owner can manage push notification settings.",
+    "loading": "Loading push notification settings…",
+    "loadError": "Unable to load push notification settings.",
+    "title": "Firebase Cloud Messaging",
+    "description": "The Firebase project the mobile apps register with, and the server sends push notifications through.",
+    "enabledLabel": "Send push notifications",
+    "enabledHelp": "The mobile apps pick this up the next time they open. No restart needed.",
+    "fields": {
+      "project_id": {
+        "label": "Project ID",
+        "help": "Project settings → General → Project ID."
+      },
+      "application_id": {
+        "label": "App ID",
+        "help": "Project settings → General → Your apps → App ID."
+      },
+      "api_key": {
+        "label": "Web API key",
+        "help": "Project settings → General → Web API key."
+      },
+      "sender_id": {
+        "label": "Sender ID",
+        "help": "Project settings → Cloud Messaging → Sender ID."
+      }
+    },
+    "serviceAccountLabel": "Service account key",
+    "serviceAccountSet": "A key is saved. Paste a new one to replace it.",
+    "serviceAccountHelp": "The whole JSON file from Project settings → Service accounts → Generate new private key. Leave blank to keep the saved key.",
+    "serviceAccountInvalid": "Paste the whole key file: one JSON object, braces included.",
+    "save": "Save push settings",
+    "saving": "Saving…",
+    "saved": "Push settings saved",
+    "error": "Unable to save push settings"
+  },
+  "captcha": {
+    "title": "Captcha",
+    "description": "A check that the person signing up, or asking for an emailed sign-in code, is not a bot.",
+    "on": "On",
+    "off": "Off",
+    "providerLabel": "Provider",
+    "providers": {
+      "off": "None",
+      "hcaptcha": "hCaptcha",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA v2"
+    },
+    "siteKeyLabel": "Site key",
+    "secretKeyLabel": "Secret key",
+    "secretKeySet": "••••••••",
+    "secretKeyHelp": "Leave blank to keep the saved secret key.",
+    "incomplete": "The captcha comes on once a provider, a site key and a secret key are all saved.",
+    "save": "Save captcha settings",
+    "saving": "Saving…",
+    "saved": "Captcha settings saved",
+    "error": "Unable to save captcha settings"
+  },
   "auth": {
     "platformOnly": "Only the platform owner can manage authentication settings.",
     "loading": "Loading auth settings…",
@@ -836,11 +893,12 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Sign-in, security, branding, email, the community directory, integrations, storage and intake for the whole deployment.",
+    "subtitle": "Sign-in, security, branding, email, push notifications, the community directory, integrations, storage and intake for the whole deployment.",
     "tabs": {
       "auth": "Authentication",
       "branding": "Branding",
       "email": "Email",
+      "push": "Push notifications",
       "community": "Community",
       "storage": "Storage",
       "intake": "Intake",
@@ -1746,7 +1804,7 @@
   },
   "platformSecurity": {
     "title": "Security",
-    "description": "How long anybody may stay signed in, and what a notification may leave the app carrying."
+    "description": "How long anybody may stay signed in, the captcha asked of anybody new, and what a notification may leave the app carrying."
   },
   "notificationDelivery": {
     "title": "Notifications that leave the app",

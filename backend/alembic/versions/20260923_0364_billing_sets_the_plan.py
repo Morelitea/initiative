@@ -16,8 +16,8 @@ billing's, and the database holds every other writer to that.
 * ``guild_status_follows_billing`` (``BEFORE UPDATE OF status`` on ``guilds``):
   while billing-managed, the billing role moves a guild between the statuses
   it sets and never into or out of ``suspended`` or ``deleted``; every other
-  role moves it into ``suspended``, from ``suspended`` to ``billing_status``,
-  into ``deleted``, or out of ``deleted``.
+  role moves it into ``suspended`` or ``deleted``, and from either of those to
+  ``billing_status``.
 * A ``billing`` access grant has one level, ``read``.
 
 Revision ID: 20260923_0364
@@ -119,10 +119,10 @@ BEGIN
         END IF;
         RETURN NEW;
     END IF;
-    IF NEW.status IN ('suspended', 'deleted') OR OLD.status = 'deleted' THEN
+    IF NEW.status IN ('suspended', 'deleted') THEN
         RETURN NEW;
     END IF;
-    IF OLD.status = 'suspended' THEN
+    IF OLD.status IN ('suspended', 'deleted') THEN
         SELECT a.billing_status INTO recorded
         FROM public.guild_administration a
         WHERE a.guild_id = NEW.id;

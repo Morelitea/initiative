@@ -55,9 +55,9 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * omit it. The receiver must persist it from this response or rotate the
  * subscription if they lose it.
  *
- * Any member of the guild may register one, because doing so grants no access:
- * delivery reads the change log as this creator, so the target receives
- * exactly what they can see and nothing more.
+ * A subscription is the community's configuration: delivery carries the change
+ * log of the scope it names, the initiative it was registered against or, for
+ * one a guild admin registers, the whole community.
  *
  * Target policy: ``target_url`` must be https and resolve to a public unicast
  * address; private, loopback and link-local addresses are rejected.

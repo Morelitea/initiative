@@ -172,6 +172,9 @@ class GuildMessages:
     #: Where billing sets plans, the operator moves a community into and out
     #: of a suspension and no other way.
     GUILD_STATUS_SET_BY_BILLING = "GUILD_STATUS_SET_BY_BILLING"
+    #: Where billing sets plans, a deleted community is restored at the status
+    #: billing last set or suspended.
+    GUILD_RESTORE_STATUS_SET_BY_BILLING = "GUILD_RESTORE_STATUS_SET_BY_BILLING"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
     # Asked to join a guild that is not listed in the community directory (or

@@ -18,6 +18,8 @@ import type {
   AuthProviderOwnerRead,
   AuthProviderProbeResult,
   AuthProviderUpdate,
+  CaptchaSettingsResponse,
+  CaptchaSettingsUpdate,
   ChangelogResponse,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
@@ -38,6 +40,8 @@ import type {
   PlatformGuildStorageUpdate,
   PlatformProviderDefaultRead,
   PlatformProviderDefaultUpdate,
+  PushSettingsResponse,
+  PushSettingsUpdate,
   SecondFactorRequirementUpdate,
   SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
@@ -47,14 +51,17 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut,
+  getCaptchaSettingsApiV1SettingsCaptchaGet,
   getEmailSettingsApiV1SettingsEmailGet,
   getFcmConfigApiV1SettingsFcmConfigGet,
+  getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey,
   getGetEmailSettingsApiV1SettingsEmailGetQueryKey,
   getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey,
   getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey,
   getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
   getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey,
+  getGetPushSettingsApiV1SettingsPushGetQueryKey,
   getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
   getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
   getInterfaceSettingsApiV1SettingsInterfaceGet,
@@ -62,6 +69,7 @@ import {
   getNotificationSettingsApiV1SettingsNotificationsGet,
   getOidcSettingsApiV1SettingsAuthGet,
   getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
+  getPushSettingsApiV1SettingsPushGet,
   getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey,
   getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
   getStorageSettingsApiV1SettingsStorageGet,
@@ -71,12 +79,14 @@ import {
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
   testStorageConnectionApiV1SettingsStorageTestPost,
+  updateCaptchaSettingsApiV1SettingsCaptchaPut,
   updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateLoginMethodsApiV1SettingsAuthMethodsPut,
   updateNotificationSettingsApiV1SettingsNotificationsPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
+  updatePushSettingsApiV1SettingsPushPut,
   updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut,
   updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut,
   updateStorageSettingsApiV1SettingsStoragePut,
@@ -162,6 +172,20 @@ export const useStorageBackfillStatus = (options?: QueryOpts<StorageBackfillStat
     ...options,
   });
 };
+
+export const useCaptchaSettings = (options?: QueryOpts<CaptchaSettingsResponse>) =>
+  useQuery<CaptchaSettingsResponse>({
+    queryKey: getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey(),
+    queryFn: () => getCaptchaSettingsApiV1SettingsCaptchaGet(),
+    ...options,
+  });
+
+export const usePushSettings = (options?: QueryOpts<PushSettingsResponse>) =>
+  useQuery<PushSettingsResponse>({
+    queryKey: getGetPushSettingsApiV1SettingsPushGetQueryKey(),
+    queryFn: () => getPushSettingsApiV1SettingsPushGet(),
+    ...options,
+  });
 
 export const useInterfaceSettings = (options?: QueryOpts<InterfaceSettingsResponse>) => {
   return useQuery<InterfaceSettingsResponse>({
@@ -400,6 +424,36 @@ export const useUpdateSecondFactorRequirement = (
           >[0]
         ),
       invalidate: () => invalidate(q.platformAuthSettings()),
+    },
+    options
+  );
+
+/**
+ * Set the registration captcha. Also invalidates the boot config, which is
+ * where the sign-up page reads the provider and site key from.
+ */
+export const useUpdateCaptchaSettings = (
+  options?: MutationOpts<CaptchaSettingsResponse, CaptchaSettingsUpdate>
+) =>
+  useApiMutation<CaptchaSettingsResponse, CaptchaSettingsUpdate>(
+    {
+      mutationFn: (data) => updateCaptchaSettingsApiV1SettingsCaptchaPut(data),
+      invalidate: () => invalidate(q.captchaSettings(), q.appConfig()),
+    },
+    options
+  );
+
+/**
+ * Set the Firebase connection. Also invalidates the public half the app reads
+ * when it registers for push.
+ */
+export const useUpdatePushSettings = (
+  options?: MutationOpts<PushSettingsResponse, PushSettingsUpdate>
+) =>
+  useApiMutation<PushSettingsResponse, PushSettingsUpdate>(
+    {
+      mutationFn: (data) => updatePushSettingsApiV1SettingsPushPut(data),
+      invalidate: () => invalidate(q.pushSettings(), q.fcmConfig()),
     },
     options
   );

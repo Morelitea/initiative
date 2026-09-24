@@ -1,13 +1,22 @@
 """The account's own "where you're signed in" list, and ending one from it."""
 
+from types import SimpleNamespace
+from typing import Optional
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.v1.platform_endpoints import sessions as sessions_endpoints
+from app.api.v1.platform_endpoints import users as users_endpoints
+from app.core import auth_context
 from app.core.security import get_password_hash
 from app.models.platform.user import UserStatus
+from app.services import stream_authz
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import user_tokens
+from app.services.platform.ws_auth import authenticate_ws_token
+from app.services.stream_authz import WS_CREDENTIAL_ENDED, StreamAuthority
 from app.testing import create_user, get_auth_headers
 
 CHROME_MAC = (
@@ -278,3 +287,173 @@ async def test_a_standing_credential_does_not_manage_sign_ins(
 
     assert response.status_code == 403
     assert response.json()["detail"] == "SESSION_REQUIRED"
+
+
+# ── open connections follow the sign-ins they were opened on ─────────────────
+
+
+class _Socket:
+    """Stands in for a content WebSocket: records the code it was closed with."""
+
+    def __init__(self) -> None:
+        self.closed: Optional[int] = None
+
+    async def close(self, code: Optional[int] = None) -> None:
+        self.closed = code
+
+
+class _LiveAccountSession:
+    """The session a surviving socket's access re-check opens, answering that
+    the account is live. What these tests are about is the credential."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_a):
+        return False
+
+    async def exec(self, *_a, **_k):
+        return None
+
+    async def get(self, _model, _pk):
+        return SimpleNamespace(status=UserStatus.active)
+
+
+@pytest.fixture
+def streams(monkeypatch):
+    """A stream registry the endpoints under test report to, whose guild and
+    resource checks pass, so a socket closes on its credential or not at all."""
+    auth_context.set_session_credential(None)
+    auth_context.set_device_token_id(None)
+    authority = StreamAuthority()
+
+    async def _admitted(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(stream_authz, "AsyncSessionLocal", _LiveAccountSession)
+    monkeypatch.setattr(stream_authz, "establish_guild_access", _admitted)
+    monkeypatch.setattr(sessions_endpoints, "stream_authority", authority)
+    monkeypatch.setattr(users_endpoints, "stream_authority", authority)
+    yield authority
+    if authority._loop_task is not None:
+        authority._loop_task.cancel()
+
+
+async def _open_stream(
+    authority: StreamAuthority, token: str, session: AsyncSession
+) -> _Socket:
+    """Authenticate the way a socket's handshake does, then join a room."""
+    user = await authenticate_ws_token(token, session)
+    assert user is not None
+
+    async def _readable(_session, _user):
+        return True
+
+    socket = _Socket()
+    await authority.join(
+        socket,  # type: ignore[arg-type]
+        user,
+        guild_id=1,
+        initiative_id=1,
+        resource_type="document",
+        resource_id=1,
+        authorize=_readable,
+    )
+    return socket
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_ending_a_session_closes_the_connections_opened_on_it(
+    client: AsyncClient, session: AsyncSession, streams: StreamAuthority
+):
+    await _signed_in_user(session, "end-streams@example.com")
+    doomed = await _sign_in(
+        client, "end-streams@example.com", user_agent=FIREFOX_WINDOWS
+    )
+    client.cookies.clear()
+    asking = await _sign_in(client, "end-streams@example.com", user_agent=CHROME_MAC)
+    asking_token = asking.json()["access_token"]
+    headers = {"Authorization": f"Bearer {asking_token}"}
+
+    on_doomed = await _open_stream(streams, doomed.json()["access_token"], session)
+    on_asking = await _open_stream(streams, asking_token, session)
+
+    rows = (await client.get("/api/v1/auth/sessions", headers=headers)).json()
+    target = next(row for row in rows if row["label"] == "Firefox on Windows")
+    ended = await client.delete(
+        f"/api/v1/auth/sessions/{target['id']}", headers=headers
+    )
+    assert ended.status_code == 204
+
+    assert on_doomed.closed == WS_CREDENTIAL_ENDED
+    assert on_asking.closed is None
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_signing_out_everywhere_else_keeps_this_sessions_connections(
+    client: AsyncClient, session: AsyncSession, streams: StreamAuthority
+):
+    user = await _signed_in_user(session, "sweep-streams@example.com")
+    elsewhere = await _sign_in(
+        client, "sweep-streams@example.com", user_agent=FIREFOX_WINDOWS
+    )
+    client.cookies.clear()
+    asking = await _sign_in(client, "sweep-streams@example.com", user_agent=CHROME_MAC)
+    asking_token = asking.json()["access_token"]
+    phone = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Phone"
+    )
+
+    on_elsewhere = await _open_stream(
+        streams, elsewhere.json()["access_token"], session
+    )
+    on_phone = await _open_stream(streams, phone, session)
+    on_asking = await _open_stream(streams, asking_token, session)
+
+    swept = await client.post(
+        "/api/v1/auth/sessions/revoke-others",
+        headers={"Authorization": f"Bearer {asking_token}"},
+    )
+    assert swept.status_code == 204
+
+    assert on_elsewhere.closed == WS_CREDENTIAL_ENDED
+    assert on_phone.closed == WS_CREDENTIAL_ENDED
+    assert on_asking.closed is None
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_a_password_change_closes_the_connections_opened_before_it(
+    client: AsyncClient, session: AsyncSession, streams: StreamAuthority
+):
+    """Every credential the account held goes with the old password, this
+    device's included; its replacement session is what it reconnects with."""
+    user = await _signed_in_user(session, "pw-streams@example.com")
+    elsewhere = await _sign_in(
+        client, "pw-streams@example.com", user_agent=FIREFOX_WINDOWS
+    )
+    client.cookies.clear()
+    asking = await _sign_in(client, "pw-streams@example.com", user_agent=CHROME_MAC)
+    asking_token = asking.json()["access_token"]
+    phone = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Phone"
+    )
+
+    on_elsewhere = await _open_stream(
+        streams, elsewhere.json()["access_token"], session
+    )
+    on_phone = await _open_stream(streams, phone, session)
+    on_asking = await _open_stream(streams, asking_token, session)
+
+    changed = await client.patch(
+        "/api/v1/users/me",
+        json={"password": "newpassword456", "current_password": PASSWORD},
+        headers={"Authorization": f"Bearer {asking_token}"},
+    )
+    assert changed.status_code == 200, changed.text
+
+    assert on_elsewhere.closed == WS_CREDENTIAL_ENDED
+    assert on_phone.closed == WS_CREDENTIAL_ENDED
+    assert on_asking.closed == WS_CREDENTIAL_ENDED

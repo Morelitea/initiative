@@ -26,6 +26,7 @@ community at a time and only for a community the rule may place into, by
 import logging
 
 from fastapi import HTTPException, status
+from sqlalchemy import ColumnElement, exists, func, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -148,17 +149,30 @@ def in_scope(rule: OIDCClaimMapping, claims: dict) -> bool:
     return narrowing_admits(rule.scope_claim, [rule.scope_value], claims)
 
 
-async def has_directory_rules(session: AsyncSession, *, provider_id: int) -> bool:
-    """Whether this provider has a rule that places by directory alone, which
-    applies to an arrival whatever groups the provider reports."""
+def syncs_placement() -> ColumnElement[bool]:
+    """Whether a provider's arrivals are reconciled against its rules, as a
+    condition on ``auth_providers``: it reports groups, or it has a rule that
+    places by directory alone, which applies whatever groups it reports.
+
+    Sign-in and the background sweep both ask this, so a provider is
+    reconciled by one on exactly the terms it is by the other.
+    """
+    return or_(
+        func.coalesce(AuthProvider.role_claim_path, "") != "",
+        exists().where(
+            OIDCClaimMapping.provider_id == AuthProvider.id,
+            OIDCClaimMapping.author == ClaimRuleAuthor.provider,
+            OIDCClaimMapping.claim_value.is_(None),
+        ),
+    )
+
+
+async def provider_syncs_placement(session: AsyncSession, *, provider_id: int) -> bool:
+    """:func:`syncs_placement` for one provider."""
     row = (
         await session.exec(
-            select(OIDCClaimMapping.id)
-            .where(
-                OIDCClaimMapping.provider_id == provider_id,
-                OIDCClaimMapping.author == ClaimRuleAuthor.provider,
-                OIDCClaimMapping.claim_value.is_(None),
-            )
+            select(AuthProvider.id)
+            .where(AuthProvider.id == provider_id, syncs_placement())
             .limit(1)
         )
     ).first()

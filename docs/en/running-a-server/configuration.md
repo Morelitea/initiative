@@ -140,13 +140,18 @@ For any real deployment you'll put Initiative behind a reverse proxy that handle
 
 ## Keeping bots out (captcha)
 
-To protect open registration from automated sign-ups, you can require a captcha:
+To keep automated sign-ups out of open registration, ask for a captcha. It's set in **Settings → Platform → Security**, under **Captcha**, and applies to signing up and to asking for an emailed sign-in code.
 
-| Variable | What it does |
+| Field | What it's for |
 |---|---|
-| `CAPTCHA_PROVIDER` | `hcaptcha`, `turnstile`, or `recaptcha` (v2). Unset disables the captcha. |
-| `CAPTCHA_SITE_KEY` | The public key used to show the widget. |
-| `CAPTCHA_SECRET_KEY` | The server-side key used to verify responses. |
+| **Provider** | hCaptcha, Cloudflare Turnstile or Google reCAPTCHA v2. **None** turns the captcha off. |
+| **Site key** | The public key that shows the widget. |
+| **Secret key** | The server-side key that checks the answer. Write-only: leave it blank when editing and the saved one stays. |
+
+The captcha switches on once all three are saved, and the section's badge says whether it's on. No restart.
+
+??? techspec "Pre-filling from environment variables"
+    On a fresh install's **first boot**, `CAPTCHA_PROVIDER`, `CAPTCHA_SITE_KEY` and `CAPTCHA_SECRET_KEY` fill these settings in. After that the settings page owns them and the variables are ignored.
 
 ## AI assistant access (MCP)
 
@@ -169,7 +174,7 @@ See [Publishing your own listings](publishing-listings.md).
 These have their own pages:
 
 - **File storage** — keep uploads on local disk (default) or use S3-compatible object storage. See [Object storage](object-storage.md).
-- **Mobile push** — enable Firebase Cloud Messaging. See [Push notifications](push-notifications.md).
+- **Mobile push** — connect Firebase Cloud Messaging from **Settings → Platform → Push notifications**. See [Push notifications](push-notifications.md).
 
 ## Mobile app version floor
 

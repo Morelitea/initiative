@@ -594,8 +594,25 @@ async def communities_admitting(
     default for the provider where it does not. An enabled arrangement whose
     narrowing admits the claims counts; a disabled one, or none, does not.
     """
+    arrangements = await _arrangements(
+        session, provider_id=provider_id, guild_ids=guild_ids
+    )
+    return {
+        guild_id
+        for guild_id, arrangement in arrangements.items()
+        if arrangement is not None
+        and arrangement.enabled
+        and narrowing_admits(arrangement.claim, arrangement.claim_values, claims)
+    }
+
+
+async def _arrangements(
+    session: AsyncSession, *, provider_id: int, guild_ids: set[int]
+) -> dict[int, GuildProviderConnection | PlatformProviderDefault | None]:
+    """Each community's arrangement for this provider: its own connection where
+    it has one, and the deployment's default where it does not."""
     if not guild_ids:
-        return set()
+        return {}
     own = {
         row.guild_id: row
         for row in (
@@ -608,16 +625,25 @@ async def communities_admitting(
         ).all()
     }
     default = await session.get(PlatformProviderDefault, provider_id)
-    admitted: set[int] = set()
-    for guild_id in guild_ids:
-        arrangement = own.get(guild_id, default)
-        if (
-            arrangement is not None
-            and arrangement.enabled
-            and narrowing_admits(arrangement.claim, arrangement.claim_values, claims)
-        ):
-            admitted.add(guild_id)
-    return admitted
+    return {guild_id: own.get(guild_id, default) for guild_id in guild_ids}
+
+
+async def narrowing_claims(
+    session: AsyncSession, *, provider_id: int, guild_ids: set[int]
+) -> set[str]:
+    """The claims these communities' arrangements for this provider narrow
+    by — the ones :func:`communities_admitting` reads for them."""
+    arrangements = await _arrangements(
+        session, provider_id=provider_id, guild_ids=guild_ids
+    )
+    return {
+        arrangement.claim
+        for arrangement in arrangements.values()
+        if arrangement is not None
+        and arrangement.enabled
+        and arrangement.claim
+        and arrangement.claim_values
+    }
 
 
 async def join_on_arrival(

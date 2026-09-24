@@ -18,6 +18,7 @@ WS paths in lockstep with the HTTP path so the ``token_version`` check
 can't silently drift out of one of them again.
 """
 
+import uuid
 from typing import Optional
 
 import jwt
@@ -25,10 +26,13 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth_context import (
+    SessionCredential,
     claims_from_provider_auth,
+    set_device_token_id,
     set_satisfied_claims,
     set_satisfied_providers,
     set_session_amr,
+    set_session_credential,
 )
 from app.core.security import decode_session_token
 from app.models.platform.user import User, UserStatus
@@ -51,6 +55,17 @@ def _is_a_jwt(token: str) -> bool:
     return True
 
 
+def _session_row_id(sid: Optional[str]) -> Optional[uuid.UUID]:
+    """The ``auth_sessions`` row a session token's ``sid`` names, or ``None``
+    where it names none."""
+    if not sid:
+        return None
+    try:
+        return uuid.UUID(sid)
+    except ValueError:
+        return None
+
+
 async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[User]:
     """Validate a session JWT or device token and return the active user.
 
@@ -70,16 +85,26 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     and legacy JWTs) — so the
     ``establish_guild_access`` call that follows applies the guild auth-policy
     gate to the socket exactly as REST would.
+
+    It also records which credential this was: the session row and
+    ``token_version`` a session JWT names, or the id of the device token. A
+    socket outlives the request that opened it, so the streams it joins keep
+    these and ask again whether that credential still stands (see
+    ``app.services.stream_authz``). A session JWT without a ``sid`` names no
+    sign-in to ask about and opens no socket.
     """
     set_satisfied_providers(None)
     set_satisfied_claims(None)
     set_session_amr(None)
+    set_session_credential(None)
+    set_device_token_id(None)
 
     # First try JWT validation.
     try:
         payload = decode_session_token(token)
         token_data = TokenPayload(**payload)
-        if token_data.sub:
+        session_id = _session_row_id(token_data.sid)
+        if token_data.sub and session_id is not None:
             user = await user_for_subject(session, subject=token_data.sub)
             if (
                 user
@@ -87,6 +112,11 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
                 and token_data.ver is not None
                 and token_data.ver == user.token_version
             ):
+                set_session_credential(
+                    SessionCredential(
+                        session_id=session_id, token_version=token_data.ver
+                    )
+                )
                 set_satisfied_providers(frozenset(token_data.sat or ()))
                 set_satisfied_claims(claims_from_provider_auth(token_data.satd))
                 # Read from the session's own ``amr``, as the HTTP path
@@ -112,6 +142,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
         result = await session.exec(statement)
         user = result.one_or_none()
         if user and user.status == UserStatus.active:
+            set_device_token_id(device_token.id)
             return user
 
     return None
