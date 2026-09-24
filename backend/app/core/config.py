@@ -366,11 +366,15 @@ class Settings(BaseSettings):
 
     @property
     def content_security_policy(self) -> str:
-        """Enforced CSP for the served SPA (pentest MED-001)."""
-        return self.content_security_policy_with_frames(())
+        """Enforced CSP for the served SPA (pentest MED-001), with the env's
+        captcha provider -- what a process that has not read its settings row
+        yet serves."""
+        return self.content_security_policy_with_frames(
+            (), captcha_provider=self.CAPTCHA_PROVIDER
+        )
 
     def content_security_policy_with_frames(
-        self, app_frame_origins: Sequence[str]
+        self, app_frame_origins: Sequence[str], *, captcha_provider: str | None
     ) -> str:
         """The app-wide CSP, optionally admitting the registered frame origins.
 
@@ -402,9 +406,8 @@ class Settings(BaseSettings):
         frame_src = ["'self'", *CSP_EMBED_FRAME_ORIGINS]
         worker_src = ["'self'", "blob:"]
 
-        provider = self.CAPTCHA_PROVIDER
-        if provider in CSP_CAPTCHA_ORIGINS:
-            extra = CSP_CAPTCHA_ORIGINS[provider]
+        if captcha_provider in CSP_CAPTCHA_ORIGINS:
+            extra = CSP_CAPTCHA_ORIGINS[captcha_provider]
             script_src += extra
             style_src += extra
             frame_src += extra

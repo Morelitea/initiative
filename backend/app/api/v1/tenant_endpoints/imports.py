@@ -435,8 +435,9 @@ async def cancel_import_job(
     nothing but that payload, so stopping one mid-read is safe — the worker
     notices at the next project and throws away what it had. A running or
     terminal job is not cancellable — 409 (an interrupted apply would leave
-    half-committed content)."""
-    job = await session.get(ImportJob, job_id)
+    half-committed content). The row is locked, as the worker locks it to
+    claim, so the status read here is the one the cancel replaces."""
+    job = await session.get(ImportJob, job_id, with_for_update=True)
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

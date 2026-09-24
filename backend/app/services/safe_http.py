@@ -19,6 +19,10 @@ import httpx
 from app.services.webhook_target_url import resolve_validated_target_async
 
 
+class ResponseTooLargeError(Exception):
+    """The response body, decoded, ran past the caller's ``max_bytes``."""
+
+
 def _authority(url: httpx.URL) -> str:
     """``host[:port]`` for the ``Host`` header, bracketing IPv6 literals
     and including the port only when the URL specified one."""
@@ -94,6 +98,7 @@ async def request_public_target(
     timeout: httpx.Timeout | float,
     transport: httpx.AsyncBaseTransport | None = None,
     allow_private: bool = False,
+    max_bytes: int | None = None,
 ) -> httpx.Response:
     """Send a request to a validated public target. The host is resolved
     once; the request connects to a validated address and, if one fails
@@ -102,7 +107,11 @@ async def request_public_target(
     already consumed the caller's budget — so total wall time stays bounded
     by ``timeout``. ``allow_private`` permits private/loopback targets (still
     pinned) for operator-configured destinations. ``transport`` is injectable
-    for tests."""
+    for tests.
+
+    ``max_bytes`` bounds the body as it is read, counted after any content
+    decoding, and raises :class:`ResponseTooLargeError` past it. Unset, the
+    body is read whole."""
     original = httpx.URL(url)
     target = await resolve_validated_target_async(url, allow_private=allow_private)
     last_exc: httpx.ConnectError | None = None
@@ -120,12 +129,44 @@ async def request_public_target(
                 json=json,
             )
             try:
-                return await client.send(request)
+                response = await client.send(request, stream=max_bytes is not None)
             except httpx.ConnectError as exc:
                 # Fast failure for this validated address; try the next one.
                 last_exc = exc
+                continue
+            if max_bytes is None:
+                return response
+            return await _read_bounded(response, max_bytes)
     if last_exc is not None:
         raise last_exc
     # Unreachable: resolve_validated_target_async guarantees at least one
     # address, so the loop always sets last_exc on total failure.
     raise RuntimeError(f"no validated address to connect to for {url!r}")
+
+
+async def _read_bounded(response: httpx.Response, max_bytes: int) -> httpx.Response:
+    """A streamed response read into memory up to ``max_bytes`` decoded bytes.
+
+    Returned as a plain response holding the decoded body, so the encoding
+    headers that described the wire form are dropped with it.
+    """
+    body = bytearray()
+    try:
+        async for chunk in response.aiter_bytes():
+            body += chunk
+            if len(body) > max_bytes:
+                raise ResponseTooLargeError(max_bytes)
+    finally:
+        await response.aclose()
+    headers = [
+        (name, value)
+        for name, value in response.headers.multi_items()
+        if name.lower()
+        not in ("content-encoding", "content-length", "transfer-encoding")
+    ]
+    return httpx.Response(
+        response.status_code,
+        headers=headers,
+        content=bytes(body),
+        request=response.request,
+    )

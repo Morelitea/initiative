@@ -626,6 +626,7 @@
   "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "This deployment does not permit signing in that way.",
   "SETTINGS_LOGIN_METHODS_GUILD_POLICIES": "A community still requires a sign-in through a provider of its own. Lift that requirement first.",
   "OPERATOR_ALREADY_ANONYMIZED": "That account has already been anonymised.",
+  "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE": "You can't suspend or restore an account whose role is higher than your own.",
   "OPERATOR_CANNOT_SUSPEND_INACTIVE": "That account is already inactive, so there is nothing to suspend.",
   "OPERATOR_CANNOT_SUSPEND_SELF": "You can't suspend your own account.",
   "CANNOT_REACTIVATE_ANONYMIZED": "An anonymised account can't be reactivated.",

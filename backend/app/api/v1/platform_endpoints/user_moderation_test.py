@@ -293,6 +293,29 @@ class TestSuspension:
         assert response.status_code == 400
         assert response.json()["detail"] == "OPERATOR_CANNOT_SUSPEND_INACTIVE"
 
+    @pytest.mark.parametrize(
+        ("actor_role", "subject_role"),
+        [
+            (UserRole.moderator, UserRole.operator),
+            (UserRole.moderator, UserRole.owner),
+            (UserRole.operator, UserRole.owner),
+        ],
+    )
+    async def test_an_account_that_outranks_you_is_refused(
+        self, client, session, actor_role, subject_role
+    ):
+        actor = await create_user(session, role=actor_role)
+        subject = await create_user(session, role=subject_role)
+
+        response = await client.post(
+            f"/api/v1/operator/users/{subject.id}/suspension",
+            headers=get_auth_headers(actor),
+            json={"suspended": True},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE"
+
     @pytest.mark.parametrize("role", [UserRole.member, UserRole.support])
     async def test_below_moderator_is_refused(self, client, session, role):
         actor = await create_user(session, role=role)

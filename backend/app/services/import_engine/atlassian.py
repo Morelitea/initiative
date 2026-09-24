@@ -40,7 +40,7 @@ from app.schemas.tenant.atlassian import (
     AtlassianJiraProject,
 )
 from app.services.import_engine.contract import ImportEngineError
-from app.services.safe_http import request_public_target
+from app.services.safe_http import ResponseTooLargeError, request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -53,6 +53,10 @@ logger = logging.getLogger(__name__)
 #: that cannot answer a listing in ten seconds is not one we can read a
 #: thousand issues from either.
 REQUEST_TIMEOUT_SECONDS = 10.0
+
+#: The most a JSON answer from the site may decode to. A page of issues with
+#: their rendered fields runs to a few megabytes; this is well past that.
+MAX_JSON_BYTES = 64 * 1024 * 1024
 
 #: How many listing calls run at once. Counts are one call per project or
 #: space, so a site with fifty of each would be a hundred round trips in
@@ -207,7 +211,14 @@ async def get_json(
     it becomes ``IMPORT_SOURCE_RATE_LIMITED``. Nothing else is retried: every
     other failure is an answer, and asking again would get the same one.
     """
-    response = await _send(credential, path, method=method, json=json, retry=retry)
+    response = await _send(
+        credential,
+        path,
+        method=method,
+        json=json,
+        retry=retry,
+        max_bytes=MAX_JSON_BYTES,
+    )
     return _parse(response, path)
 
 
@@ -232,12 +243,18 @@ async def get_bytes(
     this credential: the token is for the site, and goes nowhere else.
     """
     response = await _send(
-        credential, path, method="GET", json=None, retry=retry, accept="*/*"
+        credential,
+        path,
+        method="GET",
+        json=None,
+        retry=retry,
+        accept="*/*",
+        max_bytes=max_bytes,
     )
     if response.status_code in (401, 403):
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_AUTH)
     if follow_redirect and response.status_code in (301, 302, 303, 307, 308):
-        response = await _follow(response, path)
+        response = await _follow(response, path, max_bytes=max_bytes)
     if response.status_code >= 300:
         # A redirect is not followed: the attachment endpoint is asked for its
         # content directly, and anything else is not an answer.
@@ -251,7 +268,9 @@ async def get_bytes(
     return data
 
 
-async def _follow(response: httpx.Response, path: str) -> httpx.Response:
+async def _follow(
+    response: httpx.Response, path: str, *, max_bytes: int
+) -> httpx.Response:
     """The one redirect a download is allowed, fetched without credentials."""
     location = response.headers.get("location") or ""
     if urlsplit(location).scheme != "https":
@@ -263,7 +282,10 @@ async def _follow(response: httpx.Response, path: str) -> httpx.Response:
             location,
             headers={"Accept": "*/*"},
             timeout=REQUEST_TIMEOUT_SECONDS,
+            max_bytes=max_bytes,
         )
+    except ResponseTooLargeError:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     except WebhookTargetUrlPrivateError:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_PRIVATE_HOST)
     except (WebhookTargetUrlError, httpx.TimeoutException, httpx.TransportError):
@@ -278,6 +300,7 @@ async def _send(
     json: object | None,
     retry: RetryPolicy,
     accept: str = "application/json",
+    max_bytes: int,
 ) -> httpx.Response:
     """One call, with a ``429`` waited out under ``retry``.
 
@@ -286,7 +309,12 @@ async def _send(
     """
     for attempt in range(retry.attempts):
         response = await _request(
-            credential, path, method=method, json=json, accept=accept
+            credential,
+            path,
+            method=method,
+            json=json,
+            accept=accept,
+            max_bytes=max_bytes,
         )
         if response.status_code != 429:
             return response
@@ -315,6 +343,7 @@ async def _request(
     method: str,
     json: object | None,
     accept: str = "application/json",
+    max_bytes: int,
 ) -> httpx.Response:
     """Send one request, with the transport's failures turned into codes."""
     url = f"{credential.site_url}{path}"
@@ -328,7 +357,10 @@ async def _request(
             },
             json=json,
             timeout=REQUEST_TIMEOUT_SECONDS,
+            max_bytes=max_bytes,
         )
+    except ResponseTooLargeError:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     except WebhookTargetUrlPrivateError:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_PRIVATE_HOST)
     except WebhookTargetUrlError:

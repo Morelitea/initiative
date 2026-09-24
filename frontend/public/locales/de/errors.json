@@ -626,6 +626,7 @@
   "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "Dieses Deployment erlaubt diese Art der Anmeldung nicht.",
   "SETTINGS_LOGIN_METHODS_GUILD_POLICIES": "Eine Community verlangt weiterhin eine Anmeldung über einen eigenen Anbieter. Hebe diese Anforderung zuerst auf.",
   "OPERATOR_ALREADY_ANONYMIZED": "Dieses Konto wurde bereits anonymisiert.",
+  "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE": "Du kannst kein Konto sperren oder entsperren, dessen Rolle höher als deine eigene ist.",
   "OPERATOR_CANNOT_SUSPEND_INACTIVE": "Dieses Konto ist bereits inaktiv, es gibt nichts zu sperren.",
   "OPERATOR_CANNOT_SUSPEND_SELF": "Du kannst dein eigenes Konto nicht sperren.",
   "CANNOT_REACTIVATE_ANONYMIZED": "Ein anonymisiertes Konto kann nicht reaktiviert werden.",

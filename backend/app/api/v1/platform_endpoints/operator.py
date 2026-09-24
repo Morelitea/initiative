@@ -9,7 +9,12 @@ from app.api.deps import UserSessionDep, require_capability
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
-from app.core.capabilities import Capability, capabilities_for, can_assign_role
+from app.core.capabilities import (
+    Capability,
+    capabilities_for,
+    can_assign_role,
+    role_rank,
+)
 from app.db.session import get_system_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.user import User, UserStatus
@@ -487,6 +492,15 @@ async def set_user_suspension(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=OperatorMessages.CANNOT_SUSPEND_INACTIVE,
+        )
+
+    # The same bound as a role change: nobody acts on an account that outranks
+    # them, in either direction. An owner is therefore suspended only by another
+    # owner, who stays behind holding config-management.
+    if role_rank(user.role) > role_rank(current_user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=OperatorMessages.CANNOT_SUSPEND_HIGHER_ROLE,
         )
 
     already = user.status == UserStatus.suspended

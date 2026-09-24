@@ -69,6 +69,28 @@ async def test_responses_carry_content_security_policy(client: AsyncClient) -> N
     assert "object-src 'none'" in csp
 
 
+@pytest.mark.integration
+async def test_csp_admits_the_stored_captcha_provider(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The provider is a setting, so the header follows the stored value rather
+    # than the env the process started with.
+    from app.services import captcha_config
+
+    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", None)
+    monkeypatch.setattr(
+        captcha_config,
+        "_resolved",
+        captcha_config.ResolvedCaptchaConfig(
+            provider="turnstile", site_key="site", secret_key="secret"
+        ),
+    )
+    resp = await client.get("/api/v1/config")
+    assert "https://challenges.cloudflare.com" in resp.headers.get(
+        "content-security-policy", ""
+    )
+
+
 # --- WebAssembly worker assets (WebAssembly is named on these responses only) ---
 
 

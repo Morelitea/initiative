@@ -7,12 +7,17 @@ resolution used to connect cannot differ.
 
 from __future__ import annotations
 
+import gzip
 from unittest.mock import patch
 
 import httpx
 import pytest
 
-from app.services.safe_http import build_validated_request, request_public_target
+from app.services.safe_http import (
+    ResponseTooLargeError,
+    build_validated_request,
+    request_public_target,
+)
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -241,3 +246,43 @@ async def test_private_target_still_refused_without_allow_private():
             await build_validated_request(
                 "POST", "https://internal.example.com/x", content=b""
             )
+
+
+def _gzipped(body: bytes):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"Content-Encoding": "gzip", "Content-Type": "application/json"},
+            content=gzip.compress(body),
+        )
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.unit
+async def test_a_bounded_read_is_counted_after_decoding():
+    """A small compressed body that inflates past the bound is refused."""
+    with _resolves_to("93.184.216.34"), pytest.raises(ResponseTooLargeError):
+        await request_public_target(
+            "GET",
+            "https://site.example.com/big",
+            timeout=5.0,
+            transport=_gzipped(b"0" * 10_000),
+            max_bytes=1_000,
+        )
+
+
+@pytest.mark.unit
+async def test_a_bounded_read_within_its_bound_reads_as_usual():
+    with _resolves_to("93.184.216.34"):
+        response = await request_public_target(
+            "GET",
+            "https://site.example.com/small",
+            timeout=5.0,
+            transport=_gzipped(b'{"ok": true}'),
+            max_bytes=1_000,
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    assert "content-encoding" not in response.headers

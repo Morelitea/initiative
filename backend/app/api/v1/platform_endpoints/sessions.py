@@ -25,7 +25,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.api.deps import AccountHolder
+from app.api.deps import AccountHolder, require_first_party_session
 from app.api.v1.platform_endpoints.session_opening import current_session_row
 from app.core import auth_context
 from app.core.audit_events import AuditEventType
@@ -42,6 +42,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 router = APIRouter()
 
 SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
+#: The account's own sign-ins are listed and ended by the person, in a session of
+#: their own, not through a standing credential.
+FirstPartyOnly = Annotated[str, Depends(require_first_party_session)]
 
 
 @router.get("/sessions", response_model=list[SignedInSessionInfo])
@@ -49,6 +52,7 @@ async def list_my_sessions(
     request: Request,
     system_session: SystemSessionDep,
     current_user: AccountHolder,
+    _first_party: FirstPartyOnly,
 ) -> list[SignedInSessionInfo]:
     """Every browser session this account can still use, newest activity first.
 
@@ -80,6 +84,7 @@ async def list_my_sessions(
 async def revoke_my_session(
     system_session: SystemSessionDep,
     current_user: AccountHolder,
+    _first_party: FirstPartyOnly,
     session_id: uuid.UUID,
 ) -> None:
     """End one of the account's sessions.
@@ -112,6 +117,7 @@ async def revoke_my_other_sessions(
     request: Request,
     system_session: SystemSessionDep,
     current_user: AccountHolder,
+    _first_party: FirstPartyOnly,
 ) -> None:
     """End every session the account holds except the one asking.
 

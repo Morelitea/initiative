@@ -171,6 +171,12 @@ async def _process_guild_jobs(
         )
     )
     for job in jobs:
+        # Re-read under a lock before claiming: the list was taken before the
+        # jobs ahead of this one ran, and one cancelled since stays cancelled.
+        await session.refresh(job, with_for_update=True)
+        if job.status != ImportJobStatus.queued:
+            await session.commit()
+            continue
         if atlassian_job.awaits_fetch(job):
             outcome = await _fetch(session, job, guild_id=guild_id)
             if outcome is not None:
