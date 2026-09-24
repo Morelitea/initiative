@@ -1066,6 +1066,14 @@ export function useCheckUsernameAvailableApiV1AuthUsernameAvailableGet<
  * A native client authenticating with a device token consumes that row too —
  * the token is one installed client's, so consuming it is the same per-device
  * scope by another name.
+ *
+ * A client whose access token has already expired still signs out: the
+ * refresh token it presents names its session, and holding it is what
+ * renewing would have asked for. That session's chain is revoked and no
+ * other.
+ *
+ * Connections opened on the ended session or device token are re-checked
+ * once it commits, and close.
  * @summary Logout
  */
 export const logoutApiV1AuthLogoutPost = (
