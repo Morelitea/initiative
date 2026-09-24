@@ -753,6 +753,7 @@ export interface AppInstallationRead {
   installation: string;
   scopes: string[];
   initiatives: number[];
+  active: boolean;
 }
 
 /**

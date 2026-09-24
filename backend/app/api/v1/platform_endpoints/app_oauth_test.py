@@ -11,6 +11,7 @@ import time
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -449,8 +450,49 @@ async def test_an_app_token_lists_the_installs(
             "installation": await _installation(installed),
             "scopes": ["comments:read", "documents:write"],
             "initiatives": [installed.placed.id],
+            "active": True,
         }
     ]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("paused_by", ["install_off", "guild_on_hold", "guild_deleted"])
+async def test_a_paused_install_is_listed_as_inactive(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    role_session,
+    paused_by: str,
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read"]
+    )
+    app_token = (await _ask(client)).json()["access_token"]
+    installation = await _installation(installed)
+    if paused_by == "install_off":
+        await route_session_to_guild(session, installed.guild.id)
+        row = (
+            await session.exec(select(GuildApp).where(GuildApp.id == installed.app.id))
+        ).one()
+        row.enabled = False
+        session.add(row)
+    else:
+        status = "on_hold" if paused_by == "guild_on_hold" else "deleted"
+        await session.exec(
+            text("UPDATE public.guilds SET status = :s WHERE id = :id").bindparams(
+                s=status, id=installed.guild.id
+            )
+        )
+    await session.commit()
+
+    response = await client.get(
+        INSTALLATIONS_URL, headers={"Authorization": f"Bearer {app_token}"}
+    )
+
+    assert response.status_code == 200, response.text
+    [listed] = response.json()
+    assert listed["installation"] == installation
+    assert listed["active"] is False
 
 
 @pytest.mark.integration

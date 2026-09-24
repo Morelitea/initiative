@@ -49,6 +49,10 @@ class AppInstallationRead(BaseModel):
     scopes: List[str]
     #: The initiatives it is placed in.
     initiatives: List[int]
+    #: Switched on, in a community in use: a token can be issued for it. An
+    #: install that is off or whose community is paused is listed as inactive,
+    #: and one that is gone is not listed.
+    active: bool
 
 
 class AppConsentRequestCreate(BaseModel):
