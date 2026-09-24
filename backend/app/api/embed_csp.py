@@ -26,6 +26,7 @@ import logging
 from functools import lru_cache
 
 from app.core.config import settings
+from app.services import captcha_config
 from app.services.marketplace import registration_lookup
 
 logger = logging.getLogger(__name__)
@@ -41,20 +42,23 @@ async def app_frame_policy() -> str:
     the stricter policy. Nothing here is allowed to cost a page load, so an
     unexpected failure is logged and the caller carries on.
     """
+    captcha_provider = captcha_config.current_captcha_config().provider
     try:
         origins = await registration_lookup.frame_origins()
     except Exception:
         logger.warning("embed CSP: could not read the frame origins", exc_info=True)
-        return settings.content_security_policy
-    return _policy_for(origins)
+        origins = ()
+    return _policy_for(origins, captcha_provider)
 
 
 @lru_cache(maxsize=8)
-def _policy_for(origins: tuple[str, ...]) -> str:
+def _policy_for(origins: tuple[str, ...], captcha_provider: str | None) -> str:
     """The assembled header for one set of origins.
 
     Built once per distinct set rather than once per document: the set changes
     only when an operator changes a registration, and the string is the same
     every time until they do.
     """
-    return settings.content_security_policy_with_frames(origins)
+    return settings.content_security_policy_with_frames(
+        origins, captcha_provider=captcha_provider
+    )

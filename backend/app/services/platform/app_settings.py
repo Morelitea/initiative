@@ -280,9 +280,10 @@ async def _ensure_secrets_row(session: AsyncSession) -> AppSettingSecret:
     await session.exec(
         pg_insert(AppSettingSecret.__table__)
         .values(
-            id=GLOBAL_SETTINGS_ID,
-            smtp_password_encrypted=defaults.smtp_password_encrypted,
-            s3_secret_access_key_encrypted=defaults.s3_secret_access_key_encrypted,
+            {
+                column.name: getattr(defaults, column.name)
+                for column in AppSettingSecret.__table__.columns
+            }
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )

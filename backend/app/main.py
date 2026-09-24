@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
+from functools import lru_cache
 from pathlib import Path
 
 from typing import Annotated, Any
@@ -42,6 +43,7 @@ from app.db.session import SystemSessionLocal, get_system_session
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
+from app.services import captcha_config
 from app.services.platform.users import SeatWouldBeEmptied
 
 # Before anything in this process logs: the served wiring for the application
@@ -279,7 +281,6 @@ async def lifespan(app: FastAPI):
         # read from paths that hold no usable session (a synchronous predicate,
         # a background dispatch), so each keeps a process-wide snapshot, and it
         # has to be primed here or the first request answers from the env seed.
-        from app.services import captcha_config
         from app.services.platform import push_config
 
         await captcha_config.refresh_captcha_config(session)
@@ -628,8 +629,17 @@ async def insufficient_privilege_handler(
     raise exc
 
 
-# Computed once — Settings are fixed for the process lifetime (pentest MED-001).
-_CONTENT_SECURITY_POLICY = settings.content_security_policy
+@lru_cache(maxsize=8)
+def _content_security_policy(captcha_provider: str | None) -> str:
+    """The app-wide CSP (pentest MED-001), built once per captcha provider.
+
+    The provider lives in the settings row, so it can change while the process
+    runs; everything else in the header is fixed for the process lifetime.
+    """
+    return settings.content_security_policy_with_frames(
+        (), captcha_provider=captcha_provider
+    )
+
 
 # The three WebAssembly workers — the dashboard widget sandbox, the direct
 # message ratchet and the PDF viewer's pdf.js worker — and only they, are served
@@ -682,7 +692,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         # setdefault: preserve any stricter per-response CSP (e.g. the upload
         # route's `script-src 'none'`) instead of overriding it.
-        response.headers.setdefault("Content-Security-Policy", _CONTENT_SECURITY_POLICY)
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            _content_security_policy(captcha_config.current_captcha_config().provider),
+        )
         if _STRICT_TRANSPORT_SECURITY is not None:
             # Unconditional (not setdefault): unlike CSP there is no legitimate
             # per-route reason to weaken HSTS, so the middleware always wins.
