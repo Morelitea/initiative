@@ -249,6 +249,10 @@ async def update_my_notification_preferences(
         )
         await system_session.commit()
 
+    # The choice is saved before any queue is emptied, so a queue is only ever
+    # discarded for a choice that stuck.
+    await session.commit()
+
     # A queue nobody will ever be sent is discarded, not kept: it is guild
     # scoped, so this reaches into each of the account's guild schemas.
     emptied = [
