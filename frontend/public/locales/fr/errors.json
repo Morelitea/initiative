@@ -326,6 +326,7 @@
   "IMPORT_SOURCE_UNREACHABLE": "Nous n'avons pas pu joindre ce site. Vérifiez l'adresse et réessayez.",
   "IMPORT_SOURCE_AUTH": "Ce site a refusé les identifiants. Vérifiez l'adresse e-mail et le jeton d'API.",
   "IMPORT_SOURCE_RATE_LIMITED": "Ce site nous a demandé de ralentir. Réessayez dans quelques minutes.",
+  "IMPORT_SOURCE_TOO_SLOW": "Ce site a répondu trop lentement pour terminer en 4 heures. Choisissez moins de projets ou d'espaces, ou laissez de côté les pièces jointes.",
   "IMPORT_SOURCE_PRIVATE_HOST": "Cette adresse se trouve sur un réseau privé auquel nous ne pouvons pas nous connecter.",
   "IMPORT_SOURCE_NOTHING_SELECTED": "Rien n'a été sélectionné à importer.",
   "IMPORT_UNKNOWN_SOURCE": "Initiative ne peut pas importer depuis ce produit.",

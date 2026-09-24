@@ -326,6 +326,7 @@
   "IMPORT_SOURCE_UNREACHABLE": "No pudimos conectar con ese sitio. Comprueba la dirección e inténtalo de nuevo.",
   "IMPORT_SOURCE_AUTH": "Ese sitio rechazó los datos de acceso. Comprueba el correo electrónico y el token de API.",
   "IMPORT_SOURCE_RATE_LIMITED": "Ese sitio nos pidió que fuéramos más despacio. Inténtalo de nuevo en unos minutos.",
+  "IMPORT_SOURCE_TOO_SLOW": "Ese sitio respondió demasiado despacio para terminar en 4 horas. Elige menos proyectos o espacios, o deja fuera los adjuntos.",
   "IMPORT_SOURCE_PRIVATE_HOST": "Esa dirección está en una red privada a la que no podemos conectarnos.",
   "IMPORT_SOURCE_NOTHING_SELECTED": "No se seleccionó nada para importar.",
   "IMPORT_UNKNOWN_SOURCE": "Initiative no puede importar desde ese producto.",

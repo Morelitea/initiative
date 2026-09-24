@@ -32,7 +32,7 @@ import json
 import logging
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -300,10 +300,14 @@ async def apply_backup(
     include: dict[str, bool] | None,
     people_map: Any = None,
     exclude_properties: Any = None,
+    heartbeat: Callable[[], Awaitable[None]] | None = None,
 ) -> BackupImportResult:
     """Restore a backup zip into new initiatives, as ``user``, on the
     worker's creator-routed session. Flushes and COMMITS per chunk (the
-    always-create policy makes partial progress durable and never re-run)."""
+    always-create policy makes partial progress durable and never re-run).
+
+    ``heartbeat`` is called after each asset and each entry, so the job can
+    show it is still being applied."""
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
     from app.models.platform.guild import GuildRole
@@ -333,7 +337,9 @@ async def apply_backup(
     # Assets first, one chunk: written under their ORIGINAL storage keys so
     # embedded editor-state image references resolve without rewriting.
     if manifest.assets:
-        await _restore_assets(session, archive, manifest, guild_id, user, result)
+        await _restore_assets(
+            session, archive, manifest, guild_id, user, result, heartbeat
+        )
         await session.commit()
 
     assets_by_key = {a.storage_key: a for a in manifest.assets}
@@ -431,6 +437,8 @@ async def apply_backup(
                 entry.tool, {"created": 0, "failed": 0, "skipped": 0}
             )
             bucket[outcome.status] += 1
+            if heartbeat is not None:
+                await heartbeat()
         await session.commit()
 
     # Everything is in the database; now the names can become edges.
@@ -944,6 +952,7 @@ async def _restore_assets(
     guild_id: int,
     user: User,
     result: BackupImportResult,
+    heartbeat: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
     """Write ``assets/`` blobs to guild storage under their original keys,
     register ``uploads`` rows, dedup against keys that already exist (a
@@ -1021,3 +1030,5 @@ async def _restore_assets(
         )
         result.assets_restored += 1
         result.asset_bytes += len(data)
+        if heartbeat is not None:
+            await heartbeat()

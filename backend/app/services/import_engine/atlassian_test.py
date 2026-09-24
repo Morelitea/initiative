@@ -490,3 +490,72 @@ async def test_a_second_hop_is_not_followed(monkeypatch):
             CREDENTIAL, "/wiki/download", max_bytes=100, follow_redirect=True
         )
     assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+
+
+# --- how long a call may take ------------------------------------------------
+
+
+def _slow(monkeypatch, seconds: float):
+    """A site that takes ``seconds`` to finish every answer."""
+    import asyncio
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        await asyncio.sleep(seconds)
+        return _response(200, {"ok": True}, text=None)
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+
+
+async def test_a_call_that_does_not_finish_in_time_is_the_site_unreachable(
+    monkeypatch,
+):
+    """Each read of the answer has its own timeout; the answer as a whole has
+    a deadline too, so a site sending a byte at a time still ends."""
+    _slow(monkeypatch, 0.5)
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_json(
+            CREDENTIAL,
+            "/rest/api/3/myself",
+            retry=atlassian.RetryPolicy(
+                attempts=1, max_wait_seconds=0, call_deadline_seconds=0.05
+            ),
+        )
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+
+
+async def test_a_download_gets_longer_the_larger_it_may_be(monkeypatch):
+    _slow(monkeypatch, 0.2)
+    monkeypatch.setattr(atlassian, "DOWNLOAD_FLOOR_BYTES_PER_SECOND", 1000)
+    policy = atlassian.RetryPolicy(
+        attempts=1, max_wait_seconds=0, call_deadline_seconds=0.05
+    )
+    # 1,000 bytes at 1,000 a second: a second on top of the call's own.
+    data = await atlassian.get_bytes(
+        CREDENTIAL, "/rest/api/3/attachment/content/1", max_bytes=1000, retry=policy
+    )
+    assert data
+    with pytest.raises(ImportEngineError) as exc:
+        await atlassian.get_bytes(
+            CREDENTIAL, "/rest/api/3/attachment/content/1", max_bytes=10, retry=policy
+        )
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+
+
+async def test_a_heartbeat_beats_at_most_once_per_interval(monkeypatch):
+    beats: list[int] = []
+
+    async def beat() -> None:
+        beats.append(1)
+
+    monkeypatch.setattr(atlassian, "HEARTBEAT_SECONDS", 3600)
+    tick = atlassian.throttled(beat)
+    for _ in range(5):
+        await tick()
+    assert beats == []
+
+    monkeypatch.setattr(atlassian, "HEARTBEAT_SECONDS", 0)
+    for _ in range(3):
+        await tick()
+    assert beats == [1, 1, 1]
+
+    await atlassian.throttled(None)()

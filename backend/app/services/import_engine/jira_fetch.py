@@ -35,8 +35,10 @@ from app.core.messages import ImportEngineMessages
 from app.services.import_engine import jira_attachments, jira_mapping, jira_sprints
 from app.services.import_engine.atlassian import (
     AtlassianCredential,
+    Heartbeat,
     get_bytes,
     get_json,
+    throttled,
 )
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
@@ -360,6 +362,7 @@ async def fetch_project_envelope(
     store: Optional[jira_attachments.AssetSink] = None,
     guild_id: Optional[int] = None,
     documents: bool = False,
+    tick: Optional[Heartbeat] = None,
 ) -> FetchedProject:
     """One Jira project as an envelope, how many issues it cost, and what its
     issues are linked to.
@@ -443,6 +446,8 @@ async def fetch_project_envelope(
         if include_comments:
             for issue in page:
                 await complete_comments(credential, issue)
+                if tick is not None:
+                    await tick()
 
         page_images = jira_attachments.ImageReport()
         if download is not None and image_budget is not None and store is not None:
@@ -453,6 +458,7 @@ async def fetch_project_envelope(
                 budget_bytes=image_budget.bytes_left,
                 max_files=image_budget.files_left,
                 documents=documents,
+                tick=tick,
             )
             image_budget.bytes_left -= page_images.image_bytes + page_images.file_bytes
             image_budget.files_left -= page_images.images + page_images.files
@@ -475,6 +481,8 @@ async def fetch_project_envelope(
                 sprints[str(issue.get("key") or "")] = found
             if include_comments:
                 restricted += jira_mapping.restricted_comment_count(issue.get("fields"))
+        if tick is not None:
+            await tick()
 
     mapped = await asyncio.to_thread(mapper.finish)
     return FetchedProject(
@@ -639,6 +647,12 @@ async def fetch_projects(
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_NOTHING_SELECTED)
 
     report = FetchReport()
+
+    async def beat() -> None:
+        if progress is not None:
+            await progress(report)
+
+    tick = throttled(beat)
     link_ends: list[tuple[str, str]] = []
     remaining = import_limits.IMPORT_MAX_ROWS
     envelopes: list[tuple[str, dict[str, Any]]] = []
@@ -676,6 +690,7 @@ async def fetch_projects(
                 store=store,
                 guild_id=guild_id,
                 documents=documents,
+                tick=tick,
             )
             mapped = fetched.mapped
         except ImportEngineError as exc:

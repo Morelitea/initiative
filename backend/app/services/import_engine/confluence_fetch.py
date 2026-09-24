@@ -23,8 +23,10 @@ from app.core.messages import ImportEngineMessages
 from app.services.import_engine import confluence_attachments, confluence_mapping
 from app.services.import_engine.atlassian import (
     AtlassianCredential,
+    Heartbeat,
     get_bytes,
     get_json,
+    throttled,
 )
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.jira_attachments import (
@@ -277,6 +279,7 @@ async def fetch_page_media(
     store: AssetSink,
     report: confluence_attachments.AttachmentReport,
     documents: bool,
+    tick: Optional[Heartbeat] = None,
 ) -> confluence_attachments.PageMedia:
     """A page's attachments, downloaded within what the bundle can hold."""
 
@@ -300,6 +303,7 @@ async def fetch_page_media(
         budget=budget,
         report=report,
         documents=documents,
+        tick=tick,
     )
 
 
@@ -459,6 +463,12 @@ async def fetch_spaces(
 
     gathered = Gathered()
     report = gathered.report
+
+    async def beat() -> None:
+        if progress is not None:
+            await progress(report)
+
+    tick = throttled(beat)
     remaining = import_limits.IMPORT_MAX_ROWS if max_rows is None else max_rows
     downloads = gathered.downloads
     max_bytes = max(
@@ -485,6 +495,7 @@ async def fetch_spaces(
                 )
                 if page is not None:
                     pages.append(page)
+                await tick()
             for raw in await fetch_folders(credential, raw_pages):
                 folder = confluence_mapping.read_folder(raw)
                 if folder is not None:
@@ -499,6 +510,7 @@ async def fetch_spaces(
                     if thread:
                         comments[page.id] = thread
                         room -= len(thread)
+                    await tick()
             users = await fetch_user_names(credential, _account_ids(pages, comments))
             media: dict[str, confluence_attachments.PageMedia] = {}
             if asset_budget is not None and store is not None and guild_id is not None:
@@ -512,7 +524,9 @@ async def fetch_spaces(
                             store=store,
                             report=downloads,
                             documents=documents,
+                            tick=tick,
                         )
+                        await tick()
         except ImportEngineError as exc:
             if exc.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED:
                 raise

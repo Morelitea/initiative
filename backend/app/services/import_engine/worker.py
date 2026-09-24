@@ -47,6 +47,7 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.import_engine import atlassian_job
+from app.services.import_engine.atlassian import throttled
 from app.services.import_engine import engine as import_engine
 from app.services.platform import accounts as accounts_service
 from app.services.import_engine.contract import ImportEngineError
@@ -59,14 +60,15 @@ IMPORT_POLL_SECONDS = 10
 IMPORT_GC_POLL_SECONDS = 3600
 
 # A ``running`` row untouched this long is a crashed apply. Unlike exports it
-# is NOT re-claimed (see module docstring) — it is failed closed.
+# is NOT re-claimed (see module docstring); the sweep marks it failed. A live
+# apply touches its row as it goes.
 STALE_RUNNING = timedelta(minutes=15)
 
-# A ``fetching`` row untouched this long is a crashed fetch. Longer than the
-# apply bound because reading somebody else's API under a rate limit is
-# legitimately slow, and re-claiming one that was still working would start a
-# second conversation with the same site.
-STALE_FETCHING = timedelta(minutes=60)
+# A ``fetching`` row untouched this long is a crashed fetch. A live one
+# touches its row every few seconds between calls to the site, and no single
+# call outlasts this (see ``atlassian.RetryPolicy``), so a row this quiet has
+# nobody behind it.
+STALE_FETCHING = timedelta(minutes=15)
 
 
 def _open_user_session() -> AsyncSession:
@@ -339,6 +341,14 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
         # create permission there rather than by the community's seat.
         from app.services.import_engine import backup as backup_service
 
+        async def touch() -> None:
+            # Keeps the row's ``updated_at`` fresh, so the stale sweep knows
+            # this apply is still running.
+            await session.refresh(job, with_for_update=True)
+            job.updated_at = datetime.now(timezone.utc)
+            session.add(job)
+            await session.commit()
+
         async with import_engine.open_payload(guild_id, job.payload_ref) as bundle:
             if bundle is None:
                 raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
@@ -359,6 +369,7 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
                     include=(job.params or {}).get("include"),
                     people_map=(job.params or {}).get("people_map"),
                     exclude_properties=(job.params or {}).get("exclude_properties"),
+                    heartbeat=throttled(touch),
                 )
         return backup_result.model_dump(mode="json")
 

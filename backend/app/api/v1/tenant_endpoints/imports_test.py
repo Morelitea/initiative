@@ -4835,3 +4835,37 @@ async def test_one_atlassian_import_joins_its_issues_and_pages_both_ways(
         if e.relationship_type == "related_to"
     }
     assert frozenset({("task", task.id), ("wiki_page", page.id)}) in ends
+
+
+async def test_an_apply_touches_its_row_as_it_goes(
+    client, acting_user, monkeypatch, role_session
+):
+    """Each entry applied refreshes the job's row, so a long apply is never
+    taken for a crashed one by the stale sweep."""
+    from app.services.import_engine import atlassian
+
+    monkeypatch.setattr(atlassian, "HEARTBEAT_SECONDS", 0)
+    beats: list[int] = []
+    real_throttled = import_worker.throttled
+
+    def counting(beat):
+        async def counted():
+            beats.append(1)
+            await beat()
+
+        return real_throttled(counted)
+
+    monkeypatch.setattr(import_worker, "throttled", counting)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    entry, envelope = _queue_entry()
+    zip_bytes = _make_backup_zip(
+        _minimal_manifest(entries=[entry]),
+        {entry["path"]: json.dumps(envelope).encode()},
+    )
+
+    job = await _apply_backup(client, a, zip_bytes, monkeypatch, role_session)
+
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert beats

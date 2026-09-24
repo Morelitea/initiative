@@ -18,3 +18,8 @@ IMPORT_STAGED_TTL_HOURS = 24
 IMPORT_MAX_BACKUP_UPLOAD_BYTES = 268_435_456  # 256 MiB
 IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES = 1_073_741_824  # 4x the upload cap
 IMPORT_MAX_ZIP_MEMBERS = 20_000
+
+#: The longest a fetch may spend reading a foreign site, from its first call
+#: to its bundle being staged. Past it the job fails with
+#: ``IMPORT_SOURCE_TOO_SLOW`` rather than holding its slot.
+IMPORT_FETCH_DEADLINE_SECONDS = 4 * 60 * 60

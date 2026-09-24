@@ -25,9 +25,12 @@ import asyncio
 import base64
 import logging
 import random
+import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from typing import AsyncIterator, Awaitable, Callable
 from urllib.parse import urlsplit
 
 import httpx
@@ -48,10 +51,12 @@ from app.services.webhook_target_url import (
 
 logger = logging.getLogger(__name__)
 
-#: How long one call to the site may take. A probe makes several, so this is
-#: deliberately short: the person is sitting in front of a wizard, and a site
-#: that cannot answer a listing in ten seconds is not one we can read a
-#: thousand issues from either.
+#: How long one step of a call may take: connecting, or waiting for the next
+#: part of the answer. A probe makes several calls, so this is deliberately
+#: short: the person is sitting in front of a wizard, and a site that cannot
+#: answer a listing in ten seconds is not one we can read a thousand issues
+#: from either. The call as a whole is bounded separately
+#: (``RetryPolicy.call_deadline_seconds``).
 REQUEST_TIMEOUT_SECONDS = 10.0
 
 #: The most a JSON answer from the site may decode to. A page of issues with
@@ -86,19 +91,35 @@ class RetryPolicy:
     at a time. A site that asks for a longer wait than that is not asking for
     a retry; the call gives up with ``IMPORT_SOURCE_RATE_LIMITED`` instead of
     sleeping on it.
+
+    ``call_deadline_seconds`` is the most one call may take from start to
+    finish, retries and waits included. :data:`REQUEST_TIMEOUT_SECONDS`
+    bounds each read of the answer; this bounds the answer as a whole, so a
+    site that sends its body a few bytes at a time still ends. A call past it
+    is ``IMPORT_SOURCE_UNREACHABLE``. A download gets longer in proportion to
+    its size (see :func:`get_bytes`).
     """
 
     attempts: int
     max_wait_seconds: float
+    call_deadline_seconds: float
 
 
 #: The worker's fetch. Nobody is watching the clock, and a fetch that fails on
 #: its first 429 would fail on every site big enough to be worth importing.
-BACKGROUND = RetryPolicy(attempts=4, max_wait_seconds=60.0)
+#: The deadline leaves room for every wait the retries allow.
+BACKGROUND = RetryPolicy(attempts=4, max_wait_seconds=60.0, call_deadline_seconds=300.0)
 
 #: The connect probe. A person is sitting in the wizard waiting for a listing,
 #: so the waits are kept short enough that the request still answers.
-INTERACTIVE = RetryPolicy(attempts=2, max_wait_seconds=5.0)
+INTERACTIVE = RetryPolicy(attempts=2, max_wait_seconds=5.0, call_deadline_seconds=20.0)
+
+#: Called from inside a long step of a fetch; see :func:`throttled`.
+Heartbeat = Callable[[], Awaitable[None]]
+
+#: The slowest a download is allowed to arrive, beyond the call's own
+#: deadline: a 50 MiB file gets about seven more minutes.
+DOWNLOAD_FLOOR_BYTES_PER_SECOND = 128 * 1024
 
 #: The first wait when the site gives no ``Retry-After``; each retry doubles it.
 BACKOFF_BASE_SECONDS = 1.0
@@ -148,6 +169,30 @@ async def _sleep(seconds: float) -> None:
     await asyncio.sleep(seconds)
 
 
+#: How often a fetch reports from inside a long step — a page of issues, a
+#: page's attachments — rather than only between projects and spaces. The
+#: report is how the job shows it is still alive, and how a cancel reaches it.
+HEARTBEAT_SECONDS = 10.0
+
+
+def throttled(beat: Callable[[], Awaitable[None]] | None) -> Heartbeat:
+    """``beat``, called at most once every :data:`HEARTBEAT_SECONDS` however
+    often the result is. ``None`` gives a heartbeat that does nothing."""
+    last = time.monotonic()
+
+    async def tick() -> None:
+        nonlocal last
+        if beat is None:
+            return
+        now = time.monotonic()
+        if now - last < HEARTBEAT_SECONDS:
+            return
+        last = now
+        await beat()
+
+    return tick
+
+
 @dataclass(frozen=True)
 class AtlassianCredential:
     """What one site needs to be read, held for the length of a call.
@@ -192,6 +237,20 @@ def normalize_site_url(raw: str) -> str:
     return f"https://{parts.netloc}"
 
 
+@asynccontextmanager
+async def _deadline(seconds: float, path: str) -> AsyncIterator[None]:
+    """Run the block within ``seconds``, or end it as the site being
+    unreachable."""
+    try:
+        async with asyncio.timeout(seconds):
+            yield
+    except TimeoutError:
+        logger.info("atlassian call past its deadline path=%s", path)
+        raise ImportEngineError(
+            ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+        ) from None
+
+
 async def get_json(
     credential: AtlassianCredential,
     path: str,
@@ -211,14 +270,15 @@ async def get_json(
     it becomes ``IMPORT_SOURCE_RATE_LIMITED``. Nothing else is retried: every
     other failure is an answer, and asking again would get the same one.
     """
-    response = await _send(
-        credential,
-        path,
-        method=method,
-        json=json,
-        retry=retry,
-        max_bytes=MAX_JSON_BYTES,
-    )
+    async with _deadline(retry.call_deadline_seconds, path):
+        response = await _send(
+            credential,
+            path,
+            method=method,
+            json=json,
+            retry=retry,
+            max_bytes=MAX_JSON_BYTES,
+        )
     return _parse(response, path)
 
 
@@ -241,20 +301,26 @@ async def get_bytes(
     hop to Atlassian's media host, the address carrying its own short-lived
     grant. That hop is followed once, to a public https address, and without
     this credential: the token is for the site, and goes nowhere else.
+
+    The whole download, the hop included, has the retry policy's deadline
+    plus the time ``max_bytes`` takes at
+    :data:`DOWNLOAD_FLOOR_BYTES_PER_SECOND`.
     """
-    response = await _send(
-        credential,
-        path,
-        method="GET",
-        json=None,
-        retry=retry,
-        accept="*/*",
-        max_bytes=max_bytes,
-    )
-    if response.status_code in (401, 403):
-        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_AUTH)
-    if follow_redirect and response.status_code in (301, 302, 303, 307, 308):
-        response = await _follow(response, path, max_bytes=max_bytes)
+    deadline = retry.call_deadline_seconds + max_bytes / DOWNLOAD_FLOOR_BYTES_PER_SECOND
+    async with _deadline(deadline, path):
+        response = await _send(
+            credential,
+            path,
+            method="GET",
+            json=None,
+            retry=retry,
+            accept="*/*",
+            max_bytes=max_bytes,
+        )
+        if response.status_code in (401, 403):
+            raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_AUTH)
+        if follow_redirect and response.status_code in (301, 302, 303, 307, 308):
+            response = await _follow(response, path, max_bytes=max_bytes)
     if response.status_code >= 300:
         # A redirect is not followed: the attachment endpoint is asked for its
         # content directly, and anything else is not an answer.

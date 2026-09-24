@@ -326,6 +326,7 @@
   "IMPORT_SOURCE_UNREACHABLE": "We couldn't reach that site. Check the address and try again.",
   "IMPORT_SOURCE_AUTH": "That site refused the sign-in details. Check the email address and API token.",
   "IMPORT_SOURCE_RATE_LIMITED": "That site asked us to slow down. Try again in a few minutes.",
+  "IMPORT_SOURCE_TOO_SLOW": "That site answered too slowly to finish within 4 hours. Choose fewer projects or spaces, or leave out attachments.",
   "IMPORT_SOURCE_PRIVATE_HOST": "That address is on a private network, which we can't connect to.",
   "IMPORT_SOURCE_NOTHING_SELECTED": "Nothing was selected to import.",
   "IMPORT_UNKNOWN_SOURCE": "Initiative can't import from that product.",
