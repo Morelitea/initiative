@@ -37,6 +37,7 @@ from app.schemas.platform.auth import SignedInSessionInfo
 from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
 from app.services.platform import user_tokens
+from app.services.stream_authz import authority as stream_authority
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
@@ -110,6 +111,9 @@ async def revoke_my_session(
         detail={"scope": "one"},
     )
     await system_session.commit()
+    # Connections opened on the ended session close now rather than at the
+    # next sweep; the account's others are re-checked and stay.
+    await stream_authority.revoke_user_everywhere(current_user.id)
 
 
 @router.post("/sessions/revoke-others", status_code=status.HTTP_204_NO_CONTENT)
@@ -151,3 +155,6 @@ async def revoke_my_other_sessions(
         detail={"scope": "others"},
     )
     await system_session.commit()
+    # The connections this device opened stand on the credential it kept, so
+    # they pass the re-check; every other one closes.
+    await stream_authority.revoke_user_everywhere(current_user.id)

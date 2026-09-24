@@ -15,8 +15,8 @@ import { matchActiveTab } from "@/lib/tabs";
 
 /**
  * App-wide *configuration* area: authentication, security, branding, email,
- * integrations (AI and app service registrations), and storage. Owner-only
- * (`config.manage` / `apps.manage`).
+ * push notifications, integrations (AI and app service registrations), and
+ * storage. Owner-only (`config.manage` / `apps.manage`).
  * Operational tools (users, access) live in the separate Operator dashboard.
  */
 export const PlatformSettingsLayout = () => {
@@ -56,6 +56,12 @@ export const PlatformSettingsLayout = () => {
         value: "email",
         label: t("platformLayout.tabs.email"),
         path: "/settings/platform/email",
+        visible: canManageConfig,
+      },
+      {
+        value: "push",
+        label: t("platformLayout.tabs.push"),
+        path: "/settings/platform/push",
         visible: canManageConfig,
       },
       {

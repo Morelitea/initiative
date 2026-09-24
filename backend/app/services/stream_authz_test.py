@@ -8,17 +8,24 @@ collide across guilds. Re-authorization re-runs the FULL join check:
 adapter's ``authorize`` (initiative RLS load + DAC). Either failing hard-disconnects.
 """
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Optional
 
 import pytest
 from fastapi import status
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import GuildAccessError
 from app.core import auth_context
 from app.services import stream_authz
-from app.services.stream_authz import StreamAuthority
+from app.services.auth import sessions as session_service
+from app.services.platform import user_tokens
+from app.services.platform.ws_auth import authenticate_ws_token
+from app.services.stream_authz import WS_CREDENTIAL_ENDED, StreamAuthority
 from app.models.platform.user import UserStatus
+from app.models.platform.user_token import UserToken
+from app.testing import create_user, get_auth_token
 
 
 class FakeWebSocket:
@@ -44,6 +51,10 @@ USER = SimpleNamespace(id=1)
 
 @pytest.fixture
 def authority():
+    # A socket's credential is read off the auth context at join; start each
+    # test with none recorded.
+    auth_context.set_session_credential(None)
+    auth_context.set_device_token_id(None)
     auth = StreamAuthority()
     yield auth
     # join() lazily starts the bounded re-auth loop; cancel it so the task
@@ -518,3 +529,128 @@ async def test_room_members_carries_the_channels_own_state(authority) -> None:
     assert members[0].user is USER
     assert members[0].meta["name"] == "Ada"
     assert members[0].meta["can_write"] is True
+
+
+# ── the credential the socket was opened with ────────────────────────────────
+
+
+async def _open_stream(
+    auth: StreamAuthority, token: str, session: AsyncSession
+) -> FakeWebSocket:
+    """Authenticate ``token`` the way a socket's handshake does, then join.
+
+    The handshake is what records which credential it was, so the member
+    carries exactly what a real connection would.
+    """
+    user = await authenticate_ws_token(token, session)
+    assert user is not None
+    ws = FakeWebSocket()
+    await _join(
+        auth, ws, guild_id=1, resource_type="document", resource_id=3, user=user
+    )
+    return ws
+
+
+@pytest.mark.integration
+async def test_a_socket_on_an_ended_session_is_closed(
+    authority, monkeypatch, session: AsyncSession
+) -> None:
+    _patch_recheck(monkeypatch, establish_ok=True, authorized=True)
+    user = await create_user(session)
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    ws = await _open_stream(
+        authority, get_auth_token(user, session_id=issued.session.id), session
+    )
+
+    await authority.revoke_user_everywhere(user.id)
+    assert ws.closed is None
+
+    await session_service.revoke_chain(session, session_id=issued.session.id)
+    await session.commit()
+    await authority.revoke_user_everywhere(user.id)
+
+    assert ws.closed == WS_CREDENTIAL_ENDED
+    assert authority.room_size(1, "document", 3) == 0
+
+
+@pytest.mark.integration
+async def test_a_socket_follows_its_session_through_a_renewal(
+    authority, monkeypatch, session: AsyncSession
+) -> None:
+    """A refresh spends the row the socket was opened on and mints its
+    successor; the sign-in is the same one, so the socket stays."""
+    _patch_recheck(monkeypatch, establish_ok=True, authorized=True)
+    user = await create_user(session)
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    ws = await _open_stream(
+        authority, get_auth_token(user, session_id=issued.session.id), session
+    )
+
+    renewed = await session_service.rotate_session(
+        session, raw_refresh_token=issued.refresh_token
+    )
+    assert renewed.ok and renewed.issued is not None
+    await session.commit()
+    await authority.revoke_user_everywhere(user.id)
+    assert ws.closed is None
+
+    # Ended from the row it renewed into, which the socket never named.
+    await session_service.revoke_chain(session, session_id=renewed.issued.session.id)
+    await session.commit()
+    await authority.revoke_user_everywhere(user.id)
+    assert ws.closed == WS_CREDENTIAL_ENDED
+
+
+@pytest.mark.integration
+async def test_a_token_version_bump_closes_the_socket(
+    authority, monkeypatch, session: AsyncSession
+) -> None:
+    _patch_recheck(monkeypatch, establish_ok=True, authorized=True)
+    user = await create_user(session)
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    ws = await _open_stream(
+        authority, get_auth_token(user, session_id=issued.session.id), session
+    )
+
+    user.token_version += 1
+    session.add(user)
+    await session.commit()
+    await authority.revoke_user_everywhere(user.id)
+
+    assert ws.closed == WS_CREDENTIAL_ENDED
+
+
+@pytest.mark.integration
+async def test_a_consumed_device_token_closes_only_its_own_socket(
+    authority, monkeypatch, session: AsyncSession
+) -> None:
+    _patch_recheck(monkeypatch, establish_ok=True, authorized=True)
+    user = await create_user(session)
+    phone = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Phone"
+    )
+    tablet = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Tablet"
+    )
+    on_phone = await _open_stream(authority, phone, session)
+    phone_id = auth_context.device_token_id()
+    on_tablet = await _open_stream(authority, tablet, session)
+
+    row = await session.get(UserToken, phone_id)
+    assert row is not None
+    row.consumed_at = datetime.now(timezone.utc)
+    session.add(row)
+    await session.commit()
+    await authority.revoke_user_everywhere(user.id)
+
+    assert on_phone.closed == WS_CREDENTIAL_ENDED
+    assert on_tablet.closed is None

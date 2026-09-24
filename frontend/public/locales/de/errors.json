@@ -727,6 +727,7 @@
   "GUILD_STATUS_NOT_SETTABLE": "Eine Community wird in ihren eigenen Einstellungen gelöscht, nicht hier.",
   "GUILD_PLAN_SET_BY_BILLING": "Die Abrechnung legt die Limits und Funktionen dieser Community fest. Ändere sie in der Abrechnung.",
   "GUILD_STATUS_SET_BY_BILLING": "Die Abrechnung legt den Status dieser Community fest. Du kannst sie sperren oder eine Sperre auf den zuletzt von der Abrechnung gesetzten Status aufheben.",
+  "GUILD_RESTORE_STATUS_SET_BY_BILLING": "Die Abrechnung legt den Status dieser Community fest. Stelle sie mit dem zuletzt von der Abrechnung gesetzten Status oder als gesperrt wieder her.",
   "OPERATOR_USER_NOT_DELETED": "Dieses Konto wurde nicht gelöscht, es gibt also nichts wiederherzustellen.",
   "CONNECTION_NEEDS_NARROWING": "Gib an, welche Konten bei diesem Anbieter deine sind, bevor du die Verbindung einschaltest.",
   "SUPPORT_INTAKE_NOT_CONFIGURED": "Richten Sie zuerst die Support-Annahme ein, bevor Sie Hilfeanfragen anbieten – verknüpfen Sie den Support-Stream unter Plattformeinstellungen › Eingang mit einem Projekt."
