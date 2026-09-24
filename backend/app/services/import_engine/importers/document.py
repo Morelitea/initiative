@@ -28,8 +28,10 @@ from app.services.import_engine.contract import (
     ImportEngineError,
 )
 from app.services.import_engine.context import ImportContext
+from app.services.import_engine.mentions import place_mentions
+from app.services.import_engine.people import PeopleMap
 from app.services.import_engine.importers._base import (
-    NamesPeopleInItsProperties,
+    NamesPeopleInPassing,
     grant_ownership,
     parse_envelope,
     resolve_property_values,
@@ -44,7 +46,7 @@ _IMPORTABLE_TYPES = {
 }
 
 
-class DocumentImporter(NamesPeopleInItsProperties):
+class DocumentImporter(NamesPeopleInPassing):
     envelope_type = "initiative-document"
     permission = PermissionKey.create_documents
 
@@ -75,6 +77,16 @@ class DocumentImporter(NamesPeopleInItsProperties):
         warnings: list[str] = []
 
         content = _decode_content(env, warnings, guild_id)
+        member_handles = await load_initiative_member_handles(
+            session, initiative_id=target_initiative.id
+        )
+        if env.document_type == DocumentType.native.value:
+            content = place_mentions(
+                content,
+                env.mention_handles,
+                people=context.people if context is not None else PeopleMap(),
+                member_handles=member_handles,
+            )
 
         existing_names = {
             row
@@ -122,9 +134,6 @@ class DocumentImporter(NamesPeopleInItsProperties):
                 )
             )
 
-        member_handles = await load_initiative_member_handles(
-            session, initiative_id=target_initiative.id
-        )
         attached = await resolve_property_values(
             session,
             initiative_id=target_initiative.id,

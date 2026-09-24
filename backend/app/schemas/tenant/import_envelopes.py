@@ -51,6 +51,9 @@ class DocumentEnvelope(_EnvelopeBase):
     content: dict[str, Any] = {}
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
+    #: The handles the body's mention nodes name (``mentionHandle``). Each one
+    #: the people step places is linked to that account on apply.
+    mention_handles: list[str] = []
 
 
 class WikiPageComment(SanitizedBaseModel):
@@ -102,8 +105,10 @@ class WikiPageEnvelope(SanitizedBaseModel):
     #: the name to show when nobody answers to it.
     author_handle: Optional[str] = None
     author_name: Optional[str] = None
-    #: The handles the body's mention nodes name without an account yet. Each
-    #: one the people step places is linked to that account on apply.
+    #: The handles the body's mention nodes name without an account yet — by
+    #: ``mentionHandle`` in an exported page, by ``mentionName`` in one mapped
+    #: from Confluence. Each one the people step places is linked to that
+    #: account on apply.
     mention_handles: list[str] = []
     #: What the page was called where it came from — ``confluence:123`` — for
     #: the job's links to point at. Never written to a column.
@@ -301,6 +306,8 @@ class PostEnvelope(_EnvelopeBase):
     body: dict[str, Any] = {}
     tags: list[str] = []
     poll: Optional[PostPollEnvelope] = None
+    #: The handles the body's mention nodes name, as a document's are.
+    mention_handles: list[str] = []
 
     @model_validator(mode="after")
     def _body_within_limits(self) -> "PostEnvelope":
