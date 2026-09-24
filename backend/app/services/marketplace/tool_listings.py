@@ -319,7 +319,7 @@ async def install_tool_listing(
         apply_one_envelope,
         load_target_initiative,
     )
-    from app.services.marketplace.listing_assets import land_assets
+    from app.services.marketplace.listing_assets import copy_assets_in
     from app.services.tenant.attachments import StorageQuotaExceededError
 
     body = installable_body(version, start_from)
@@ -338,10 +338,10 @@ async def install_tool_listing(
         importer=importer,
         user=user,
     )
-    # Only once the member may create it here do its pictures land in this
-    # community's storage.
+    # Only once the member may create it here are its pictures copied into
+    # this community's storage.
     try:
-        body = await land_assets(
+        body = await copy_assets_in(
             session, tool=tool, envelope=body, guild_id=guild_id, user_id=user.id
         )
     except StorageQuotaExceededError as exc:

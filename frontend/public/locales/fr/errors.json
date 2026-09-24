@@ -390,6 +390,7 @@
   "MARKETPLACE_SHARE_TOO_LARGE": "Ceci est trop volumineux pour le catalogue. Essayez d'en partager un plus petit.",
   "MARKETPLACE_SHARE_KIND_MISMATCH": "Une nouvelle version doit être du même type que la fiche.",
   "MARKETPLACE_SHARE_NOT_PERMITTED": "Seuls les membres de cette communauté peuvent partager son contenu.",
+  "MARKETPLACE_SHARE_IMAGE_INVALID": "Cette image ne peut pas être utilisée. Importez jusqu'à 8 images PNG, JPEG, GIF ou WebP de 5 Mo maximum.",
   "MARKETPLACE_LISTING_UPLOAD_INVALID": "Ce fichier de fiche n'a pas pu être publié.",
   "MARKETPLACE_OPERATOR_CATALOG_NOT_CONFIGURED": "Ce serveur ne publie pas de répertoire de catalogue qui lui soit propre : il n'y a rien à relire.",
   "MARKETPLACE_OPERATOR_CATALOG_DIRECTORY_MISSING": "Le répertoire du catalogue est introuvable. Vérifiez que le volume est bien monté sur le chemin configuré.",

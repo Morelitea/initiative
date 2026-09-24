@@ -202,6 +202,15 @@ class ListingUploadRequest(SanitizedBaseModel):
     manifest: Dict[str, Any]
 
 
+class ListingMediaRead(SanitizedBaseModel):
+    """A picture uploaded to the marketplace's media."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Where it is served from, for a manifest to name.
+    path: str
+
+
 class ListingUploadResult(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

@@ -390,6 +390,7 @@
   "MARKETPLACE_SHARE_TOO_LARGE": "Esto es demasiado grande para compartirlo en el mercado. Prueba con algo más pequeño.",
   "MARKETPLACE_SHARE_KIND_MISMATCH": "Una nueva versión tiene que ser el mismo tipo de elemento que el original.",
   "MARKETPLACE_SHARE_NOT_PERMITTED": "Solo los miembros de esta comunidad pueden compartir su contenido.",
+  "MARKETPLACE_SHARE_IMAGE_INVALID": "Esa imagen no se puede usar. Sube hasta 8 imágenes PNG, JPEG, GIF o WebP de 5 MB como máximo.",
   "MARKETPLACE_LISTING_UPLOAD_INVALID": "No se pudo publicar ese archivo de elemento.",
   "MARKETPLACE_OPERATOR_CATALOG_NOT_CONFIGURED": "Este servidor no publica un directorio de catálogo propio, así que no hay nada que volver a leer.",
   "MARKETPLACE_OPERATOR_CATALOG_DIRECTORY_MISSING": "El directorio del catálogo no existe. Comprueba que el volumen esté montado en la ruta configurada.",

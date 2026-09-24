@@ -21,8 +21,11 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost,
+  BodyUploadListingPictureApiV1MarketplaceLocalMediaPost,
   HTTPValidationError,
   ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  ListingMediaRead,
   ListingUploadRequest,
   ListingUploadResult,
   MarketplaceInstallRequest,
@@ -31,7 +34,6 @@ import type {
   MarketplaceListingPage,
   MarketplaceLocalSettings,
   MarketplacePendingVersionRead,
-  MarketplaceShareRequest,
   MarketplaceShareResult,
   MarketplaceSharedListingRead,
   OperatorCatalogScanResult,
@@ -1348,6 +1350,113 @@ export const useWithdrawMyShareApiV1MarketplaceLocalUidDelete = <
   );
 };
 /**
+ * Upload a picture for a listing file (``config.manage``).
+ *
+ * Returns the path the marketplace serves it from, for the manifest to name —
+ * as the listing's artwork, or as a picture in its content (a gallery's, an
+ * image in a document). A listing's pictures are only ever uploaded like
+ * this; none is taken from a community.
+ * @summary Upload Listing Picture
+ */
+export const uploadListingPictureApiV1MarketplaceLocalMediaPost = (
+  bodyUploadListingPictureApiV1MarketplaceLocalMediaPost: BodyType<BodyUploadListingPictureApiV1MarketplaceLocalMediaPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`file`, bodyUploadListingPictureApiV1MarketplaceLocalMediaPost.file);
+
+  return apiMutator<ListingMediaRead>(
+    {
+      url: `/api/v1/marketplace/local/media`,
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUploadListingPictureApiV1MarketplaceLocalMediaPostMutationKey = () =>
+  ["uploadListingPictureApiV1MarketplaceLocalMediaPost"] as const;
+
+export const getUploadListingPictureApiV1MarketplaceLocalMediaPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadListingPictureApiV1MarketplaceLocalMediaPost>>,
+    TError,
+    UploadListingPictureApiV1MarketplaceLocalMediaPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadListingPictureApiV1MarketplaceLocalMediaPost>>,
+  TError,
+  UploadListingPictureApiV1MarketplaceLocalMediaPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUploadListingPictureApiV1MarketplaceLocalMediaPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadListingPictureApiV1MarketplaceLocalMediaPost>>,
+    UploadListingPictureApiV1MarketplaceLocalMediaPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadListingPictureApiV1MarketplaceLocalMediaPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadListingPictureApiV1MarketplaceLocalMediaPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadListingPictureApiV1MarketplaceLocalMediaPost>>
+>;
+export type UploadListingPictureApiV1MarketplaceLocalMediaPostMutationBody =
+  BodyType<BodyUploadListingPictureApiV1MarketplaceLocalMediaPost>;
+export type UploadListingPictureApiV1MarketplaceLocalMediaPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type UploadListingPictureApiV1MarketplaceLocalMediaPostMutationVariables = {
+  data: BodyType<BodyUploadListingPictureApiV1MarketplaceLocalMediaPost>;
+};
+
+/**
+ * @summary Upload Listing Picture
+ */
+export const useUploadListingPictureApiV1MarketplaceLocalMediaPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadListingPictureApiV1MarketplaceLocalMediaPost>>,
+      TError,
+      UploadListingPictureApiV1MarketplaceLocalMediaPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadListingPictureApiV1MarketplaceLocalMediaPost>>,
+  TError,
+  UploadListingPictureApiV1MarketplaceLocalMediaPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUploadListingPictureApiV1MarketplaceLocalMediaPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * A page of listings this guild can install, searchable by name,
  * description, or publisher.
  *
@@ -2102,20 +2211,78 @@ export const useInstallMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUi
  * to what belongs to the work (``publish_profile``). It then becomes a
  * ``local`` listing, on the shelf straight away if the owner lets members
  * publish directly, and otherwise waiting for the owner's review.
+ *
+ * Nothing is read from the community's storage: its pictures are its own.
+ * ``images`` are the pictures the member uploads for the listing with the
+ * share — the ones its card and page show — and they are the only pictures
+ * it has. A new version keeps the listing's pictures, like its name.
  * @summary Share To Marketplace
  */
 export const shareToMarketplaceApiV1GGuildIdMarketplaceSharePost = (
   guildId: number,
-  marketplaceShareRequest: BodyType<MarketplaceShareRequest>,
+  bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost: BodyType<BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
+  const formData = new FormData();
+  formData.append(`kind`, bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.kind);
+  formData.append(
+    `entity_id`,
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.entity_id.toString()
+  );
+  formData.append(`name`, bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.name);
+  formData.append(
+    `description`,
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.description
+  );
+  if (
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.example_entity_id !== undefined &&
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.example_entity_id !== null
+  ) {
+    formData.append(
+      `example_entity_id`,
+      bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.example_entity_id.toString()
+    );
+  }
+  if (
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.long_description !== undefined &&
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.long_description !== null
+  ) {
+    formData.append(
+      `long_description`,
+      bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.long_description
+    );
+  }
+  if (
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.release_notes !== undefined &&
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.release_notes !== null
+  ) {
+    formData.append(
+      `release_notes`,
+      bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.release_notes
+    );
+  }
+  if (
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.listing_uid !== undefined &&
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.listing_uid !== null
+  ) {
+    formData.append(
+      `listing_uid`,
+      bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.listing_uid
+    );
+  }
+  if (bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.images !== undefined) {
+    bodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost.images.forEach((value) =>
+      formData.append(`images`, value)
+    );
+  }
+
   return apiMutator<MarketplaceShareResult>(
     {
       url: `/api/v1/g/${guildId}/marketplace/share`,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: marketplaceShareRequest,
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
       signal,
     },
     options
@@ -2165,12 +2332,12 @@ export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationResult = 
   Awaited<ReturnType<typeof shareToMarketplaceApiV1GGuildIdMarketplaceSharePost>>
 >;
 export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationBody =
-  BodyType<MarketplaceShareRequest>;
+  BodyType<BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost>;
 export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationError =
   ErrorType<HTTPValidationError>;
 export type ShareToMarketplaceApiV1GGuildIdMarketplaceSharePostMutationVariables = {
   guildId: number;
-  data: BodyType<MarketplaceShareRequest>;
+  data: BodyType<BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost>;
 };
 
 /**

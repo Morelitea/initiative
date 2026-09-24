@@ -20,7 +20,18 @@ writes the guild's own schema: a tool's listing through that tool's importer
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 from app.api.deps import (
     GuildContext,
@@ -54,7 +65,13 @@ from app.services.marketplace.installs import (
     resolve_listing_install,
 )
 from app.services.marketplace import local_listings
-from app.services.marketplace.listing_assets import carry_uploads
+from app.services.marketplace.listing_assets import (
+    MAX_IMAGE_BYTES,
+    MAX_LISTING_IMAGES,
+    UploadedImageError,
+    store_uploaded_image,
+)
+from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.marketplace.publish_profile import export_for_listing
 from app.services.marketplace.tool_listings import (
     example_is_generated,
@@ -274,10 +291,18 @@ async def install_marketplace_listing(
     status_code=status.HTTP_201_CREATED,
 )
 async def share_to_marketplace(
-    payload: MarketplaceShareRequest,
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    kind: Annotated[ListingKind, Form()],  # type: ignore[valid-type]
+    entity_id: Annotated[int, Form()],
+    name: Annotated[str, Form()],
+    description: Annotated[str, Form()],
+    example_entity_id: Annotated[Optional[int], Form()] = None,
+    long_description: Annotated[Optional[str], Form()] = None,
+    release_notes: Annotated[Optional[str], Form()] = None,
+    listing_uid: Annotated[Optional[str], Form()] = None,
+    images: Annotated[list[UploadFile], File()] = [],  # noqa: B006 — FastAPI reads the default, never mutates it
 ) -> MarketplaceShareResult:
     """Share an item from this community to the deployment's marketplace.
 
@@ -286,7 +311,40 @@ async def share_to_marketplace(
     to what belongs to the work (``publish_profile``). It then becomes a
     ``local`` listing, on the shelf straight away if the owner lets members
     publish directly, and otherwise waiting for the owner's review.
+
+    Nothing is read from the community's storage: its pictures are its own.
+    ``images`` are the pictures the member uploads for the listing with the
+    share — the ones its card and page show — and they are the only pictures
+    it has. A new version keeps the listing's pictures, like its name.
     """
+    try:
+        payload = MarketplaceShareRequest(
+            kind=kind,
+            entity_id=entity_id,
+            example_entity_id=example_entity_id,
+            name=name,
+            description=description,
+            long_description=long_description,
+            release_notes=release_notes,
+            listing_uid=listing_uid,
+        )
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
+    if len(images) > MAX_LISTING_IMAGES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=MarketplaceMessages.SHARE_IMAGE_INVALID,
+        )
+    uploaded: list[bytes] = []
+    for image in images:
+        try:
+            uploaded.append(await read_upload_bounded(image, MAX_IMAGE_BYTES))
+        except FileTooLargeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=MarketplaceMessages.SHARE_IMAGE_INVALID,
+            ) from exc
+
     if guild_context.is_pam:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -329,15 +387,17 @@ async def share_to_marketplace(
         hold = not await app_settings_service.marketplace_members_publish_directly(
             system
         )
-        # Its pictures travel as the catalogue's own copies, in the same
-        # transaction as the listing that names them.
-        envelope = await carry_uploads(
-            system, tool=tool, envelope=envelope, guild_id=guild_context.guild_id
-        )
-        if example is not None:
-            example = await carry_uploads(
-                system, tool=tool, envelope=example, guild_id=guild_context.guild_id
-            )
+        # The pictures the member uploaded become files in the marketplace's
+        # media, in the same transaction as the listing that shows them.
+        try:
+            image_paths = [
+                await store_uploaded_image(system, data) for data in uploaded
+            ]
+        except UploadedImageError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=MarketplaceMessages.SHARE_IMAGE_INVALID,
+            ) from exc
         try:
             listing, version = await local_listings.submit_share(
                 system,
@@ -353,6 +413,7 @@ async def share_to_marketplace(
                 publisher=handle_of(current_user),
                 submitter_id=current_user.id,
                 listing_uid=payload.listing_uid,
+                images=image_paths,
                 hold_for_review=hold,
             )
         except local_listings.LocalListingError as exc:

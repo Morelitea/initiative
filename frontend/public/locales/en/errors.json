@@ -390,6 +390,7 @@
   "MARKETPLACE_SHARE_TOO_LARGE": "This is too large to share to the marketplace. Try sharing a smaller one.",
   "MARKETPLACE_SHARE_KIND_MISMATCH": "A new version has to be the same kind of item as the listing.",
   "MARKETPLACE_SHARE_NOT_PERMITTED": "Only members of this community can share its content.",
+  "MARKETPLACE_SHARE_IMAGE_INVALID": "That picture can't be used. Upload up to 8 PNG, JPEG, GIF or WebP images of 5 MB or less.",
   "MARKETPLACE_LISTING_UPLOAD_INVALID": "That listing file couldn't be published.",
   "MARKETPLACE_OPERATOR_CATALOG_NOT_CONFIGURED": "This server doesn't publish a catalog directory of its own, so there's nothing to rescan.",
   "MARKETPLACE_OPERATOR_CATALOG_DIRECTORY_MISSING": "The catalog directory isn't there. Check that the volume is mounted at the configured path.",

@@ -1,26 +1,22 @@
-"""The pictures a shared item uses, on their way out and back in.
+"""The pictures a listing uses: uploaded to the marketplace, and copied into
+the community that installs it.
 
-An item's pictures live in its community's storage, where only that community
-reaches them. A listing cannot point there. So sharing carries each picture
-into the catalogue's own media (``media``), digest-pinned, and the listing
-names it by the path it is served from; installing copies each one into the
-installing community's storage, as that member's upload, and names it there.
+A listing's pictures are never taken from a community. What a community stores
+is its own, whoever is sharing from it, so a share reads nothing from its
+storage and the publish profile drops every reference into it. A picture a
+listing shows is one somebody **uploaded to the marketplace** for it: a
+member's images when they share, or the files the owner uploads for a listing
+of their own. Each is a new file in the marketplace's media (``media``), named
+by the digest of its bytes.
 
-Two kinds of reference are carried:
-
-* **An upload URL anywhere in the envelope** — ``/uploads/<guild>/<file>`` in
-  an editor body's image node, or a whiteboard's picture.
-* **A gallery picture**, which names its file by storage key.
-
-A picture that cannot be carried — not a raster image, larger than a listing
-takes, or gone from storage — is simply not carried; the publish profile then
-drops what still points at it, as it drops every upload URL a listing holds.
+Installing copies each picture the listing names into the installing
+community's storage as a new upload of the member installing, and names the
+copy there. That is how an owner-published gallery arrives with its pictures.
 """
 
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from typing import Any, Callable
 from uuid import uuid4
 
@@ -30,20 +26,38 @@ from app.core.tools import Tool
 from app.services.marketplace import media
 
 __all__ = [
-    "MAX_ASSET_BYTES",
-    "MAX_ASSETS",
-    "MAX_ASSETS_TOTAL_BYTES",
-    "carry_uploads",
-    "land_assets",
+    "MAX_IMAGE_BYTES",
+    "MAX_LISTING_IMAGES",
+    "UploadedImageError",
+    "copy_assets_in",
     "media_paths_in",
+    "store_uploaded_image",
 ]
 
-#: The largest picture a listing carries.
-MAX_ASSET_BYTES = 5 * 1024 * 1024
-#: How many pictures one listing carries.
-MAX_ASSETS = 60
-#: What they may come to together.
-MAX_ASSETS_TOTAL_BYTES = 32 * 1024 * 1024
+#: The largest picture somebody may upload to a listing.
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+#: How many pictures a member may upload with one share.
+MAX_LISTING_IMAGES = 8
+
+
+class UploadedImageError(ValueError):
+    """An uploaded file the marketplace will not keep as a picture."""
+
+
+async def store_uploaded_image(session: AsyncSession, data: bytes) -> str:
+    """Keep one uploaded picture in the marketplace's media, and return the
+    path it is served from.
+
+    Raster images only, read from the bytes rather than from what the upload
+    claimed to be, and no larger than :data:`MAX_IMAGE_BYTES`.
+    """
+    if len(data) > MAX_IMAGE_BYTES:
+        raise UploadedImageError("image is too large")
+    content_type = media.image_type_of(data)
+    if content_type is None:
+        raise UploadedImageError("not an image the marketplace keeps")
+    return await media.store_media(session, data, content_type=content_type)
+
 
 _EXTENSIONS = {
     "image/png": ".png",
@@ -88,89 +102,6 @@ def media_paths_in(envelope: Any) -> list[str]:
     return found
 
 
-def _gallery_keys(tool: Tool, envelope: dict[str, Any]) -> list[str]:
-    if tool is not Tool.gallery:
-        return []
-    keys = [
-        image.get("storage_key")
-        for image in envelope.get("images") or []
-        if isinstance(image, dict)
-    ]
-    keys.append(envelope.get("cover"))
-    return [key for key in keys if isinstance(key, str) and key]
-
-
-def _read_blob(storage: Any, key: str) -> bytes | None:
-    """A stored file's bytes, or ``None`` when it is gone or too large to
-    carry."""
-    blob = storage.open_readable(key)
-    if blob is None:
-        return None
-    if blob.content_length is not None and blob.content_length > MAX_ASSET_BYTES:
-        return None
-    if blob.path is not None:
-        data = Path(blob.path).read_bytes()
-    else:
-        data = blob.stream.read()
-    return data if len(data) <= MAX_ASSET_BYTES else None
-
-
-async def carry_uploads(
-    catalog_session: AsyncSession,
-    *,
-    tool: Tool,
-    envelope: dict[str, Any],
-    guild_id: int,
-) -> dict[str, Any]:
-    """``envelope`` with each picture it uses kept in the catalogue and named
-    by its media path.
-
-    ``catalog_session`` writes the catalogue (the system engine). The keys
-    read here come from the item's own export, which the member's session has
-    already authorized, and from this guild's namespace only.
-    """
-    from app.services.storage import get_guild_storage
-    from app.services.tenant.attachments import (
-        extract_upload_urls,
-        guild_id_from_upload_url,
-        replace_upload_urls,
-    )
-
-    storage = get_guild_storage(guild_id)
-    urls = [
-        url
-        for url in sorted(extract_upload_urls(envelope))
-        if guild_id_from_upload_url(url) == guild_id
-    ]
-    wanted = [(url, Path(url).name) for url in urls]
-    wanted += [(key, key) for key in _gallery_keys(tool, envelope) if "/" not in key]
-
-    kept: dict[str, str] = {}
-    total = 0
-    for reference, key in wanted:
-        if reference in kept or len(kept) >= MAX_ASSETS:
-            continue
-        data = await asyncio.to_thread(_read_blob, storage, key)
-        if data is None or total + len(data) > MAX_ASSETS_TOTAL_BYTES:
-            continue
-        content_type = media.image_type_of(data)
-        if content_type is None:
-            continue
-        total += len(data)
-        kept[reference] = await media.store_media(
-            catalog_session, data, content_type=content_type
-        )
-
-    # Upload URLs are matched however they were written (a body may hold an
-    # absolute one); a gallery's keys are exact.
-    carried = replace_upload_urls(
-        envelope, {url: path for url, path in kept.items() if url in urls}
-    )
-    if tool is Tool.gallery:
-        carried = _rekey_gallery(carried, kept)
-    return carried
-
-
 def _rekey_gallery(envelope: dict[str, Any], keys: dict[str, str]) -> dict[str, Any]:
     """A gallery with each picture's key and its cover mapped through ``keys``,
     and anything unmapped left blank for the importer to count as missing."""
@@ -185,7 +116,7 @@ def _rekey_gallery(envelope: dict[str, Any], keys: dict[str, str]) -> dict[str, 
     return rekeyed
 
 
-async def land_assets(
+async def copy_assets_in(
     session: AsyncSession,
     *,
     tool: Tool,
@@ -194,7 +125,7 @@ async def land_assets(
     user_id: int,
 ) -> dict[str, Any]:
     """``envelope`` with each picture it names copied into this guild's
-    storage, as ``user_id``'s upload, and named there.
+    storage as a new upload of ``user_id``'s, and named there.
 
     The copies count against the guild's storage like any upload, and the
     whole install is refused if they do not fit. A path naming nothing the
