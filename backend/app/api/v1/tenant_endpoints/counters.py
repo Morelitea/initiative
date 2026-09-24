@@ -851,7 +851,7 @@ async def websocket_counter_group(
     """Real-time updates for a counter group.
 
     Protocol: client sends `{"token": "..."}` first (the guild comes from the
-    ``/g/{guild_id}`` path segment), server
+    ``/c/{guild_id}`` path segment), server
     validates auth + DAC, then broadcasts `counter_added`, `counter_removed`,
     `counter_updated`, `count_changed`, `counters_reset`, `counters_reordered`,
     `group_updated`, `group_deleted`, `permissions_changed` events.

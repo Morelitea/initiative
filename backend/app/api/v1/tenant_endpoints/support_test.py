@@ -28,7 +28,7 @@ async def _ask(client, actor, guild_id, **body):
     payload = {"subject": "Cannot open a project", "body": "It spins forever."}
     payload.update(body)
     return await client.post(
-        f"/api/v1/g/{guild_id}/support", json=payload, headers=actor.headers
+        f"/api/v1/c/{guild_id}/support", json=payload, headers=actor.headers
     )
 
 
@@ -172,7 +172,7 @@ async def test_availability_says_faq_until_both_halves_are_there(
 
     async def available() -> bool:
         response = await client.get(
-            f"/api/v1/g/{member.guild.id}/support", headers=member.headers
+            f"/api/v1/c/{member.guild.id}/support", headers=member.headers
         )
         assert response.status_code == 200, response.text
         return response.json()["available"]
@@ -191,7 +191,7 @@ async def test_availability_is_false_where_nothing_is_bound(
     await _set_support(session, member.guild.id, True)
 
     response = await client.get(
-        f"/api/v1/g/{member.guild.id}/support", headers=member.headers
+        f"/api/v1/c/{member.guild.id}/support", headers=member.headers
     )
     assert response.status_code == 200, response.text
     assert response.json()["available"] is False

@@ -23,11 +23,11 @@ vi.mock("@/hooks/useSupport", async () => {
     useSupportAvailability: () => ({ data: state.support, isPending: false }),
   };
 });
-vi.mock("@/api/generated/guilds/guilds", () => ({
-  getReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGetQueryKey: (id: number) => [
-    `/api/v1/guilds/${id}/billing/payment-issue`,
+vi.mock("@/api/generated/communities/communities", () => ({
+  getReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGetQueryKey: (id: number) => [
+    `/api/v1/communities/${id}/billing/payment-issue`,
   ],
-  readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet: askMock,
+  readGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGet: askMock,
 }));
 
 import { GuildStatusNotice, guildStatusNoticeApplies } from "./GuildStatusNotice";

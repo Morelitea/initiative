@@ -35,7 +35,7 @@ from app.testing.factories import (
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 ME_URL = "/api/v1/users/me"
-GUILDS_URL = "/api/v1/guilds/"
+GUILDS_URL = "/api/v1/communities/"
 
 
 async def _ask(session: AsyncSession, level: SecondFactorRequirement) -> None:
@@ -302,7 +302,7 @@ async def test_a_community_is_out_of_reach_until_it_is_answered(
 
     _refused(
         await client.get(
-            f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(user)
+            f"/api/v1/c/{guild.id}/initiatives/", headers=get_auth_headers(user)
         )
     )
 

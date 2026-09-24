@@ -20,7 +20,7 @@ from app.testing.billing_managed import billing_manages_plans
 
 pytestmark = pytest.mark.integration
 
-GUILDS = "/api/v1/settings/guilds"
+GUILDS = "/api/v1/settings/communities"
 
 
 def _billing_sets_plans(monkeypatch) -> None:

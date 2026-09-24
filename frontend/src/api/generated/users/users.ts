@@ -36,7 +36,7 @@ import type {
   DecorationPack,
   DecorationPackListResponse,
   DeletionEligibilityResponse,
-  ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   GetUserStatsApiV1MeStatsGetParams,
   HTTPValidationError,
   OwnedContentResponse,
@@ -44,7 +44,7 @@ import type {
   OwnershipTransferRequest,
   OwnershipTransferResponse,
   ReadDecorationArtApiV1UsersDecorationArtGetParams,
-  SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  SearchUsersApiV1CGuildIdUsersSearchGetParams,
   UserEmailCreate,
   UserEmailListResponse,
   UserEmailRead,
@@ -3060,40 +3060,40 @@ export const useDeleteMyAvatarApiV1UsersMeAvatarDelete = <
  * and what an administrator keeps while its content is closed.
  * @summary List Users
  */
-export const listUsersApiV1GGuildIdUsersGet = (
+export const listUsersApiV1CGuildIdUsersGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserGuildMember[]>(
-    { url: `/api/v1/g/${guildId}/users/`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/users/`, method: "GET", signal },
     options
   );
 };
 
-export const getListUsersApiV1GGuildIdUsersGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/users/`] as const;
+export const getListUsersApiV1CGuildIdUsersGetQueryKey = (guildId: number) => {
+  return [`/api/v1/c/${guildId}/users/`] as const;
 };
 
-export const getListUsersApiV1GGuildIdUsersGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>,
+export const getListUsersApiV1CGuildIdUsersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListUsersApiV1GGuildIdUsersGetQueryKey(guildId);
+  const queryKey = queryOptions?.queryKey ?? getListUsersApiV1CGuildIdUsersGetQueryKey(guildId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>> = ({
     signal,
-  }) => listUsersApiV1GGuildIdUsersGet(guildId, requestOptions, signal);
+  }) => listUsersApiV1CGuildIdUsersGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -3101,31 +3101,31 @@ export const getListUsersApiV1GGuildIdUsersGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>,
+    Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListUsersApiV1GGuildIdUsersGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>
+export type ListUsersApiV1CGuildIdUsersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>
 >;
-export type ListUsersApiV1GGuildIdUsersGetQueryError = ErrorType<HTTPValidationError>;
+export type ListUsersApiV1CGuildIdUsersGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListUsersApiV1GGuildIdUsersGet<
-  TData = Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>,
+export function useListUsersApiV1CGuildIdUsersGet<
+  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>,
+          Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
           TError,
-          Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>
+          Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>
         >,
         "initialData"
       >;
@@ -3133,20 +3133,20 @@ export function useListUsersApiV1GGuildIdUsersGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListUsersApiV1GGuildIdUsersGet<
-  TData = Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>,
+export function useListUsersApiV1CGuildIdUsersGet<
+  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>,
+          Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
           TError,
-          Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>
+          Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>
         >,
         "initialData"
       >;
@@ -3154,14 +3154,14 @@ export function useListUsersApiV1GGuildIdUsersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListUsersApiV1GGuildIdUsersGet<
-  TData = Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>,
+export function useListUsersApiV1CGuildIdUsersGet<
+  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -3171,20 +3171,20 @@ export function useListUsersApiV1GGuildIdUsersGet<
  * @summary List Users
  */
 
-export function useListUsersApiV1GGuildIdUsersGet<
-  TData = Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>,
+export function useListUsersApiV1CGuildIdUsersGet<
+  TData = Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1GGuildIdUsersGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListUsersApiV1GGuildIdUsersGetQueryOptions(guildId, options);
+  const queryOptions = getListUsersApiV1CGuildIdUsersGetQueryOptions(guildId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -3210,35 +3210,35 @@ export function useListUsersApiV1GGuildIdUsersGet<
  * the name where the guild shows names, and a picture hosted elsewhere.
  * @summary Search Users
  */
-export const searchUsersApiV1GGuildIdUsersSearchGet = (
+export const searchUsersApiV1CGuildIdUsersSearchGet = (
   guildId: number,
-  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserSummaryListResponse>(
-    { url: `/api/v1/g/${guildId}/users/search`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/users/search`, method: "GET", params, signal },
     options
   );
 };
 
-export const getSearchUsersApiV1GGuildIdUsersSearchGetQueryKey = (
+export const getSearchUsersApiV1CGuildIdUsersSearchGetQueryKey = (
   guildId: number,
-  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams
+  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/users/search`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/users/search`, ...(params ? [params] : [])] as const;
 };
 
-export const getSearchUsersApiV1GGuildIdUsersSearchGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+export const getSearchUsersApiV1CGuildIdUsersSearchGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
         TError,
         TData
       >
@@ -3249,12 +3249,12 @@ export const getSearchUsersApiV1GGuildIdUsersSearchGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getSearchUsersApiV1GGuildIdUsersSearchGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getSearchUsersApiV1CGuildIdUsersSearchGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>
+    Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>
   > = ({ signal }) =>
-    searchUsersApiV1GGuildIdUsersSearchGet(guildId, params, requestOptions, signal);
+    searchUsersApiV1CGuildIdUsersSearchGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -3262,36 +3262,36 @@ export const getSearchUsersApiV1GGuildIdUsersSearchGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+    Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type SearchUsersApiV1GGuildIdUsersSearchGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>
+export type SearchUsersApiV1CGuildIdUsersSearchGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>
 >;
-export type SearchUsersApiV1GGuildIdUsersSearchGetQueryError = ErrorType<HTTPValidationError>;
+export type SearchUsersApiV1CGuildIdUsersSearchGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useSearchUsersApiV1GGuildIdUsersSearchGet<
-  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+export function useSearchUsersApiV1CGuildIdUsersSearchGet<
+  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  params: undefined | SearchUsersApiV1CGuildIdUsersSearchGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+          Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
           TError,
-          Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>
+          Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>
         >,
         "initialData"
       >;
@@ -3299,25 +3299,25 @@ export function useSearchUsersApiV1GGuildIdUsersSearchGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchUsersApiV1GGuildIdUsersSearchGet<
-  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+export function useSearchUsersApiV1CGuildIdUsersSearchGet<
+  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+          Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
           TError,
-          Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>
+          Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>
         >,
         "initialData"
       >;
@@ -3325,16 +3325,16 @@ export function useSearchUsersApiV1GGuildIdUsersSearchGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchUsersApiV1GGuildIdUsersSearchGet<
-  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+export function useSearchUsersApiV1CGuildIdUsersSearchGet<
+  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
         TError,
         TData
       >
@@ -3347,16 +3347,16 @@ export function useSearchUsersApiV1GGuildIdUsersSearchGet<
  * @summary Search Users
  */
 
-export function useSearchUsersApiV1GGuildIdUsersSearchGet<
-  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+export function useSearchUsersApiV1CGuildIdUsersSearchGet<
+  TData = Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  params?: SearchUsersApiV1CGuildIdUsersSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        Awaited<ReturnType<typeof searchUsersApiV1CGuildIdUsersSearchGet>>,
         TError,
         TData
       >
@@ -3365,7 +3365,7 @@ export function useSearchUsersApiV1GGuildIdUsersSearchGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getSearchUsersApiV1GGuildIdUsersSearchGetQueryOptions(
+  const queryOptions = getSearchUsersApiV1CGuildIdUsersSearchGetQueryOptions(
     guildId,
     params,
     options
@@ -3384,35 +3384,35 @@ export function useSearchUsersApiV1GGuildIdUsersSearchGet<
  * included. Guild-admin only.
  * @summary Export Users Csv
  */
-export const exportUsersCsvApiV1GGuildIdUsersExportCsvGet = (
+export const exportUsersCsvApiV1CGuildIdUsersExportCsvGet = (
   guildId: number,
-  params?: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/g/${guildId}/users/export.csv`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/users/export.csv`, method: "GET", params, signal },
     options
   );
 };
 
-export const getExportUsersCsvApiV1GGuildIdUsersExportCsvGetQueryKey = (
+export const getExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryKey = (
   guildId: number,
-  params?: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams
+  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/users/export.csv`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/users/export.csv`, ...(params ? [params] : [])] as const;
 };
 
-export const getExportUsersCsvApiV1GGuildIdUsersExportCsvGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+export const getExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
         TError,
         TData
       >
@@ -3424,12 +3424,12 @@ export const getExportUsersCsvApiV1GGuildIdUsersExportCsvGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getExportUsersCsvApiV1GGuildIdUsersExportCsvGetQueryKey(guildId, params);
+    getExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>
+    Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>
   > = ({ signal }) =>
-    exportUsersCsvApiV1GGuildIdUsersExportCsvGet(guildId, params, requestOptions, signal);
+    exportUsersCsvApiV1CGuildIdUsersExportCsvGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -3437,36 +3437,36 @@ export const getExportUsersCsvApiV1GGuildIdUsersExportCsvGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+    Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ExportUsersCsvApiV1GGuildIdUsersExportCsvGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>
+export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>
 >;
-export type ExportUsersCsvApiV1GGuildIdUsersExportCsvGetQueryError = ErrorType<HTTPValidationError>;
+export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  params: undefined | ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+          Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
           TError,
-          Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>
+          Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>
         >,
         "initialData"
       >;
@@ -3474,25 +3474,25 @@ export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+          Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
           TError,
-          Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>
+          Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>
         >,
         "initialData"
       >;
@@ -3500,16 +3500,16 @@ export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
         TError,
         TData
       >
@@ -3522,16 +3522,16 @@ export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
  * @summary Export Users Csv
  */
 
-export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
-  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  params?: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof exportUsersCsvApiV1GGuildIdUsersExportCsvGet>>,
+        Awaited<ReturnType<typeof exportUsersCsvApiV1CGuildIdUsersExportCsvGet>>,
         TError,
         TData
       >
@@ -3540,7 +3540,7 @@ export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getExportUsersCsvApiV1GGuildIdUsersExportCsvGetQueryOptions(
+  const queryOptions = getExportUsersCsvApiV1CGuildIdUsersExportCsvGetQueryOptions(
     guildId,
     params,
     options
@@ -3568,39 +3568,39 @@ export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
  * own routed session.
  * @summary Approve User
  */
-export const approveUserApiV1GGuildIdUsersUserIdApprovePost = (
+export const approveUserApiV1CGuildIdUsersUserIdApprovePost = (
   guildId: number,
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserGuildRead>(
-    { url: `/api/v1/g/${guildId}/users/${userId}/approve`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/users/${userId}/approve`, method: "POST", signal },
     options
   );
 };
 
-export const getApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationKey = () =>
-  ["approveUserApiV1GGuildIdUsersUserIdApprovePost"] as const;
+export const getApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationKey = () =>
+  ["approveUserApiV1CGuildIdUsersUserIdApprovePost"] as const;
 
-export const getApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationOptions = <
+export const getApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof approveUserApiV1GGuildIdUsersUserIdApprovePost>>,
+    Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
     TError,
-    ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationVariables,
+    ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof approveUserApiV1GGuildIdUsersUserIdApprovePost>>,
+  Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
   TError,
-  ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationVariables,
+  ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationKey();
+  const mutationKey = getApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -3608,24 +3608,24 @@ export const getApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationOptions = 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof approveUserApiV1GGuildIdUsersUserIdApprovePost>>,
-    ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationVariables
+    Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
+    ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables
   > = (props) => {
     const { guildId, userId } = props ?? {};
 
-    return approveUserApiV1GGuildIdUsersUserIdApprovePost(guildId, userId, requestOptions);
+    return approveUserApiV1CGuildIdUsersUserIdApprovePost(guildId, userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof approveUserApiV1GGuildIdUsersUserIdApprovePost>>
+export type ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>
 >;
 
-export type ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationError =
+export type ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationError =
   ErrorType<HTTPValidationError>;
-export type ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationVariables = {
+export type ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables = {
   guildId: number;
   userId: number;
 };
@@ -3633,28 +3633,28 @@ export type ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationVariables = {
 /**
  * @summary Approve User
  */
-export const useApproveUserApiV1GGuildIdUsersUserIdApprovePost = <
+export const useApproveUserApiV1CGuildIdUsersUserIdApprovePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof approveUserApiV1GGuildIdUsersUserIdApprovePost>>,
+      Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
       TError,
-      ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationVariables,
+      ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof approveUserApiV1GGuildIdUsersUserIdApprovePost>>,
+  Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
   TError,
-  ApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationVariables,
+  ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getApproveUserApiV1GGuildIdUsersUserIdApprovePostMutationOptions(options),
+    getApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationOptions(options),
     queryClient
   );
 };
@@ -3666,32 +3666,32 @@ export const useApproveUserApiV1GGuildIdUsersUserIdApprovePost = <
  * that — either way nobody who can act on it owns it.
  * @summary List Unowned Content
  */
-export const listUnownedContentApiV1GGuildIdUsersUnownedContentGet = (
+export const listUnownedContentApiV1CGuildIdUsersUnownedContentGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OwnedContentResponse>(
-    { url: `/api/v1/g/${guildId}/users/unowned-content`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/users/unowned-content`, method: "GET", signal },
     options
   );
 };
 
-export const getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryKey = (
+export const getListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/users/unowned-content`] as const;
+  return [`/api/v1/c/${guildId}/users/unowned-content`] as const;
 };
 
-export const getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+export const getListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
@@ -3703,12 +3703,12 @@ export const getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryOption
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryKey(guildId);
+    getListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>
+    Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>
   > = ({ signal }) =>
-    listUnownedContentApiV1GGuildIdUsersUnownedContentGet(guildId, requestOptions, signal);
+    listUnownedContentApiV1CGuildIdUsersUnownedContentGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -3716,36 +3716,36 @@ export const getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryOption
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+    Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>
+export type ListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>
 >;
-export type ListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryError =
+export type ListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+          Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
           TError,
-          Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>
+          Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>
         >,
         "initialData"
       >;
@@ -3753,24 +3753,24 @@ export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+          Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
           TError,
-          Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>
+          Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>
         >,
         "initialData"
       >;
@@ -3778,15 +3778,15 @@ export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
@@ -3799,15 +3799,15 @@ export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
  * @summary List Unowned Content
  */
 
-export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
-  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+export function useListUnownedContentApiV1CGuildIdUsersUnownedContentGet<
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+        Awaited<ReturnType<typeof listUnownedContentApiV1CGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
@@ -3816,7 +3816,7 @@ export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryOptions(
+  const queryOptions = getListUnownedContentApiV1CGuildIdUsersUnownedContentGetQueryOptions(
     guildId,
     options
   );
@@ -3833,7 +3833,7 @@ export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
  * own all of it (422 ``OWNER_APP_NOT_ELIGIBLE`` otherwise).
  * @summary Claim Unowned Content
  */
-export const claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost = (
+export const claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost = (
   guildId: number,
   ownershipTransferRequest: BodyType<OwnershipTransferRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -3841,7 +3841,7 @@ export const claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost = (
 ) => {
   return apiMutator<OwnershipTransferResponse>(
     {
-      url: `/api/v1/g/${guildId}/users/unowned-content/claim`,
+      url: `/api/v1/c/${guildId}/users/unowned-content/claim`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: ownershipTransferRequest,
@@ -3851,27 +3851,27 @@ export const claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost = (
   );
 };
 
-export const getClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationKey = () =>
-  ["claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost"] as const;
+export const getClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationKey = () =>
+  ["claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost"] as const;
 
-export const getClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationOptions = <
+export const getClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+    Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
     TError,
-    ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationVariables,
+    ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+  Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
   TError,
-  ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationVariables,
+  ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationKey();
+  const mutationKey = getClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -3879,12 +3879,12 @@ export const getClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMuta
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
-    ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationVariables
+    Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
+    ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost(
+    return claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost(
       guildId,
       data,
       requestOptions
@@ -3894,15 +3894,15 @@ export const getClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMuta
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationResult =
+export type ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>
+    Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>
   >;
-export type ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationBody =
+export type ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationBody =
   BodyType<OwnershipTransferRequest>;
-export type ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationError =
+export type ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationVariables = {
+export type ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables = {
   guildId: number;
   data: BodyType<OwnershipTransferRequest>;
 };
@@ -3910,28 +3910,28 @@ export type ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutation
 /**
  * @summary Claim Unowned Content
  */
-export const useClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost = <
+export const useClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+      Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
       TError,
-      ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationVariables,
+      ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+  Awaited<ReturnType<typeof claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost>>,
   TError,
-  ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationVariables,
+  ClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationOptions(options),
+    getClaimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPostMutationOptions(options),
     queryClient
   );
 };
@@ -3943,27 +3943,27 @@ export const useClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost = <
  * abandoned as often as they get closed.
  * @summary List Owned Content
  */
-export const listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet = (
+export const listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet = (
   guildId: number,
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OwnedContentResponse>(
-    { url: `/api/v1/g/${guildId}/users/${userId}/owned-content`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/users/${userId}/owned-content`, method: "GET", signal },
     options
   );
 };
 
-export const getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryKey = (
+export const getListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryKey = (
   guildId: number,
   userId: number
 ) => {
-  return [`/api/v1/g/${guildId}/users/${userId}/owned-content`] as const;
+  return [`/api/v1/c/${guildId}/users/${userId}/owned-content`] as const;
 };
 
-export const getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+export const getListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -3971,7 +3971,7 @@ export const getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryOpti
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
         TError,
         TData
       >
@@ -3983,12 +3983,12 @@ export const getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryOpti
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryKey(guildId, userId);
+    getListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryKey(guildId, userId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>
+    Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>
   > = ({ signal }) =>
-    listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet(
+    listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet(
       guildId,
       userId,
       requestOptions,
@@ -4001,20 +4001,20 @@ export const getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryOpti
     enabled: guildId !== null && guildId !== undefined && userId !== null && userId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+    Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>
+export type ListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>
 >;
-export type ListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryError =
+export type ListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -4022,16 +4022,16 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+          Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
           TError,
-          Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>
+          Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>
         >,
         "initialData"
       >;
@@ -4039,8 +4039,8 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -4048,16 +4048,16 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+          Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
           TError,
-          Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>
+          Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>
         >,
         "initialData"
       >;
@@ -4065,8 +4065,8 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -4074,7 +4074,7 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
         TError,
         TData
       >
@@ -4087,8 +4087,8 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
  * @summary List Owned Content
  */
 
-export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
-  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+export function useListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet<
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -4096,7 +4096,7 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        Awaited<ReturnType<typeof listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet>>,
         TError,
         TData
       >
@@ -4105,7 +4105,7 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryOptions(
+  const queryOptions = getListOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGetQueryOptions(
     guildId,
     userId,
     options
@@ -4125,7 +4125,7 @@ export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
  * The only place ownership is moved by hand, and guild-admin only.
  * @summary Transfer Ownership
  */
-export const transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost = (
+export const transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost = (
   guildId: number,
   userId: number,
   ownershipTransferRequest: BodyType<OwnershipTransferRequest>,
@@ -4134,7 +4134,7 @@ export const transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost = (
 ) => {
   return apiMutator<OwnershipTransferResponse>(
     {
-      url: `/api/v1/g/${guildId}/users/${userId}/transfer-ownership`,
+      url: `/api/v1/c/${guildId}/users/${userId}/transfer-ownership`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: ownershipTransferRequest,
@@ -4144,28 +4144,28 @@ export const transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost = (
   );
 };
 
-export const getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationKey = () =>
-  ["transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost"] as const;
+export const getTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationKey = () =>
+  ["transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost"] as const;
 
-export const getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationOptions = <
+export const getTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+    Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
     TError,
-    TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
+    TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+  Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
   TError,
-  TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
+  TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationKey();
+    getTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -4173,12 +4173,12 @@ export const getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMu
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
-    TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationVariables
+    Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
+    TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables
   > = (props) => {
     const { guildId, userId, data } = props ?? {};
 
-    return transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost(
+    return transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost(
       guildId,
       userId,
       data,
@@ -4189,15 +4189,15 @@ export const getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMu
   return { mutationFn, ...mutationOptions };
 };
 
-export type TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationResult =
+export type TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>
+    Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>
   >;
-export type TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationBody =
+export type TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationBody =
   BodyType<OwnershipTransferRequest>;
-export type TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationError =
+export type TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationError =
   ErrorType<HTTPValidationError>;
-export type TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationVariables = {
+export type TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables = {
   guildId: number;
   userId: number;
   data: BodyType<OwnershipTransferRequest>;
@@ -4206,28 +4206,28 @@ export type TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutati
 /**
  * @summary Transfer Ownership
  */
-export const useTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost = <
+export const useTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+      Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
       TError,
-      TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
+      TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+  Awaited<ReturnType<typeof transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost>>,
   TError,
-  TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
+  TransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationOptions(options),
+    getTransferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPostMutationOptions(options),
     queryClient
   );
 };
@@ -4240,39 +4240,39 @@ export const useTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost =
  * ``POST /{user_id}/transfer-ownership``.
  * @summary Delete User
  */
-export const deleteUserApiV1GGuildIdUsersUserIdDelete = (
+export const deleteUserApiV1CGuildIdUsersUserIdDelete = (
   guildId: number,
   userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/users/${userId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/users/${userId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationKey = () =>
-  ["deleteUserApiV1GGuildIdUsersUserIdDelete"] as const;
+export const getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationKey = () =>
+  ["deleteUserApiV1CGuildIdUsersUserIdDelete"] as const;
 
-export const getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions = <
+export const getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+    Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
     TError,
-    DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationVariables,
+    DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+  Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
   TError,
-  DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationVariables,
+  DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationKey();
+  const mutationKey = getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -4280,23 +4280,23 @@ export const getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
-    DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
+    DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables
   > = (props) => {
     const { guildId, userId } = props ?? {};
 
-    return deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId, requestOptions);
+    return deleteUserApiV1CGuildIdUsersUserIdDelete(guildId, userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>
+export type DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>
 >;
 
-export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
-export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationVariables = {
+export type DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
+export type DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables = {
   guildId: number;
   userId: number;
 };
@@ -4304,28 +4304,28 @@ export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationVariables = {
 /**
  * @summary Delete User
  */
-export const useDeleteUserApiV1GGuildIdUsersUserIdDelete = <
+export const useDeleteUserApiV1CGuildIdUsersUserIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+      Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
       TError,
-      DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationVariables,
+      DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+  Awaited<ReturnType<typeof deleteUserApiV1CGuildIdUsersUserIdDelete>>,
   TError,
-  DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationVariables,
+  DeleteUserApiV1CGuildIdUsersUserIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions(options),
+    getDeleteUserApiV1CGuildIdUsersUserIdDeleteMutationOptions(options),
     queryClient
   );
 };

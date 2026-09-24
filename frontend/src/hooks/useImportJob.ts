@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useGetImportJobApiV1GGuildIdImportsJobsJobIdGet } from "@/api/generated/imports/imports";
+import { useGetImportJobApiV1CGuildIdImportsJobsJobIdGet } from "@/api/generated/imports/imports";
 import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
@@ -46,7 +46,7 @@ export function useImportJob({ resumePending = false }: UseImportJobOptions = {}
   // though polling re-renders keep delivering it.
   const handledJobs = useRef(new Set<number>());
 
-  const jobQuery = useGetImportJobApiV1GGuildIdImportsJobsJobIdGet(guildId, jobId ?? 0, {
+  const jobQuery = useGetImportJobApiV1CGuildIdImportsJobsJobIdGet(guildId, jobId ?? 0, {
     query: {
       enabled: jobId != null,
       refetchInterval: (query) => (TERMINAL.has(query.state.data?.status ?? "") ? false : POLL_MS),

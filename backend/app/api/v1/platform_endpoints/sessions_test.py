@@ -330,7 +330,9 @@ def streams(monkeypatch):
     async def _admitted(*_a, **_k):
         return None
 
-    monkeypatch.setattr(stream_authz, "AsyncSessionLocal", _LiveAccountSession)
+    monkeypatch.setattr(
+        stream_authz, "request_sessionmaker", lambda _guild_id: _LiveAccountSession
+    )
     monkeypatch.setattr(stream_authz, "establish_guild_access", _admitted)
     monkeypatch.setattr(sessions_endpoints, "stream_authority", authority)
     monkeypatch.setattr(users_endpoints, "stream_authority", authority)

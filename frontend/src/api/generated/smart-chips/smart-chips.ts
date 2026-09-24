@@ -19,7 +19,7 @@ import type {
 
 import type {
   HTTPValidationError,
-  ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
+  ReadSmartChipsApiV1CGuildIdSmartChipsGetParams,
   SmartChipKind,
   SmartChipStateList,
 } from "../initiativeAPI.schemas";
@@ -55,30 +55,30 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * reference renders rather than something chosen from a menu.
  * @summary List Smart Chip Kinds
  */
-export const listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet = (
+export const listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<SmartChipKind[]>(
-    { url: `/api/v1/g/${guildId}/smart-chips/kinds`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/smart-chips/kinds`, method: "GET", signal },
     options
   );
 };
 
-export const getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/smart-chips/kinds`] as const;
+export const getListSmartChipKindsApiV1CGuildIdSmartChipsKindsGetQueryKey = (guildId: number) => {
+  return [`/api/v1/c/${guildId}/smart-chips/kinds`] as const;
 };
 
-export const getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+export const getListSmartChipKindsApiV1CGuildIdSmartChipsKindsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
@@ -89,12 +89,12 @@ export const getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryOptions = 
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getListSmartChipKindsApiV1CGuildIdSmartChipsKindsGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>
+    Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>
   > = ({ signal }) =>
-    listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet(guildId, requestOptions, signal);
+    listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -102,36 +102,36 @@ export const getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryOptions = 
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+    Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>
+export type ListSmartChipKindsApiV1CGuildIdSmartChipsKindsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>
 >;
-export type ListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryError =
+export type ListSmartChipKindsApiV1CGuildIdSmartChipsKindsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
-  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+export function useListSmartChipKindsApiV1CGuildIdSmartChipsKindsGet<
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+          Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
           TError,
-          Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>
+          Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>
         >,
         "initialData"
       >;
@@ -139,24 +139,24 @@ export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
-  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+export function useListSmartChipKindsApiV1CGuildIdSmartChipsKindsGet<
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+          Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
           TError,
-          Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>
+          Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>
         >,
         "initialData"
       >;
@@ -164,15 +164,15 @@ export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
-  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+export function useListSmartChipKindsApiV1CGuildIdSmartChipsKindsGet<
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
@@ -185,15 +185,15 @@ export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
  * @summary List Smart Chip Kinds
  */
 
-export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
-  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+export function useListSmartChipKindsApiV1CGuildIdSmartChipsKindsGet<
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1CGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
@@ -202,7 +202,7 @@ export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryOptions(
+  const queryOptions = getListSmartChipKindsApiV1CGuildIdSmartChipsKindsGetQueryOptions(
     guildId,
     options
   );
@@ -222,35 +222,35 @@ export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
  * falls back to the words the document stored beside it.
  * @summary Read Smart Chips
  */
-export const readSmartChipsApiV1GGuildIdSmartChipsGet = (
+export const readSmartChipsApiV1CGuildIdSmartChipsGet = (
   guildId: number,
-  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
+  params?: ReadSmartChipsApiV1CGuildIdSmartChipsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<SmartChipStateList>(
-    { url: `/api/v1/g/${guildId}/smart-chips/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/smart-chips/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey = (
+export const getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey = (
   guildId: number,
-  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams
+  params?: ReadSmartChipsApiV1CGuildIdSmartChipsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/smart-chips/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/smart-chips/`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+export const getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
+  params?: ReadSmartChipsApiV1CGuildIdSmartChipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
         TError,
         TData
       >
@@ -261,12 +261,12 @@ export const getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>
+    Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>
   > = ({ signal }) =>
-    readSmartChipsApiV1GGuildIdSmartChipsGet(guildId, params, requestOptions, signal);
+    readSmartChipsApiV1CGuildIdSmartChipsGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -274,36 +274,36 @@ export const getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+    Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadSmartChipsApiV1GGuildIdSmartChipsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>
+export type ReadSmartChipsApiV1CGuildIdSmartChipsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>
 >;
-export type ReadSmartChipsApiV1GGuildIdSmartChipsGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadSmartChipsApiV1CGuildIdSmartChipsGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
-  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+export function useReadSmartChipsApiV1CGuildIdSmartChipsGet<
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
+  params: undefined | ReadSmartChipsApiV1CGuildIdSmartChipsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+          Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
           TError,
-          Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>
+          Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>
         >,
         "initialData"
       >;
@@ -311,25 +311,25 @@ export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
-  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+export function useReadSmartChipsApiV1CGuildIdSmartChipsGet<
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
+  params?: ReadSmartChipsApiV1CGuildIdSmartChipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+          Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
           TError,
-          Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>
+          Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>
         >,
         "initialData"
       >;
@@ -337,16 +337,16 @@ export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
-  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+export function useReadSmartChipsApiV1CGuildIdSmartChipsGet<
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
+  params?: ReadSmartChipsApiV1CGuildIdSmartChipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
         TError,
         TData
       >
@@ -359,16 +359,16 @@ export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
  * @summary Read Smart Chips
  */
 
-export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
-  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+export function useReadSmartChipsApiV1CGuildIdSmartChipsGet<
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
+  params?: ReadSmartChipsApiV1CGuildIdSmartChipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1CGuildIdSmartChipsGet>>,
         TError,
         TData
       >
@@ -377,7 +377,7 @@ export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryOptions(
+  const queryOptions = getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryOptions(
     guildId,
     params,
     options

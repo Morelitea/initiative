@@ -1,18 +1,18 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
-  bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost,
-  deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete,
-  deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete,
-  getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet,
-  getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey,
-  getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryKey,
-  getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey,
-  listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet,
-  listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet,
-  updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch,
-  uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost,
-  uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost,
+  bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost,
+  deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete,
+  deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete,
+  getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet,
+  getGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey,
+  getListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryKey,
+  getListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey,
+  listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet,
+  listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet,
+  updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch,
+  uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost,
+  uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost,
 } from "@/api/generated/galleries/galleries";
 import type {
   GalleryImageBulkDelete,
@@ -21,8 +21,8 @@ import type {
   GalleryImageRead,
   GalleryImageUpdate,
   GalleryImageVersionRead,
-  GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
-  ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
+  GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   TimelineResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -49,7 +49,7 @@ export const useSetGalleryGrants = galleries.useSetGrants;
 
 /** The filters a gallery's picture list takes, without the page. */
 export type GalleryImagesParams = Omit<
-  ListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetParams,
+  ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   "page"
 >;
 
@@ -64,13 +64,13 @@ export type GalleryImagesParams = Omit<
 export const useGalleryImagesFeed = (galleryId: number | null, params?: GalleryImagesParams) => {
   const guildId = useActiveGuildId();
   return useInfiniteQuery({
-    queryKey: getListGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGetQueryKey(
+    queryKey: getListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetQueryKey(
       guildId,
       galleryId!,
       params
     ),
     queryFn: ({ pageParam }) =>
-      listGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesGet(guildId, galleryId!, {
+      listGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGet(guildId, galleryId!, {
         ...params,
         page: pageParam as number,
       }),
@@ -89,19 +89,19 @@ export const useGalleryImagesFeed = (galleryId: number | null, params?: GalleryI
  */
 export const useGalleryImagesTimeline = (
   galleryId: number | null,
-  params?: GetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetParams,
+  params?: GetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetParams,
   options?: QueryOpts<TimelineResponse>
 ) => {
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TimelineResponse>({
-    queryKey: getGetGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey(
+    queryKey: getGetGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGetQueryKey(
       guildId,
       galleryId!,
       params
     ),
     queryFn: () =>
-      getGalleryImageTimelineApiV1GGuildIdGalleriesGalleryIdImagesTimelineGet(
+      getGalleryImageTimelineApiV1CGuildIdGalleriesGalleryIdImagesTimelineGet(
         guildId,
         galleryId!,
         params
@@ -122,13 +122,13 @@ export const useGalleryImageVersions = (
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<GalleryImageVersionRead[]>({
     queryKey:
-      getListGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey(
+      getListGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGetQueryKey(
         guildId,
         galleryId,
         imageId!
       ),
     queryFn: () =>
-      listGalleryImageVersionsApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsGet(
+      listGalleryImageVersionsApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsGet(
         guildId,
         galleryId,
         imageId!
@@ -166,7 +166,7 @@ export const useUploadGalleryImage = (
   useGuildMutation<GalleryImageRead, UploadGalleryImageVariables>(
     {
       mutationFn: (guildId, { file, title, caption }) =>
-        uploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost(guildId, galleryId, {
+        uploadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesPost(guildId, galleryId, {
           file,
           title: title ?? null,
           caption: caption ?? null,
@@ -182,7 +182,7 @@ export const useUpdateGalleryImage = (
   useGuildMutation<GalleryImageRead, { imageId: number; data: GalleryImageUpdate }>(
     {
       mutationFn: (guildId, { imageId, data }) =>
-        updateGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdPatch(
+        updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch(
           guildId,
           galleryId,
           imageId,
@@ -198,7 +198,7 @@ export const useDeleteGalleryImage = (galleryId: number, options?: MutationOpts<
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, imageId) =>
-        deleteGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesImageIdDelete(
+        deleteGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdDelete(
           guildId,
           galleryId,
           imageId
@@ -223,7 +223,7 @@ export const useBulkDeleteGalleryImages = (
   useGuildMutation<GalleryImageBulkDeleteResponse, number[]>(
     {
       mutationFn: (guildId, imageIds) =>
-        bulkDeleteGalleryImagesApiV1GGuildIdGalleriesGalleryIdImagesBulkDeletePost(
+        bulkDeleteGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesBulkDeletePost(
           guildId,
           galleryId,
           { image_ids: imageIds } satisfies GalleryImageBulkDelete
@@ -241,7 +241,7 @@ export const useUploadGalleryImageVersion = (
   useGuildMutation<GalleryImageVersionRead, { imageId: number; file: File }>(
     {
       mutationFn: (guildId, { imageId, file }) =>
-        uploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost(
+        uploadGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsPost(
           guildId,
           galleryId,
           imageId,
@@ -260,7 +260,7 @@ export const useDeleteGalleryImageVersion = (
   useGuildMutation<void, { imageId: number; versionId: number }>(
     {
       mutationFn: (guildId, { imageId, versionId }) =>
-        deleteGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete(
+        deleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesImageIdVersionsVersionIdDelete(
           guildId,
           galleryId,
           imageId,

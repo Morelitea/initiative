@@ -9,7 +9,7 @@ Guild-schema serials restart per guild, so a shared surface cannot key anything
 off a local id. `uid` is the catalog's answer: a publisher-assigned, immutable
 14-character code that means the same listing on every deployment carrying that
 catalog. Instances need no uid — one is already addressable as
-`/g/{guild_id}/dashboards/{id}` — they just store `listing_uid` to point back at
+`/c/{guild_id}/dashboards/{id}` — they just store `listing_uid` to point back at
 where they came from, which is what keeps provenance across an export/import.
 
 Writes happen on the system-engine path only (boot seeding, and later the

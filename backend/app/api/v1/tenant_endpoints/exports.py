@@ -728,7 +728,7 @@ async def export_initiative(
     )
 
 
-@router.get("/guild", response_model=None)
+@router.get("/community", response_model=None)
 async def export_guild(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -797,7 +797,7 @@ async def export_guild(
     )
 
 
-@router.get("/guild/status", response_model=GuildExportStatus)
+@router.get("/community/status", response_model=GuildExportStatus)
 async def read_guild_export_status(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],

@@ -42,7 +42,7 @@ async def test_a_guild_admin_can_claim_unowned_content(
     project = await _released_project(session, admin)
 
     response = await client.post(
-        f"/api/v1/g/{admin.guild.id}/users/unowned-content/claim",
+        f"/api/v1/c/{admin.guild.id}/users/unowned-content/claim",
         headers=admin.headers,
         json={"new_owner_id": admin.user.id},
     )
@@ -70,7 +70,7 @@ async def test_content_cannot_be_handed_to_an_ordinary_member(
     await _released_project(session, admin)
 
     response = await client.post(
-        f"/api/v1/g/{admin.guild.id}/users/unowned-content/claim",
+        f"/api/v1/c/{admin.guild.id}/users/unowned-content/claim",
         headers=admin.headers,
         json={"new_owner_id": member.user.id},
     )
@@ -91,7 +91,7 @@ async def test_ownership_transfers_between_guild_admins(
     await TOOL_FACTORIES[Tool.project](session, owner.initiative, owner.user)
 
     response = await client.post(
-        f"/api/v1/g/{owner.guild.id}/users/{owner.user.id}/transfer-ownership",
+        f"/api/v1/c/{owner.guild.id}/users/{owner.user.id}/transfer-ownership",
         headers=owner.headers,
         json={"new_owner_id": receiver.user.id},
     )
@@ -114,7 +114,7 @@ async def test_content_cannot_be_handed_outside_the_guild(
     await _released_project(session, admin)
 
     response = await client.post(
-        f"/api/v1/g/{admin.guild.id}/users/unowned-content/claim",
+        f"/api/v1/c/{admin.guild.id}/users/unowned-content/claim",
         headers=admin.headers,
         json={"new_owner_id": elsewhere.user.id},
     )
@@ -135,7 +135,7 @@ async def test_content_cannot_be_handed_to_a_suspended_admin(
     await _released_project(session, admin)
 
     response = await client.post(
-        f"/api/v1/g/{admin.guild.id}/users/unowned-content/claim",
+        f"/api/v1/c/{admin.guild.id}/users/unowned-content/claim",
         headers=admin.headers,
         json={"new_owner_id": frozen.user.id},
     )

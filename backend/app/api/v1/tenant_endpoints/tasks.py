@@ -41,10 +41,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.core.identity_boundary import current_install_boundary
-from app.models.platform.identity_ref import IdentityEntity
 from app.models.tenant.property import PropertyType
-from pydantic_core import PydanticCustomError
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -84,7 +81,7 @@ from app.schemas.ai_generation import (
     GenerateDescriptionResponse,
 )
 from app.schemas.tenant.tag import TagSetRequest
-from app.schemas.tenant.property import PropertyValueInput, PropertyValuesSetRequest
+from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.api import resource_access
@@ -107,7 +104,6 @@ from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.core.audit_events import AuditEventType
 from app.core.messages import (
-    AppMessages,
     ProjectMessages,
     QueryMessages,
     TaskMessages,
@@ -1342,42 +1338,6 @@ def _refuse_person_filters(q: _TaskListQuery) -> None:
             )
 
 
-async def _property_values_by_row_id(
-    session: SessionDep, values: Sequence[PropertyValueInput]
-) -> list[PropertyValueInput]:
-    """``values`` with each person a ``user_reference`` value names as a row
-    id.
-
-    Unchanged for a person. An installed app names a person by the reference
-    it was given for them, which is resolved here the way a ``PersonId`` field
-    is; anything else in that place is a 422 (``APP_REFERENCE_UNKNOWN``).
-    """
-    boundary = current_install_boundary()
-    if boundary is None or not values:
-        return list(values)
-    definitions = await properties_service.load_definitions_by_ids(
-        session, [entry.property_id for entry in values]
-    )
-    resolved: list[PropertyValueInput] = []
-    for entry in values:
-        defn = definitions.get(entry.property_id)
-        if (
-            defn is not None
-            and defn.type is PropertyType.user_reference
-            and entry.value is not None
-        ):
-            try:
-                row_id = boundary.resolve(entry.value, IdentityEntity.user)
-            except PydanticCustomError:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=AppMessages.REFERENCE_UNKNOWN,
-                )
-            entry = entry.model_copy(update={"value": row_id})
-        resolved.append(entry)
-    return resolved
-
-
 async def _load_property_definitions_across_guilds(
     session,
     current_user: User,
@@ -1988,7 +1948,9 @@ async def create_task(
             await properties_service.set_task_property_values(
                 session,
                 task,
-                await _property_values_by_row_id(session, task_in.property_values),
+                await properties_service.property_values_by_row_id(
+                    session, task_in.property_values
+                ),
                 initiative_id,
             )
     except HTTPException:
@@ -2171,7 +2133,7 @@ async def update_task(
             await properties_service.set_task_property_values(
                 session,
                 task,
-                await _property_values_by_row_id(
+                await properties_service.property_values_by_row_id(
                     session, task_in.property_values or []
                 ),
                 initiative_id,
@@ -2883,14 +2845,16 @@ async def set_task_tags(
 async def set_task_properties(
     task_id: int,
     payload: PropertyValuesSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> Task:
     """Replace the custom property values on a task.
 
     Requires write access (same permission gate as PUT /tags). Validates
-    each value against its definition's type and options server-side.
+    each value against its definition's type and options server-side. An
+    installed app names the person a person-valued property holds by its
+    reference for them.
     """
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if task is None:
@@ -2918,7 +2882,7 @@ async def set_task_properties(
         await properties_service.set_task_property_values(
             session,
             task,
-            payload.values,
+            await properties_service.property_values_by_row_id(session, payload.values),
             initiative_id,
         )
     except HTTPException:

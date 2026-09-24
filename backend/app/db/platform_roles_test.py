@@ -115,7 +115,7 @@ async def test_acting_user_defaults_to_owner(client, acting_user):
     a = await acting_user()
     assert a.user.role.value == "owner"
     # A personal-mode (UserSessionDep) endpoint runs AS platform_owner end to end.
-    resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    resp = await client.get("/api/v1/communities/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -127,7 +127,7 @@ async def test_acting_user_emulates_each_tier(client, acting_user, tier):
     RLS unchanged, so every tier runs a personal-mode request like today)."""
     a = await acting_user(tier)
     assert a.user.role.value == tier
-    resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    resp = await client.get("/api/v1/communities/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -139,7 +139,7 @@ async def test_acting_user_optional_guild_role(client, acting_user, g_role):
     explicitly since a guild_role actor defaults to platform member."""
     a = await acting_user("member", guild_role=g_role)
     assert a.user.role.value == "member"
-    resp = await client.get(f"/api/v1/g/{a.guild.id}/initiatives/", headers=a.headers)
+    resp = await client.get(f"/api/v1/c/{a.guild.id}/initiatives/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -148,7 +148,7 @@ async def test_platform_and_guild_roles_coexist(client, acting_user):
     identity uses the right role on each path:
 
       * public/platform path  -> assumes platform_<tier>  (here platform_member)
-      * guild path (/g/{id}/…) -> assumes guild_<id> with current_guild_role=admin
+      * guild path (/c/{id}/…) -> assumes guild_<id> with current_guild_role=admin
 
     SET ROLE is single-valued per statement, so the two never conflict and neither
     costs the other. Uses a non-bypass platform tier (member) so the guild request
@@ -156,10 +156,10 @@ async def test_platform_and_guild_roles_coexist(client, acting_user):
     """
     a = await acting_user("member", guild_role="admin")
 
-    public_resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    public_resp = await client.get("/api/v1/communities/", headers=a.headers)
     assert public_resp.status_code == 200  # ran as platform_member
 
     guild_resp = await client.get(
-        f"/api/v1/g/{a.guild.id}/initiatives/", headers=a.headers
+        f"/api/v1/c/{a.guild.id}/initiatives/", headers=a.headers
     )
     assert guild_resp.status_code == 200  # ran as guild_<id> (admin), same identity

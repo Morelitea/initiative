@@ -101,7 +101,7 @@ async def test_guild_admin_joins_an_initiative_as_moderator(
     admin, _owner, pm, guild, initiative = await _setup(session, acting_user)
 
     resp = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers=admin.headers,
         json={"name": "Founded by an admin"},
     )
@@ -114,7 +114,7 @@ async def test_guild_admin_joins_an_initiative_as_moderator(
     )
     member_role = await _role_by_name(session, initiative, "member")
     resp = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/members",
         headers=pm.headers,
         json={"user_id": other_admin.user.id, "role_id": member_role.id},
     )
@@ -135,7 +135,7 @@ async def test_moderator_reaches_restricted_content(
     # owner (a PM/manager) creates a RESTRICTED project: grants=[] drops the
     # default all-members Viewer grant, so only the owner can reach it.
     resp = await client.post(
-        f"/api/v1/g/{guild.id}/projects/",
+        f"/api/v1/c/{guild.id}/projects/",
         headers=owner.headers,
         json={"name": "Secret", "initiative_id": initiative.id, "grants": []},
     )
@@ -145,14 +145,14 @@ async def test_moderator_reaches_restricted_content(
     # As a project manager, pm has no grant on this project — manager status is
     # gate-3, and gate 4 is per item — so 403.
     resp = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project_id}", headers=pm.headers
+        f"/api/v1/c/{guild.id}/projects/{project_id}", headers=pm.headers
     )
     assert resp.status_code == 403
 
     # The guild admin moves pm onto the moderator role.
     moderator = await _role_by_name(session, initiative, "moderator")
     resp = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{pm.user.id}",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/members/{pm.user.id}",
         headers=admin.headers,
         json={"role_id": moderator.id},
     )
@@ -160,19 +160,19 @@ async def test_moderator_reaches_restricted_content(
 
     # As a moderator: read, edit content, and manage sharing.
     resp = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project_id}", headers=pm.headers
+        f"/api/v1/c/{guild.id}/projects/{project_id}", headers=pm.headers
     )
     assert resp.status_code == 200
 
     resp = await client.patch(
-        f"/api/v1/g/{guild.id}/projects/{project_id}",
+        f"/api/v1/c/{guild.id}/projects/{project_id}",
         headers=pm.headers,
         json={"name": "Renamed by a moderator"},
     )
     assert resp.status_code == 200
 
     resp = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project_id}/grants",
+        f"/api/v1/c/{guild.id}/projects/{project_id}/grants",
         headers=pm.headers,
         json=[{"all_initiative_members": True, "level": "read"}],
     )
@@ -180,7 +180,7 @@ async def test_moderator_reaches_restricted_content(
 
     # my-permissions reflects the capability for the client.
     resp = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/my-permissions",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/my-permissions",
         headers=pm.headers,
     )
     assert resp.status_code == 200
@@ -200,7 +200,7 @@ async def test_only_a_guild_admin_puts_a_member_on_the_moderator_role(
     moderator = await _role_by_name(session, initiative, "moderator")
 
     resp = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{pm.user.id}",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/members/{pm.user.id}",
         headers=pm.headers,
         json={"role_id": moderator.id},
     )
@@ -211,7 +211,7 @@ async def test_only_a_guild_admin_puts_a_member_on_the_moderator_role(
         guild_role=GuildRole.member, guild=guild, email="joiner@example.com"
     )
     resp = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/members",
         headers=pm.headers,
         json={"user_id": joiner.user.id, "role_id": moderator.id},
     )
@@ -220,7 +220,7 @@ async def test_only_a_guild_admin_puts_a_member_on_the_moderator_role(
 
     # The same call from a community admin goes through.
     resp = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/members",
         headers=admin.headers,
         json={"user_id": joiner.user.id, "role_id": moderator.id},
     )
@@ -236,7 +236,7 @@ async def test_moderator_permissions_are_not_editable(
     moderator = await _role_by_name(session, initiative, "moderator")
 
     resp = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/roles/{moderator.id}",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/roles/{moderator.id}",
         headers=admin.headers,
         json={"permissions": {"projects_enabled": False}},
     )

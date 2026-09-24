@@ -1,4 +1,4 @@
-"""Guild-scoped AI config endpoints, mounted under ``/g/{guild_id}/settings``.
+"""Guild-scoped AI config endpoints, mounted under ``/c/{guild_id}/settings``.
 
 Two surfaces:
 - **Guild admin** — CRUD of ``guild_ai_connections`` (used when the global mode

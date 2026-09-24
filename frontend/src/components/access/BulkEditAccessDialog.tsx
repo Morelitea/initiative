@@ -10,10 +10,10 @@ import type {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey,
-  listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet,
+  getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
+  listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet,
 } from "@/api/generated/initiatives/initiatives";
-import { bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut } from "@/api/generated/resource-grants/resource-grants";
+import { bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut } from "@/api/generated/resource-grants/resource-grants";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -168,12 +168,12 @@ export function BulkEditAccessDialog({
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({
     queries: initiativeIds.map((id) => ({
-      queryKey: getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey(
+      queryKey: getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey(
         guildId,
         id
       ),
       queryFn: () =>
-        listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+        listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
           guildId,
           id
         ) as unknown as Promise<InitiativeRoleRead[]>,
@@ -343,7 +343,7 @@ export function BulkEditAccessDialog({
           resource_id: e.resourceId,
           grants: e.grants,
         }));
-        await bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut(guildId, {
+        await bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut(guildId, {
           items: bulkItems,
         });
       }

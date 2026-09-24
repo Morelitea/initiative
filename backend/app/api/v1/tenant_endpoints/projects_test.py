@@ -1475,7 +1475,7 @@ async def test_project_guild_isolation(
     # ids are per-schema (not globally unique), so project1.id may collide with a
     # guild2 project — but it must never resolve to guild1's project.
     response2 = await client.get(
-        f"/api/v1/g/{guild2.id}/projects/{project1.id}", headers=a1.headers
+        f"/api/v1/c/{guild2.id}/projects/{project1.id}", headers=a1.headers
     )
 
     if response2.status_code == 200:

@@ -38,7 +38,7 @@ function stubEstimate(estimate = ESTIMATE) {
 
 function stubJobLifecycle(capture: (url: URL) => void) {
   server.use(
-    guildHttp.get("/exports/guild", ({ request }) => {
+    guildHttp.get("/exports/community", ({ request }) => {
       capture(new URL(request.url));
       return HttpResponse.json({ id: 77, status: "queued" }, { status: 202 });
     }),
@@ -48,7 +48,7 @@ function stubJobLifecycle(capture: (url: URL) => void) {
     }),
     guildHttp.get("/exports/:jobId", ({ params }) => {
       // Fall through for the literal sibling routes (/exports/estimate,
-      // /exports/guild, /exports/initiative) — only numeric ids are jobs.
+      // /exports/community, /exports/initiative) — only numeric ids are jobs.
       if (Number.isNaN(Number(params.jobId))) {
         return undefined;
       }
@@ -170,7 +170,7 @@ describe("ExportWizard", () => {
   it("resumes the running job's progress view on re-open instead of offering a new flow", async () => {
     stubEstimate();
     server.use(
-      guildHttp.get("/exports/guild", () =>
+      guildHttp.get("/exports/community", () =>
         HttpResponse.json({ id: 88, status: "queued" }, { status: 202 })
       ),
       // The job never finishes during this test — it stays queued.

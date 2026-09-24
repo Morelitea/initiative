@@ -468,7 +468,7 @@ class TestWhenTheRelationshipEnds:
         )
 
         left = await client.delete(
-            f"/api/v1/guilds/{owner.guild.id}/leave", headers=leaver.headers
+            f"/api/v1/communities/{owner.guild.id}/leave", headers=leaver.headers
         )
         assert left.status_code == 204, left.text
 

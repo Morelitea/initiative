@@ -405,12 +405,12 @@ async def test_an_initiative_listing_still_answers_a_guild_admin_in_full(
     unshared = await create_project(session, elsewhere, owner, name="Someone Else's")
 
     headers = get_auth_headers(admin)
-    across = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
+    across = await client.get(f"/api/v1/c/{guild.id}/projects/", headers=headers)
     assert across.status_code == 200
     assert unshared.id not in {p["id"] for p in across.json()["items"]}
 
     within = await client.get(
-        f"/api/v1/g/{guild.id}/projects/?initiative_id={elsewhere.id}",
+        f"/api/v1/c/{guild.id}/projects/?initiative_id={elsewhere.id}",
         headers=headers,
     )
     assert within.status_code == 200

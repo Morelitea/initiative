@@ -21,9 +21,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  GetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item,
+  GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item,
   HTTPValidationError,
-  SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams,
+  SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -50,7 +50,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * Get the list of current collaborators on a document.
  * @summary Get Document Collaborators
  */
-export const getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet =
+export const getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet =
   (
     guildId: number,
     documentId: number,
@@ -58,10 +58,10 @@ export const getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocument
     signal?: AbortSignal
   ) => {
     return apiMutator<
-      GetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item[]
+      GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item[]
     >(
       {
-        url: `/api/v1/g/${guildId}/collaboration/documents/${documentId}/collaborators`,
+        url: `/api/v1/c/${guildId}/collaboration/documents/${documentId}/collaborators`,
         method: "GET",
         signal,
       },
@@ -69,16 +69,16 @@ export const getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocument
     );
   };
 
-export const getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryKey =
+export const getGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryKey =
   (guildId: number, documentId: number) => {
-    return [`/api/v1/g/${guildId}/collaboration/documents/${documentId}/collaborators`] as const;
+    return [`/api/v1/c/${guildId}/collaboration/documents/${documentId}/collaborators`] as const;
   };
 
-export const getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryOptions =
+export const getGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryOptions =
   <
     TData = Awaited<
       ReturnType<
-        typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+        typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
       >
     >,
     TError = ErrorType<HTTPValidationError>,
@@ -90,7 +90,7 @@ export const getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocum
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
             >
           >,
           TError,
@@ -104,7 +104,7 @@ export const getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocum
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryKey(
+      getGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryKey(
         guildId,
         documentId
       );
@@ -112,11 +112,11 @@ export const getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocum
     const queryFn: QueryFunction<
       Awaited<
         ReturnType<
-          typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+          typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
         >
       >
     > = ({ signal }) =>
-      getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet(
+      getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet(
         guildId,
         documentId,
         requestOptions,
@@ -135,7 +135,7 @@ export const getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocum
     } as UseQueryOptions<
       Awaited<
         ReturnType<
-          typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+          typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
         >
       >,
       TError,
@@ -143,21 +143,21 @@ export const getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocum
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryResult =
+export type GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+        typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
       >
     >
   >;
-export type GetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryError =
+export type GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
+export function useGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
   TData = Awaited<
     ReturnType<
-      typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+      typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -169,7 +169,7 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+            typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
           >
         >,
         TError,
@@ -180,13 +180,13 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
             >
           >
         >,
@@ -196,10 +196,10 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
+export function useGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
   TData = Awaited<
     ReturnType<
-      typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+      typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -211,7 +211,7 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+            typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
           >
         >,
         TError,
@@ -222,13 +222,13 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
             >
           >
         >,
@@ -238,10 +238,10 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
+export function useGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
   TData = Awaited<
     ReturnType<
-      typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+      typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -253,7 +253,7 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+            typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
           >
         >,
         TError,
@@ -268,10 +268,10 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
  * @summary Get Document Collaborators
  */
 
-export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
+export function useGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
   TData = Awaited<
     ReturnType<
-      typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+      typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -283,7 +283,7 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
+            typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
           >
         >,
         TError,
@@ -295,7 +295,7 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryOptions(
+    getGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryOptions(
       guildId,
       documentId,
       options
@@ -317,21 +317,21 @@ export function useGetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDo
  * session cookie on web, a short-lived uploads-scoped ``?token=`` on native —
  * so the long-lived session JWT never rides in a URL (SEC-12), unlike the
  * earlier ``?token=<session jwt>`` version. The guild comes from the
- * ``/g/{guild_id}`` path — the document being synced was open inside it.
+ * ``/c/{guild_id}`` path — the document being synced was open inside it.
  *
  * The request body should contain the Lexical serialized state as JSON.
  * @summary Sync Document Content
  */
-export const syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost = (
+export const syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost = (
   guildId: number,
   documentId: number,
-  params?: SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams,
+  params?: SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
     {
-      url: `/api/v1/g/${guildId}/collaboration/documents/${documentId}/sync-content`,
+      url: `/api/v1/c/${guildId}/collaboration/documents/${documentId}/sync-content`,
       method: "POST",
       params,
       signal,
@@ -340,35 +340,35 @@ export const syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyn
   );
 };
 
-export const getSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationKey =
+export const getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationKey =
   () =>
-    ["syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost"] as const;
+    ["syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost"] as const;
 
-export const getSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationOptions =
+export const getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+          typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
         >
       >,
       TError,
-      SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
+      SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+        typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
       >
     >,
     TError,
-    SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
+    SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationKey();
+      getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -378,14 +378,14 @@ export const getSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentId
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+          typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
         >
       >,
-      SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables
+      SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables
     > = (props) => {
       const { guildId, documentId, params } = props ?? {};
 
-      return syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost(
+      return syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost(
         guildId,
         documentId,
         params,
@@ -396,28 +396,28 @@ export const getSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentId
     return { mutationFn, ...mutationOptions };
   };
 
-export type SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationResult =
+export type SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+        typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
       >
     >
   >;
 
-export type SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationError =
+export type SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationError =
   ErrorType<HTTPValidationError>;
-export type SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables =
+export type SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables =
   {
     guildId: number;
     documentId: number;
-    params?: SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams;
+    params?: SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams;
   };
 
 /**
  * @summary Sync Document Content
  */
-export const useSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost = <
+export const useSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -425,11 +425,11 @@ export const useSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentId
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+          typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
         >
       >,
       TError,
-      SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
+      SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -438,15 +438,15 @@ export const useSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentId
 ): UseMutationResult<
   Awaited<
     ReturnType<
-      typeof syncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+      typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
     >
   >,
   TError,
-  SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
+  SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationOptions(
+    getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationOptions(
       options
     ),
     queryClient

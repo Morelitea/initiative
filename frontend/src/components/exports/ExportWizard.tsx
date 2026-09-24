@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useEstimateAggregateExportApiV1GGuildIdExportsEstimateGet } from "@/api/generated/exports/exports";
+import { useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet } from "@/api/generated/exports/exports";
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   AGGREGATE_EXPORT_TOOLS,
@@ -69,7 +69,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
     }
   }, [open]);
 
-  const estimateQuery = useEstimateAggregateExportApiV1GGuildIdExportsEstimateGet(
+  const estimateQuery = useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet(
     guildId,
     { scope, initiative_id: initiativeId ?? null, include_uploads: includeUploads },
     { query: { enabled: open && step === "backup" } }
@@ -134,7 +134,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
     }
     commit("progress");
     void exportJob.start({
-      endpoint: scope === "guild" ? "/exports/guild" : "/exports/initiative",
+      endpoint: scope === "guild" ? "/exports/community" : "/exports/initiative",
       params,
       fallbackFilename: `${scope}-export.zip`,
     });

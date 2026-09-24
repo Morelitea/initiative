@@ -107,7 +107,7 @@ async def test_the_request_carries_a_signed_handoff_and_no_bare_identity(
     monkeypatch.setattr(billing_claim.httpx, "AsyncClient", _Capture)
     await billing_claim._send_claim(9, 77)
 
-    assert seen["url"] == f"{_URL}/api/v1/guilds/claim"
+    assert seen["url"] == f"{_URL}/api/v1/communities/claim"
     # The token is the whole payload: no user_id or guild_id in the clear.
     assert set(seen["json"]) == {"handoff_token"}
 
@@ -155,7 +155,7 @@ async def test_creating_a_guild_claims_it_for_its_owner(
 
     user = await create_user(session, email="claim-create@example.com")
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=get_auth_headers(user),
         json={"name": "Claimed Guild"},
     )
@@ -174,7 +174,7 @@ async def test_an_unconfigured_deployment_creates_guilds_without_claiming(
 
     user = await create_user(session, email="claim-foss@example.com")
     response = await client.post(
-        "/api/v1/guilds/",
+        "/api/v1/communities/",
         headers=get_auth_headers(user),
         json={"name": "Self-Hosted Guild"},
     )

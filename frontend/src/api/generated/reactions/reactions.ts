@@ -57,32 +57,32 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * every route under here carries.
  * @summary Suggested Reactions
  */
-export const suggestedReactionsApiV1GGuildIdReactionsSuggestedGet = (
+export const suggestedReactionsApiV1CGuildIdReactionsSuggestedGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<string[]>(
-    { url: `/api/v1/g/${guildId}/reactions/suggested`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/reactions/suggested`, method: "GET", signal },
     options
   );
 };
 
-export const getSuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryKey = (
+export const getSuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/reactions/suggested`] as const;
+  return [`/api/v1/c/${guildId}/reactions/suggested`] as const;
 };
 
-export const getSuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+export const getSuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+        Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
         TError,
         TData
       >
@@ -94,12 +94,12 @@ export const getSuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryOptions
 
   const queryKey =
     queryOptions?.queryKey ??
-    getSuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryKey(guildId);
+    getSuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>
+    Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>
   > = ({ signal }) =>
-    suggestedReactionsApiV1GGuildIdReactionsSuggestedGet(guildId, requestOptions, signal);
+    suggestedReactionsApiV1CGuildIdReactionsSuggestedGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -107,36 +107,36 @@ export const getSuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryOptions
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+    Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type SuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>
+export type SuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>
 >;
-export type SuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryError =
+export type SuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
-  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+export function useSuggestedReactionsApiV1CGuildIdReactionsSuggestedGet<
+  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+        Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+          Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
           TError,
-          Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>
+          Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>
         >,
         "initialData"
       >;
@@ -144,24 +144,24 @@ export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
-  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+export function useSuggestedReactionsApiV1CGuildIdReactionsSuggestedGet<
+  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+        Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+          Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
           TError,
-          Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>
+          Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>
         >,
         "initialData"
       >;
@@ -169,15 +169,15 @@ export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
-  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+export function useSuggestedReactionsApiV1CGuildIdReactionsSuggestedGet<
+  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+        Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
         TError,
         TData
       >
@@ -190,15 +190,15 @@ export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
  * @summary Suggested Reactions
  */
 
-export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
-  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+export function useSuggestedReactionsApiV1CGuildIdReactionsSuggestedGet<
+  TData = Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestedReactionsApiV1GGuildIdReactionsSuggestedGet>>,
+        Awaited<ReturnType<typeof suggestedReactionsApiV1CGuildIdReactionsSuggestedGet>>,
         TError,
         TData
       >
@@ -207,7 +207,7 @@ export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getSuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryOptions(
+  const queryOptions = getSuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryOptions(
     guildId,
     options
   );
@@ -223,7 +223,7 @@ export function useSuggestedReactionsApiV1GGuildIdReactionsSuggestedGet<
  * Every reaction on one target. Reading takes read access on the target.
  * @summary Read Reactions
  */
-export const readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet = (
+export const readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet = (
   guildId: number,
   targetType: ReactionTarget,
   targetId: number,
@@ -231,21 +231,21 @@ export const readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet = (
   signal?: AbortSignal
 ) => {
   return apiMutator<ReactionSummary>(
-    { url: `/api/v1/g/${guildId}/reactions/${targetType}/${targetId}`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/reactions/${targetType}/${targetId}`, method: "GET", signal },
     options
   );
 };
 
-export const getReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryKey = (
+export const getReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGetQueryKey = (
   guildId: number,
   targetType: ReactionTarget,
   targetId: number
 ) => {
-  return [`/api/v1/g/${guildId}/reactions/${targetType}/${targetId}`] as const;
+  return [`/api/v1/c/${guildId}/reactions/${targetType}/${targetId}`] as const;
 };
 
-export const getReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+export const getReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -254,7 +254,7 @@ export const getReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryOpt
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+        Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
         TError,
         TData
       >
@@ -266,16 +266,16 @@ export const getReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryOpt
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryKey(
+    getReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGetQueryKey(
       guildId,
       targetType,
       targetId
     );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>
+    Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>
   > = ({ signal }) =>
-    readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet(
+    readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet(
       guildId,
       targetType,
       targetId,
@@ -295,20 +295,20 @@ export const getReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryOpt
       targetId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+    Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>
+export type ReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>
 >;
-export type ReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryError =
+export type ReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
-  TData = Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+export function useReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet<
+  TData = Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -317,16 +317,16 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+        Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+          Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>
+          Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>
         >,
         "initialData"
       >;
@@ -334,8 +334,8 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
-  TData = Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+export function useReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet<
+  TData = Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -344,16 +344,16 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+        Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+          Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>
+          Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>
         >,
         "initialData"
       >;
@@ -361,8 +361,8 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
-  TData = Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+export function useReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet<
+  TData = Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -371,7 +371,7 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+        Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
         TError,
         TData
       >
@@ -384,8 +384,8 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
  * @summary Read Reactions
  */
 
-export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
-  TData = Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+export function useReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet<
+  TData = Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -394,7 +394,7 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet>>,
+        Awaited<ReturnType<typeof readReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGet>>,
         TError,
         TData
       >
@@ -403,7 +403,7 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGetQueryOptions(
+  const queryOptions = getReadReactionsApiV1CGuildIdReactionsTargetTypeTargetIdGetQueryOptions(
     guildId,
     targetType,
     targetId,
@@ -425,7 +425,7 @@ export function useReadReactionsApiV1GGuildIdReactionsTargetTypeTargetIdGet<
  * race where a double tap leaves a reaction it meant to clear.
  * @summary Toggle Reaction
  */
-export const toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut = (
+export const toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut = (
   guildId: number,
   targetType: ReactionTarget,
   targetId: number,
@@ -435,7 +435,7 @@ export const toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut = (
 ) => {
   return apiMutator<ReactionSummary>(
     {
-      url: `/api/v1/g/${guildId}/reactions/${targetType}/${targetId}`,
+      url: `/api/v1/c/${guildId}/reactions/${targetType}/${targetId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: reactionToggle,
@@ -445,27 +445,27 @@ export const toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut = (
   );
 };
 
-export const getToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationKey = () =>
-  ["toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut"] as const;
+export const getToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationKey = () =>
+  ["toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut"] as const;
 
-export const getToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationOptions = <
+export const getToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut>>,
+    Awaited<ReturnType<typeof toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut>>,
     TError,
-    ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationVariables,
+    ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut>>,
+  Awaited<ReturnType<typeof toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut>>,
   TError,
-  ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationVariables,
+  ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationKey();
+  const mutationKey = getToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -473,12 +473,12 @@ export const getToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut>>,
-    ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationVariables
+    Awaited<ReturnType<typeof toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut>>,
+    ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationVariables
   > = (props) => {
     const { guildId, targetType, targetId, data } = props ?? {};
 
-    return toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut(
+    return toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut(
       guildId,
       targetType,
       targetId,
@@ -490,14 +490,14 @@ export const getToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutatio
   return { mutationFn, ...mutationOptions };
 };
 
-export type ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut>>
+export type ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut>>
 >;
-export type ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationBody =
+export type ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationBody =
   BodyType<ReactionToggle>;
-export type ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationError =
+export type ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationError =
   ErrorType<HTTPValidationError>;
-export type ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationVariables = {
+export type ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationVariables = {
   guildId: number;
   targetType: ReactionTarget;
   targetId: number;
@@ -507,28 +507,28 @@ export type ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationVar
 /**
  * @summary Toggle Reaction
  */
-export const useToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut = <
+export const useToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut>>,
+      Awaited<ReturnType<typeof toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut>>,
       TError,
-      ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationVariables,
+      ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut>>,
+  Awaited<ReturnType<typeof toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut>>,
   TError,
-  ToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationVariables,
+  ToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getToggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPutMutationOptions(options),
+    getToggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPutMutationOptions(options),
     queryClient
   );
 };

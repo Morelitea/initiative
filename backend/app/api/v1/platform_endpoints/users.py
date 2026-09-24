@@ -174,7 +174,7 @@ router = APIRouter()
 # (no guild context), with an optional guild_id filter.
 me_router = APIRouter()
 # Guild-scoped member management (guild-admin lists/creates/approves/removes
-# members of one guild). Mounted under /g/{guild_id}/users — the /me/* and
+# members of one guild). Mounted under /c/{guild_id}/users — the /me/* and
 # platform user endpoints stay on ``router`` (top-level /users). The member
 # search is also what an installed app reads people through, under
 # ``members:read``.
@@ -233,7 +233,7 @@ async def read_users_me(
     unmet, because every screen that could answer it is drawn from this."""
     # No initiative_roles enrichment: initiative membership is guild-schema
     # content, which a platform-path request cannot (and must not) read.
-    # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients
+    # Guild-scoped rosters (/c/{guild_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
     payload = await users_service.to_self_read(current_user)
     # Own-row read on the platform-tier session: whether any external identity

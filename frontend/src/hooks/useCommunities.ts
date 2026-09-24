@@ -15,13 +15,13 @@ import {
 } from "@tanstack/react-query";
 
 import {
-  joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost,
-  listCommunityGuildsApiV1GuildsCommunitiesGet,
-} from "@/api/generated/guilds/guilds";
+  joinCommunityGuildApiV1CommunitiesDirectoryGuildIdJoinPost,
+  listCommunityGuildsApiV1CommunitiesDirectoryGet,
+} from "@/api/generated/communities/communities";
 import type {
   CommunityGuildPage,
   GuildRead,
-  ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 
 /** Shared prefix, so joining can invalidate every filter combination at once
@@ -39,7 +39,7 @@ export const COMMUNITIES_PAGE_SIZE = 24;
 
 /** Everything except the page number, which the query owns. */
 export type CommunityFilters = Omit<
-  ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
   "page" | "page_size"
 >;
 
@@ -50,7 +50,7 @@ export const useCommunityGuilds = (filters: CommunityFilters, options?: { enable
   useInfiniteQuery<CommunityGuildPage>({
     queryKey: [...COMMUNITIES_QUERY_KEY, filters],
     queryFn: ({ pageParam, signal }) =>
-      listCommunityGuildsApiV1GuildsCommunitiesGet(
+      listCommunityGuildsApiV1CommunitiesDirectoryGet(
         { ...filters, page: pageParam as number, page_size: COMMUNITIES_PAGE_SIZE },
         undefined,
         signal
@@ -73,7 +73,7 @@ export const useJoinCommunityGuild = () => {
   const queryClient = useQueryClient();
   return useMutation<GuildRead, unknown, number>({
     mutationFn: (guildId: number) =>
-      joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost(guildId),
+      joinCommunityGuildApiV1CommunitiesDirectoryGuildIdJoinPost(guildId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: COMMUNITIES_QUERY_KEY });
     },

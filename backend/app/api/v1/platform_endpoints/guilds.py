@@ -159,7 +159,7 @@ def _serialize_guild(
     - **Guild admins only** — the administration fields: the operator-set caps
       and plan label, the trash retention window, the lifecycle status, and the
       per-guild sign-in entitlement. Each backs an admin-only surface (the whole
-      guild settings section is admin-gated, as is ``/g/{id}/storage/usage``,
+      guild settings section is admin-gated, as is ``/c/{id}/storage/usage``,
       the panel's other half), so a regular member's payload leaves them
       ``None``.
 
@@ -354,7 +354,7 @@ async def reorder_guilds(
 MAX_COMMUNITY_PAGE_SIZE = 60
 
 
-@router.get("/communities", response_model=CommunityGuildPage)
+@router.get("/directory", response_model=CommunityGuildPage)
 async def list_community_guilds(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -424,7 +424,7 @@ async def list_community_guilds(
     )
 
 
-@router.post("/communities/{guild_id}/join", response_model=GuildRead)
+@router.post("/directory/{guild_id}/join", response_model=GuildRead)
 async def join_community_guild(
     guild_id: int,
     session: SystemSessionDep,
@@ -666,7 +666,7 @@ async def read_guild(
     session: SettingsRLSSessionDep,
 ) -> GuildRead:
     """The community as the caller's standing sees it — how a community
-    reached by a settings grant, which has no entry in ``GET /guilds/``, gets
+    reached by a settings grant, which has no entry in ``GET /communities/``, gets
     its entry and the answer to what the caller may change there.
 
     Without its pictures: a settings rung reads on the read-only floor, which
@@ -812,7 +812,7 @@ async def update_guild(
 # The pictures a guild is known by are the only guild media a stranger can be
 # shown: a listed guild's icon and its banner's card rendition are what its
 # community-directory card is made of. Which is why these routes are here on
-# the platform router rather than under ``/g/{id}/…``, and why they run on the
+# the platform router rather than under ``/c/{id}/…``, and why they run on the
 # system engine — see ``guild_images.may_read_image`` for the rule and the
 # reasoning.
 

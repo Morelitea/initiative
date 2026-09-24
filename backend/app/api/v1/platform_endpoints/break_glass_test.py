@@ -118,14 +118,14 @@ async def test_admin_reaches_guild_only_after_clicking_through(
     a, guild = await outsider()
     host = await acting_user(guild_role=GuildRole.admin, guild=guild, initiative=True)
 
-    before = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=a.headers)
+    before = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=a.headers)
     assert before.status_code == 403
 
     issued = await _break_glass(client, a, guild, reason="investigate")
     assert issued.status_code == 201, issued.text
     assert issued.json()["is_live"] is True
 
-    after = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=a.headers)
+    after = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=a.headers)
     assert after.status_code == 200, after.text
     assert any(i["name"] == host.initiative.name for i in after.json())
 
@@ -156,7 +156,7 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
 
     # Authoring is not what a content grant is: no new project.
     authored = await client.post(
-        f"/api/v1/g/{guild.id}/projects/",
+        f"/api/v1/c/{guild.id}/projects/",
         json={"name": "New Front", "initiative_id": host.initiative.id},
         headers=a.headers,
     )
@@ -164,7 +164,7 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
 
     # Nor is handing access out.
     shared = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{host.project.id}/grants",
+        f"/api/v1/c/{guild.id}/projects/{host.project.id}/grants",
         json=[{"user_id": target.user.id, "level": "write"}],
         headers=a.headers,
     )
@@ -172,7 +172,7 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
 
     # What the settings grant carries: the community's own configuration.
     policy = await client.get(
-        f"/api/v1/guilds/{guild.id}/auth-policy", headers=a.headers
+        f"/api/v1/communities/{guild.id}/auth-policy", headers=a.headers
     )
     assert policy.status_code == 200, policy.text
 

@@ -121,7 +121,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     setInviteStatusError(null);
     setInviteStatusLoading(true);
     apiClient
-      .get<GuildInviteStatus>(`/guilds/invite/${encodeURIComponent(inviteCode)}`)
+      .get<GuildInviteStatus>(`/communities/invite/${encodeURIComponent(inviteCode)}`)
       .then((response) => {
         if (ignore) {
           return;

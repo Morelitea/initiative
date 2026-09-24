@@ -63,7 +63,7 @@ const job = (o: Record<string, unknown> = {}) => ({
 });
 
 const status = (o: Record<string, unknown> = {}) =>
-  guildHttp.get("/exports/guild/status", () =>
+  guildHttp.get("/exports/community/status", () =>
     HttpResponse.json({
       cooldown_hours: 48,
       next_available_at: null,

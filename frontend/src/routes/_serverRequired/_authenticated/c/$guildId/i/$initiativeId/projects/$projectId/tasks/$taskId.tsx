@@ -1,20 +1,20 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getListCommentsApiV1GGuildIdCommentsGetQueryKey,
-  listCommentsApiV1GGuildIdCommentsGet,
+  getListCommentsApiV1CGuildIdCommentsGetQueryKey,
+  listCommentsApiV1CGuildIdCommentsGet,
 } from "@/api/generated/comments/comments";
 import {
-  getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
-  readProjectApiV1GGuildIdProjectsProjectIdGet,
+  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
+  readProjectApiV1CGuildIdProjectsProjectIdGet,
 } from "@/api/generated/projects/projects";
 import {
-  getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
+  listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet,
 } from "@/api/generated/task-statuses/task-statuses";
 import {
-  getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
-  readTaskApiV1GGuildIdTasksTaskIdGet,
+  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
+  readTaskApiV1CGuildIdTasksTaskIdGet,
 } from "@/api/generated/tasks/tasks";
 
 export const Route = createFileRoute(
@@ -33,27 +33,27 @@ export const Route = createFileRoute(
     // instead of waiting on the task to name its project.
     void Promise.all([
       queryClient.ensureQueryData({
-        queryKey: getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, taskId),
-        queryFn: () => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, taskId),
+        queryKey: getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, taskId),
+        queryFn: () => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, taskId),
         staleTime: 30_000,
       }),
       queryClient.ensureQueryData({
-        queryKey: getListCommentsApiV1GGuildIdCommentsGetQueryKey(guildId, { task_id: taskId }),
-        queryFn: () => listCommentsApiV1GGuildIdCommentsGet(guildId, { task_id: taskId }),
+        queryKey: getListCommentsApiV1CGuildIdCommentsGetQueryKey(guildId, { task_id: taskId }),
+        queryFn: () => listCommentsApiV1CGuildIdCommentsGet(guildId, { task_id: taskId }),
         staleTime: 30_000,
       }),
       queryClient.ensureQueryData({
-        queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
-        queryFn: () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId),
+        queryKey: getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
+        queryFn: () => readProjectApiV1CGuildIdProjectsProjectIdGet(guildId, projectId),
         staleTime: 30_000,
       }),
       queryClient.ensureQueryData({
-        queryKey: getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
+        queryKey: getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
           guildId,
           projectId
         ),
         queryFn: () =>
-          listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
+          listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
         staleTime: 60_000,
       }),
     ]).catch(() => {});

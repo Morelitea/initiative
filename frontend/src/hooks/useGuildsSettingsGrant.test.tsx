@@ -59,7 +59,7 @@ describe("settings grants in the community switcher", () => {
 
   it("preserves settings authority separately from content authority", async () => {
     get.mockImplementation((path: string) => {
-      if (path === "/guilds/") return Promise.resolve({ data: [] });
+      if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/") {
         return Promise.resolve({
           data: [
@@ -100,7 +100,7 @@ describe("settings grants in the community switcher", () => {
 
   it("keeps a settings grant alongside an ordinary membership", async () => {
     get.mockImplementation((path: string) => {
-      if (path === "/guilds/") {
+      if (path === "/communities/") {
         return Promise.resolve({ data: [buildGuild({ id: 8, role: "member" })] });
       }
       if (path === "/access-grants/") {
@@ -132,7 +132,7 @@ describe("settings grants in the community switcher", () => {
 
   it("takes what may be changed from the community's own entry", async () => {
     get.mockImplementation((path: string) => {
-      if (path === "/guilds/") return Promise.resolve({ data: [] });
+      if (path === "/communities/") return Promise.resolve({ data: [] });
       if (path === "/access-grants/") {
         return Promise.resolve({
           data: [
@@ -148,7 +148,7 @@ describe("settings grants in the community switcher", () => {
           ],
         });
       }
-      if (path === "/guilds/8") {
+      if (path === "/communities/8") {
         return Promise.resolve({
           data: buildGuild({ id: 8, role: "admin", can_write_settings: false, retention_days: 30 }),
         });
@@ -181,6 +181,6 @@ describe("settings grants in the community switcher", () => {
         screen.getByText('{"access":"grant","settings":"admin","writes":false,"retention":30}')
       ).toBeVisible()
     );
-    expect(get).toHaveBeenCalledWith("/guilds/8");
+    expect(get).toHaveBeenCalledWith("/communities/8");
   });
 });

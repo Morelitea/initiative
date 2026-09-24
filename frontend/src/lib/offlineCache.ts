@@ -44,7 +44,7 @@ export const OFFLINE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
  * older blob misleading rather than merely stale. Part of the buster, so a bump
  * discards every existing cache instead of half-reading it.
  */
-const OFFLINE_CACHE_SCHEMA_VERSION = 1;
+const OFFLINE_CACHE_SCHEMA_VERSION = 2;
 
 /**
  * When the cache was last written — i.e. the last moment this device was online
@@ -64,39 +64,39 @@ const guildShard = (guildId: number) => `g${guildId}`;
 /**
  * Read-only content surfaces worth having on a train. Matched as prefixes
  * against the query key's first element, which for every generated hook is the
- * request path (`/api/v1/g/3/tasks/12`) — see `src/api/generated/*`.
+ * request path (`/api/v1/c/3/tasks/12`) — see `src/api/generated/*`.
  *
- * `{g}` stands in for the `/g/{guildId}` segment so one entry covers every
+ * `{g}` stands in for the `/c/{guildId}` segment so one entry covers every
  * guild without the prefix list having to know any guild ids.
  */
 const PERSIST_ALLOWLIST = [
   // Guild content — the things somebody actually opened.
-  "/api/v1/g/{g}/initiatives",
-  "/api/v1/g/{g}/projects",
-  "/api/v1/g/{g}/tasks",
-  "/api/v1/g/{g}/task-statuses",
-  "/api/v1/g/{g}/documents",
-  "/api/v1/g/{g}/queues",
-  "/api/v1/g/{g}/queue-items",
-  "/api/v1/g/{g}/counters",
-  "/api/v1/g/{g}/counter-groups",
-  "/api/v1/g/{g}/calendars",
-  "/api/v1/g/{g}/calendar-events",
-  "/api/v1/g/{g}/calendar-entries",
-  "/api/v1/g/{g}/dashboards",
-  "/api/v1/g/{g}/posts",
-  "/api/v1/g/{g}/comments",
-  "/api/v1/g/{g}/tags",
-  "/api/v1/g/{g}/property-definitions",
-  "/api/v1/g/{g}/fields",
-  "/api/v1/g/{g}/tools",
+  "/api/v1/c/{g}/initiatives",
+  "/api/v1/c/{g}/projects",
+  "/api/v1/c/{g}/tasks",
+  "/api/v1/c/{g}/task-statuses",
+  "/api/v1/c/{g}/documents",
+  "/api/v1/c/{g}/queues",
+  "/api/v1/c/{g}/queue-items",
+  "/api/v1/c/{g}/counters",
+  "/api/v1/c/{g}/counter-groups",
+  "/api/v1/c/{g}/calendars",
+  "/api/v1/c/{g}/calendar-events",
+  "/api/v1/c/{g}/calendar-entries",
+  "/api/v1/c/{g}/dashboards",
+  "/api/v1/c/{g}/posts",
+  "/api/v1/c/{g}/comments",
+  "/api/v1/c/{g}/tags",
+  "/api/v1/c/{g}/property-definitions",
+  "/api/v1/c/{g}/fields",
+  "/api/v1/c/{g}/tools",
   // Cross-guild "my" reads that the home screens are built from.
   "/api/v1/me/tasks",
   "/api/v1/me/projects",
   "/api/v1/me/tools",
   // Enough identity and structure to render the shell around all of it.
   "/api/v1/users/me",
-  "/api/v1/guilds",
+  "/api/v1/communities",
   "/api/v1/recents",
 ] as const;
 
@@ -128,7 +128,7 @@ const PERSIST_DENYLIST = [
   "/dm-permission",
 ] as const;
 
-const GUILD_SEGMENT = /^\/api\/v1\/g\/(\d+)(?=\/|$)/;
+const GUILD_SEGMENT = /^\/api\/v1\/c\/(\d+)(?=\/|$)/;
 
 /**
  * Guilds the user reaches only through a live, time-bound grant rather than
@@ -168,7 +168,7 @@ export const guildIdOfPath = (path: string): number | null => {
 
 const matchesAllowlist = (path: string): boolean =>
   PERSIST_ALLOWLIST.some((entry) => {
-    const prefix = entry.replace("/g/{g}", `/g/${guildIdOfPath(path) ?? ""}`);
+    const prefix = entry.replace("/c/{g}", `/c/${guildIdOfPath(path) ?? ""}`);
     return path === prefix || path.startsWith(`${prefix}/`) || path.startsWith(`${prefix}?`);
   });
 

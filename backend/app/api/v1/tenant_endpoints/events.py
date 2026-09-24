@@ -72,7 +72,7 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
     """
     WebSocket endpoint for real-time updates, scoped to a single guild.
 
-    The guild comes from the ``/g/{guild_id}`` path segment — a separate socket
+    The guild comes from the ``/c/{guild_id}`` path segment — a separate socket
     per guild, so different tabs/windows can subscribe to different guilds at
     once. Authentication is done via MSG_AUTH message sent immediately after
     connection, not via URL query parameters (for security - prevents token

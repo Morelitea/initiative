@@ -10,8 +10,8 @@
  * broadly rather than by kind.
  */
 import {
-  archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost,
-  unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost,
+  archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost,
+  unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost,
 } from "@/api/generated/archive/archive";
 import type { ArchivableType, ArchiveResponse } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
@@ -31,7 +31,7 @@ export const useArchiveEntity = (options?: MutationOpts<ArchiveResponse, Archive
   useGuildMutation<ArchiveResponse, ArchiveTarget>(
     {
       mutationFn: (guildId, { entityType, entityId }) =>
-        archiveEntityApiV1GGuildIdArchiveEntityTypeEntityIdPost(guildId, entityType, entityId),
+        archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost(guildId, entityType, entityId),
       invalidate: refresh,
       errorKey: "common:archiveError",
     },
@@ -42,7 +42,7 @@ export const useUnarchiveEntity = (options?: MutationOpts<ArchiveResponse, Archi
   useGuildMutation<ArchiveResponse, ArchiveTarget>(
     {
       mutationFn: (guildId, { entityType, entityId }) =>
-        unarchiveEntityApiV1GGuildIdUnarchiveEntityTypeEntityIdPost(guildId, entityType, entityId),
+        unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost(guildId, entityType, entityId),
       invalidate: refresh,
       errorKey: "common:unarchiveError",
     },

@@ -15,6 +15,7 @@ import { setAuthToken } from "@/api/client";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationGuild } from "@/api/query-keys";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
+import { dashboardDataKey } from "@/hooks/useSqlQuery";
 import { queryClient } from "@/lib/queryClient";
 import { TOOLS, toolIdParam, toolPlural, toolRouteSegment } from "@/lib/tools";
 
@@ -38,7 +39,7 @@ const seed = (key: readonly unknown[]) => {
 
 /** The comment-thread query for one parent, as `useComments` keys it. */
 const seedThread = (param: string, id: number) =>
-  seed([`/api/v1/g/${GUILD}/comments/`, { [param]: id }]);
+  seed([`/api/v1/c/${GUILD}/comments/`, { [param]: id }]);
 
 const comment = (id: number, parents: { type: string; id: number }[]) => ({
   resource: { type: "comments", id },
@@ -59,7 +60,7 @@ describe("realtime comment frames", () => {
 
   it.each(TOOLS)("refreshes a %s's thread and the entity around it", (tool) => {
     const thread = seedThread(toolIdParam(tool), ENTITY_ID);
-    const entity = seed([`/api/v1/g/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
+    const entity = seed([`/api/v1/c/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
 
     applyChanges([comment(1, [{ type: toolPlural(tool), id: ENTITY_ID }])]);
 
@@ -69,9 +70,9 @@ describe("realtime comment frames", () => {
 
   it("refreshes the thread, the task and the task's project", () => {
     const thread = seedThread("task_id", ENTITY_ID);
-    const task = seed([`/api/v1/g/${GUILD}/tasks/${ENTITY_ID}`]);
-    const activity = seed([`/api/v1/g/${GUILD}/projects/7/activity`]);
-    const project = seed([`/api/v1/g/${GUILD}/projects/7`]);
+    const task = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
+    const activity = seed([`/api/v1/c/${GUILD}/projects/7/activity`]);
+    const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
 
     applyChanges([
       comment(1, [
@@ -87,7 +88,7 @@ describe("realtime comment frames", () => {
   });
 
   it("refreshes the guild's recent activity for any comment", () => {
-    const recent = seed([`/api/v1/g/${GUILD}/comments/recent`]);
+    const recent = seed([`/api/v1/c/${GUILD}/comments/recent`]);
 
     applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])]);
 
@@ -127,7 +128,7 @@ describe("realtime resource frames", () => {
   });
 
   it.each(TOOLS)("refreshes a %s that changed", (tool) => {
-    const entity = seed([`/api/v1/g/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
+    const entity = seed([`/api/v1/c/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
 
     applyChanges([
       { resource: { type: toolPlural(tool), id: ENTITY_ID }, parents: [], action: "updated" },
@@ -137,8 +138,8 @@ describe("realtime resource frames", () => {
   });
 
   it("refreshes a task's project from the task's own frame", () => {
-    const task = seed([`/api/v1/g/${GUILD}/tasks/${ENTITY_ID}`]);
-    const project = seed([`/api/v1/g/${GUILD}/projects/7`]);
+    const task = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
+    const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
 
     applyChanges([
       {
@@ -155,10 +156,10 @@ describe("realtime resource frames", () => {
   it("refreshes the roster, the roles and what they permit", () => {
     // A membership row and a role row have no route of their own, so all three
     // of these report as the initiative — one frame has to cover them.
-    const initiative = seed([`/api/v1/g/${GUILD}/initiatives/${ENTITY_ID}`]);
-    const members = seed([`/api/v1/g/${GUILD}/initiatives/${ENTITY_ID}/members`]);
-    const roles = seed([`/api/v1/g/${GUILD}/initiatives/${ENTITY_ID}/roles`]);
-    const permissions = seed([`/api/v1/g/${GUILD}/initiatives/${ENTITY_ID}/my-permissions`]);
+    const initiative = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}`]);
+    const members = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/members`]);
+    const roles = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/roles`]);
+    const permissions = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/my-permissions`]);
 
     applyChanges([
       { resource: { type: "initiatives", id: ENTITY_ID }, parents: [], action: "updated" },
@@ -172,7 +173,7 @@ describe("realtime resource frames", () => {
 
   it("refreshes the app list and an install's own reads", () => {
     // Guild-wide and parentless: nothing else on the client covers it.
-    const list = seed([`/api/v1/g/${GUILD}/apps/`]);
+    const list = seed([`/api/v1/c/${GUILD}/apps/`]);
     const detail = seed(["guild-app", GUILD, ENTITY_ID]);
     const members = seed(["guild-app-members", GUILD, ENTITY_ID]);
 
@@ -192,7 +193,7 @@ describe("realtime resource frames", () => {
   });
 
   it("ignores a resource type it has no invalidation for", () => {
-    const untouched = seed([`/api/v1/g/${GUILD}/tasks/${ENTITY_ID}`]);
+    const untouched = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
 
     expect(() =>
       applyChanges([{ resource: { type: "something_new", id: 1 }, parents: [], action: "created" }])
@@ -205,7 +206,7 @@ describe("realtime resource frames", () => {
   });
 
   it("still refreshes the parents when the resource itself is unknown", () => {
-    const project = seed([`/api/v1/g/${GUILD}/projects/7`]);
+    const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
 
     applyChanges([
       {
@@ -312,7 +313,7 @@ describe("realtime socket lifecycle", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();
     socket.open();
-    const project = seed([`/api/v1/g/${GUILD}/projects/${ENTITY_ID}`]);
+    const project = seed([`/api/v1/c/${GUILD}/projects/${ENTITY_ID}`]);
 
     socket.receive({ changes: [], more: true });
 
@@ -323,12 +324,64 @@ describe("realtime socket lifecycle", () => {
     renderWithProviders(<Probe />);
     const socket = latestSocket();
     socket.open();
-    const project = seed([`/api/v1/g/${GUILD}/projects/${ENTITY_ID}`]);
+    const project = seed([`/api/v1/c/${GUILD}/projects/${ENTITY_ID}`]);
 
     socket.receive({ heartbeat: true });
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(project()).toBe(false);
     expect(socket.closed).toBe(false);
+  });
+});
+
+describe("realtime frames and dashboards", () => {
+  const INITIATIVE = 3;
+  const DASHBOARD = 9;
+  const canvas = (relations: string[]) => ({
+    initiative_id: INITIATIVE,
+    widgets: {
+      w1: {
+        result: { columns: [], rows: [], truncated: false, relations },
+        error: null,
+      },
+    },
+  });
+  const seedCanvas = (guildId: number, relations: string[]) => {
+    const key = dashboardDataKey(guildId, DASHBOARD);
+    queryClient.setQueryData(key, canvas(relations));
+    return () => queryClient.getQueryState(key)?.isInvalidated ?? false;
+  };
+  const task = (initiative: number | null) => ({
+    resource: { type: "tasks", id: 1 },
+    parents: [{ type: "projects", id: 2 }],
+    initiative_id: initiative,
+    action: "updated",
+  });
+
+  beforeEach(() => queryClient.clear());
+  afterEach(() => queryClient.clear());
+
+  it("refreshes a dashboard when something it reads changes in its initiative", () => {
+    const stale = seedCanvas(GUILD, ["tasks"]);
+    applyChanges([task(INITIATIVE)], GUILD);
+    expect(stale()).toBe(true);
+  });
+
+  it("leaves it alone when the change is to something it does not read", () => {
+    const stale = seedCanvas(GUILD, ["projects"]);
+    applyChanges([task(INITIATIVE)], GUILD);
+    expect(stale()).toBe(false);
+  });
+
+  it("leaves it alone when the change is in another initiative", () => {
+    const stale = seedCanvas(GUILD, ["tasks"]);
+    applyChanges([task(INITIATIVE + 1)], GUILD);
+    expect(stale()).toBe(false);
+  });
+
+  it("leaves another guild's dashboard alone, whose initiative ids are its own", () => {
+    const stale = seedCanvas(GUILD + 1, ["tasks"]);
+    applyChanges([task(INITIATIVE)], GUILD);
+    expect(stale()).toBe(false);
   });
 });

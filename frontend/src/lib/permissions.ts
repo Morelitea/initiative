@@ -150,7 +150,7 @@ export const guildIsClosed = (
  * Whether this request reaches the community's content at all.
  *
  * A member does. Somebody reaching the community by a content grant does. A
- * settings-only grant does not — the server refuses every `/g/{id}` content
+ * settings-only grant does not — the server refuses every `/c/{id}` content
  * route for one — so the surfaces built on content are not offered with it.
  */
 export const reachesGuildContent = (

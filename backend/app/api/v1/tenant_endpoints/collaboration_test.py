@@ -1,6 +1,6 @@
 """Integration tests for the document collaboration HTTP endpoints.
 
-Focused on ``POST /g/{guild_id}/collaboration/documents/{id}/sync-content``,
+Focused on ``POST /c/{guild_id}/collaboration/documents/{id}/sync-content``,
 which the editor fires via a ``keepalive`` fetch on page unload. It shares the
 header-less auth of ``/uploads/*`` and downloads (``UploadUserDep``): the
 HttpOnly session cookie on web, a short-lived uploads-scoped ``?token=`` on
@@ -32,7 +32,7 @@ from app.testing import route_as
 
 
 def _sync_url(guild_id: int, document_id: int) -> str:
-    return f"/api/v1/g/{guild_id}/collaboration/documents/{document_id}/sync-content"
+    return f"/api/v1/c/{guild_id}/collaboration/documents/{document_id}/sync-content"
 
 
 @pytest.mark.integration

@@ -93,7 +93,7 @@ class TestAtGuildCreation:
         offered a choice."""
         user = await create_user(session, email="founder@example.com")
         response = await client.post(
-            "/api/v1/guilds/",
+            "/api/v1/communities/",
             headers=get_auth_headers(user),
             json={"name": "Fresh guild"},
         )
@@ -118,7 +118,7 @@ class TestAtGuildCreation:
 
         user = await create_user(session, email="founder2@example.com")
         response = await client.post(
-            "/api/v1/guilds/",
+            "/api/v1/communities/",
             headers=get_auth_headers(user),
             json={"name": "Quiet guild"},
         )
@@ -141,7 +141,7 @@ class TestAtGuildCreation:
         user = await create_user(session, email="founder3@example.com")
 
         response = await client.post(
-            "/api/v1/guilds/",
+            "/api/v1/communities/",
             headers=get_auth_headers(user),
             json={"name": "Still created"},
         )
@@ -163,7 +163,7 @@ class TestAtGuildCreation:
         user = await create_user(session, email="founder4@example.com")
 
         response = await client.post(
-            "/api/v1/guilds/",
+            "/api/v1/communities/",
             headers=get_auth_headers(user),
             json={"name": "Ordinary guild"},
         )

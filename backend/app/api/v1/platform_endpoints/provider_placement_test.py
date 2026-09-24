@@ -257,7 +257,7 @@ async def test_each_surface_edits_only_its_own_rules(
     )
     assert created.status_code == 201, created.text
     rule_id = created.json()["id"]
-    community_rules = f"/api/v1/guilds/{guild.id}/auth/rules"
+    community_rules = f"/api/v1/communities/{guild.id}/auth/rules"
 
     # The community sees it, read-only, beside its own.
     rules = await client.get(community_rules, headers=seat)
@@ -303,7 +303,7 @@ async def test_the_page_lists_every_community_waiting_for_an_answer(
     ]
 
     agreed = await client.put(
-        f"/api/v1/settings/guilds/{asking.id}/narrowings/{waiting.id}",
+        f"/api/v1/settings/communities/{asking.id}/narrowings/{waiting.id}",
         headers=headers,
         json={"agreed": True},
     )

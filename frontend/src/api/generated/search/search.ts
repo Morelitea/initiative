@@ -19,11 +19,11 @@ import type {
 
 import type {
   HTTPValidationError,
-  RecentGuildApiV1GGuildIdSearchRecentGetParams,
-  SearchGuildApiV1GGuildIdSearchGetParams,
+  RecentGuildApiV1CGuildIdSearchRecentGetParams,
+  SearchGuildApiV1CGuildIdSearchGetParams,
   SearchResults,
   SearchSuggestion,
-  SuggestGuildApiV1GGuildIdSearchSuggestGetParams,
+  SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -53,34 +53,34 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * show rather than an estimate to correct later.
  * @summary Search Guild
  */
-export const searchGuildApiV1GGuildIdSearchGet = (
+export const searchGuildApiV1CGuildIdSearchGet = (
   guildId: number,
-  params: SearchGuildApiV1GGuildIdSearchGetParams,
+  params: SearchGuildApiV1CGuildIdSearchGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<SearchResults>(
-    { url: `/api/v1/g/${guildId}/search/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/search/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getSearchGuildApiV1GGuildIdSearchGetQueryKey = (
+export const getSearchGuildApiV1CGuildIdSearchGetQueryKey = (
   guildId: number,
-  params?: SearchGuildApiV1GGuildIdSearchGetParams
+  params?: SearchGuildApiV1CGuildIdSearchGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/search/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/search/`, ...(params ? [params] : [])] as const;
 };
 
-export const getSearchGuildApiV1GGuildIdSearchGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>,
+export const getSearchGuildApiV1CGuildIdSearchGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SearchGuildApiV1GGuildIdSearchGetParams,
+  params: SearchGuildApiV1CGuildIdSearchGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
@@ -88,11 +88,11 @@ export const getSearchGuildApiV1GGuildIdSearchGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getSearchGuildApiV1GGuildIdSearchGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getSearchGuildApiV1CGuildIdSearchGetQueryKey(guildId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>> = ({
     signal,
-  }) => searchGuildApiV1GGuildIdSearchGet(guildId, params, requestOptions, signal);
+  }) => searchGuildApiV1CGuildIdSearchGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -100,32 +100,32 @@ export const getSearchGuildApiV1GGuildIdSearchGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>,
+    Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type SearchGuildApiV1GGuildIdSearchGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>
+export type SearchGuildApiV1CGuildIdSearchGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>
 >;
-export type SearchGuildApiV1GGuildIdSearchGetQueryError = ErrorType<HTTPValidationError>;
+export type SearchGuildApiV1CGuildIdSearchGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useSearchGuildApiV1GGuildIdSearchGet<
-  TData = Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>,
+export function useSearchGuildApiV1CGuildIdSearchGet<
+  TData = Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SearchGuildApiV1GGuildIdSearchGetParams,
+  params: SearchGuildApiV1CGuildIdSearchGetParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>,
+          Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>,
           TError,
-          Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>
+          Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>
         >,
         "initialData"
       >;
@@ -133,21 +133,21 @@ export function useSearchGuildApiV1GGuildIdSearchGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchGuildApiV1GGuildIdSearchGet<
-  TData = Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>,
+export function useSearchGuildApiV1CGuildIdSearchGet<
+  TData = Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SearchGuildApiV1GGuildIdSearchGetParams,
+  params: SearchGuildApiV1CGuildIdSearchGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>,
+          Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>,
           TError,
-          Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>
+          Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>
         >,
         "initialData"
       >;
@@ -155,15 +155,15 @@ export function useSearchGuildApiV1GGuildIdSearchGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchGuildApiV1GGuildIdSearchGet<
-  TData = Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>,
+export function useSearchGuildApiV1CGuildIdSearchGet<
+  TData = Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SearchGuildApiV1GGuildIdSearchGetParams,
+  params: SearchGuildApiV1CGuildIdSearchGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -173,21 +173,21 @@ export function useSearchGuildApiV1GGuildIdSearchGet<
  * @summary Search Guild
  */
 
-export function useSearchGuildApiV1GGuildIdSearchGet<
-  TData = Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>,
+export function useSearchGuildApiV1CGuildIdSearchGet<
+  TData = Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SearchGuildApiV1GGuildIdSearchGetParams,
+  params: SearchGuildApiV1CGuildIdSearchGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1GGuildIdSearchGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof searchGuildApiV1CGuildIdSearchGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getSearchGuildApiV1GGuildIdSearchGetQueryOptions(guildId, params, options);
+  const queryOptions = getSearchGuildApiV1CGuildIdSearchGetQueryOptions(guildId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -204,35 +204,35 @@ export function useSearchGuildApiV1GGuildIdSearchGet<
  * what a picker suggests and what it finds are the same set of things.
  * @summary Recent Guild
  */
-export const recentGuildApiV1GGuildIdSearchRecentGet = (
+export const recentGuildApiV1CGuildIdSearchRecentGet = (
   guildId: number,
-  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  params?: RecentGuildApiV1CGuildIdSearchRecentGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<SearchSuggestion[]>(
-    { url: `/api/v1/g/${guildId}/search/recent`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/search/recent`, method: "GET", params, signal },
     options
   );
 };
 
-export const getRecentGuildApiV1GGuildIdSearchRecentGetQueryKey = (
+export const getRecentGuildApiV1CGuildIdSearchRecentGetQueryKey = (
   guildId: number,
-  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams
+  params?: RecentGuildApiV1CGuildIdSearchRecentGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/search/recent`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/search/recent`, ...(params ? [params] : [])] as const;
 };
 
-export const getRecentGuildApiV1GGuildIdSearchRecentGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+export const getRecentGuildApiV1CGuildIdSearchRecentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  params?: RecentGuildApiV1CGuildIdSearchRecentGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
         TError,
         TData
       >
@@ -243,12 +243,12 @@ export const getRecentGuildApiV1GGuildIdSearchRecentGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getRecentGuildApiV1GGuildIdSearchRecentGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getRecentGuildApiV1CGuildIdSearchRecentGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>
+    Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>
   > = ({ signal }) =>
-    recentGuildApiV1GGuildIdSearchRecentGet(guildId, params, requestOptions, signal);
+    recentGuildApiV1CGuildIdSearchRecentGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -256,36 +256,36 @@ export const getRecentGuildApiV1GGuildIdSearchRecentGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+    Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type RecentGuildApiV1GGuildIdSearchRecentGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>
+export type RecentGuildApiV1CGuildIdSearchRecentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>
 >;
-export type RecentGuildApiV1GGuildIdSearchRecentGetQueryError = ErrorType<HTTPValidationError>;
+export type RecentGuildApiV1CGuildIdSearchRecentGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useRecentGuildApiV1GGuildIdSearchRecentGet<
-  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+export function useRecentGuildApiV1CGuildIdSearchRecentGet<
+  TData = Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  params: undefined | RecentGuildApiV1CGuildIdSearchRecentGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+          Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
           TError,
-          Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>
+          Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>
         >,
         "initialData"
       >;
@@ -293,25 +293,25 @@ export function useRecentGuildApiV1GGuildIdSearchRecentGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useRecentGuildApiV1GGuildIdSearchRecentGet<
-  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+export function useRecentGuildApiV1CGuildIdSearchRecentGet<
+  TData = Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  params?: RecentGuildApiV1CGuildIdSearchRecentGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+          Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
           TError,
-          Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>
+          Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>
         >,
         "initialData"
       >;
@@ -319,16 +319,16 @@ export function useRecentGuildApiV1GGuildIdSearchRecentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useRecentGuildApiV1GGuildIdSearchRecentGet<
-  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+export function useRecentGuildApiV1CGuildIdSearchRecentGet<
+  TData = Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  params?: RecentGuildApiV1CGuildIdSearchRecentGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
         TError,
         TData
       >
@@ -341,16 +341,16 @@ export function useRecentGuildApiV1GGuildIdSearchRecentGet<
  * @summary Recent Guild
  */
 
-export function useRecentGuildApiV1GGuildIdSearchRecentGet<
-  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+export function useRecentGuildApiV1CGuildIdSearchRecentGet<
+  TData = Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  params?: RecentGuildApiV1CGuildIdSearchRecentGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        Awaited<ReturnType<typeof recentGuildApiV1CGuildIdSearchRecentGet>>,
         TError,
         TData
       >
@@ -359,7 +359,7 @@ export function useRecentGuildApiV1GGuildIdSearchRecentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getRecentGuildApiV1GGuildIdSearchRecentGetQueryOptions(
+  const queryOptions = getRecentGuildApiV1CGuildIdSearchRecentGetQueryOptions(
     guildId,
     params,
     options
@@ -379,35 +379,35 @@ export function useRecentGuildApiV1GGuildIdSearchRecentGet<
  * results page can be narrowed to the same slice of the guild.
  * @summary Suggest Guild
  */
-export const suggestGuildApiV1GGuildIdSearchSuggestGet = (
+export const suggestGuildApiV1CGuildIdSearchSuggestGet = (
   guildId: number,
-  params: SuggestGuildApiV1GGuildIdSearchSuggestGetParams,
+  params: SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<SearchSuggestion[]>(
-    { url: `/api/v1/g/${guildId}/search/suggest`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/search/suggest`, method: "GET", params, signal },
     options
   );
 };
 
-export const getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryKey = (
+export const getSuggestGuildApiV1CGuildIdSearchSuggestGetQueryKey = (
   guildId: number,
-  params?: SuggestGuildApiV1GGuildIdSearchSuggestGetParams
+  params?: SuggestGuildApiV1CGuildIdSearchSuggestGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/search/suggest`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/search/suggest`, ...(params ? [params] : [])] as const;
 };
 
-export const getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+export const getSuggestGuildApiV1CGuildIdSearchSuggestGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SuggestGuildApiV1GGuildIdSearchSuggestGetParams,
+  params: SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+        Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
         TError,
         TData
       >
@@ -418,12 +418,12 @@ export const getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getSuggestGuildApiV1CGuildIdSearchSuggestGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>
+    Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>
   > = ({ signal }) =>
-    suggestGuildApiV1GGuildIdSearchSuggestGet(guildId, params, requestOptions, signal);
+    suggestGuildApiV1CGuildIdSearchSuggestGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -431,36 +431,36 @@ export const getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+    Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type SuggestGuildApiV1GGuildIdSearchSuggestGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>
+export type SuggestGuildApiV1CGuildIdSearchSuggestGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>
 >;
-export type SuggestGuildApiV1GGuildIdSearchSuggestGetQueryError = ErrorType<HTTPValidationError>;
+export type SuggestGuildApiV1CGuildIdSearchSuggestGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useSuggestGuildApiV1GGuildIdSearchSuggestGet<
-  TData = Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+export function useSuggestGuildApiV1CGuildIdSearchSuggestGet<
+  TData = Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SuggestGuildApiV1GGuildIdSearchSuggestGetParams,
+  params: SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+        Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+          Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
           TError,
-          Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>
+          Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>
         >,
         "initialData"
       >;
@@ -468,25 +468,25 @@ export function useSuggestGuildApiV1GGuildIdSearchSuggestGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSuggestGuildApiV1GGuildIdSearchSuggestGet<
-  TData = Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+export function useSuggestGuildApiV1CGuildIdSearchSuggestGet<
+  TData = Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SuggestGuildApiV1GGuildIdSearchSuggestGetParams,
+  params: SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+        Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+          Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
           TError,
-          Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>
+          Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>
         >,
         "initialData"
       >;
@@ -494,16 +494,16 @@ export function useSuggestGuildApiV1GGuildIdSearchSuggestGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSuggestGuildApiV1GGuildIdSearchSuggestGet<
-  TData = Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+export function useSuggestGuildApiV1CGuildIdSearchSuggestGet<
+  TData = Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SuggestGuildApiV1GGuildIdSearchSuggestGetParams,
+  params: SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+        Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
         TError,
         TData
       >
@@ -516,16 +516,16 @@ export function useSuggestGuildApiV1GGuildIdSearchSuggestGet<
  * @summary Suggest Guild
  */
 
-export function useSuggestGuildApiV1GGuildIdSearchSuggestGet<
-  TData = Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+export function useSuggestGuildApiV1CGuildIdSearchSuggestGet<
+  TData = Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: SuggestGuildApiV1GGuildIdSearchSuggestGetParams,
+  params: SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof suggestGuildApiV1GGuildIdSearchSuggestGet>>,
+        Awaited<ReturnType<typeof suggestGuildApiV1CGuildIdSearchSuggestGet>>,
         TError,
         TData
       >
@@ -534,7 +534,7 @@ export function useSuggestGuildApiV1GGuildIdSearchSuggestGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryOptions(
+  const queryOptions = getSuggestGuildApiV1CGuildIdSearchSuggestGetQueryOptions(
     guildId,
     params,
     options

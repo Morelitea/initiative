@@ -12,12 +12,12 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost,
-  deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete,
-  getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey,
-  listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet,
-  reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost,
-  updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch,
+  createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost,
+  deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete,
+  getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryKey,
+  listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet,
+  reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost,
+  updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch,
 } from "@/api/generated/filter-presets/filter-presets";
 import type {
   FilterPresetCreate,
@@ -39,12 +39,12 @@ export const useFilterPresets = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<FilterPresetListResponse>({
-    queryKey: getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey(
+    queryKey: getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryKey(
       guildId,
       projectId!
     ),
     queryFn: () =>
-      listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId!),
+      listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId!),
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     // The client keeps previous data by default, which across a project switch
     // would show the last project's presets — and its `can_manage`, which gates
@@ -62,7 +62,7 @@ export const useCreateFilterPreset = (
   useGuildMutation<FilterPresetRead, FilterPresetCreate>(
     {
       mutationFn: (guildId, data) =>
-        createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost(guildId, projectId, data),
+        createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost(guildId, projectId, data),
       invalidate: () => invalidate(q.projectFilterPresets(projectId)),
       errorKey: "projects:filters.presetSaveError",
     },
@@ -76,7 +76,7 @@ export const useUpdateFilterPreset = (
   useGuildMutation<FilterPresetRead, { presetId: number; data: FilterPresetUpdate }>(
     {
       mutationFn: (guildId, { presetId, data }) =>
-        updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch(
+        updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch(
           guildId,
           projectId,
           presetId,
@@ -92,7 +92,7 @@ export const useDeleteFilterPreset = (projectId: number, options?: MutationOpts<
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, presetId) =>
-        deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete(
+        deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete(
           guildId,
           projectId,
           presetId
@@ -110,7 +110,7 @@ export const useReorderFilterPresets = (
   useGuildMutation<FilterPresetRead[], FilterPresetReorderRequest>(
     {
       mutationFn: (guildId, data) =>
-        reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost(
+        reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost(
           guildId,
           projectId,
           data

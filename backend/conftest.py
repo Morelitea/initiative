@@ -1038,7 +1038,7 @@ async def acting_user(session):
         await client.get(a.g("/projects/"), headers=a.headers)
 
     With the real-role ``client`` fixture the request runs AS the actor's
-    platform tier (public path) or guild role (``/g/{guild_id}`` path) on a
+    platform tier (public path) or guild role (``/c/{guild_id}`` path) on a
     real ``app_user`` connection — RLS enforced, like production.
     """
     import functools

@@ -43,11 +43,11 @@ async def _seat(session: AsyncSession) -> tuple[int | None, Guild, dict[str, str
 
 
 def _connections(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/auth/connections"
+    return f"/api/v1/communities/{guild_id}/auth/connections"
 
 
 def _rules(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/auth/rules"
+    return f"/api/v1/communities/{guild_id}/auth/rules"
 
 
 def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:

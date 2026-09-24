@@ -10,7 +10,7 @@ over the caps it governs. Pinned here:
    guild lifecycle and cap enforcement work; the membership ping is a
    no-op — see ``billing_ping_test.py``);
 2. ``tier_name`` is never an enforcement input (static scan);
-3. operator sovereignty — ``PATCH /settings/guilds/{id}`` still fully
+3. operator sovereignty — ``PATCH /settings/communities/{id}`` still fully
    controls caps/status on a guild that has billing metadata;
 4. no pricing data in the repo (the rule lives in the billing service
    module docstring; the scan here keeps tier_name from leaking into
@@ -54,7 +54,7 @@ def test_billing_settings_default_off():
     assert settings.BILLING_SERVICE_URL is None
 
 
-@pytest.mark.parametrize("endpoint", ["guild-tier", "usage"])
+@pytest.mark.parametrize("endpoint", ["community-tier", "usage"])
 async def test_unconfigured_endpoints_fail_closed_503(
     client: AsyncClient, session: AsyncSession, endpoint: str
 ):
@@ -128,7 +128,7 @@ async def test_operator_keeps_full_authority_over_billed_guild(
     headers = get_auth_headers(owner)
 
     caps = await client.patch(
-        f"/api/v1/settings/guilds/{guild.id}",
+        f"/api/v1/settings/communities/{guild.id}",
         json={"max_storage_bytes": 123_456, "max_users": 7},
         headers=headers,
     )
@@ -137,7 +137,7 @@ async def test_operator_keeps_full_authority_over_billed_guild(
     assert caps.json()["max_users"] == 7
 
     status_change = await client.patch(
-        f"/api/v1/settings/guilds/{guild.id}",
+        f"/api/v1/settings/communities/{guild.id}",
         json={"status": "read_only"},
         headers=headers,
     )

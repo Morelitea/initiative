@@ -6,12 +6,12 @@ import type {
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListGuildTrashApiV1GGuildIdTrashGetQueryKey,
+  getListGuildTrashApiV1CGuildIdTrashGetQueryKey,
   getListMyTrashApiV1MeTrashGetQueryKey,
-  listGuildTrashApiV1GGuildIdTrashGet,
+  listGuildTrashApiV1CGuildIdTrashGet,
   listMyTrashApiV1MeTrashGet,
-  purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete,
-  restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost,
+  purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete,
+  restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost,
 } from "@/api/generated/trash/trash";
 import { invalidate, q, type Spec } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -40,8 +40,8 @@ export const useMyTrashList = (options?: QueryOpts<TrashListResponse>) =>
 export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
   const guildId = useActiveGuildId();
   return useQuery<TrashListResponse>({
-    queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(guildId),
-    queryFn: () => listGuildTrashApiV1GGuildIdTrashGet(guildId),
+    queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(guildId),
+    queryFn: () => listGuildTrashApiV1CGuildIdTrashGet(guildId),
     ...options,
   });
 };
@@ -93,7 +93,7 @@ export const useRestoreTrashEntity = (
       entityType,
       entityId,
     }: RestoreTrashVars): Promise<RestoreResponse> =>
-      restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost(
+      restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost(
         guildId,
         entityType,
         entityId
@@ -104,7 +104,7 @@ export const useRestoreTrashEntity = (
       // restored row disappears from each.
       void queryClient.invalidateQueries({ queryKey: getListMyTrashApiV1MeTrashGetQueryKey() });
       void queryClient.invalidateQueries({
-        queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(variables.guildId),
+        queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(variables.guildId),
       });
       const restored = RESTORED[variables.entityType];
       if (restored) void invalidate(restored());
@@ -132,7 +132,7 @@ export const usePurgeTrashEntity = (options?: MutationOpts<void, PurgeTrashVars>
   return useMutation({
     ...rest,
     mutationFn: async ({ guildId, entityType, entityId }: PurgeTrashVars) => {
-      await purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete(
+      await purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete(
         guildId,
         entityType,
         entityId
@@ -142,7 +142,7 @@ export const usePurgeTrashEntity = (options?: MutationOpts<void, PurgeTrashVars>
       const [, variables] = args;
       void queryClient.invalidateQueries({ queryKey: getListMyTrashApiV1MeTrashGetQueryKey() });
       void queryClient.invalidateQueries({
-        queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(variables.guildId),
+        queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(variables.guildId),
       });
       onSuccess?.(...args);
     },

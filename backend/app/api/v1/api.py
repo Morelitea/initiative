@@ -129,7 +129,7 @@ api_router.include_router(passwordless.router, prefix="/auth", tags=["auth"])
 api_router.include_router(email_otp.router, prefix="/auth", tags=["auth"])
 api_router.include_router(sessions.router, prefix="/auth", tags=["auth"])
 api_router.include_router(operator.router, prefix="/operator", tags=["operator"])
-api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
+api_router.include_router(guilds.router, prefix="/communities", tags=["communities"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 # Direct messages, both halves, gated on the platform switch in one place: a
 # deployment that does not offer messaging refuses the whole surface rather
@@ -149,7 +149,7 @@ api_router.include_router(
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
 # rather than of any guild, so it takes no guild segment. Reading the
-# marketplace is guild-addressed (see /g/{guild_id}/marketplace below).
+# marketplace is guild-addressed (see /c/{guild_id}/marketplace below).
 api_router.include_router(
     marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
@@ -213,15 +213,15 @@ api_router.include_router(
 )
 api_router.include_router(
     guild_provider_connections.router,
-    prefix="/guilds",
-    tags=["guild-provider-connections"],
+    prefix="/communities",
+    tags=["community-provider-connections"],
 )
 # Service-to-service endpoints for the external billing service.
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(
     platform_ai_settings.platform_router, prefix="/settings", tags=["ai-settings"]
 )
-# Notifications are user-scoped (cross-guild) — not under /g.
+# Notifications are user-scoped (cross-guild) — not under /c.
 api_router.include_router(
     notifications.router, prefix="/notifications", tags=["notifications"]
 )
@@ -236,11 +236,11 @@ api_router.include_router(
 
 # ---------------------------------------------------------------------------
 # Guild-scoped routes: everything that resolves a single guild's data lives
-# under /g/{guild_id}. The guild is taken from the path (see
+# under /c/{guild_id}. The guild is taken from the path (see
 # deps.get_guild_membership); a guild-scoped router mounted outside this prefix
 # fails at startup (missing path param) — a useful guard.
 # ---------------------------------------------------------------------------
-guild_router = APIRouter(prefix="/g/{guild_id}")
+guild_router = APIRouter(prefix="/c/{guild_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 # Every tool's list and its sidebar counts, mounted once per Tool at each
 # tool's own path (see tenant_endpoints/tool_lists.py). Included FIRST so each
@@ -353,7 +353,7 @@ guild_router.include_router(users.guild_router, prefix="/users", tags=["users"])
 # Recents: the addressed DELETE is guild-scoped (the cross-guild GET list stays
 # top-level — fully separate endpoints, see recents.py).
 guild_router.include_router(recents.guild_router, prefix="/recents", tags=["recents"])
-# WebSockets (guild-scoped). Mounting under /g fixes the URL shape now; the
+# WebSockets (guild-scoped). Mounting under /c fixes the URL shape now; the
 # handlers are rewired to read the path guild in a follow-up step.
 guild_router.include_router(events.router, prefix="/events", tags=["events"])
 guild_router.include_router(

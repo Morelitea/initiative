@@ -48,7 +48,7 @@ def _cold_reference_cache():
 
 
 def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/g/{guild_id}{path}"
+    return f"/api/v1/c/{guild_id}{path}"
 
 
 def _at(day: str) -> datetime:

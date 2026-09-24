@@ -31,7 +31,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * leaves the transaction clean).
  * @summary Bulk Set Resource Grants
  */
-export const bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut = (
+export const bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut = (
   guildId: number,
   resourceGrantBulkRequest: BodyType<ResourceGrantBulkRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -39,7 +39,7 @@ export const bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut = (
 ) => {
   return apiMutator<ResourceGrantBulkResponse>(
     {
-      url: `/api/v1/g/${guildId}/resource-grants/bulk`,
+      url: `/api/v1/c/${guildId}/resource-grants/bulk`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: resourceGrantBulkRequest,
@@ -49,27 +49,27 @@ export const bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut = (
   );
 };
 
-export const getBulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationKey = () =>
-  ["bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut"] as const;
+export const getBulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationKey = () =>
+  ["bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut"] as const;
 
-export const getBulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationOptions = <
+export const getBulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut>>,
+    Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut>>,
     TError,
-    BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationVariables,
+    BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut>>,
+  Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut>>,
   TError,
-  BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationVariables,
+  BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getBulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationKey();
+  const mutationKey = getBulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -77,25 +77,25 @@ export const getBulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut>>,
-    BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationVariables
+    Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut>>,
+    BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut(guildId, data, requestOptions);
+    return bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut>>
+export type BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut>>
 >;
-export type BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationBody =
+export type BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationBody =
   BodyType<ResourceGrantBulkRequest>;
-export type BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationError =
+export type BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationError =
   ErrorType<HTTPValidationError>;
-export type BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationVariables = {
+export type BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationVariables = {
   guildId: number;
   data: BodyType<ResourceGrantBulkRequest>;
 };
@@ -103,28 +103,28 @@ export type BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationVaria
 /**
  * @summary Bulk Set Resource Grants
  */
-export const useBulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut = <
+export const useBulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut>>,
+      Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut>>,
       TError,
-      BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationVariables,
+      BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut>>,
+  Awaited<ReturnType<typeof bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut>>,
   TError,
-  BulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationVariables,
+  BulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getBulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPutMutationOptions(options),
+    getBulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPutMutationOptions(options),
     queryClient
   );
 };

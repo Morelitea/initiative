@@ -1,6 +1,6 @@
 """Integration tests for path-based guild access control.
 
-Guild-scoped requests address their guild through the ``/g/{guild_id}`` path
+Guild-scoped requests address their guild through the ``/c/{guild_id}`` path
 segment. The guild is only a selector, never a trust boundary: membership (or a
 live PAM grant) is validated fresh on every request, so a forged path can never
 read another guild's data. There is no server-held guild context anymore — the
@@ -33,7 +33,7 @@ async def test_non_member_gets_403_on_guild_path(
     outsider = await create_user(session)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(outsider)
+        f"/api/v1/c/{guild.id}/initiatives/", headers=get_auth_headers(outsider)
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "GUILD_ACCESS_DENIED"
@@ -56,7 +56,7 @@ async def test_member_of_one_guild_cannot_address_another(
 
     # Authenticated as a member of `guild`, but addressing `foreign`'s path.
     response = await client.get(
-        f"/api/v1/g/{foreign.id}/initiatives/", headers=get_auth_headers(user)
+        f"/api/v1/c/{foreign.id}/initiatives/", headers=get_auth_headers(user)
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "GUILD_ACCESS_DENIED"

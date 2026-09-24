@@ -32,7 +32,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * Costs a plan and no rows, so a builder may ask as often as it likes.
  * @summary Describe Query
  */
-export const describeQueryApiV1GGuildIdQueryDescribePost = (
+export const describeQueryApiV1CGuildIdQueryDescribePost = (
   guildId: number,
   queryRequest: BodyType<QueryRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -40,7 +40,7 @@ export const describeQueryApiV1GGuildIdQueryDescribePost = (
 ) => {
   return apiMutator<QueryShapeResponse>(
     {
-      url: `/api/v1/g/${guildId}/query/describe`,
+      url: `/api/v1/c/${guildId}/query/describe`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: queryRequest,
@@ -50,27 +50,27 @@ export const describeQueryApiV1GGuildIdQueryDescribePost = (
   );
 };
 
-export const getDescribeQueryApiV1GGuildIdQueryDescribePostMutationKey = () =>
-  ["describeQueryApiV1GGuildIdQueryDescribePost"] as const;
+export const getDescribeQueryApiV1CGuildIdQueryDescribePostMutationKey = () =>
+  ["describeQueryApiV1CGuildIdQueryDescribePost"] as const;
 
-export const getDescribeQueryApiV1GGuildIdQueryDescribePostMutationOptions = <
+export const getDescribeQueryApiV1CGuildIdQueryDescribePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+    Awaited<ReturnType<typeof describeQueryApiV1CGuildIdQueryDescribePost>>,
     TError,
-    DescribeQueryApiV1GGuildIdQueryDescribePostMutationVariables,
+    DescribeQueryApiV1CGuildIdQueryDescribePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+  Awaited<ReturnType<typeof describeQueryApiV1CGuildIdQueryDescribePost>>,
   TError,
-  DescribeQueryApiV1GGuildIdQueryDescribePostMutationVariables,
+  DescribeQueryApiV1CGuildIdQueryDescribePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getDescribeQueryApiV1GGuildIdQueryDescribePostMutationKey();
+  const mutationKey = getDescribeQueryApiV1CGuildIdQueryDescribePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -78,24 +78,24 @@ export const getDescribeQueryApiV1GGuildIdQueryDescribePostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
-    DescribeQueryApiV1GGuildIdQueryDescribePostMutationVariables
+    Awaited<ReturnType<typeof describeQueryApiV1CGuildIdQueryDescribePost>>,
+    DescribeQueryApiV1CGuildIdQueryDescribePostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return describeQueryApiV1GGuildIdQueryDescribePost(guildId, data, requestOptions);
+    return describeQueryApiV1CGuildIdQueryDescribePost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DescribeQueryApiV1GGuildIdQueryDescribePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>
+export type DescribeQueryApiV1CGuildIdQueryDescribePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof describeQueryApiV1CGuildIdQueryDescribePost>>
 >;
-export type DescribeQueryApiV1GGuildIdQueryDescribePostMutationBody = BodyType<QueryRequest>;
-export type DescribeQueryApiV1GGuildIdQueryDescribePostMutationError =
+export type DescribeQueryApiV1CGuildIdQueryDescribePostMutationBody = BodyType<QueryRequest>;
+export type DescribeQueryApiV1CGuildIdQueryDescribePostMutationError =
   ErrorType<HTTPValidationError>;
-export type DescribeQueryApiV1GGuildIdQueryDescribePostMutationVariables = {
+export type DescribeQueryApiV1CGuildIdQueryDescribePostMutationVariables = {
   guildId: number;
   data: BodyType<QueryRequest>;
 };
@@ -103,28 +103,28 @@ export type DescribeQueryApiV1GGuildIdQueryDescribePostMutationVariables = {
 /**
  * @summary Describe Query
  */
-export const useDescribeQueryApiV1GGuildIdQueryDescribePost = <
+export const useDescribeQueryApiV1CGuildIdQueryDescribePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+      Awaited<ReturnType<typeof describeQueryApiV1CGuildIdQueryDescribePost>>,
       TError,
-      DescribeQueryApiV1GGuildIdQueryDescribePostMutationVariables,
+      DescribeQueryApiV1CGuildIdQueryDescribePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof describeQueryApiV1GGuildIdQueryDescribePost>>,
+  Awaited<ReturnType<typeof describeQueryApiV1CGuildIdQueryDescribePost>>,
   TError,
-  DescribeQueryApiV1GGuildIdQueryDescribePostMutationVariables,
+  DescribeQueryApiV1CGuildIdQueryDescribePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDescribeQueryApiV1GGuildIdQueryDescribePostMutationOptions(options),
+    getDescribeQueryApiV1CGuildIdQueryDescribePostMutationOptions(options),
     queryClient
   );
 };
@@ -132,7 +132,7 @@ export const useDescribeQueryApiV1GGuildIdQueryDescribePost = <
  * Read one statement and return its rows.
  * @summary Run Query
  */
-export const runQueryApiV1GGuildIdQueryPost = (
+export const runQueryApiV1CGuildIdQueryPost = (
   guildId: number,
   queryRequest: BodyType<QueryRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -140,7 +140,7 @@ export const runQueryApiV1GGuildIdQueryPost = (
 ) => {
   return apiMutator<QueryResponse>(
     {
-      url: `/api/v1/g/${guildId}/query`,
+      url: `/api/v1/c/${guildId}/query`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: queryRequest,
@@ -150,27 +150,27 @@ export const runQueryApiV1GGuildIdQueryPost = (
   );
 };
 
-export const getRunQueryApiV1GGuildIdQueryPostMutationKey = () =>
-  ["runQueryApiV1GGuildIdQueryPost"] as const;
+export const getRunQueryApiV1CGuildIdQueryPostMutationKey = () =>
+  ["runQueryApiV1CGuildIdQueryPost"] as const;
 
-export const getRunQueryApiV1GGuildIdQueryPostMutationOptions = <
+export const getRunQueryApiV1CGuildIdQueryPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof runQueryApiV1GGuildIdQueryPost>>,
+    Awaited<ReturnType<typeof runQueryApiV1CGuildIdQueryPost>>,
     TError,
-    RunQueryApiV1GGuildIdQueryPostMutationVariables,
+    RunQueryApiV1CGuildIdQueryPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof runQueryApiV1GGuildIdQueryPost>>,
+  Awaited<ReturnType<typeof runQueryApiV1CGuildIdQueryPost>>,
   TError,
-  RunQueryApiV1GGuildIdQueryPostMutationVariables,
+  RunQueryApiV1CGuildIdQueryPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getRunQueryApiV1GGuildIdQueryPostMutationKey();
+  const mutationKey = getRunQueryApiV1CGuildIdQueryPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -178,23 +178,23 @@ export const getRunQueryApiV1GGuildIdQueryPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof runQueryApiV1GGuildIdQueryPost>>,
-    RunQueryApiV1GGuildIdQueryPostMutationVariables
+    Awaited<ReturnType<typeof runQueryApiV1CGuildIdQueryPost>>,
+    RunQueryApiV1CGuildIdQueryPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return runQueryApiV1GGuildIdQueryPost(guildId, data, requestOptions);
+    return runQueryApiV1CGuildIdQueryPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RunQueryApiV1GGuildIdQueryPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof runQueryApiV1GGuildIdQueryPost>>
+export type RunQueryApiV1CGuildIdQueryPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runQueryApiV1CGuildIdQueryPost>>
 >;
-export type RunQueryApiV1GGuildIdQueryPostMutationBody = BodyType<QueryRequest>;
-export type RunQueryApiV1GGuildIdQueryPostMutationError = ErrorType<HTTPValidationError>;
-export type RunQueryApiV1GGuildIdQueryPostMutationVariables = {
+export type RunQueryApiV1CGuildIdQueryPostMutationBody = BodyType<QueryRequest>;
+export type RunQueryApiV1CGuildIdQueryPostMutationError = ErrorType<HTTPValidationError>;
+export type RunQueryApiV1CGuildIdQueryPostMutationVariables = {
   guildId: number;
   data: BodyType<QueryRequest>;
 };
@@ -202,27 +202,27 @@ export type RunQueryApiV1GGuildIdQueryPostMutationVariables = {
 /**
  * @summary Run Query
  */
-export const useRunQueryApiV1GGuildIdQueryPost = <
+export const useRunQueryApiV1CGuildIdQueryPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof runQueryApiV1GGuildIdQueryPost>>,
+      Awaited<ReturnType<typeof runQueryApiV1CGuildIdQueryPost>>,
       TError,
-      RunQueryApiV1GGuildIdQueryPostMutationVariables,
+      RunQueryApiV1CGuildIdQueryPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof runQueryApiV1GGuildIdQueryPost>>,
+  Awaited<ReturnType<typeof runQueryApiV1CGuildIdQueryPost>>,
   TError,
-  RunQueryApiV1GGuildIdQueryPostMutationVariables,
+  RunQueryApiV1CGuildIdQueryPostMutationVariables,
   TContext
 > => {
-  return useMutation(getRunQueryApiV1GGuildIdQueryPostMutationOptions(options), queryClient);
+  return useMutation(getRunQueryApiV1CGuildIdQueryPostMutationOptions(options), queryClient);
 };
 /**
  * Write the statement a builder described, and say what it would return.
@@ -232,7 +232,7 @@ export const useRunQueryApiV1GGuildIdQueryPost = <
  * plan and no rows, so asking on each click is affordable.
  * @summary Build Query
  */
-export const buildQueryApiV1GGuildIdQueryBuildPost = (
+export const buildQueryApiV1CGuildIdQueryBuildPost = (
   guildId: number,
   queryBuildRequest: BodyType<QueryBuildRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -240,7 +240,7 @@ export const buildQueryApiV1GGuildIdQueryBuildPost = (
 ) => {
   return apiMutator<QueryBuildResponse>(
     {
-      url: `/api/v1/g/${guildId}/query/build`,
+      url: `/api/v1/c/${guildId}/query/build`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: queryBuildRequest,
@@ -250,27 +250,27 @@ export const buildQueryApiV1GGuildIdQueryBuildPost = (
   );
 };
 
-export const getBuildQueryApiV1GGuildIdQueryBuildPostMutationKey = () =>
-  ["buildQueryApiV1GGuildIdQueryBuildPost"] as const;
+export const getBuildQueryApiV1CGuildIdQueryBuildPostMutationKey = () =>
+  ["buildQueryApiV1CGuildIdQueryBuildPost"] as const;
 
-export const getBuildQueryApiV1GGuildIdQueryBuildPostMutationOptions = <
+export const getBuildQueryApiV1CGuildIdQueryBuildPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof buildQueryApiV1GGuildIdQueryBuildPost>>,
+    Awaited<ReturnType<typeof buildQueryApiV1CGuildIdQueryBuildPost>>,
     TError,
-    BuildQueryApiV1GGuildIdQueryBuildPostMutationVariables,
+    BuildQueryApiV1CGuildIdQueryBuildPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof buildQueryApiV1GGuildIdQueryBuildPost>>,
+  Awaited<ReturnType<typeof buildQueryApiV1CGuildIdQueryBuildPost>>,
   TError,
-  BuildQueryApiV1GGuildIdQueryBuildPostMutationVariables,
+  BuildQueryApiV1CGuildIdQueryBuildPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getBuildQueryApiV1GGuildIdQueryBuildPostMutationKey();
+  const mutationKey = getBuildQueryApiV1CGuildIdQueryBuildPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -278,23 +278,23 @@ export const getBuildQueryApiV1GGuildIdQueryBuildPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof buildQueryApiV1GGuildIdQueryBuildPost>>,
-    BuildQueryApiV1GGuildIdQueryBuildPostMutationVariables
+    Awaited<ReturnType<typeof buildQueryApiV1CGuildIdQueryBuildPost>>,
+    BuildQueryApiV1CGuildIdQueryBuildPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return buildQueryApiV1GGuildIdQueryBuildPost(guildId, data, requestOptions);
+    return buildQueryApiV1CGuildIdQueryBuildPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type BuildQueryApiV1GGuildIdQueryBuildPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof buildQueryApiV1GGuildIdQueryBuildPost>>
+export type BuildQueryApiV1CGuildIdQueryBuildPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof buildQueryApiV1CGuildIdQueryBuildPost>>
 >;
-export type BuildQueryApiV1GGuildIdQueryBuildPostMutationBody = BodyType<QueryBuildRequest>;
-export type BuildQueryApiV1GGuildIdQueryBuildPostMutationError = ErrorType<HTTPValidationError>;
-export type BuildQueryApiV1GGuildIdQueryBuildPostMutationVariables = {
+export type BuildQueryApiV1CGuildIdQueryBuildPostMutationBody = BodyType<QueryBuildRequest>;
+export type BuildQueryApiV1CGuildIdQueryBuildPostMutationError = ErrorType<HTTPValidationError>;
+export type BuildQueryApiV1CGuildIdQueryBuildPostMutationVariables = {
   guildId: number;
   data: BodyType<QueryBuildRequest>;
 };
@@ -302,25 +302,25 @@ export type BuildQueryApiV1GGuildIdQueryBuildPostMutationVariables = {
 /**
  * @summary Build Query
  */
-export const useBuildQueryApiV1GGuildIdQueryBuildPost = <
+export const useBuildQueryApiV1CGuildIdQueryBuildPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof buildQueryApiV1GGuildIdQueryBuildPost>>,
+      Awaited<ReturnType<typeof buildQueryApiV1CGuildIdQueryBuildPost>>,
       TError,
-      BuildQueryApiV1GGuildIdQueryBuildPostMutationVariables,
+      BuildQueryApiV1CGuildIdQueryBuildPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof buildQueryApiV1GGuildIdQueryBuildPost>>,
+  Awaited<ReturnType<typeof buildQueryApiV1CGuildIdQueryBuildPost>>,
   TError,
-  BuildQueryApiV1GGuildIdQueryBuildPostMutationVariables,
+  BuildQueryApiV1CGuildIdQueryBuildPostMutationVariables,
   TContext
 > => {
-  return useMutation(getBuildQueryApiV1GGuildIdQueryBuildPostMutationOptions(options), queryClient);
+  return useMutation(getBuildQueryApiV1CGuildIdQueryBuildPostMutationOptions(options), queryClient);
 };

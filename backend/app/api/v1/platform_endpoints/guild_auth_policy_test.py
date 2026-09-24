@@ -68,7 +68,7 @@ def _sat_headers(user: User, provider_ids: list[int]) -> dict[str, str]:
 
 def _policy(guild_id: int) -> str:
     """The surface the seat holds: one community's sign-in requirement."""
-    return f"/api/v1/guilds/{guild_id}/auth-policy"
+    return f"/api/v1/communities/{guild_id}/auth-policy"
 
 
 # --- Setting, reading and lifting a requirement ------------------------------
@@ -299,7 +299,7 @@ async def test_the_step_up_challenge_is_not_what_an_ordinary_401_says(
     it."""
     guild = await create_guild(session)
 
-    no_credential = await client.get(f"/api/v1/g/{guild.id}/initiatives/")
+    no_credential = await client.get(f"/api/v1/c/{guild.id}/initiatives/")
 
     assert no_credential.status_code == 401
     assert no_credential.headers["WWW-Authenticate"] == "Bearer"
@@ -427,7 +427,7 @@ async def test_an_ordinary_admin_reads_the_seats_surfaces_but_writes_neither(
     keyholder = await _a_seat_and_a_requirement(session, acting_user)
     admin = await acting_user(guild_role=GuildRole.admin, guild=keyholder.guild)
     guild_id = keyholder.guild.id
-    connections = f"/api/v1/guilds/{guild_id}/auth/connections"
+    connections = f"/api/v1/communities/{guild_id}/auth/connections"
 
     read = await client.get(_policy(guild_id), headers=admin.headers)
     assert read.status_code == 200
@@ -470,7 +470,7 @@ async def test_the_last_seat_cannot_be_vacated_while_a_requirement_stands(
     guild_id = keyholder.guild.id
 
     left = await client.delete(
-        f"/api/v1/guilds/{guild_id}/leave", headers=keyholder.headers
+        f"/api/v1/communities/{guild_id}/leave", headers=keyholder.headers
     )
     assert left.status_code == 400, left.text
     assert left.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
@@ -491,7 +491,7 @@ async def test_the_last_seat_stays_even_with_no_requirement(
     await session.commit()
 
     refused = await client.delete(
-        f"/api/v1/guilds/{keyholder.guild.id}/leave", headers=keyholder.headers
+        f"/api/v1/communities/{keyholder.guild.id}/leave", headers=keyholder.headers
     )
     assert refused.status_code == 400, refused.text
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
@@ -499,7 +499,7 @@ async def test_the_last_seat_stays_even_with_no_requirement(
     # A second holder is what frees the first.
     second = await acting_user(guild_role=GuildRole.superadmin, guild=keyholder.guild)
     allowed = await client.patch(
-        f"/api/v1/guilds/{keyholder.guild.id}/members/{keyholder.user.id}",
+        f"/api/v1/communities/{keyholder.guild.id}/members/{keyholder.user.id}",
         headers=second.headers,
         json={"role": "member"},
     )
@@ -1227,7 +1227,7 @@ async def test_a_community_is_told_when_the_deployment_asks_everybody(
 
 def _second_factor(guild_id: int) -> str:
     """The surface the seat holds: what this community asks of a session."""
-    return f"/api/v1/guilds/{guild_id}/second-factor"
+    return f"/api/v1/communities/{guild_id}/second-factor"
 
 
 @pytest.mark.integration

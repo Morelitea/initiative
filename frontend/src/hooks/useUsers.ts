@@ -1,34 +1,34 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch } from "@/api/generated/guilds/guilds";
+import { updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch } from "@/api/generated/communities/communities";
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
-  ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   GuildRole,
   UserGuildMember,
   UserGuildRead,
   UserRead,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { useSearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGet } from "@/api/generated/initiatives/initiatives";
-import { useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet } from "@/api/generated/projects/projects";
+import { useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet } from "@/api/generated/initiatives/initiatives";
+import { useSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet } from "@/api/generated/projects/projects";
 import {
-  approveUserApiV1GGuildIdUsersUserIdApprovePost,
+  approveUserApiV1CGuildIdUsersUserIdApprovePost,
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
-  exportUsersCsvApiV1GGuildIdUsersExportCsvGet,
+  exportUsersCsvApiV1CGuildIdUsersExportCsvGet,
   getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey,
   getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey,
-  getListUsersApiV1GGuildIdUsersGetQueryKey,
+  getListUsersApiV1CGuildIdUsersGetQueryKey,
   installDecorationPackApiV1UsersMeDecorationPacksUidPost,
-  listUsersApiV1GGuildIdUsersGet,
+  listUsersApiV1CGuildIdUsersGet,
   removeDecorationPackApiV1UsersMeDecorationPacksUidDelete,
   updateUsersMeApiV1UsersMePatch,
   useListDecorationPacksApiV1UsersMeDecorationPacksGet,
   useListMyDecorationsApiV1UsersMeDecorationsGet,
   useReadUserCommunitiesApiV1UsersHandleCommunitiesGet,
   useReadUserProfileApiV1UsersHandleProfileGet,
-  useSearchUsersApiV1GGuildIdUsersSearchGet,
+  useSearchUsersApiV1CGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -48,8 +48,8 @@ export const useUsers = (options?: QueryOpts<UserGuildMember[]>, guildIdOverride
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
   return useQuery<UserGuildMember[]>({
-    queryKey: getListUsersApiV1GGuildIdUsersGetQueryKey(guildId),
-    queryFn: () => listUsersApiV1GGuildIdUsersGet(guildId),
+    queryKey: getListUsersApiV1CGuildIdUsersGetQueryKey(guildId),
+    queryFn: () => listUsersApiV1CGuildIdUsersGet(guildId),
     ...options,
   });
 };
@@ -196,7 +196,7 @@ export const useUserSearch = ({
 }: UserSearchOptions = {}) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchUsersApiV1GGuildIdUsersSearchGet(
+  return useSearchUsersApiV1CGuildIdUsersSearchGet(
     guildId,
     {
       ...memberSearchParams(search, userIds),
@@ -232,7 +232,7 @@ export const useInitiativeMemberSearch = (
 ) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGet(
+  return useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet(
     guildId,
     initiativeId as number,
     {
@@ -267,7 +267,7 @@ export const useProjectMemberSearch = (
 ) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet(
+  return useSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet(
     guildId,
     projectId as number,
     {
@@ -360,7 +360,7 @@ export const useApproveUser = (options?: MutationOpts<UserGuildRead, number>) =>
   useGuildMutation<UserGuildRead, number>(
     {
       mutationFn: (guildId, userId) =>
-        approveUserApiV1GGuildIdUsersUserIdApprovePost(guildId, userId),
+        approveUserApiV1CGuildIdUsersUserIdApprovePost(guildId, userId),
       invalidate: () => invalidate(q.guildMembers()),
     },
     options
@@ -372,16 +372,16 @@ export const useUpdateGuildMembership = (options?: MutationOpts<void, UpdateGuil
   useApiMutation<void, UpdateGuildMembershipVars>(
     {
       mutationFn: (data) =>
-        updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch(data.guildId, data.userId, {
+        updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch(data.guildId, data.userId, {
           role: data.role,
-        } as Parameters<typeof updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch>[2]),
+        } as Parameters<typeof updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch>[2]),
       invalidate: () => invalidate(q.guildMembers()),
     },
     options
   );
 
 type ExportGuildUsersVars = {
-  params: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams;
+  params: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams;
   filename: string;
 };
 
@@ -390,7 +390,7 @@ export const useExportGuildUsersCsv = (options?: MutationOpts<void, ExportGuildU
   useGuildMutation<void, ExportGuildUsersVars>(
     {
       mutationFn: async (guildId, { params, filename }) => {
-        const blob = (await exportUsersCsvApiV1GGuildIdUsersExportCsvGet(guildId, params, {
+        const blob = (await exportUsersCsvApiV1CGuildIdUsersExportCsvGet(guildId, params, {
           responseType: "blob",
           // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
           paramsSerializer: { indexes: null },

@@ -18,7 +18,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  ListCommentsApiV1GGuildIdCommentsGetParams,
+  ListCommentsApiV1CGuildIdCommentsGetParams,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { CommentEntity } from "@/components/comments/CommentSection";
@@ -58,8 +58,8 @@ export const ToolCommentsPanel = ({
   // 0 is what the mention lookups read as "no initiative to search".
   const initiativeId = entity.initiative_id ?? 0;
 
-  const params = useMemo<ListCommentsApiV1GGuildIdCommentsGetParams>(() => {
-    const next: ListCommentsApiV1GGuildIdCommentsGetParams = {};
+  const params = useMemo<ListCommentsApiV1CGuildIdCommentsGetParams>(() => {
+    const next: ListCommentsApiV1CGuildIdCommentsGetParams = {};
     next[`${targetType}_id`] = entityId;
     return next;
   }, [targetType, entityId]);

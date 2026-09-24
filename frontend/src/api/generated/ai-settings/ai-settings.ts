@@ -1030,32 +1030,32 @@ export const useFetchPlatformConnectionModelsApiV1SettingsAiPlatformConnectionsC
 /**
  * @summary List Guild Connections
  */
-export const listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet = (
+export const listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AIConnectionResponse[]>(
-    { url: `/api/v1/g/${guildId}/settings/ai/connections`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/settings/ai/connections`, method: "GET", signal },
     options
   );
 };
 
-export const getListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGetQueryKey = (
+export const getListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/settings/ai/connections`] as const;
+  return [`/api/v1/c/${guildId}/settings/ai/connections`] as const;
 };
 
-export const getListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+export const getListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+        Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
         TError,
         TData
       >
@@ -1067,12 +1067,12 @@ export const getListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGetQueryOp
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGetQueryKey(guildId);
+    getListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>
+    Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>
   > = ({ signal }) =>
-    listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet(guildId, requestOptions, signal);
+    listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -1080,36 +1080,36 @@ export const getListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGetQueryOp
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+    Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>
+export type ListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>
 >;
-export type ListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGetQueryError =
+export type ListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
-  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+export function useListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet<
+  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+        Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+          Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>
+          Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>
         >,
         "initialData"
       >;
@@ -1117,24 +1117,24 @@ export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
-  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+export function useListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet<
+  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+        Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+          Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>
+          Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>
         >,
         "initialData"
       >;
@@ -1142,15 +1142,15 @@ export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
-  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+export function useListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet<
+  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+        Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
         TError,
         TData
       >
@@ -1163,15 +1163,15 @@ export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
  * @summary List Guild Connections
  */
 
-export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
-  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+export function useListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet<
+  TData = Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet>>,
+        Awaited<ReturnType<typeof listGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGet>>,
         TError,
         TData
       >
@@ -1180,7 +1180,7 @@ export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGetQueryOptions(
+  const queryOptions = getListGuildConnectionsApiV1CGuildIdSettingsAiConnectionsGetQueryOptions(
     guildId,
     options
   );
@@ -1195,7 +1195,7 @@ export function useListGuildConnectionsApiV1GGuildIdSettingsAiConnectionsGet<
 /**
  * @summary Create Guild Connection
  */
-export const createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost = (
+export const createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost = (
   guildId: number,
   aIConnectionCreate: BodyType<AIConnectionCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1203,7 +1203,7 @@ export const createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost = (
 ) => {
   return apiMutator<AIConnectionResponse>(
     {
-      url: `/api/v1/g/${guildId}/settings/ai/connections`,
+      url: `/api/v1/c/${guildId}/settings/ai/connections`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: aIConnectionCreate,
@@ -1213,27 +1213,27 @@ export const createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost = (
   );
 };
 
-export const getCreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationKey = () =>
-  ["createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost"] as const;
+export const getCreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationKey = () =>
+  ["createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost"] as const;
 
-export const getCreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationOptions = <
+export const getCreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost>>,
+    Awaited<ReturnType<typeof createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost>>,
     TError,
-    CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationVariables,
+    CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost>>,
+  Awaited<ReturnType<typeof createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost>>,
   TError,
-  CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationVariables,
+  CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationKey();
+  const mutationKey = getCreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1241,12 +1241,12 @@ export const getCreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost>>,
-    CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationVariables
+    Awaited<ReturnType<typeof createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost>>,
+    CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost(
+    return createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost(
       guildId,
       data,
       requestOptions
@@ -1256,14 +1256,14 @@ export const getCreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost>>
+export type CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost>>
 >;
-export type CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationBody =
+export type CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationBody =
   BodyType<AIConnectionCreate>;
-export type CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationError =
+export type CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationVariables = {
+export type CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationVariables = {
   guildId: number;
   data: BodyType<AIConnectionCreate>;
 };
@@ -1271,35 +1271,35 @@ export type CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationV
 /**
  * @summary Create Guild Connection
  */
-export const useCreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost = <
+export const useCreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost>>,
+      Awaited<ReturnType<typeof createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost>>,
       TError,
-      CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationVariables,
+      CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createGuildConnectionApiV1GGuildIdSettingsAiConnectionsPost>>,
+  Awaited<ReturnType<typeof createGuildConnectionApiV1CGuildIdSettingsAiConnectionsPost>>,
   TError,
-  CreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationVariables,
+  CreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateGuildConnectionApiV1GGuildIdSettingsAiConnectionsPostMutationOptions(options),
+    getCreateGuildConnectionApiV1CGuildIdSettingsAiConnectionsPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Update Guild Connection
  */
-export const updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut = (
+export const updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut = (
   guildId: number,
   connectionId: number,
   aIConnectionUpdate: BodyType<AIConnectionUpdate>,
@@ -1308,7 +1308,7 @@ export const updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionId
 ) => {
   return apiMutator<AIConnectionResponse>(
     {
-      url: `/api/v1/g/${guildId}/settings/ai/connections/${connectionId}`,
+      url: `/api/v1/c/${guildId}/settings/ai/connections/${connectionId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: aIConnectionUpdate,
@@ -1318,30 +1318,30 @@ export const updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionId
   );
 };
 
-export const getUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationKey =
-  () => ["updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut"] as const;
+export const getUpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationKey =
+  () => ["updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut"] as const;
 
-export const getUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationOptions =
+export const getUpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut>
+        ReturnType<typeof updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut>
       >,
       TError,
-      UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables,
+      UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut>
+      ReturnType<typeof updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut>
     >,
     TError,
-    UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables,
+    UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationKey();
+      getUpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1350,13 +1350,13 @@ export const getUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectio
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut>
+        ReturnType<typeof updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut>
       >,
-      UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables
+      UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables
     > = (props) => {
       const { guildId, connectionId, data } = props ?? {};
 
-      return updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut(
+      return updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut(
         guildId,
         connectionId,
         data,
@@ -1367,33 +1367,33 @@ export const getUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectio
     return { mutationFn, ...mutationOptions };
   };
 
-export type UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationResult =
+export type UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut>
+      ReturnType<typeof updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut>
     >
   >;
-export type UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationBody =
+export type UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationBody =
   BodyType<AIConnectionUpdate>;
-export type UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationError =
+export type UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables =
+export type UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables =
   { guildId: number; connectionId: number; data: BodyType<AIConnectionUpdate> };
 
 /**
  * @summary Update Guild Connection
  */
-export const useUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut = <
+export const useUpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut>
+        ReturnType<typeof updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut>
       >,
       TError,
-      UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables,
+      UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1401,14 +1401,14 @@ export const useUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectio
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof updateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPut>
+    ReturnType<typeof updateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPut>
   >,
   TError,
-  UpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables,
+  UpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdPutMutationOptions(
+    getUpdateGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdPutMutationOptions(
       options
     ),
     queryClient
@@ -1417,7 +1417,7 @@ export const useUpdateGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectio
 /**
  * @summary Delete Guild Connection
  */
-export const deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete = (
+export const deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete = (
   guildId: number,
   connectionId: number,
   options?: SecondParameter<typeof apiMutator>,
@@ -1425,7 +1425,7 @@ export const deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionId
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/g/${guildId}/settings/ai/connections/${connectionId}`,
+      url: `/api/v1/c/${guildId}/settings/ai/connections/${connectionId}`,
       method: "DELETE",
       signal,
     },
@@ -1433,30 +1433,30 @@ export const deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionId
   );
 };
 
-export const getDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationKey =
-  () => ["deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete"] as const;
+export const getDeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationKey =
+  () => ["deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete"] as const;
 
-export const getDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationOptions =
+export const getDeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete>
+        ReturnType<typeof deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete>
       >,
       TError,
-      DeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables,
+      DeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete>
+      ReturnType<typeof deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete>
     >,
     TError,
-    DeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables,
+    DeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationKey();
+      getDeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1465,13 +1465,13 @@ export const getDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectio
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete>
+        ReturnType<typeof deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete>
       >,
-      DeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables
+      DeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables
     > = (props) => {
       const { guildId, connectionId } = props ?? {};
 
-      return deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete(
+      return deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete(
         guildId,
         connectionId,
         requestOptions
@@ -1481,32 +1481,32 @@ export const getDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectio
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationResult =
+export type DeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete>
+      ReturnType<typeof deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete>
     >
   >;
 
-export type DeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationError =
+export type DeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables =
+export type DeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables =
   { guildId: number; connectionId: number };
 
 /**
  * @summary Delete Guild Connection
  */
-export const useDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete = <
+export const useDeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete>
+        ReturnType<typeof deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete>
       >,
       TError,
-      DeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables,
+      DeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1514,14 +1514,14 @@ export const useDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectio
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof deleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDelete>
+    ReturnType<typeof deleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDelete>
   >,
   TError,
-  DeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables,
+  DeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdDeleteMutationOptions(
+    getDeleteGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdDeleteMutationOptions(
       options
     ),
     queryClient
@@ -1530,7 +1530,7 @@ export const useDeleteGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectio
 /**
  * @summary Test Guild Connection
  */
-export const testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost = (
+export const testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost = (
   guildId: number,
   connectionId: number,
   options?: SecondParameter<typeof apiMutator>,
@@ -1538,7 +1538,7 @@ export const testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTe
 ) => {
   return apiMutator<AIConnectionTestResponse>(
     {
-      url: `/api/v1/g/${guildId}/settings/ai/connections/${connectionId}/test`,
+      url: `/api/v1/c/${guildId}/settings/ai/connections/${connectionId}/test`,
       method: "POST",
       signal,
     },
@@ -1546,30 +1546,30 @@ export const testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTe
   );
 };
 
-export const getTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationKey =
-  () => ["testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost"] as const;
+export const getTestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationKey =
+  () => ["testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost"] as const;
 
-export const getTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationOptions =
+export const getTestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost>
+        ReturnType<typeof testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost>
       >,
       TError,
-      TestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables,
+      TestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost>
+      ReturnType<typeof testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost>
     >,
     TError,
-    TestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables,
+    TestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationKey();
+      getTestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1578,13 +1578,13 @@ export const getTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionI
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost>
+        ReturnType<typeof testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost>
       >,
-      TestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables
+      TestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables
     > = (props) => {
       const { guildId, connectionId } = props ?? {};
 
-      return testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost(
+      return testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost(
         guildId,
         connectionId,
         requestOptions
@@ -1594,32 +1594,32 @@ export const getTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionI
     return { mutationFn, ...mutationOptions };
   };
 
-export type TestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationResult =
+export type TestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost>
+      ReturnType<typeof testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost>
     >
   >;
 
-export type TestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationError =
+export type TestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationError =
   ErrorType<HTTPValidationError>;
-export type TestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables =
+export type TestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables =
   { guildId: number; connectionId: number };
 
 /**
  * @summary Test Guild Connection
  */
-export const useTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost = <
+export const useTestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost>
+        ReturnType<typeof testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost>
       >,
       TError,
-      TestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables,
+      TestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1627,14 +1627,14 @@ export const useTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionI
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof testGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPost>
+    ReturnType<typeof testGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPost>
   >,
   TError,
-  TestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables,
+  TestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionIdTestPostMutationOptions(
+    getTestGuildConnectionApiV1CGuildIdSettingsAiConnectionsConnectionIdTestPostMutationOptions(
       options
     ),
     queryClient
@@ -1643,7 +1643,7 @@ export const useTestGuildConnectionApiV1GGuildIdSettingsAiConnectionsConnectionI
 /**
  * @summary Fetch Guild Connection Models
  */
-export const fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost = (
+export const fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost = (
   guildId: number,
   connectionId: number,
   options?: SecondParameter<typeof apiMutator>,
@@ -1651,7 +1651,7 @@ export const fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnect
 ) => {
   return apiMutator<AIModelsResponse>(
     {
-      url: `/api/v1/g/${guildId}/settings/ai/connections/${connectionId}/models`,
+      url: `/api/v1/c/${guildId}/settings/ai/connections/${connectionId}/models`,
       method: "POST",
       signal,
     },
@@ -1659,35 +1659,35 @@ export const fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnect
   );
 };
 
-export const getFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationKey =
+export const getFetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationKey =
   () =>
-    ["fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost"] as const;
+    ["fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost"] as const;
 
-export const getFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationOptions =
+export const getFetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost
+          typeof fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost
         >
       >,
       TError,
-      FetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables,
+      FetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost
+        typeof fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost
       >
     >,
     TError,
-    FetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables,
+    FetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationKey();
+      getFetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1697,14 +1697,14 @@ export const getFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConn
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost
+          typeof fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost
         >
       >,
-      FetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables
+      FetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables
     > = (props) => {
       const { guildId, connectionId } = props ?? {};
 
-      return fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost(
+      return fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost(
         guildId,
         connectionId,
         requestOptions
@@ -1714,34 +1714,34 @@ export const getFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConn
     return { mutationFn, ...mutationOptions };
   };
 
-export type FetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationResult =
+export type FetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost
+        typeof fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost
       >
     >
   >;
 
-export type FetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationError =
+export type FetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type FetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables =
+export type FetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables =
   { guildId: number; connectionId: number };
 
 /**
  * @summary Fetch Guild Connection Models
  */
-export const useFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost =
+export const useFetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
     options?: {
       mutation?: UseMutationOptions<
         Awaited<
           ReturnType<
-            typeof fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost
+            typeof fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost
           >
         >,
         TError,
-        FetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables,
+        FetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables,
         TContext
       >;
       request?: SecondParameter<typeof apiMutator>;
@@ -1750,15 +1750,15 @@ export const useFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConn
   ): UseMutationResult<
     Awaited<
       ReturnType<
-        typeof fetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPost
+        typeof fetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPost
       >
     >,
     TError,
-    FetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables,
+    FetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationVariables,
     TContext
   > => {
     return useMutation(
-      getFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationOptions(
+      getFetchGuildConnectionModelsApiV1CGuildIdSettingsAiConnectionsConnectionIdModelsPostMutationOptions(
         options
       ),
       queryClient
@@ -1769,30 +1769,30 @@ export const useFetchGuildConnectionModelsApiV1GGuildIdSettingsAiConnectionsConn
  * attached their own key to each, and which one is selected.
  * @summary Get Member Ai
  */
-export const getMemberAiApiV1GGuildIdSettingsAiMeGet = (
+export const getMemberAiApiV1CGuildIdSettingsAiMeGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<MemberAIView>(
-    { url: `/api/v1/g/${guildId}/settings/ai/me`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/settings/ai/me`, method: "GET", signal },
     options
   );
 };
 
-export const getGetMemberAiApiV1GGuildIdSettingsAiMeGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/settings/ai/me`] as const;
+export const getGetMemberAiApiV1CGuildIdSettingsAiMeGetQueryKey = (guildId: number) => {
+  return [`/api/v1/c/${guildId}/settings/ai/me`] as const;
 };
 
-export const getGetMemberAiApiV1GGuildIdSettingsAiMeGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+export const getGetMemberAiApiV1CGuildIdSettingsAiMeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+        Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
         TError,
         TData
       >
@@ -1803,11 +1803,11 @@ export const getGetMemberAiApiV1GGuildIdSettingsAiMeGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getGetMemberAiApiV1GGuildIdSettingsAiMeGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getGetMemberAiApiV1CGuildIdSettingsAiMeGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>
-  > = ({ signal }) => getMemberAiApiV1GGuildIdSettingsAiMeGet(guildId, requestOptions, signal);
+    Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>
+  > = ({ signal }) => getMemberAiApiV1CGuildIdSettingsAiMeGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -1815,35 +1815,35 @@ export const getGetMemberAiApiV1GGuildIdSettingsAiMeGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+    Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetMemberAiApiV1GGuildIdSettingsAiMeGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>
+export type GetMemberAiApiV1CGuildIdSettingsAiMeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>
 >;
-export type GetMemberAiApiV1GGuildIdSettingsAiMeGetQueryError = ErrorType<HTTPValidationError>;
+export type GetMemberAiApiV1CGuildIdSettingsAiMeGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
-  TData = Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+export function useGetMemberAiApiV1CGuildIdSettingsAiMeGet<
+  TData = Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+        Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+          Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
           TError,
-          Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>
+          Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>
         >,
         "initialData"
       >;
@@ -1851,24 +1851,24 @@ export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
-  TData = Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+export function useGetMemberAiApiV1CGuildIdSettingsAiMeGet<
+  TData = Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+        Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+          Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
           TError,
-          Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>
+          Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>
         >,
         "initialData"
       >;
@@ -1876,15 +1876,15 @@ export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
-  TData = Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+export function useGetMemberAiApiV1CGuildIdSettingsAiMeGet<
+  TData = Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+        Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
         TError,
         TData
       >
@@ -1897,15 +1897,15 @@ export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
  * @summary Get Member Ai
  */
 
-export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
-  TData = Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+export function useGetMemberAiApiV1CGuildIdSettingsAiMeGet<
+  TData = Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getMemberAiApiV1GGuildIdSettingsAiMeGet>>,
+        Awaited<ReturnType<typeof getMemberAiApiV1CGuildIdSettingsAiMeGet>>,
         TError,
         TData
       >
@@ -1914,7 +1914,7 @@ export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetMemberAiApiV1GGuildIdSettingsAiMeGetQueryOptions(guildId, options);
+  const queryOptions = getGetMemberAiApiV1CGuildIdSettingsAiMeGetQueryOptions(guildId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1927,7 +1927,7 @@ export function useGetMemberAiApiV1GGuildIdSettingsAiMeGet<
  * Attach/replace the member's own key for a connection.
  * @summary Set Member Key
  */
-export const setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut = (
+export const setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut = (
   guildId: number,
   memberAIKeyUpdate: BodyType<MemberAIKeyUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1935,7 +1935,7 @@ export const setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut = (
 ) => {
   return apiMutator<MemberAIView>(
     {
-      url: `/api/v1/g/${guildId}/settings/ai/me/key`,
+      url: `/api/v1/c/${guildId}/settings/ai/me/key`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: memberAIKeyUpdate,
@@ -1945,27 +1945,27 @@ export const setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut = (
   );
 };
 
-export const getSetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationKey = () =>
-  ["setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut"] as const;
+export const getSetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationKey = () =>
+  ["setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut"] as const;
 
-export const getSetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationOptions = <
+export const getSetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut>>,
+    Awaited<ReturnType<typeof setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut>>,
     TError,
-    SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationVariables,
+    SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut>>,
+  Awaited<ReturnType<typeof setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut>>,
   TError,
-  SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationVariables,
+  SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationKey();
+  const mutationKey = getSetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1973,24 +1973,24 @@ export const getSetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut>>,
-    SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationVariables
+    Awaited<ReturnType<typeof setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut>>,
+    SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut(guildId, data, requestOptions);
+    return setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut>>
+export type SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut>>
 >;
-export type SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationBody = BodyType<MemberAIKeyUpdate>;
-export type SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationError =
+export type SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationBody = BodyType<MemberAIKeyUpdate>;
+export type SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationVariables = {
+export type SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationVariables = {
   guildId: number;
   data: BodyType<MemberAIKeyUpdate>;
 };
@@ -1998,35 +1998,35 @@ export type SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationVariables = {
 /**
  * @summary Set Member Key
  */
-export const useSetMemberKeyApiV1GGuildIdSettingsAiMeKeyPut = <
+export const useSetMemberKeyApiV1CGuildIdSettingsAiMeKeyPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut>>,
+      Awaited<ReturnType<typeof setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut>>,
       TError,
-      SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationVariables,
+      SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setMemberKeyApiV1GGuildIdSettingsAiMeKeyPut>>,
+  Awaited<ReturnType<typeof setMemberKeyApiV1CGuildIdSettingsAiMeKeyPut>>,
   TError,
-  SetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationVariables,
+  SetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetMemberKeyApiV1GGuildIdSettingsAiMeKeyPutMutationOptions(options),
+    getSetMemberKeyApiV1CGuildIdSettingsAiMeKeyPutMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Delete Member Key
  */
-export const deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete = (
+export const deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete = (
   guildId: number,
   scope: ConnectionScope,
   connectionId: number,
@@ -2035,7 +2035,7 @@ export const deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete 
 ) => {
   return apiMutator<MemberAIView>(
     {
-      url: `/api/v1/g/${guildId}/settings/ai/me/key/${scope}/${connectionId}`,
+      url: `/api/v1/c/${guildId}/settings/ai/me/key/${scope}/${connectionId}`,
       method: "DELETE",
       signal,
     },
@@ -2043,28 +2043,28 @@ export const deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete 
   );
 };
 
-export const getDeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationKey =
-  () => ["deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete"] as const;
+export const getDeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationKey =
+  () => ["deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete"] as const;
 
-export const getDeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationOptions =
+export const getDeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete>
+        ReturnType<typeof deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete>
       >,
       TError,
-      DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables,
+      DeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
-    Awaited<ReturnType<typeof deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete>>,
+    Awaited<ReturnType<typeof deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete>>,
     TError,
-    DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables,
+    DeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationKey();
+      getDeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -2073,13 +2073,13 @@ export const getDeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDele
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete>
+        ReturnType<typeof deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete>
       >,
-      DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables
+      DeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables
     > = (props) => {
       const { guildId, scope, connectionId } = props ?? {};
 
-      return deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete(
+      return deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete(
         guildId,
         scope,
         connectionId,
@@ -2090,14 +2090,14 @@ export const getDeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDele
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationResult =
+export type DeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete>>
+    Awaited<ReturnType<typeof deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete>>
   >;
 
-export type DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationError =
+export type DeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables = {
+export type DeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables = {
   guildId: number;
   scope: ConnectionScope;
   connectionId: number;
@@ -2106,30 +2106,30 @@ export type DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMu
 /**
  * @summary Delete Member Key
  */
-export const useDeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete = <
+export const useDeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete>
+        ReturnType<typeof deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete>
       >,
       TError,
-      DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables,
+      DeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDelete>>,
+  Awaited<ReturnType<typeof deleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDelete>>,
   TError,
-  DeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables,
+  DeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationOptions(options),
+    getDeleteMemberKeyApiV1CGuildIdSettingsAiMeKeyScopeConnectionIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -2137,7 +2137,7 @@ export const useDeleteMemberKeyApiV1GGuildIdSettingsAiMeKeyScopeConnectionIdDele
  * Pick the connection the member uses and whether AI is on for them.
  * @summary Set Member Pref
  */
-export const setMemberPrefApiV1GGuildIdSettingsAiMePrefPut = (
+export const setMemberPrefApiV1CGuildIdSettingsAiMePrefPut = (
   guildId: number,
   memberAIPrefUpdate: BodyType<MemberAIPrefUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -2145,7 +2145,7 @@ export const setMemberPrefApiV1GGuildIdSettingsAiMePrefPut = (
 ) => {
   return apiMutator<MemberAIView>(
     {
-      url: `/api/v1/g/${guildId}/settings/ai/me/pref`,
+      url: `/api/v1/c/${guildId}/settings/ai/me/pref`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: memberAIPrefUpdate,
@@ -2155,27 +2155,27 @@ export const setMemberPrefApiV1GGuildIdSettingsAiMePrefPut = (
   );
 };
 
-export const getSetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationKey = () =>
-  ["setMemberPrefApiV1GGuildIdSettingsAiMePrefPut"] as const;
+export const getSetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationKey = () =>
+  ["setMemberPrefApiV1CGuildIdSettingsAiMePrefPut"] as const;
 
-export const getSetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationOptions = <
+export const getSetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setMemberPrefApiV1GGuildIdSettingsAiMePrefPut>>,
+    Awaited<ReturnType<typeof setMemberPrefApiV1CGuildIdSettingsAiMePrefPut>>,
     TError,
-    SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationVariables,
+    SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setMemberPrefApiV1GGuildIdSettingsAiMePrefPut>>,
+  Awaited<ReturnType<typeof setMemberPrefApiV1CGuildIdSettingsAiMePrefPut>>,
   TError,
-  SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationVariables,
+  SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationVariables,
   TContext
 > => {
-  const mutationKey = getSetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationKey();
+  const mutationKey = getSetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2183,25 +2183,25 @@ export const getSetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setMemberPrefApiV1GGuildIdSettingsAiMePrefPut>>,
-    SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationVariables
+    Awaited<ReturnType<typeof setMemberPrefApiV1CGuildIdSettingsAiMePrefPut>>,
+    SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return setMemberPrefApiV1GGuildIdSettingsAiMePrefPut(guildId, data, requestOptions);
+    return setMemberPrefApiV1CGuildIdSettingsAiMePrefPut(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setMemberPrefApiV1GGuildIdSettingsAiMePrefPut>>
+export type SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setMemberPrefApiV1CGuildIdSettingsAiMePrefPut>>
 >;
-export type SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationBody =
+export type SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationBody =
   BodyType<MemberAIPrefUpdate>;
-export type SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationError =
+export type SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationVariables = {
+export type SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationVariables = {
   guildId: number;
   data: BodyType<MemberAIPrefUpdate>;
 };
@@ -2209,28 +2209,28 @@ export type SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationVariables = {
 /**
  * @summary Set Member Pref
  */
-export const useSetMemberPrefApiV1GGuildIdSettingsAiMePrefPut = <
+export const useSetMemberPrefApiV1CGuildIdSettingsAiMePrefPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setMemberPrefApiV1GGuildIdSettingsAiMePrefPut>>,
+      Awaited<ReturnType<typeof setMemberPrefApiV1CGuildIdSettingsAiMePrefPut>>,
       TError,
-      SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationVariables,
+      SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setMemberPrefApiV1GGuildIdSettingsAiMePrefPut>>,
+  Awaited<ReturnType<typeof setMemberPrefApiV1CGuildIdSettingsAiMePrefPut>>,
   TError,
-  SetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationVariables,
+  SetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetMemberPrefApiV1GGuildIdSettingsAiMePrefPutMutationOptions(options),
+    getSetMemberPrefApiV1CGuildIdSettingsAiMePrefPutMutationOptions(options),
     queryClient
   );
 };
@@ -2238,38 +2238,38 @@ export const useSetMemberPrefApiV1GGuildIdSettingsAiMePrefPut = <
  * Test the member's currently-selected connection with their effective key.
  * @summary Test Member Ai
  */
-export const testMemberAiApiV1GGuildIdSettingsAiMeTestPost = (
+export const testMemberAiApiV1CGuildIdSettingsAiMeTestPost = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AIConnectionTestResponse>(
-    { url: `/api/v1/g/${guildId}/settings/ai/me/test`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/settings/ai/me/test`, method: "POST", signal },
     options
   );
 };
 
-export const getTestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationKey = () =>
-  ["testMemberAiApiV1GGuildIdSettingsAiMeTestPost"] as const;
+export const getTestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationKey = () =>
+  ["testMemberAiApiV1CGuildIdSettingsAiMeTestPost"] as const;
 
-export const getTestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationOptions = <
+export const getTestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof testMemberAiApiV1GGuildIdSettingsAiMeTestPost>>,
+    Awaited<ReturnType<typeof testMemberAiApiV1CGuildIdSettingsAiMeTestPost>>,
     TError,
-    TestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationVariables,
+    TestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof testMemberAiApiV1GGuildIdSettingsAiMeTestPost>>,
+  Awaited<ReturnType<typeof testMemberAiApiV1CGuildIdSettingsAiMeTestPost>>,
   TError,
-  TestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationVariables,
+  TestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getTestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationKey();
+  const mutationKey = getTestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2277,50 +2277,50 @@ export const getTestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof testMemberAiApiV1GGuildIdSettingsAiMeTestPost>>,
-    TestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationVariables
+    Awaited<ReturnType<typeof testMemberAiApiV1CGuildIdSettingsAiMeTestPost>>,
+    TestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationVariables
   > = (props) => {
     const { guildId } = props ?? {};
 
-    return testMemberAiApiV1GGuildIdSettingsAiMeTestPost(guildId, requestOptions);
+    return testMemberAiApiV1CGuildIdSettingsAiMeTestPost(guildId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type TestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof testMemberAiApiV1GGuildIdSettingsAiMeTestPost>>
+export type TestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testMemberAiApiV1CGuildIdSettingsAiMeTestPost>>
 >;
 
-export type TestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationError =
+export type TestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationError =
   ErrorType<HTTPValidationError>;
-export type TestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationVariables = { guildId: number };
+export type TestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationVariables = { guildId: number };
 
 /**
  * @summary Test Member Ai
  */
-export const useTestMemberAiApiV1GGuildIdSettingsAiMeTestPost = <
+export const useTestMemberAiApiV1CGuildIdSettingsAiMeTestPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof testMemberAiApiV1GGuildIdSettingsAiMeTestPost>>,
+      Awaited<ReturnType<typeof testMemberAiApiV1CGuildIdSettingsAiMeTestPost>>,
       TError,
-      TestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationVariables,
+      TestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof testMemberAiApiV1GGuildIdSettingsAiMeTestPost>>,
+  Awaited<ReturnType<typeof testMemberAiApiV1CGuildIdSettingsAiMeTestPost>>,
   TError,
-  TestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationVariables,
+  TestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getTestMemberAiApiV1GGuildIdSettingsAiMeTestPostMutationOptions(options),
+    getTestMemberAiApiV1CGuildIdSettingsAiMeTestPostMutationOptions(options),
     queryClient
   );
 };
@@ -2328,32 +2328,32 @@ export const useTestMemberAiApiV1GGuildIdSettingsAiMeTestPost = <
  * Resolved (effective) AI settings for the member, without the API key.
  * @summary Get Resolved Ai Settings
  */
-export const getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet = (
+export const getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ResolvedAISettingsResponse>(
-    { url: `/api/v1/g/${guildId}/settings/ai/resolved`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/settings/ai/resolved`, method: "GET", signal },
     options
   );
 };
 
-export const getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryKey = (
+export const getGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/settings/ai/resolved`] as const;
+  return [`/api/v1/c/${guildId}/settings/ai/resolved`] as const;
 };
 
-export const getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+export const getGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
         TError,
         TData
       >
@@ -2365,12 +2365,12 @@ export const getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryOpti
 
   const queryKey =
     queryOptions?.queryKey ??
-    getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryKey(guildId);
+    getGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>
+    Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>
   > = ({ signal }) =>
-    getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet(guildId, requestOptions, signal);
+    getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -2378,36 +2378,36 @@ export const getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryOpti
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+    Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>
+export type GetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>
 >;
-export type GetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryError =
+export type GetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet<
-  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+export function useGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet<
+  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+          Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
           TError,
-          Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>
+          Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>
         >,
         "initialData"
       >;
@@ -2415,24 +2415,24 @@ export function useGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet<
-  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+export function useGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet<
+  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+          Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
           TError,
-          Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>
+          Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>
         >,
         "initialData"
       >;
@@ -2440,15 +2440,15 @@ export function useGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet<
-  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+export function useGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet<
+  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
         TError,
         TData
       >
@@ -2461,15 +2461,15 @@ export function useGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet<
  * @summary Get Resolved Ai Settings
  */
 
-export function useGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet<
-  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+export function useGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet<
+  TData = Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet>>,
+        Awaited<ReturnType<typeof getResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGet>>,
         TError,
         TData
       >
@@ -2478,7 +2478,7 @@ export function useGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryOptions(
+  const queryOptions = getGetResolvedAiSettingsApiV1CGuildIdSettingsAiResolvedGetQueryOptions(
     guildId,
     options
   );

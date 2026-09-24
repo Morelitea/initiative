@@ -19,11 +19,11 @@ const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
 vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
 
 const mintHandoff = vi.hoisted(() => vi.fn());
-vi.mock("@/api/generated/guilds/guilds", () => ({
-  createGuildInviteApiV1GuildsGuildIdInvitesPost: vi.fn(),
-  deleteGuildInviteApiV1GuildsGuildIdInvitesInviteIdDelete: vi.fn(),
-  listGuildInvitesApiV1GuildsGuildIdInvitesGet: vi.fn().mockResolvedValue([]),
-  createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost: mintHandoff,
+vi.mock("@/api/generated/communities/communities", () => ({
+  createGuildInviteApiV1CommunitiesGuildIdInvitesPost: vi.fn(),
+  deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete: vi.fn(),
+  listGuildInvitesApiV1CommunitiesGuildIdInvitesGet: vi.fn().mockResolvedValue([]),
+  createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintHandoff,
 }));
 
 vi.mock("@/hooks/useUsers", () => ({

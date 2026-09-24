@@ -11,7 +11,7 @@ The two role dimensions are orthogonal (platform-roles design §7):
   and defaulting low makes the suite prove that continuously.
 * **Guild role** — when ``guild_role`` (or ``guild``) is given, the actor gets
   a provisioned guild (or joins the one passed) with that ``GuildRole``;
-  requests route through ``/g/{guild_id}`` and assume ``guild_<id>``.
+  requests route through ``/c/{guild_id}`` and assume ``guild_<id>``.
 
 Usage (via the ``acting_user`` fixture):
 
@@ -61,10 +61,10 @@ class Actor:
 
     def g(self, path: str = "/") -> str:
         """Guild-scoped API URL: ``a.g("/projects/")`` →
-        ``/api/v1/g/<guild_id>/projects/``."""
+        ``/api/v1/c/<guild_id>/projects/``."""
         if self.guild is None:
             raise ValueError("actor has no guild; pass guild_role=")
-        return f"{API}/g/{self.guild.id}{path}"
+        return f"{API}/c/{self.guild.id}{path}"
 
 
 async def make_actor(

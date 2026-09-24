@@ -66,7 +66,9 @@ async def test_a_new_guild_records_its_provided_app_against_the_owner(
     capfd.readouterr()
 
     response = await client.post(
-        "/api/v1/guilds/", headers=get_auth_headers(user), json={"name": "Fresh guild"}
+        "/api/v1/communities/",
+        headers=get_auth_headers(user),
+        json={"name": "Fresh guild"},
     )
     assert response.status_code == 201, response.text
     guild_id = response.json()["id"]

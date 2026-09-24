@@ -203,13 +203,13 @@ async def test_caps_and_status_are_recorded_against_the_community(
     capfd.readouterr()
 
     capped = await client.patch(
-        f"/api/v1/settings/guilds/{guild_id}",
+        f"/api/v1/settings/communities/{guild_id}",
         headers=headers,
         json={"max_users": 7},
     )
     assert capped.status_code == 200, capped.text
     suspended = await client.patch(
-        f"/api/v1/settings/guilds/{guild_id}",
+        f"/api/v1/settings/communities/{guild_id}",
         headers=headers,
         json={"status": "read_only"},
     )
@@ -244,7 +244,7 @@ async def test_setting_a_cap_to_what_it_already_is_records_nothing(
 
     for _ in range(2):
         response = await client.patch(
-            f"/api/v1/settings/guilds/{guild.id}",
+            f"/api/v1/settings/communities/{guild.id}",
             headers=headers,
             json={"max_users": 7},
         )

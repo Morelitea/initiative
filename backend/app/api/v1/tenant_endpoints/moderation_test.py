@@ -39,12 +39,12 @@ async def _report(client: AsyncClient, actor, **body) -> Response:
 
 def _reports_url(scene: dict) -> str:
     """Where an initiative's moderators read what has been reported."""
-    return f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/reports"
+    return f"/api/v1/c/{scene['guild'].id}/initiatives/{scene['initiative'].id}/reports"
 
 
 def _sharing_url(scene: dict) -> str:
     """Where they read what the initiative has shared."""
-    return f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/sharing"
+    return f"/api/v1/c/{scene['guild'].id}/initiatives/{scene['initiative'].id}/sharing"
 
 
 async def _report_comment(client: AsyncClient, scene: dict, **body) -> Response:
@@ -280,7 +280,7 @@ async def test_settling_closes_it_and_answers_with_the_whole_card(
     report_id = await _filed_report_id(client, session, scene, detail="Nonsense.")
 
     response = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": ReportOutcome.dismissed.value, "note": "Looked; fine."},
         headers=scene["mod"].headers,
     )
@@ -364,7 +364,7 @@ async def test_a_community_a_reporter_is_not_in_places_nothing_there(
 async def test_a_settled_report_is_not_settled_again(client, session, scene):
     report_id = await _filed_report_id(client, session, scene)
 
-    url = f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle"
+    url = f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle"
     first = await client.post(
         url, json={"outcome": "dismissed"}, headers=scene["mod"].headers
     )
@@ -380,7 +380,7 @@ async def test_an_ordinary_member_cannot_settle(client, session, scene):
     report_id = await _filed_report_id(client, session, scene)
 
     response = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": "dismissed"},
         headers=scene["member"].headers,
     )
@@ -454,7 +454,7 @@ async def test_escalating_with_nowhere_to_send_leaves_the_report_open(
     report_id = await _filed_report_id(client, session, scene, reason="harassment")
 
     response = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": "escalated"},
         headers=scene["mod"].headers,
     )
@@ -477,7 +477,7 @@ async def test_escalating_opens_a_platform_case(client, session, scene, operatio
     report_id = await _filed_report_id(client, session, scene, reason="illegal")
 
     response = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": "escalated", "note": "Not ours to settle."},
         headers=scene["mod"].headers,
     )
@@ -613,7 +613,7 @@ async def test_a_communitys_moderation_leaves_no_trace_in_the_platform_log(
         client, session, scene, reason="harassment", detail="This is abusive."
     )
     settle = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": "content_removed", "note": "Taken down."},
         headers=scene["mod"].headers,
     )

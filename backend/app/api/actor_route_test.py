@@ -48,7 +48,7 @@ from app.testing import (
 )
 from app.testing.app_clients import CLIENT, client_jwks, install_app
 
-_BASE = "/api/v1/g/{guild_id}/actor-route-probe"
+_BASE = "/api/v1/c/{guild_id}/actor-route-probe"
 _read = app_scope("documents:read")
 _write = app_scope("documents:write")
 

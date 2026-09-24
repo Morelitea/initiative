@@ -79,7 +79,7 @@ async def _live_settings_grant(
 
 
 def _ai_url(guild_id: int) -> str:
-    return f"/api/v1/g/{guild_id}/settings{AI_SETTINGS}"
+    return f"/api/v1/c/{guild_id}/settings{AI_SETTINGS}"
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +254,7 @@ async def test_guild_admin_cannot_assign_support_role(
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
     resp = await client.patch(
-        f"/api/v1/guilds/{admin.guild.id}/members/{member.user.id}",
+        f"/api/v1/communities/{admin.guild.id}/members/{member.user.id}",
         headers=admin.headers,
         json={"role": "support"},
     )
@@ -278,7 +278,7 @@ async def test_guild_admin_can_promote_member_to_admin(
     member_user_id = member.user.id
 
     resp = await client.patch(
-        f"/api/v1/guilds/{guild_id}/members/{member_user_id}",
+        f"/api/v1/communities/{guild_id}/members/{member_user_id}",
         headers=admin.headers,
         json={"role": "admin"},
     )
@@ -306,7 +306,7 @@ async def test_plain_member_cannot_change_guild_roles(
     other = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
     resp = await client.patch(
-        f"/api/v1/guilds/{admin.guild.id}/members/{other.user.id}",
+        f"/api/v1/communities/{admin.guild.id}/members/{other.user.id}",
         headers=member.headers,
         json={"role": "admin"},
     )

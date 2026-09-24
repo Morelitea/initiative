@@ -77,7 +77,7 @@ class GuildCreate(GuildBase):
 
 
 class GuildRead(GuildBase):
-    """A guild as its own members see it (``GET /guilds/`` and friends).
+    """A guild as its own members see it (``GET /communities/`` and friends).
 
     The payload has two tiers, decided in one place — ``_serialize_guild`` in
     the guilds router:
@@ -113,7 +113,7 @@ class GuildRead(GuildBase):
     # ADMIN-ONLY. Trash retention window, set from the guild's trash settings tab.
     retention_days: Optional[int] = None
     # ADMIN-ONLY. Operator-set caps, rendered against usage on the settings page
-    # (the usage half, /g/{id}/storage/usage, is guild-admin only too).
+    # (the usage half, /c/{id}/storage/usage, is guild-admin only too).
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
     member_count: int = 0
@@ -512,7 +512,7 @@ class GuildNotificationPolicyUpdate(SanitizedBaseModel):
 
 
 class GuildDeletionRequest(SanitizedBaseModel):
-    """Body for ``DELETE /guilds/{id}``.
+    """Body for ``DELETE /communities/{id}``.
 
     Deleting a guild cascades through every initiative, project, task,
     document, membership, invite, and settings row it owns, so the

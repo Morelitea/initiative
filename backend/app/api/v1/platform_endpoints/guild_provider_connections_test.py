@@ -37,7 +37,7 @@ async def _seat(session: AsyncSession, *, auth_options: list[str] | None = None)
 
 
 def _base(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/auth/connections"
+    return f"/api/v1/communities/{guild_id}/auth/connections"
 
 
 async def test_the_seat_connects_narrows_and_disconnects(

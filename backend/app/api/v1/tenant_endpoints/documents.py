@@ -1475,14 +1475,15 @@ async def generate_summary(
 async def set_document_properties(
     document_id: int,
     payload: PropertyValuesSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: DocumentsWrite,
 ) -> DocumentRead:
     """Replace the custom property values on a document.
 
     Requires document write access. Values are validated server-side against
-    each property definition's type and options.
+    each property definition's type and options. An installed app names the
+    person a person-valued property holds by its reference for them.
     """
     document = await resource_access.load_authorized(
         session,
@@ -1498,7 +1499,7 @@ async def set_document_properties(
         await properties_service.set_document_property_values(
             session,
             document,
-            payload.values,
+            await properties_service.property_values_by_row_id(session, payload.values),
             document.initiative_id,
         )
     except HTTPException:
@@ -1522,11 +1523,11 @@ async def set_document_properties(
         document_id=document_id,
         guild_id=guild_context.guild_id,
         populate_existing=True,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
     )
     return serialize_document(
         refreshed,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         context=guild_context,
     )
 
@@ -1569,7 +1570,7 @@ async def _load_download_document(
     with the eager loads the access check needs.
 
     Downloads are served via iframe/window.open, which can't send headers, so
-    the guild rides in the ``/g/{guild_id}`` path segment and names exactly the
+    the guild rides in the ``/c/{guild_id}`` path segment and names exactly the
     schema to read. Access is re-validated here (membership or live PAM grant).
     Leaves the session routed into the guild so a follow-up version query runs
     in the same schema.

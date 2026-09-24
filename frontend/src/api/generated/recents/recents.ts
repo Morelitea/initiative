@@ -173,12 +173,12 @@ export function useListRecentsApiV1RecentsGet<
 /**
  * Close a tab: delete the caller's own recent-view row.
  *
- * Guild-scoped — mounted under /g/{guild_id}/recents because a tab can belong
+ * Guild-scoped — mounted under /c/{guild_id}/recents because a tab can belong
  * to any of the user's guilds and per-schema ids are only unique within a
  * guild. Idempotent.
  * @summary Clear Recent
  */
-export const clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete = (
+export const clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete = (
   guildId: number,
   entityType: RecentEntityType,
   entityId: number,
@@ -186,32 +186,32 @@ export const clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete = (
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/recents/${entityType}/${entityId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/recents/${entityType}/${entityId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationKey = () =>
-  ["clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete"] as const;
+export const getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationKey = () =>
+  ["clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete"] as const;
 
-export const getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationOptions = <
+export const getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
+    Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
     TError,
-    ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
+    ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
+  Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
   TError,
-  ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
+  ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationKey();
+  const mutationKey = getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -219,12 +219,12 @@ export const getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
-    ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables
+    Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
+    ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables
   > = (props) => {
     const { guildId, entityType, entityId } = props ?? {};
 
-    return clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete(
+    return clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete(
       guildId,
       entityType,
       entityId,
@@ -235,13 +235,13 @@ export const getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationO
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>
+export type ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>
 >;
 
-export type ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationError =
+export type ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables = {
+export type ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables = {
   guildId: number;
   entityType: RecentEntityType;
   entityId: number;
@@ -250,28 +250,28 @@ export type ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationVaria
 /**
  * @summary Clear Recent
  */
-export const useClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete = <
+export const useClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
+      Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
       TError,
-      ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
+      ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
+  Awaited<ReturnType<typeof clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete>>,
   TError,
-  ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
+  ClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationOptions(options),
+    getClearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDeleteMutationOptions(options),
     queryClient
   );
 };

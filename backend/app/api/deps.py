@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Any, NoReturn, Optional, Sequence
@@ -188,7 +188,7 @@ async def _authenticate_auto_delegation(
     ``request.state.delegated_guild_id``: delegation tokens are minted for
     exactly one guild, and a machine caller has no guild context of its own to
     resolve from. The resolved guild is validated against the user's memberships
-    and must agree with the ``/g/{guild_id}`` path, so an auto workflow always
+    and must agree with the ``/c/{guild_id}`` path, so an auto workflow always
     acts in the guild its token was issued for.
     """
     if not delegation_possible():
@@ -316,7 +316,7 @@ def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
 
     ``read_only`` keys may only issue safe (non-mutating) HTTP methods. A
     ``guild_id``-bound key stashes its guild on ``request.state`` for
-    ``get_guild_membership`` to pin against the ``/g/{guild_id}`` path — the one
+    ``get_guild_membership`` to pin against the ``/c/{guild_id}`` path — the one
     place that sees both the token's guild and the path's, mirroring how
     delegation tokens are pinned.
     """
@@ -925,7 +925,7 @@ async def _load_guild_context(
     """Resolve and validate the guild context for one guild.
 
     ``guild_id`` is the single guild the request operates in (on REST it comes
-    from the ``/g/{guild_id}/...`` path, which is only a selector, never a trust
+    from the ``/c/{guild_id}/...`` path, which is only a selector, never a trust
     boundary). Access is validated fresh on every call — real membership or a
     live PAM grant, else ``GuildAccessError`` — so a stale or mistyped guild id
     fails closed. The caller has already coerced ``guild_id`` to ``int`` before
@@ -1106,7 +1106,7 @@ async def get_guild_membership(
     """The establishment seam for a REST request: who this reader is in the
     community the path addresses, and the session routed to match.
 
-    Every guild-scoped router mounts under ``/g/{guild_id}``, so FastAPI injects
+    Every guild-scoped router mounts under ``/c/{guild_id}``, so FastAPI injects
     the segment here; :func:`addressed_guild_id` decides whether that is the
     answer or whether the call's delegation already gave one. Membership (or a
     live PAM grant) is validated fresh; a non-member or stale grant gets 403. A
@@ -1587,7 +1587,8 @@ async def establish_install_access(
 #: over the routes.
 APP_SCOPE_ATTRIBUTE = "__app_scope__"
 #: Every scope the dependency may ask of a request, for the same walk: the one
-#: scope of :func:`app_scope`, each of :func:`app_scope_by`'s.
+#: scope of :func:`app_scope`, each of :func:`app_scope_by`'s and of
+#: :func:`app_scope_checked`'s.
 APP_SCOPES_ATTRIBUTE = "__app_scopes__"
 
 
@@ -1636,9 +1637,11 @@ async def _named_refs(request: Request) -> list[str]:
 
 
 async def _establish_install_request(
-    request: Request, session: AsyncSession, token: str, scope: str
+    request: Request, session: AsyncSession, token: str, scope: str | None
 ) -> InstallContext:
-    """Admit an installed app's request to a route that names ``scope``.
+    """Admit an installed app's request to a route that names ``scope``, or
+    to an :func:`app_scope_checked` route, which names none here (``None``)
+    and checks what the request asks for itself.
 
     The token is read locally; nothing reaches the database until it has been
     unsealed and found to be an installation token. Then the seam routes the
@@ -1685,7 +1688,7 @@ async def _establish_install_request(
     # Asked of what the standing holds — the token's scopes and the seat's
     # grant together, with writes off in a read-only community — so a scope
     # the seat has since taken back answers here on the next request.
-    if not context.holds(scope):
+    if scope is not None and not context.holds(scope):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AppMessages.SCOPE_REQUIRED,
@@ -1817,6 +1820,57 @@ def app_scope_by(
     setattr(dependency, APP_SCOPE_ATTRIBUTE, f"by {param}")
     setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset(scopes.values()))
     dependency.__name__ = f"app_scope_by_{param}"
+    dependency.__qualname__ = dependency.__name__
+    return dependency
+
+
+def app_scope_checked(
+    scopes: Iterable[str], *, per: str
+) -> Callable[..., Awaitable[ActorContext]]:
+    """:func:`app_scope` for a route whose scope depends on what the request
+    asks for, so no one scope fits the route: ``per`` names what decides it
+    (``"event type"``). An installation token is admitted here without a
+    scope asked of it, and the route's own code — its service, once it has
+    read the request — asks each scope the request needs of the install's
+    standing (:meth:`InstallContext.holds`), answering 403
+    (``APP_SCOPE_REQUIRED``) for one it does not hold. A person passes through
+    to the ordinary seam, as with :func:`app_scope`.
+
+    ``scopes`` is every scope such a check may ask, carried on
+    :data:`APP_SCOPES_ATTRIBUTE` for the walk over the routes; ``per <per>``
+    is carried on :data:`APP_SCOPE_ATTRIBUTE`.
+    """
+    asked = frozenset(scopes)
+    if not asked:
+        raise ValueError("a checked app scope names the scopes it may ask")
+    for scope in asked:
+        parse_scope(scope)
+
+    async def dependency(
+        request: Request,
+        session: SessionDep,
+        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        person: Annotated[Optional[User], Depends(get_actor_user)],
+        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    ) -> ActorContext:
+        if person is None:
+            if not bearer_token:
+                raise _refuse_install_credential()
+            return await _establish_install_request(
+                request, session, bearer_token, None
+            )
+        context = await get_guild_membership(request, session, person, guild_id)
+        if context.is_settings_only:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_ACCESS_DENIED,
+            )
+        return context
+
+    label = per.replace(" ", "_")
+    setattr(dependency, APP_SCOPE_ATTRIBUTE, f"per {per}")
+    setattr(dependency, APP_SCOPES_ATTRIBUTE, asked)
+    dependency.__name__ = f"app_scope_per_{label}"
     dependency.__qualname__ = dependency.__name__
     return dependency
 

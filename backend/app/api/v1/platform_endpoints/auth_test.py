@@ -1706,7 +1706,7 @@ async def test_oidc_next_returns_browser_to_requested_page(
             "username": "stepup",
             "email_verified": True,
         },
-        login_params={"next": "/g/5/projects/3"},
+        login_params={"next": "/c/5/projects/3"},
     )
     assert response.status_code in (302, 307)
     assert response.headers["location"].endswith(

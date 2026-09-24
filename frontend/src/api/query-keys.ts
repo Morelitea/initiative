@@ -3,13 +3,15 @@
  *
  * NAMING — the UI calls these "communities"; the code calls them guilds.
  * Communities ended up being used far more broadly than the gaming guilds the
- * name was picked for, so the product renamed them. The rename stopped at the
- * user-visible strings: the database, the API, the generated client and every
- * identifier below still say `guild`, because moving those means a schema
- * migration across every tenant. Treat `guild` in code and `community` in copy
+ * name was picked for, so the product renamed them. The rename reaches the
+ * user-visible strings and the URLs — the UI's `/c/{id}` and the API's
+ * `/api/v1/c/{guild_id}` and `/api/v1/communities` — and stops there: the
+ * database, path parameter names, schema and hook names, and every identifier
+ * below still say `guild`, because moving those means a schema migration
+ * across every tenant. Treat `guild` in code and `community` in copy and paths
  * as the same thing. This is deliberate and permanent, not a half-finished
- * rename -- if you are adding UI, say community; if you are adding a query,
- * follow the `guild` that is already here.
+ * rename -- if you are adding UI or a route, say community; if you are adding a
+ * query, follow the `guild` that is already here.
  *
  * Orval keys queries by URL (e.g. `["/api/v1/tags/"]`), so a domain question
  * ("every task list") is a question about paths. The `q.*` builders answer it
@@ -29,12 +31,12 @@
  * There are TWO disjoint families of keys, and a match MUST NOT cross between
  * them:
  *
- *  - GUILD-scoped keys live under `/api/v1/g/{guildId}/...`. `guildExact` and
+ *  - GUILD-scoped keys live under `/api/v1/c/{guildId}/...`. `guildExact` and
  *    `guildPrefix` reach these and ONLY for the ACTIVE guild — never another
  *    guild, and never a non-guild key. This is the tenancy boundary: a mutation
  *    in one guild can't touch another guild's (or a personal) cached data.
  *  - PERSONAL / platform keys are everything else (`/api/v1/me/*`, `/settings`,
- *    `/users`, `/guilds`, `/operator`, `/notifications`, `/version`, `/recents`).
+ *    `/users`, `/communities`, `/operator`, `/notifications`, `/version`, `/recents`).
  *    `personalExact` and `personalPrefix` reach these and ONLY these.
  *
  * A few resources genuinely span both (a guild list plus its cross-guild `/me`
@@ -58,7 +60,7 @@ export const setInvalidationGuild = (guildId: number | null) => {
   scopedGuildId = guildId && guildId > 0 ? guildId : null;
 };
 
-const GUILD_SEGMENT = /^\/api\/v1\/g\/(\d+)(\/.*)?$/;
+const GUILD_SEGMENT = /^\/api\/v1\/c\/(\d+)(\/.*)?$/;
 
 // ── What a write made stale ──────────────────────────────────────────────────
 
@@ -79,7 +81,7 @@ export type Spec = {
   personalPrefix?: readonly string[];
   /**
    * Comment threads, as `[parentParam, parentId]`. A thread is keyed
-   * `["/api/v1/g/{g}/comments/", { task_id: 7 }]` — the id sits in the params
+   * `["/api/v1/c/{g}/comments/", { task_id: 7 }]` — the id sits in the params
    * object rather than the path, so it cannot be reached by a prefix.
    */
   threads?: readonly (readonly [param: string, id: number])[];
@@ -258,7 +260,7 @@ const projectActivity = (projectId: number): Spec => ({
   guildExact: [`/api/v1/projects/${projectId}/activity`],
 });
 
-// Recents list is a cross-guild personal endpoint (`/api/v1/recents/`, no /g/).
+// Recents list is a cross-guild personal endpoint (`/api/v1/recents/`, no /c/).
 const recents = (): Spec => ({ personalExact: ["/api/v1/recents/"] });
 
 const favoriteProjects = (): Spec => ({ guildExact: ["/api/v1/projects/favorites"] });
@@ -376,7 +378,7 @@ const initiativeJoinRequests = (initiativeId: number): Spec => ({
 
 // "All settings" is a blunt flush spanning two DELIBERATELY separate backend
 // scopes: app/platform config (`/api/v1/settings/*`, owner-only) and a guild's
-// AI settings (`/api/v1/g/{id}/settings/ai/*`, RLS-scoped). They live on
+// AI settings (`/api/v1/c/{id}/settings/ai/*`, RLS-scoped). They live on
 // different paths by design — app config isn't guild-specific, and guild AI
 // settings must carry guild context — so name a bucket in each family rather
 // than let one path test cross the boundary. (Not a backend inconsistency.)
@@ -395,7 +397,7 @@ const authProviders = (): Spec => ({ personalExact: ["/api/v1/settings/auth/prov
 
 /** What one community says its own arrivals look like, and who has agreed. */
 const guildNarrowings = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/settings/guilds/${guildId}/narrowings`],
+  personalExact: [`/api/v1/settings/communities/${guildId}/narrowings`],
 });
 
 const storageSettings = (): Spec => ({ personalExact: ["/api/v1/settings/storage"] });
@@ -431,7 +433,7 @@ const notificationSettings = (): Spec => ({
 
 /** The same three answers for one community. */
 const guildNotificationPolicy = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/guilds/${guildId}/notification-policy`],
+  personalExact: [`/api/v1/communities/${guildId}/notification-policy`],
 });
 
 /** Where each stream of operations work lands, and what it could land in. */
@@ -446,8 +448,8 @@ const moderationReports = (initiativeId: number): Spec => ({
 });
 
 // The platform Guilds tab reads/writes only shared public tables (owner-only),
-// so its list lives in the personal/platform family, not under any /g/ key.
-const platformGuilds = (): Spec => ({ personalExact: ["/api/v1/settings/guilds"] });
+// so its list lives in the personal/platform family, not under any /c/ key.
+const platformGuilds = (): Spec => ({ personalExact: ["/api/v1/settings/communities"] });
 
 // ── App services (personal / platform) ───────────────────────────────────────
 // Orval keys the list as `/api/v1/app-services/` (trailing slash) and each row
@@ -486,7 +488,7 @@ const platformAIConnections = (): Spec => ({
   personalExact: ["/api/v1/settings/ai/platform/connections"],
 });
 
-/** A guild admin's own connections list (`/g/{id}/settings/ai/connections`). */
+/** A guild admin's own connections list (`/c/{id}/settings/ai/connections`). */
 const guildAIConnections = (): Spec => ({ guildExact: ["/api/v1/settings/ai/connections"] });
 
 /** The member's own view: selected connection, per-connection key state, on/off. */
@@ -507,18 +509,18 @@ const userStats = (): Spec => ({ personalPrefix: ["/api/v1/me/stats"] });
 const operatorUsers = (): Spec => ({ personalPrefix: ["/api/v1/operator"] });
 
 // ── Guild Members (guild) ────────────────────────────────────────────────────
-// The member roster is guild-scoped (`/api/v1/g/{id}/users/`), even though the
-// membership *mutations* go through the platform `/api/v1/guilds/{id}/members/…`
+// The member roster is guild-scoped (`/api/v1/c/{id}/users/`), even though the
+// membership *mutations* go through the platform `/api/v1/communities/{id}/members/…`
 // path. It must stay in the guild bucket.
 
 const guildMembers = (): Spec => ({ guildExact: ["/api/v1/users/"] });
 
 // ── Guilds (personal / platform) ─────────────────────────────────────────────
 
-const allGuilds = (): Spec => ({ personalPrefix: ["/api/v1/guilds"] });
+const allGuilds = (): Spec => ({ personalPrefix: ["/api/v1/communities"] });
 
 const guildInvites = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/guilds/${guildId}/invites`],
+  personalExact: [`/api/v1/communities/${guildId}/invites`],
 });
 
 // ── Queues (guild) ───────────────────────────────────────────────────────────
@@ -773,7 +775,7 @@ export const q = {
 // them. Resetting it made the bar blank and refetch on every switch, dropping
 // tabs that belong to the community being left as well as the one arriving.
 const GLOBAL_KEY_PREFIXES = [
-  "/api/v1/guilds",
+  "/api/v1/communities",
   "/api/v1/users/me",
   "/api/v1/version",
   "/api/v1/recents",

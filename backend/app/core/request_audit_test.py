@@ -153,10 +153,10 @@ def _requests_counted(route: str, status: str) -> float:
 async def test_a_request_is_counted_by_the_route_it_matched(client: AsyncClient):
     """The label is the route as written, so every community's list is one
     series rather than one per community."""
-    route = "/api/v1/g/{guild_id}/initiatives/"
+    route = "/api/v1/c/{guild_id}/initiatives/"
     before = _requests_counted(route, "401")
 
-    answered = await client.get("/api/v1/g/424242/initiatives/")
+    answered = await client.get("/api/v1/c/424242/initiatives/")
 
     assert answered.status_code == 401
     assert _requests_counted(route, "401") == before + 1

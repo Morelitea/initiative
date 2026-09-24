@@ -8,8 +8,8 @@ import type {
   SmartChipStateList,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey,
-  readSmartChipsApiV1GGuildIdSmartChipsGet,
+  getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey,
+  readSmartChipsApiV1CGuildIdSmartChipsGet,
 } from "@/api/generated/smart-chips/smart-chips";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { referenceRef } from "@/lib/smartChips";
@@ -61,8 +61,8 @@ export const useSmartChipStates = (refs: string[], enabled = true) => {
   const batches = referenceBatches(refs);
   return useQueries({
     queries: batches.map((ref) => ({
-      queryKey: getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey(guildId, { ref }),
-      queryFn: () => readSmartChipsApiV1GGuildIdSmartChipsGet(guildId, { ref }),
+      queryKey: getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey(guildId, { ref }),
+      queryFn: () => readSmartChipsApiV1CGuildIdSmartChipsGet(guildId, { ref }),
       enabled: enabled && guildId != null,
       staleTime: STALE_MS,
       // A chip goes stale because someone else moved something, so it is asked

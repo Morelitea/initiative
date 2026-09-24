@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type { QueryShapeResponse } from "@/api/generated/initiativeAPI.schemas";
-import { describeQueryApiV1GGuildIdQueryDescribePost } from "@/api/generated/query/query";
+import { describeQueryApiV1CGuildIdQueryDescribePost } from "@/api/generated/query/query";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { QueryOpts } from "@/types/query";
 
@@ -28,7 +28,7 @@ export const useQueryShape = (
   return useQuery<QueryShapeResponse>({
     queryKey: queryShapeKey(guildId, sql ?? "", initiativeId),
     queryFn: () =>
-      describeQueryApiV1GGuildIdQueryDescribePost(guildId, {
+      describeQueryApiV1CGuildIdQueryDescribePost(guildId, {
         sql: sql ?? "",
         initiative_id: initiativeId,
       }),

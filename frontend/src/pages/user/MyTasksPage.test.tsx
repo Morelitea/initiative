@@ -154,10 +154,10 @@ describe("MyTasksPage status changes", () => {
           has_next: false,
         });
       }),
-      http.get("/api/v1/g/:guildId/projects/:projectId/task-statuses", () =>
+      http.get("/api/v1/c/:guildId/projects/:projectId/task-statuses", () =>
         HttpResponse.json([todo, done])
       ),
-      http.patch("/api/v1/g/:guildId/tasks/:taskId", async () => {
+      http.patch("/api/v1/c/:guildId/tasks/:taskId", async () => {
         patched += 1;
         if (patchDelayMs > 0) await delay(patchDelayMs);
         return HttpResponse.json({
