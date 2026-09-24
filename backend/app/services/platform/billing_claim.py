@@ -35,7 +35,7 @@ from app.services.platform.identity_refs import billing_refs
 
 logger = logging.getLogger(__name__)
 
-CLAIM_PATH = "/api/v1/guilds/claim"
+CLAIM_PATH = "/api/v1/communities/claim"
 
 # The same short deadline the membership ping uses: this runs detached, but a
 # hung connection would still hold a task and a socket for as long as it lasts.
