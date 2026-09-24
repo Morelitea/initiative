@@ -19,6 +19,7 @@ from app.db.schema_provisioning import (
     strip_template_registry_objects,
     backfill_guild_schemas,
     drop_guild_schema,
+    guild_app_role_name,
     guild_readonly_role_name,
     guild_role_name,
     guild_superadmin_role_name,
@@ -47,6 +48,8 @@ _GID_READ_FLOOR = 990_121
 _GID_SEAT = 990_122
 _GID_RETIRED_A = 990_123
 _GID_RETIRED_B = 990_124
+_GID_APP = 990_125
+_GID_APP_DENIED = 990_126
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -207,6 +210,7 @@ async def test_drop_guild_schema_removes_role(engine):
         guild_support_role_name(gid),
         guild_query_role_name(gid),
         guild_superadmin_role_name(gid),
+        guild_app_role_name(gid),
     )
     try:
         async with engine.begin() as conn:
@@ -278,6 +282,68 @@ async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
                     )
                     is False
                 ), f"the guild role must not hold {verb} on guild_auth_policies"
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_the_app_role_holds_only_what_an_app_reaches(engine):
+    """``guild_<id>_app`` writes content, reads the initiative structure, and
+    holds nothing on the community's configuration or its app setup."""
+    gid = _GID_APP
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        schema = guild_schema_name(gid)
+        app_role = guild_app_role_name(gid)
+
+        async def held(conn, table: str, verb: str) -> bool:
+            return await conn.scalar(
+                text("SELECT has_table_privilege(:r, :t, :p)"),
+                {"r": app_role, "t": f"{schema}.{table}", "p": verb},
+            )
+
+        async with engine.connect() as conn:
+            assert await conn.scalar(
+                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": app_role}
+            )
+            for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                assert await held(conn, "tasks", verb) is True, f"tasks {verb}"
+            assert await held(conn, "initiatives", "SELECT") is True
+            for verb in ("INSERT", "UPDATE", "DELETE"):
+                assert await held(conn, "initiatives", verb) is False, (
+                    f"initiatives {verb}"
+                )
+            for table in (
+                "guild_settings",
+                "guild_apps",
+                "app_placements",
+                "initiative_role_permissions",
+            ):
+                for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                    assert await held(conn, table, verb) is False, f"{table} {verb}"
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_the_app_role_is_refused_the_communitys_settings(engine):
+    """A session assuming ``guild_<id>_app`` cannot read ``guild_settings``."""
+    gid = _GID_APP_DENIED
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+            await conn.exec_driver_sql(f'SET ROLE "{guild_app_role_name(gid)}"')
+            with pytest.raises(ProgrammingError) as exc:
+                await conn.scalar(
+                    text(
+                        f'SELECT count(*) FROM "{guild_schema_name(gid)}".guild_settings'
+                    )
+                )
+            assert "permission denied" in str(exc.value).lower()
+            await conn.rollback()
+            await conn.exec_driver_sql("RESET ROLE")
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)

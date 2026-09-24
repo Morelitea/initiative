@@ -1,7 +1,7 @@
 """Single source of truth for the audited per-table GRANTs the request-path
 Postgres roles hold on the shared (``public``) tables.
 
-Five roles are recorded here, one matrix each:
+Six roles are recorded here, one matrix each:
 
 * **``app_admin``** — the system engine (BYPASSRLS trusted-batch actor). Its
   security boundary *is* exactly this grant set: a new shared table gives the
@@ -24,11 +24,15 @@ Five roles are recorded here, one matrix each:
   ``guild_<id>_superadmin`` role inherits. It takes no default privileges at
   all, so its matrix is a short list of yeses among a long list of ``None``.
   ``SHARED_TABLE_APP_SUPERADMIN_GRANTS``.
+* **``app_install_base``** — the install floor, which only the per-guild
+  ``guild_<id>_app`` role inherits: an installed app's reach into ``public``.
+  Like the seat floor it takes no default privileges.
+  ``SHARED_TABLE_APP_INSTALL_BASE_GRANTS``.
 
 The read-only guild floor, ``app_guild_base_ro``, is derived from
 ``app_guild_base`` (``guild_base_ro_parity_test``) rather than listed.
 
-Beside the five floors, a few tables are granted to the platform tiers
+Beside the six floors, a few tables are granted to the platform tiers
 directly — to ``platform_<tier>`` itself rather than the ``platform_base``
 floor every tier inherits. ``SHARED_TABLE_TIER_GRANTS`` records those by the
 capability that earns them, as a policy in ``app.db.public_rls`` names its
@@ -64,6 +68,7 @@ __all__ = [
     "SHARED_TABLE_APP_GUILD_BASE_GRANTS",
     "SHARED_TABLE_PLATFORM_BASE_GRANTS",
     "SHARED_TABLE_APP_SUPERADMIN_GRANTS",
+    "SHARED_TABLE_APP_INSTALL_BASE_GRANTS",
     "SHARED_TABLE_TIER_GRANTS",
     "NON_MODEL_SHARED_TABLES",
     "GRANTABLE_SHARED_TABLES",
@@ -739,6 +744,77 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "federated_identities": None,
     "federated_identity_secrets": None,
     "guild_auth_policies": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "guild_provider_connections": None,
+    "platform_provider_defaults": None,
+    "auth_sessions": None,
+    "user_emails": None,
+    "user_email_assertions": None,
+    "user_passkeys": None,
+    "user_totp": None,
+    "user_totp_secrets": None,
+    "mfa_recovery_codes": None,
+    "auth_challenges": None,
+    "user_view_preferences": None,
+    "notifications": None,
+    "announcements": None,
+    "announcement_reads": None,
+    "announcement_images": None,
+    "user_api_keys": None,
+    "user_tokens": None,
+    "push_tokens": None,
+    "auto_delegation_jti_blocklist": None,
+    "billing_event_log": None,
+    "billing_jti_blocklist": None,
+    "alembic_version": None,
+    "storage_backfill_state": None,
+}
+
+
+# table -> the verbs the INSTALL FLOOR (``app_install_base``) holds, or
+# ``None``. Only ``guild_<id>_app`` inherits it, the role an installed app's
+# request assumes. Like the seat floor it takes no default privileges, so every
+# entry here is an explicit grant in a migration and everything else is
+# ``None`` by construction.
+SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
+    "users": None,
+    "guilds": None,
+    "guild_administration": None,
+    "guild_memberships": None,
+    "guild_invites": None,
+    "access_grants": None,
+    "identity_refs": None,
+    "app_settings": None,
+    "app_setting_secrets": None,
+    "marketplace_listings": None,
+    "marketplace_listing_versions": None,
+    "app_service_registrations": None,
+    "app_service_nonces": None,
+    "marketplace_registry_state": None,
+    "marketplace_media": None,
+    "guild_images": None,
+    "user_avatars": None,
+    "user_decorations": None,
+    "profile_favorites": None,
+    "legal_acceptances": None,
+    "user_dm_settings": None,
+    "user_cookie_consent": None,
+    "user_notification_prefs": None,
+    "email_outbox": None,
+    "user_dm_guild_optouts": None,
+    "contact_grants": None,
+    "user_ignores": None,
+    "dm_devices": None,
+    "dm_one_time_keys": None,
+    "dm_conversations": None,
+    "dm_conversation_members": None,
+    "dm_queue": None,
+    "platform_ai_connections": None,
+    "oidc_claim_mappings": None,
+    "auth_providers": None,
+    "auth_provider_secrets": None,
+    "federated_identities": None,
+    "federated_identity_secrets": None,
+    "guild_auth_policies": None,
     "guild_provider_connections": None,
     "platform_provider_defaults": None,
     "auth_sessions": None,

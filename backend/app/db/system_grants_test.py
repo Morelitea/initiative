@@ -1,9 +1,9 @@
 """Completeness guard for the shared-table grant registry (issue #782).
 
 Mirrors ``tenancy_test``: these fail when a shared table has no grant decision
-for one of the five recorded roles — a new ``public`` table must give the
+for one of the six recorded roles — a new ``public`` table must give the
 system engine (and the bare login role) *nothing* until this registry says so,
-and the three floors must have said what they hold, making "decide and grant" a
+and the four floors must have said what they hold, making "decide and grant" a
 real edit rather than a comment in CLAUDE.md.
 
 Pure metadata — no database. The complementary check that the *live catalog*
@@ -18,6 +18,7 @@ from app.db.public_rls import PLATFORM_TIER_ROLES
 from app.db.system_grants import (
     GRANTABLE_SHARED_TABLES,
     SHARED_TABLE_APP_GUILD_BASE_GRANTS,
+    SHARED_TABLE_APP_INSTALL_BASE_GRANTS,
     SHARED_TABLE_APP_SUPERADMIN_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_PLATFORM_BASE_GRANTS,
@@ -36,6 +37,7 @@ _MATRICES = [
     ("app_guild_base", SHARED_TABLE_APP_GUILD_BASE_GRANTS),
     ("platform_base", SHARED_TABLE_PLATFORM_BASE_GRANTS),
     ("app_superadmin", SHARED_TABLE_APP_SUPERADMIN_GRANTS),
+    ("app_install_base", SHARED_TABLE_APP_INSTALL_BASE_GRANTS),
 ]
 
 
