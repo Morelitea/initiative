@@ -1279,26 +1279,27 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 using=own_row("user_id"),
             ),
             # The write path, which runs inside the community the event happened
-            # in and writes for somebody else. Held to the one account it names
-            # in ``app.notify_target_user_id`` and to the routed community, so a
+            # in and writes for somebody else — a member's request, or an
+            # installed app's. Held to the one account it names in
+            # ``app.notify_target_user_id`` and to the routed community, so a
             # rollup can find and extend the line it is about to write and
             # nothing else.
             Policy(
                 "notifications_write_named_recipient",
                 SELECT,
-                ("app_guild_base",),
+                ("app_guild_base", "app_install_base"),
                 using=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
             ),
             Policy(
                 "notifications_insert_named_recipient",
                 INSERT,
-                ("app_guild_base",),
+                ("app_guild_base", "app_install_base"),
                 check=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
             ),
             Policy(
                 "notifications_update_named_recipient",
                 UPDATE,
-                ("app_guild_base",),
+                ("app_guild_base", "app_install_base"),
                 using=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
             ),
             # A line whose every rolled-up event has been taken back is removed

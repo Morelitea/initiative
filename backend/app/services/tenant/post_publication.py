@@ -42,13 +42,15 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
-from app.core.user_display import handle_of
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.post import Post
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.post import post_excerpt
 from app.services import notifications as notifications_service
+from app.services.notifications import AppAuthor
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import tags as tags_service
@@ -64,7 +66,7 @@ async def announce_post(
     session: AsyncSession,
     post: Post,
     *,
-    author: User,
+    author: User | AppAuthor,
     guild_id: int,
 ) -> int:
     """Tell everyone the notice was shared with that it is up. Returns how many
@@ -79,11 +81,14 @@ async def announce_post(
     settings and address are not a guild's to read. That load is also where
     somebody who ignores the author drops out — the one place a recipient is
     resolved, so a person who has stopped hearing from them is not one.
+
+    ``author`` is the person who posted it, or the installed app that did,
+    named by the app's name and by no account.
     """
     recipient_ids = posts_service.audience_user_ids(post, exclude=author.id)
     if not recipient_ids:
         return 0
-    author_name = handle_of(author)
+    author_name = notifications_service.actor_name(author)
     excerpt = post_excerpt(post.body)
     recipients = await accounts_service.load_all(
         sorted(recipient_ids), excluding_ignorers_of=author.id
@@ -112,6 +117,28 @@ async def announce_post(
             continue
         delivered += 1
     return delivered
+
+
+async def _author_of(session: AsyncSession, post: Post) -> User | AppAuthor | None:
+    """Who posted a notice, for its announcement: the person, or the installed
+    app whose install owns it. ``None`` when that account or install is gone."""
+    if post.created_by is not None:
+        return await accounts_service.load_one(post.created_by)
+    install_id = next(
+        (
+            grant.app_install_id
+            for grant in post.grants or []
+            if grant.app_install_id is not None
+            and grant.level == ResourceAccessLevel.owner
+        ),
+        None,
+    )
+    if install_id is None:
+        return None
+    name = (
+        await session.exec(select(GuildApp.name).where(GuildApp.id == install_id))
+    ).first()
+    return AppAuthor(name=name) if name is not None else None
 
 
 async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int]:
@@ -160,7 +187,7 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
     )
     await tags_service.annotate_tags(session, posts)
     for post in posts:
-        author = await accounts_service.load_one(post.created_by)
+        author = await _author_of(session, post)
         if author is None:
             # The account is gone; the notice still goes up, silently.
             logger.warning("Post %s published with no author to attribute", post.id)

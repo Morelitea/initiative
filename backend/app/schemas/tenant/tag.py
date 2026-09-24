@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from app.core.identity_boundary import GuildId
 from app.core.tools import TAG_TARGETS
 from app.schemas.base import SanitizedBaseModel, TitleStr
 
@@ -72,7 +73,7 @@ class TagRead(TagBase):
     )
 
     id: int
-    guild_id: int
+    guild_id: GuildId
     created_at: datetime
     updated_at: datetime
 

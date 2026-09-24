@@ -5,6 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
@@ -13,7 +14,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.calendar import Calendar
 
 
@@ -59,8 +60,8 @@ class CalendarSummary(CalendarBase, ArchiveState):
     #: NULL on a guild-level calendar — one an app mounted, belonging to the
     #: guild rather than to any initiative.
     initiative_id: Optional[int] = None
-    guild_id: int
-    created_by: int | None = None
+    guild_id: GuildId
+    created_by: PersonId | None = None
     created_at: datetime
     updated_at: datetime
     my_permission_level: Optional[str] = None
@@ -90,7 +91,7 @@ class CalendarRead(CalendarSummary):
 
 
 def serialize_calendar_summary(
-    calendar: "Calendar", *, context: GuildContext, user_id: Optional[int] = None
+    calendar: "Calendar", *, context: ActorContext, user_id: Optional[int] = None
 ) -> CalendarSummary:
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import client_access, serialize_grants
@@ -114,7 +115,7 @@ def serialize_calendar_summary(
 
 
 def serialize_calendar(
-    calendar: "Calendar", *, context: GuildContext, user_id: Optional[int] = None
+    calendar: "Calendar", *, context: ActorContext, user_id: Optional[int] = None
 ) -> CalendarRead:
     summary = serialize_calendar_summary(calendar, context=context, user_id=user_id)
     return CalendarRead(**summary.model_dump())

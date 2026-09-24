@@ -6,9 +6,14 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
 from app.db.session import routed_guild_id
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
+    app_scope,
     SessionDep,
     get_current_active_user,
     get_guild_membership,
@@ -75,10 +80,30 @@ GuildAdminContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.admin))
 ]
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
+
+#: The routes an installed app may call, under the initiatives scope.
+InitiativesRead = Annotated[ActorContext, Depends(app_scope("initiatives:read"))]
 
 
-def _reaches_whole_guild(guild_context: GuildContext) -> bool:
+def _roster_options(guild_context: ActorContext) -> tuple:
+    """What an initiative read loads beside the row: its roster, each member's
+    profile, and each member's role with its permissions.
+
+    An installed app is not given what each role permits (the role permission
+    rows are not in its reach), so its read leaves them unloaded and each
+    member's tool flags come from the role's manager fact, the defaults and the
+    initiative's switches."""
+    role = selectinload(Initiative.memberships).selectinload(InitiativeMember.role_ref)
+    return (
+        selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+        role.noload(InitiativeRoleModel.permissions)
+        if guild_context.user_id is None
+        else role.selectinload(InitiativeRoleModel.permissions),
+    )
+
+
+def _reaches_whole_guild(guild_context: ActorContext) -> bool:
     """Whether this request reads every initiative in the guild without holding
     a membership row: a guild admin, or a live PAM / break-glass grantee."""
     return guild_context.is_pam or guild_context.is_admin
@@ -273,9 +298,9 @@ async def _ensure_remaining_manager(
 
 @router.get("/", response_model=List[InitiativeRead])
 async def list_initiatives(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: InitiativesRead,
     scope: Annotated[InitiativeListScope, Query()] = InitiativeListScope.member,
 ) -> List[InitiativeRead]:
     """The initiatives the caller belongs to, or — for a guild admin asking for
@@ -299,7 +324,11 @@ async def list_initiatives(
     # member, from the request GUCs), the same predicate the content-table RLS
     # uses. A time-bound grantee holds no memberships in the guild, so their
     # session stays on that predicate too: the grant is what they navigate by.
-    if scope is InitiativeListScope.guild or guild_context.is_pam:
+    # An installed app's workspace is the initiatives it is placed in, which
+    # its standing carries.
+    if current_user is None:
+        scope_clause = Initiative.id.in_(guild_context.member_initiatives)
+    elif scope is InitiativeListScope.guild or guild_context.is_pam:
         scope_clause = initiative_scope_clause(current_user.id, Initiative.id)
     else:
         scope_clause = Initiative.id.in_(
@@ -313,12 +342,7 @@ async def list_initiatives(
         .where(
             scope_clause,
         )
-        .options(
-            selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
-            selectinload(Initiative.memberships)
-            .selectinload(InitiativeMember.role_ref)
-            .selectinload(InitiativeRoleModel.permissions),
-        )
+        .options(*_roster_options(guild_context))
     )
     result = await session.exec(statement)
     initiatives = result.all()
@@ -721,9 +745,9 @@ async def deny_join_request(
 @router.get("/{initiative_id}", response_model=InitiativeRead)
 async def get_initiative(
     initiative_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: InitiativesRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> InitiativeRead:
     statement = (
@@ -731,23 +755,22 @@ async def get_initiative(
         .where(
             Initiative.id == initiative_id,
         )
-        .options(
-            selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
-            selectinload(Initiative.memberships)
-            .selectinload(InitiativeMember.role_ref)
-            .selectinload(InitiativeRoleModel.permissions),
-        )
+        .options(*_roster_options(guild_context))
     )
     result = await session.exec(statement)
     initiative = result.first()
-    if not initiative:
+    # An installed app reads the initiatives it is placed in; any other is not
+    # there for it.
+    if not initiative or (
+        current_user is None and initiative.id not in guild_context.member_initiatives
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
         )
     # Reachable by an initiative member, by a guild admin (the same override the
     # RLS admin leg grants), and by a PAM / break-glass grantee — who holds no
     # membership row in this guild and reads it through the grant for its window.
-    if not _reaches_whole_guild(guild_context):
+    if current_user is not None and not _reaches_whole_guild(guild_context):
         is_member = any(m.user_id == current_user.id for m in initiative.memberships)
         if not is_member:
             raise HTTPException(

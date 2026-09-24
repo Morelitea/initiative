@@ -20,14 +20,21 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     GuildContext,
     RLSSessionDep,
+    app_scope_by,
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
 from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.tools import Tool, plural_of
 from app.models.platform.user import User
@@ -39,9 +46,23 @@ from app.models.tenant.task import Task
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
 from app.services.tenant import archive as archive_service
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+
+#: What an installed app needs to archive each kind: the write scope of the tool
+#: whose sharing governs it. An initiative is the guild admins' to archive, so
+#: no app may ask for one.
+_ARCHIVE_SCOPES: dict[str, str] = {
+    **{
+        tool.value: scope_name(tool_resource(tool), AppScopeAccess.write)
+        for tool in Tool
+    },
+    "task": scope_name(tool_resource(Tool.project), AppScopeAccess.write),
+}
+ArchiveWrite = Annotated[
+    ActorContext, Depends(app_scope_by("entity_type", _ARCHIVE_SCOPES))
+]
 
 #: Wire name -> the model it addresses. Derived from the mixin: the archivable
 #: models are the ones carrying ``ArchiveMixin``, and a target's table is its
@@ -53,7 +74,7 @@ ARCHIVE_REGISTRY: dict[str, type] = {
 }
 
 
-async def _load(session: RLSSessionDep, entity_type: str, entity_id: int) -> Any:
+async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
     """The row, with what the access decision needs already on it.
 
     Every tool carries ``initiative`` and ``grants``, so one loader serves all
@@ -100,8 +121,8 @@ _NOT_FOUND: dict[str, str] = {
 def _authorize(
     entity_type: str,
     row: Any,
-    user: User,
-    guild_context: GuildContext,
+    user: User | None,
+    guild_context: ActorContext,
 ) -> None:
     """Who may put this away, and who may take it back out.
 
@@ -139,9 +160,9 @@ def _authorize(
 async def archive_entity(
     entity_type: ArchivableType,
     entity_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ArchiveWrite,
 ) -> ArchiveResponse:
     """Mark a thing finished with, and everything inside it. Idempotent: an
     already-archived row keeps the stamp it has, so the date means when it was

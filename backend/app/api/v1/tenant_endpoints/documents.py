@@ -29,9 +29,14 @@ from app.services.tenant import archive as archive_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
+    app_scope,
     SessionDep,
     UploadUserDep,
     addressed_guild_id,
@@ -47,7 +52,7 @@ from app.core.messages import (
     InitiativeMessages,
 )
 from app.core.rate_limit import limiter
-from app.db.session import require_guild_context
+from app.db.session import require_actor_context
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
@@ -83,6 +88,7 @@ from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
@@ -120,9 +126,12 @@ async def attached_projects(
     )
 
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the documents scopes.
+DocumentsRead = Annotated[ActorContext, Depends(app_scope("documents:read"))]
+DocumentsWrite = Annotated[ActorContext, Depends(app_scope("documents:write"))]
 
 # Upper bound on the ``ids`` filter, matching the page_size ceiling: the
 # filter exists to hydrate one page worth of known documents, not to smuggle
@@ -154,7 +163,7 @@ async def _get_document_or_404(
     document_id: int,
     guild_id: int,
     populate_existing: bool = False,
-    user_id: int,
+    user_id: int | None,
 ) -> Document:
     """Load a document with everything a ``DocumentRead`` reads, or refuse.
 
@@ -183,8 +192,8 @@ async def _require_initiative_access(
     session: SessionDep,
     *,
     initiative_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: User | None,
+    guild_context: ActorContext,
     require_manager: bool = False,
     permission_key: PermissionKey | None = None,
 ) -> None:
@@ -193,19 +202,30 @@ async def _require_initiative_access(
     Args:
         session: Database session
         initiative_id: Initiative to check access for
-        user: User to check
+        user: User to check; ``None`` for an installed app, whose placement and
+            scopes answer ``permission_key`` through its standing
         guild_context: the reader's standing (an admin passes)
         require_manager: If True, require manager-level role (legacy, use permission_key instead)
         permission_key: Specific permission to check (e.g., PermissionKey.create_documents)
     """
     if guild_context.is_admin:
         return
-    membership = await initiatives_service.get_initiative_membership(
-        session,
-        initiative_id=initiative_id,
-        user_id=user.id,
+    membership = (
+        await initiatives_service.get_initiative_membership(
+            session,
+            initiative_id=initiative_id,
+            user_id=user.id,
+        )
+        if user is not None
+        else None
     )
-    if not membership:
+    if user is not None and not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DocumentMessages.INITIATIVE_MEMBERSHIP_REQUIRED,
+        )
+
+    if user is None and permission_key is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=DocumentMessages.INITIATIVE_MEMBERSHIP_REQUIRED,
@@ -289,8 +309,8 @@ def _file_download_response(
 
 
 def visible_document_conditions(
-    context: GuildContext,
-    user_id: int,
+    context: ActorContext,
+    user_id: int | None,
     *,
     initiative_id: Optional[int] = None,
     ids: Optional[List[int]] = None,
@@ -339,7 +359,7 @@ def visible_document_conditions(
 
 
 async def serialize_document_page(
-    session: AsyncSession, user: User, documents: list[Document]
+    session: AsyncSession, user_id: int | None, documents: list[Document]
 ) -> list[DocumentSummary]:
     """Serialize one page of documents — the rows a document list answers with.
 
@@ -355,12 +375,12 @@ async def serialize_document_page(
     await tags_service.annotate_tags(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
     attached = await attached_projects(session, documents)
-    context = require_guild_context(session)
+    context = require_actor_context(session)
     return [
         serialize_document_summary(
             document,
             context=context,
-            user_id=user.id,
+            user_id=user_id,
             projects=attached.get(document.id, []),
         )
         for document in documents
@@ -468,10 +488,11 @@ async def _check_duplicate_name(
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def create_document(
     document_in: DocumentCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: DocumentsWrite,
 ) -> DocumentRead:
+    resource_access.refuse_app_sharing(guild_context, document_in, "grants")
     initiative = await get_initiative_or_404(
         session,
         initiative_id=document_in.initiative_id,
@@ -512,43 +533,44 @@ async def create_document(
         initiative_id=initiative.id,
         document_type=requested_type,
         content=normalized_content,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         featured_image_url=document_in.featured_image_url,
         is_template=document_in.is_template,
     )
     session.add(document)
     await session.flush()
 
-    # Add owner permission for the creator
-    owner_permission = ResourceGrant(
-        resource_type="document",
+    # The creator's owner grant. An installed app's is written by the table's
+    # own trigger as the row goes in.
+    owner_permission = ownership_service.creator_owner_grant(
+        guild_context,
+        tool=Tool.document,
         resource_id=document.id,
-        user_id=current_user.id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
         initiative_id=document.initiative_id,
     )
-    session.add(owner_permission)
+    if owner_permission is not None and current_user is not None:
+        session.add(owner_permission)
 
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all members, set on DocumentCreate.grants).
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="document",
-        resource_id=document.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=document.initiative_id,
-        owner_id=current_user.id,
-        grants=document_in.grants,
-        actor_user_id=current_user.id,
-    )
+        # Apply the initial sharing exactly the way edits do — one grant list,
+        # one code path (defaults to Viewer for all members, set on
+        # DocumentCreate.grants). An installed app writes no grant of its own.
+        await permissions_service.replace_resource_grants(
+            session,
+            resource_type="document",
+            resource_id=document.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=document.initiative_id,
+            owner_id=current_user.id,
+            grants=document_in.grants,
+            actor_user_id=current_user.id,
+        )
 
     # What the new body points at becomes `references` edges.
     await content_references.sync_for_entity(
         session,
         Endpoint(SearchEntityType.document, document.id),
         body=document.content,
-        author_id=current_user.id,
+        author_id=guild_context.user_id,
     )
 
     await session.commit()
@@ -557,11 +579,11 @@ async def create_document(
         session,
         document_id=document.id,
         guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
     )
     return serialize_document(
         hydrated,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         context=guild_context,
     )
 
@@ -986,9 +1008,9 @@ async def delete_document_version(
 @router.get("/{document_id}", response_model=DocumentRead)
 async def read_document(
     document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: DocumentsRead,
     include_deleted: IncludeDeletedDep = False,
     include_content: Annotated[
         bool,
@@ -1013,7 +1035,7 @@ async def read_document(
     )
     return serialize_document(
         document,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         include_content=include_content,
         context=guild_context,
     )
@@ -1023,9 +1045,9 @@ async def read_document(
 async def update_document(
     document_id: int,
     document_in: DocumentUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: DocumentsWrite,
 ) -> DocumentRead:
     document = await resource_access.load_authorized(
         session,
@@ -1120,8 +1142,12 @@ async def update_document(
                 session,
                 Endpoint(SearchEntityType.document, document.id),
                 body=document.content,
-                author_id=current_user.id,
+                author_id=guild_context.user_id,
             )
+        if current_user is None:
+            # An installed app does not manage the community's uploads; what
+            # this edit let go of stays for the owner to clear.
+            removed_upload_urls.clear()
         if removed_upload_urls:
             filenames = [url.split("/")[-1] for url in removed_upload_urls]
             await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
@@ -1137,12 +1163,12 @@ async def update_document(
         session,
         document_id=document.id,
         guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
     )
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
     return serialize_document(
         hydrated,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         context=guild_context,
     )
 

@@ -20,9 +20,14 @@ from sqlmodel import select
 
 from app.db.session import routed_guild_id
 from app.core.auth_context import satisfied_provider_ids
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
+    app_scope,
     establish_guild_access,
     get_current_active_user,
     get_guild_membership,
@@ -40,7 +45,6 @@ from app.models.tenant.counter import (
 from app.models.tenant.initiative import (
     Initiative,
 )
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
 from app.schemas.tenant.counter import (
     CounterCreate,
@@ -57,6 +61,7 @@ from app.schemas.tenant.counter import (
     _validate_counter_constraints,
 )
 from app.services.tenant import counters as counters_service
+from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
 from app.api import resource_access
 from app.core.tools import Tool
@@ -65,17 +70,21 @@ from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
 
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 #: Flat read-back route, mounted at the guild root. An event envelope names
 #: ``(resource_type, id)`` and nothing else, so the resource has to be
 #: addressable by its own id — a nested path would need a parent the envelope
 #: never carries. Writes stay nested under their group, where the caller is
 #: already working inside one.
-counters_router = APIRouter()
+counters_router = APIRouter(route_class=ActorRoute)
 logger = logging.getLogger(__name__)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the counter groups scopes. A
+#: group's counters and their commands answer to the group's own scopes.
+CounterGroupsRead = Annotated[ActorContext, Depends(app_scope("counter_groups:read"))]
+CounterGroupsWrite = Annotated[ActorContext, Depends(app_scope("counter_groups:write"))]
 
 
 async def _emit_counter(
@@ -167,9 +176,9 @@ async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
 @router.get("/{group_id}", response_model=CounterGroupRead)
 async def read_counter_group(
     group_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> CounterGroupRead:
     group = await resource_access.load_authorized(
@@ -177,7 +186,7 @@ async def read_counter_group(
     )
     return serialize_counter_group(
         group,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         context=guild_context,
     )
 
@@ -185,10 +194,11 @@ async def read_counter_group(
 @router.post("/", response_model=CounterGroupRead, status_code=status.HTTP_201_CREATED)
 async def create_counter_group(
     group_in: CounterGroupCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterGroupRead:
+    resource_access.refuse_app_sharing(guild_context, group_in, "grants")
     initiative = await _get_initiative_for_counter_group(
         session, group_in.initiative_id
     )
@@ -203,42 +213,44 @@ async def create_counter_group(
 
     group = CounterGroup(
         initiative_id=initiative.id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         name=group_in.name.strip(),
         description=group_in.description,
     )
     session.add(group)
     await session.flush()
 
-    owner_perm = ResourceGrant(
-        resource_type="counter_group",
+    # The creator's owner grant. An installed app's is written by the table's
+    # own trigger as the row goes in.
+    owner_perm = ownership_service.creator_owner_grant(
+        guild_context,
+        tool=Tool.counter_group,
         resource_id=group.id,
-        user_id=current_user.id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
         initiative_id=group.initiative_id,
     )
-    session.add(owner_perm)
+    if owner_perm is not None and current_user is not None:
+        session.add(owner_perm)
 
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all initiative members).
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="counter_group",
-        resource_id=group.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=group.initiative_id,
-        owner_id=current_user.id,
-        grants=group_in.grants,
-        actor_user_id=current_user.id,
-    )
+        # Apply the initial sharing exactly the way edits do — one grant list,
+        # one code path (defaults to Viewer for all initiative members). An
+        # installed app writes no grant of its own.
+        await permissions_service.replace_resource_grants(
+            session,
+            resource_type="counter_group",
+            resource_id=group.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=group.initiative_id,
+            owner_id=current_user.id,
+            grants=group_in.grants,
+            actor_user_id=current_user.id,
+        )
 
     await session.commit()
 
     hydrated = await _refetch_group(session, group.id)
     return serialize_counter_group(
         hydrated,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         context=guild_context,
     )
 
@@ -290,9 +302,9 @@ async def duplicate_counter_group(
 async def update_counter_group(
     group_id: int,
     group_in: CounterGroupUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterGroupRead:
     group = await resource_access.load_authorized(
         session,
@@ -320,7 +332,7 @@ async def update_counter_group(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         context=guild_context,
     )
     if updated:
@@ -578,7 +590,7 @@ async def _commit_and_broadcast_count(
     group_id: int,
     counter: Counter,
     *,
-    context: GuildContext,
+    context: ActorContext,
 ) -> CounterRead:
     await session.commit()
     hydrated = await counters_service.get_counter(
@@ -598,9 +610,9 @@ async def _commit_and_broadcast_count(
 @counters_router.get("/counters/{counter_id}", response_model=CounterRead)
 async def read_counter(
     counter_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> CounterRead:
     """One counter by id — the read-back for a ``counters.*`` event.
@@ -631,9 +643,9 @@ async def set_counter_count(
     group_id: int,
     counter_id: int,
     payload: CounterSetCountRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     await resource_access.load_authorized(
         session,
@@ -654,9 +666,9 @@ async def set_counter_count(
 async def increment_counter(
     group_id: int,
     counter_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     await resource_access.load_authorized(
         session,
@@ -677,9 +689,9 @@ async def increment_counter(
 async def decrement_counter(
     group_id: int,
     counter_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     await resource_access.load_authorized(
         session,
@@ -700,9 +712,9 @@ async def decrement_counter(
 async def reset_counter(
     group_id: int,
     counter_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     await resource_access.load_authorized(
         session,

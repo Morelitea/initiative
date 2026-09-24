@@ -57,11 +57,11 @@ def _scoped(resource: str) -> AppTableAccess:
 #: Tables a tool governs that are not an app's to touch.
 _NOT_APP_SURFACE: frozenset[str] = frozenset(
     {
-        # One person's own state: their ordering, favourites, saved filters,
-        # read markers and ballots.
+        # One person's own state: their ordering, favourites, read markers and
+        # ballots. (A project's filter presets are the project's own, seeded
+        # when it or its first task is created, so they follow ``projects``.)
         "project_orders",
         "project_favorites",
-        "project_filter_presets",
         "post_reads",
         "post_poll_votes",
         # Run by the reminder scheduler.

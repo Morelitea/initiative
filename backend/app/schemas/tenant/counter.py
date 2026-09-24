@@ -7,6 +7,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
@@ -15,7 +16,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.counter import Counter, CounterGroup
 
 
@@ -113,7 +114,7 @@ class CounterRead(SanitizedBaseModel):
 
     id: int
     counter_group_id: int
-    guild_id: int
+    guild_id: GuildId
     name: str
     color: Optional[str] = None
     count: str
@@ -165,8 +166,8 @@ class CounterGroupSummary(CounterGroupBase, ArchiveState):
 
     id: int
     initiative_id: int
-    guild_id: int
-    created_by: int | None = None
+    guild_id: GuildId
+    created_by: PersonId | None = None
     counter_count: int = 0
     my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
@@ -220,7 +221,7 @@ def _format_optional_decimal(value: Optional[Decimal]) -> Optional[str]:
     return _format_decimal(value) if value is not None else None
 
 
-def serialize_counter(counter: "Counter", *, context: GuildContext) -> CounterRead:
+def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRead:
     return CounterRead(
         id=counter.id,
         counter_group_id=counter.counter_group_id,
@@ -247,7 +248,7 @@ def _active_counters(group: "CounterGroup") -> list:
 def serialize_counter_group_summary(
     group: "CounterGroup",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
 ) -> CounterGroupSummary:
     # Local import avoids a schema -> service import cycle.
@@ -274,7 +275,7 @@ def serialize_counter_group_summary(
 def serialize_counter_group(
     group: "CounterGroup",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
 ) -> CounterGroupRead:
     summary = serialize_counter_group_summary(group, context=context, user_id=user_id)

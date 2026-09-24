@@ -39,6 +39,7 @@ from app.db.initiative_rls import (
     COMMENT_PARENTS,
     COMMENT_PARENT_COLUMNS as RLS_COMMENT_PARENT_COLUMNS,
 )
+from app.db.session import install_context
 from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.comment import Comment
@@ -452,7 +453,7 @@ async def _ensure_parent_access(
     session: AsyncSession,
     ctx: _ParentContext,
     *,
-    user: User,
+    user: Optional[User],
     access: str = "read",
 ) -> None:
     """Ensure the user can reach the comment's parent at ``access`` level.
@@ -535,7 +536,8 @@ async def attach_reactions(session: AsyncSession, *comments: Comment) -> None:
     from app.core.reactions import ReactionTarget
 
     rows = [c for c in comments if c.id is not None]
-    if not rows:
+    if not rows or install_context(session) is not None:
+        # An installed app reads no reactions: each is one person's gesture.
         return
     grouped = await reactions_service.load_reactions(
         session,
@@ -569,10 +571,14 @@ async def _resolved_parent(
     column: str,
     entity_id: int,
     guild_id: int,
-    user: User,
+    user: Optional[User],
     access: str,
 ) -> _ParentContext:
-    """Load + authorize one comment parent, raising the comment-shaped errors."""
+    """Load + authorize one comment parent, raising the comment-shaped errors.
+
+    ``user`` is ``None`` for an installed app, which is in no initiative as a
+    member: a parent its policies hid is simply not found.
+    """
     ctx = await _load_parent(
         session, column=column, entity_id=entity_id, guild_id=guild_id
     )
@@ -580,7 +586,7 @@ async def _resolved_parent(
         # The policies took the parent out before this ran. In the initiative
         # it is the reader's to know about, so sharing is what refused it.
         table = COMMENT_PARENTS[column].table
-        if await reachability.reader_is_in_the_initiative(
+        if user is not None and await reachability.reader_is_in_the_initiative(
             table, entity_id, cast(int, user.id), guild_id
         ):
             raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
@@ -603,7 +609,7 @@ async def get_comment_with_parent(
     session: AsyncSession,
     *,
     comment_id: int,
-    user: User,
+    user: Optional[User],
     guild_id: int,
     access: str = "read",
 ) -> tuple[Comment, _ParentContext]:
@@ -623,7 +629,7 @@ async def get_comment_with_parent(
     if not comment:
         # The policies took it out before this ran. In the initiative it is
         # theirs to know about, so a later gate is what refused it.
-        if await reachability.reader_is_in_the_initiative(
+        if user is not None and await reachability.reader_is_in_the_initiative(
             "comments", comment_id, cast(int, user.id), guild_id
         ):
             raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
@@ -647,7 +653,7 @@ async def get_comment(
     session: AsyncSession,
     *,
     comment_id: int,
-    user: User,
+    user: Optional[User],
     guild_id: int,
 ) -> Comment:
     """One comment, gated exactly like listing its parent's thread.
@@ -684,7 +690,7 @@ def comment_target_path(comment: Comment, ctx: _ParentContext) -> str:
 async def create_comment(
     session: AsyncSession,
     *,
-    author: User,
+    author: User | notifications.AppAuthor,
     guild_id: int,
     content: str,
     task_id: Optional[int] = None,
@@ -700,6 +706,12 @@ async def create_comment(
     wiki_page_id: Optional[int] = None,
     parent_comment_id: Optional[int] = None,
 ) -> Comment:
+    """Post one comment on one parent, and tell whoever it concerns.
+
+    ``author`` is the person posting, or the installed app posting as itself:
+    its comment names no author, and the notices name the app.
+    """
+    person = author if isinstance(author, User) else None
     parent_comment = None
     if parent_comment_id is not None:
         parent_comment = await _get_comment(session, comment_id=parent_comment_id)
@@ -726,7 +738,7 @@ async def create_comment(
         column=column,
         entity_id=entity_id,
         guild_id=guild_id,
-        user=author,
+        user=person,
         # Answering a thread is not editing what it hangs off — reaching the
         # parent is the gate, and its comment switch is the other half.
         access="read",
@@ -736,7 +748,7 @@ async def create_comment(
 
     comment = Comment(
         content=content,
-        created_by=cast(int, author.id),
+        created_by=author.id,
         parent_comment_id=parent_comment_id,
         **{column: ctx.entity_id},
     )
@@ -744,9 +756,7 @@ async def create_comment(
     await session.flush()
     await session.refresh(comment, attribute_names=["author"])
     _stamp_task_project(ctx, comment)
-    await content_references.sync_for_comment(
-        session, comment, author_id=cast(int, author.id)
-    )
+    await content_references.sync_for_comment(session, comment, author_id=author.id)
 
     await _process_comment_notifications(
         session,
@@ -801,7 +811,7 @@ async def _process_comment_notifications(
     session: AsyncSession,
     *,
     comment: Comment,
-    author: User,
+    author: User | notifications.AppAuthor,
     guild_id: int,
     ctx: _ParentContext,
     parent_comment: Comment | None,
@@ -975,7 +985,7 @@ async def _process_comment_notifications(
 async def list_comments(
     session: AsyncSession,
     *,
-    user: User,
+    user: Optional[User],
     guild_id: int,
     task_id: Optional[int] = None,
     document_id: Optional[int] = None,

@@ -18,8 +18,11 @@ from typing import Any, Optional, Sequence
 import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from jwt.algorithms import ECAlgorithm, RSAAlgorithm
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.app_access_token import seal_install_token
 
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
@@ -41,8 +44,11 @@ __all__ = [
     "LISTING",
     "RSA_KID",
     "InstalledApp",
+    "assert_names_nobody",
     "client_jwks",
     "install_app",
+    "install_headers",
+    "lift_person_and_guild_ids",
     "mint_client_assertion",
     "share_with_members",
 ]
@@ -185,3 +191,54 @@ async def share_with_members(
         )
     )
     await session.commit()
+
+
+def install_headers(
+    installed: InstalledApp,
+    scopes: Sequence[str],
+    *,
+    initiative_id: Optional[int] = None,
+    install_id: Optional[int] = None,
+    client_id: str = CLIENT,
+) -> dict[str, str]:
+    """The ``Authorization`` header of an installation token for ``installed``,
+    carrying ``scopes`` and narrowed to ``initiative_id`` when one is given."""
+    token, _exp = seal_install_token(
+        guild_id=installed.guild.id,
+        install_id=install_id if install_id is not None else installed.app.id,
+        client_id=client_id,
+        scopes=frozenset(scopes),
+        initiative_id=initiative_id,
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+#: Where people's and communities' ids start in a test that looks for them in a
+#: response: far above any id another table will reach in one test, so finding
+#: the digits anywhere in a body means somebody's id is there.
+_PERSON_ID_FLOOR = 7_000_000
+_GUILD_ID_FLOOR = 8_000_000
+
+
+async def lift_person_and_guild_ids(session: AsyncSession) -> None:
+    """Start the ids of the people and communities made after this far above
+    every other row id, so :func:`assert_names_nobody` can tell one in a
+    response wherever it sits — a field, a nested object, a URL. Call it
+    before creating anybody."""
+    offset = secrets.randbelow(100_000)
+    await session.exec(
+        text("SELECT setval('public.users_id_seq', :v)"),
+        params={"v": _PERSON_ID_FLOOR + offset},
+    )
+    await session.exec(
+        text("SELECT setval('public.guilds_id_seq', :v)"),
+        params={"v": _GUILD_ID_FLOOR + offset},
+    )
+    await session.commit()
+
+
+def assert_names_nobody(body: str, ids: Sequence[int]) -> None:
+    """Fail if any of ``ids`` — people's or a community's, lifted by
+    :func:`lift_person_and_guild_ids` — appears anywhere in ``body``."""
+    found = [value for value in ids if str(value) in body]
+    assert not found, f"the response names {found}: {body[:2000]}"

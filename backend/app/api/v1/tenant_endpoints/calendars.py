@@ -17,13 +17,19 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
+    app_scope,
     get_guild_membership,
 )
 from app.core.messages import CalendarMessages, InitiativeMessages
@@ -32,7 +38,6 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.calendar import (
     CalendarCreate,
     CalendarRead,
@@ -42,11 +47,15 @@ from app.schemas.tenant.calendar import (
 from app.services import permissions as permissions_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the calendars scopes.
+CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
+CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +64,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _get_initiative_for_calendar(
-    session: RLSSessionDep,
+    session: AsyncSession,
     initiative_id: int,
 ) -> Initiative:
     stmt = (
@@ -76,7 +85,7 @@ async def _get_initiative_for_calendar(
     return initiative
 
 
-async def _refetch_calendar(session: RLSSessionDep, calendar_id: int) -> Calendar:
+async def _refetch_calendar(session: AsyncSession, calendar_id: int) -> Calendar:
     calendar = await calendars_service.get_calendar(
         session, calendar_id, populate_existing=True
     )
@@ -96,23 +105,25 @@ async def _refetch_calendar(session: RLSSessionDep, calendar_id: int) -> Calenda
 @router.get("/{calendar_id}", response_model=CalendarRead)
 async def read_calendar(
     calendar_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> CalendarRead:
     calendar = await resource_access.load_authorized(
         session, Tool.calendar, calendar_id, current_user, guild_context
     )
-    return serialize_calendar(calendar, user_id=current_user.id, context=guild_context)
+    return serialize_calendar(
+        calendar, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.post("/", response_model=CalendarRead, status_code=status.HTTP_201_CREATED)
 async def create_calendar(
     calendar_in: CalendarCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
 ) -> CalendarRead:
     """Create a calendar; the creator gets the owner grant.
 
@@ -123,10 +134,21 @@ async def create_calendar(
     gate, which ``GuildContextDep`` has already established. What it needs
     instead is the calendar app, which is what holds it and what its removal
     takes with it.
+
+    An installed app creates initiative calendars only: a guild calendar is
+    recorded on the calendar app's install, which is community configuration.
+    What it creates is owned by its install, whose owner row the table's
+    trigger writes; it sets no initial sharing.
     """
+    resource_access.refuse_app_sharing(guild_context, calendar_in, "grants")
     app: Optional[GuildApp] = None
     initiative: Optional[Initiative] = None
 
+    if calendar_in.initiative_id is None and current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=CalendarMessages.APP_INITIATIVE_REQUIRED,
+        )
     if calendar_in.initiative_id is None:
         # Held until this request commits, so the calendar and the app it
         # belongs to cannot part company midway: an uninstall arriving now waits
@@ -159,7 +181,7 @@ async def create_calendar(
 
     calendar = Calendar(
         initiative_id=initiative_id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         name=calendar_in.name.strip(),
         description=calendar_in.description,
         color=calendar_in.color,
@@ -167,30 +189,31 @@ async def create_calendar(
     session.add(calendar)
     await session.flush()
 
-    session.add(
-        ResourceGrant(
+    # The creator's owner grant. An installed app's is written by the table's
+    # own trigger as the row goes in.
+    owner_permission = ownership_service.creator_owner_grant(
+        guild_context,
+        tool=Tool.calendar,
+        resource_id=calendar.id,
+        initiative_id=initiative_id,
+    )
+    if owner_permission is not None and current_user is not None:
+        session.add(owner_permission)
+
+        # Apply the initial sharing exactly the way edits do — one grant list,
+        # one code path (defaults to Viewer for all initiative members, which
+        # at guild scope reads as every member of the guild). An installed app
+        # writes no grant of its own.
+        await permissions_service.replace_resource_grants(
+            session,
             resource_type="calendar",
             resource_id=calendar.id,
-            user_id=current_user.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
+            guild_id=guild_context.guild_id,
             initiative_id=initiative_id,
+            owner_id=current_user.id,
+            grants=calendar_in.grants,
+            actor_user_id=current_user.id,
         )
-    )
-
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all initiative members, which at guild
-    # scope reads as every member of the guild).
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="calendar",
-        resource_id=calendar.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=initiative_id,
-        owner_id=current_user.id,
-        grants=calendar_in.grants,
-        actor_user_id=current_user.id,
-    )
 
     # The app is the container, so it is answerable for this too: uninstalling
     # walks its artifacts and trashes each one.
@@ -210,16 +233,18 @@ async def create_calendar(
 
     await session.commit()
     hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_calendar(hydrated, user_id=current_user.id, context=guild_context)
+    return serialize_calendar(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.patch("/{calendar_id}", response_model=CalendarRead)
 async def update_calendar(
     calendar_id: int,
     calendar_in: CalendarUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
 ) -> CalendarRead:
     """Rename/update a calendar. Requires write access."""
     calendar = await resource_access.load_authorized(
@@ -249,7 +274,9 @@ async def update_calendar(
         await session.commit()
 
     hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_calendar(hydrated, user_id=current_user.id, context=guild_context)
+    return serialize_calendar(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.delete("/{calendar_id}", status_code=status.HTTP_204_NO_CONTENT)

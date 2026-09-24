@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, create_model
 
+from app.core.identity_boundary import GuildId
 from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
@@ -16,7 +17,7 @@ from app.models.tenant.initiative import (
 from app.schemas.platform.user import UserPublic, UserSummary
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.initiative import (
         Initiative,
         InitiativeMember,
@@ -213,7 +214,7 @@ class InitiativeRead(InitiativeBase):
     #: The community this initiative was read in. Set by
     #: :func:`serialize_initiative`; a payload pydantic builds while validating
     #: another carries none until that serializer replaces it.
-    guild_id: Optional[int] = None
+    guild_id: Optional[GuildId] = None
     is_default: bool = False
     # Hidden from the main sidebar once set (see Initiative.archived_at).
     archived_at: Optional[datetime] = None
@@ -373,7 +374,7 @@ class InitiativeSummary(SanitizedBaseModel):
 
 
 def serialize_initiative(
-    initiative: "Initiative", *, context: "GuildContext"
+    initiative: "Initiative", *, context: "ActorContext"
 ) -> InitiativeRead:
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:

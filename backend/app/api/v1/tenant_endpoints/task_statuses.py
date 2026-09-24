@@ -6,13 +6,19 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete, update
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     GuildContext,
     RLSSessionDep,
     SessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
+from app.db.guild_standing import InstallContext
 from app.api.v1.tenant_endpoints.tasks import (
     _advance_recurrence_if_needed,
     _get_project_with_access,
@@ -37,16 +43,23 @@ from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_completion
 
 router = APIRouter(
-    prefix="/projects/{project_id}/task-statuses", tags=["task-statuses"]
+    prefix="/projects/{project_id}/task-statuses",
+    tags=["task-statuses"],
+    route_class=ActorRoute,
 )
 # Status columns belong to a project, but a caller working at initiative level
 # (a board filter, an automation choosing a target column) wants the set across
 # the whole initiative rather than one delegated request per project.
 initiative_router = APIRouter(
-    prefix="/initiatives/{initiative_id}/task-statuses", tags=["task-statuses"]
+    prefix="/initiatives/{initiative_id}/task-statuses",
+    tags=["task-statuses"],
+    route_class=ActorRoute,
 )
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call. A status column is its project's, so
+#: it answers to the projects scopes.
+ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
 
 
 def _sorted(statuses: List[TaskStatus]) -> List[TaskStatus]:
@@ -140,9 +153,9 @@ async def _pick_fallback_status(
 @router.get("/", response_model=List[TaskStatusRead])
 async def list_task_statuses(
     project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsRead,
 ) -> Sequence[TaskStatus]:
     await _get_project_with_access(
         session,
@@ -433,10 +446,20 @@ async def delete_task_status(
 async def _require_initiative_reader(
     session: RLSSessionDep,
     initiative_id: int,
-    current_user: User,
-    guild_context: GuildContext,
+    current_user: User | None,
+    guild_context: ActorContext,
 ) -> None:
-    """Resolve the initiative in this guild and confirm the caller is in it."""
+    """Resolve the initiative in this guild and confirm the caller is in it.
+
+    An installed app is in the initiatives it is placed in; any other is not
+    found, as an initiative it cannot reach reads everywhere else.
+    """
+    if isinstance(guild_context, InstallContext):
+        if initiative_id not in guild_context.member_initiatives:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=InitiativeMessages.NOT_FOUND,
+            )
     stmt = select(Initiative.id).where(
         Initiative.id == initiative_id,
     )
@@ -444,6 +467,8 @@ async def _require_initiative_reader(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
         )
+    if current_user is None:
+        return
     # A guild admin reads every initiative in their guild, and a PAM grantee
     # reads the guild for the life of the grant; neither holds a membership row.
     if guild_context.is_admin or guild_context.is_pam:
@@ -463,9 +488,9 @@ async def _require_initiative_reader(
 @initiative_router.get("/", response_model=List[InitiativeTaskStatusRead])
 async def list_initiative_task_statuses(
     initiative_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsRead,
 ) -> List[InitiativeTaskStatusRead]:
     """The distinct status columns across the initiative's readable projects.
 
@@ -478,6 +503,6 @@ async def list_initiative_task_statuses(
     return await task_statuses_service.list_initiative_statuses(
         session,
         initiative_id=initiative_id,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         guild_id=guild_context.guild_id,
     )

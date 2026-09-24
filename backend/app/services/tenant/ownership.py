@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.tools import Tool
+from app.db.guild_standing import ActorContext
 from app.models.tenant._mixins import tool_models
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.calendar import Calendar
@@ -246,6 +247,32 @@ async def _clear_owner_grants(session: AsyncSession, *, tool: Tool, row: Any) ->
     # outgoing one on the single-owner index.
     if grants:
         await session.flush()
+
+
+def creator_owner_grant(
+    actor: ActorContext,
+    *,
+    tool: Tool,
+    resource_id: int,
+    initiative_id: Optional[int],
+) -> Optional[ResourceGrant]:
+    """The owner grant a create path adds for whoever made the resource.
+
+    A person's is their own row. An installed app's is written by the tool
+    table's ``AFTER INSERT`` trigger (``public.fn_install_owns_what_it_creates``)
+    as the row goes in, so there is nothing for the create path to add, and
+    ``None`` is returned.
+    """
+    if actor.user_id is None:
+        return None
+    return ResourceGrant(
+        resource_type=tool.value,
+        resource_id=resource_id,
+        user_id=actor.user_id,
+        role_id=None,
+        level=ResourceAccessLevel.owner,
+        initiative_id=initiative_id,
+    )
 
 
 async def set_resource_owner(

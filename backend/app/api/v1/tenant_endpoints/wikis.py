@@ -29,9 +29,14 @@ from sqlmodel import select
 
 from app.db.session import routed_guild_id
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     GuildContext,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
@@ -42,7 +47,6 @@ from app.core.tools import Tool
 from app.db import reference_targets
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.wiki import (
     WikiCreate,
@@ -63,15 +67,19 @@ from app.schemas.tenant.wiki import (
 from app.services import permissions as permissions_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant import soft_delete as soft_delete_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import wikis as wikis_service
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
+#: The routes an installed app may call, under the wikis scopes.
+WikisRead = Annotated[ActorContext, Depends(app_scope("wikis:read"))]
+WikisWrite = Annotated[ActorContext, Depends(app_scope("wikis:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +115,9 @@ async def annotate_wiki_rows(session: RLSSessionDep, wikis: list) -> None:
     await wikis_service.annotate_page_counts(session, wikis)
 
 
-async def _refetch_wiki(session: RLSSessionDep, wiki_id: int, *, user_id: int) -> Wiki:
+async def _refetch_wiki(
+    session: RLSSessionDep, wiki_id: int, *, user_id: int | None
+) -> Wiki:
     wiki = await wikis_service.get_wiki(session, wiki_id, populate_existing=True)
     if not wiki:
         raise HTTPException(
@@ -165,26 +175,29 @@ async def _load_page(
 @router.get("/{wiki_id}", response_model=WikiRead)
 async def read_wiki(
     wiki_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisRead,
 ) -> WikiRead:
     await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
-    hydrated = await _refetch_wiki(session, wiki_id, user_id=current_user.id)
-    return serialize_wiki(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_wiki(session, wiki_id, user_id=guild_context.user_id)
+    return serialize_wiki(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.post("/", response_model=WikiRead, status_code=status.HTTP_201_CREATED)
 async def create_wiki(
     wiki_in: WikiCreate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisWrite,
 ) -> WikiRead:
     """Create a wiki. Requires create_wikis permission on the initiative (or
     guild admin); the creator gets the owner grant."""
+    resource_access.refuse_app_sharing(guild_context, wiki_in, "grants")
     initiative = await _get_initiative_for_wiki(session, wiki_in.initiative_id)
     if not initiative.wikis_enabled:
         raise HTTPException(
@@ -197,33 +210,34 @@ async def create_wiki(
 
     wiki = Wiki(
         initiative_id=initiative.id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         name=wiki_in.name.strip(),
         description=(wiki_in.description or "").strip() or None,
     )
     session.add(wiki)
     await session.flush()
 
-    session.add(
-        ResourceGrant(
+    # The creator's owner grant, then the initial sharing. An installed app's
+    # owner row is written by the table's own trigger as the row goes in, and
+    # it writes no grant of its own.
+    owner_grant = ownership_service.creator_owner_grant(
+        guild_context,
+        tool=Tool.wiki,
+        resource_id=wiki.id,
+        initiative_id=initiative.id,
+    )
+    if owner_grant is not None and current_user is not None:
+        session.add(owner_grant)
+        await permissions_service.replace_resource_grants(
+            session,
             resource_type="wiki",
             resource_id=wiki.id,
-            user_id=current_user.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
+            guild_id=guild_context.guild_id,
             initiative_id=initiative.id,
+            owner_id=current_user.id,
+            grants=wiki_in.grants,
+            actor_user_id=current_user.id,
         )
-    )
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="wiki",
-        resource_id=wiki.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=initiative.id,
-        owner_id=current_user.id,
-        grants=wiki_in.grants,
-        actor_user_id=current_user.id,
-    )
     if wiki_in.tag_ids:
         await tags_service.set_entity_tags(
             session,
@@ -233,17 +247,19 @@ async def create_wiki(
             tag_ids=wiki_in.tag_ids,
         )
     await session.commit()
-    hydrated = await _refetch_wiki(session, wiki.id, user_id=current_user.id)
-    return serialize_wiki(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
+    return serialize_wiki(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.patch("/{wiki_id}", response_model=WikiRead)
 async def update_wiki(
     wiki_id: int,
     wiki_in: WikiUpdate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisWrite,
 ) -> WikiRead:
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context, access="write"
@@ -287,8 +303,10 @@ async def update_wiki(
 
     session.add(wiki)
     await session.commit()
-    hydrated = await _refetch_wiki(session, wiki.id, user_id=current_user.id)
-    return serialize_wiki(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
+    return serialize_wiki(
+        hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.delete("/{wiki_id}", status_code=status.HTTP_204_NO_CONTENT)

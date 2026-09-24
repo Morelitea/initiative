@@ -11,9 +11,13 @@ from sqlmodel import select
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
     GuildContext,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
@@ -44,9 +48,14 @@ from app.schemas.tenant.tag import (
 )
 from app.services.tenant import properties as properties_service
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call. Property definitions are part of how
+#: an initiative is set up, so they answer to the initiatives scope.
+PropertyDefinitionsRead = Annotated[
+    ActorContext, Depends(app_scope("initiatives:read"))
+]
 
 
 class PropertyEntitiesResult(BaseModel):
@@ -180,8 +189,8 @@ def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
 
 @router.get("/", response_model=List[PropertyDefinitionRead])
 async def list_property_definitions(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    session: ActorSessionDep,
+    guild_context: PropertyDefinitionsRead,
     initiative_id: Optional[int] = Query(default=None),
 ) -> Sequence[PropertyDefinition]:
     """List property definitions.

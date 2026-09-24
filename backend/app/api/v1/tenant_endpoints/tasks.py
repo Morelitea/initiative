@@ -27,15 +27,24 @@ from app.db.query import (
 from app.schemas.query import FilterCondition, FilterGroup, FilterOp, SortDir
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
     UserSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
 )
+from app.core.identity_boundary import current_install_boundary
+from app.models.platform.identity_ref import IdentityEntity
+from app.models.tenant.property import PropertyType
+from pydantic_core import PydanticCustomError
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -75,7 +84,7 @@ from app.schemas.ai_generation import (
     GenerateDescriptionResponse,
 )
 from app.schemas.tenant.tag import TagSetRequest
-from app.schemas.tenant.property import PropertyValuesSetRequest
+from app.schemas.tenant.property import PropertyValueInput, PropertyValuesSetRequest
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.api import resource_access
@@ -98,13 +107,19 @@ from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.core.audit_events import AuditEventType
 from app.core.messages import (
+    AppMessages,
     ProjectMessages,
     QueryMessages,
     TaskMessages,
     ChecklistMessages,
 )
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
+
+#: The routes an installed app may call. A task is the project's, so it
+#: answers to the projects scopes.
+ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
+ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]
 
 
 def _validate_tz(tz: str | None) -> str | None:
@@ -237,7 +252,7 @@ def _sort_global_task_keys(
 def _build_task_filter_fields(
     *,
     guild_id: int,
-    current_user_id: int,
+    current_user_id: int | None,
     property_definitions: Optional[dict[int, PropertyDefinition]] = None,
 ) -> dict:
     """The ``allowed_fields`` mapping for a task filter, from the field registry.
@@ -782,9 +797,9 @@ async def _advance_recurrence_if_needed(
 async def _get_project_with_access(
     session: SessionDep,
     project_id: int,
-    user: User,
+    user: User | None,
     *,
-    context: GuildContext,
+    context: ActorContext,
     access: str = "read",
 ) -> Project:
     """Load the project a task hangs off, and authorize against it.
@@ -834,9 +849,9 @@ async def _get_project_with_access(
 async def _ensure_can_manage(
     session: SessionDep,
     project_id: int,
-    user: User,
+    user: User | None,
     *,
-    context: GuildContext,
+    context: ActorContext,
 ) -> Project:
     project = await _get_project_with_access(
         session,
@@ -880,8 +895,8 @@ def _confining_project_id(
 
 async def _allowed_project_ids(
     session: SessionDep,
-    user: User,
-    context: GuildContext,
+    user: User | None,
+    context: ActorContext,
     *,
     include_templates: bool = False,
     project_id: Optional[int] = None,
@@ -905,7 +920,10 @@ async def _allowed_project_ids(
         # stays here rather than resting on the table's own policy.
         conditions.append(
             permissions_service.granted_scope_clause(
-                Tool.project, Project.id, user.id, context=context
+                Tool.project,
+                Project.id,
+                user.id if user is not None else None,
+                context=context,
             )
         )
     if not include_templates:
@@ -1297,6 +1315,69 @@ async def _parse_task_list_query(
     )
 
 
+#: Task filter fields whose values name people by row id.
+_PERSON_FILTER_FIELDS = frozenset({"assignee_ids", "created_by"})
+
+
+def _refuse_person_filters(q: _TaskListQuery) -> None:
+    """Refuse, for an installed app, a filter that names people.
+
+    A filter's values are row ids inside a JSON string, which an app does not
+    hold, so the fields that take one are left to people: ``assignee_ids``
+    and ``created_by`` (bar asking whether there is one), and a
+    person-valued custom property.
+    """
+    for cond in iter_leaf_conditions(q.user_conditions):
+        named = cond.field in _PERSON_FILTER_FIELDS and cond.op is not FilterOp.is_null
+        if cond.field == "property_values" and isinstance(cond.value, dict):
+            try:
+                defn = q.property_definitions.get(int(cond.value.get("property_id")))
+            except (TypeError, ValueError):
+                defn = None
+            named = defn is not None and defn.type is PropertyType.user_reference
+        if named:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=QueryMessages.INVALID_CONDITIONS,
+            )
+
+
+async def _property_values_by_row_id(
+    session: SessionDep, values: Sequence[PropertyValueInput]
+) -> list[PropertyValueInput]:
+    """``values`` with each person a ``user_reference`` value names as a row
+    id.
+
+    Unchanged for a person. An installed app names a person by the reference
+    it was given for them, which is resolved here the way a ``PersonId`` field
+    is; anything else in that place is a 422 (``APP_REFERENCE_UNKNOWN``).
+    """
+    boundary = current_install_boundary()
+    if boundary is None or not values:
+        return list(values)
+    definitions = await properties_service.load_definitions_by_ids(
+        session, [entry.property_id for entry in values]
+    )
+    resolved: list[PropertyValueInput] = []
+    for entry in values:
+        defn = definitions.get(entry.property_id)
+        if (
+            defn is not None
+            and defn.type is PropertyType.user_reference
+            and entry.value is not None
+        ):
+            try:
+                row_id = boundary.resolve(entry.value, IdentityEntity.user)
+            except PydanticCustomError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=AppMessages.REFERENCE_UNKNOWN,
+                )
+            entry = entry.model_copy(update={"value": row_id})
+        resolved.append(entry)
+    return resolved
+
+
 async def _load_property_definitions_across_guilds(
     session,
     current_user: User,
@@ -1335,8 +1416,8 @@ async def _load_property_definitions_across_guilds(
 
 async def _guild_task_query_builder(
     session,
-    current_user: User,
-    context: GuildContext,
+    current_user: User | None,
+    context: ActorContext,
     *,
     q: _TaskListQuery,
     include_archived: bool,
@@ -1366,7 +1447,7 @@ async def _guild_task_query_builder(
 
     filter_fields = _build_task_filter_fields(
         guild_id=context.guild_id,
-        current_user_id=current_user.id,
+        current_user_id=current_user.id if current_user is not None else None,
         property_definitions=q.property_definitions,
     )
 
@@ -1732,9 +1813,9 @@ async def query_my_tasks_list(
 
 @router.get("/", response_model=TaskListResponse)
 async def list_tasks(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsRead,
     conditions: Optional[str] = Query(
         default=None,
         description=(
@@ -1759,6 +1840,8 @@ async def list_tasks(
     ),
 ) -> TaskListResponse:
     q = await _parse_task_list_query(session, conditions, sorting, tz)
+    if current_user is None:
+        _refuse_person_filters(q)
     sort_fields = q.sort_fields
     tz = q.tz
 
@@ -1824,9 +1907,9 @@ async def list_tasks(
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 async def create_task(
     task_in: TaskCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> Task:
     project = await _get_project_with_access(
         session,
@@ -1861,11 +1944,14 @@ async def create_task(
         project=project,
         task_status_id=task_in.task_status_id,
         **task_data,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         checklist=checklist_service.normalize(task_in.checklist),
     )
     await _set_task_assignees(session, task, task_in.assignee_ids)
     if project and task.assignees:
+        assigned_by = await notifications_service.author_of(
+            session, guild_context, current_user
+        )
         assignees = await accounts_service.load_all(
             [assignee.id for assignee in task.assignees]
         )
@@ -1874,7 +1960,7 @@ async def create_task(
                 session,
                 task=task,
                 assignee=assignee,
-                assigned_by=current_user,
+                assigned_by=assigned_by,
                 project_name=project.name,
                 guild_id=guild_context.guild_id,
                 initiative_id=project.initiative_id,
@@ -1902,7 +1988,7 @@ async def create_task(
             await properties_service.set_task_property_values(
                 session,
                 task,
-                task_in.property_values,
+                await _property_values_by_row_id(session, task_in.property_values),
                 initiative_id,
             )
     except HTTPException:
@@ -1933,9 +2019,9 @@ async def create_task(
 @router.get("/{task_id}", response_model=TaskRead)
 async def read_task(
     task_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
@@ -1958,9 +2044,9 @@ async def read_task(
 async def update_task(
     task_id: int,
     task_in: TaskUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
@@ -2040,10 +2126,15 @@ async def update_task(
         task,
         previous_status_category=previous_status_category,
         now=now,
-        user_timezone=current_user.timezone,
+        # An installed app has no zone of its own; a rolling recurrence it
+        # completes counts days in UTC.
+        user_timezone=current_user.timezone if current_user is not None else None,
     )
 
     if new_assignees and project:
+        assigned_by = await notifications_service.author_of(
+            session, guild_context, current_user
+        )
         newly_assigned = await accounts_service.load_all(
             [assignee.id for assignee in new_assignees]
         )
@@ -2052,7 +2143,7 @@ async def update_task(
                 session,
                 task=task,
                 assignee=assignee,
-                assigned_by=current_user,
+                assigned_by=assigned_by,
                 project_name=project.name,
                 guild_id=guild_context.guild_id,
                 initiative_id=project.initiative_id,
@@ -2080,7 +2171,9 @@ async def update_task(
             await properties_service.set_task_property_values(
                 session,
                 task,
-                task_in.property_values or [],
+                await _property_values_by_row_id(
+                    session, task_in.property_values or []
+                ),
                 initiative_id,
             )
     except HTTPException:
@@ -2104,12 +2197,15 @@ async def update_task(
             guild_id=guild_context.guild_id,
             initiative_id=project.initiative_id,
         )
-        released_images = await attachments_service.release_pasted_images(
-            session,
-            attachments_service.upload_urls_in_markdown(previous_description)
-            - attachments_service.upload_urls_in_markdown(task.description),
-            leaving={Task: {task.id}},
-        )
+        # An installed app does not manage the community's uploads; a picture
+        # its edit took out of the description stays for a person to clear.
+        if current_user is not None:
+            released_images = await attachments_service.release_pasted_images(
+                session,
+                attachments_service.upload_urls_in_markdown(previous_description)
+                - attachments_service.upload_urls_in_markdown(task.description),
+                leaving={Task: {task.id}},
+            )
 
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
@@ -2131,9 +2227,9 @@ async def update_task(
 async def move_task(
     task_id: int,
     move_in: TaskMoveRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
@@ -2551,9 +2647,9 @@ async def toggle_checklist_item(
     task_id: int,
     item_id: str,
     toggle_in: ChecklistItemToggle,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> List[ChecklistItem]:
     """Tick or untick one checklist item.
 

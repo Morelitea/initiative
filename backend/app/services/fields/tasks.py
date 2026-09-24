@@ -62,6 +62,13 @@ def _assignee_ids(op: FilterOp, value: Any, ctx: FieldContext) -> Any:
     user_ids: list[int] = []
     for aid in value:
         if aid == "me":
+            # "Me" names the person asking; a request that is nobody's has
+            # no one to name.
+            if ctx.user_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=TaskMessages.INVALID_ASSIGNEE_ID,
+                )
             user_ids.append(ctx.user_id)
         else:
             try:

@@ -6,6 +6,7 @@ from typing import List, Literal, Optional
 from pydantic import field_validator, ConfigDict, EmailStr, Field
 
 from app.core.guild_auth_options import GuildAuthOption
+from app.core.identity_boundary import GuildId
 from app.core.messages import GuildMessages
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
 
@@ -540,7 +541,7 @@ class GuildSummary(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    id: int
+    id: GuildId
     name: str
     icon_url: Optional[str] = None
 

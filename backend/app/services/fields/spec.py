@@ -154,7 +154,8 @@ class FieldContext:
     """
 
     guild_id: int
-    user_id: int
+    #: The person asking; ``None`` for an installed app, which is nobody.
+    user_id: Optional[int]
     #: Custom property definitions by id, for the fields that dispatch on one.
     property_definitions: Mapping[int, Any] = dataclass_field(default_factory=dict)
     #: IANA timezone, for sorts that group by the reader's local day rather than

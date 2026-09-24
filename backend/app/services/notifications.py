@@ -46,6 +46,8 @@ from app.services.platform import notification_prefs
 from app.services.platform import user_notifications
 from app.services.platform import push_notifications
 from app.core.user_display import handle_of
+from app.db.guild_standing import ActorContext, InstallContext
+from app.models.tenant.guild_app import GuildApp
 
 # A notification is read on the cross-guild ``/me/notifications`` surface,
 # away from the guild it was written in, so the people it names are named by
@@ -54,6 +56,44 @@ from app.core.user_display import handle_of
 # resolved at the moment someone opens the list.
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class AppAuthor:
+    """An installed app, as a notification names what it did.
+
+    By its name in the community, and by no account: ``id`` is ``None``, so a
+    recipient is never mistaken for the one who acted, and the ``*_id`` a
+    notification records beside the name is empty.
+    """
+
+    name: str
+    id: None = None
+
+
+def actor_name(actor: "User | AppAuthor") -> str:
+    """What a notification calls whoever caused it: a person's handle, or an
+    installed app's name."""
+    if isinstance(actor, AppAuthor):
+        return actor.name
+    return handle_of(actor)
+
+
+async def author_of(
+    session: AsyncSession, actor: ActorContext, user: User | None
+) -> "User | AppAuthor":
+    """Who a request's notifications say acted: the person, or — for an
+    installed app — the install's name in its community, read from its own
+    row on the request's session."""
+    if user is not None:
+        return user
+    if not isinstance(actor, InstallContext):
+        raise RuntimeError("a request with no person is an installed app's")
+    name = (
+        await session.exec(select(GuildApp.name).where(GuildApp.id == actor.install_id))
+    ).scalar_one()
+    return AppAuthor(name=name)
+
 
 DIGEST_POLL_SECONDS = 60
 OVERDUE_POLL_SECONDS = 300
@@ -127,16 +167,27 @@ def _comment_rollup_key(entity_type: str, entity_id: int) -> str:
     return f"{entity_type}:{entity_id}"
 
 
+def _same_commenter(
+    entry: Mapping[str, Any], commenter_id: int | None, commenter_name: str
+) -> bool:
+    """Whether a roster entry is this commenter: a person by id, an installed
+    app (no id) by its name."""
+    if commenter_id is None:
+        return entry.get("id") is None and entry.get("name") == commenter_name
+    return entry.get("id") == commenter_id
+
+
 def _rolled_up_comment(
     previous: Mapping[str, Any] | None,
     *,
     commenter_name: str,
-    commenter_id: int,
+    commenter_id: int | None,
 ) -> dict[str, Any]:
     """Fold one more comment into a line's payload.
 
     The roster of distinct commenters is what the sentence names, and the count
-    is every comment the line stands for.
+    is every comment the line stands for. An installed app is on it by name,
+    with no id.
     """
     previous = previous or {}
     # One roster of pairs rather than parallel id and name lists: those have to
@@ -145,11 +196,19 @@ def _rolled_up_comment(
     roster: list[dict[str, Any]] = [
         entry
         for entry in (previous.get("commenters") or [])
-        if isinstance(entry, Mapping) and isinstance(entry.get("id"), int)
+        if isinstance(entry, Mapping)
+        and (
+            isinstance(entry.get("id"), int)
+            or (entry.get("id") is None and isinstance(entry.get("name"), str))
+        )
     ]
     # Same person again: they move to the end rather than being listed twice,
     # and the comment count still moves.
-    roster = [entry for entry in roster if entry["id"] != commenter_id]
+    roster = [
+        entry
+        for entry in roster
+        if not _same_commenter(entry, commenter_id, commenter_name)
+    ]
     roster.append({"id": commenter_id, "name": commenter_name})
     raw_count = previous.get("comment_count")
     count = (raw_count if isinstance(raw_count, int) else 0) + 1
@@ -159,7 +218,7 @@ def _rolled_up_comment(
     raw_people = previous.get("commenter_count")
     people = raw_people if isinstance(raw_people, int) else 0
     seen_before = any(
-        entry["id"] == commenter_id
+        _same_commenter(entry, commenter_id, commenter_name)
         for entry in (previous.get("commenters") or [])
         if isinstance(entry, Mapping)
     )
@@ -178,7 +237,7 @@ async def _roll_up_comment(
     rollup_key: str,
     data: dict[str, Any],
     commenter_name: str,
-    commenter_id: int,
+    commenter_id: int | None,
 ) -> tuple[bool, Notification | None]:
     """Write or extend the one unread line for this thread.
 
@@ -380,7 +439,7 @@ async def enqueue_task_assignment_event(
     *,
     task: Task,
     assignee: User,
-    assigned_by: User,
+    assigned_by: "User | AppAuthor",
     project_name: str,
     guild_id: int,
     initiative_id: int | None = None,
@@ -397,7 +456,7 @@ async def enqueue_task_assignment_event(
         data={
             "task_id": task.id,
             "project_id": task.project_id,
-            "assigned_by_name": handle_of(assigned_by),
+            "assigned_by_name": actor_name(assigned_by),
             "guild_id": guild_id,
             "initiative_id": initiative_id,
             "tool": Tool.project.value,
@@ -419,7 +478,7 @@ async def enqueue_task_assignment_event(
             project_id=task.project_id,
             task_title=task.title,
             project_name=project_name,
-            assigned_by_name=handle_of(assigned_by),
+            assigned_by_name=actor_name(assigned_by),
             assigned_by_id=assigned_by.id,
         )
         session.add(event)
@@ -870,7 +929,7 @@ async def _deliver_rolled_up_comment(
     session: AsyncSession,
     *,
     recipient: User,
-    actor: User,
+    actor: "User | AppAuthor",
     notification_type: NotificationType,
     data: dict[str, Any],
     email_subject: str,
@@ -915,7 +974,7 @@ async def _deliver_rolled_up_comment(
             notification_type=notification_type,
             rollup_key=rollup_key,
             data=data,
-            commenter_name=handle_of(actor),
+            commenter_name=actor_name(actor),
             commenter_id=actor.id,
         )
     if channels.email and opened:
@@ -956,7 +1015,7 @@ async def notify_document_mention(
     session: AsyncSession,
     *,
     mentioned_user: User,
-    mentioned_by: User,
+    mentioned_by: "User | AppAuthor",
     document_id: int,
     document_name: str,
     guild_id: int,
@@ -966,7 +1025,7 @@ async def notify_document_mention(
     if mentioned_user.id == mentioned_by.id:
         return
     target_path = reference_path(Tool.document, document_id)
-    mentioned_by_name = handle_of(mentioned_by)
+    mentioned_by_name = actor_name(mentioned_by)
     locale = _recipient_locale(mentioned_user)
     await _deliver_rolled_up_comment(
         session,
@@ -1008,7 +1067,7 @@ async def notify_task_description_mention(
     session: AsyncSession,
     *,
     mentioned_user: User,
-    mentioned_by: User,
+    mentioned_by: "User | AppAuthor",
     task_id: int,
     task_title: str,
     guild_id: int,
@@ -1018,7 +1077,7 @@ async def notify_task_description_mention(
     if mentioned_user.id == mentioned_by.id:
         return
     target_path = _task_target_path(task_id, None)
-    mentioned_by_name = handle_of(mentioned_by)
+    mentioned_by_name = actor_name(mentioned_by)
     locale = _recipient_locale(mentioned_user)
     await _deliver_rolled_up_comment(
         session,
@@ -1083,7 +1142,7 @@ async def notify_comment_mention(
     session: AsyncSession,
     *,
     mentioned_user: User,
-    mentioned_by: User,
+    mentioned_by: "User | AppAuthor",
     comment_id: int,
     task_id: int | None,
     document_id: int | None,
@@ -1107,7 +1166,7 @@ async def notify_comment_mention(
     )
     if target_path is None:
         return
-    mentioned_by_name = handle_of(mentioned_by)
+    mentioned_by_name = actor_name(mentioned_by)
     locale = _recipient_locale(mentioned_user)
     await _deliver_rolled_up_comment(
         session,
@@ -1155,7 +1214,7 @@ async def notify_task_mentioned_in_comment(
     session: AsyncSession,
     *,
     assignee: User,
-    mentioned_by: User,
+    mentioned_by: "User | AppAuthor",
     comment_id: int,
     mentioned_task_id: int,
     mentioned_task_title: str,
@@ -1179,7 +1238,7 @@ async def notify_task_mentioned_in_comment(
     )
     if target_path is None:
         return
-    mentioned_by_name = handle_of(mentioned_by)
+    mentioned_by_name = actor_name(mentioned_by)
     locale = _recipient_locale(assignee)
     await _deliver_rolled_up_comment(
         session,
@@ -1229,7 +1288,7 @@ async def notify_comment_on_task(
     session: AsyncSession,
     *,
     assignee: User,
-    commenter: User,
+    commenter: "User | AppAuthor",
     comment_id: int,
     task_id: int,
     task_title: str,
@@ -1247,7 +1306,7 @@ async def notify_comment_on_task(
     if assignee.id == commenter.id:
         return
     target_path = _task_target_path(task_id, None)
-    commenter_name = handle_of(commenter)
+    commenter_name = actor_name(commenter)
     locale = _recipient_locale(assignee)
     await _deliver_rolled_up_comment(
         session,
@@ -1286,7 +1345,7 @@ async def notify_comment_on_resource(
     session: AsyncSession,
     *,
     owner: User,
-    commenter: User,
+    commenter: "User | AppAuthor",
     comment_id: int,
     entity_type: str,
     entity_id: int,
@@ -1308,7 +1367,7 @@ async def notify_comment_on_resource(
     if owner.id == commenter.id:
         return
     target_path = reference_path(*(target or (entity_type, entity_id)))
-    commenter_name = handle_of(commenter)
+    commenter_name = actor_name(commenter)
     locale = _recipient_locale(owner)
     await _deliver_rolled_up_comment(
         session,
@@ -1351,7 +1410,7 @@ async def notify_comment_reply(
     session: AsyncSession,
     *,
     parent_author: User,
-    replier: User,
+    replier: "User | AppAuthor",
     comment_id: int,
     task_id: int | None,
     document_id: int | None,
@@ -1373,7 +1432,7 @@ async def notify_comment_reply(
     )
     if target_path is None:
         return
-    replier_name = handle_of(replier)
+    replier_name = actor_name(replier)
     locale = _recipient_locale(parent_author)
     await _deliver_rolled_up_comment(
         session,
@@ -1556,14 +1615,14 @@ async def notify_event_invitation(
     session: AsyncSession,
     *,
     attendee: User,
-    organizer: User,
+    organizer: "User | AppAuthor",
     event: CalendarEvent,
     guild_id: int,
 ) -> None:
     """Notify a user they were added as an attendee on a calendar event."""
     if attendee.id == organizer.id:
         return
-    organizer_name = handle_of(organizer)
+    organizer_name = actor_name(organizer)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     await _deliver_notification(
@@ -1591,7 +1650,7 @@ async def notify_event_updated(
     session: AsyncSession,
     *,
     attendee: User,
-    editor: User,
+    editor: "User | AppAuthor",
     event: CalendarEvent,
     guild_id: int,
     time_changed: bool,
@@ -1599,7 +1658,7 @@ async def notify_event_updated(
     """Notify an attendee that an event's details changed (or was rescheduled)."""
     if attendee.id == editor.id:
         return
-    editor_name = handle_of(editor)
+    editor_name = actor_name(editor)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     key = "event.rescheduled" if time_changed else "event.updated"
@@ -1626,14 +1685,14 @@ async def notify_event_cancelled(
     session: AsyncSession,
     *,
     attendee: User,
-    canceller: User,
+    canceller: "User | AppAuthor",
     event: CalendarEvent,
     guild_id: int,
 ) -> None:
     """Notify an attendee that an event was cancelled (deleted)."""
     if attendee.id == canceller.id:
         return
-    canceller_name = handle_of(canceller)
+    canceller_name = actor_name(canceller)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     await _deliver_notification(
@@ -1740,11 +1799,13 @@ async def notify_post_published(
     post_name: str,
     excerpt: str,
     author_name: str,
-    author_id: int,
+    author_id: int | None,
     guild_id: int,
     initiative_id: int | None = None,
 ) -> None:
     """Tell one person a notice has gone up on a board they can see.
+
+    ``author_id`` is ``None`` when an installed app posted it.
 
     Takes the post's fields rather than the row: the scheduled path calls this
     from a sweep that commits between recipients, and a detached row would have

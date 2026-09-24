@@ -189,12 +189,12 @@ async def _serialize_projects(session: AsyncSession, rows: list, user: User) -> 
     # too: task summaries, tags, the reader's own order/favourites/views, and
     # the documents each project carries.
     return await projects_endpoints.serialize_project_page(
-        session, user, rows, slim=False
+        session, user.id, rows, slim=False
     )
 
 
 async def _serialize_documents(session: AsyncSession, rows: list, user: User) -> list:
-    return await documents_endpoints.serialize_document_page(session, user, rows)
+    return await documents_endpoints.serialize_document_page(session, user.id, rows)
 
 
 MY_TOOL_LISTS: dict[Tool, MyToolList] = {

@@ -5,9 +5,10 @@ from uuid import uuid4
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
-from app.schemas.platform.user import UserPublic
+from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.guild import GuildSummary
@@ -31,11 +32,11 @@ class TaskAssigneeSummary(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    id: int
+    id: PersonId
     username: str
     discriminator: int
     full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    avatar_url: AvatarUrl = None
     status: UserStatus = UserStatus.active
 
 
@@ -195,7 +196,7 @@ class TaskBase(SanitizedBaseModel):
 class TaskCreate(TaskBase):
     title: TitleStr
     project_id: int
-    assignee_ids: List[int] = Field(default_factory=list)
+    assignee_ids: List[PersonId] = Field(default_factory=list)
     task_status_id: Optional[int] = None
     tag_ids: List[int] = Field(default_factory=list, max_length=100)
     property_values: List[PropertyValueInput] = Field(default_factory=list)
@@ -207,7 +208,7 @@ class TaskUpdate(SanitizedBaseModel):
     description: Optional[RichTextStr] = None
     task_status_id: Optional[int] = None
     priority: Optional[TaskPriority] = None
-    assignee_ids: Optional[List[int]] = None
+    assignee_ids: Optional[List[PersonId]] = None
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRecurrence | None] = None
@@ -250,7 +251,7 @@ class TaskRead(TaskBase):
     completed_at: Optional[datetime] = None
     position: float
     archived_at: Optional[datetime] = None
-    created_by: Optional[int] = None
+    created_by: Optional[PersonId] = None
     # Author summary — lets the detail view render "Created by …" without
     # fetching the whole guild roster to resolve ``created_by``.
     creator: Optional[UserPublic] = None
@@ -285,7 +286,7 @@ class TaskListRead(TaskBase):
     completed_at: Optional[datetime] = None
     position: float
     archived_at: Optional[datetime] = None
-    created_by: Optional[int] = None
+    created_by: Optional[PersonId] = None
     assignees: List[TaskAssigneeSummary] = []
     recurrence_occurrence_count: int = 0
     comment_count: int = 0
@@ -293,7 +294,7 @@ class TaskListRead(TaskBase):
     #: edges whose far end has not finished. Only kinds with a reading of
     #: "finished" count — see :mod:`app.db.blocking`.
     blocked_by_open_count: int = 0
-    guild_id: Optional[int] = None
+    guild_id: Optional[GuildId] = None
     guild_name: Optional[str] = None
     project_name: Optional[str] = None
     initiative_id: Optional[int] = None

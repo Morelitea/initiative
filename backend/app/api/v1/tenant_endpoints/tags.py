@@ -7,21 +7,30 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     GuildContext,
     RLSSessionDep,
     SessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.app_scopes import tool_resource
 from app.core.messages import (
+    AppMessages,
     GalleryMessages,
     QueueMessages,
     TagMessages,
     TaskMessages,
 )
 from app.core.tools import Tool
+from app.db.guild_standing import InstallContext
+from app.db.initiative_rls import governing_path
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
 from app.models.tenant.project import Project
@@ -51,9 +60,31 @@ from app.schemas.tenant.tag import (
 # trash tags, so the only gate here is guild membership. Hard purge alone is
 # admin-gated (the RESTRICTIVE RLS policy on ``tags``). Pinned by
 # ``test_any_guild_member_can_manage_the_tag_dictionary``.
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the tags scopes.
+TagsRead = Annotated[ActorContext, Depends(app_scope("tags:read"))]
+TagsWrite = Annotated[ActorContext, Depends(app_scope("tags:write"))]
+
+
+def _require_install_tagging_scopes(actor: ActorContext, target: str) -> None:
+    """Raise 403 unless an installed app's standing also holds what tagging
+    ``target`` writes beside the tag: the write scope of the tool that governs
+    the tagged thing, and ``relationships:write`` for the assignment itself,
+    which is stored as a relationship. A person passes."""
+    if not isinstance(actor, InstallContext):
+        return
+    table = tags_service.TAG_LINKS[target].entity.__tablename__
+    governed = governing_path(str(table))
+    needed = ["relationships:write"]
+    if governed is not None:
+        needed.append(f"{tool_resource(governed[0]).value}:write")
+    if not all(actor.holds(scope) for scope in needed):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AppMessages.SCOPE_REQUIRED,
+        )
 
 
 async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Tag:
@@ -90,9 +121,9 @@ async def _check_duplicate_name(
 
 @router.get("/", response_model=List[TagRead])
 async def list_tags(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: TagsRead,
 ) -> list[TagRead]:
     """List all tags in the current guild."""
     stmt = select(Tag).order_by(Tag.name.asc())
@@ -123,9 +154,9 @@ async def create_tag(
 @router.post("/bulk", response_model=TagBulkEditResponse)
 async def bulk_edit_tags(
     payload: TagBulkEditRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: TagsWrite,
 ) -> TagBulkEditResponse:
     """Add and/or remove tags across many entities of one type, atomically.
 
@@ -136,6 +167,7 @@ async def bulk_edit_tags(
     affected project instead of one per task.
     """
     target = payload.target_type.value
+    _require_install_tagging_scopes(guild_context, target)
     spec = tags_service.TAG_LINKS[target]
     add_ids = await tags_service.validate_guild_tag_ids(
         session, guild_context.guild_id, payload.add_tag_ids
