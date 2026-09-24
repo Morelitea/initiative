@@ -18,10 +18,10 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("@/api/generated/users/users", () => ({
-  listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet: api.listOwned,
-  listUnownedContentApiV1GGuildIdUsersUnownedContentGet: api.listUnowned,
-  transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost: api.transfer,
-  claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost: api.claim,
+  listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet: api.listOwned,
+  listUnownedContentApiV1CGuildIdUsersUnownedContentGet: api.listUnowned,
+  transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost: api.transfer,
+  claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost: api.claim,
 }));
 
 vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 7 }));
