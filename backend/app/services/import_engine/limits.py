@@ -23,3 +23,9 @@ IMPORT_MAX_ZIP_MEMBERS = 20_000
 #: to its bundle being staged. Past it the job fails with
 #: ``IMPORT_SOURCE_TOO_SLOW`` rather than holding its slot.
 IMPORT_FETCH_DEADLINE_SECONDS = 4 * 60 * 60
+
+#: How many imports one process runs at once, by kind. Fetches wait on a
+#: foreign site; applies write to the database. One community has at most one
+#: import fetching or running at a time, whatever the slots allow.
+IMPORT_FETCH_SLOTS = 3
+IMPORT_APPLY_SLOTS = 2

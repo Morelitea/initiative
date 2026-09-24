@@ -4869,3 +4869,133 @@ async def test_an_apply_touches_its_row_as_it_goes(
 
     assert job["status"] == ImportJobStatus.done.value, job.get("error")
     assert beats
+
+
+# --- running imports side by side -------------------------------------------
+
+
+_QUEUE_ENVELOPE = {
+    "type": "initiative-queue",
+    "schema_version": 1,
+    "name": "Side by side",
+    "items": [{"label": "Aria", "position": 1.0}],
+}
+
+
+async def _queued(client, actor) -> int:
+    response = await _import_envelope(
+        client, actor, _QUEUE_ENVELOPE, actor.initiative.id
+    )
+    assert response.status_code == 202, response.text
+    return response.json()["id"]
+
+
+async def _status(client, actor, job_id) -> str:
+    job = (
+        await client.get(actor.g(f"/imports/jobs/{job_id}"), headers=actor.headers)
+    ).json()
+    return job["status"]
+
+
+async def _user_sessions(monkeypatch, role_session, count):
+    sessions = iter([await role_session("app_user") for _ in range(count)])
+    monkeypatch.setattr(import_worker, "_open_user_session", lambda: next(sessions))
+
+
+async def test_two_communities_import_side_by_side(
+    client, acting_user, monkeypatch, role_session
+):
+    """One pass starts a job in each community, and neither waits for the
+    other to finish."""
+    import asyncio
+
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    first, second = await _queued(client, a), await _queued(client, b)
+    await _user_sessions(monkeypatch, role_session, 2)
+
+    started = await import_worker.dispatch_import_jobs()
+
+    assert len(started) == 2
+    await asyncio.gather(*started)
+    assert await _status(client, a, first) == ImportJobStatus.done.value
+    assert await _status(client, b, second) == ImportJobStatus.done.value
+
+
+async def test_a_community_runs_one_import_at_a_time(
+    client, acting_user, monkeypatch, role_session
+):
+    import asyncio
+
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    first, second = await _queued(client, a), await _queued(client, a)
+    await _user_sessions(monkeypatch, role_session, 2)
+
+    started = await import_worker.dispatch_import_jobs()
+
+    assert len(started) == 1
+    await asyncio.gather(*started)
+    assert await _status(client, a, first) == ImportJobStatus.done.value
+    assert await _status(client, a, second) == ImportJobStatus.queued.value
+
+    await import_worker.process_import_jobs()
+    assert await _status(client, a, second) == ImportJobStatus.done.value
+
+
+async def test_a_process_starts_no_more_than_its_slots(
+    client, acting_user, monkeypatch, role_session
+):
+    import asyncio
+
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_APPLY_SLOTS", 1)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _queued(client, a)
+    await _queued(client, b)
+    await _user_sessions(monkeypatch, role_session, 2)
+
+    started = await import_worker.dispatch_import_jobs()
+
+    assert len(started) == 1
+    await asyncio.gather(*started)
+    await import_worker.process_import_jobs()
+
+
+async def test_the_sweep_leaves_a_job_this_process_is_running(
+    acting_user, session, monkeypatch
+):
+    """A row that looks stale but belongs to a job this process is running is
+    not failed out from under it."""
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await route_session_to_guild(session, a.guild.id)
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
+    job = ImportJob(
+        created_by=a.user.id,
+        source="initiative-queue",
+        params={"initiative_id": a.initiative.id},
+        payload_ref="imports/elsewhere.json",
+        status=ImportJobStatus.running,
+        created_at=stale_time,
+        updated_at=stale_time,
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+
+    alive = asyncio.create_task(asyncio.sleep(3600))
+    monkeypatch.setitem(import_worker._running, (a.guild.id, job.id), ("apply", alive))
+    try:
+        await import_worker.dispatch_import_jobs()
+    finally:
+        alive.cancel()
+
+    await session.refresh(job)
+    assert job.status == ImportJobStatus.running
