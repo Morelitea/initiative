@@ -15,6 +15,7 @@ from __future__ import annotations
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.identity_ref import (
     REF_MAX_LENGTH,
     IdentityEntity,
@@ -22,9 +23,10 @@ from app.models.platform.identity_ref import (
     IdentityRef,
 )
 from app.models.platform.user import User
+from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.services.platform.identity_refs import ensure_ref
 
-__all__ = ["subject_for_user", "user_for_subject"]
+__all__ = ["account_for_subject", "subject_for_user", "user_for_subject"]
 
 
 async def subject_for_user(session: AsyncSession, *, user_id: int) -> str:
@@ -42,8 +44,16 @@ async def subject_for_user(session: AsyncSession, *, user_id: int) -> str:
     )
 
 
-async def user_for_subject(session: AsyncSession, *, subject: str) -> User | None:
-    """Which account a token's ``sub`` names, or None.
+async def account_for_subject(
+    session: AsyncSession, *, subject: str
+) -> tuple[User, AppSetting | None] | None:
+    """Which account a token's ``sub`` names, with the deployment's settings
+    row beside it, or None.
+
+    The settings singleton rides along because every request that
+    authenticates by session asks what the deployment requires of an account
+    next, and reading it here is one statement rather than two. ``None`` in
+    its place means no singleton the session can see.
 
     Live references only, and nothing re-issues one in this sector. A token
     holding a replaced reference resolves to nobody until it lapses: the
@@ -54,8 +64,9 @@ async def user_for_subject(session: AsyncSession, *, subject: str) -> User | Non
         return None
 
     statement = (
-        select(User)
+        select(User, AppSetting)
         .join(IdentityRef, IdentityRef.entity_id == User.id)
+        .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
         .where(
             IdentityRef.ref == subject,
             IdentityRef.entity_type == IdentityEntity.user,
@@ -63,4 +74,12 @@ async def user_for_subject(session: AsyncSession, *, subject: str) -> User | Non
             IdentityRef.retired_at.is_(None),
         )
     )
-    return (await session.exec(statement)).one_or_none()
+    row = (await session.exec(statement)).one_or_none()
+    return None if row is None else (row[0], row[1])
+
+
+async def user_for_subject(session: AsyncSession, *, subject: str) -> User | None:
+    """Which account a token's ``sub`` names, or None. See
+    :func:`account_for_subject`."""
+    found = await account_for_subject(session, subject=subject)
+    return None if found is None else found[0]

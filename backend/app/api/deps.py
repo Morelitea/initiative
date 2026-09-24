@@ -14,6 +14,7 @@ from app.core.login_methods import LoginMethod
 from app.core import auth_context
 from app.core.auth_context import (
     set_api_key_credential,
+    set_asked_of_account,
     set_device_token_id,
     set_satisfied_providers,
     set_session_amr,
@@ -76,7 +77,7 @@ from app.models.platform.user import (
     UserStatus,
 )
 from app.schemas.platform.token import TokenPayload
-from app.services.auth.subject import user_for_subject
+from app.services.auth.subject import account_for_subject
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.marketplace import registration_lookup
@@ -314,6 +315,7 @@ async def get_current_user(
     set_satisfied_claims(None)
     set_session_amr(None)
     set_device_token_id(None)
+    set_asked_of_account(None)
     # Not an API key until the branch below says so, which is the answer a
     # community that declines them admits.
     set_api_key_credential(False)
@@ -347,8 +349,12 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Try API key authentication first
-    api_auth = await api_keys_service.authenticate_api_key(session, token)
+    # A personal API key names itself by its prefix; anything else is not one.
+    api_auth = (
+        await api_keys_service.authenticate_api_key(session, token)
+        if token.startswith(api_keys_service.API_KEY_PREFIX)
+        else None
+    )
     if api_auth:
         user, api_key = api_auth
         _enforce_api_key_scope(request, api_key)
@@ -396,15 +402,18 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = await user_for_subject(session, subject=token_data.sub)
-    if not user:
+    account = await account_for_subject(session, subject=token_data.sub)
+    if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
+    user, settings_row = account
     if token_data.ver is None or token_data.ver != user.token_version:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
         )
+    # What the deployment asks of an account, off the row the lookup carried.
+    set_asked_of_account(_asked_of_an_account(settings_row))
     request.state.credential = CREDENTIAL_SESSION
     # Which session this request is: what lets an endpoint act on the
     # account's other ones and leave the caller where they are.
@@ -487,11 +496,14 @@ async def platform_factor_unmet(
     ``level`` is what the deployment asks, where the caller already knows —
     the guild gate reads the settings row beside the membership it is checking,
     so the question costs that path no round trip of its own. Left out, it is
-    read here.
+    what the credential validator recorded beside the account, and read here
+    only where nothing was.
     """
     if SECOND_FACTOR_AMR in auth_context.session_amr():
         auth_context.set_platform_factor(True)
         return False
+    if level is None:
+        level = auth_context.asked_of_account()
     if level is None:
         level = await auth_posture.second_factor_requirement(session)
     if not auth_posture.rule_covers(level, user.role):
@@ -1761,6 +1773,7 @@ async def _resolve_upload_user(
     set_session_amr(None)
     set_device_token_id(None)
     set_api_key_credential(False)
+    set_asked_of_account(None)
 
     auth_header = request.headers.get("Authorization", "")
 
@@ -1795,8 +1808,12 @@ async def _resolve_upload_user(
 
     token = header_token
 
-    # Try API key authentication first
-    api_auth = await api_keys_service.authenticate_api_key(session, token)
+    # A personal API key names itself by its prefix; anything else is not one.
+    api_auth = (
+        await api_keys_service.authenticate_api_key(session, token)
+        if token.startswith(api_keys_service.API_KEY_PREFIX)
+        else None
+    )
     if api_auth:
         user, api_key = api_auth
         if user.status != UserStatus.active:
@@ -1839,15 +1856,17 @@ async def _resolve_upload_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = await user_for_subject(session, subject=token_data.sub)
-    if not user:
+    account = await account_for_subject(session, subject=token_data.sub)
+    if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
+    user, settings_row = account
     if token_data.ver is None or token_data.ver != user.token_version:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
         )
+    set_asked_of_account(_asked_of_an_account(settings_row))
     if user.status != UserStatus.active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
