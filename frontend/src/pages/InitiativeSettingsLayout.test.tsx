@@ -11,7 +11,7 @@ import {
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeMemberRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -21,7 +21,7 @@ import { InitiativeSettingsLayout } from "./InitiativeSettingsLayout";
 
 const INITIATIVE_ID = 7;
 
-function stubInitiative(members: unknown[] = []) {
+function stubInitiative(members: InitiativeMemberRead[] = []) {
   server.use(
     guildHttp.get("/initiatives/:id", () =>
       HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members }))

@@ -67,6 +67,11 @@ const STAGED_JOB = {
   updated_at: new Date().toISOString(),
 };
 
+/** Answer "where is this coming from?" — the step before the file. */
+async function chooseBackup() {
+  await userEvent.click(screen.getByRole("button", { name: /initiative backup/i }));
+}
+
 function pickFile() {
   const input = document.querySelector<HTMLInputElement>('input[type="file"]');
   if (!input) throw new Error("no file input");
@@ -120,6 +125,7 @@ describe("ImportWizard", () => {
 
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
 
+    await chooseBackup();
     pickFile();
 
     // Local peek preview — nothing uploaded yet.
@@ -155,10 +161,102 @@ describe("ImportWizard", () => {
     );
 
     renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    await chooseBackup();
     pickFile();
 
     expect(await screen.findByText(/isn't a valid Initiative backup/i)).toBeInTheDocument();
     expect(uploaded).toBe(false);
     expect(screen.queryByRole("button", { name: /upload backup/i })).not.toBeInTheDocument();
+  });
+
+  it("reads an Atlassian site: the tile opens the connect step", async () => {
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: /^jira & confluence/i }));
+    expect(await screen.findByLabelText(/site address/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/api token/i)).toHaveAttribute("type", "password");
+  });
+
+  it("picks a Jira fetch back up when the wizard is opened again", async () => {
+    // A fetch outlives the dialog; the job it started is remembered, and
+    // reopening lands on its review once it has been staged.
+    localStorage.setItem("imports:atlassian-job:1", "77");
+    server.use(
+      guildHttp.get("/imports/jobs/:jobId", () =>
+        HttpResponse.json({
+          ...STAGED_JOB,
+          id: 77,
+          source: "atlassian",
+          plan: { atlassian: { projects: 1, tasks: 9 }, people: [] },
+        })
+      )
+    );
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    // Read once the dialog has settled on the review: the step it resumes
+    // on redraws as the staged job arrives.
+    await waitFor(() => expect(screen.getByText(/9 tasks from 1 project/i)).toBeInTheDocument());
+  });
+
+  it("sends the properties unticked on the review with the confirm", async () => {
+    localStorage.setItem("imports:atlassian-job:1", "77");
+    let confirmBody: Record<string, unknown> | null = null;
+    const staged = {
+      ...STAGED_JOB,
+      id: 77,
+      source: "atlassian",
+      plan: {
+        atlassian: {
+          projects: 1,
+          tasks: 9,
+          properties: [
+            { name: "Priority", type: "select", issue_count: 9 },
+            { name: "Jira key", type: "text", issue_count: 9 },
+          ],
+        },
+        people: [],
+      },
+    };
+    server.use(
+      guildHttp.get("/imports/jobs/:jobId", () => HttpResponse.json(staged)),
+      guildHttp.post("/imports/jobs/:jobId/confirm", async ({ request }) => {
+        confirmBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...staged, status: "queued" });
+      })
+    );
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: /priority/i }));
+    await userEvent.click(screen.getByRole("button", { name: /start import/i }));
+
+    await waitFor(() => expect(confirmBody).not.toBeNull());
+    expect(confirmBody).toEqual({ exclude_properties: ["Priority"] });
+  });
+
+  it("picks a Confluence fetch back up and shows what the spaces hold", async () => {
+    localStorage.setItem("imports:atlassian-job:1", "78");
+    server.use(
+      guildHttp.get("/imports/jobs/:jobId", () =>
+        HttpResponse.json({
+          ...STAGED_JOB,
+          id: 78,
+          source: "atlassian",
+          params: { confluence_spaces: ["DOCS"] },
+          plan: {
+            atlassian: {
+              spaces: 1,
+              pages: 12,
+              page_attachments: 3,
+              dropped_macros: [{ name: "toc", count: 2 }],
+            },
+            people: [],
+          },
+        })
+      )
+    );
+    renderWithProviders(<ImportWizard open onOpenChange={() => {}} />);
+    await waitFor(() => expect(screen.getByText(/12 pages from 1 spaces/i)).toBeInTheDocument());
+    expect(screen.getByText(/3 attached files stay behind/i)).toBeInTheDocument();
+    expect(screen.getByText(/left out: toc ×2/i)).toBeInTheDocument();
+    // No properties to untick: a wiki carries none.
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 });

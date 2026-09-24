@@ -25,6 +25,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.auth import totp as totp_service
 
 from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.user import UserRole
+from app.services.platform import access_grants as access_grants_service
 from app.testing import (
     Actor,
     assertion_for,
@@ -35,7 +37,7 @@ from app.testing import (
 )
 
 BREAK_GLASS = "/api/v1/access-grants/break-glass"
-MINE = "/api/v1/access-grants/?mine=true"
+MINE = "/api/v1/access-grants/"
 
 #: What breaking glass issues, as (purpose, access level) pairs.
 THE_PAIR = {("content", "read_write"), ("settings", "superadmin")}
@@ -420,11 +422,13 @@ async def test_the_form_is_told_what_it_will_be_asked_for(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     a = await acting_user("operator")
+    window = access_grants_service.break_glass_max_minutes(UserRole.operator)
 
     before = await client.get(BREAK_GLASS, headers=a.headers)
     assert before.status_code == 200, before.text
     assert before.json() == {
         "second_factor_required": False,
+        "max_duration_minutes": window,
         "totp_enrolled": False,
         "passkey_enrolled": False,
     }
@@ -434,6 +438,7 @@ async def test_the_form_is_told_what_it_will_be_asked_for(
     after = await client.get(BREAK_GLASS, headers=a.headers)
     assert after.json() == {
         "second_factor_required": True,
+        "max_duration_minutes": window,
         "totp_enrolled": True,
         "passkey_enrolled": False,
     }
@@ -443,6 +448,7 @@ async def test_the_form_is_told_what_it_will_be_asked_for(
     with_a_key = await client.get(BREAK_GLASS, headers=a.headers)
     assert with_a_key.json() == {
         "second_factor_required": True,
+        "max_duration_minutes": window,
         "totp_enrolled": True,
         "passkey_enrolled": True,
     }

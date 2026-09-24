@@ -25,7 +25,7 @@ pytestmark = pytest.mark.integration
 
 
 async def _entries(session, guild_id: int, entity_type: str) -> list[SearchEntry]:
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
     return list(
         await session.exec(
             select(SearchEntry).where(SearchEntry.entity_type == entity_type)
@@ -125,7 +125,7 @@ async def test_the_marker_records_the_generation(session, acting_user):
     await _wipe(a.guild.id)
     await reindex_guild_search(db_session.provisioning_engine, f"guild_{a.guild.id}")
 
-    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=a.guild.id)
     marker = (
         await session.exec(
             text("SELECT obj_description(to_regclass(:t), 'pg_class')").bindparams(

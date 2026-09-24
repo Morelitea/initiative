@@ -52,7 +52,7 @@ The first time you join a listed community, you'll be asked your date of birth. 
     We work out whether you're old enough and then throw it away. Your account records *that* you answered, never what you said. It isn't sold, shared, or stored anywhere. See [Data and compliance](../security/data-and-compliance.md).
 
 !!! info "Not every server has a directory"
-    It's a server-wide feature that starts switched **off**. If there's no **Join a community** button, this server hasn't turned it on and everything here is invite-only. That's the platform owner's call — see [Configuration](../admin/configuration.md).
+    It's a server-wide feature that starts switched **off**. If there's no **Join a community** button, this server hasn't turned it on and everything here is invite-only. That's the platform owner's call — see [Configuration](../running-a-server/configuration.md).
 
 ## Listing your community (admins)
 
@@ -112,10 +112,10 @@ So the top seat is its own rung, and it's narrow on purpose: the [Security and I
 
 The things a community actually manages: **handle**, **name** (in communities that show real names), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
 
-A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [operator dashboard](../admin/platform-roles.md#managing-platform-users).
+A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [operator dashboard](../running-a-server/platform-roles.md#managing-platform-users).
 
 !!! note "Community admin is not the same as running the server"
-    Being an admin of *your* community gives you total control of that community — and precisely no control over the server or anybody else's community. Server-wide roles are a separate thing entirely: see [Platform roles](../admin/platform-roles.md).
+    Being an admin of *your* community gives you total control of that community — and precisely no control over the server or anybody else's community. Server-wide roles are a separate thing entirely: see [Platform roles](../running-a-server/platform-roles.md).
 
 ## Community settings (admins)
 
@@ -126,11 +126,52 @@ Open **Community settings** from the sidebar or the rail:
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
 | **Users** | Members, roles, invite links. |
 | **Initiatives** | Create and manage the community's initiatives. |
-| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, whether personal API keys reach it, how long a session lasts. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
+| **Security** | Who gets in and on what terms: the community's own single sign-on, where its people land, whether personal API keys reach it, how long a session lasts, and how much a notification says once it leaves the app. Superadmin only, and only where your server has granted it — most communities never see this tab. See [Your community's sign-in and security](../security/community-security.md). |
 | **Integrations** | AI settings and installed apps — see [AI features](../account/ai-features.md) and [Apps & the marketplace](apps-and-marketplace.md#adding-an-app). |
 | **Trash** | Recently deleted things, restorable. |
-| **Data** | Export the whole community, restore a backup, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
+| **Data** | Export the whole community, restore a backup, bring work in from another tool, and re-download a finished export. Superadmin only. One whole-community export every couple of days — the tab says who took the last one and when the next can start. |
 | **Danger zone** | The stuff you can't undo. |
+
+### Bringing work in from another tool
+
+Coming from somewhere else? You do not have to retype four years of tasks by hand. The **Import** button on **Community settings → Data** opens one wizard for all of it:
+
+1. **Where's it coming from** — **Todoist**, **TickTick**, **Vikunja**, or an **Initiative backup** you exported yourself. The wizard tells you where in that app to find the export file.
+2. **Drop the file in.**
+3. **Say where it lands** — which list or project from the file, what to call it here, and which initiative it belongs to.
+4. **Say who its people are**, if it quotes anybody. Handles that match a member are filled in already; the rest you point at somebody, or leave blank and the words keep the name they arrived under.
+
+A project arrives whole: dates, priorities, tags, assignees, checklists, comments, and when things were finished. Its own sections or lists become your statuses, so nothing has to be mapped onto columns by hand.
+
+It arrives as a **new project** and touches nothing that's already here, which means a first attempt you hate costs you one delete.
+
+!!! note "Todoist leaves out what you finished"
+    Its export carries outstanding work only, so completed tasks won't come across. That's Todoist's export rather than our import, and the wizard says so before you upload rather than after.
+
+#### From Jira and Confluence
+
+Jira and Confluence have no file to drop in. Pick **Jira & Confluence** in the same wizard and it reads your site directly instead — both products in one go, or just the one you want:
+
+1. **Connect** with your site's address, your Atlassian email and an [API token](https://id.atlassian.com/manage-profile/security/api-tokens). The token reads only what you pick, and it's deleted as soon as it's been read.
+2. **Tick the projects and spaces**, choose the initiative they all land in, and decide whether comments and attachments come along.
+3. **Wait while it reads.** A big project takes a few minutes. You can close the window and make a cup of tea — opening the import again picks up exactly where it was.
+4. **Check what it found.** Nothing is written yet. You get the count of everything coming across, the Jira fields that become properties (untick any you don't want), and — just as plainly — anything that won't make it.
+5. **Say who its people are**, then start it. Somebody who's in both products is asked about once.
+
+No token to hand, or a Confluence this server can't reach — one on the office network, say? Export the space instead: in Confluence, **Space settings → Export space → HTML**. Pick **Jira & Confluence** here, choose **Upload it** under the connect form, and drop in the zip. It's read the same way and you get the same review; only the comments stay behind.
+
+Each **Jira project** becomes a new project here: its columns, fields, links between issues, sub-tasks under their parents, and each sprint as an event on a calendar named after its board. Pictures sit where the issue showed them, and any other attached file becomes a document the task is attached to. Sprints need calendars, so an initiative without them gets everything except the sprints, and the review says so first.
+
+Each **Confluence space** becomes a wiki with its page tree kept exactly as it was: the home page is the home page, children sit under their parents, and labels turn into tags. A folder — or a parent page that only ever existed to hold its children — becomes a page listing what's inside it, so nothing arrives as a mysterious blank. Links from one page to another point at the imported page. Panels become [callouts](documents.md#writing-a-text-document), status lozenges statuses in their own colours, a decision log a checklist ticked where it was decided, and a Mermaid code block a drawn diagram. Pictures sit where the page showed them. Every other attached file becomes a document filed in the wiki under the page it was attached to, and a page's link to one points at it — so the spreadsheet everyone was told to "just check the attachment" for is one click away. Comments come too, footer and inline, replies under what they answer; an inline comment quotes the words it was pinned to, since here the thread sits under the page. One marked resolved is a finished conversation, so it stays behind. Files need documents switched on in the initiative; without them the pictures come on their own, and the review counts the files left behind.
+
+Bring a project and its space over together and they arrive joined up, whichever way they pointed:
+
+- A page that mentions an issue — through Confluence's Jira macro or a plain link — points at the task it became, with a [smart chip](documents.md#smart-chips) showing that task's status as it is today, not as it was the day the page was written.
+- An issue that links to a page, in its description, a comment or its list of Confluence pages, points at the wiki page.
+
+A page that mentions an issue from an earlier Jira import is joined up too. The review says how many links it's joining, and names anything with no equivalent here — a table of contents, a draw.io diagram, the macro somebody installed in 2017 and never mentioned again — before you commit to it.
+
+Importing a single exported file into one tool is a different, smaller thing, and it stays on that tool's own page.
 
 ### Trash and retention
 
@@ -142,12 +183,18 @@ This is the setting that quietly saves somebody's entire afternoon roughly twice
 
 The hard-to-undo things, chiefly **deleting the community**.
 
-That permanently removes *everything* — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, including retyping things by hand.
+It vanishes for everyone in it immediately — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, retyping `DELETE COMMUNITY <NAME>` by hand. Only a **superadmin** can do it; the tab is theirs alone.
 
-The friction is entirely deliberate and we're not sorry about it. Only come here when you genuinely mean it, and ideally not at 11pm.
+Everything in it is then held for a window — ninety days, unless whoever runs the server says otherwise — and at any point inside it a platform operator can restore the lot from **Settings → Platform → Communities**, exactly as it was, handing it to a new owner where nobody's left who could run it. So the 11pm decision is recoverable, as long as somebody notices in time.
+
+You get an email naming the date that window closes. Members get one less thing in their list, which is the part they can act on, so they get no mail.
+
+A restored community reconnects its installed apps itself. It gave those apps their access in the first place, so it gives it again.
+
+The friction is entirely deliberate and we're not sorry about it.
 
 ??? techspec "For the technically minded — what community deletion does"
-    It removes the community's isolated database area and the database roles tied to it, then cleans up the shared records connecting people to it: memberships, invites, single-sign-on mappings, access grants. Thorough and final. If you only want *out* of a community, **leave** it from the rail instead — that removes just you.
+    When the window finally runs out, it removes the community's isolated database area and the database roles tied to it, then cleans up the shared records connecting people to it: memberships, invites, single-sign-on mappings, access grants. Until then all of that is intact, which is what makes a restore a restore rather than a rebuild. If you only want *out* of a community, **leave** it from the rail instead — that removes just you.
 
 ## Leaving a community
 

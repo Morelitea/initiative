@@ -9,6 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing import guild_of
 from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant import filter_presets as filter_presets_service
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.integration
 
 
 def _url(project, suffix: str = "/") -> str:
-    return f"/api/v1/g/{project.guild_id}/projects/{project.id}/filter-presets{suffix}"
+    return f"/api/v1/g/{guild_of(project)}/projects/{project.id}/filter-presets{suffix}"
 
 
 async def _grant(session: AsyncSession, project, user, level: ResourceAccessLevel):
@@ -28,7 +29,6 @@ async def _grant(session: AsyncSession, project, user, level: ResourceAccessLeve
             resource_id=project.id,
             user_id=user.id,
             level=level,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -188,7 +188,7 @@ async def test_plain_write_access_is_not_enough(
     )
 
     assert create.status_code == 403
-    assert create.json()["detail"] == "PROJECT_ADMIN_REQUIRED"
+    assert create.json()["detail"] == "PROJECT_CONFIGURE_REQUIRED"
     assert patch.status_code == 403
     assert remove.status_code == 403
     # …but they can still read them.
@@ -407,8 +407,7 @@ async def test_presets_are_scoped_to_their_project(
     presets = await _seed(session, a.project)
 
     response = await client.patch(
-        f"/api/v1/g/{other.guild_id}/projects/{other.id}"
-        f"/filter-presets/{presets[0].id}",
+        f"/api/v1/g/{a.guild.id}/projects/{other.id}/filter-presets/{presets[0].id}",
         json={"name": "Stolen"},
         headers=a.headers,
     )

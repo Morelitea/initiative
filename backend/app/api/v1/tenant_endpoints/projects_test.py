@@ -83,7 +83,6 @@ async def test_list_projects_member_sees_initiative_projects(
         resource_id=project.id,
         user_id=member.user.id,
         level=ResourceAccessLevel.read,
-        guild_id=project.guild_id,
         initiative_id=project.initiative_id,
     )
     session.add(member_permission)
@@ -147,7 +146,6 @@ async def test_search_project_members_returns_write_access_set(
             resource_id=project.id,
             user_id=writer.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -157,7 +155,6 @@ async def test_search_project_members_returns_write_access_set(
             resource_id=project.id,
             user_id=reader.user.id,
             level=ResourceAccessLevel.read,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -186,14 +183,13 @@ async def test_search_project_members_returns_write_access_set(
         "status",
         "profile_decorations",
         "guild_role",
-        "is_guild_admin",
     }
-    # Asserted as a value, not only as a key: the schema defaults it to False,
-    # so a key-set check passes just as happily on an endpoint that never
-    # fills it in.
+    # Asserted as a value, not only as a key: the schema leaves it unset, so a
+    # key-set check passes just as happily on an endpoint that never fills it
+    # in.
     by_username = {item["username"]: item for item in body["items"]}
-    assert by_username[admin.user.username]["is_guild_admin"] is True
-    assert by_username["quill"]["is_guild_admin"] is False
+    assert by_username[admin.user.username]["guild_role"] == "admin"
+    assert by_username["quill"]["guild_role"] == "member"
 
     # The filter matches what the guild renders — the handle always.
     response = await client.get(
@@ -456,7 +452,6 @@ async def test_list_projects_slim_permission_for_member(
             resource_id=project.id,
             user_id=member.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -1301,7 +1296,6 @@ async def test_set_project_access_replaces_grants(
             resource_id=project.id,
             user_id=member.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=project.guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -1763,7 +1757,6 @@ async def test_project_shows_all_members_document_to_member(
     doc = Document(
         name="Shared with everyone",
         initiative_id=initiative.id,
-        guild_id=guild.id,
         created_by=owner.user.id,
         document_type=DocumentType.native,
     )
@@ -1777,7 +1770,6 @@ async def test_project_shows_all_members_document_to_member(
                 resource_id=project.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=guild.id,
                 initiative_id=initiative.id,
             ),
             ResourceGrant(
@@ -1785,7 +1777,6 @@ async def test_project_shows_all_members_document_to_member(
                 resource_id=doc.id,
                 user_id=owner.user.id,
                 level=ResourceAccessLevel.owner,
-                guild_id=guild.id,
                 initiative_id=initiative.id,
             ),
             ResourceGrant(
@@ -1793,7 +1784,6 @@ async def test_project_shows_all_members_document_to_member(
                 resource_id=doc.id,
                 all_initiative_members=True,
                 level=ResourceAccessLevel.read,
-                guild_id=guild.id,
                 initiative_id=initiative.id,
             ),
         ]
@@ -1922,7 +1912,6 @@ async def test_plain_write_cannot_set_the_default_view(
             resource_id=owner.project.id,
             user_id=editor.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=owner.project.guild_id,
             initiative_id=owner.project.initiative_id,
         )
     )
@@ -1935,7 +1924,7 @@ async def test_plain_write_cannot_set_the_default_view(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "PROJECT_ADMIN_REQUIRED"
+    assert response.json()["detail"] == "PROJECT_CONFIGURE_REQUIRED"
 
 
 @pytest.mark.integration
@@ -1973,7 +1962,6 @@ async def test_editing_other_fields_still_needs_only_write(
             resource_id=owner.project.id,
             user_id=editor.user.id,
             level=ResourceAccessLevel.write,
-            guild_id=owner.project.guild_id,
             initiative_id=owner.project.initiative_id,
         )
     )

@@ -135,6 +135,46 @@ def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
 
 
 @pytest.mark.unit
+def test_billing_portal_handoff_names_the_community_only_when_given_a_name():
+    named, _ = security.create_billing_portal_handoff_token(
+        guild_role="admin",
+        user_ref="ubil_test42",
+        guild_ref="gbil_test7",
+        guild_name="The Mushroom Council",
+    )
+    assert _decode_unverified(named)["guild_name"] == "The Mushroom Council"
+
+    unnamed, _ = security.create_billing_portal_handoff_token(
+        guild_role="admin",
+        user_ref="ubil_test42",
+        guild_ref="gbil_test7",
+    )
+    assert "guild_name" not in _decode_unverified(unnamed)
+
+    # A guild name has no length limit of its own, and this claim ends up in
+    # billing's session cookie — which a browser drops over about 4 KB. So it is
+    # bounded here, where it is written, rather than trusted to be short.
+    long_name, _ = security.create_billing_portal_handoff_token(
+        guild_role="admin",
+        user_ref="ubil_test42",
+        guild_ref="gbil_test7",
+        guild_name="m" * 5000,
+    )
+    carried = _decode_unverified(long_name)["guild_name"]
+    assert len(carried) == security.BILLING_HANDOFF_GUILD_NAME_MAX
+    assert carried.endswith("…")
+
+    # Whitespace is not a name.
+    blank, _ = security.create_billing_portal_handoff_token(
+        guild_role="admin",
+        user_ref="ubil_test42",
+        guild_ref="gbil_test7",
+        guild_name="   ",
+    )
+    assert "guild_name" not in _decode_unverified(blank)
+
+
+@pytest.mark.unit
 def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch):
     """No RS256 key configured -> mint fails closed."""
     monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
@@ -544,8 +584,8 @@ def _mint_delegation(
         {
             "jti": uuid.uuid4().hex,
             "sub": _SUBJECT,
-            "aud": settings.AUTO_DELEGATION_AUDIENCE,
-            "iss": settings.AUTO_DELEGATION_ISSUER,
+            "aud": security.AUTO_DELEGATION_AUDIENCE,
+            "iss": security.AUTO_DELEGATION_ISSUER,
             "iat": int(now.timestamp()),
             "exp": now + timedelta(seconds=expires_in),
             "guild_ref": _GUILD_REF,

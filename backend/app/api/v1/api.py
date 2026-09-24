@@ -68,13 +68,13 @@ from app.api.v1.tenant_endpoints import (
 from app.api.v1.platform_endpoints import (
     field_catalog,
     access_grants,
-    admin,
     announcements,
     ai_settings as platform_ai_settings,
     app_platform,
     app_services,
     auth,
     auth_providers,
+    provider_placement,
     billing,
     config,
     contacts,
@@ -88,12 +88,14 @@ from app.api.v1.platform_endpoints import (
     native,
     notification_prefs,
     notifications,
+    operator,
     push,
     intake,
     passkeys,
     email_otp,
     passwordless,
     second_factor,
+    sessions,
     settings,
     user_view_preferences,
     users,
@@ -105,7 +107,7 @@ from app.api.v1.platform_endpoints import (
 api_router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# Top-level routes: unauthenticated, user-scoped, admin, and cross-guild.
+# Top-level routes: unauthenticated, user-scoped, operator, and cross-guild.
 # These do NOT take a guild path segment.
 # ---------------------------------------------------------------------------
 api_router.include_router(field_catalog.router, tags=["fields"])
@@ -123,7 +125,8 @@ api_router.include_router(second_factor.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passkeys.router, prefix="/auth", tags=["auth"])
 api_router.include_router(passwordless.router, prefix="/auth", tags=["auth"])
 api_router.include_router(email_otp.router, prefix="/auth", tags=["auth"])
-api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
+api_router.include_router(sessions.router, prefix="/auth", tags=["auth"])
+api_router.include_router(operator.router, prefix="/operator", tags=["operator"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 # Direct messages, both halves, gated on the platform switch in one place: a
@@ -156,7 +159,7 @@ api_router.include_router(
     announcements.router, prefix="/announcements", tags=["announcements"]
 )
 # Platform / app-wide config (owner-only) and cross-guild PAM management — NOT
-# guild-scoped (AdminSessionDep / capability-gated), so they stay top-level.
+# guild-scoped (SystemSessionDep / capability-gated), so they stay top-level.
 api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
@@ -190,6 +193,11 @@ api_router.include_router(
 )
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
+)
+api_router.include_router(
+    provider_placement.router,
+    prefix="/settings/placement",
+    tags=["provider-placement"],
 )
 api_router.include_router(
     guild_provider_connections.router,

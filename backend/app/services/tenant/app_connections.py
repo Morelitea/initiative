@@ -27,6 +27,7 @@ from typing import Any, Optional, Sequence
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.tenant.app_revocation import (
@@ -159,7 +160,6 @@ async def connect(
         return existing
 
     row = GuildAppUserConnection(
-        guild_id=app.guild_id,
         app_id=app.id,
         connection_id=connection_id,
         user_id=user_id,
@@ -238,7 +238,6 @@ async def block_member_connection(
     )
     if row is None:
         row = GuildAppUserConnection(
-            guild_id=app.guild_id,
             app_id=app.id,
             connection_id=connection_id,
             user_id=user_id,
@@ -249,7 +248,7 @@ async def block_member_connection(
         queue_revocation(
             session,
             RevocationIntent(
-                guild_id=row.guild_id,
+                guild_id=routed_guild_id(session),
                 app_id=row.app_id,
                 listing_uid=app.listing_uid,
                 connection_id=row.connection_id,
@@ -349,7 +348,7 @@ async def delete_member_connections(
         queue_revocation(
             session,
             RevocationIntent(
-                guild_id=row.guild_id,
+                guild_id=routed_guild_id(session),
                 app_id=row.app_id,
                 listing_uid=listing_uids.get(row.app_id, ""),
                 connection_id=row.connection_id,
@@ -381,7 +380,7 @@ async def delete_guild_connections(
         queue_revocation(
             session,
             RevocationIntent(
-                guild_id=row.guild_id,
+                guild_id=routed_guild_id(session),
                 app_id=row.app_id,
                 listing_uid=listing_uids.get(row.app_id, ""),
                 connection_id=row.connection_id,

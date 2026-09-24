@@ -11,7 +11,7 @@ chain, including its still-live tail.
 lookup *by refresh-token hash* — the user is unknown until it resolves — so it
 structurally cannot run under own-row RLS. The request path holds no grant on
 ``auth_sessions`` at all (migration 20260706_0132); these functions take the
-admin session, like ``services.platform.access_grants``.
+system session, like ``services.platform.access_grants``.
 
 Nothing calls this yet — the ``/auth/refresh`` endpoint + dual-verify wiring land
 in the next slice. This PR is the tested logic layer only (additive-first).
@@ -26,7 +26,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Collection
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -40,10 +40,13 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "IssuedSession",
+    "LiveSession",
     "RefreshOutcome",
     "RotationResult",
     "create_session",
     "get_live_session_by_refresh_token",
+    "list_live_for_user",
+    "live_chain_tips",
     "rotate_session",
     "revoke_session",
     "revoke_chain",
@@ -65,7 +68,7 @@ _REFRESH_TOKEN_BYTES = 32
 #: a window and then removed.
 SESSION_RETENTION_DAYS = 30
 
-#: ``auth_sessions`` is app_admin-only, so the sweep runs on AdminSessionLocal
+#: ``auth_sessions`` is app_admin-only, so the sweep runs on SystemSessionLocal
 #: with no guild routing — the same shape as the expired-token purge.
 SESSION_PURGE_POLL_SECONDS = 3600
 
@@ -376,6 +379,123 @@ async def get_live_session_by_refresh_token(
     return row
 
 
+#: Every live session for one account, each with the moment its sign-in
+#: happened rather than the moment it last renewed.
+#
+# A refresh mints a new row and revokes the one it replaces, so the live rows
+# are already one per sign-in — the recursion is only there to walk each one
+# back to the sign-in it descends from. Without that, a browser left open for a
+# month reads as signed in fifteen minutes ago, which is when it last renewed.
+#
+# ``purge_dead_sessions`` eventually removes the spent ancestors, so a very old
+# chain reports the oldest row still kept. That is the retention window, and it
+# is the right answer to give once the earlier rows are gone.
+_LIVE_SESSIONS_SQL = text(
+    """
+    WITH RECURSIVE live AS (
+        SELECT id, parent_id, created_at, last_used_at, user_agent, ip, device_name
+        FROM auth_sessions
+        WHERE user_id = :uid AND revoked_at IS NULL AND expires_at > :now
+    ),
+    chain AS (
+        SELECT id, parent_id, created_at, id AS tip FROM live
+        UNION ALL
+        SELECT s.id, s.parent_id, s.created_at, c.tip
+        FROM auth_sessions s JOIN chain c ON s.id = c.parent_id
+    ),
+    roots AS (
+        SELECT tip, MIN(created_at) AS started_at FROM chain GROUP BY tip
+    )
+    SELECT
+        live.id,
+        roots.started_at,
+        live.last_used_at,
+        live.user_agent,
+        host(live.ip) AS ip,
+        live.device_name
+    FROM live JOIN roots ON roots.tip = live.id
+    ORDER BY COALESCE(live.last_used_at, roots.started_at) DESC
+    """
+)
+
+
+@dataclass(frozen=True)
+class LiveSession:
+    """One place an account is signed in, as the account's own list shows it.
+
+    Carries nothing secret: the refresh-token hash stays in the table this was
+    read from.
+    """
+
+    id: uuid.UUID
+    started_at: datetime
+    last_used_at: datetime | None
+    user_agent: str | None
+    ip: str | None
+    device_name: str | None
+
+
+async def list_live_for_user(
+    session: AsyncSession, *, user_id: int, now: datetime | None = None
+) -> list[LiveSession]:
+    """Every session this account can still use, most recently active first."""
+    connection = await session.connection()
+    result = await connection.execute(
+        _LIVE_SESSIONS_SQL, {"uid": user_id, "now": now or _now()}
+    )
+    return [LiveSession(**row) for row in result.mappings()]
+
+
+#: For each session id given, the live row its rotation chain has reached.
+#
+# A refresh spends the row it rotates and mints a child, so a sign-in that
+# named row A an hour ago is row C now. The walk goes forward from each given
+# row through spent ones only and stops at the first live one; a chain ended
+# by ``revoke_chain`` or ``revoke_all_for_user`` has no live row to stop at,
+# and one left alone past its expiry has none either. A caller that keeps the
+# answer and asks from there next time walks one or two rows per ask.
+_LIVE_CHAIN_TIPS_SQL = text(
+    """
+    WITH RECURSIVE walk AS (
+        SELECT id AS origin, id, revoked_at, expires_at
+        FROM auth_sessions
+        WHERE id = ANY(CAST(:ids AS uuid[]))
+        UNION ALL
+        SELECT w.origin, s.id, s.revoked_at, s.expires_at
+        FROM walk w JOIN auth_sessions s ON s.parent_id = w.id
+        WHERE w.revoked_at IS NOT NULL
+    )
+    SELECT DISTINCT ON (origin) origin, id
+    FROM walk
+    WHERE revoked_at IS NULL AND expires_at > :now
+    ORDER BY origin, expires_at DESC
+    """
+)
+
+
+async def live_chain_tips(
+    session: AsyncSession,
+    *,
+    session_ids: Collection[uuid.UUID],
+    now: datetime | None = None,
+) -> dict[uuid.UUID, uuid.UUID]:
+    """Map each given session id to the live row its chain has reached.
+
+    An id whose chain has ended — revoked, or expired without a renewal — is
+    absent from the answer. One statement for any number of ids, which is what
+    lets a sweep over many open connections ask about all of their sign-ins
+    at once.
+    """
+    if not session_ids:
+        return {}
+    connection = await session.connection()
+    result = await connection.execute(
+        _LIVE_CHAIN_TIPS_SQL,
+        {"ids": list(session_ids), "now": now or _now()},
+    )
+    return {row.origin: row.id for row in result}
+
+
 async def revoke_session(
     session: AsyncSession,
     *,
@@ -486,9 +606,9 @@ async def purge_dead_sessions(
 async def process_dead_session_purge() -> None:
     """Hourly background sweep over ``auth_sessions`` (see
     :data:`SESSION_RETENTION_DAYS`)."""
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         removed = await purge_dead_sessions(session)
         if removed:
             logger.info("session purge removed %d dead session row(s)", removed)

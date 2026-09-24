@@ -231,7 +231,26 @@ async def authorize_delegate(
     third, and it installs the app first if the guild has not already, so a
     suite whose subject is something else states the precondition in one line.
     """
-    from app.testing.factories import create_app_delegation
+    from sqlmodel import select
+
+    from app.models.platform.guild import GuildMembership
+    from app.testing.factories import create_app_delegation, create_guild_membership
+    from app.testing.schema_harness import remember_guild
+
+    # A delegation carries a member's name, so there is a membership behind it.
+    seated = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.user_id == user.id,
+            )
+        )
+    ).first()
+    if seated is None:
+        await create_guild_membership(session, user=user, guild=guild)
 
     app = await install_delegate(session, guild)
+    # The install may have been read back rather than built here; either way
+    # it is this guild's, which is what the delegation factory routes by.
+    remember_guild(app, guild.id)
     return await create_app_delegation(session, app, user, can_write=can_write)

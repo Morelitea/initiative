@@ -14,8 +14,8 @@ import type {
 // The component only reads ``.data`` off each query, so a simple stub is enough
 // and keeps the test free of network/MSW plumbing.
 
-const alice = buildUserPublic({ id: 101, full_name: "Alice", email: "alice@example.com" });
-const bob = buildUserPublic({ id: 102, full_name: "Bob", email: "bob@example.com" });
+const alice = buildUserPublic({ id: 101, full_name: "Alice" });
+const bob = buildUserPublic({ id: 102, full_name: "Bob" });
 
 const initiative = buildInitiative({
   id: 1,

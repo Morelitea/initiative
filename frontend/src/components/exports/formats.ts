@@ -69,8 +69,13 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
     { format: "json", labelKey: "export.formatJson" },
   ],
   [Tool.wiki]: [
-    // The importable envelope, carrying every page and the shape they sit in.
-    { format: "json", labelKey: "export.formatJson" },
+    // Every page as one document, as a text document exports, then the
+    // importable envelope. Always a zip: the documents filed in the wiki ride
+    // beside either.
+    { format: "pdf", labelKey: "export.formatWikiPdf" },
+    { format: "md", labelKey: "export.formatWikiMarkdown" },
+    { format: "docx", labelKey: "export.formatWikiDocx" },
+    { format: "json", labelKey: "export.formatWikiJson" },
   ],
   [Tool.dashboard]: [
     // The importable envelope, and only that: a dashboard is a live canvas
@@ -78,9 +83,9 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
     { format: "json", labelKey: "export.formatJson" },
   ],
   [Tool.gallery]: [
-    // The importable envelope. A gallery's pictures are blobs, so the
-    // envelope names them and the bytes ride in a backup zip alongside it.
-    { format: "json", labelKey: "export.formatJson" },
+    // The importable envelope and the pictures it names, zipped together:
+    // the envelope names each picture by its stored file.
+    { format: "json", labelKey: "export.formatJsonWithPictures" },
   ],
   [Tool.project]: [
     // The importable JSON backup, then the task-table report formats.

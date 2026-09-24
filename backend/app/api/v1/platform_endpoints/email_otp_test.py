@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.testing import create_user
+from app.testing import captcha_switched_on, create_user
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -214,7 +214,9 @@ async def test_an_account_that_cannot_sign_in_is_sent_nothing(
 
     await _permit(session)
     caught = _catch_codes(monkeypatch)
-    await create_user(session, email="paused@example.com", status=UserStatus.suspended)
+    await create_user(
+        session, email="paused@example.com", status=UserStatus.deactivated
+    )
 
     response = await client.post(SEND_URL, json={"email": "paused@example.com"})
 
@@ -553,3 +555,45 @@ async def test_a_sign_in_code_is_not_a_registration_ticket(
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "EMAIL_OTP_INVALID"
+
+
+async def test_the_send_asks_for_the_captcha_where_one_is_configured(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The token is what the card has to carry, so the refusal is pinned here.
+
+    Asking is the step that posts mail to an address nobody has proved, and
+    the captcha answers for the request rather than for the address — so it
+    is checked before the address is looked at.
+    """
+    await _permit(session)
+
+    with captcha_switched_on():
+        refused = await client.post(SEND_URL, json={"email": "reader@example.com"})
+
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "CAPTCHA_REQUIRED"
+
+
+async def test_the_send_takes_the_token_the_card_carries(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """With the token present the route answers as it does anywhere else."""
+    from app.services import captcha as captcha_service
+
+    await _permit(session)
+    caught = _catch_codes(monkeypatch)
+    await create_user(session, email="reader@example.com")
+
+    async def _accept(token, *, remote_ip):
+        assert token == "solved"
+
+    monkeypatch.setattr(captcha_service, "verify_or_raise", _accept)
+
+    with captcha_switched_on():
+        sent = await client.post(
+            SEND_URL, json={"email": "reader@example.com", "captcha_token": "solved"}
+        )
+
+    assert sent.status_code == 200, sent.text
+    assert [address for address, _ in caught] == ["reader@example.com"]

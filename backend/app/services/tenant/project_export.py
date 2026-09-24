@@ -10,6 +10,14 @@ between tasks, named by ``external_ref`` so the far end resolves after both
 ends have been restored. Both are optional fields, so an older reader that
 does not know them ignores them and the version does not move.
 
+A mention in a description or a comment names its person the same way: the
+``@[Name](id)`` the app stores is written as ``@<handle>`` and the handle is
+listed in ``mention_handles``, so the restore links it to whoever that handle
+is there (``import_engine.mentions``). A reference to another thing —
+``#task[Title](41)`` — is written with the ref it had in place of its id,
+``#task[Title](task:41)``, and the restore points it at whatever that became
+(``import_engine.references``).
+
 Out of scope (see plan): documents, attachments, project-role permissions,
 favorites, recents, queues. Those would extend the schema under a future
 ``schema_version`` bump.
@@ -46,6 +54,12 @@ from app.schemas.tenant.project_export import (
     ProjectExportTaskLink,
     ProjectExportTaskStatus,
 )
+from app.services.import_engine.mentions import (
+    detach_markdown_mentions,
+    load_mention_handles,
+    markdown_mention_ids,
+)
+from app.services.import_engine.references import detach_markdown_references
 from app.services.tenant import tags as tags_service
 
 
@@ -55,6 +69,7 @@ async def build_project_export(
     *,
     exported_by_handle: Optional[str] = None,
     source_instance_url: Optional[str] = None,
+    source_guild_id: Optional[int] = None,
 ) -> ProjectExportEnvelope:
     """Eager-load the project graph and serialize it to an envelope.
 
@@ -82,6 +97,25 @@ async def build_project_export(
     task_ids = [task.id for task in (project.tasks or []) if task.id is not None]
     comments_by_task = await _load_comments(session, task_ids)
     links_by_task = await _load_links(session, task_ids)
+    # Everybody a description or a comment mentions, read once for the whole
+    # project rather than once per body.
+    mention_handles = await load_mention_handles(
+        session,
+        set().union(
+            *(markdown_mention_ids(task.description) for task in project.tasks or []),
+            *(
+                markdown_mention_ids(comment.body)
+                for comments in comments_by_task.values()
+                for comment in comments
+            ),
+        ),
+    )
+    for comments in comments_by_task.values():
+        for comment in comments:
+            body, comment.mention_handles = detach_markdown_mentions(
+                comment.body, mention_handles
+            )
+            comment.body = detach_markdown_references(body) or ""
 
     # Project-level tag set
     project_tags: list[ProjectExportTag] = []
@@ -148,10 +182,13 @@ async def build_project_export(
             else _fallback_status_name(statuses_sorted)
         )
 
+        description, described = detach_markdown_mentions(
+            task.description, mention_handles
+        )
         tasks.append(
             ProjectExportTask(
                 title=task.title,
-                description=task.description,
+                description=detach_markdown_references(description),
                 priority=task.priority,
                 start_date=task.start_date,
                 due_date=task.due_date,
@@ -171,6 +208,7 @@ async def build_project_export(
                 external_ref=task_ref(task.id),
                 links=links_by_task.get(task.id, []),
                 comments=comments_by_task.get(task.id, []),
+                mention_handles=described,
             )
         )
 
@@ -191,6 +229,7 @@ async def build_project_export(
         exported_at=datetime.now(timezone.utc),
         exported_by_handle=exported_by_handle,
         source_instance_url=source_instance_url,
+        source_guild_id=source_guild_id,
         project=ProjectExportProject(
             name=project.name,
             icon=project.icon,
@@ -271,6 +310,12 @@ async def _load_comments(
                 author_name=display_name(author) if author is not None else None,
                 body=row.content,
                 created_at=row.created_at,
+                external_ref=f"comment:{row.id}",
+                reply_to_ref=(
+                    f"comment:{row.parent_comment_id}"
+                    if row.parent_comment_id is not None
+                    else None
+                ),
             )
         )
     return by_task

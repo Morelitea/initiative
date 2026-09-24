@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from sqlalchemy import func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,11 +17,6 @@ from app.models.tenant.document import (
     DocumentType,
 )
 from app.models.tenant.upload import Upload
-from app.models.tenant.initiative import (
-    Initiative,
-    InitiativeMember,
-    InitiativeRoleModel,
-)
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.core.config import settings
@@ -31,7 +26,7 @@ from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
-from app.db.session import routed_guild_id
+from app.db.session import guild_context, routed_guild_id
 
 
 def _empty_paragraph() -> dict[str, Any]:
@@ -131,19 +126,15 @@ def normalize_document_content(
 
 
 def list_loader_options() -> list:
-    """Eager-load what a document *list* row needs: its initiative's
-    memberships (the DAC engine reads them), its sharing, and the property
-    values its card shows."""
+    """Eager-load what a document *list* row needs: its initiative, the level
+    the request holds on it, its sharing with the grant holders (the owner is
+    reported by name), and the property values its card shows."""
     return [
-        selectinload(Document.initiative)
-        .selectinload(Initiative.memberships)
-        .options(
-            selectinload(InitiativeMember.user),
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            ),
+        selectinload(Document.initiative),
+        undefer(Document.access_level),
+        selectinload(Document.grants).options(
+            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
         ),
-        selectinload(Document.grants).selectinload(ResourceGrant.role),
         selectinload(Document.property_values).selectinload(
             DocumentPropertyValue.property_definition
         ),
@@ -165,7 +156,6 @@ async def get_document(
         .join(Document.initiative)
         .where(
             Document.id == document_id,
-            Initiative.guild_id == guild_id,
         )
         .options(*list_loader_options())
     )
@@ -216,12 +206,13 @@ async def get_document_for_export(
     guild_id: int,
     *,
     document_id: int,
+    access: str = "owner",
 ) -> Document:
     """The document-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. READ access
-    suffices — exporting is a formatted read, unlike the project backup
-    (which requires write). The guild role is resolved here rather than taken
-    from a request context, so the seam works transport-free."""
+    the rule holds on the worker's render-time replay too. It takes the owner
+    rung, or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The guild role is resolved here
+    rather than taken from a request context, so the seam works transport-free."""
     from fastapi import HTTPException, status as http_status
 
     from app.services import permissions as permissions_service
@@ -232,11 +223,11 @@ async def get_document_for_export(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=Tool.document.not_found_code,
         )
-    permissions_service.require_access(
+    permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.document],
         document,
-        current_user,
-        access="read",
+        context=guild_context(session),
+        access=access,
     )
     return document
 
@@ -266,7 +257,7 @@ async def get_document_for_grants(
     session: AsyncSession, document_id: int
 ) -> Document | None:
     """Load a document with just the relationships the grant flow needs — its
-    ``grants`` (owner resolution) and ``initiative.memberships`` (authorization).
+    ``grants`` (owner resolution) and the level the request holds on it.
     RLS scopes the row to the request's guild, so no explicit guild filter (mirrors
     the queue/counter grant loaders). Uniform ``(session, id)`` shape so
     ``resource_access`` can register it like the others."""
@@ -274,15 +265,11 @@ async def get_document_for_grants(
         select(Document)
         .where(Document.id == document_id)
         .options(
-            selectinload(Document.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
+            selectinload(Document.initiative),
+            undefer(Document.access_level),
+            selectinload(Document.grants).options(
+                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
             ),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
         )
     )
     return (await session.exec(statement)).one_or_none()
@@ -305,7 +292,7 @@ async def duplicate_document(
     # Enforce the guild's storage quota BEFORE copying any bytes — a rejected
     # clone must not leave orphaned blobs on storage. Size it from the source
     # blobs it will duplicate (a copy is the same size as its source).
-    effective_guild_id = guild_id or source.guild_id
+    effective_guild_id = guild_id or routed_guild_id(session)
     if effective_guild_id is not None:
         clone_source_urls = list(content_uploads)
         if source.featured_image_url:
@@ -356,7 +343,6 @@ async def duplicate_document(
                 new_upload_records.append(
                     Upload(
                         filename=fname,
-                        guild_id=effective_guild_id,
                         created_by=user_id,
                         size_bytes=fpath.stat().st_size if fpath.exists() else 0,
                         content_type=content_type,
@@ -369,7 +355,6 @@ async def duplicate_document(
     duplicated = Document(
         name=name,
         initiative_id=target_initiative_id,
-        guild_id=guild_id or source.guild_id,
         document_type=source.document_type,
         content=content_copy,
         created_by=user_id,
@@ -386,7 +371,6 @@ async def duplicate_document(
         user_id=user_id,
         role_id=None,
         level=ResourceAccessLevel.owner,
-        guild_id=guild_id or source.guild_id,
         initiative_id=duplicated.initiative_id,
     )
     session.add(owner_permission)

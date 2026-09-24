@@ -20,8 +20,6 @@ import {
   endOfMonth,
   endOfWeek,
   format,
-  getHours,
-  getMinutes,
   isSameMonth,
   isToday,
   parseISO,
@@ -53,6 +51,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getInitials } from "@/lib/initials";
+import { formatHourLabel, formatCompactTime as formatTime } from "@/lib/timeFormat";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -221,21 +220,6 @@ function daySegmentHours(
   let endHour = (segEnd.getTime() - dayStart.getTime()) / 3_600_000;
   if (endHour <= startHour) endHour = Math.min(startHour + 1, 24);
   return { startHour, endHour };
-}
-
-function formatTime(date: Date): string {
-  const h = getHours(date);
-  const m = getMinutes(date);
-  const ampm = h >= 12 ? "pm" : "am";
-  const hr = h % 12 || 12;
-  return m === 0 ? `${hr}${ampm}` : `${hr}:${m.toString().padStart(2, "0")}${ampm}`;
-}
-
-function formatHourLabel(hour: number): string {
-  if (hour === 0) return "12am";
-  if (hour < 12) return `${hour}am`;
-  if (hour === 12) return "12pm";
-  return `${hour - 12}pm`;
 }
 
 /** i18n key for a task entry's start/due marker label. */

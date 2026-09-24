@@ -13,10 +13,10 @@ import pytest
 from sqlmodel import select
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.testing.factories import create_guild, create_guild_membership, create_user
+from app.testing import route_as
 
 pytestmark = pytest.mark.integration
 
@@ -26,12 +26,7 @@ async def _name_read_in(role_session, *, user, guild):
     ``guild``. Nothing here says whether names are rendered: routing into the
     guild is the whole of the question, which is the point."""
     s = await role_session("app_user")
-    await set_rls_context(
-        s,
-        user_id=user.id,
-        guild_id=guild.id,
-        guild_role=GuildRole.member.value,
-    )
+    await route_as(s, user_id=user.id, guild_id=guild.id)
     return (
         await s.exec(select(MemberProfile.full_name).where(MemberProfile.id == user.id))
     ).one()

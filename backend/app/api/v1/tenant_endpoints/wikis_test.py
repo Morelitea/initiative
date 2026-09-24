@@ -629,6 +629,149 @@ async def test_a_document_can_be_moved_among_the_pages(
 
 
 @pytest.mark.integration
+async def test_a_document_can_be_filed_under_a_page(
+    client: AsyncClient, acting_user, session
+):
+    """Where a document sits is this wiki's record, so filing it under a page
+    is the same kind of fact as its place in the list — and it comes back out
+    to the top the same way."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    rules = await create_wiki_page(session, wiki, a.user, title="Rules")
+    await create_wiki_page(
+        session, wiki, a.user, title="Combat", parent_page_id=rules.id, position=0
+    )
+    await create_wiki_page(session, wiki, a.user, title="Afterwards")
+    document = await create_document(session, a.initiative, a.user, name="Borrowed")
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+
+    moved = await client.post(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": rules.id, "position": 1},
+    )
+    assert moved.status_code == 200, moved.text
+    rows = moved.json()["items"]
+    assert [row["title"] for row in rows] == [
+        "Rules",
+        "Combat",
+        "Borrowed",
+        "Afterwards",
+    ]
+    borrowed = next(row for row in rows if row["kind"] == "document")
+    assert borrowed["parent_page_id"] == rules.id
+
+    # A page dragged in beside it counts it among its neighbours.
+    loose = await create_wiki_page(session, wiki, a.user, title="Travel")
+    await client.post(
+        a.g(f"/wikis/{wiki.id}/pages/{loose.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": rules.id, "position": 2},
+    )
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    assert [row["title"] for row in listed.json()["items"]] == [
+        "Rules",
+        "Combat",
+        "Borrowed",
+        "Travel",
+        "Afterwards",
+    ]
+
+    unfiled = await client.post(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        headers=a.headers,
+        json={"position": 0},
+    )
+    rows = unfiled.json()["items"]
+    assert rows[0]["title"] == "Borrowed" and rows[0]["parent_page_id"] is None
+
+
+@pytest.mark.integration
+async def test_a_document_is_not_filed_under_a_page_of_another_wiki(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    other = await create_wiki(session, a.initiative, a.user, name="Elsewhere")
+    elsewhere = await create_wiki_page(session, other, a.user, title="Not here")
+    document = await create_document(session, a.initiative, a.user)
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+
+    response = await client.post(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": elsewhere.id, "position": 0},
+    )
+    assert response.status_code == 404, response.text
+    assert response.json()["detail"] == "WIKI_PAGE_NOT_FOUND"
+
+
+@pytest.mark.integration
+async def test_a_document_under_a_trashed_page_is_drawn_at_the_top(
+    client: AsyncClient, acting_user, session
+):
+    """The page is the wiki's to put away; the document is not. It stays in
+    the wiki, at the top, and goes back under the page when it is restored."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    rules = await create_wiki_page(session, wiki, a.user, title="Rules")
+    document = await create_document(session, a.initiative, a.user, name="Borrowed")
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    await client.post(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": rules.id, "position": 0},
+    )
+
+    await client.delete(a.g(f"/wikis/{wiki.id}/pages/{rules.id}"), headers=a.headers)
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    (row,) = listed.json()["items"]
+    assert row["title"] == "Borrowed" and row["parent_page_id"] is None
+
+    await client.post(a.g(f"/trash/wiki_page/{rules.id}/restore"), headers=a.headers)
+    back = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    rows = back.json()["items"]
+    assert [row["title"] for row in rows] == ["Rules", "Borrowed"]
+    assert rows[1]["parent_page_id"] == rules.id
+
+
+@pytest.mark.integration
+async def test_a_document_row_says_what_kind_of_document_it_is(
+    client: AsyncClient, acting_user, session
+):
+    """So the navigation can draw a spreadsheet as a spreadsheet."""
+    from app.models.tenant.document import DocumentType
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    await create_wiki_page(session, wiki, a.user, title="Written here")
+    document = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="Budget",
+        document_type=DocumentType.spreadsheet,
+    )
+
+    response = await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    rows = {row["title"]: row for row in response.json()["items"]}
+    assert rows["Budget"]["document_type"] == "spreadsheet"
+    assert rows["Written here"]["document_type"] is None
+
+
+@pytest.mark.integration
 async def test_a_page_can_be_moved_past_a_document(
     client: AsyncClient, acting_user, session
 ):

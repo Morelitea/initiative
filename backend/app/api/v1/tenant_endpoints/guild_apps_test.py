@@ -116,7 +116,6 @@ class TestInstall:
         assert calendar is not None
         # Belongs to the guild, not to any initiative — which is what an app is.
         assert calendar.initiative_id is None
-        assert calendar.guild_id == a.guild.id
 
     async def test_the_list_carries_the_listing_artwork(
         self, client: AsyncClient, acting_user, calendar_app
@@ -152,7 +151,7 @@ class TestInstall:
             json={"listing_uid": CALENDAR_APP_UID},
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.ADMIN_REQUIRED
+        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
 
     async def test_a_listing_that_is_not_an_app_is_a_404(
         self, client: AsyncClient, acting_user, session
@@ -200,7 +199,6 @@ class TestInstall:
         for actor, app in ((a, first), (b, second)):
             calendar = await _read_calendar(session, actor.guild.id, _artifact_id(app))
             assert calendar is not None
-            assert calendar.guild_id == actor.guild.id
 
 
 class TestVisibility:

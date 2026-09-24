@@ -26,7 +26,7 @@ That second half is the point. A provider like Google vouches for anybody with a
 
 It is both halves or neither, and any one value is enough to count. You never handle an issuer, a client id or a secret: a community connects to a provider, it does not configure one.
 
-**Joining on arrival** is a switch on the connection. Leave it off and you invite people yourself. Turn it on and anybody who counts as yours becomes a member when they sign in. Those are ordinary memberships — turning the switch back off, or disconnecting, removes nobody.
+**Joining on arrival** is a switch on the connection. Leave it off and you invite people yourself. Turn it on and anybody who counts as yours becomes a member when they sign in, once the server's operators have agreed that the domain or tenant you named is yours. Those are ordinary memberships — turning the switch back off, or disconnecting, removes nobody.
 
 **The member sign-in link** offers your community's providers and lands people inside it rather than at the front door. It is a link, not an invite — it grants nothing on its own and never expires.
 
@@ -35,9 +35,12 @@ It is both halves or neither, and any one value is enough to count. You never ha
 If your provider reports which groups somebody is in, **rules** say what those groups mean here. A rule names one group and gives it a standing: member or admin of the community, and optionally a place in one initiative with a role there. So `eng-platform` arrives in the Platform initiative and `ops-leads` arrives as community admins, without anybody clicking anything.
 
 - Rules match the group **exactly** as your provider spells it, give or take capitals.
+- Rules apply only to people your connection counts as yours — the accounts it narrows the provider to. Somebody from another workspace on the same provider, in a group with the same name, is not placed here. Leave your workspace and the next sign-in releases what the rules gave you.
 - A rule grants **member or admin** — never the superadmin seat.
 - Standing is reconciled at **each sign-in** through that provider. Take a group away and the next sign-in takes the standing with it.
 - Memberships given by hand are never touched, and deleting a rule revokes nothing by itself — the next sign-in does.
+
+**Rules set by the deployment.** Your server's operators can write rules on a provider too. They place people here when your connection to that provider has **Let the deployment place people from this provider** switched on, or when the server applies its rules to every community. They're listed beside your own, read-only, and marked when they're not applying.
 
 !!! warning "An empty answer is still an answer"
     A provider asked for groups that reports none matches no rules, and the standings those rules granted are released. That is different from a provider nobody has told where its groups live: there, rules never run at all, and the tab marks the provider so you can see why nothing matches.
@@ -72,6 +75,18 @@ Using the app counts as touching it — the app renews its own session in the ba
 
 It follows the person rather than the room, so it applies to your members everywhere they go. Browser sessions come under it at their next sign-in rather than ending mid-sentence. Phones are the exception: a device that signed in longer ago than the standard allows is signed out at once.
 
+### What notifications carry
+
+Three switches decide what leaves the app about this community: whether notifications may reach **phones**, whether they may reach **mailboxes**, and whether what they say may **name the thing it is about**.
+
+Whoever runs the server answers the same three questions for every community. **The stricter answer applies**, so a community can be quieter than its server but never louder. Where the server has already switched something off, the community's switch says so and has nothing to decide.
+
+With details hidden, a push or an email reads *"You were mentioned in a comment"* and the app is where the rest of it is. The bell inside the app always shows everything — these settings govern what travels, not what members see here.
+
+Sign-in codes, address confirmations, password resets and notices about somebody's own account are not notifications. They belong to the account rather than to the community, and they are sent either way.
+
+Members keep their own [notification settings](../guides/notifications.md) underneath all of this. These switches are a ceiling, not a default: they can make a channel unavailable, never turn one on for somebody who asked for silence.
+
 ## Turning something off
 
 Nothing here destroys anything on the way out.
@@ -82,8 +97,10 @@ Nothing here destroys anything on the way out.
 | **Lift a requirement** | Members simply stop being asked. |
 | **Allow API keys again** | The keys that already existed reach you again, with nobody minting replacements. |
 | **Stop asking for twelve-hour sessions** | People return to the ordinary length, and stop being timed out for idleness, at their next sign-in. Sessions already shortened are not lengthened again. |
+| **Allow mobile notifications again** | Phones receive this community's notifications again, from the next one sent. |
+| **Stop hiding notification details** | The next notification to leave names what it is about. Ones already sent are not revisited. |
 
-If your server's administrator withdraws one of the two switches, that half of the tab closes and nothing else happens: your connections stay, your members keep signing in, nobody is ejected or unlinked, and **a requirement you already set stays in force**. What closed is your ability to change the setup, not the setup — so changing it after that means asking for the switch back.
+If whoever runs your server withdraws one of the two switches, that half of the tab closes and nothing else happens: your connections stay, your members keep signing in, nobody is ejected or unlinked, and **a requirement you already set stays in force**. What closed is your ability to change the setup, not the setup — so changing it after that means asking for the switch back.
 
 ??? techspec "For the technically minded — what each control actually is"
 
@@ -93,11 +110,13 @@ If your server's administrator withdraws one of the two switches, that half of t
 
     **The requirement** is one row per community: `open`, or `required` naming a provider and/or the methods a session must carry (`sso`, `totp`, `passkey`). `password` is refused by a database constraint — whether passwords exist at all is the server's question, not a community's. It is enforced at the community-context gate, which answers with a step-up challenge, and again inside the database's row-level security.
 
+    **Notification delivery** is three booleans on the community, each read alongside the platform's own where a notification is sent rather than at the moment either is saved, so tightening the server's answer covers every community at once and no community row is rewritten. Redaction is applied to the message as it is built for the channel it leaves on; the stored notification the bell reads is unaffected. A community switching mobile notifications off stops its own sends — the device registrations themselves belong to the account, not to any one community, so they stay.
+
     **API access** and **session length** are flags on the community itself rather than on the policy row, which is why they outlive a requirement being lifted. A key is judged when it is used, not when it is created. The session standard is twelve hours, `min()`-ed with the server's own limit; it re-stamps device-token deadlines immediately, and browser sessions come under it at their next sign-in. The idle standard is fifteen minutes, carried by the session's own two clocks rather than checked per request: the refresh row expires that far out and is re-stamped on each renewal, and the access token is minted no longer-lived than the row it names. So an idle session lapses on its own, and the control costs one sign-in rather than a database read on every call.
 
 ## Related
 
 - [Working with communities](../guides/communities.md) — the rest of the settings tabs, and what the superadmin seat is for.
-- [Single sign-on](../admin/single-sign-on.md) — for whoever runs the server and registers the providers.
+- [Single sign-on](../running-a-server/single-sign-on.md) — for whoever runs the server and registers the providers.
 - [API keys & integrations](../account/api-keys-and-integrations.md) — what a personal key is, from a member's side.
 - [Two-factor authentication](../account/two-factor-authentication.md) and [Passkeys](../account/passkeys.md) — what you are asking members for.

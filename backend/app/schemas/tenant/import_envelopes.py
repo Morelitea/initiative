@@ -27,6 +27,12 @@ class _EnvelopeBase(SanitizedBaseModel):
     model_config = ConfigDict(extra="ignore")
 
     schema_version: int = CURRENT_SCHEMA_VERSION
+    #: Where the export was taken — the server and the community. A reference
+    #: to something the envelope does not carry is kept only when both are
+    #: where it is being imported, because only there does its id still name
+    #: the same thing.
+    source_instance_url: Optional[str] = None
+    source_guild_id: Optional[int] = None
 
 
 class EnvelopePropertyValue(SanitizedBaseModel):
@@ -51,6 +57,32 @@ class DocumentEnvelope(_EnvelopeBase):
     content: dict[str, Any] = {}
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
+    #: The handles the body's mention nodes name (``mentionHandle``). Each one
+    #: the people step places is linked to that account on apply.
+    mention_handles: list[str] = []
+
+
+class WikiPageComment(SanitizedBaseModel):
+    """One thing somebody said on a page.
+
+    ``content`` is the body as an editor state, so it carries references the
+    apply places — a page, an issue, a file, a person — the same way the
+    page's own body does; it is written as the comment's text once they are.
+    The author crosses as a handle and a name, never an id, like every
+    person in an envelope.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    content: dict[str, Any] = {}
+    author_handle: Optional[str] = None
+    author_name: Optional[str] = None
+    created_at: Optional[str] = None
+    #: What this comment was called where it came from, and the one it
+    #: answers, so a thread arrives as a thread. Refs live for one job.
+    external_ref: Optional[str] = None
+    reply_to_ref: Optional[str] = None
+    mention_handles: list[str] = []
 
 
 class WikiPageEnvelope(SanitizedBaseModel):
@@ -75,6 +107,53 @@ class WikiPageEnvelope(SanitizedBaseModel):
     #: importer only uses a value it was actually given.
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    #: Who wrote it, where it came from: a handle the people step places, and
+    #: the name to show when nobody answers to it.
+    author_handle: Optional[str] = None
+    author_name: Optional[str] = None
+    #: The handles the body's mention nodes name without an account yet — by
+    #: ``mentionHandle`` in an exported page, by ``mentionName`` in one mapped
+    #: from Confluence. Each one the people step places is linked to that
+    #: account on apply.
+    mention_handles: list[str] = []
+    #: What the page was called where it came from — ``confluence:123`` — for
+    #: the job's links to point at. Never written to a column.
+    external_ref: Optional[str] = None
+    #: What was said on the page, oldest first, so a reply follows what it
+    #: answers.
+    comments: list[WikiPageComment] = []
+
+
+class WikiFiledUpload(SanitizedBaseModel):
+    """An uploaded file filed in a wiki: the row, and the key naming its bytes
+    under ``assets/`` in the wiki's zip."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str
+    storage_key: str
+    original_filename: Optional[str] = None
+    content_type: Optional[str] = None
+    tags: list[str] = []
+
+
+class WikiFiledDocument(SanitizedBaseModel):
+    """A document filed in a wiki, and where it sits there.
+
+    Exactly one of ``envelope`` (a text document, spreadsheet, whiteboard or
+    link, whole) and ``upload`` (a file, whose bytes ride under ``assets/``).
+    ``page`` is the slug of the page it is filed under, or none for the top.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    page: Optional[str] = None
+    position: Optional[int] = None
+    envelope: Optional[DocumentEnvelope] = None
+    upload: Optional[WikiFiledUpload] = None
+    #: What the document was called where it came from — ``document:7`` — so
+    #: a reference to it in a page points at the document it became.
+    external_ref: Optional[str] = None
 
 
 class WikiEnvelope(_EnvelopeBase):
@@ -91,6 +170,8 @@ class WikiEnvelope(_EnvelopeBase):
     home_page: Optional[str] = None
     tags: list[str] = []
     pages: list[WikiPageEnvelope] = []
+    #: The documents filed in the wiki, when its export carried them.
+    documents: list[WikiFiledDocument] = []
 
 
 class GalleryImageEnvelope(SanitizedBaseModel):
@@ -113,6 +194,9 @@ class GalleryImageEnvelope(SanitizedBaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     tags: list[str] = []
+    #: What this picture was called where it came from — a thing a reference
+    #: elsewhere in the same import can name. Refs live for one job.
+    external_ref: Optional[str] = None
 
 
 class GalleryEnvelope(_EnvelopeBase):
@@ -145,6 +229,9 @@ class QueueEnvelopeItem(SanitizedBaseModel):
     # `member`, `documents`, `tasks` are informational display text in the
     # export — ignored here (extra="ignore"), counted as a warning on apply.
     member: Optional[str] = None
+    #: What this item was called where it came from — a thing a reference
+    #: elsewhere in the same import can name. Refs live for one job.
+    external_ref: Optional[str] = None
 
 
 class QueueEnvelope(_EnvelopeBase):
@@ -168,6 +255,9 @@ class CounterEnvelopeItem(SanitizedBaseModel):
     initial_count: float = 0
     view_mode: str = "number"
     position: float = 0
+    #: What this counter was called where it came from — a thing a reference
+    #: elsewhere in the same import can name. Refs live for one job.
+    external_ref: Optional[str] = None
 
 
 class CounterGroupEnvelope(_EnvelopeBase):
@@ -265,6 +355,8 @@ class PostEnvelope(_EnvelopeBase):
     body: dict[str, Any] = {}
     tags: list[str] = []
     poll: Optional[PostPollEnvelope] = None
+    #: The handles the body's mention nodes name, as a document's are.
+    mention_handles: list[str] = []
 
     @model_validator(mode="after")
     def _body_within_limits(self) -> "PostEnvelope":

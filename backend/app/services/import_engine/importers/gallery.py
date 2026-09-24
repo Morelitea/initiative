@@ -20,6 +20,8 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage
@@ -48,6 +50,17 @@ class GalleryImporter(QuotesNobody):
         envelope: GalleryEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
         return len(envelope.images) + 1
 
+    def archive_assets(
+        self, envelope: dict[str, Any]
+    ) -> list[tuple[dict[str, Any], str]]:
+        """The pictures an exported gallery's zip carries beside it, as the
+        envelope names them: each one's ``storage_key`` is its file under
+        ``assets/``."""
+        images = envelope.get("images")
+        if not isinstance(images, list):
+            return []
+        return [(image, "picture") for image in images if isinstance(image, dict)]
+
     async def apply(
         self,
         session: AsyncSession,
@@ -58,7 +71,7 @@ class GalleryImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: GalleryEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
+        guild_id = routed_guild_id(session)
         warnings: list[str] = []
 
         existing_names = {
@@ -75,7 +88,6 @@ class GalleryImporter(QuotesNobody):
             name=unique_name(existing_names, env.name),
             description=env.description,
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
         )
         session.add(gallery)
@@ -95,9 +107,7 @@ class GalleryImporter(QuotesNobody):
         async def attach_tags(surface: str, entity_id: int, names: list[str]) -> None:
             nonlocal tags_created, tags_matched
             for tag_name in names:
-                resolved = await ensure_tag(
-                    session, guild_id=guild_id, name=tag_name, color="#6b7280"
-                )
+                resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
                 if resolved.created:
                     tags_created += 1
                 else:
@@ -126,7 +136,6 @@ class GalleryImporter(QuotesNobody):
                 continue
             row = GalleryImage(
                 gallery_id=gallery.id,
-                guild_id=guild_id,
                 title=image_env.title,
                 caption=image_env.caption,
                 file_url=f"/uploads/{guild_id}/{key}",
@@ -139,6 +148,10 @@ class GalleryImporter(QuotesNobody):
             )
             session.add(row)
             await session.flush()
+            if context is not None:
+                context.links.register(
+                    image_env.external_ref, SearchEntityType.gallery_image, row.id
+                )
             created += 1
             if env.cover and key == env.cover:
                 cover_id = row.id

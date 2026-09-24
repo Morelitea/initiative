@@ -6,17 +6,19 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.core.relationships import Related
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.tenant.archive import ArchiveState
 
 from app.models.tenant.document import DocumentType
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.initiative import InitiativeRead, serialize_initiative
+from app.schemas.platform.user import UserPublic
+from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.document import (
         Document,
         DocumentFileVersion,
@@ -87,7 +89,9 @@ class DocumentSummary(DocumentBase, ArchiveState):
     created_by: int
     created_at: datetime
     updated_at: datetime
-    initiative: Optional[InitiativeRead] = None
+    initiative: Optional[InitiativeSummary] = None
+    #: The holder of the document's owner grant, or None when it is unowned.
+    owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
     # When false this entity's comment thread is off — the UI renders none
@@ -200,14 +204,33 @@ def _serialize_document_properties(document: "Document") -> List[PropertySummary
     return summaries_from_rows(rows)
 
 
+def _document_owner(document: "Document") -> Optional[UserPublic]:
+    """The user holding the document's owner grant, or None when it is unowned.
+
+    Read off the grants the loader brings with their users, as a project reads
+    its own; ownership is recorded there and nowhere else.
+    """
+    for grant in getattr(document, "grants", None) or []:
+        if (
+            grant.user_id is not None
+            and grant.level == ResourceAccessLevel.owner
+            and grant.user
+        ):
+            return UserPublic.model_validate(grant.user)
+    return None
+
+
 def serialize_document_summary(
     document: "Document",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
     projects: Sequence[Related] = (),
 ) -> DocumentSummary:
     initiative = (
-        serialize_initiative(document.initiative) if document.initiative else None
+        InitiativeSummary.model_validate(document.initiative)
+        if document.initiative
+        else None
     )
     smart_link_url: Optional[str] = None
     if document.document_type == DocumentType.smart_link:
@@ -219,7 +242,7 @@ def serialize_document_summary(
 
     return DocumentSummary(
         id=document.id,
-        guild_id=document.guild_id,
+        guild_id=context.guild_id,
         initiative_id=document.initiative_id,
         name=document.name,
         featured_image_url=document.featured_image_url,
@@ -228,6 +251,7 @@ def serialize_document_summary(
         created_at=document.created_at,
         updated_at=document.updated_at,
         initiative=initiative,
+        owner=_document_owner(document),
         projects=_serialize_project_links(projects),
         comment_count=getattr(document, "comment_count", 0),
         comments_enabled=document.comments_enabled,
@@ -243,7 +267,7 @@ def serialize_document_summary(
         original_filename=document.original_filename,
         smart_link_url=smart_link_url,
         archived_at=document.archived_at,
-        **client_access(Tool.document, document, user_id),
+        **client_access(document, user_id, context=context),
         yjs_updated_at=document.yjs_updated_at,
     )
 
@@ -251,13 +275,14 @@ def serialize_document_summary(
 def serialize_document(
     document: "Document",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
     include_content: bool = True,
 ) -> DocumentRead:
     """The full document. ``include_content=False`` leaves the body out — every
     other field is unchanged, including the smart-link URL that is derived from
     it."""
-    summary = serialize_document_summary(document, user_id=user_id)
+    summary = serialize_document_summary(document, context=context, user_id=user_id)
     return DocumentRead(
         **summary.model_dump(),
         content=(document.content or {}) if include_content else {},

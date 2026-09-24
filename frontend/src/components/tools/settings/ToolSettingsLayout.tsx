@@ -29,6 +29,7 @@ import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { canUseArchiveCard } from "@/components/tools/settings/ToolArchiveCard";
 import {
+  type ToolExportOptions,
   type ToolMutation,
   type ToolSettingsEntity,
   ToolSettingsProvider,
@@ -60,8 +61,13 @@ export interface ToolSettingsLayoutProps {
   remove: ToolMutation<number>;
   /** Extra cards for the Details section, e.g. a project's dates or a calendar's color. */
   detailsExtra?: ReactNode;
-  /** Extra cards for the Advanced section, e.g. duplicate, archive, or export. */
+  /** Extra cards for the Advanced section, e.g. duplicate or archive. */
   advancedExtra?: ReactNode;
+  /**
+   * Overrides for the export card the Advanced section gives every tool — only
+   * for a tool whose formats depend on the entity.
+   */
+  exportOptions?: ToolExportOptions;
   /**
    * Whole extra sections, for settings too large to sit in a card (project
    * task statuses). Each `value` is the route segment serving it, so a tab
@@ -82,6 +88,7 @@ export const ToolSettingsLayout = ({
   remove,
   detailsExtra,
   advancedExtra,
+  exportOptions,
   extraTabs = [],
   children,
 }: ToolSettingsLayoutProps) => {
@@ -127,8 +134,9 @@ export const ToolSettingsLayout = ({
       label: tab.label,
       path: sectionPath(tab.value),
     })),
-    // Advanced holds a tool's own extra operations, archiving, and deletion,
-    // so it is offered only when this entity has one of them to offer. The
+    // Advanced holds a tool's own extra operations, archiving, exporting and
+    // deletion, so it is offered only when this entity has one of them to
+    // offer. Exporting and deletion are both the owner's. The
     // archive leg reads its own answer rather than `canManage`: an archived
     // entity caps that at read, which would hide the tab that holds the only
     // way back out.
@@ -188,6 +196,7 @@ export const ToolSettingsLayout = ({
           remove,
           detailsExtra,
           advancedExtra,
+          exportOptions,
         }}
       >
         <Suspense fallback={<SettingsPaneSkeleton />}>

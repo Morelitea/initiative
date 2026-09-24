@@ -90,11 +90,22 @@ How the app reads to you. Each choice saves as you make it — no Save button.
 - **Language** — for the interface.
 - **Color theme** — Light, Dark, or System.
 - **Timezone** — the clock your due dates, daily reminders and repeating tasks run on. Taken from your browser at sign-up; correct it here if it's wrong. It also appears beside the reminder time on the Notifications tab, where you need it in context.
+- **Time format** — whether a clock reads `1:30 PM` or `13:30`, everywhere one appears: calendars and their hour gutters, event times, due dates, message timestamps. **Browser default** takes its cue from your browser's language. Your phone or laptop keeps its own 12/24-hour setting to itself, so when the app and the clock on your wall disagree, this is the place to settle it.
 - **Week starts on** — which day calendars and date pickers lead with.
 - **Recent items in tab bar** — how many to keep along the top (1–100).
 - **Task completion feedback** — a bit of fun when you finish something: **Confetti**, **+1 Heart**, **Natural 20**, **Gold coins**, **Random**, or **None**.
 - **Sound** and **vibration** on task completion — optional, each with a button to try it.
 - **Keep screen awake** — stops this device's screen dimming while Initiative is open. Useful for a counter propped up on a door. Saved per device.
+
+## Where you're signed in
+
+**User settings → Security** lists every browser and phone with your account open: what each one is — *Chrome on macOS*, *Firefox on Windows* — where it last connected from, when it was last used, and which one is the one you're reading this on.
+
+**Sign out** ends that one and leaves the rest alone. **Sign out everywhere else** closes the lot in one go and keeps you where you are, which is the button for the laptop you borrowed at your mum's and the library computer you have thought about twice since.
+
+Changing your password, resetting it, or turning off a second factor signs out everything, everywhere, including you. That's the biggest hammer in the drawer. This is the one for when you don't need the hammer.
+
+The same tab holds [two-factor authentication](two-factor-authentication.md), [passkeys](passkeys.md) and [API keys](api-keys-and-integrations.md).
 
 ## Privacy
 
@@ -110,19 +121,23 @@ The **Danger Zone** tab. Two paths, and Initiative walks you through either with
 
 ### Deactivate
 
-Temporarily switches your account off. You can't sign in, and you're removed from your communities (rejoining needs a fresh invite), but your name, email and content are kept. An administrator can reactivate you. Good for "I'm stepping away for a while."
+Temporarily switches your account off. You can't sign in, and you're removed from your communities (rejoining needs a fresh invite), but your name, email and content are kept. Whoever runs the server can reactivate you. Good for "I'm stepping away for a while."
 
 ### Delete
 
-Permanent. Properly permanent. You choose how thorough:
+You disappear for everyone else straight away. What you hold is kept a while longer, and then erased.
 
 - **Anonymize** — your name, email and avatar go, and you can't sign in, but things you wrote stay in place as "Deleted user". This keeps your teammates' history intact while removing *your* personal details.
-- **Hard delete** (administrators) — everything goes, including content you authored.
+- **Hard delete** (platform operators) — everything goes, including content you authored.
 
 Before deletion, Initiative makes sure your **owned projects are transferred**, so nothing your group depends on disappears with you.
 
-!!! warning "Deletion cannot be undone"
-    Deactivation is reversible. Deletion is not. If there's any part of you that's unsure, deactivate — you can always come back and finish the job later.
+You also get an email confirming it happened, to every address you'd confirmed. The one moment somebody most wants it in writing.
+
+!!! tip "There's a window where you can change your mind"
+    **Sign back in during it and the whole thing is called off** — communities, roles, documents, exactly where you left them. Thirty days on most servers, though whoever runs yours sets the number and may have set none at all, in which case nothing is erased on a timer.
+
+    After that it's properly permanent, and there is no undo, no support ticket and no clever recovery. If you're unsure, deactivate instead.
 
 ## Related
 

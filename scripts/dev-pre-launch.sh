@@ -81,14 +81,19 @@ done
 docker compose up db -d --wait
 
 # The login roles and the search operator class: a deployment gets these from
-# app.db.bootstrap at startup over DATABASE_URL_BOOTSTRAP. A dev checkout's
-# .env usually does not set that, and the compose superuser is right here, so
-# apply them the same way rather than leave every checkout to hit the boot
-# warning. Idempotent; a failure is not fatal, since search works either way.
+# app.db.bootstrap at startup over its owner connection. A .env that names the
+# three logins usually gives no owner, and the compose superuser is right here,
+# so apply them the same way rather than leave every checkout to hit the boot
+# warning. A .env with DATABASE_URL as the owner needs no override. Idempotent;
+# a failure is not fatal, since search works either way.
+bootstrap_url=""
+if grep -qE '^DATABASE_URL_APP=.+' backend/.env 2>/dev/null; then
+    bootstrap_url="postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@localhost:5432/${POSTGRES_DB:-initiative}"
+fi
 if ! (
     cd backend && source .venv/bin/activate &&
-    DATABASE_URL_BOOTSTRAP="postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@localhost:5432/${POSTGRES_DB:-initiative}" \
-        python -m app.db.bootstrap > /dev/null
+    if [ -n "$bootstrap_url" ]; then export DATABASE_URL_BOOTSTRAP="$bootstrap_url"; fi &&
+    python -m app.db.bootstrap > /dev/null
 ); then
     echo "Database bootstrap did not complete — search may run without its index." >&2
 fi

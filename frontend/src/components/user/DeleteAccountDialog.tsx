@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useMyDeletionEligibility } from "@/hooks/useAdmin";
+import { useMyDeletionEligibility } from "@/hooks/useOperatorUsers";
 import { useDeleteOwnAccount } from "@/hooks/useUsers";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
@@ -19,9 +19,9 @@ import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**
  * Self-deletion is constrained to two actions:
- *   - ``deactivate`` — reversible, PII intact, admin can reactivate later.
+ *   - ``deactivate`` — reversible, PII intact, an operator can reactivate later.
  *   - ``soft_delete`` — anonymize (PII removed), permanent.
- * Hard delete is admin-only and lives on the admin endpoint; the
+ * Hard delete is operator-only and lives on the operator endpoint; the
  * self-service endpoint rejects ``hard_delete`` with 403.
  */
 type SelfAction = "deactivate" | "soft_delete";

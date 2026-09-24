@@ -9,7 +9,7 @@
  * middle of a URL. So the template names its own blanks, the form asks for
  * each blank as a field, and the address is built rather than typed.
  *
- * Kept in step with the quickstarts in `docs/en/admin/single-sign-on.md`: the
+ * Kept in step with the quickstarts in `docs/en/running-a-server/single-sign-on.md`: the
  * list came from there, and a change to either belongs in both.
  */
 

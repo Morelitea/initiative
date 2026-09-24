@@ -1,4 +1,5 @@
 import type {
+  Capability,
   OwnedDecoration,
   UserEmailRead,
   UserGuildMember,
@@ -19,40 +20,46 @@ export function resetCounter(): void {
 // user built with `role: "owner"` lands the capabilities production would send.
 // The backend (`UserRead.capabilities`) remains the single source of truth at
 // runtime; this only fills the gap in synthetic fixtures.
-const ROLE_CAPABILITIES: Record<UserRole, string[]> = {
+const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
   member: [],
-  support: ["access.request", "guilds.read", "users.read"],
-  moderator: ["access.request", "content.moderate", "guilds.read", "users.manage", "users.read"],
+  support: ["access.request", "users.age_unblock", "users.read"],
+  moderator: [
+    "access.request",
+    "content.moderate",
+    "users.age_unblock",
+    "users.manage",
+    "users.read",
+  ],
   operator: [
     "access.approve",
-    "access.read",
     "access.request",
+    "announcements.manage",
     "content.moderate",
     "data.bypass",
     "guilds.manage",
-    "guilds.read",
     "roles.assign",
+    "users.age_unblock",
     "users.delete",
     "users.manage",
     "users.read",
   ],
   owner: [
     "access.approve",
-    "access.read",
+    "announcements.manage",
     "apps.manage",
     "config.manage",
     "content.moderate",
     "data.bypass",
     "guilds.manage",
-    "guilds.read",
     "roles.assign",
+    "users.age_unblock",
     "users.delete",
     "users.manage",
     "users.read",
   ],
 };
 
-export function capabilitiesForRole(role: UserRole): string[] {
+export function capabilitiesForRole(role: UserRole): Capability[] {
   return ROLE_CAPABILITIES[role] ?? [];
 }
 
@@ -64,6 +71,7 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
     discriminator: 1000 + counter,
     full_name: `User ${counter}`,
     avatar_url: null,
+    status: "active",
     ...overrides,
   };
 }
@@ -73,7 +81,6 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
  *  pass on a field the real payload never carries. */
 export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSummary {
   counter++;
-  const guildRole = overrides.guild_role;
   return {
     id: counter,
     username: `user-${counter}`,
@@ -81,7 +88,8 @@ export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSumm
     full_name: `User ${counter}`,
     avatar_url: null,
     status: "active",
-    is_guild_admin: guildRole === "admin" || guildRole === "superadmin",
+    profile_decorations: null,
+    guild_role: null,
     ...overrides,
   };
 }
@@ -130,16 +138,36 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     capabilities: capabilitiesForRole(role),
     can_create_guilds: true,
     status: "active",
+    presence: "offline",
+    cookie_consent: null,
     email_verified: true,
     // Signs in with a password, like most accounts. A test about the
     // passwordless account overrides it.
     has_password: true,
+    has_federated_identity: false,
+    initiative_roles: [],
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     custom_status: { emoji: null, text: null },
-    profile_decorations: { banner: null, frame: null, trophies: [] },
+    profile_decorations: {
+      banner: null,
+      frame: null,
+      frame_tint: [],
+      trophies: [],
+      grad_year: null,
+    },
     week_starts_on: 0,
+    time_format: "system",
     timezone: "America/New_York",
+    recent_tabs_limit: 20,
+    event_reminder_minutes_before: null,
+    last_overdue_notification_at: null,
+    last_task_assignment_digest_at: null,
+    color_theme: "kobold",
+    task_completion_visual_feedback: "none",
+    task_completion_audio_feedback: false,
+    task_completion_haptic_feedback: false,
+    locale: "en",
     ...overrides,
   };
 }
@@ -154,7 +182,6 @@ export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): 
     full_name: `User ${counter}`,
     avatar_url: null,
     guild_role: guildRole,
-    is_guild_admin: guildRole === "admin" || guildRole === "superadmin",
     oidc_managed: false,
     status: "active",
     created_at: "2026-01-15T00:00:00.000Z",
@@ -175,7 +202,13 @@ export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProf
     avatar_url: null,
     status: "active",
     custom_status: { emoji: null, text: null },
-    profile_decorations: { banner: null, frame: null, trophies: [] },
+    profile_decorations: {
+      banner: null,
+      frame: null,
+      frame_tint: [],
+      trophies: [],
+      grad_year: null,
+    },
     presence: "offline",
     joined_at: "2026-01-15T00:00:00.000Z",
     ...overrides,
@@ -184,5 +217,5 @@ export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProf
 
 /** One decoration in somebody's library. Shipped (no pack) by default. */
 export function buildOwnedDecoration(overrides: Partial<OwnedDecoration> = {}): OwnedDecoration {
-  return { id: "core.aurora", kind: "banner", source: null, ...overrides };
+  return { id: "core.aurora", kind: "banner", name: null, source: null, ...overrides };
 }

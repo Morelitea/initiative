@@ -164,7 +164,6 @@ class TestPlacement:
     def _app(placement: dict) -> GuildApp:
         """An install carrying nothing but the placement under test."""
         return GuildApp(
-            guild_id=1,
             listing_uid="0000000000000",
             listing_version="1.0.0",
             app_kind="service",

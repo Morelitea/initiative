@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
@@ -50,7 +50,6 @@ class ImportJob(CreatedByMixin, table=True):
     __tablename__ = "import_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     created_by: int = Field(foreign_key="users.id", nullable=False)
 
     # Envelope type ("initiative-document", …) or "backup".
@@ -78,6 +77,14 @@ class ImportJob(CreatedByMixin, table=True):
         sa_column=Column(String, nullable=False, index=True, server_default="queued"),
     )
     error: Optional[str] = Field(default=None)
+    # The secret a job needs to read a foreign site, for as long as that job
+    # needs it: set when the import starts and cleared at every terminal
+    # transition. Fernet-encrypted at rest under ``SALT_IMPORT_CREDENTIAL``
+    # and registered for SECRET_KEY rotation. Not a field of
+    # ``ImportJobRead``, so it is never serialized.
+    secret_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     # Staged-payload GC deadline (unconfirmed backups expire).
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)

@@ -22,31 +22,36 @@ from pydantic import ConfigDict
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user_profile_view import MemberProfile
     from app.models.platform.guild_administration import GuildAdministration
-    from app.models.tenant.initiative import Initiative
-    from app.models.tenant.guild_setting import GuildSetting
 
 
 class GuildStatus(str, Enum):
     """Lifecycle status of a guild.
 
-    The first three are operator-set from the platform Guilds tab (platform
+    The first four are operator-set from the platform Guilds tab (platform
     `guilds.manage`) and are freely interchangeable:
 
     - ``active``: normal operation.
     - ``read_only``: members keep read access to content but writes are denied
       at the Postgres role level (routed into ``guild_<id>_ro``).
-    - ``suspended``: members lose all content access and the guild vanishes
-      from their guild list. Guild admins keep the settings surface (billing /
-      data ownership / danger zone) under all three.
+    - ``suspended``: the guild is in time out. Nobody in it reaches anything
+      in it — content or settings, members and admins alike — and only the
+      platform lifts it. It vanishes from members' guild lists; its admins
+      keep a closed entry, so they can tell a time out from a loss. Set by
+      the platform operator alone; the billing service cannot.
+    - ``on_hold``: the guild is held for a significantly late payment. Nobody
+      in it reaches it, its admins included, and it is absent from every
+      member's guild list. Its superadmins are told once, on the way in, whom
+      to contact. Set by the billing service, or by the operator.
 
-    The fourth is not:
+    Guild admins keep the settings surface (billing / data ownership / danger
+    zone) under ``active`` and ``read_only`` only.
+
+    The fifth is not:
 
     - ``deleted``: the guild has been deleted and is being retained for
       :data:`~app.services.platform.guild_purge.GUILD_RETENTION_DAYS` before
-      it is destroyed. Nobody in the guild reaches it — not even its admins,
-      whose settings carve-out is withdrawn, because a deleted guild has no
-      billing surface left to reach and its danger zone has already been used.
-      It is absent from every member's guild list.
+      it is destroyed. Nobody in the guild reaches it, its admins included,
+      and it is absent from every member's guild list.
 
       Reached only through deletion and left only through restore, both of
       which do more than move a column, so it is deliberately not offered in
@@ -63,11 +68,12 @@ class GuildStatus(str, Enum):
     active = "active"
     read_only = "read_only"
     suspended = "suspended"
+    on_hold = "on_hold"
     deleted = "deleted"
 
 
-#: The statuses from which a request reaches guild content at all. Everything
-#: else is refused by the guild-access resolver.
+#: The statuses from which a member reaches the guild at all — its content or
+#: its settings. Everything else is refused by the guild-access resolver.
 #:
 #: Stated once, as a set, because the question is asked in a dozen places and
 #: every one of them should have the same answer.
@@ -82,7 +88,65 @@ LIVE_STATUSES: frozenset[GuildStatus] = frozenset(
 OPERATOR_SETTABLE_STATUSES: tuple[GuildStatus, ...] = (
     GuildStatus.active,
     GuildStatus.read_only,
+    GuildStatus.on_hold,
     GuildStatus.suspended,
+)
+
+#: The statuses the billing service may write. ``suspended`` is the platform
+#: operator's time out and ``deleted`` belongs to deletion, so neither is here —
+#: and a guild already in either takes no status write from billing at all.
+BILLING_SETTABLE_STATUSES: frozenset[GuildStatus] = frozenset(
+    {GuildStatus.active, GuildStatus.read_only, GuildStatus.on_hold}
+)
+
+
+def operator_status_choices(
+    status: GuildStatus,
+    *,
+    billing_status: GuildStatus | None,
+    billing_managed: bool,
+) -> tuple[GuildStatus, ...]:
+    """The statuses the operator may move a guild at ``status`` to.
+
+    Where billing sets plans, the operator's one status is the time out: into
+    ``suspended``, and out of it to the status billing last wrote. Everywhere
+    else, any of :data:`OPERATOR_SETTABLE_STATUSES`. A deleted guild has none;
+    restoring it is not a status change. The triggers of migration 0364 hold
+    the database to the same rule.
+    """
+    if status is GuildStatus.deleted:
+        return ()
+    if not billing_managed:
+        return OPERATOR_SETTABLE_STATUSES
+    if status is GuildStatus.suspended:
+        return (billing_status or GuildStatus.active, GuildStatus.suspended)
+    return (status, GuildStatus.suspended)
+
+
+def restore_status_choices(
+    *,
+    billing_status: GuildStatus | None,
+    billing_managed: bool,
+) -> tuple[GuildStatus, ...]:
+    """The statuses a deleted guild may be restored at.
+
+    The choices that lift a suspension: where billing sets plans, the status
+    billing last wrote or ``suspended``; everywhere else, any of
+    :data:`OPERATOR_SETTABLE_STATUSES`. The status trigger of migration 0364
+    holds the database to the same rule.
+    """
+    return operator_status_choices(
+        GuildStatus.suspended,
+        billing_status=billing_status,
+        billing_managed=billing_managed,
+    )
+
+
+#: The statuses whose guild is absent from every member's guild list, its
+#: admins' included. A suspended guild is not here: its admins keep a closed
+#: entry.
+UNLISTED_STATUSES: frozenset[GuildStatus] = frozenset(
+    {GuildStatus.on_hold, GuildStatus.deleted}
 )
 
 #: :data:`LIVE_STATUSES` as the strings the column stores, so one set answers
@@ -307,6 +371,39 @@ class Guild(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # What this community's notifications may leave the app carrying. Three
+    # answers, each also asked of the deployment on ``app_settings``; the
+    # stricter of the pair applies, so a community can decline what the
+    # deployment permits and never the reverse.
+    #
+    # Here rather than on ``GuildAdministration`` for the reason the three above
+    # are: it says what is done on this community's behalf, and the answer has
+    # to survive the guild lifting its sign-in requirement. Set by the guild's
+    # superadmin; read where a notification is sent.
+    #
+    # Whether this community's notifications may reach a phone.
+    allow_push_notifications: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Whether they may reach a mailbox. The notification half of email only:
+    # what an account is sent about itself, and about signing in, is not this
+    # community's to switch off.
+    allow_email_notifications: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Whether a notification about this community may say what it is about once
+    # it has left the app. Set, it reduces to the kind of thing that happened,
+    # and the community itself is where the rest of it is. The bell inside the
+    # app still says everything.
+    redact_notification_content: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # The operator-set caps, plan label, and sign-in entitlement — everything
     # this row is NOT. See GuildAdministration for why they live apart.
     administration: Optional["GuildAdministration"] = Relationship(
@@ -320,11 +417,6 @@ class Guild(SQLModel, table=True):
     members: List["GuildMembership"] = Relationship(
         back_populates="guild",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    initiatives: List["Initiative"] = Relationship(back_populates="guild")
-    settings: Optional["GuildSetting"] = Relationship(
-        back_populates="guild",
-        sa_relationship_kwargs={"uselist": False},
     )
 
     @validates("is_community")
@@ -349,26 +441,53 @@ class GuildRole(str, Enum):
     # it. Separated because running a community and holding the keys to who may
     # enter it are different jobs, and most guilds have nobody in this seat.
     #
-    # An operator seats the first one; from then on a superadmin may seat
-    # another. An ordinary guild admin can do neither — the hand that
+    # A superadmin seats another — one by membership, or one holding the seat
+    # through a settings grant. An ordinary guild admin cannot — the hand that
     # administers a community is not the hand that decides who may enter it.
     superadmin = "superadmin"
     # A time-bound PAM/support access grantee acting inside a guild they are
     # NOT a member of. Synthesized for the request only — never a persisted
-    # ``guild_memberships`` row (the Postgres ``guild_role`` enum has only
-    # admin/member, and the member-role endpoints reject assigning it). Unlike
+    # ``guild_memberships`` row (the member-role endpoint rejects assigning
+    # it). Unlike
     # ``admin``, ``support`` is bound by its grant's read/write level, enforced
     # at the Postgres role level — a read grant assumes ``guild_<id>_ro``. It
     # is the content axis only: what of the community's configuration a
     # grantee may work is a settings grant, held at its own rung beside this.
-    # Break-glass grantees are ``admin``, not this.
+    # A break-glass grantee holds this too: its content grant is one of these,
+    # and the ``superadmin`` settings grant beside it is read separately.
     support = "support"
 
+    def reaches(self, rung: "GuildRole") -> bool:
+        """Whether this rung carries what ``rung`` carries.
 
-#: Roles that carry a guild admin's authority. ``superadmin`` sits above
-#: ``admin``, so anything asking "is this an admin" means "admin or above".
+        The community's ladder asked as a comparison rather than as a set per
+        question: ``admin`` reaches ``member``, ``superadmin`` reaches both,
+        and a rung added between them needs no list updated. ``support`` is
+        below every rung — granted access is its own identity, and what it
+        reaches is its grant, not a place on this ladder.
+        """
+        return GUILD_LADDER.index(self) >= GUILD_LADDER.index(rung)
+
+
+#: The community's ladder, lowest rung first. ``support`` is the identity
+#: granted access carries and sits below a member: it is not a rung of the
+#: community, and nothing it holds comes from being on this list.
+#:
+#: One ordering, in one place. Asking whether a rung carries another's
+#: authority is :meth:`GuildRole.reaches`, and every set below derives from it
+#: rather than restating which rungs are which.
+GUILD_LADDER: tuple[GuildRole, ...] = (
+    GuildRole.support,
+    GuildRole.member,
+    GuildRole.admin,
+    GuildRole.superadmin,
+)
+
+#: Roles that carry a guild admin's authority — the ladder from ``admin`` up.
+#: Kept as a set because that is how most callers ask; it is derived, so the
+#: day a rung is added between them there is nothing here to remember.
 GUILD_ADMIN_ROLES: frozenset[GuildRole] = frozenset(
-    {GuildRole.admin, GuildRole.superadmin}
+    role for role in GuildRole if role.reaches(GuildRole.admin)
 )
 
 #: What an ordinary guild admin may hand out. ``support`` is never persisted at
@@ -389,36 +508,13 @@ def assignable_roles(by: GuildRole) -> frozenset[GuildRole]:
     """Which roles ``by`` may set on somebody else inside the guild.
 
     A superadmin passes the seat on; an ordinary admin cannot, and cannot
-    take it away either. The *first* one in a guild is seated by an operator
-    from platform settings — that is the only part of this a guild cannot do
-    for itself.
+    take it away either. ``by`` is the rung the request stands on, so a
+    superadmin settings grant seats somebody the same way a superadmin
+    membership does.
     """
     if by == GuildRole.superadmin:
         return GUILD_ASSIGNABLE_ROLES | {GuildRole.superadmin}
     return GUILD_ASSIGNABLE_ROLES
-
-
-def content_role(role: GuildRole) -> str:
-    """What ``app.current_guild_role`` should carry for this membership.
-
-    The GUC answers one question — what content access does this request have —
-    and a superadmin's answer is an admin's. Keeping it to two values is why
-    adding a third stored role changes no RLS policy: every
-    ``current_guild_role = 'admin'`` leg, on ``public`` and inside each guild
-    schema, keeps meaning exactly what it meant.
-
-    What tells the two apart is the membership row, read where that distinction
-    is actually needed.
-    """
-    return GuildRole.admin.value if role in GUILD_ADMIN_ROLES else role.value
-
-
-#: Every value ``app.current_guild_role`` can carry, derived by putting each
-#: stored role through :func:`content_role`. There are two, and the context
-#: seam validates against this rather than restating the pair.
-CONTENT_ROLES: frozenset[str] = frozenset(
-    content_role(role) for role in GUILD_STORED_ROLES
-)
 
 
 class GuildMembership(SQLModel, table=True):

@@ -10,7 +10,7 @@ table a later migration added and re-asserts the policies. The model is never
 used to build the DB: Alembic is the single source, applied per schema.
 Per-request routing (search_path + SET ROLE in `set_rls_context`) sends
 guild-scoped queries into the schema, where the RLS policies (deferring to
-`public.initiative_access`) enforce initiative membership for non-admin roles.
+`initiative_access`) enforce initiative membership for non-admin roles.
 
 `backfill_guild_schemas` re-runs that idempotent provisioning for *every*
 existing guild on every boot (`main.on_startup`). This closes two drift gaps: a
@@ -28,12 +28,12 @@ import logging
 from dataclasses import dataclass, field
 
 from sqlalchemy import text
-from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
 from app.db import bootstrap
 from app.db import session as db_session
+from app.models.platform.user import UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,8 @@ logger = logging.getLogger(__name__)
 # routing (search_path) sends guild-scoped queries there: app_user for the RLS
 # request path, app_admin for guild creation / seeding / background jobs.
 # (Tightening to per-guild roles + SET ROLE is the fail-closed step.)
-APP_LOGIN_ROLE = make_url(settings.DATABASE_URL_APP).username
-ADMIN_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
+APP_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_APP")
+SYSTEM_LOGIN_ROLE, _ = settings.database_login("DATABASE_URL_ADMIN")
 
 
 def guild_schema_name(guild_id: int) -> str:
@@ -84,6 +84,22 @@ def guild_support_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_support"
 
 
+def guild_superadmin_role_name(guild_id: int) -> str:
+    """The seat's role for a guild, e.g. ``guild_42_superadmin``.
+
+    Assumed by a request that asked for the seat and reached it — the
+    membership row says ``superadmin``, or a live ``superadmin`` settings
+    grant does. It inherits ``guild_<id>`` (the schema, and through it the
+    ``app_guild_base`` floor) and ``app_superadmin``, the floor carrying the
+    community's sign-in configuration.
+
+    Asking for it is a separate condition from holding it: an ordinary
+    request by a seat holder routes as ``guild_<id>``, so a content read
+    carries none of the configuration grants.
+    """
+    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_superadmin"
+
+
 def guild_query_role_name(guild_id: int) -> str:
     """Read-only role for the SQL query surface, e.g. ``guild_42_q``.
 
@@ -100,15 +116,15 @@ def guild_query_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_q"
 
 
-# Structural / permission tables the restricted ``support`` role may READ but never
-# WRITE — the DB-enforced "no member/permission management" line. Coarse by design
-# (table/verb, not row-level): the finer "edit-existing vs authoring" nuance stays in
-# the pam_write RLS leg. Kept in lockstep with the guild schema by
-# ``support_role_test`` (a renamed/added structural table must be reconsidered here).
+# Permission tables the restricted ``support`` role may READ but never WRITE:
+# what a resource is shared with, and what an installed app may do in
+# somebody's name — access management, which a content grant is not for.
+# Coarse by design (table/verb, not row-level). The initiative's own
+# structure (its roster, roles and their permissions) is not here: the
+# ``managed_*`` policies decide those writes from the standing, and a settings
+# rung beside a ``read_write`` grant is among what they admit. Kept in
+# lockstep with the guild schema by ``schema_provisioning_test``.
 SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
-    "initiative_members",
-    "initiative_roles",
-    "initiative_role_permissions",
     "resource_grants",
     # A member's own credential for an installed app. Deciding who reaches an
     # outside system through this guild is access management, not the
@@ -132,11 +148,12 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     "comments": ("SELECT", "UPDATE"),
     "documents": ("SELECT", "UPDATE"),
     "posts": ("SELECT", "UPDATE"),
+    # A task's description carries the same mention markup as a comment.
+    "tasks": ("SELECT", "UPDATE"),
     "task_assignment_digest_items": ("SELECT", "UPDATE"),
     # The frozen-ancestor guard reads each supported parent into a composite
     # record (``SELECT *``) before capture/search triggers resolve identifiers.
     # PostgreSQL therefore requires table-level SELECT for these dependencies.
-    "tasks": ("SELECT",),
     "projects": ("SELECT",),
     "queues": ("SELECT",),
     "counter_groups": ("SELECT",),
@@ -177,17 +194,21 @@ SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
 }
 
 
-# The platform privilege ladder, least -> most. Positional mapping from
-# ``users.role`` (an enum with these exact values). The migration creates one
-# ``platform_<tier>`` NOLOGIN role per entry plus a shared ``platform_base``
-# floor; the public/platform request path assumes ``platform_<users.role>``.
-PLATFORM_TIERS: tuple[str, ...] = (
-    "member",
-    "support",
-    "moderator",
-    "operator",
-    "owner",
-)
+# The platform privilege ladder, least -> most, as ``users.role`` spells it.
+# The migration creates one ``platform_<tier>`` NOLOGIN role per entry plus a
+# shared ``platform_base`` floor; the public/platform request path assumes
+# ``platform_<users.role>``.
+PLATFORM_TIERS: tuple[str, ...] = tuple(role.value for role in UserRole)
+
+#: The platform role a suspended account assumes whatever its tier: it holds no
+#: rung while in time out. ``platform_suspended`` inherits only
+#: ``platform_base_ro``, the read half of ``platform_base``, so what it reaches
+#: is its own rows, read, and nothing written. Not a rung — ``users.role`` never
+#: holds it — so it sits beside the ladder rather than on it.
+PLATFORM_SUSPENDED = "suspended"
+
+#: Every platform role a request may assume: the ladder, and the time-out role.
+PLATFORM_ROUTES: tuple[str, ...] = (*PLATFORM_TIERS, PLATFORM_SUSPENDED)
 
 
 def platform_role_name(role: str) -> str:
@@ -195,8 +216,9 @@ def platform_role_name(role: str) -> str:
 
     Carries ``settings.PLATFORM_ROLE_PREFIX`` (empty in prod/dev; ``test_`` under
     the suite) so these cluster-global roles don't collide with a co-located dev
-    DB's. ``role`` is a ``users.role`` value and is validated by the caller against
-    :data:`PLATFORM_TIERS` before reaching the privileged ``SET ROLE`` sink.
+    DB's. ``role`` is a ``users.role`` value or :data:`PLATFORM_SUSPENDED`, and is
+    validated by the caller against :data:`PLATFORM_ROUTES` before reaching the
+    privileged ``SET ROLE`` sink.
     """
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
 
@@ -278,6 +300,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
                     "__stamp_ro__",
                     "__stamp_support__",
                     "__stamp_q__",
+                    "__stamp_seat__",
                 )
             ).encode()
         )
@@ -322,10 +345,10 @@ async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
 
     Schema-relative + idempotent (``ENABLE/FORCE`` + ``DROP POLICY IF EXISTS`` +
     ``CREATE POLICY``), so a re-run (provisioning, boot back-fill) re-asserts the
-    policies harmlessly. Policies defer to ``public.initiative_access`` (qualified,
-    so it resolves regardless of search_path); the per-table EXISTS joins resolve
-    against the guild-local tables. Requires ``public.initiative_access`` to exist
-    (created by migration 20260616_0110).
+    policies harmlessly. Policies defer to the schema's own ``initiative_access``,
+    rendered at the top of the same DDL so each policy binds the local copy; the
+    per-table EXISTS joins resolve against the guild-local tables. The
+    ``public`` functions those copies call are applied at boot before this runs.
     """
     ddl = (await get_provisioning_bundle()).rls_ddl
     raw = await conn.get_raw_connection()
@@ -392,24 +415,81 @@ async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
     )
 
 
-async def apply_template_rls() -> None:
-    """Re-assert the registry-rendered RLS on ``guild_template``.
+async def strip_template_registry_objects(conn: AsyncConnection) -> int:
+    """Remove from ``guild_template`` what only a renderer would have put there.
 
-    The template is the canonical picture of a guild schema, so it should carry
-    the same policies a provisioned guild does. Structure reaches it through
-    migrations; policies reach it here, from the registry, on the provisioning
-    engine that owns the schema.
+    Migrations shape the template and provisioning reflects its structure.
+    Boots before the template became structure-only also rendered the
+    registries into it: policies, and the freeze, capture and search
+    triggers. This drops those — every policy on a template table, every
+    trigger whose name the renderers produce, and any of the guild functions —
+    and leaves the migrations' own objects alone. Idempotent; a no-op once the template is clean.
+    Returns how many objects went.
     """
-    from app.db.guild_ddl import TEMPLATE_SCHEMA
+    from app.db.guild_ddl import TEMPLATE_SCHEMA, rendered_trigger_names
 
-    async with db_session.provisioning_engine.begin() as conn:
-        await apply_guild_rls(conn, TEMPLATE_SCHEMA)
-        await apply_guild_capture(conn, TEMPLATE_SCHEMA)
-        await apply_guild_search(conn, TEMPLATE_SCHEMA)
+    policies = (
+        await conn.execute(
+            text("SELECT tablename, policyname FROM pg_policies WHERE schemaname = :s"),
+            {"s": TEMPLATE_SCHEMA},
+        )
+    ).all()
+    for table, policy in policies:
+        await conn.execute(
+            text(f'DROP POLICY IF EXISTS "{policy}" ON "{TEMPLATE_SCHEMA}"."{table}"')
+        )
+    rendered = rendered_trigger_names()
+    triggers = [
+        (table, trigger)
+        for table, trigger in (
+            await conn.execute(
+                text(
+                    "SELECT c.relname, t.tgname FROM pg_trigger t "
+                    "JOIN pg_class c ON c.oid = t.tgrelid "
+                    "WHERE c.relnamespace = CAST(:s AS regnamespace) "
+                    "AND NOT t.tgisinternal"
+                ),
+                {"s": TEMPLATE_SCHEMA},
+            )
+        ).all()
+        if trigger in rendered
+    ]
+    for table, trigger in triggers:
+        await conn.execute(
+            text(f'DROP TRIGGER IF EXISTS "{trigger}" ON "{TEMPLATE_SCHEMA}"."{table}"')
+        )
+    # The functions the render now puts in a guild schema, should a render
+    # ever have been pointed at the template; dropped after the policies that
+    # would bind them.
+    from app.db.authorization import (
+        GUILD_FUNCTION_SIGNATURES,
+        RETIRED_GUILD_FUNCTION_SIGNATURES,
+    )
+
+    functions = 0
+    for name, args in (
+        *GUILD_FUNCTION_SIGNATURES.items(),
+        *RETIRED_GUILD_FUNCTION_SIGNATURES,
+    ):
+        present = (
+            await conn.execute(
+                text("SELECT to_regprocedure(CAST(:sig AS text)) IS NOT NULL"),
+                {"sig": f"{TEMPLATE_SCHEMA}.{name}{args}"},
+            )
+        ).scalar()
+        if present:
+            await conn.execute(text(f'DROP FUNCTION "{TEMPLATE_SCHEMA}".{name}{args}'))
+            functions += 1
+    return len(policies) + len(triggers) + functions
 
 
 def _grant_statements(
-    schema: str, role: str, ro_role: str, support_role: str, query_role: str
+    schema: str,
+    role: str,
+    ro_role: str,
+    support_role: str,
+    query_role: str,
+    seat_role: str,
 ) -> list[str]:
     """Fail-closed grants tying a guild's ``role`` (read/write), ``ro_role``
     (read-only) and ``support_role`` (restricted read/write) to its ``schema``.
@@ -420,7 +500,7 @@ def _grant_statements(
     cosmetic edits here don't.
 
     Each role inherits shared/public access from ``app_guild_base``. The login
-    roles are granted membership in all three ``WITH INHERIT FALSE`` — they can
+    roles are granted membership in all of them ``WITH INHERIT FALSE`` — they can
     ``SET ROLE`` into any but hold no standing access to the schema, so a
     guild's data is reachable only by assuming one of its roles. The read-only
     role (assumed by PAM read grants) gets SELECT only, so a write is denied.
@@ -431,15 +511,15 @@ def _grant_statements(
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
         # app_admin login retain BYPASSRLS while it removes embedded names.
-        f'GRANT USAGE ON SCHEMA "{schema}" TO "{ADMIN_LOGIN_ROLE}"',
+        f'GRANT USAGE ON SCHEMA "{schema}" TO "{SYSTEM_LOGIN_ROLE}"',
         *(
             f"GRANT {', '.join(privileges)} ON TABLE "
-            f'"{schema}"."{table}" TO "{ADMIN_LOGIN_ROLE}"'
+            f'"{schema}"."{table}" TO "{SYSTEM_LOGIN_ROLE}"'
             for table, privileges in SYSTEM_GUILD_MAINTENANCE_GRANTS.items()
         ),
         *(
             f"GRANT {', '.join(privileges)} ON SEQUENCE "
-            f'"{schema}"."{sequence}" TO "{ADMIN_LOGIN_ROLE}"'
+            f'"{schema}"."{sequence}" TO "{SYSTEM_LOGIN_ROLE}"'
             for sequence, privileges in (
                 SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS.items()
             )
@@ -452,7 +532,7 @@ def _grant_statements(
         f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{schema}" TO "{role}"',
         f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{role}"',
         f'GRANT app_guild_base TO "{role}"',
-        f'GRANT "{role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" WITH INHERIT FALSE',
+        f'GRANT "{role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" WITH INHERIT FALSE',
         # Read-only role: SELECT only on the schema (PAM read grants, read-only
         # members), and the read-only shared floor.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{ro_role}"',
@@ -461,7 +541,7 @@ def _grant_statements(
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{ro_role}"',
         f'GRANT SELECT ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{ro_role}"',
         f'GRANT app_guild_base_ro TO "{ro_role}"',
-        f'GRANT "{ro_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" WITH INHERIT FALSE',
+        f'GRANT "{ro_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" WITH INHERIT FALSE',
         # Support role: read_write on content, but SELECT-only on the structural /
         # permission tables. Grant broadly (incl. default privileges for future
         # content tables) then REVOKE write on the protected set — coarse by design.
@@ -474,7 +554,7 @@ def _grant_statements(
         f'TO "{support_role}"',
         f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{support_role}"',
         f'GRANT app_guild_base TO "{support_role}"',
-        f'GRANT "{support_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
+        f'GRANT "{support_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
         # Query role: SELECT on the schema's tables and nothing else. No
         # sequences — a read names no sequence — and no DML at any level.
@@ -488,11 +568,20 @@ def _grant_statements(
         f'GRANT SELECT ON TABLES TO "{query_role}"',
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{query_role}"',
         f'GRANT app_guild_base_ro TO "{query_role}"',
-        f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
+        f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
+        f"WITH INHERIT FALSE",
+        # Seat role: the full guild role's reach into the schema and the
+        # shared floor, plus app_superadmin — the one shared floor carrying
+        # the community's sign-in configuration. Composed from the guild role
+        # rather than granted afresh, so a content table added later reaches
+        # it by the same default privilege that reaches that one.
+        f'GRANT "{role}" TO "{seat_role}"',
+        f'GRANT app_superadmin TO "{seat_role}"',
+        f'GRANT "{seat_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
     ]
-    # Hard-cap the support role: SELECT stays, writes are revoked on the structural /
-    # permission tables (these exist in every schema, so the REVOKE always applies).
+    # Cap the support role: SELECT stays, writes are revoked on the permission
+    # tables (these exist in every schema, so the REVOKE always applies).
     for table in SUPPORT_WRITE_PROTECTED_TABLES:
         stmts.append(
             f'REVOKE INSERT, UPDATE, DELETE ON "{schema}"."{table}" '
@@ -538,14 +627,17 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     ro_role = guild_readonly_role_name(guild_id)
     support_role = guild_support_role_name(guild_id)
     query_role = guild_query_role_name(guild_id)
+    seat_role = guild_superadmin_role_name(guild_id)
     await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
     await _ensure_role(conn, role)
     await _ensure_role(conn, ro_role)
     await _ensure_role(conn, support_role)
     await _ensure_role(conn, query_role)
+    await _ensure_role(conn, seat_role)
     await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
     await _exec_batch(
-        conn, _grant_statements(schema, role, ro_role, support_role, query_role)
+        conn,
+        _grant_statements(schema, role, ro_role, support_role, query_role, seat_role),
     )
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
     await apply_guild_capture(conn, schema)  # change-capture triggers
@@ -563,16 +655,17 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
 
     # DROP SCHEMA needs an exclusive lock on the schema's tables (and on
     # public.guilds to drop their FKs); concurrent app sessions can hold it. Fail
-    # fast rather than hang — the caller treats a failure as "retry later", and
-    # this drop is idempotent so a retry recovers cleanly.
+    # fast rather than hang: the guild-purge pass reclaims any schema whose row
+    # is gone, and this drop is idempotent so that retry recovers cleanly.
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
-    provisioning_login = make_url(settings.DATABASE_URL).username
+    provisioning_login, _ = settings.database_login("DATABASE_URL")
     for role in (
         guild_role_name(guild_id),
         guild_readonly_role_name(guild_id),
         guild_support_role_name(guild_id),
         guild_query_role_name(guild_id),
+        guild_superadmin_role_name(guild_id),
     ):
         if await _role_exists(conn, role):
             # DROP OWNED requires the role's PRIVILEGES, not just ADMIN OPTION
@@ -647,22 +740,23 @@ async def backfill_guild_schemas() -> BackfillSummary:
     """
     stamp = (await get_provisioning_bundle()).stamp
 
-    # The template first. Its structure is Alembic's, but its RLS comes from the
-    # same registry every guild schema's does — migrations deliberately do not
-    # render the live registry (a historical migration would freeze whatever the
-    # registry said the day it was written). Re-asserting it here keeps the
-    # canonical copy faithful without putting registry rendering back into
-    # migrations, and it is idempotent, so a boot with nothing to do is cheap.
+    # The template carries structure only. Earlier boots rendered the
+    # registries into it as well, and those copies bind functions the
+    # registries have since moved into the guild schemas; nothing reads them,
+    # and the retirement step after this sweep needs them gone.
     try:
-        await apply_template_rls()
+        async with db_session.provisioning_engine.begin() as conn:
+            stripped = await strip_template_registry_objects(conn)
+        if stripped:
+            logger.info("guild_template: removed %d rendered objects", stripped)
     except Exception:  # noqa: BLE001 — never block boot on the template
-        logger.exception("guild_template RLS refresh failed")
+        logger.exception("guild_template clean-up failed")
 
     # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids
     # live in the RLS-forced public.guilds, and the provisioner is a pure DDL
     # actor — FORCE RLS filters its unrouted data reads to zero rows (by
     # design). Reading data is the system engine's job (BYPASSRLS).
-    async with db_session.admin_engine.connect() as conn:
+    async with db_session.system_engine.connect() as conn:
         # Pooled connection: shed any guild role a previous checkout assumed
         # (a leaked role would RLS-filter public.guilds to zero rows).
         await conn.execute(text("SELECT set_config('role', 'none', false)"))
@@ -711,8 +805,12 @@ async def reject_privileged_database_url() -> None:
     Migrations and guild provisioning fit in ``app_provisioner`` (NOSUPERUSER
     CREATEROLE + CREATE on the database + ownership of the app's objects), so
     this URL never needs more. Creating that role is :mod:`app.db.bootstrap`'s
-    job, over ``DATABASE_URL_BOOTSTRAP`` -- the one connection that
-    legitimately holds the privilege, and which this does not touch.
+    job, over the owner connection -- the one connection that legitimately
+    holds the privilege, and which this does not touch.
+
+    When ``DATABASE_URL`` was given as the owner, the app made this login
+    itself, so reaching the refusal means ``app_provisioner`` was granted
+    more afterwards.
     """
     async with db_session.provisioning_engine.connect() as conn:
         rolsuper, rolbypassrls = (
@@ -727,6 +825,16 @@ async def reject_privileged_database_url() -> None:
         return
 
     held = "SUPERUSER" if rolsuper else "BYPASSRLS"
+    if settings.database_logins_derived:
+        raise SystemExit(
+            f"\n{'=' * 70}\n"
+            f"REFUSING TO START: the app_provisioner login holds {held}.\n\n"
+            f"The app never needs this privilege, and the access rules\n"
+            f"described in SECURITY.md are not in force for a connection that\n"
+            f"holds it. Remove it as a Postgres superuser, then restart:\n\n"
+            f"  ALTER ROLE app_provisioner NOSUPERUSER NOBYPASSRLS;\n"
+            f"{'=' * 70}\n"
+        )
     raise SystemExit(
         f"\n{'=' * 70}\n"
         f"REFUSING TO START: DATABASE_URL connects as a {held} role.\n\n"
@@ -735,11 +843,10 @@ async def reject_privileged_database_url() -> None:
         f"holds them. Make the three logins -- either way takes a minute,\n"
         f"and neither touches your data:\n\n"
         f"  Let the app do it\n"
-        f"    1. Set DATABASE_URL_BOOTSTRAP to this same connection URL.\n"
-        f"    2. Point DATABASE_URL at app_provisioner, with a password of\n"
-        f"       your choosing, and restart. The bootstrap creates the\n"
-        f"       roles and hands the app's objects over to them.\n"
-        f"    3. Optional: remove DATABASE_URL_BOOTSTRAP and restart again.\n\n"
+        f"    Keep DATABASE_URL as it is, remove DATABASE_URL_APP and\n"
+        f"    DATABASE_URL_ADMIN (and DATABASE_URL_BOOTSTRAP, if set), and\n"
+        f"    restart. The app then treats DATABASE_URL as the database owner:\n"
+        f"    it creates its logins and hands the app's objects over to them.\n\n"
         f"  Or do it by hand\n"
         f"    1. Point DATABASE_URL at app_provisioner, with a password of\n"
         f"       your choosing.\n"
@@ -747,24 +854,14 @@ async def reject_privileged_database_url() -> None:
         f"       connects to nothing):\n"
         f"         python -m app.db.bootstrap --print-sql\n"
         f"    3. Run it as the database owner, then start the app.\n\n"
-        f"DATABASE_URL_APP / DATABASE_URL_ADMIN are unaffected. See the\n"
-        f"deployment docs for details.\n"
+        f"See the deployment docs for details.\n"
         f"{'=' * 70}\n"
     )
 
 
-SEARCH_OPCLASS = "tsvector_search_ops"
-#: Re-exported from the module that installs it, so the name has one home.
+#: Re-exported from the module that installs them, so each name has one home.
+SEARCH_OPCLASS = bootstrap.SEARCH_OPCLASS
 SEARCH_MATCH_FUNCTION = bootstrap.SEARCH_MATCH_FUNCTION
-
-_SEARCH_OPERATOR_SQL = text(
-    "SELECT "
-    "  EXISTS (SELECT 1 FROM pg_opclass c JOIN pg_namespace n ON n.oid = c.opcnamespace"
-    "          WHERE n.nspname = 'public' AND c.opcname = :opclass) AS opclass_present,"
-    "  coalesce((SELECT p.proleakproof FROM pg_proc p"
-    "            JOIN pg_namespace n ON n.oid = p.pronamespace"
-    "            WHERE n.nspname = 'public' AND p.proname = :fn), false) AS fn_leakproof"
-)
 
 
 #: Cached at boot by :func:`search_operator_ready`. ``False`` until checked, so
@@ -785,14 +882,9 @@ async def search_operator_ready() -> bool:
     class; both must be present.
     """
     async with db_session.provisioning_engine.connect() as conn:
-        row = (
-            await conn.execute(
-                _SEARCH_OPERATOR_SQL,
-                {"opclass": SEARCH_OPCLASS, "fn": SEARCH_MATCH_FUNCTION},
-            )
-        ).one()
+        ready = await bootstrap.search_operator_present(conn)
     global _search_operator_ready
-    _search_operator_ready = bool(row.opclass_present and row.fn_leakproof)
+    _search_operator_ready = ready
     return _search_operator_ready
 
 
@@ -814,6 +906,10 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
     """
     from app.db.search_index import reindex_plan, search_generation
 
+    # The schema names its community, and the role to assume for it is named
+    # from the same id — a role name carries a per-checkout prefix, so it is
+    # not the schema's own spelling.
+    role = guild_role_name(int(schema.removeprefix("guild_")))
     generation = search_generation()
     async with engine.connect() as conn:
         current = await conn.scalar(
@@ -828,12 +924,17 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
         cursor = 0
         while True:
             async with engine.begin() as conn:
-                # System routing: no user id (so the auth gate reads as a system
-                # session), guild-admin role for the write.
+                # System routing: no user id, so the sign-in gate reads this as
+                # a system session; the index's own policy admits the write by
+                # the connection's login, which is the system engine's.
+                # Both names are built from the community's id, not from
+                # anything a request supplies, the way every other identifier
+                # in this module is.
                 await conn.exec_driver_sql(
                     f"SELECT set_config('search_path', '\"{schema}\", public', true),"
-                    " set_config('app.current_guild_role', 'admin', true),"
-                    " set_config('app.current_user_id', '', true)"
+                    f" set_config('role', '{role}', true),"
+                    " set_config('app.current_user_id', '', true),"
+                    " set_config('app.guild_auth_ok', 'true', true)"
                 )
                 rows = (
                     await conn.execute(
@@ -881,7 +982,7 @@ async def backfill_guild_search() -> int:
     total = 0
     for schema in schemas:
         try:
-            total += await reindex_guild_search(db_session.provisioning_engine, schema)
+            total += await reindex_guild_search(db_session.system_engine, schema)
         except Exception:
             logger.exception("search reindex failed for %s", schema)
     if total:
@@ -897,10 +998,10 @@ async def warn_if_search_operator_missing() -> None:
     restore or a major-version upgrade that lost the objects would otherwise
     show up only as search getting slower.
 
-    :mod:`app.db.bootstrap` installs the objects at startup whenever
-    ``DATABASE_URL_BOOTSTRAP`` names a superuser connection, so reaching this
-    warning means that setting is absent or its role is not a superuser —
-    Postgres accepts the ``LEAKPROOF`` attribute only from one.
+    :mod:`app.db.bootstrap` installs the objects at startup whenever its owner
+    connection is a superuser, so reaching this warning means there is no
+    owner connection or its role is not a superuser — Postgres accepts the
+    ``LEAKPROOF`` attribute only from one.
 
     Names the database it checked, because a host commonly has more than one and
     the objects are per-database.
@@ -914,7 +1015,7 @@ async def warn_if_search_operator_missing() -> None:
         "Results are unchanged; each search reads more of the index table,\n"
         "which grows with the guild.\n"
         "\n"
-        "Set DATABASE_URL_BOOTSTRAP to a superuser connection for this\n"
+        "Set %s to a superuser connection for this\n"
         "database and restart, and the app installs it. To apply it by hand\n"
         "instead:\n"
         "\n"
@@ -926,39 +1027,14 @@ async def warn_if_search_operator_missing() -> None:
         "%s",
         "=" * 70,
         database,
+        bootstrap.owner_setting(),
         database,
         "=" * 70,
     )
 
 
-_EFFECTIVE_BYPASS_SQL = (
-    "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
-)
-
-
-def _bypassrls_exit_message(admin_login: str, heal_attempted: bool) -> str:
-    """The boot-stopping message for a policy-bound system engine.
-
-    ``heal_attempted`` distinguishes "this process may not repair the role"
-    from "an in-place repair ran without error yet the re-check still sees no
-    bypass" — the operator must know a repair already happened, or the
-    instruction to run the same ALTER reads as the whole fix when something
-    deeper (e.g. a pooler authenticating the admin URL as a different role)
-    is eating it.
-    """
-    if heal_attempted:
-        attempted = (
-            "An automatic repair (ALTER ROLE … WITH BYPASSRLS via DATABASE_URL)\n"
-            "already ran without error, but a fresh DATABASE_URL_ADMIN\n"
-            "connection still reports no bypass — the URL is likely reaching a\n"
-            "different role than it names (e.g. through a connection pooler).\n"
-            "Verify which role the connection really lands on:\n\n"
-            "  SELECT current_user, rolbypassrls FROM pg_roles\n"
-            "   WHERE rolname = current_user;\n\n"
-            "and repair that role as a Postgres superuser:\n"
-        )
-    else:
-        attempted = "Repair it as a Postgres superuser:\n"
+def _bypassrls_exit_message(admin_login: str) -> str:
+    """The boot-stopping message for a policy-bound system engine."""
     return (
         f"\n{'=' * 70}\n"
         f"DATABASE_URL_ADMIN connects as {admin_login!r}, which does not hold\n"
@@ -967,7 +1043,8 @@ def _bypassrls_exit_message(admin_login: str, heal_attempted: bool) -> str:
         "shared table as empty and boot fails with a row-level security\n"
         "error. Roles are cluster state — restoring a database from a dump\n"
         "does not restore them.\n\n"
-        f"{attempted}\n"
+        "Give the app its owner connection and restart, and the bootstrap\n"
+        "sets it again; or repair it as a Postgres superuser:\n\n"
         f'  ALTER ROLE "{admin_login}" WITH BYPASSRLS;\n\n'
         "then restart the app.\n"
         f"{'=' * 70}"
@@ -975,8 +1052,7 @@ def _bypassrls_exit_message(admin_login: str, heal_attempted: bool) -> str:
 
 
 async def ensure_system_engine_bypassrls() -> None:
-    """Verify the system engine (``DATABASE_URL_ADMIN``) actually bypasses RLS,
-    re-asserting the attribute when the provisioning login lawfully can.
+    """Verify the system engine (``DATABASE_URL_ADMIN``) actually bypasses RLS.
 
     Every seeding/background-job query assumes the system engine holds
     BYPASSRLS. A login that connects fine but is policy-bound (roles are
@@ -985,17 +1061,13 @@ async def ensure_system_engine_bypassrls() -> None:
     shared table as empty, so the first boot after such a restore dies deep in
     startup seeding with an opaque "new row violates row-level security policy
     for table \"guilds\"" while trying to re-create the primary guild it cannot
-    see (issue #835). The baseline migration verifies this contract, but only
-    fresh databases run it — an already-stamped database is never re-checked.
+    see (issue #835).
 
-    Runs right after migrations on every boot. When ``DATABASE_URL`` holds
-    BYPASSRLS or superuser (Postgres reserves BYPASSRLS surgery for holders of
-    it — true for legacy deployments that still migrate as the compose
-    superuser), the attribute is repaired in place, preserving the baseline's
-    self-healing behavior. Otherwise boot stops with the exact repair command
-    instead of the downstream RLS error.
+    The bootstrap sets the attribute on every start that has an owner
+    connection; this is the check for one that has none. Boot stops with the
+    exact repair command instead of the downstream RLS error.
     """
-    async with db_session.admin_engine.connect() as conn:
+    async with db_session.system_engine.connect() as conn:
         admin_login, bypasses = (
             await conn.execute(
                 text(
@@ -1005,51 +1077,11 @@ async def ensure_system_engine_bypassrls() -> None:
                 )
             )
         ).one()
-    if bypasses:
-        return
-
-    async with db_session.provisioning_engine.begin() as conn:
-        can_heal = (await conn.execute(text(_EFFECTIVE_BYPASS_SQL))).scalar()
-        if can_heal:
-            # Role DDL takes no bind parameters; pin the identifier through a
-            # transaction-local GUC and quote it server-side with format(%I),
-            # mirroring the baseline migration's role DDL.
-            await conn.execute(
-                text("SELECT set_config('app._system_engine_login', :name, true)"),
-                {"name": admin_login},
-            )
-            await conn.execute(
-                text(
-                    "DO $$ BEGIN "
-                    "EXECUTE format('ALTER ROLE %I WITH BYPASSRLS', "
-                    "current_setting('app._system_engine_login')); "
-                    "END $$"
-                )
-            )
-
-    if can_heal:
-        async with db_session.admin_engine.connect() as conn:
-            healed = (await conn.execute(text(_EFFECTIVE_BYPASS_SQL))).scalar()
-        if healed:
-            logger.warning(
-                "System engine login %r was missing BYPASSRLS — re-asserted it "
-                "via DATABASE_URL. Restored databases lose role attributes; "
-                "no action needed.",
-                admin_login,
-            )
-            return
-        logger.error(
-            "Re-asserted BYPASSRLS on %r via DATABASE_URL, but a fresh "
-            "DATABASE_URL_ADMIN connection still reports no bypass.",
-            admin_login,
-        )
-
-    raise SystemExit(
-        _bypassrls_exit_message(admin_login, heal_attempted=bool(can_heal))
-    )
+    if not bypasses:
+        raise SystemExit(_bypassrls_exit_message(admin_login))
 
 
-# --- shared-table grant healing (issue #835, deeper than the BYPASSRLS heal) --
+# --- shared-table grant healing (issue #835, deeper than the BYPASSRLS check) -
 #
 # BYPASSRLS (above) lets the system engine skip RLS *policies*; it does NOT skip
 # table-level privilege checks. A restored/recreated cluster can bring app_admin
@@ -1186,8 +1218,8 @@ async def ensure_shared_table_grants() -> None:
     app's directly-connecting roles (``app_admin`` system engine, ``app_user``
     bare login).
 
-    Companion to :func:`ensure_system_engine_bypassrls`: that repairs the RLS
-    *attribute*, this repairs the table *grants* one gate deeper. Both close the
+    Companion to :func:`ensure_system_engine_bypassrls`: that checks the RLS
+    *attribute*, this repairs the table *grants* one gate deeper. Both answer the
     same class of drift — a ``pg_dump``-based restore or a hand-recreated role
     loses cluster state that an already-stamped database never re-applies
     (issue #835). Runs right after the BYPASSRLS check on every boot; a healthy
@@ -1215,8 +1247,8 @@ async def ensure_shared_table_grants() -> None:
 
 # --- engine identity + effective-privilege verification ----------------------
 #
-# The two heals above repair the CANONICAL roles: the BYPASSRLS check keys on
-# whatever login DATABASE_URL_ADMIN connects as, while the grant heal targets
+# The BYPASSRLS check keys on whatever login DATABASE_URL_ADMIN connects as,
+# while the grant heal above targets
 # the literal app_admin / app_user names. A deployment whose URLs connect as
 # other logins (hand-created roles, swapped APP/ADMIN strings, one login doing
 # double duty) slips between the two and fails later with an opaque permission
@@ -1258,7 +1290,7 @@ async def verify_engine_identities() -> None:
                 )
             )
         ).one()
-    async with db_session.admin_engine.connect() as conn:
+    async with db_session.system_engine.connect() as conn:
         admin_login, admin_db = (
             await conn.execute(text("SELECT session_user, current_database()"))
         ).one()
@@ -1384,7 +1416,7 @@ async def _effective_missing_grants(
 
 
 async def verify_effective_shared_grants() -> None:
-    """Verify the CONNECTED app/admin logins effectively hold their audited
+    """Verify the CONNECTED app_user/app_admin logins effectively hold their audited
     shared-table privileges, stopping boot with the exact repair when not.
 
     Companion to :func:`ensure_shared_table_grants`, which heals the canonical
@@ -1399,7 +1431,7 @@ async def verify_effective_shared_grants() -> None:
 
     for engine_, env_var, canonical_role, matrix in (
         (
-            db_session.admin_engine,
+            db_session.system_engine,
             "DATABASE_URL_ADMIN",
             "app_admin",
             system_grants.SHARED_TABLE_SYSTEM_GRANTS,

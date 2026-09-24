@@ -104,7 +104,7 @@ async def read_calendar(
     calendar = await resource_access.load_authorized(
         session, Tool.calendar, calendar_id, current_user, guild_context
     )
-    return serialize_calendar(calendar, user_id=current_user.id)
+    return serialize_calendar(calendar, user_id=current_user.id, context=guild_context)
 
 
 @router.post("/", response_model=CalendarRead, status_code=status.HTTP_201_CREATED)
@@ -158,7 +158,6 @@ async def create_calendar(
     initiative_id = initiative.id if initiative is not None else None
 
     calendar = Calendar(
-        guild_id=guild_context.guild_id,
         initiative_id=initiative_id,
         created_by=current_user.id,
         name=calendar_in.name.strip(),
@@ -175,7 +174,6 @@ async def create_calendar(
             user_id=current_user.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_context.guild_id,
             initiative_id=initiative_id,
         )
     )
@@ -212,7 +210,7 @@ async def create_calendar(
 
     await session.commit()
     hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_calendar(hydrated, user_id=current_user.id)
+    return serialize_calendar(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.patch("/{calendar_id}", response_model=CalendarRead)
@@ -251,7 +249,7 @@ async def update_calendar(
         await session.commit()
 
     hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_calendar(hydrated, user_id=current_user.id)
+    return serialize_calendar(hydrated, user_id=current_user.id, context=guild_context)
 
 
 @router.delete("/{calendar_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -303,4 +301,4 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_calendar(session, calendar_id)
-    return serialize_calendar(hydrated, user_id=user.id)
+    return serialize_calendar(hydrated, user_id=user.id, context=guild_context)

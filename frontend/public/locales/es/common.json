@@ -105,6 +105,11 @@
       "archived": "«{{name}}» archivado",
       "unarchived": "«{{name}}» ha vuelto"
     },
+    "export": {
+      "title": "Exportar",
+      "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo.",
+      "button": "Exportar"
+    },
     "title": "Configuración",
     "description": "Gestiona los detalles, el acceso y las opciones avanzadas.",
     "tabDetails": "Detalles",
@@ -189,6 +194,11 @@
     "unavailable": "Este dispositivo no tiene cámara para hacer una foto.",
     "failed": "No se pudo leer esa foto. Inténtalo de nuevo."
   },
+  "fileDrop": {
+    "release": "Suéltalo aquí",
+    "unsupported": "Ese tipo de archivo no se puede subir aquí.",
+    "tooLarge": "Ese archivo es más grande de lo que acepta este servidor."
+  },
   "archiveError": "No se pudo archivar. Inténtalo de nuevo.",
   "unarchiveError": "No se pudo desarchivar. Inténtalo de nuevo.",
   "markdownEditor": {
@@ -206,6 +216,23 @@
     "bulletedList": "Lista con viñetas",
     "numberedList": "Lista numerada",
     "taskList": "Lista de tareas",
-    "more": "Más formato"
+    "more": "Más formato",
+    "image": "Imagen",
+    "uploadingImage": "Subiendo {{name}}…",
+    "imageUploadFailed": "No se pudo añadir esa imagen."
+  },
+  "errorPage": {
+    "title": "Algo salió mal",
+    "description": "Esta página tuvo un error y no se pudo mostrar. Inténtalo de nuevo o ve a tus tareas.",
+    "appDescription": "Initiative tuvo un error y no pudo continuar. Al recargar, se inicia de nuevo.",
+    "details": "Detalles del error",
+    "toMyTasks": "Ir a {{myTasks}}",
+    "reload": "Recargar",
+    "updatedTitle": "Initiative se ha actualizado",
+    "updatedDescription": "Hay una versión más reciente. Recarga para abrir esta página en ella."
+  },
+  "notFoundPage": {
+    "title": "Página no encontrada",
+    "description": "No hay nada en esta dirección. Puede que el enlace esté mal escrito o que la página se haya movido."
   }
 }

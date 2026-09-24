@@ -27,8 +27,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Sequence, Union
 
-from app.models.platform.guild import CONTENT_ROLES
-
 
 class ContextShapeError(ValueError):
     """The arguments do not describe any request this system makes."""
@@ -59,9 +57,10 @@ class Platform:
 class GuildScoped:
     """A request routed into one guild's schema.
 
-    ``role`` is the *content* role — what ``app.current_guild_role`` carries —
-    so it is one of two values whatever the membership row says. Put a stored
-    role through ``content_role`` before it gets here.
+    No role travels here. What somebody is in a community is a row, looked up
+    by the establishment seam and computed into the ``standing`` below by the
+    database; a routing states which community it is in and nothing about who
+    the reader is there.
 
     Nothing here says whether the guild renders real names. That is the
     guild's own column, read by the projection for the guild this context
@@ -70,11 +69,11 @@ class GuildScoped:
 
     guild_id: int
     user_id: Optional[int] = None
-    role: Optional[str] = None
+    #: The seam's ``GuildContext``, present whenever a person is routed.
+    standing: object | None = None
     tier: Optional[str] = None
     read_only: bool = False
     satisfied_providers: Optional[Sequence[int] | str] = None
-    override_initiatives: tuple[int, ...] = ()
     scope_initiative_id: Optional[int] = None
     via_dashboard_id: Optional[int] = None
     query: bool = False
@@ -105,6 +104,12 @@ class PamGrantee:
     not part of this shape. Membership and a grant are recorded separately;
     this class having no field for the other one is what keeps them apart.
 
+    ``settings_guild_id`` is the other half of a pair: break-glass is a content
+    grant and a settings grant issued together, and each names the community on
+    its own axis. The two must name the same one. The content half is what
+    settles the role; the settings half is what the shared tables' own policies
+    read.
+
     It does narrow like any other routed read: the query surface replays a
     request's own context with the reader flag and a scope added, and a
     grantee reaching that surface is replayed the same way a member is.
@@ -112,9 +117,11 @@ class PamGrantee:
 
     pam_guild_id: int
     user_id: Optional[int] = None
+    standing: object | None = None
     tier: Optional[str] = None
     read: bool = False
     write: bool = False
+    settings_guild_id: Optional[int] = None
     satisfied_providers: Optional[Sequence[int] | str] = None
     scope_initiative_id: Optional[int] = None
     via_dashboard_id: Optional[int] = None
@@ -142,11 +149,7 @@ RequestContext = Union[
 
 #: Keywords that describe how a guild is routed into, which a grant does not
 #: do — its read/write level settles the role it gets instead.
-_GUILD_ROUTING = (
-    "guild_role",
-    "read_only",
-    "override_initiatives",
-)
+_GUILD_ROUTING = ("read_only",)
 
 #: Keywords that narrow a read that is already routed. They only ever remove
 #: rows, and a grantee narrows the same way a member does — the query surface
@@ -181,28 +184,40 @@ def classify(**kwargs) -> RequestContext:
     guild_id = kwargs.get("guild_id")
     user_id = kwargs.get("user_id")
     tier = kwargs.get("platform_role")
-    role = kwargs.get("guild_role")
+    standing = kwargs.get("context")
 
     pam_named = [k for k in _PAM if _set(kwargs.get(k))]
     routing_named = [k for k in _GUILD_ROUTING if _set(kwargs.get(k))]
     narrowing_named = [k for k in _NARROWING if _set(kwargs.get(k))]
     settings_guild_id = kwargs.get("settings_guild_id")
 
-    if _set(role) and role not in CONTENT_ROLES:
+    # Routing a person into a community is the establishment seam's call, and
+    # the standing it computes is what the initiative gates read. A routing
+    # that names both without one would run every membership leg against an
+    # empty standing.
+    if _set(guild_id) and _set(user_id) and standing is None:
         raise ContextShapeError(
-            f"guild_role {role!r} is not a content role; put a stored role "
-            "through content_role() first"
+            "routing a user into a guild takes the GuildContext the seam "
+            "builds; call app.api.deps.establish_guild_access instead of "
+            "set_rls_context"
         )
 
     if _set(settings_guild_id):
-        if _set(guild_id) or pam_named or routing_named or narrowing_named:
+        if _set(guild_id) or routing_named or narrowing_named:
             raise ContextShapeError(
                 "a settings grant is routed separately from membership and "
                 "content grants"
             )
-        return SettingsGrantee(
-            settings_guild_id=int(settings_guild_id), user_id=user_id, tier=tier
-        )
+        if not pam_named:
+            return SettingsGrantee(
+                settings_guild_id=int(settings_guild_id), user_id=user_id, tier=tier
+            )
+        # The pair: falls through to the grant shape below, which records the
+        # settings axis beside the content one.
+        if int(settings_guild_id) != int(kwargs.get("pam_guild_id") or 0):
+            raise ContextShapeError(
+                "a grant pair reaches one community, named on both axes"
+            )
 
     if pam_named:
         if _set(guild_id):
@@ -220,9 +235,13 @@ def classify(**kwargs) -> RequestContext:
         return PamGrantee(
             pam_guild_id=int(kwargs["pam_guild_id"]),
             user_id=user_id,
+            standing=standing,
             tier=tier,
             read=bool(kwargs.get("pam_read")),
             write=bool(kwargs.get("pam_write")),
+            settings_guild_id=(
+                int(settings_guild_id) if _set(settings_guild_id) else None
+            ),
             satisfied_providers=kwargs.get("satisfied_providers"),
             scope_initiative_id=kwargs.get("scope_initiative_id"),
             via_dashboard_id=kwargs.get("via_dashboard_id"),
@@ -236,11 +255,10 @@ def classify(**kwargs) -> RequestContext:
         return shape(
             guild_id=int(guild_id),
             user_id=user_id,
-            role=role,
+            standing=standing,
             tier=tier,
             read_only=bool(kwargs.get("read_only")),
             satisfied_providers=kwargs.get("satisfied_providers"),
-            override_initiatives=tuple(kwargs.get("override_initiatives") or ()),
             scope_initiative_id=kwargs.get("scope_initiative_id"),
             via_dashboard_id=kwargs.get("via_dashboard_id"),
             query=bool(kwargs.get("query")),

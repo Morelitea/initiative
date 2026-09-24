@@ -18,40 +18,52 @@ import json
 import re
 from typing import Awaitable, Callable
 
-from app.core.config import settings
+from app.services.import_engine import limits as import_limits
 
 #: The most any app-service request may carry. Sized for the largest route on
 #: that surface — events — plus its envelope, and kept here rather than imported
 #: from the router so this module stays free of app-layer imports.
 APP_SERVICE_MAX_REQUEST_BYTES = 64 * 1024 + 8 * 1024
 
-#: The most an Atlassian connect request may carry: a site URL, an account's
-#: address and an API token, with room to spare. Generous for three strings
-#: and still far too small to be worth anybody's while as a buffer.
-ATLASSIAN_CONNECT_MAX_REQUEST_BYTES = 16 * 1024
+#: The most an Atlassian request may carry. A connect is a site URL, an
+#: account's address and an API token; a start is a credential id, an
+#: initiative and at most 200 short project keys. Generous for either and
+#: still far too small to be worth anybody's while as a buffer.
+ATLASSIAN_MAX_REQUEST_BYTES = 16 * 1024
 
 # (path pattern, limit getter, machine-readable error code). Getters read
 # settings lazily — the limit is a property of request time, not boot time.
 _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
     (
         re.compile(r"^/api/v1/g/\d+/imports/envelope$"),
-        lambda: settings.IMPORT_MAX_ENVELOPE_BYTES,
+        lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (
-        # Multipart adds framing overhead around the zip; allow 1 MiB slack
-        # over the cap the handler's bounded read enforces exactly.
-        re.compile(r"^/api/v1/g/\d+/imports/backup$"),
-        lambda: settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
+        # A foreign export travels as its own text in a JSON body — the same
+        # order of size as an envelope, and bounded the same way.
+        re.compile(r"^/api/v1/g/\d+/imports/foreign/[^/]+(/preview)?$"),
+        lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (
-        # The Atlassian connect body is a URL, an address and a token. Three
-        # short strings have no business arriving as a megabyte, and this
-        # route reaches outward on what it is given, so the transport refuses
-        # an oversized one before a handler ever looks at it.
-        re.compile(r"^/api/v1/g/\d+/imports/atlassian/connect$"),
-        lambda: ATLASSIAN_CONNECT_MAX_REQUEST_BYTES,
+        # A backup, a Confluence space's HTML export, or one tool's export
+        # zipped with its files. Multipart adds
+        # framing overhead around the zip; allow 1 MiB slack over the cap the
+        # handler's bounded read enforces exactly.
+        re.compile(
+            r"^/api/v1/g/\d+/imports/(backup|atlassian/export|envelope/archive)$"
+        ),
+        lambda: import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
+        "IMPORT_TOO_LARGE",
+    ),
+    (
+        # The Atlassian bodies are a handful of short strings. They have no
+        # business arriving as a megabyte, and both routes reach outward on
+        # what they are given, so the transport refuses an oversized one
+        # before a handler ever looks at it.
+        re.compile(r"^/api/v1/g/\d+/imports/atlassian/(connect|import)$"),
+        lambda: ATLASSIAN_MAX_REQUEST_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (

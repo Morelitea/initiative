@@ -7,9 +7,12 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.models.platform.notification import NotificationType
-from app.services.platform import push_tokens
+from app.models.platform.push_token import PushToken
+from app.services.platform import notification_policy, push_tokens
+
+from app.services.platform import push_config
+from app.services.platform.push_config import ResolvedPushConfig
 
 logger = logging.getLogger(__name__)
 
@@ -81,17 +84,22 @@ def channel_for(notification_type: Optional[NotificationType]) -> str:
     return PUSH_CHANNELS.get(notification_type, DEFAULT_CHANNEL)
 
 
-def _get_fcm_access_token() -> Optional[str]:
+def _get_fcm_access_token(cfg: ResolvedPushConfig) -> Optional[str]:
     """Get OAuth2 access token from service account credentials.
 
     Returns None if FCM is not configured or credentials are invalid.
+
+    ``cfg`` is passed in rather than read here: the credential lives on
+    ``app_setting_secrets``, which only the system engine may read, so it is
+    resolved by ``push_config`` on a session of its own before this
+    synchronous call.
     """
-    if not settings.FCM_ENABLED or not settings.FCM_SERVICE_ACCOUNT_JSON:
+    if not cfg.enabled or not cfg.service_account_json:
         return None
 
     try:
         # Parse service account JSON
-        service_account_info = json.loads(settings.FCM_SERVICE_ACCOUNT_JSON)
+        service_account_info = json.loads(cfg.service_account_json)
 
         # Create credentials
         credentials = service_account.Credentials.from_service_account_info(
@@ -135,11 +143,12 @@ async def _send_to_fcm(
         - 5xx: Server error, logged as warning
         - Network errors: Logged as warning
     """
-    if not settings.FCM_ENABLED or not settings.FCM_PROJECT_ID:
+    cfg = await push_config.ensure_push_config_fresh()
+    if not cfg.enabled or not cfg.project_id:
         logger.warning("FCM not enabled, skipping push notification")
         return (False, False)
 
-    access_token = _get_fcm_access_token()
+    access_token = _get_fcm_access_token(cfg)
     if not access_token:
         logger.error("Failed to get FCM access token")
         return (False, False)
@@ -167,7 +176,7 @@ async def _send_to_fcm(
         fcm_message["data"] = {k: str(v) for k, v in data.items()}
 
     # Send to FCM
-    url = FCM_API_URL.format(project_id=settings.FCM_PROJECT_ID)
+    url = FCM_API_URL.format(project_id=cfg.project_id)
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
@@ -237,6 +246,53 @@ async def send_push_notification(
     return await _send_to_fcm(push_token, title, body, data, channel_id)
 
 
+async def _recipient_locale(user_id: int) -> str:
+    """The language one recipient reads, read on the system engine.
+
+    Only asked for when a redacted line has to be written and the caller had no
+    locale in hand; the recipient's account is not the sending session's to
+    read, the same way their notification settings are not.
+    """
+    from app.db.session import SystemSessionLocal
+    from app.models.platform.user import User
+
+    async with SystemSessionLocal() as system_session:
+        user = await system_session.get(User, user_id)
+        return (getattr(user, "locale", None) if user else None) or "en"
+
+
+async def _recipient_tokens(user_id: int) -> list[PushToken]:
+    """One recipient's registered devices, read on the system engine.
+
+    The rows are the recipient's rather than the sending session's to read,
+    the same way their account and notification settings are.
+    """
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        return await push_tokens.get_push_tokens_for_user(
+            system_session, user_id=user_id
+        )
+
+
+async def _record_delivery(
+    user_id: int, *, delivered_ids: list[int], dead_tokens: list[str]
+) -> None:
+    """Write what a delivery learned back on the system engine, in one commit."""
+    if not delivered_ids and not dead_tokens:
+        return
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        await push_tokens.record_delivery(
+            system_session,
+            user_id=user_id,
+            delivered_ids=delivered_ids,
+            dead_tokens=dead_tokens,
+        )
+        await system_session.commit()
+
+
 async def send_push_to_user(
     session: AsyncSession,
     user_id: int,
@@ -245,11 +301,23 @@ async def send_push_to_user(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     only_device_token_ids: Optional[set[int]] = None,
+    guild_id: Optional[int] = None,
+    locale: Optional[str] = None,
 ) -> int:
     """Send push notification to all of a user's devices.
 
+    Every push in the app leaves through here, which is where the deployment's
+    and the community's answers about what may reach a phone are applied: one
+    of them declining sends nothing, and either of them asking for a redacted
+    notification replaces the wording with the kind of thing that happened.
+
+    The recipient's device rows are read and written on the system engine
+    rather than on ``session``, which is the caller's and often routed into a
+    community; ``session`` carries the resolved answers, so a fan-out on it
+    reads them once per transaction.
+
     Args:
-        session: Database session
+        session: The caller's session (not used for the device rows)
         user_id: User ID
         notification_type: Type of notification (for logging/analytics)
         title: Notification title
@@ -257,15 +325,20 @@ async def send_push_to_user(
         data: Optional data payload
         only_device_token_ids: Restrict delivery to these installations. Used by
             categories that only make sense on a device set up for them.
+        guild_id: The community this notification belongs to, whose own answer
+            applies alongside the deployment's. ``None`` for a notification that
+            belongs to no community — a message, a connection, an account
+            notice — which the deployment alone answers for.
+        locale: The recipient's language, for a redacted line. Read from their
+            account when a redacted line is needed and this was not given.
 
     Returns:
         Number of successful deliveries
     """
-    if not settings.FCM_ENABLED:
+    if not (await push_config.ensure_push_config_fresh()).enabled:
         return 0
 
-    # Get all push tokens for user
-    tokens = await push_tokens.get_push_tokens_for_user(session, user_id=user_id)
+    tokens = await _recipient_tokens(user_id)
     if only_device_token_ids is not None:
         tokens = [
             token for token in tokens if token.device_token_id in only_device_token_ids
@@ -275,8 +348,17 @@ async def send_push_to_user(
         logger.debug(f"No push tokens found for user {user_id}")
         return 0
 
+    policy = await notification_policy.for_send(session, guild_id)
+    if not policy.push:
+        return 0
+    if policy.redact:
+        title, body = notification_policy.redacted_push(
+            notification_type, locale or await _recipient_locale(user_id)
+        )
+
     successful = 0
-    tokens_to_delete = []
+    delivered_ids: list[int] = []
+    tokens_to_delete: list[str] = []
 
     channel_id = channel_for(notification_type)
 
@@ -292,20 +374,18 @@ async def send_push_to_user(
 
         if success:
             successful += 1
-            # Update last_used_at
-            await push_tokens.update_last_used(
-                session, push_token=token_record.push_token
-            )
+            if token_record.id is not None:
+                delivered_ids.append(token_record.id)
         elif should_delete:
             # Token is invalid (404/410 from FCM), mark for deletion
+            logger.info(
+                f"Deleting invalid push token: {token_record.push_token[:20]}..."
+            )
             tokens_to_delete.append(token_record.push_token)
 
-    # Delete invalid tokens
-    for invalid_token in tokens_to_delete:
-        logger.info(f"Deleting invalid push token: {invalid_token[:20]}...")
-        await push_tokens.delete_push_token(
-            session, user_id=user_id, push_token=invalid_token
-        )
+    await _record_delivery(
+        user_id, delivered_ids=delivered_ids, dead_tokens=tokens_to_delete
+    )
 
     logger.info(
         f"Sent push notification to {successful}/{len(tokens)} devices "

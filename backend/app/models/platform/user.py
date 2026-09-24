@@ -47,7 +47,7 @@ class UserStatus(str, Enum):
     #: every guild.
     suspended = "suspended"
     #: The holder closed their account. Memberships are dropped; the row and
-    #: its personal data remain so an administrator can reactivate it.
+    #: its personal data remain so an operator can reactivate it.
     deactivated = "deactivated"
     #: Erased. The row is a husk kept only so the work it touched still says
     #: who did it.
@@ -99,8 +99,8 @@ class Presence(str, Enum):
 
 
 #: The statuses that may hold a session. A suspended account signs in — that is
-#: how its holder reaches their own account, and how they can be told why —
-#: and is stopped at every guild instead.
+#: how its holder is told they are in time out — and reaches only the time-out
+#: allow-list (``app.api.deps.AccountHolder``); every other route refuses it.
 LOGIN_STATUSES: frozenset[UserStatus] = frozenset(
     {UserStatus.active, UserStatus.suspended}
 )
@@ -112,8 +112,11 @@ LOGIN_STATUSES: frozenset[UserStatus] = frozenset(
 #: before there is anything to call off. The account is restored at the moment
 #: the session is opened (``sessions.create_session``), so nothing ever holds a
 #: live session while still deleted.
+#:
+#: ``suspended`` is here so its holder can be told they are in time out; see
+#: :data:`LOGIN_STATUSES` for what the session then reaches.
 SIGN_IN_STATUSES: frozenset[UserStatus] = frozenset(
-    {UserStatus.active, UserStatus.deleted}
+    {UserStatus.active, UserStatus.suspended, UserStatus.deleted}
 )
 
 #: The statuses whose holder does not appear where people are listed as
@@ -260,6 +263,14 @@ class User(SQLModel, table=True):
     week_starts_on: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    #: Whether clock times read as "1:30 PM" or "13:30". ``system`` — the
+    #: default — names no convention and leaves the choice to the browser's
+    #: locale, which is what every account had before the setting existed.
+    #: See ``app.core.user_input_validators.TIME_FORMATS``.
+    time_format: str = Field(
+        default="system",
+        sa_column=Column(String(16), nullable=False, server_default="system"),
     )
     # How many recently-opened items the header tabs bar keeps and shows for
     # this user, across all entity types and guilds. Drives both the display

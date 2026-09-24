@@ -279,6 +279,7 @@ export const CreateInitiativeWizard = ({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={t("createDialog.namePlaceholder")}
+              maxLength={255}
               required
             />
           </div>

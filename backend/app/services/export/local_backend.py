@@ -257,15 +257,32 @@ def _compile_with_assets(
         for name, blob in item.assets_inline.items():
             (assets_dir / name).write_bytes(blob)
             staged.add(name)
+
         # Typst FAILS the compile on a missing image file, so any image block
         # whose asset didn't stage degrades to its alt text.
+        # A callout and a column hold blocks of their own, so the walk goes
+        # into them too.
+        def degrade(blocks: list) -> list:
+            out = []
+            for b in blocks:
+                if (
+                    b.get("type") == "image"
+                    and b.get("asset")
+                    and b["asset"] not in staged
+                ):
+                    b = {
+                        "type": "paragraph",
+                        "runs": [{"text": b.get("alt") or "[image]"}],
+                    }
+                elif b.get("type") == "callout":
+                    b = {**b, "blocks": degrade(b.get("blocks") or [])}
+                elif b.get("type") == "columns":
+                    b = {**b, "columns": [degrade(c) for c in b.get("columns") or []]}
+                out.append(b)
+            return out
+
         data = dict(item.data)
-        data["blocks"] = [
-            {"type": "paragraph", "runs": [{"text": b.get("alt") or "[image]"}]}
-            if b.get("type") == "image" and b.get("asset") and b["asset"] not in staged
-            else b
-            for b in data.get("blocks") or []
-        ]
+        data["blocks"] = degrade(data.get("blocks") or [])
         return typst.compile(
             str(main),
             root=str(root),

@@ -1,7 +1,7 @@
 import { TextAlignStart } from "lucide-react";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { Markdown } from "@/components/Markdown";
+import { TaskDescription } from "@/components/tasks/TaskDescription";
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,7 @@ export const TaskDescriptionHoverCard = ({ task, className }: TaskDescriptionHov
         </Button>
       </HoverCardTrigger>
       <HoverCardContent className="max-h-120 w-screen max-w-120 overflow-y-auto">
-        <Markdown content={task.description} />
+        <TaskDescription content={task.description} />
       </HoverCardContent>
     </HoverCard>
   ) : null;

@@ -21,14 +21,11 @@
     "title": "Community settings",
     "subtitle": "Manage workspace membership and community details.",
     "permissionDenied": "You need additional permissions to view this page.",
+    "viewOnly": "You're viewing these settings on an access grant. Changing them takes a read/write grant beside it.",
     "restricted": {
       "read_only": {
         "label": "Read-only",
         "message": "This community is read-only. Contact whoever runs this server to restore full access."
-      },
-      "suspended": {
-        "label": "Suspended",
-        "message": "This community is suspended and members can't access it. Contact whoever runs this server."
       }
     },
     "tabs": {
@@ -103,21 +100,12 @@
     "removeConfirm": "Remove"
   },
   "security": {
-    "devicesTitle": "Logged in devices",
-    "devicesDescription": "Mobile devices that are currently logged in to your account. Revoking access will log the device out.",
     "loadingDevices": "Loading devices…",
     "devicesError": "Unable to load devices.",
-    "noDevices": "No devices logged in",
-    "noDevicesHint": "When you log in from a mobile device, it will appear here.",
     "unknownDevice": "Unknown device",
     "loggedIn": "Logged in {{date}}",
-    "revoke": "Revoke",
-    "revokeDialogTitle": "Revoke device access?",
-    "revokeDialogDescription": "This will log out <bold>{{deviceName}}</bold>. They will need to log in again to access your account.",
     "revokeDialogCancel": "Cancel",
-    "revokeDialogConfirm": "Revoke access",
     "revoking": "Revoking…",
-    "revokeSuccess": "Device logged out",
     "revokeError": "Unable to revoke device access",
     "newKeyTitle": "New API key",
     "newKeyDescription": "Copy this key now. You will not be able to view it again.",
@@ -162,7 +150,24 @@
     "deleteButton": "Delete",
     "deleting": "Removing…",
     "deleteSuccess": "API key deleted",
-    "deleteError": "Unable to delete API key"
+    "deleteError": "Unable to delete API key",
+    "signedInTitle": "Where you're signed in",
+    "signedInDescription": "The browsers and devices currently signed in to your account. Signing one out ends that session only.",
+    "noSignedIn": "Nowhere else",
+    "noSignedInHint": "When you sign in from another browser or device, it will appear here.",
+    "thisDevice": "This device",
+    "activeAt": "active {{when}}",
+    "signOut": "Sign out",
+    "signOutDialogTitle": "Sign this device out?",
+    "signOutDialogDescription": "This ends the session on <bold>{{deviceName}}</bold>. It will need to sign in again.",
+    "signOutConfirm": "Sign out",
+    "signedOutOne": "Signed out",
+    "signOutOthers": "Sign out everywhere else",
+    "signOutOthersDialogTitle": "Sign out everywhere else?",
+    "signOutOthersDialogDescription_one": "This ends {{count}} other session. You'll stay signed in here.",
+    "signOutOthersDialogDescription_other": "This ends all {{count}} other sessions. You'll stay signed in here.",
+    "signOutOthersConfirm": "Sign out everywhere else",
+    "signedOutOthers": "Signed out everywhere else"
   },
   "ai": {
     "loading": "Loading AI settings…",
@@ -191,7 +196,7 @@
   "platformAI": {
     "title": "Platform AI",
     "description": "Choose how AI is configured across the platform. Like sign-in, AI is managed either by the platform or by each community — never both.",
-    "adminOnly": "Only platform owners can manage platform AI settings.",
+    "platformOnly": "Only platform owners can manage platform AI settings.",
     "modeLabel": "AI configuration mode",
     "mode_disabled": "Disabled",
     "mode_disabled_description": "AI features are turned off for everyone.",
@@ -213,6 +218,15 @@
     "colorThemeDescription": "Choose a color theme for the application.",
     "weekStartsOn": "Week starts on",
     "weekStartsOnDescription": "Choose which day to show first on calendars and date pickers.",
+    "timeFormat": {
+      "label": "Time format",
+      "description": "Show clock times as 1:30 PM or 13:30. Browser default follows your browser's language, which your operating system's clock setting does not change.",
+      "options": {
+        "system": "Browser default",
+        "12": "12-hour (1:30 PM)",
+        "24": "24-hour (13:30)"
+      }
+    },
     "recentTabsLimit": "Recent items in tab bar",
     "recentTabsLimitDescription": "How many recently-opened items to keep in the header tab bar (1–100).",
     "language": "Language",
@@ -396,7 +410,7 @@
     "disconnectDescription": "Log out and disconnect from this server. You can connect to a different server afterward.",
     "disconnectButton": "Disconnect",
     "deactivateTitle": "Deactivate Account",
-    "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. An administrator can reactivate your account later.",
+    "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. Whoever runs this server can reactivate your account later.",
     "permanentDeleteTitle": "Delete Account",
     "permanentDeleteDescriptionText": "Your account disappears for everyone else straight away. Nothing is erased for a while yet — sign back in before then and the deletion is called off, with your communities and your work exactly as you left them. After that, projects are transferred to other people, and comments and documents stay but show \"[Deleted User]\".",
     "cannotBeUndone": "Signing in is what stops it.",
@@ -416,7 +430,7 @@
     "checkBlockersDeactivateDescription": "Checking if your account can be deactivated",
     "confirmDeletionDescription": "Confirm account deletion",
     "confirmDeactivationDescription": "Confirm account deactivation",
-    "deactivateLabel": "Deactivate my account (admins can activate it for you later)",
+    "deactivateLabel": "Deactivate my account (whoever runs this server can reactivate it later)",
     "deactivateRadioDescription": "You will not be able to log in, and you'll be removed from every community you're in — rejoining requires a fresh invite. Whoever runs the server can reactivate your account on request. Your name, email, and content remain intact.",
     "softDeleteLabel": "Delete my account (remove my personal information)",
     "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
@@ -427,7 +441,7 @@
     "eligible": "Your account is eligible for deletion.",
     "eligibleDeactivate": "Your account is eligible for deactivation.",
     "actionSerious": "This action is serious:",
-    "deactivateConfirmDescription": "Your account will be deactivated. You will not be able to log in until an administrator reactivates your account. You will be removed from every community you belong to, and rejoining will require a fresh invite. Your name, email, and content remain intact.",
+    "deactivateConfirmDescription": "Your account will be deactivated. You will not be able to log in until whoever runs this server reactivates it. You will be removed from every community you belong to, and rejoining will require a fresh invite. Your name, email, and content remain intact.",
     "softDeleteConfirmDescription": "Your name, email, and avatar will be removed. You will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "confirmPasswordLabel": "Confirm your password",
     "enterPassword": "Enter your password",
@@ -440,7 +454,7 @@
     "softDeleteSuccess": "Your account has been anonymized."
   },
   "branding": {
-    "adminOnly": "Only the platform owner can manage branding settings.",
+    "platformOnly": "Only the platform owner can manage branding settings.",
     "colorsTitle": "Brand colors",
     "colorsDescription": "Customize the accent colors for light and dark mode.",
     "loadingInterface": "Loading interface settings…",
@@ -517,7 +531,7 @@
     }
   },
   "email": {
-    "adminOnly": "Only the platform owner can manage email settings.",
+    "platformOnly": "Only the platform owner can manage email settings.",
     "title": "SMTP email",
     "description": "Configure the SMTP server used for transactional emails.",
     "loading": "Loading email settings…",
@@ -547,57 +561,70 @@
     "saveSuccess": "Email settings saved",
     "saveError": "Unable to save email settings"
   },
+  "push": {
+    "platformOnly": "Only the platform owner can manage push notification settings.",
+    "loading": "Loading push notification settings…",
+    "loadError": "Unable to load push notification settings.",
+    "title": "Firebase Cloud Messaging",
+    "description": "The Firebase project the mobile apps register with, and the server sends push notifications through.",
+    "enabledLabel": "Send push notifications",
+    "enabledHelp": "The mobile apps pick this up the next time they open. No restart needed.",
+    "fields": {
+      "project_id": {
+        "label": "Project ID",
+        "help": "Project settings → General → Project ID."
+      },
+      "application_id": {
+        "label": "App ID",
+        "help": "Project settings → General → Your apps → App ID."
+      },
+      "api_key": {
+        "label": "Web API key",
+        "help": "Project settings → General → Web API key."
+      },
+      "sender_id": {
+        "label": "Sender ID",
+        "help": "Project settings → Cloud Messaging → Sender ID."
+      }
+    },
+    "serviceAccountLabel": "Service account key",
+    "serviceAccountSet": "A key is saved. Paste a new one to replace it.",
+    "serviceAccountHelp": "The whole JSON file from Project settings → Service accounts → Generate new private key. Leave blank to keep the saved key.",
+    "serviceAccountInvalid": "Paste the whole key file: one JSON object, braces included.",
+    "save": "Save push settings",
+    "saving": "Saving…",
+    "saved": "Push settings saved",
+    "error": "Unable to save push settings"
+  },
+  "captcha": {
+    "title": "Captcha",
+    "description": "A check that the person signing up, or asking for an emailed sign-in code, is not a bot.",
+    "on": "On",
+    "off": "Off",
+    "providerLabel": "Provider",
+    "providers": {
+      "off": "None",
+      "hcaptcha": "hCaptcha",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA v2"
+    },
+    "siteKeyLabel": "Site key",
+    "secretKeyLabel": "Secret key",
+    "secretKeySet": "••••••••",
+    "secretKeyHelp": "Leave blank to keep the saved secret key.",
+    "incomplete": "The captcha comes on once a provider, a site key and a secret key are all saved.",
+    "save": "Save captcha settings",
+    "saving": "Saving…",
+    "saved": "Captcha settings saved",
+    "error": "Unable to save captcha settings"
+  },
   "auth": {
-    "adminOnly": "Only the platform owner can manage authentication settings.",
+    "platformOnly": "Only the platform owner can manage authentication settings.",
     "loading": "Loading auth settings…",
     "loadError": "Unable to load auth settings.",
     "postLoginRedirect": "Post-login redirect:",
     "mobileCallback": "Mobile app callback:",
-    "rulesTitle": "Mapping rules",
-    "rulesDescription": "Map OIDC claim values to community and initiative memberships.",
-    "addRule": "Add rule",
-    "noRules": "No mapping rules configured yet.",
-    "mappingClaimValue": "Claim value",
-    "mappingClaimValuePlaceholder": "e.g. engineering-team",
-    "mappingTargetType": "Target type",
-    "mappingTargetTypeGuild": "Community",
-    "mappingTargetTypeInitiative": "Initiative",
-    "mappingGuild": "Community",
-    "mappingGuildPlaceholder": "Select community",
-    "mappingGuildRole": "Community role",
-    "mappingInitiative": "Initiative",
-    "mappingInitiativePlaceholder": "Select initiative",
-    "mappingInitiativeRole": "Initiative role",
-    "mappingInitiativeRolePlaceholder": "Select role",
-    "mappingSaving": "Saving…",
-    "mappingCancel": "Cancel",
-    "mappingEdit": "Edit",
-    "mappingDelete": "Delete",
-    "mappingCreateSuccess": "Mapping created",
-    "mappingCreateError": "Unable to create mapping",
-    "mappingUpdateSuccess": "Mapping updated",
-    "mappingUpdateError": "Unable to update mapping",
-    "mappingDeleteSuccess": "Mapping deleted",
-    "mappingDeleteError": "Unable to delete mapping",
-    "mappingColumnClaim": "Claim Value",
-    "mappingColumnType": "Type",
-    "mappingColumnGuild": "Community",
-    "mappingColumnGuildRole": "Community role",
-    "mappingColumnInitiative": "Initiative",
-    "mappingColumnInitiativeRole": "Initiative role",
-    "mappingColumnActions": "Actions",
-    "mappingUpdate": "Update",
-    "mappingAdd": "Add",
-    "mappingRoleMember": "Member",
-    "mappingRoleAdmin": "Admin",
-    "mappingSelectGuildFirst": "Select community first",
-    "mappingSelectInitiativeFirst": "Select initiative first",
-    "loadingOidcMappings": "Loading OIDC mappings…",
-    "oidcMappingsLoadError": "Unable to load OIDC mappings.",
     "deploymentTitle": "This deployment",
-    "mappingProvider": "Provider",
-    "mappingProviderPlaceholder": "Which provider asserts this claim",
-    "mappingProviderHelp": "A rule applies to one provider. Signing in through another neither reads it nor undoes what it did.",
     "methods": {
       "title": "Ways in",
       "description": "How people may sign in to this deployment. At least one way of starting a session stays on.",
@@ -730,7 +757,7 @@
     "usernameChanged": "Username changed.",
     "suspend": "Suspend",
     "suspendTitle": "Suspend {{handle}}?",
-    "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach no community until this is lifted. They can still sign in to their own account, where they will see your reason.",
+    "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach nothing until this is lifted. They can still sign in, and see only that they are suspended, your reason, and whom to contact.",
     "suspendReasonLabel": "Reason (shown to them)",
     "actionError": "That could not be done. Try again.",
     "clearAgeBlock": "Reset age question",
@@ -750,7 +777,7 @@
       "avatarConfirmBody": "The picture on {{handle}} comes down and they are told. They can upload another.",
       "access": "Access",
       "suspendLabel": "Suspended",
-      "suspendHelp": "A suspended account can still sign in and read why, but reaches none of its communities.",
+      "suspendHelp": "A suspended account can sign in and read why, and reaches nothing else.",
       "role": "Platform role",
       "roleLabel": "Role",
       "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."
@@ -762,7 +789,7 @@
     "restoreSuccess": "Restored {{handle}}.",
     "restoreError": "Could not restore the account. Please try again."
   },
-  "adminDeleteUser": {
+  "operatorDeleteUser": {
     "subtitle": "Delete {{email}}",
     "back": "Back",
     "next": "Next",
@@ -779,17 +806,9 @@
     "hardDeleteDescription": "All user data is removed from the database. Comments, tasks, and other content authored by this user are deleted via cascade. Cannot be reversed.",
     "blockersTitle": "Blockers",
     "blockersDescription": "The following issues must be resolved before this user can be deleted:",
-    "guildBlockerTitle": "Last admin in community: {{guildName}}",
-    "guildBlockerDescription": "Promote another member to admin:",
-    "promoteToGuildAdmin": "Promote to admin",
-    "promoteSuccess": "Role updated",
-    "promoteError": "Unable to update role",
-    "deleteGuild": "Delete community",
-    "deleteGuildConfirm": "Delete community \"{{guildName}}\"? This will permanently delete all community data.",
-    "deleteGuildSuccess": "Community deleted",
-    "deleteGuildError": "Unable to delete community",
-    "transferSelectPlaceholder": "Select new owner",
-    "noUsersAvailable": "No users available",
+    "guildBlockerTitle": "Only superadmin of community: {{guildName}}",
+    "guildBlockerDescription": "The account holder can make another member superadmin, or you can break glass into the community and, from its settings, appoint one or delete the community.",
+    "checkAgain": "Check again",
     "confirmTitle": "Confirm deletion",
     "confirmDeactivateTitle": "Confirm deactivation",
     "confirmAnonymizeTitle": "Confirm anonymization",
@@ -820,7 +839,7 @@
       "error": "Unable to break glass",
       "codeLabel": "Your authenticator code",
       "codePlaceholder": "123456, or a recovery code",
-      "codeHelp": "Somebody who administers this deployment has set up two-factor authentication, so breaking glass asks you to prove it is you. An authenticator code, a recovery code or one of your passkeys will do.",
+      "codeHelp": "Two-factor authentication is turned on for this server, so breaking glass asks you to prove it is you. An authenticator code, a recovery code or one of your passkeys will do.",
       "codeNotEnrolled": "This account has no authenticator and no passkey. Set one up under Security, then break glass.",
       "passkeySubmit": "Break glass with a passkey",
       "passkeyPresenting": "Waiting for your passkey…"
@@ -874,11 +893,12 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Sign-in, security, branding, email, the community directory, integrations, storage and intake for the whole deployment.",
+    "subtitle": "Sign-in, security, branding, email, push notifications, the community directory, integrations, storage and intake for the whole deployment.",
     "tabs": {
       "auth": "Authentication",
       "branding": "Branding",
       "email": "Email",
+      "push": "Push notifications",
       "community": "Community",
       "storage": "Storage",
       "intake": "Intake",
@@ -887,7 +907,7 @@
     }
   },
   "appServices": {
-    "adminOnly": "Only platform owners can manage app services.",
+    "platformOnly": "Only platform owners can manage app services.",
     "loading": "Loading app services…",
     "loadError": "Unable to load app services.",
     "title": "App services",
@@ -984,12 +1004,13 @@
   "guilds": {
     "title": "Community limits",
     "description": "Set per-community caps on storage and on the number of users. Lowering a limit below current usage blocks new uploads or members, but never removes existing files or members.",
-    "adminOnly": "You need the platform owner role to manage community limits.",
+    "platformOnly": "You need the platform owner role to manage community limits.",
     "loading": "Loading communities…",
     "loadError": "Could not load communities. Please try again.",
     "filterByName": "Filter communities by name",
     "unlimitedPlaceholder": "Unlimited",
     "helpText": "Storage limits are in GB; user limits are a member count. Both save automatically — leave a field blank for unlimited.",
+    "helpTextBilling": "Billing sets each community's limits, features and status. You can suspend a community here, and lifting the suspension returns it to the status billing last set.",
     "saved": "Updated storage limit for {{name}}.",
     "saveError": "Could not update the storage limit. Please try again.",
     "statusInputLabel": "Status for {{name}}",
@@ -999,12 +1020,18 @@
       "active": "Active",
       "read_only": "Read-only",
       "suspended": "Suspended",
+      "on_hold": "On hold",
       "deleted": "Deleted"
     },
     "suspendConfirm": {
       "title": "Suspend {{name}}?",
-      "description": "Members lose all access and the community disappears from their list. Nothing is deleted and you can reactivate it anytime; operators keep access via a break-glass grant.",
+      "description": "Everyone in it loses all access, its administrators included, until you lift it. Members stop seeing it; administrators see it closed. Nothing is deleted, and operators keep access through a break-glass grant.",
       "confirm": "Suspend community"
+    },
+    "holdConfirm": {
+      "title": "Put {{name}} on hold?",
+      "description": "Everyone in it loses all access, its administrators included, and it leaves every list. Nothing is deleted. Its superadmins are told once, by email and in the app, whom to contact.",
+      "confirm": "Put on hold"
     },
     "columns": {
       "id": "ID",
@@ -1019,7 +1046,12 @@
       "openLabel": "Open billing for {{name}}",
       "openError": "Could not open the billing portal.",
       "operatorLabel": "Billing operations for {{name}}",
-      "operations": "Operations"
+      "operations": "Operations",
+      "factor": {
+        "title": "Confirm it's you",
+        "description": "Opening billing for {{name}} issues you a billing grant. Enter a code from your authenticator app or a recovery code.",
+        "submit": "Open billing"
+      }
     },
     "sheet": {
       "open": "Manage",
@@ -1033,7 +1065,7 @@
       "bannerHelp": "Let them upload a banner image. Without it they pick a banner colour instead, and any banner already uploaded keeps showing.",
       "supportLabel": "Help requests",
       "supportHelp": "Let their members send a help request. Off, the Ask for help control opens the FAQ instead.",
-      "supportNeedsIntake": "Nowhere to send a help request yet. Bind the support stream to a project under Admin › Intake, and this can be switched on.",
+      "supportNeedsIntake": "Nowhere to send a help request yet. Bind the support stream to a project under Platform settings › Intake, and this can be switched on.",
       "authOption": {
         "restrictions": {
           "label": "Its own security standard",
@@ -1057,7 +1089,9 @@
         "agree": "Agree",
         "withdraw": "Withdraw",
         "error": "Could not save that answer."
-      }
+      },
+      "setInBilling": "Billing sets this community's limits and features.",
+      "changeInBilling": "Change in billing"
     },
     "unlimited": "No limit",
     "restore": {
@@ -1086,11 +1120,81 @@
       "users": "Users",
       "access": "Access",
       "guilds": "Communities",
+      "placement": "Sign-in placement",
       "announcements": "Announcements"
     }
   },
+  "providerPlacement": {
+    "title": "Sign-in placement",
+    "description": "Place the people a sign-in provider signs in — by the group or directory it reports — in a community, and in an initiative there if you name one.",
+    "loading": "Loading placement rules…",
+    "loadError": "Could not load placement rules. Please try again.",
+    "platformOnly": "Sign-in placement is managed by platform operators and owners.",
+    "everywhere": {
+      "label": "Apply placement rules to every community",
+      "help": "On, a rule places people in the community it names whether or not that community accepted. Every change is recorded.",
+      "ownerOnly": "The platform owner sets this.",
+      "confirmTitle": "Apply placement rules to every community?",
+      "confirmDescription": "Every rule then places people in the community it names, including communities that have not accepted its provider's rules. The change is recorded in the audit log.",
+      "confirm": "Apply everywhere",
+      "enabled": "Placement rules now apply to every community",
+      "disabled": "Placement rules now apply where a community accepted them",
+      "error": "Could not change where placement rules apply"
+    },
+    "noProviders": "No sign-in providers yet. Once one is added on the Authentication page, its placement rules are written here.",
+    "noGroups": "This provider reports no groups yet: a rule naming a group matches nobody until an owner sets the provider's groups claim on the Authentication page. Rules naming only a directory work already.",
+    "empty": "No rules for this provider yet.",
+    "add": "Add rule",
+    "addFor": "Add a rule for {{provider}}",
+    "addTitle": "Add a placement rule",
+    "addDescription": "Say who this rule matches on {{provider}}, and where they land.",
+    "editTitle": "Edit placement rule",
+    "editDescription": "Places people from {{provider}} in {{community}}. A rule keeps its provider and community; for another, add a new rule.",
+    "editLabel": "Edit rule",
+    "match": {
+      "group": "Group {{group}}",
+      "groupInDirectory": "Group {{group}} in {{claim}} = {{value}}",
+      "directory": "Everybody from {{claim}} = {{value}}"
+    },
+    "landsInCommunity": "Joins {{community}} as {{role}}",
+    "landsInInitiative": "Joins {{community}} as {{role}}, and {{initiative}} as {{initiativeRole}}",
+    "notApplying": "Not applying",
+    "notApplyingHint": "The community hasn't accepted this provider's rules, and they don't apply everywhere.",
+    "groupLabel": "Group",
+    "groupPlaceholder": "eng",
+    "groupHelp": "Exactly as the provider spells it. Leave it empty to place everybody from the directory below.",
+    "directoryLabel": "Only people from one directory",
+    "directoryHelp": "For a provider that signs people in from several directories: the claim that names the directory, and this directory's value.",
+    "directoryClaimLabel": "Claim",
+    "directoryClaimPlaceholder": "idp",
+    "directoryValueLabel": "Value",
+    "directoryValuePlaceholder": "acme-adfs",
+    "needsMatch": "Name a group, a directory, or both.",
+    "communityLabel": "Community",
+    "communityPlaceholder": "Choose a community",
+    "communitySearch": "Search communities",
+    "communityEmpty": "No communities match",
+    "notAccepted": "Not accepted",
+    "communityHelp": "A community marked Not accepted takes this provider's rules once it accepts them on its Security page.",
+    "targetsUnavailable": "Initiatives are listed once this community takes this provider's rules.",
+    "save": "Save rule",
+    "added": "Rule added",
+    "addError": "Could not add that rule",
+    "saved": "Rule saved",
+    "saveError": "Could not save that rule",
+    "remove": "Delete rule",
+    "removeTitle": "Delete this rule?",
+    "removeDescription": "People it matches stop being placed in {{community}} by it, and what it gave them is released the next time they sign in through this provider.",
+    "removed": "Rule deleted",
+    "removeError": "Could not delete that rule",
+    "requests": {
+      "title": "Waiting for an answer",
+      "help": "These communities named a domain or tenant as their own on a connection. Agreeing lets the people it matches join them on arrival, where they asked for that.",
+      "agreed": "Agreed for {{community}}"
+    }
+  },
   "storage": {
-    "adminOnly": "Only platform owners can configure storage.",
+    "platformOnly": "Only platform owners can configure storage.",
     "loading": "Loading storage settings…",
     "loadError": "Failed to load storage settings.",
     "title": "Object storage",
@@ -1226,7 +1330,9 @@
       "makeItOurs": "Make it ours",
       "claimNameLabel": "Claim name",
       "claimNamePlaceholder": "e.g. org, realm",
-      "joinsOnceAgreed": "Will join matching arrivals on sight once whoever runs this server agrees these values are yours. Until then it admits them, and joining is by invitation."
+      "joinsOnceAgreed": "Will join matching arrivals on sight once whoever runs this server agrees these values are yours. Until then it admits them, and joining is by invitation.",
+      "acceptsPlacementLabel": "Let the deployment place people from this provider",
+      "acceptsPlacementHelp": "The deployment's placement rules for this provider can add people here, beside your own rules."
     },
     "rules": {
       "title": "Where your people land",
@@ -1259,7 +1365,12 @@
       "removed": "Rule removed",
       "removeError": "Could not remove that rule",
       "removeTitle": "Remove this rule?",
-      "removeDescription": "People carrying {{group}} stop being placed here, and anyone this rule put here loses that standing the next time they sign in through that provider."
+      "removeDescription": "People carrying {{group}} stop being placed here, and anyone this rule put here loses that standing the next time they sign in through that provider.",
+      "deployment": {
+        "title": "Set by the deployment",
+        "description": "Placement rules whoever runs this deployment wrote for its providers, naming this community. They place people here beside your own rules once you let a provider's rules in on its connection.",
+        "everywhere": "The deployment applies its placement rules to every community."
+      }
     },
     "sections": {
       "whoGetsIn": "Who gets in",
@@ -1346,7 +1457,7 @@
     "callbackLabel": "Callback URL",
     "claimPathLabel": "Groups claim",
     "claimPathPlaceholder": "groups",
-    "claimPathHelp": "Where this provider puts a person's groups in the token. Keycloak nests them at realm_access.roles; most others use groups or roles. Rules below read it.",
+    "claimPathHelp": "Where this provider puts a person's groups in the token. Keycloak nests them at realm_access.roles; most others use groups or roles. Each community's rules read it.",
     "test": "Test",
     "testing": "Testing…",
     "verify": "Verify",
@@ -1443,7 +1554,8 @@
     "title": "My AI",
     "description": "See every AI connection available to you across your communities. Add your own API key where allowed and pick the one you use.",
     "noneAvailable": "No AI connections are available to you yet.",
-    "managedByAdmin": "Managed by your admin — uses a shared key.",
+    "sharedKeyGuild": "Uses a shared key set by your community's admins.",
+    "sharedKeyPlatform": "Uses a shared key set by whoever runs this server.",
     "selected": "In use",
     "requiresKey": "Needs your key",
     "keySet": "Your key is set",
@@ -1470,7 +1582,7 @@
     "enabledToast": "The community directory is on.",
     "disabledToast": "The community directory is off.",
     "saveError": "Could not change the community directory. Please try again.",
-    "adminOnly": "You need the platform owner role to run a community directory.",
+    "platformOnly": "You need the platform owner role to run a community directory.",
     "ageGateLabel": "Ask members to confirm they are 16 or older",
     "ageGateHelpText": "While this is on, anyone joining a listed community from the directory is asked once to confirm their age, and the answer is kept on their account. It gates that join and nothing else — invited communities never ask. Turn it off only where you already know every account belongs to an adult.",
     "ageGateOffTitle": "Stop asking members their age?",
@@ -1486,6 +1598,18 @@
     "directMessagesOffConfirm": "Turn off direct messages",
     "directMessagesEnabledToast": "Direct messages are on.",
     "directMessagesDisabledToast": "Direct messages are off.",
+    "holdDeletion": {
+      "title": "Deleting communities on hold",
+      "description": "A community on hold is closed to everyone in it. If the hold is still in place when this window ends, the community is deleted, and the window above then decides how long it is kept. The people who run it are told the date when it goes on hold.",
+      "label": "Delete after (days on hold)",
+      "placeholder": "Never delete",
+      "hint": "Counted from the moment each community was put on hold, so changing this moves the date for ones already on hold.",
+      "neverHint": "Nothing is deleted on a timer. A community stays on hold until somebody lifts the hold or deletes it.",
+      "saved_one": "Communities on hold are deleted after {{count}} day.",
+      "saved_other": "Communities on hold are deleted after {{count}} days.",
+      "savedNever": "Communities on hold are never deleted automatically.",
+      "save": "Save how long communities stay on hold"
+    },
     "retention": {
       "title": "Keeping deleted communities",
       "description": "A deleted community disappears for everyone in it straight away, but nothing is destroyed until this window ends. Until then an operator can restore it.",
@@ -1692,6 +1816,51 @@
   },
   "platformSecurity": {
     "title": "Security",
-    "description": "How long anybody may stay signed in before signing in again."
+    "description": "How long anybody may stay signed in, the captcha asked of anybody new, and what a notification may leave the app carrying."
+  },
+  "notificationDelivery": {
+    "title": "Notifications that leave the app",
+    "description": "Every community is held to these as a ceiling. A community can narrow them for itself; none can widen them.",
+    "saved": "Notification settings saved",
+    "error": "Could not save notification settings",
+    "push": {
+      "label": "Mobile notifications",
+      "onHelp": "Notifications reach phones through Apple and Google.",
+      "offHelp": "This server sends nothing to a phone and stores no device registrations."
+    },
+    "email": {
+      "label": "Email notifications",
+      "onHelp": "Notifications reach mailboxes on whatever schedule each person has chosen.",
+      "offHelp": "No notification email is sent. Sign-in codes, address confirmations, password resets and account notices still go."
+    },
+    "redact": {
+      "label": "Hide notification details",
+      "onHelp": "A notification that leaves the app says the kind of thing that happened — “You were mentioned in a comment”. The app itself shows all of it.",
+      "offHelp": "A notification that leaves the app names what it is about: who acted, and on what."
+    }
+  },
+  "guildNotifications": {
+    "title": "Notifications that leave the app",
+    "description": "What this community's notifications carry once they leave. The server answers the same three questions for everybody, and the stricter answer applies.",
+    "saved": "Notification settings saved",
+    "error": "Could not save notification settings",
+    "push": {
+      "label": "Mobile notifications",
+      "onHelp": "This community's notifications reach members' phones.",
+      "offHelp": "Nothing about this community is sent to a phone. Members still get the bell, and email if it is on.",
+      "platformHelp": "This server sends nothing to a phone, so there is nothing here to decide."
+    },
+    "email": {
+      "label": "Email notifications",
+      "onHelp": "This community's notifications reach members' mailboxes.",
+      "offHelp": "No notification email is sent about this community. Sign-in codes and password resets are the account's own and still go.",
+      "platformHelp": "This server sends no notification email, so there is nothing here to decide."
+    },
+    "redact": {
+      "label": "Hide notification details",
+      "onHelp": "Notifications about this community say the kind of thing that happened once they leave the app. Members see all of it here.",
+      "offHelp": "Notifications about this community name what they are about once they leave the app.",
+      "platformHelp": "This server hides notification details everywhere, so this community is already covered."
+    }
   }
 }

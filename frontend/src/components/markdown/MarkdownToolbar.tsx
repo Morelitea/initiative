@@ -20,6 +20,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRowCapacity } from "@/components/ui/overflow-toolbar";
@@ -66,11 +69,22 @@ type ToolbarIcon = ComponentType<{ className?: string; "aria-hidden"?: boolean }
  * It has to be data because the same action is rendered two ways: a button
  * while it fits in the row, a menu entry once it doesn't.
  */
+/** One of the ways a toolbar item can be done, offered as a menu. */
+export interface ToolbarChoice {
+  id: string;
+  label: string;
+  icon: ToolbarIcon;
+  onSelect: () => void;
+}
+
 export interface ToolbarItem {
   id: string;
   label: string;
   icon: ToolbarIcon;
   onClick: () => void;
+  /** Set when the item is done one of several ways — a picture from the
+   *  camera or from the library. The button opens these rather than acting. */
+  choices?: ToolbarChoice[];
   /** Appended to the label in the tooltip — a keyboard shortcut, usually. */
   hint?: string;
   /** Opens a new group: a separator goes before it. */
@@ -140,6 +154,33 @@ const ToolbarButton = ({ item, disabled }: { item: ToolbarItem; disabled: boolea
   </Button>
 );
 
+/** A button in the row that opens its choices rather than acting. */
+const ToolbarChoiceButton = ({ item, disabled }: { item: ToolbarItem; disabled: boolean }) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="text-muted-foreground hover:text-foreground"
+        disabled={disabled}
+        title={item.label}
+        aria-label={item.label}
+      >
+        <item.icon className="h-4 w-4" aria-hidden={true} />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      {item.choices?.map((choice) => (
+        <DropdownMenuItem key={choice.id} onSelect={choice.onSelect}>
+          <choice.icon className="h-4 w-4" aria-hidden={true} />
+          {choice.label}
+        </DropdownMenuItem>
+      ))}
+    </DropdownMenuContent>
+  </DropdownMenu>
+);
+
 const Divider = () => <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />;
 
 interface MarkdownToolbarProps {
@@ -199,7 +240,11 @@ export const MarkdownToolbar = ({
           // line up one-to-one with what is being measured.
           <span key={item.id} hidden={index >= fits} className="flex shrink-0 items-center">
             {item.startsGroup && index > 0 && <Divider />}
-            <ToolbarButton item={item} disabled={disabled} />
+            {item.choices ? (
+              <ToolbarChoiceButton item={item} disabled={disabled} />
+            ) : (
+              <ToolbarButton item={item} disabled={disabled} />
+            )}
           </span>
         ))}
       </div>
@@ -224,10 +269,27 @@ export const MarkdownToolbar = ({
             {overflowed.map((item, index) => (
               <div key={item.id}>
                 {item.startsGroup && index > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuItem onSelect={item.onClick}>
-                  <item.icon className="h-4 w-4" aria-hidden={true} />
-                  {item.label}
-                </DropdownMenuItem>
+                {item.choices ? (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <item.icon className="h-4 w-4" aria-hidden={true} />
+                      {item.label}
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {item.choices.map((choice) => (
+                        <DropdownMenuItem key={choice.id} onSelect={choice.onSelect}>
+                          <choice.icon className="h-4 w-4" aria-hidden={true} />
+                          {choice.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                ) : (
+                  <DropdownMenuItem onSelect={item.onClick}>
+                    <item.icon className="h-4 w-4" aria-hidden={true} />
+                    {item.label}
+                  </DropdownMenuItem>
+                )}
               </div>
             ))}
           </DropdownMenuContent>

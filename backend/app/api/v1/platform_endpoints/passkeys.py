@@ -48,7 +48,7 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
-from app.db.session import get_admin_session, get_session
+from app.db.session import get_system_session, get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_passkey import UserPasskey
 from app.schemas.platform.passkey import (
@@ -80,7 +80,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: Adding and removing a way in are done by the person in a session of their
@@ -174,10 +174,10 @@ def _challenge_from_client_data(
 async def list_passkeys(
     current_user: FactorExemptUser,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
 ) -> PasskeyList:
     """The account's passkeys, oldest first."""
-    rows = await passkey_service.list_for_user(admin_session, user_id=current_user.id)
+    rows = await passkey_service.list_for_user(system_session, user_id=current_user.id)
     return PasskeyList(
         passkeys=[_read(row) for row in rows],
         password_required=has_usable_password(current_user.hashed_password),
@@ -193,7 +193,7 @@ async def begin_passkey_registration(
     request: Request,
     current_user: FactorExemptUser,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: PasskeyRegisterStart,
     _first_party: str = FirstPartyOnly,
 ) -> PasskeyRegistrationOptions:
@@ -210,21 +210,21 @@ async def begin_passkey_registration(
     if passkey_service.site_refusal() is not None:
         raise _site_unsupported()
     await require_password_or_recent_proof(
-        request, admin_session, current_user, payload.current_password
+        request, system_session, current_user, payload.current_password
     )
 
     # What the credential manager lists the account under. The address the
     # person signs in with where there is one, so two entries for the same
     # deployment are told apart; the handle otherwise.
     account_name = (
-        await addresses.primary_address(admin_session, user_id=current_user.id)
+        await addresses.primary_address(system_session, user_id=current_user.id)
         or current_user.username
     )
     display_name = current_user.full_name or current_user.username
 
     try:
         ceremony = await passkey_service.begin_registration(
-            admin_session,
+            system_session,
             user_id=current_user.id,
             account_name=account_name,
             display_name=display_name,
@@ -236,12 +236,12 @@ async def begin_passkey_registration(
     # unpadded base64url the options carry — so the finish route can look the
     # row up by what it reads out of the signed client data.
     await challenge_service.create(
-        admin_session,
+        system_session,
         user_id=current_user.id,
         purpose=challenge_service.ChallengePurpose.passkey_register,
         value=bytes_to_base64url(ceremony.challenge),
     )
-    await admin_session.commit()
+    await system_session.commit()
     return PasskeyRegistrationOptions(options=ceremony.options)
 
 
@@ -255,7 +255,7 @@ async def finish_passkey_registration(
     request: Request,
     current_user: FactorExemptUser,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: PasskeyRegisterFinish,
     _first_party: str = FirstPartyOnly,
 ) -> PasskeyRead:
@@ -266,12 +266,12 @@ async def finish_passkey_registration(
     )
 
     challenge = await challenge_service.claim_attempt(
-        admin_session, value=value, purposes=_REGISTER_PURPOSES
+        system_session, value=value, purposes=_REGISTER_PURPOSES
     )
     if challenge is None or challenge.user_id != current_user.id:
         # The attempt is counted whether or not the answer was any good, so
         # the commit comes before the refusal.
-        await admin_session.commit()
+        await system_session.commit()
         raise _registration_invalid()
 
     try:
@@ -286,29 +286,29 @@ async def finish_passkey_registration(
             type(exc).__name__,
             exc,
         )
-        await admin_session.commit()
+        await system_session.commit()
         raise _registration_invalid() from exc
 
     try:
         row = await passkey_service.store(
-            admin_session,
+            system_session,
             user_id=current_user.id,
             registered=registered,
             name=payload.name,
         )
     except passkey_service.PasskeyLimitReached:
-        await admin_session.rollback()
+        await system_session.rollback()
         raise _limit_reached() from None
 
-    if not await challenge_service.consume(admin_session, challenge):
+    if not await challenge_service.consume(system_session, challenge):
         # The challenge went elsewhere between the claim and here, so the
         # credential staged against it goes with the transaction.
-        await admin_session.rollback()
+        await system_session.rollback()
         raise _registration_invalid()
 
     read = _read(row)
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_PASSKEY_REGISTERED,
         actor_user_id=current_user.id,
         detail={
@@ -317,9 +317,9 @@ async def finish_passkey_registration(
             "user_verified": registered.user_verified,
         },
     )
-    await admin_session.commit()
+    await system_session.commit()
     await email_service.announce_passkey_change(
-        admin_session, current_user, added=True, name=read.name
+        system_session, current_user, added=True, name=read.name
     )
     return read
 
@@ -330,13 +330,13 @@ async def rename_passkey(
     request: Request,
     passkey_id: uuid.UUID,
     current_user: CurrentUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: PasskeyRename,
     _first_party: str = FirstPartyOnly,
 ) -> PasskeyRead:
     """Give the credential another name. Nothing about signing in changes."""
     row = await passkey_service.rename(
-        admin_session,
+        system_session,
         user_id=current_user.id,
         passkey_id=passkey_id,
         name=payload.name,
@@ -347,7 +347,7 @@ async def rename_passkey(
             detail=AuthMessages.PASSKEY_NOT_FOUND,
         )
     read = _read(row)
-    await admin_session.commit()
+    await system_session.commit()
     return read
 
 
@@ -357,14 +357,14 @@ async def remove_passkey(
     request: Request,
     passkey_id: uuid.UUID,
     current_user: CurrentUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: PasskeyRemove,
     _first_party: str = FirstPartyOnly,
 ) -> None:
     """Forget the credential. The password is asked for again, as it is for a
     password change, because a way in is being taken away."""
     await require_password_or_recent_proof(
-        request, admin_session, current_user, payload.current_password
+        request, system_session, current_user, payload.current_password
     )
 
     # A credential is allowed to go while something else still opens a session
@@ -372,9 +372,9 @@ async def remove_passkey(
     # Where it is the whole of that, it stays. A deployment that has withdrawn
     # passkeys leaves such an account with nothing at all, which is the same
     # answer.
-    ways = await identity_service.ways_in(admin_session, user_id=current_user.id)
+    ways = await identity_service.ways_in(system_session, user_id=current_user.id)
     if not (ways - {LoginMethod.passkey}) and (
-        await passkey_service.count_for_user(admin_session, user_id=current_user.id)
+        await passkey_service.count_for_user(system_session, user_id=current_user.id)
         == 1
     ):
         raise HTTPException(
@@ -384,11 +384,11 @@ async def remove_passkey(
 
     # Read the name while the row is still there, so the letter can say which
     # credential went.
-    existing = await admin_session.get(UserPasskey, passkey_id)
+    existing = await system_session.get(UserPasskey, passkey_id)
     name = existing.name if existing is not None else ""
 
     if not await passkey_service.remove(
-        admin_session, user_id=current_user.id, passkey_id=passkey_id
+        system_session, user_id=current_user.id, passkey_id=passkey_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -396,16 +396,16 @@ async def remove_passkey(
         )
 
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_PASSKEY_REMOVED,
         actor_user_id=current_user.id,
         detail={"passkey_id": str(passkey_id)},
     )
     # Sessions are left alone: the person is where they are and has just
     # proved it.
-    await admin_session.commit()
+    await system_session.commit()
     await email_service.announce_passkey_change(
-        admin_session, current_user, added=False, name=name
+        system_session, current_user, added=False, name=name
     )
 
 
@@ -418,7 +418,7 @@ async def remove_passkey(
 async def begin_passkey_sign_in(
     request: Request,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: PasskeySignInStart,
 ) -> PasskeyAuthenticationOptions:
     """Options for signing in with a passkey. Nobody is named yet: the
@@ -433,12 +433,12 @@ async def begin_passkey_sign_in(
     # unpadded base64url the options carry — so the finish route can look the
     # row up by what it reads out of the signed client data.
     await challenge_service.create(
-        admin_session,
+        system_session,
         user_id=None,
         purpose=challenge_service.ChallengePurpose.passkey_sign_in,
         value=bytes_to_base64url(ceremony.challenge),
     )
-    await admin_session.commit()
+    await system_session.commit()
     return PasskeyAuthenticationOptions(options=ceremony.options)
 
 
@@ -448,7 +448,7 @@ async def finish_passkey_sign_in(
     request: Request,
     response: Response,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: PasskeySignInFinish,
 ) -> PasskeySignInResult:
     """Open the session a passkey earned — or, for a phone signing in through
@@ -463,16 +463,16 @@ async def finish_passkey_sign_in(
     value = _challenge_from_client_data(payload.credential, refusal=_sign_in_invalid())
 
     challenge = await challenge_service.claim_attempt(
-        admin_session, value=value, purposes=_SIGN_IN_PURPOSES
+        system_session, value=value, purposes=_SIGN_IN_PURPOSES
     )
     if challenge is None:
         # The attempt is counted whether or not the answer was any good, so
         # the commit comes before the refusal.
-        await admin_session.commit()
+        await system_session.commit()
         raise _sign_in_invalid()
 
     outcome = await passkey_service.finish_authentication(
-        admin_session,
+        system_session,
         credential=payload.credential,
         expected_challenge=webauthn.base64url_to_bytes(value),
     )
@@ -482,7 +482,7 @@ async def finish_passkey_sign_in(
         # is the only thing that would have said who. The client is answered
         # the same either way. The record commits on its own.
         refused_for = (
-            await admin_session.get(User, outcome.passkey.user_id)
+            await system_session.get(User, outcome.passkey.user_id)
             if outcome.passkey is not None
             else None
         )
@@ -500,7 +500,7 @@ async def finish_passkey_sign_in(
         # another domain, say nothing about the account the record names, so
         # neither counts toward the repeated-refusal rule.
         await record_sign_in_failure(
-            admin_session,
+            system_session,
             refused_for,
             method="passkey",
             reason=outcome.reason,
@@ -513,7 +513,7 @@ async def finish_passkey_sign_in(
     backed_up = outcome.passkey.backed_up
     account_id = outcome.passkey.user_id
 
-    user = await admin_session.get(User, account_id)
+    user = await system_session.get(User, account_id)
     # See SIGN_IN_STATUSES: a deletion is called off by its holder signing in.
     if user is None or user.status not in SIGN_IN_STATUSES:
         # No session to open, so the counter the assertion moved goes back with
@@ -521,10 +521,10 @@ async def finish_passkey_sign_in(
         # is read again because the rollback expired the row. The attempt
         # ``claim_attempt`` counted goes back with it, and the route's own rate
         # limit is what bounds this path.
-        await admin_session.rollback()
+        await system_session.rollback()
         await record_sign_in_failure(
-            admin_session,
-            await admin_session.get(User, account_id),
+            system_session,
+            await system_session.get(User, account_id),
             method="passkey",
             reason="inactive",
         )
@@ -533,11 +533,11 @@ async def finish_passkey_sign_in(
         )
     user_id, token_version = user.id, user.token_version
 
-    if not await challenge_service.consume(admin_session, challenge):
+    if not await challenge_service.consume(system_session, challenge):
         # Spent between the claim and here, so the session it bought is not
         # this request's to open a second time. The counter the assertion moved
         # goes back with the transaction.
-        await admin_session.rollback()
+        await system_session.rollback()
         raise _sign_in_invalid()
 
     if payload.mobile:
@@ -546,7 +546,7 @@ async def finish_passkey_sign_in(
         # own, which is the road the SSO mobile login already takes.
         device_name = payload.device_name.strip() or _DEFAULT_DEVICE_NAME
         device_token = await user_tokens.create_device_token(
-            admin_session,
+            system_session,
             user_id=user_id,
             device_name=device_name,
             # What this ceremony proved, kept for the exchange the app makes
@@ -556,14 +556,14 @@ async def finish_passkey_sign_in(
             commit=False,
         )
         await audit_service.record(
-            admin_session,
+            system_session,
             event_type=AuditEventType.AUTH_DEVICE_TOKEN_ISSUED,
             actor_user_id=user_id,
             detail={"method": "passkey", "device_name": device_name},
         )
         # One commit for the token, the record, the spent challenge and the
         # credential's counter.
-        await admin_session.commit()
+        await system_session.commit()
         redirect = urlencode({"token": device_token, "token_type": "device_token"})
         return PasskeySignInResult(redirect_to=f"{MOBILE_CALLBACK_URI}?{redirect}")
 
@@ -571,7 +571,7 @@ async def finish_passkey_sign_in(
     token = await open_session(
         request,
         response,
-        admin_session,
+        system_session,
         user_id=user_id,
         token_version=token_version,
         amr=passkey_amr(backed_up=backed_up),
@@ -586,7 +586,7 @@ async def begin_passkey_step_up(
     request: Request,
     session: SessionDep,
     current_user: FactorExemptUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     _first_party: str = FirstPartyOnly,
 ) -> PasskeyAuthenticationOptions:
     """Options for presenting one of this account's passkeys against the
@@ -602,7 +602,7 @@ async def begin_passkey_step_up(
     # the authenticator holds for this domain. Read once and handed on, so the
     # allow-list and the answer below come from the same read.
     credentials = await passkey_service.list_for_user(
-        admin_session, user_id=current_user.id
+        system_session, user_id=current_user.id
     )
     if not credentials:
         # Nothing to present. The dialog sends the person to the security page
@@ -618,12 +618,12 @@ async def begin_passkey_step_up(
     # browser will write it back, so the finish route can look the row up by
     # what it reads out of the signed client data.
     await challenge_service.create(
-        admin_session,
+        system_session,
         user_id=current_user.id,
         purpose=challenge_service.ChallengePurpose.passkey_step_up,
         value=bytes_to_base64url(ceremony.challenge),
     )
-    await admin_session.commit()
+    await system_session.commit()
     return PasskeyAuthenticationOptions(options=ceremony.options)
 
 
@@ -634,7 +634,7 @@ async def finish_passkey_step_up(
     response: Response,
     session: SessionDep,
     current_user: FactorExemptUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: PasskeyStepUpFinish,
     _first_party: str = FirstPartyOnly,
 ) -> Token:
@@ -649,7 +649,7 @@ async def finish_passkey_step_up(
     await _require_passkeys_offered(session)
 
     presented = await passkey_service.present_against_challenge(
-        admin_session,
+        system_session,
         user_id=current_user.id,
         credential=payload.credential,
         purposes=_STEP_UP_PURPOSES,
@@ -657,7 +657,7 @@ async def finish_passkey_step_up(
     if isinstance(presented, passkey_service.PresentationRefused):
         if presented.reason is not None:
             await audit_service.record(
-                admin_session,
+                system_session,
                 event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
                 actor_user_id=current_user.id,
                 detail={
@@ -667,16 +667,16 @@ async def finish_passkey_step_up(
                 },
             )
         if presented.keep:
-            await admin_session.commit()
+            await system_session.commit()
         else:
-            await admin_session.rollback()
+            await system_session.rollback()
         raise _sign_in_invalid()
 
     # The spent challenge and the credential's counter commit with the session.
     return await upgrade_session(
         request,
         response,
-        admin_session,
+        system_session,
         user=current_user,
         add_amr=passkey_amr(backed_up=presented.backed_up),
     )

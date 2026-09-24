@@ -8,16 +8,22 @@
  * The card holds the challenge and the ticket in memory and nowhere else.
  * Neither is a credential on its own — the other half of each is in the
  * mailbox — and neither outlives the card.
+ *
+ * Where the deployment runs a captcha, the address step carries it: asking
+ * for a code is the step that posts mail to an address nobody has proved
+ * yet, and it is the one the server checks a token on.
  */
 
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -38,6 +44,8 @@ const compact = (value: string) => value.replace(/\s+/g, "");
 export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
   const { t } = useTranslation("auth");
   const { applyEmailOtpSignIn } = useAuth();
+  // Null on the deployments that run no captcha, which is most of them.
+  const { captcha } = useAppConfig();
 
   const [step, setStep] = useState<Step>("address");
   const [email, setEmail] = useState("");
@@ -48,15 +56,24 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
   const [ticket, setTicket] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState("");
+  // A token is spent by being checked, so every attempt gets a fresh widget:
+  // bumping this remounts it and clears the solve the server already took.
+  const [captchaKey, setCaptchaKey] = useState(0);
 
   const askForCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (captcha && !captchaToken) {
+      setError(t("emailOtp.captchaRequired"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const { data } = await apiClient.post<{ challenge: string }>("/auth/email-otp/send", {
         email: email.toLowerCase().trim(),
         ...(inviteCode ? { invite_code: inviteCode } : {}),
+        ...(captcha ? { captcha_token: captchaToken } : {}),
       });
       setChallenge(data.challenge);
       setStep("code");
@@ -64,6 +81,10 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
       setError(getErrorMessage(err, "auth:emailOtp.sendError"));
     } finally {
       setBusy(false);
+      if (captcha) {
+        setCaptchaToken("");
+        setCaptchaKey((key) => key + 1);
+      }
     }
   };
 
@@ -159,7 +180,14 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
                 placeholder={t("emailOtp.addressPlaceholder")}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={busy}>
+            {captcha ? (
+              <CaptchaWidget key={captchaKey} config={captcha} onToken={setCaptchaToken} />
+            ) : null}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={busy || (captcha !== null && !captchaToken)}
+            >
               {busy ? t("login.submitting") : t("emailOtp.sendAction")}
             </Button>
             <Button type="button" variant="ghost" className="w-full" onClick={onCancel}>
@@ -227,6 +255,7 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
                 placeholder={t("emailOtp.fullNamePlaceholder")}
+                maxLength={255}
               />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>

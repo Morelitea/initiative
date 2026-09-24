@@ -47,7 +47,7 @@ export function BulkAccessSection<
           onEditAccess={() => setDialogOpen(true)}
           onExit={selection.exit}
         >
-          <BulkExportButton tool={tool} ids={selection.selectedItems.map((item) => item.id)} />
+          <BulkExportButton tool={tool} items={selection.selectedItems} />
         </BulkAccessBar>
       ) : null}
       <BulkEditAccessDialog

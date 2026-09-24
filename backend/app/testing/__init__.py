@@ -12,6 +12,7 @@ guild's ``guild_<id>`` schema before touching the database (see
 
 from app.testing.actor import Actor, make_actor
 from app.testing.audit import emitted
+from app.testing.captcha import captcha_switched_on
 from app.testing.app_channel import (
     APP_CHANNEL_SECRET,
     channel_headers,
@@ -19,6 +20,7 @@ from app.testing.app_channel import (
     register_app_service,
 )
 from app.testing.factories import (
+    create_access_grant,
     grant_role_permission,
     TOOL_FACTORIES,
     billing_guild_ref,
@@ -85,9 +87,12 @@ from app.testing.passkeys import (
     stub_assertion,
     stub_registration,
 )
-from app.testing.schema_harness import route_session_to_guild
+from app.testing.push import push_switched_on
+from app.testing.routing import route_as, route_system
+from app.testing.schema_harness import guild_of, route_session_to_guild
 
 __all__ = [
+    "captcha_switched_on",
     "assertion_for",
     "create_passkey",
     "registration_for",
@@ -133,6 +138,7 @@ __all__ = [
     "create_document_property_value",
     "create_federated_identity",
     "create_guild_auth_policy",
+    "create_access_grant",
     "create_guild",
     "guild_administration",
     "create_guild_app",
@@ -158,5 +164,9 @@ __all__ = [
     "set_notification_prefs",
     "get_auth_headers",
     "get_auth_token",
+    "guild_of",
+    "push_switched_on",
+    "route_as",
     "route_session_to_guild",
+    "route_system",
 ]

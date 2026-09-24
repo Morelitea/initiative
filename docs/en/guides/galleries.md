@@ -59,6 +59,10 @@ Galleries share exactly like everything else: **Viewer**, **Editor** or **Owner*
 
 Every gallery has its own comment thread, under the wall. Switch it off under **Settings → Details** for the gallery that's a reference shelf rather than a conversation.
 
+## Taking a copy
+
+**Settings → Advanced** on the gallery exports it, for whoever could also delete it, as a zip: the gallery and every picture in it. Import that zip from another gallery page — **Import from file** in the menu — and the gallery arrives with its pictures, even on another server.
+
 ## Related
 
 - [Tools](tools.md) — the other tools an initiative can turn on.

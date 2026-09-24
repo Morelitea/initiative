@@ -27,7 +27,6 @@ from app.models.platform.user import UserRole
 from app.models.tenant.intake import IntakeBinding
 from app.services import email as email_service
 from app.testing import (
-    create_auth_provider,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -38,7 +37,6 @@ from app.testing import (
 from sqlmodel import select
 
 GUILDS = "/api/v1/settings/guilds"
-OIDC_MAPPINGS = "/api/v1/settings/oidc-mappings"
 
 
 @pytest.fixture
@@ -85,114 +83,6 @@ async def test_a_failed_test_email_answers_with_a_code_and_logs_the_cause(
     assert "smtp.internal.example.com" not in resp.text
     # ...preserved for the operator in the server logs only.
     assert sensitive in caplog.text
-
-
-# --- OIDC claim mappings ----------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_oidc_mapping_options_includes_guild_scoped_initiatives(
-    client: AsyncClient, acting_user
-) -> None:
-    """Regression: initiatives/roles are guild-scoped content (rows live in each
-    guild's schema). The options endpoint must route into every guild schema,
-    otherwise the form's initiative dropdown is empty."""
-    a = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
-
-    resp = await client.get(f"{OIDC_MAPPINGS}/options", headers=a.headers)
-    assert resp.status_code == 200
-    data = resp.json()
-
-    matched = next((i for i in data["initiatives"] if i["id"] == a.initiative.id), None)
-    assert matched is not None, "guild-scoped initiative missing from options"
-    assert matched["guild_id"] == a.guild.id
-
-    # Roles carry guild_id so the client can disambiguate initiative ids that
-    # collide across guild schemas.
-    roles = [
-        r
-        for r in data["initiative_roles"]
-        if r["initiative_id"] == a.initiative.id and r["guild_id"] == a.guild.id
-    ]
-    assert roles, "initiative roles missing from options"
-    assert all("guild_id" in r for r in data["initiative_roles"])
-
-
-@pytest.mark.integration
-async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
-    client: AsyncClient, session: AsyncSession, acting_user
-) -> None:
-    """Regression: creating an initiative-target mapping must validate the
-    initiative/role inside the guild schema — validating anywhere else always
-    400'd INITIATIVE_NOT_FOUND."""
-    a = await acting_user("owner", guild_role=GuildRole.admin, initiative=True)
-    provider = await create_auth_provider(session)
-
-    options = (await client.get(f"{OIDC_MAPPINGS}/options", headers=a.headers)).json()
-    role = next(
-        r
-        for r in options["initiative_roles"]
-        if r["initiative_id"] == a.initiative.id and r["guild_id"] == a.guild.id
-    )
-
-    resp = await client.post(
-        OIDC_MAPPINGS,
-        json={
-            "provider_id": provider.id,
-            "claim_value": "eng-team",
-            "target_type": "initiative",
-            "guild_id": a.guild.id,
-            "guild_role": "member",
-            "initiative_id": a.initiative.id,
-            "initiative_role_id": role["id"],
-        },
-        headers=a.headers,
-    )
-    assert resp.status_code == 201, resp.text
-    body = resp.json()
-    # Denormalized names are resolved from the guild schema for display.
-    assert body["initiative_name"] == a.initiative.name
-    assert body["initiative_role_name"] == role["name"]
-    # And whose claim it reads, named for the editor that lists rules from several.
-    assert body["provider_id"] == provider.id
-    assert body["provider_name"] == provider.display_name
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize(
-    "provider_id,expected,detail",
-    [
-        pytest.param(None, 201, None, id="a-provider-that-is-registered"),
-        pytest.param(
-            9_999_999, 400, "AUTH_PROVIDER_NOT_FOUND", id="a-provider-that-is-not-there"
-        ),
-    ],
-)
-async def test_a_guild_rule_grants_in_the_guild_it_names(
-    client: AsyncClient, session: AsyncSession, owner, provider_id, expected, detail
-) -> None:
-    """The platform's own registry has no guild of its own, so its rules grant
-    in whichever guild they name — and a provider id it does not know is
-    answered as the bad request it is. ``None`` here means the real provider
-    made below."""
-    guild = await create_guild(session)
-    provider = await create_auth_provider(session)
-
-    resp = await client.post(
-        OIDC_MAPPINGS,
-        json={
-            "provider_id": provider.id if provider_id is None else provider_id,
-            "claim_value": "staff",
-            "target_type": "guild",
-            "guild_id": guild.id,
-            "guild_role": "member",
-        },
-        headers=owner.headers,
-    )
-
-    assert resp.status_code == expected, resp.text
-    if detail is not None:
-        assert resp.json()["detail"] == detail
 
 
 # --- The Guilds tab: the operator's dials -----------------------------------
@@ -347,6 +237,49 @@ async def test_a_real_status_transition_is_stamped(
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == GuildStatus.suspended.value
     assert resp.json()["status_changed_at"] is not None
+
+
+@pytest.mark.integration
+async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
+    client: AsyncClient, session: AsyncSession, operator, monkeypatch
+) -> None:
+    """Every transition nudges billing to read the status; one into on_hold
+    also tells the community's seat holder, once."""
+    from app.models.platform.guild import GuildRole
+    from app.models.platform.notification import Notification, NotificationType
+    from app.services.platform import billing_ping
+    from app.testing import create_guild_membership, create_user
+
+    nudged: list[int] = []
+    monkeypatch.setattr(billing_ping, "notify_lifecycle_changed", nudged.append)
+    guild = await create_guild(session)
+    seat = await create_user(session)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    guild_id, guild_name, seat_id = guild.id, guild.name, seat.id
+
+    for status in (GuildStatus.suspended, GuildStatus.on_hold):
+        resp = await client.patch(
+            f"{GUILDS}/{guild_id}",
+            json={"status": status.value},
+            headers=operator.headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == status.value
+    assert nudged == [guild_id, guild_id]
+
+    session.expire_all()
+    notices = (
+        await session.exec(
+            select(Notification).where(
+                Notification.user_id == seat_id,
+                Notification.type == NotificationType.guild_on_hold,
+            )
+        )
+    ).all()
+    assert len(notices) == 1
+    assert notices[0].data["community"] == guild_name
 
 
 @pytest.mark.integration
@@ -567,17 +500,75 @@ async def test_storage_settings_round_trip_never_returns_secret(
     assert get.json()["has_secret_access_key"] is True
     assert "super-secret-value" not in get.text
 
-    # Stored encrypted, and decrypts back to the original.
+    # Stored encrypted on the credentials row, and decrypts back to the original.
     from app.core.encryption import SALT_S3_SECRET_KEY, decrypt_field
-    from app.services.platform.app_settings import get_app_settings
+    from app.services.platform.app_settings import get_app_setting_secrets
 
-    row = await get_app_settings(session)
+    row = await get_app_setting_secrets(session)
     assert row.s3_secret_access_key_encrypted
     assert row.s3_secret_access_key_encrypted != "super-secret-value"
     assert (
         decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)
         == "super-secret-value"
     )
+
+
+@pytest.mark.integration
+async def test_email_password_is_stored_apart_and_reported_as_set(
+    client: AsyncClient,
+    session: AsyncSession,
+    owner,
+) -> None:
+    """The SMTP password is written to ``app_setting_secrets`` and reported only
+    as ``has_password``; a save that omits it keeps it, and an empty one clears
+    it."""
+    from app.core.encryption import SALT_SMTP_PASSWORD, decrypt_field
+    from app.services.platform.app_settings import get_app_setting_secrets
+
+    email = {
+        "host": "smtp.example.com",
+        "port": 587,
+        "secure": False,
+        "reject_unauthorized": True,
+        "username": "mailer",
+        "from_address": "noreply@example.com",
+    }
+    put = await client.put(
+        "/api/v1/settings/email",
+        json={**email, "password": "smtp-pa55word"},
+        headers=owner.headers,
+    )
+    assert put.status_code == 200, put.text
+    assert put.json()["has_password"] is True
+    assert "smtp-pa55word" not in put.text
+
+    row = await get_app_setting_secrets(session)
+    assert row.smtp_password_encrypted
+    assert (
+        decrypt_field(row.smtp_password_encrypted, SALT_SMTP_PASSWORD)
+        == "smtp-pa55word"
+    )
+
+    kept = await client.put(
+        "/api/v1/settings/email",
+        json={**email, "host": "mail.example.com"},
+        headers=owner.headers,
+    )
+    assert kept.status_code == 200, kept.text
+    assert kept.json()["host"] == "mail.example.com"
+    assert kept.json()["has_password"] is True
+
+    get = await client.get("/api/v1/settings/email", headers=owner.headers)
+    assert get.status_code == 200
+    assert get.json()["has_password"] is True
+
+    cleared = await client.put(
+        "/api/v1/settings/email",
+        json={**email, "password": ""},
+        headers=owner.headers,
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["has_password"] is False
 
 
 @pytest.mark.integration
@@ -588,7 +579,7 @@ async def test_storage_update_keeps_secret_when_omitted(
     reset_storage_cache: None,
 ) -> None:
     """Re-saving without ``s3_secret_access_key`` keeps the stored key (the SMTP
-    password pattern), so an admin can tweak the bucket without re-typing it."""
+    password pattern), so an owner can tweak the bucket without re-typing it."""
     assert (
         await client.put(
             "/api/v1/settings/storage", json=_S3_PAYLOAD, headers=owner.headers
@@ -605,9 +596,10 @@ async def test_storage_update_keeps_secret_when_omitted(
     assert resp.json()["has_secret_access_key"] is True
 
     from app.core.encryption import SALT_S3_SECRET_KEY, decrypt_field
-    from app.services.platform.app_settings import get_app_settings
+    from app.services.platform.app_settings import get_app_setting_secrets
 
-    row = await get_app_settings(session)
+    row = await get_app_setting_secrets(session)
+    assert row.s3_secret_access_key_encrypted
     assert (
         decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)
         == "super-secret-value"
@@ -814,6 +806,7 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
     assert payload["user_ref"].startswith("ubil_")
     assert payload["guild_ref"].startswith("gbil_")
     assert "guild_id" not in payload
+    assert payload["guild_name"] == guild.name
     assert payload["jti"]
     # Lifetime stays inside the receiver's ceiling.
     assert payload["exp"] - payload["iat"] <= 300
@@ -1079,7 +1072,7 @@ async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
 # ---------------------------------------------------------------------------
 # Which tier each route answers to
 #
-# These handlers read and write through the system admin engine, so the
+# These handlers read and write through the system engine, so the
 # capability gate is what each one is scoped by. Every route is listed here
 # per-endpoint, stated rather than derived from ``capabilities.py``, so that a
 # change to the ladder has to be made here too.
@@ -1090,21 +1083,6 @@ _GUILDS_MANAGE = "guilds.manage"  # operator and owner
 
 #: (capability, method, path — ``{guild_id}`` is filled in, json body or None)
 _ROUTES: list[tuple[str, str, str, dict | None]] = [
-    (_CONFIG_MANAGE, "get", OIDC_MAPPINGS, None),
-    (_CONFIG_MANAGE, "get", f"{OIDC_MAPPINGS}/options", None),
-    (
-        _CONFIG_MANAGE,
-        "post",
-        OIDC_MAPPINGS,
-        {
-            "claim_value": "x",
-            "target_type": "guild",
-            "guild_id": 1,
-            "guild_role": "member",
-        },
-    ),
-    (_CONFIG_MANAGE, "put", f"{OIDC_MAPPINGS}/1", {"claim_value": "x"}),
-    (_CONFIG_MANAGE, "delete", f"{OIDC_MAPPINGS}/1", None),
     (_CONFIG_MANAGE, "get", "/api/v1/settings/storage", None),
     (_CONFIG_MANAGE, "put", "/api/v1/settings/storage", {"backend": "local"}),
     (_CONFIG_MANAGE, "post", "/api/v1/settings/storage/test", {"backend": "local"}),
@@ -1188,7 +1166,7 @@ async def test_every_route_needs_an_account(
     client: AsyncClient, method, path, body
 ) -> None:
     """Unauthenticated callers are rejected outright (401), never reaching the
-    admin-engine handlers."""
+    system-engine handlers."""
     resp = await getattr(client, method)(
         path.format(guild_id=1), **({"json": body} if body is not None else {})
     )
@@ -1218,7 +1196,7 @@ async def _bind_support_stream(session: AsyncSession) -> None:
     session.add(row)
     await session.commit()
 
-    await set_rls_context(session, guild_id=staff.id, guild_role="admin")
+    await set_rls_context(session, guild_id=staff.id)
     session.add(IntakeBinding(stream=IntakeStream.support, project_id=project.id))
     await session.commit()
     await set_rls_context(session)

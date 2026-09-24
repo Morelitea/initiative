@@ -3,7 +3,7 @@
 Two sources feed one list: the notices an operator wrote (``announcements``)
 and the ones compiled into this version of the app
 (``app.core.builtin_announcements``). They are merged here rather than in the
-endpoint so the read path, the admin preview and the tests all agree on what
+endpoint so the read path, the operator preview and the tests all agree on what
 "live for this person" means.
 
 Three questions, in order:
@@ -54,7 +54,7 @@ from app.models.platform.user import User, UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.schemas.platform.announcement import (
     IMAGE_PATH_PREFIX,
-    AnnouncementAdminRead,
+    AnnouncementOperatorRead,
     AnnouncementRead,
     AnnouncementSection,
     AnnouncementUpdate,
@@ -209,9 +209,9 @@ def _to_read(announcement: Announcement) -> AnnouncementRead:
     )
 
 
-def to_admin_read(announcement: Announcement) -> AnnouncementAdminRead:
+def to_operator_read(announcement: Announcement) -> AnnouncementOperatorRead:
     """The full row, for the surface that writes them."""
-    return AnnouncementAdminRead(
+    return AnnouncementOperatorRead(
         key=db_announcement_key(announcement.id or 0),
         id=announcement.id,
         title=announcement.title,
@@ -225,15 +225,14 @@ def to_admin_read(announcement: Announcement) -> AnnouncementAdminRead:
         guild_admins_only=announcement.guild_admins_only,
         audience_accounts=AnnouncementAudienceAccounts(announcement.audience_accounts),
         expires_at=announcement.expires_at,
-        created_by=announcement.created_by,
         created_at=announcement.created_at,
         updated_at=announcement.updated_at,
     )
 
 
-def builtin_admin_read(builtin: BuiltinAnnouncement) -> AnnouncementAdminRead:
-    """A compiled-in notice in the admin list's shape, marked uneditable."""
-    return AnnouncementAdminRead(
+def builtin_operator_read(builtin: BuiltinAnnouncement) -> AnnouncementOperatorRead:
+    """A compiled-in notice in the operator list's shape, marked uneditable."""
+    return AnnouncementOperatorRead(
         key=builtin.key,
         id=None,
         title=builtin.title,
@@ -438,11 +437,11 @@ async def dismissals_required_for(session: AsyncSession, *, key: str) -> int:
 # --- authoring ---------------------------------------------------------------
 
 
-async def list_all(session: AsyncSession) -> list[AnnouncementAdminRead]:
+async def list_all(session: AsyncSession) -> list[AnnouncementOperatorRead]:
     """Everything an author can see: drafts, scheduled, live and expired."""
     rows = (await session.exec(select(Announcement))).all()
-    items = [to_admin_read(row) for row in rows]
-    items.extend(builtin_admin_read(b) for b in BUILTIN_ANNOUNCEMENTS)
+    items = [to_operator_read(row) for row in rows]
+    items.extend(builtin_operator_read(b) for b in BUILTIN_ANNOUNCEMENTS)
     items.sort(
         key=lambda a: (
             a.published_at or a.created_at or datetime.min.replace(tzinfo=timezone.utc)
@@ -452,9 +451,7 @@ async def list_all(session: AsyncSession) -> list[AnnouncementAdminRead]:
     return items
 
 
-async def create(
-    session: AsyncSession, *, payload: AnnouncementWrite, author_id: int
-) -> Announcement:
+async def create(session: AsyncSession, *, payload: AnnouncementWrite) -> Announcement:
     now = datetime.now(timezone.utc)
     announcement = Announcement(
         title=payload.title,
@@ -467,7 +464,6 @@ async def create(
         expires_at=payload.expires_at,
         dismissals_required=payload.dismissals_required,
         trigger_route=payload.trigger_route,
-        created_by=author_id,
         created_at=now,
         updated_at=now,
     )
@@ -513,15 +509,25 @@ async def update(
 
 async def delete_announcement(
     session: AsyncSession, *, announcement: Announcement
-) -> None:
-    """Remove the notice and every receipt naming it."""
+) -> str:
+    """Remove the notice, returning the key its receipts were recorded against.
+
+    The receipts are every reader's own rows, so they go separately
+    (``delete_receipts``) on a session that reaches them.
+    """
     key = db_announcement_key(announcement.id or 0)
+    await session.delete(announcement)
+    await session.flush()
+    return key
+
+
+async def delete_receipts(session: AsyncSession, *, key: str) -> None:
+    """Remove every receipt naming ``key``, once the notice itself has gone."""
     await session.exec(
         delete(AnnouncementReadReceipt).where(
             AnnouncementReadReceipt.announcement_key == key
         )
     )
-    await session.delete(announcement)
     await session.flush()
 
 
@@ -541,9 +547,7 @@ def _referenced_digests(sections: Iterable[dict]) -> set[str]:
     return digests
 
 
-async def store_image(
-    session: AsyncSession, *, data: bytes, user_id: int
-) -> AnnouncementImage:
+async def store_image(session: AsyncSession, *, data: bytes) -> AnnouncementImage:
     """Validate an uploaded picture and keep it, or return the one already here.
 
     The format is read from the bytes rather than believed from the part's
@@ -578,7 +582,6 @@ async def store_image(
         width=header.width,
         height=header.height,
         data=data,
-        created_by=user_id,
         created_at=datetime.now(timezone.utc),
     )
     session.add(image)
@@ -599,9 +602,9 @@ async def process_announcement_image_purge() -> None:
     writing. This is what collects after an editor that uploaded a screenshot
     and was then closed.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         removed = await prune_unreferenced_images(session)
         if removed:
             await session.commit()

@@ -29,9 +29,9 @@ import jwt
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.core.messages import DelegationExchangeMessages
 from app.core.security import (
+    APP_PLATFORM_ISSUER,
     app_platform_audience,
     resolve_app_platform_signing_material,
 )
@@ -152,7 +152,7 @@ async def exchange_for_app(
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": str(uuid.uuid4()),
-        "iss": settings.APP_PLATFORM_ISSUER,
+        "iss": APP_PLATFORM_ISSUER,
         "aud": app_platform_audience(target_public_id),
         "iat": int(now.timestamp()),
         "exp": int((now + DELEGATION_EXCHANGE_LIFETIME).timestamp()),

@@ -23,6 +23,7 @@ from sqlmodel import select
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.session import routed_guild_id
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
@@ -64,6 +65,7 @@ from app.schemas.tenant.queue import (
 )
 from app.api import resource_access
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.services import permissions as permissions_service
 from app.services.tenant import queues as queues_service
 from app.services.tenant import tags as tags_service
@@ -134,6 +136,7 @@ async def _serialized_queue(
     )
     return serialize_queue(
         queue,
+        context=require_guild_context(session),
         user_id=user_id,
         documents=documents,
         tasks=tasks,
@@ -192,9 +195,7 @@ async def _emit_queue(
     commit). One streaming spine; rooms are guild-namespaced (queue ids are
     per-schema)."""
     if guild_id is None:
-        guild_id = (
-            await session.exec(select(Queue.guild_id).where(Queue.id == queue_id))
-        ).one_or_none()
+        guild_id = routed_guild_id(session)
         if guild_id is None:
             return
     await stream_authority.emit(guild_id, "queue", queue_id, event_type, data)
@@ -328,7 +329,6 @@ async def create_queue(
     )
 
     queue = Queue(
-        guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
         created_by=current_user.id,
         name=queue_in.name.strip(),
@@ -344,7 +344,6 @@ async def create_queue(
         user_id=current_user.id,
         role_id=None,
         level=ResourceAccessLevel.owner,
-        guild_id=guild_context.guild_id,
         initiative_id=queue.initiative_id,
     )
     session.add(owner_perm)
@@ -422,8 +421,8 @@ async def delete_queue(
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.queue],
         queue,
-        current_user,
         require_owner=True,
+        context=guild_context,
     )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
@@ -470,7 +469,6 @@ async def add_queue_item(
     )
 
     item = QueueItem(
-        guild_id=queue.guild_id,
         queue_id=queue.id,
         label=item_in.label,
         position=item_in.position,
@@ -487,7 +485,7 @@ async def add_queue_item(
         await tags_service.set_entity_tags(
             session,
             tags_service.TAG_LINKS["queue_item"],
-            guild_id=queue.guild_id,
+            guild_id=routed_guild_id(session),
             entity_id=item.id,
             tag_ids=item_in.tag_ids,
         )
@@ -498,7 +496,7 @@ async def add_queue_item(
             session,
             item,
             item_in.document_ids,
-            queue.guild_id,
+            routed_guild_id(session),
             current_user.id,
         )
 
@@ -508,7 +506,7 @@ async def add_queue_item(
             session,
             item,
             item_in.task_ids,
-            queue.guild_id,
+            routed_guild_id(session),
             current_user.id,
         )
 
@@ -847,7 +845,7 @@ async def set_queue_item_tags(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Set tags on a queue item. Replaces all existing tags."""
-    queue = await resource_access.load_authorized(
+    await resource_access.load_authorized(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     item = await _get_item_for_queue(session, queue_id, item_id)
@@ -855,7 +853,7 @@ async def set_queue_item_tags(
     await tags_service.set_entity_tags(
         session,
         tags_service.TAG_LINKS["queue_item"],
-        guild_id=queue.guild_id,
+        guild_id=routed_guild_id(session),
         entity_id=item.id,
         tag_ids=tags_in.tag_ids,
     )
@@ -965,7 +963,7 @@ async def websocket_queue(
         # Establish guild access through the single entry point (membership /
         # live PAM grant / break-glass) — same gate and applied context as REST
         # and the other sockets. Previously a membership-only check, so a PAM
-        # grantee or break-glass admin couldn't subscribe.
+        # or break-glass grantee couldn't subscribe.
         try:
             await establish_guild_access(session, user, guild_id)
         except GuildAccessError:
@@ -977,16 +975,17 @@ async def websocket_queue(
 
         # Fetch queue and check DAC
         queue = await queues_service.get_queue(session, queue_id)
-        if not queue or queue.guild_id != guild_id:
+        if not queue or routed_guild_id(session) != guild_id:
             logger.warning(f"Queue WS: queue {queue_id} not found in guild {guild_id}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        # DAC level via the shared engine; the guild-admin / break-glass bypass is
-        # applied inside compute_* through the active role context that
-        # establish_guild_access set, so no separate admin check is needed.
+        # DAC level via the shared engine; the guild-admin leg and a PAM or
+        # break-glass grant's rung are applied inside compute_* through the
+        # context establish_guild_access set, so no separate admin check is
+        # needed.
         level = permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[Tool.queue], queue, user.id
+            queue, context=require_guild_context(session)
         )
         if level is None:
             logger.warning(
@@ -1005,11 +1004,11 @@ async def websocket_queue(
     # RLS → DAC).
     async def _authorize(check_session, check_user):
         q = await queues_service.get_queue(check_session, queue_id)
-        if q is None or q.guild_id != guild_id:
+        if q is None:
             return False
         return (
             permissions_service.compute_permission(
-                permissions_service.DAC_RESOURCES[Tool.queue], q, check_user.id
+                q, context=require_guild_context(check_session)
             )
             is not None
         )

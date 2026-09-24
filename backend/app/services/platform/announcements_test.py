@@ -65,9 +65,7 @@ def _write(**overrides) -> AnnouncementWrite:
 
 
 async def _publish(session, author, **overrides):
-    announcement = await service.create(
-        session, payload=_write(**overrides), author_id=author.id
-    )
+    announcement = await service.create(session, payload=_write(**overrides))
     await session.commit()
     return announcement
 
@@ -444,7 +442,8 @@ async def test_deleting_an_announcement_takes_its_receipts_with_it(session):
     await service.record_receipt(session, user_id=reader.id, key=key, dismissed=True)
     await session.commit()
 
-    await service.delete_announcement(session, announcement=announcement)
+    assert await service.delete_announcement(session, announcement=announcement) == key
+    await service.delete_receipts(session, key=key)
     await session.commit()
 
     assert await session.get(AnnouncementReadReceipt, (reader.id, key)) is None
@@ -475,11 +474,10 @@ async def test_update_clears_a_publication_date_only_when_told_to(session):
 
 @pytest.mark.integration
 async def test_storing_the_same_picture_twice_keeps_one_copy(session):
-    author = await create_user(session, role=UserRole.owner)
     data = _png(padding=32)
 
-    first = await service.store_image(session, data=data, user_id=author.id)
-    second = await service.store_image(session, data=data, user_id=author.id)
+    first = await service.store_image(session, data=data)
+    second = await service.store_image(session, data=data)
     await session.commit()
 
     assert first.sha256 == second.sha256
@@ -488,18 +486,14 @@ async def test_storing_the_same_picture_twice_keeps_one_copy(session):
 
 @pytest.mark.integration
 async def test_a_file_that_is_not_an_image_is_refused(session):
-    author = await create_user(session, role=UserRole.owner)
     with pytest.raises(service.AnnouncementImageError):
-        await service.store_image(
-            session, data=b"not an image at all, really", user_id=author.id
-        )
+        await service.store_image(session, data=b"not an image at all, really")
 
 
 @pytest.mark.integration
 async def test_the_pruner_keeps_referenced_pictures_and_drops_the_rest(session):
-    author = await create_user(session, role=UserRole.owner)
-    used = await service.store_image(session, data=_png(padding=1), user_id=author.id)
-    orphan = await service.store_image(session, data=_png(padding=2), user_id=author.id)
+    used = await service.store_image(session, data=_png(padding=1))
+    orphan = await service.store_image(session, data=_png(padding=2))
     # Both predate the grace period; only one is pointed at.
     long_ago = datetime.now(timezone.utc) - timedelta(days=30)
     used.created_at = long_ago
@@ -517,7 +511,6 @@ async def test_the_pruner_keeps_referenced_pictures_and_drops_the_rest(session):
                 )
             ]
         ),
-        author_id=author.id,
     )
     await session.commit()
 
@@ -536,14 +529,13 @@ async def test_re_uploading_an_old_orphan_survives_the_next_sweep(session):
     The upload path prunes on its way out, so a dedupe that kept the original
     timestamp would hand back a URL that same sweep had just deleted.
     """
-    author = await create_user(session, role=UserRole.owner)
     data = _png(padding=7)
-    first = await service.store_image(session, data=data, user_id=author.id)
+    first = await service.store_image(session, data=data)
     first.created_at = datetime.now(timezone.utc) - timedelta(days=30)
     session.add(first)
     await session.commit()
 
-    again = await service.store_image(session, data=data, user_id=author.id)
+    again = await service.store_image(session, data=data)
     removed = await service.prune_unreferenced_images(session)
     await session.commit()
 
@@ -554,10 +546,7 @@ async def test_re_uploading_an_old_orphan_survives_the_next_sweep(session):
 @pytest.mark.integration
 async def test_the_janitor_sweeps_what_no_write_would_have(session):
     """An editor that uploaded and was closed leaves bytes no save will reach."""
-    author = await create_user(session, role=UserRole.owner)
-    abandoned = await service.store_image(
-        session, data=_png(padding=9), user_id=author.id
-    )
+    abandoned = await service.store_image(session, data=_png(padding=9))
     abandoned.created_at = datetime.now(timezone.utc) - timedelta(days=30)
     session.add(abandoned)
     await session.commit()
@@ -572,8 +561,7 @@ async def test_the_janitor_sweeps_what_no_write_would_have(session):
 
 @pytest.mark.integration
 async def test_the_pruner_leaves_a_freshly_uploaded_picture_alone(session):
-    author = await create_user(session, role=UserRole.owner)
-    image = await service.store_image(session, data=_png(padding=3), user_id=author.id)
+    image = await service.store_image(session, data=_png(padding=3))
     await session.commit()
 
     assert await service.prune_unreferenced_images(session) == 0

@@ -30,6 +30,7 @@ from app.services.import_engine.contract import ImportEngineError
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.schemas.tenant.backup_export import ManifestPerson
+    from app.services.import_engine.people import PeopleMap
 
 
 class QuotesNobody:
@@ -45,6 +46,37 @@ class QuotesNobody:
 
     def people(self, validated: BaseModel) -> list["ManifestPerson"]:
         return []
+
+
+class NamesPeopleInPassing:
+    """An envelope that names people without quoting them: through user-type
+    property values, and through the mentions in its body.
+
+    A document's properties and a calendar event's can say who somebody is —
+    an owner, a reviewer — and a document or a post can mention somebody.
+    Both are placed through the people step's answer, like an assignee is. So
+    these envelopes are a question whenever they carry one: the wizard asks,
+    rather than the value or the mention landing on whoever happens to share
+    the name, or on nobody.
+    """
+
+    def people(self, validated: BaseModel) -> list["ManifestPerson"]:
+        from app.schemas.tenant.backup_export import ManifestPerson
+        from app.services.import_engine.common import handle_key
+        from app.services.import_engine.mentions import mention_handles_in
+        from app.services.import_engine.people import user_reference_handles
+
+        payload = validated.model_dump(mode="json")
+        handles: dict[str, str] = {}
+        for handle in (
+            *user_reference_handles(payload),
+            *mention_handles_in(payload),
+        ):
+            handles.setdefault(handle_key(handle), handle)
+        return [
+            ManifestPerson(handle=handle, name=None, comment_count=0)
+            for handle in sorted(handles.values(), key=str.lower)
+        ]
 
 
 def parse_envelope(model: Type[BaseModel], envelope: dict[str, Any]) -> BaseModel:
@@ -82,7 +114,6 @@ async def grant_ownership(
             user_id=importer.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=target_initiative.guild_id,
             initiative_id=target_initiative.id,
         )
     )
@@ -118,6 +149,7 @@ async def resolve_property_values(
     initiative_id: int,
     values: list[EnvelopePropertyValue],
     member_handles: dict[str, int],
+    people: "PeopleMap | None" = None,
 ) -> AttachedProperties:
     """Resolve flat by-name property values against the target initiative's
     definitions: match by (name, type); a missing definition is recreated
@@ -154,7 +186,7 @@ async def resolve_property_values(
             attached.created += 1
         else:
             attached.matched += 1
-        column_kwargs = decode_property_value(pv, member_handles)
+        column_kwargs = decode_property_value(pv, member_handles, people=people)
         if column_kwargs is None:
             continue
         attached.column_kwargs_by_id[definition.id] = column_kwargs  # ty: ignore[invalid-assignment] — persisted row, id is set

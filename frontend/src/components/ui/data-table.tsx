@@ -895,7 +895,24 @@ export function DataTable<TData extends RowData>({
         <Table
           scrollContainerRef={enableVirtualization ? scrollContainerRef : undefined}
           scrollContainerClassName={enableVirtualization ? virtualContainerHeight : undefined}
+          className={enableVirtualization ? "table-fixed [&_td]:break-words" : undefined}
         >
+          {/*
+            A virtualized table holds only the rows in view, so the automatic
+            layout algorithm — which sizes columns from the cells it can see —
+            re-measures against different content on every scroll and the
+            columns jump. Fixed layout plus a colgroup takes the widths from
+            each column's `size` instead, which doesn't change as rows come and
+            go. Spare width is shared out in proportion to those sizes, so a
+            column that should take up the slack just declares a bigger one.
+          */}
+          {enableVirtualization && (
+            <colgroup>
+              {table.getVisibleLeafColumns().map((column) => (
+                <col key={column.id} style={{ width: column.getSize() }} />
+              ))}
+            </colgroup>
+          )}
           <TableHeader className={enableVirtualization ? "sticky top-0 z-10 bg-card" : undefined}>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

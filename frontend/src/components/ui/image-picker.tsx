@@ -1,5 +1,5 @@
 import { Camera, ImagePlus, Images, Paperclip } from "lucide-react";
-import { type ChangeEvent, type ReactNode, useRef, useState } from "react";
+import { type ChangeEvent, type ReactNode, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/chesterToast";
-import { canCapturePhoto, capturePhoto, PhotoCaptureError } from "@/lib/nativeCamera";
+import {
+  canCapturePhoto,
+  capturePhoto,
+  PhotoCaptureError,
+  type PhotoSource,
+} from "@/lib/nativeCamera";
 
 /**
  * One way to hand the app a picture, wherever the app runs.
@@ -45,6 +50,40 @@ export const acceptsNonImages = (accept: string): boolean =>
       (token) =>
         !token.startsWith("image/") && !["*", "*/*"].includes(token) && !IMAGE_EXTENSIONS.has(token)
     );
+
+/**
+ * Taking a picture with the camera, or choosing one from the photo library, on
+ * the native app — what every picture control there offers before a file
+ * dialog. Only meaningful where `canCapturePhoto()` says so.
+ */
+export function usePhotoCapture(onSelect: (file: File) => void | Promise<void>) {
+  const { t } = useTranslation("common");
+  const [capturing, setCapturing] = useState(false);
+  // Read at the moment a picture arrives, so a caller passing a fresh function
+  // each render does not make `capture` a new function each render too.
+  const latestOnSelect = useRef(onSelect);
+  latestOnSelect.current = onSelect;
+
+  const capture = useCallback(
+    async (source: PhotoSource) => {
+      setCapturing(true);
+      try {
+        const file = await capturePhoto(source);
+        // No file means the person backed out, which needs no announcement.
+        if (file) await latestOnSelect.current(file);
+      } catch (error) {
+        console.error(error);
+        const reason = error instanceof PhotoCaptureError ? error.reason : "failed";
+        toast.error(t(`imagePicker.${reason}`));
+      } finally {
+        setCapturing(false);
+      }
+    },
+    [t]
+  );
+
+  return { capturing, capture };
+}
 
 interface ImagePickerProps {
   /** Called with the chosen picture — from the camera, the library, or a file. */
@@ -81,7 +120,7 @@ export const ImagePicker = ({
 }: ImagePickerProps) => {
   const { t } = useTranslation("common");
   const inputRef = useRef<HTMLInputElement>(null);
-  const [capturing, setCapturing] = useState(false);
+  const { capturing, capture } = usePhotoCapture(onSelect);
 
   const handleInput = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -132,21 +171,6 @@ export const ImagePicker = ({
       </>
     );
   }
-
-  const capture = async (source: "camera" | "library") => {
-    setCapturing(true);
-    try {
-      const file = await capturePhoto(source);
-      // No file means the person backed out, which needs no announcement.
-      if (file) await onSelect(file);
-    } catch (error) {
-      console.error(error);
-      const reason = error instanceof PhotoCaptureError ? error.reason : "failed";
-      toast.error(t(`imagePicker.${reason}`));
-    } finally {
-      setCapturing(false);
-    }
-  };
 
   return (
     <>

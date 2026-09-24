@@ -232,7 +232,7 @@ async def test_changing_the_password_drops_a_part_way_sign_in(
     )
     await session.commit()
 
-    await user_tokens.revoke_user_sessions(session, user=user, admin_session=session)
+    await user_tokens.revoke_user_sessions(session, user=user)
 
     assert (
         await challenge_service.claim_attempt(

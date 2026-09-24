@@ -7,7 +7,7 @@ guild-access gate and every session-routing seam (``establish_guild_access``,
 ``get_guild_session``, ``gather_across_guilds``) read it to feed the guild
 auth-policy check and the ``app.satisfied_providers`` GUC behind
 ``public.guild_auth_satisfied()``, without the value being threaded through
-every helper between the validator and the sink (mirroring ``role_context``).
+every helper between the validator and the sink.
 
 Alongside it, what each of those providers asserted for the claims some
 community narrows it by — its token's ``satd`` claim — which the same gate
@@ -24,6 +24,10 @@ delegation JWTs) fail closed against policy-gated guilds.
 from __future__ import annotations
 
 import contextvars
+import uuid
+from dataclasses import dataclass
+
+from app.core.login_methods import SecondFactorRequirement
 
 _satisfied_providers: contextvars.ContextVar[frozenset[int] | str] = (
     contextvars.ContextVar("auth_satisfied_providers", default=frozenset())
@@ -150,6 +154,22 @@ def platform_factor() -> bool:
     return _platform_factor.get()
 
 
+#: What the deployment asks of an account, as the credential validator read it
+#: beside the account itself. ``None`` where nothing read it — every credential
+#: but the session — and the question is then read when it is asked.
+_asked_of_account: contextvars.ContextVar[SecondFactorRequirement | None] = (
+    contextvars.ContextVar("auth_asked_of_account", default=None)
+)
+
+
+def set_asked_of_account(value: SecondFactorRequirement | None) -> None:
+    _asked_of_account.set(value)
+
+
+def asked_of_account() -> SecondFactorRequirement | None:
+    return _asked_of_account.get()
+
+
 #: Whether a personal API key is what authenticated this request. Recorded by
 #: the two validators that accept one, and read where a community's refusal of
 #: them is applied: the guild-access gate and the cross-guild aggregates.
@@ -190,3 +210,34 @@ def device_token_id() -> int | None:
     """The device token recorded for this request, if it was authenticated by
     one."""
     return _device_token_id.get()
+
+
+@dataclass(frozen=True)
+class SessionCredential:
+    """The session JWT that authenticated this request, by the two values
+    that say whether it still stands: the ``auth_sessions`` row its ``sid``
+    names, and the ``users.token_version`` it was minted at.
+
+    Recorded by the WebSocket authenticator so a stream registered on the
+    socket can ask again later, after the request that opened it is long gone.
+    ``None`` for every other credential.
+    """
+
+    session_id: uuid.UUID
+    token_version: int
+
+
+_session_credential: contextvars.ContextVar[SessionCredential | None] = (
+    contextvars.ContextVar("auth_session_credential", default=None)
+)
+
+
+def set_session_credential(value: SessionCredential | None) -> None:
+    """Record the session JWT that authenticated this request (or clear it)."""
+    _session_credential.set(value)
+
+
+def session_credential() -> SessionCredential | None:
+    """The session JWT recorded for this request, if it was authenticated by
+    one."""
+    return _session_credential.get()

@@ -236,7 +236,7 @@ async def test_failed_send_prunes_socket() -> None:
 
 @pytest.mark.integration
 async def test_accessible_initiatives_member_sees_only_their_own(
-    session: AsyncSession,
+    session: AsyncSession, reading_as
 ) -> None:
     owner = await create_user(session, email="owner@example.com")
     guild = await create_guild(session, creator=owner)
@@ -248,8 +248,11 @@ async def test_accessible_initiatives_member_sees_only_their_own(
     await create_initiative_member(session, joined, member)
     other = await create_initiative(session, guild, owner)  # member NOT added
 
-    await establish_guild_access(session, member, guild.id)
-    ids = await _accessible_initiative_ids(session, user_id=member.id)
+    # On the request login: which rooms exist for somebody is a policy answer,
+    # and the setup session's own login is one the database treats as trusted.
+    reader = await reading_as(member.id, guild.id)
+    ids = await _accessible_initiative_ids(reader, user_id=member.id)
+    await reader.rollback()
 
     assert joined.id in ids
     assert other.id not in ids  # an initiative they're not in is never a room

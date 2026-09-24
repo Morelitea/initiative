@@ -1,12 +1,14 @@
 import { Link, useLocation, useParams } from "@tanstack/react-router";
-import type { SerializedEditorState } from "lexical";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool, WikiPageKind, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
-import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
+import {
+  isWideDocument,
+  WikiDocumentBody,
+} from "@/components/initiativeTools/wikis/WikiDocumentBody";
 import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { Button } from "@/components/ui/button";
@@ -78,12 +80,6 @@ export const WikiDocumentView = () => {
     };
   }, [hash, document_]);
 
-  const body = useMemo(() => {
-    const stored = document_?.content as SerializedEditorState | undefined;
-    const children = stored?.root?.children;
-    return Array.isArray(children) && children.length > 0 ? stored : null;
-  }, [document_?.content]);
-
   if (!validIds || documentQuery.isError) {
     return (
       <Card className="mx-auto mt-10 max-w-md">
@@ -99,7 +95,10 @@ export const WikiDocumentView = () => {
     return <p className="p-6 text-muted-foreground text-sm">{t("pages.loading")}</p>;
   }
 
-  const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
+  // Prose keeps the wiki's reading width; a file, a canvas or a grid needs
+  // the room.
+  const isComfortable =
+    wiki.reading_width === WikiReadingWidth.comfortable && !isWideDocument(document_);
   const railOpen = showConnections && wiki.show_connections && Boolean(document_);
 
   return (
@@ -138,18 +137,14 @@ export const WikiDocumentView = () => {
                 isComfortable ? "max-w-3xl" : "max-w-6xl"
               )}
             >
-              {document_ ? (
+              {/* A copy cached from an earlier visit can predate the last save,
+                  and a spreadsheet or a canvas reads its content once — so the
+                  body waits for this visit's own fetch. */}
+              {document_ && documentQuery.isFetchedAfterMount ? (
                 <>
-                  <Editor
-                    key={documentId}
-                    editorSerializedState={body ?? undefined}
-                    readOnly
-                    showToolbar={false}
-                    className="rounded-none border-0 bg-transparent shadow-none"
+                  <WikiDocumentBody
+                    document={document_}
                     initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
-                    subject={`document:${documentId}`}
-                    supportsEntityMentions
-                    compact
                   />
                   {/* A borrowed document is a page of this wiki while you are
                       reading it here, so it leads on like one. */}

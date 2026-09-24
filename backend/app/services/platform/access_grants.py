@@ -4,9 +4,10 @@ Time-bound, per-guild access grants: a lower-privilege platform user requests
 temporary access to one guild, an approver (``access.approve`` holder) grants
 it, and it auto-expires. See ``app.models.access_grant``.
 
-All functions take the admin (RLS-bypassing) session — access_grants is a
-platform-scoped table managed cross-guild, like ``users``. Capability and
-ownership checks happen at the endpoint/service layer instead of via RLS.
+Grants are written on the system engine alone. They are read on the caller's
+platform tier: a grantee's own rows (``access_grants_self``) and, for
+``access.approve`` holders, the whole queue (``access_grants_admin``).
+Capability and ownership checks happen at the endpoint as well.
 """
 
 from __future__ import annotations
@@ -21,7 +22,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.login_methods import LoginMethod
-from app.core.config import settings
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
     LEVEL_LABEL_KEYS,
@@ -30,7 +30,7 @@ from app.models.platform.access_grant import (
     AccessGrantStatus,
     AccessLevel,
 )
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
@@ -74,49 +74,59 @@ async def _lock_user_guild_grants(
     )
 
 
+#: The window a grant gets when the request names none.
+DEFAULT_DURATION_MINUTES = 240  # 4 hours
+#: The absolute ceiling on any grant.
+MAX_DURATION_MINUTES = 1440  # 24 hours
+
 # Per-role maximum grant duration (least privilege). Each is clamped to the
-# absolute ceiling. Keep in sync with the frontend mirror in
-# SettingsAccessGrantsPage.
+# absolute ceiling. The request and break-glass forms read the caller's figure
+# from the server (``max_minutes_for_role``, ``break_glass_max_minutes``).
 _ROLE_MAX_MINUTES: dict[UserRole, int] = {
-    UserRole.support: settings.PAM_SUPPORT_MAX_MINUTES,
-    UserRole.moderator: settings.PAM_MODERATOR_MAX_MINUTES,
-    UserRole.operator: settings.PAM_ADMIN_MAX_MINUTES,
+    UserRole.support: 240,  # 4 hours
+    UserRole.moderator: 480,  # 8 hours
+    UserRole.operator: 1440,  # 24 hours
     # Owners/operators reach a guild via the self-approved break-glass path
     # (``data.bypass``) rather than the request→approve flow; their cap applies
     # to that self-issued grant.
-    UserRole.owner: settings.PAM_ADMIN_MAX_MINUTES,
+    UserRole.owner: 1440,
 }
+
+# Break-glass is self-approved, so its window is short and re-issued to
+# extend. Capped below the role maxima.
+BREAK_GLASS_DEFAULT_MINUTES = 60  # 1 hour
+BREAK_GLASS_MAX_MINUTES = 240  # 4 hours
 
 
 def max_minutes_for_role(role: UserRole) -> int:
     """The longest grant the given role may hold (clamped to the ceiling)."""
-    role_cap = _ROLE_MAX_MINUTES.get(role, settings.PAM_DEFAULT_DURATION_MINUTES)
-    return min(role_cap, settings.PAM_MAX_DURATION_MINUTES)
+    role_cap = _ROLE_MAX_MINUTES.get(role, DEFAULT_DURATION_MINUTES)
+    return min(role_cap, MAX_DURATION_MINUTES)
 
 
 def _capped_duration(requested: Optional[int], role: UserRole) -> int:
     """Resolve a requested duration for a grantee of ``role`` to the effective
     one, or raise if it exceeds that role's maximum."""
     cap = max_minutes_for_role(role)
-    minutes = (
-        requested
-        if requested is not None
-        else min(settings.PAM_DEFAULT_DURATION_MINUTES, cap)
-    )
+    minutes = requested if requested is not None else min(DEFAULT_DURATION_MINUTES, cap)
     if minutes > cap:
         raise AccessGrantError("DURATION_TOO_LONG")
     return minutes
 
 
+def break_glass_max_minutes(role: UserRole) -> int:
+    """The longest break-glass window the given role may issue itself: the role
+    cap, further clamped to the (shorter) break-glass ceiling because a
+    self-approved grant has no second-person check."""
+    return min(max_minutes_for_role(role), BREAK_GLASS_MAX_MINUTES)
+
+
 def _break_glass_duration(requested: Optional[int], role: UserRole) -> int:
-    """Resolve a break-glass window: the role cap, further clamped to the
-    (shorter) break-glass ceiling because a self-approved grant has no
-    second-person check. Defaults to ``PAM_BREAK_GLASS_DEFAULT_MINUTES``."""
-    cap = min(max_minutes_for_role(role), settings.PAM_BREAK_GLASS_MAX_MINUTES)
+    """Resolve a break-glass window against ``break_glass_max_minutes``.
+    Defaults to ``BREAK_GLASS_DEFAULT_MINUTES``."""
+    cap = break_glass_max_minutes(role)
     minutes = (
-        requested
-        if requested is not None
-        else min(settings.PAM_BREAK_GLASS_DEFAULT_MINUTES, cap)
+        requested if requested is not None else min(BREAK_GLASS_DEFAULT_MINUTES, cap)
     )
     if minutes > cap:
         raise AccessGrantError("DURATION_TOO_LONG")
@@ -202,8 +212,9 @@ async def _push_and_email(
             ),
             data={
                 "type": notification_type.value,
-                "target_path": "/settings/admin/access",
+                "target_path": "/settings/operator/access",
             },
+            locale=locale,
         )
     except Exception as exc:  # best effort
         logger.error("PAM push notification failed: %s", exc, exc_info=True)
@@ -734,21 +745,10 @@ async def expire_due(session: AsyncSession) -> int:
     return len(rows)
 
 
-async def to_read(
-    session: AsyncSession, grants: list[AccessGrant]
-) -> list[AccessGrantRead]:
-    """Serialize grants, batch-loading display enrichment (user/guild names)."""
-    if not grants:
-        return []
-
-    user_ids: set[int] = set()
-    guild_ids: set[int] = set()
-    for g in grants:
-        user_ids.add(g.user_id)
-        guild_ids.add(g.guild_id)
-        if g.approved_by_id is not None:
-            user_ids.add(g.approved_by_id)
-
+async def _enrichment(
+    session: AsyncSession, *, user_ids: set[int], guild_ids: set[int]
+) -> tuple[dict[int | None, User], dict[int, str], dict[int, Guild]]:
+    """The people and communities a page of grants names, for display."""
     users_result = await session.exec(select(User).where(User.id.in_(user_ids)))
     users = {u.id: u for u in users_result.all()}
     # An account's address lives in ``user_emails``; one query for the page.
@@ -760,6 +760,42 @@ async def to_read(
         guild = await guilds_service.get_guild(session, guild_id=gid)
         if guild is not None:
             guilds[gid] = guild
+    return users, addresses_by_user, guilds
+
+
+async def to_read(
+    grants: list[AccessGrant], *, system_session: Optional[AsyncSession] = None
+) -> list[AccessGrantRead]:
+    """Serialize grants, batch-loading display enrichment (user/guild names).
+
+    The enrichment is read on the system engine: the grantee's address lives
+    in ``user_emails``, and the community a grant names is one its holder is
+    not a member of. A route already on the system engine passes its session;
+    a route on the caller's platform tier passes none and a short system
+    session is opened for the lookup.
+    """
+    if not grants:
+        return []
+
+    user_ids: set[int] = set()
+    guild_ids: set[int] = set()
+    for g in grants:
+        user_ids.add(g.user_id)
+        guild_ids.add(g.guild_id)
+        if g.approved_by_id is not None:
+            user_ids.add(g.approved_by_id)
+
+    if system_session is not None:
+        users, addresses_by_user, guilds = await _enrichment(
+            system_session, user_ids=user_ids, guild_ids=guild_ids
+        )
+    else:
+        from app.db.session import SystemSessionLocal
+
+        async with SystemSessionLocal() as own_session:
+            users, addresses_by_user, guilds = await _enrichment(
+                own_session, user_ids=user_ids, guild_ids=guild_ids
+            )
 
     out: list[AccessGrantRead] = []
     for g in grants:
@@ -780,9 +816,6 @@ async def to_read(
     return out
 
 
-# Convenience aliases for cap values used by callers / docs.
-DEFAULT_DURATION_MINUTES = settings.PAM_DEFAULT_DURATION_MINUTES
-MAX_DURATION_MINUTES = settings.PAM_MAX_DURATION_MINUTES
 __all__ = [
     "AccessGrantError",
     "request_grants",
@@ -796,5 +829,7 @@ __all__ = [
     "list_grants",
     "expire_due",
     "to_read",
+    "max_minutes_for_role",
+    "break_glass_max_minutes",
     "AccessLevel",
 ]

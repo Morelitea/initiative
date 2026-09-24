@@ -30,9 +30,11 @@ from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import session as db_session
 from app.core.image_headers import ImageHeader, read_image_header
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.initiative import Initiative
@@ -158,12 +160,12 @@ def render_thumbnail(contents: bytes) -> Thumbnail | None:
 
 
 def list_loader_options() -> list:
-    """Eager-load what a gallery *list* row needs: its sharing, its
-    initiative's memberships (the DAC engine reads them), its tags, and the
-    cover it chose."""
+    """Eager-load what a gallery *list* row needs: its sharing, the level the
+    request holds on it, its tags, and the cover it chose."""
     return [
         selectinload(Gallery.grants).selectinload(ResourceGrant.role),
-        selectinload(Gallery.initiative).selectinload(Initiative.memberships),
+        selectinload(Gallery.initiative),
+        undefer(Gallery.access_level),
         selectinload(Gallery.cover_image),
     ]
 
@@ -388,10 +390,12 @@ async def get_gallery_for_export(
     guild_id: int,
     *,
     gallery_id: int,
+    access: str = "owner",
 ) -> tuple[Gallery, list[GalleryImage]]:
     """The gallery-export seam: fetch + authorize in one place so the rule
-    holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read.
+    holds on the worker's render-time replay too. It takes the owner rung, or
+    ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``).
 
     The pictures come back with it, oldest first, because that is the order
     they were put in and a restore should read the same way round.
@@ -412,11 +416,11 @@ async def get_gallery_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.gallery.feature_disabled_code,
         )
-    permissions_service.require_access(
+    permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.gallery],
         gallery,
-        current_user,
-        access="read",
+        context=db_session.guild_context(session),
+        access=access,
     )
     images = list(
         await session.exec(

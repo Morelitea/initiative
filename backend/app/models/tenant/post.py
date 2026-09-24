@@ -5,10 +5,13 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -20,7 +23,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Post(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     """One notice on an initiative's bulletin board.
 
@@ -70,7 +78,6 @@ class Post(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(
         sa_column=Column(
             Integer,
@@ -205,3 +212,6 @@ def board_time():
     from sqlalchemy import func
 
     return func.coalesce(Post.published_at, Post.scheduled_for, Post.created_at)
+
+
+attach_access_level(Post, Tool.post)

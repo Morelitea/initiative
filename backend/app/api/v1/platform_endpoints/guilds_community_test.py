@@ -750,7 +750,6 @@ async def _initiative_with_shared_project(
             resource_id=project.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=initiative.id,
         )
     )
@@ -1473,7 +1472,7 @@ async def test_lifting_an_age_block_is_a_platform_capability(
 
     staff = await acting_user(tier)
     response = await client.delete(
-        f"/api/v1/admin/users/{subject.user.id}/age-block", headers=staff.headers
+        f"/api/v1/operator/users/{subject.user.id}/age-block", headers=staff.headers
     )
 
     assert response.status_code == expected_status, response.text
@@ -1496,7 +1495,7 @@ async def test_lifting_a_block_that_is_not_there_says_so(
     support = await acting_user(UserRole.support)
 
     response = await client.delete(
-        f"/api/v1/admin/users/{subject.user.id}/age-block", headers=support.headers
+        f"/api/v1/operator/users/{subject.user.id}/age-block", headers=support.headers
     )
 
     assert response.status_code == 400

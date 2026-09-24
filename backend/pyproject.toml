@@ -48,6 +48,7 @@ dependencies = [
     # what the server will parse.
     "pglast>=7.18,<8",
     "pillow>=12.3.0",
+    "prometheus-client>=0.23,<1",        # /api/v1/metrics, read by Prometheus when METRICS_TOKEN is set
 ]
 
 [dependency-groups]

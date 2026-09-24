@@ -12,14 +12,15 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
+from app.db import session as db_session
 from app.core.messages import QueueMessages
 from app.core.tools import Tool
 from app.services.permissions import (
     DAC_RESOURCES,
-    require_access,
+    require_export_access,
 )
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative
@@ -48,13 +49,14 @@ from app.services.tenant import tags as tags_service
 
 def list_loader_options() -> list:
     """Eager-load what a queue *list* row needs: its items (for the count), its
-    sharing and its initiative's memberships (the DAC engine reads them).
+    sharing and the level the request holds on it.
     Lighter than :func:`get_queue`, which also walks each item's own links for
     the detail read."""
     return [
         selectinload(Queue.items),
         selectinload(Queue.grants).selectinload(ResourceGrant.role),
-        selectinload(Queue.initiative).selectinload(Initiative.memberships),
+        selectinload(Queue.initiative),
+        undefer(Queue.access_level),
     ]
 
 
@@ -71,7 +73,8 @@ async def get_queue(
         .options(
             selectinload(Queue.items).selectinload(QueueItem.user),
             selectinload(Queue.grants).selectinload(ResourceGrant.role),
-            selectinload(Queue.initiative).selectinload(Initiative.memberships),
+            selectinload(Queue.initiative),
+            undefer(Queue.access_level),
         )
     )
     if populate_existing:
@@ -90,11 +93,13 @@ async def get_queue_for_export(
     guild_id: int,
     *,
     queue_id: int,
+    access: str = "owner",
 ) -> Queue:
     """The queue-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read. The guild role is resolved here rather than
-    taken from a request context, so the seam works transport-free."""
+    rule holds on the worker's render-time replay too. It takes the owner rung,
+    or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The guild role is resolved here
+    rather than taken from a request context, so the seam works transport-free."""
 
     queue = await get_queue(session, queue_id)
     if queue is None:
@@ -107,11 +112,11 @@ async def get_queue_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.queue.feature_disabled_code,
         )
-    require_access(
+    require_export_access(
         DAC_RESOURCES[Tool.queue],
         queue,
-        current_user,
-        access="read",
+        context=db_session.guild_context(session),
+        access=access,
     )
     return queue
 

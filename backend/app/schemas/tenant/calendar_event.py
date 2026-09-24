@@ -15,6 +15,7 @@ from app.schemas.platform.user import UserPublic
 from app.core.user_display import display_name
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.calendar_event import CalendarEvent
 
 
@@ -241,17 +242,20 @@ def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
 
 
 def serialize_calendar_event_summary(
-    event: "CalendarEvent", *, user_id: Optional[int] = None
+    event: "CalendarEvent",
+    *,
+    context: GuildContext,
+    user_id: Optional[int] = None,
+    guild_id: Optional[int] = None,
 ) -> CalendarEventSummary:
     # Local import avoids a schema -> service import cycle.
-    from app.core.tools import Tool
-    from app.services.permissions import DAC_RESOURCES, compute_permission
+    from app.services.permissions import compute_permission
 
     # Access is inherited from the parent calendar; requires ``event.calendar``
-    # (with grants + initiative.memberships) eager-loaded.
+    # eager-loaded with its level.
     calendar = event.calendar
     my_permission_level = (
-        compute_permission(DAC_RESOURCES[Tool.calendar], calendar, user_id)
+        compute_permission(calendar, context=context)
         if user_id is not None and calendar is not None
         else None
     )
@@ -281,7 +285,7 @@ def serialize_calendar_event_summary(
         recurrence=_parse_recurrence(event),
         calendar_id=event.calendar_id,
         initiative_id=calendar.initiative_id if calendar is not None else 0,
-        guild_id=event.guild_id,
+        guild_id=guild_id if guild_id is not None else context.guild_id,
         created_by=event.created_by,
         attendee_count=len(attendees_list),
         attendee_names=names,
@@ -297,10 +301,11 @@ def serialize_calendar_event_summary(
 def serialize_calendar_event(
     event: "CalendarEvent",
     *,
+    context: GuildContext,
     user_id: Optional[int] = None,
     documents: Sequence[Related] = (),
 ) -> CalendarEventRead:
-    summary = serialize_calendar_event_summary(event, user_id=user_id)
+    summary = serialize_calendar_event_summary(event, context=context, user_id=user_id)
     return CalendarEventRead(
         **summary.model_dump(),
         attendees=_serialize_attendees(event),

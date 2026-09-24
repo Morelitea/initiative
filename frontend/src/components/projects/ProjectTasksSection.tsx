@@ -1141,6 +1141,8 @@ export const ProjectTasksSection = ({
 
         <TabsContent value="kanban">
           <ProjectTasksKanbanView
+            projectId={projectId}
+            initiativeId={initiativeId}
             taskStatuses={sortedTaskStatuses}
             groupedTasks={groupedTasks}
             collapsedStatusIds={collapsedStatuses}

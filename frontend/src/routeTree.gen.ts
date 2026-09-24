@@ -38,7 +38,6 @@ import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './r
 import { Route as ServerRequiredAuthenticatedProfileAccountRouteImport } from './routes/_serverRequired/_authenticated/profile/account'
 import { Route as ServerRequiredAuthenticatedProfileAiRouteImport } from './routes/_serverRequired/_authenticated/profile/ai'
 import { Route as ServerRequiredAuthenticatedProfileDangerRouteImport } from './routes/_serverRequired/_authenticated/profile/danger'
-import { Route as ServerRequiredAuthenticatedProfileImportRouteImport } from './routes/_serverRequired/_authenticated/profile/import'
 import { Route as ServerRequiredAuthenticatedProfileInterfaceRouteImport } from './routes/_serverRequired/_authenticated/profile/interface'
 import { Route as ServerRequiredAuthenticatedProfileNotificationsRouteImport } from './routes/_serverRequired/_authenticated/profile/notifications'
 import { Route as ServerRequiredAuthenticatedProfilePrivacyRouteImport } from './routes/_serverRequired/_authenticated/profile/privacy'
@@ -57,6 +56,7 @@ import { Route as ServerRequiredAuthenticatedSettingsOperatorIndexRouteImport } 
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/access'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/announcements'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/communities'
+import { Route as ServerRequiredAuthenticatedSettingsOperatorPlacementRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/placement'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/users'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/index'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/auth'
@@ -65,6 +65,7 @@ import { Route as ServerRequiredAuthenticatedSettingsPlatformCommunityRouteImpor
 import { Route as ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/email'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformIntakeRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/intake'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformIntegrationsRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/integrations'
+import { Route as ServerRequiredAuthenticatedSettingsPlatformPushRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/push'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformSecurityRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/security'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/storage'
 import { Route as ServerRequiredAuthenticatedCGuildIdAppsAppIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/apps_.$appId'
@@ -328,12 +329,6 @@ const ServerRequiredAuthenticatedProfileDangerRoute =
     path: '/danger',
     getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
   } as any)
-const ServerRequiredAuthenticatedProfileImportRoute =
-  ServerRequiredAuthenticatedProfileImportRouteImport.update({
-    id: '/import',
-    path: '/import',
-    getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
-  } as any)
 const ServerRequiredAuthenticatedProfileInterfaceRoute =
   ServerRequiredAuthenticatedProfileInterfaceRouteImport.update({
     id: '/interface',
@@ -442,6 +437,12 @@ const ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute =
     path: '/communities',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsOperatorRoute,
   } as any)
+const ServerRequiredAuthenticatedSettingsOperatorPlacementRoute =
+  ServerRequiredAuthenticatedSettingsOperatorPlacementRouteImport.update({
+    id: '/placement',
+    path: '/placement',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsOperatorRoute,
+  } as any)
 const ServerRequiredAuthenticatedSettingsOperatorUsersRoute =
   ServerRequiredAuthenticatedSettingsOperatorUsersRouteImport.update({
     id: '/users',
@@ -488,6 +489,12 @@ const ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute =
   ServerRequiredAuthenticatedSettingsPlatformIntegrationsRouteImport.update({
     id: '/integrations',
     path: '/integrations',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
+  } as any)
+const ServerRequiredAuthenticatedSettingsPlatformPushRoute =
+  ServerRequiredAuthenticatedSettingsPlatformPushRouteImport.update({
+    id: '/push',
+    path: '/push',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsPlatformSecurityRoute =
@@ -1321,7 +1328,6 @@ export interface FileRoutesByFullPath {
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
@@ -1339,6 +1345,7 @@ export interface FileRoutesByFullPath {
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
+  '/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
@@ -1346,6 +1353,7 @@ export interface FileRoutesByFullPath {
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
   '/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
   '/settings/platform/integrations': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute
+  '/settings/platform/push': typeof ServerRequiredAuthenticatedSettingsPlatformPushRoute
   '/settings/platform/security': typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   '/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/c/$guildId/': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
@@ -1472,7 +1480,6 @@ export interface FileRoutesByTo {
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
@@ -1487,6 +1494,7 @@ export interface FileRoutesByTo {
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
+  '/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
@@ -1494,6 +1502,7 @@ export interface FileRoutesByTo {
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
   '/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
   '/settings/platform/integrations': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute
+  '/settings/platform/push': typeof ServerRequiredAuthenticatedSettingsPlatformPushRoute
   '/settings/platform/security': typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   '/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
@@ -1613,7 +1622,6 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/_serverRequired/_authenticated/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/_serverRequired/_authenticated/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/_serverRequired/_authenticated/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/_serverRequired/_authenticated/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/_serverRequired/_authenticated/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/_serverRequired/_authenticated/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
@@ -1631,6 +1639,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/_serverRequired/_authenticated/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/_serverRequired/_authenticated/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
+  '/_serverRequired/_authenticated/settings/operator/placement': typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   '/_serverRequired/_authenticated/settings/operator/users': typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
   '/_serverRequired/_authenticated/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/_serverRequired/_authenticated/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
@@ -1638,6 +1647,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
   '/_serverRequired/_authenticated/settings/platform/intake': typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
   '/_serverRequired/_authenticated/settings/platform/integrations': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute
+  '/_serverRequired/_authenticated/settings/platform/push': typeof ServerRequiredAuthenticatedSettingsPlatformPushRoute
   '/_serverRequired/_authenticated/settings/platform/security': typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   '/_serverRequired/_authenticated/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/_serverRequired/_authenticated/c/$guildId/': typeof ServerRequiredAuthenticatedCGuildIdIndexRoute
@@ -1768,7 +1778,6 @@ export interface FileRouteTypes {
     | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
-    | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
     | '/profile/privacy'
@@ -1786,6 +1795,7 @@ export interface FileRouteTypes {
     | '/settings/operator/access'
     | '/settings/operator/announcements'
     | '/settings/operator/communities'
+    | '/settings/operator/placement'
     | '/settings/operator/users'
     | '/settings/platform/auth'
     | '/settings/platform/branding'
@@ -1793,6 +1803,7 @@ export interface FileRouteTypes {
     | '/settings/platform/email'
     | '/settings/platform/intake'
     | '/settings/platform/integrations'
+    | '/settings/platform/push'
     | '/settings/platform/security'
     | '/settings/platform/storage'
     | '/c/$guildId/'
@@ -1919,7 +1930,6 @@ export interface FileRouteTypes {
     | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
-    | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
     | '/profile/privacy'
@@ -1934,6 +1944,7 @@ export interface FileRouteTypes {
     | '/settings/operator/access'
     | '/settings/operator/announcements'
     | '/settings/operator/communities'
+    | '/settings/operator/placement'
     | '/settings/operator/users'
     | '/settings/platform/auth'
     | '/settings/platform/branding'
@@ -1941,6 +1952,7 @@ export interface FileRouteTypes {
     | '/settings/platform/email'
     | '/settings/platform/intake'
     | '/settings/platform/integrations'
+    | '/settings/platform/push'
     | '/settings/platform/security'
     | '/settings/platform/storage'
     | '/c/$guildId'
@@ -2059,7 +2071,6 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/profile/account'
     | '/_serverRequired/_authenticated/profile/ai'
     | '/_serverRequired/_authenticated/profile/danger'
-    | '/_serverRequired/_authenticated/profile/import'
     | '/_serverRequired/_authenticated/profile/interface'
     | '/_serverRequired/_authenticated/profile/notifications'
     | '/_serverRequired/_authenticated/profile/privacy'
@@ -2077,6 +2088,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/operator/access'
     | '/_serverRequired/_authenticated/settings/operator/announcements'
     | '/_serverRequired/_authenticated/settings/operator/communities'
+    | '/_serverRequired/_authenticated/settings/operator/placement'
     | '/_serverRequired/_authenticated/settings/operator/users'
     | '/_serverRequired/_authenticated/settings/platform/auth'
     | '/_serverRequired/_authenticated/settings/platform/branding'
@@ -2084,6 +2096,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/platform/email'
     | '/_serverRequired/_authenticated/settings/platform/intake'
     | '/_serverRequired/_authenticated/settings/platform/integrations'
+    | '/_serverRequired/_authenticated/settings/platform/push'
     | '/_serverRequired/_authenticated/settings/platform/security'
     | '/_serverRequired/_authenticated/settings/platform/storage'
     | '/_serverRequired/_authenticated/c/$guildId/'
@@ -2397,13 +2410,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedProfileDangerRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
     }
-    '/_serverRequired/_authenticated/profile/import': {
-      id: '/_serverRequired/_authenticated/profile/import'
-      path: '/import'
-      fullPath: '/profile/import'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedProfileImportRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
-    }
     '/_serverRequired/_authenticated/profile/interface': {
       id: '/_serverRequired/_authenticated/profile/interface'
       path: '/interface'
@@ -2530,6 +2536,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRoute
     }
+    '/_serverRequired/_authenticated/settings/operator/placement': {
+      id: '/_serverRequired/_authenticated/settings/operator/placement'
+      path: '/placement'
+      fullPath: '/settings/operator/placement'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRoute
+    }
     '/_serverRequired/_authenticated/settings/operator/users': {
       id: '/_serverRequired/_authenticated/settings/operator/users'
       path: '/users'
@@ -2584,6 +2597,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/settings/platform/integrations'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
+    }
+    '/_serverRequired/_authenticated/settings/platform/push': {
+      id: '/_serverRequired/_authenticated/settings/platform/push'
+      path: '/push'
+      fullPath: '/settings/platform/push'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformPushRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
     }
     '/_serverRequired/_authenticated/settings/platform/security': {
@@ -3272,7 +3292,6 @@ interface ServerRequiredAuthenticatedProfileRouteChildren {
   ServerRequiredAuthenticatedProfileAccountRoute: typeof ServerRequiredAuthenticatedProfileAccountRoute
   ServerRequiredAuthenticatedProfileAiRoute: typeof ServerRequiredAuthenticatedProfileAiRoute
   ServerRequiredAuthenticatedProfileDangerRoute: typeof ServerRequiredAuthenticatedProfileDangerRoute
-  ServerRequiredAuthenticatedProfileImportRoute: typeof ServerRequiredAuthenticatedProfileImportRoute
   ServerRequiredAuthenticatedProfileInterfaceRoute: typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   ServerRequiredAuthenticatedProfileNotificationsRoute: typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   ServerRequiredAuthenticatedProfilePrivacyRoute: typeof ServerRequiredAuthenticatedProfilePrivacyRoute
@@ -3289,8 +3308,6 @@ const ServerRequiredAuthenticatedProfileRouteChildren: ServerRequiredAuthenticat
       ServerRequiredAuthenticatedProfileAiRoute,
     ServerRequiredAuthenticatedProfileDangerRoute:
       ServerRequiredAuthenticatedProfileDangerRoute,
-    ServerRequiredAuthenticatedProfileImportRoute:
-      ServerRequiredAuthenticatedProfileImportRoute,
     ServerRequiredAuthenticatedProfileInterfaceRoute:
       ServerRequiredAuthenticatedProfileInterfaceRoute,
     ServerRequiredAuthenticatedProfileNotificationsRoute:
@@ -3782,6 +3799,7 @@ interface ServerRequiredAuthenticatedSettingsOperatorRouteChildren {
   ServerRequiredAuthenticatedSettingsOperatorAccessRoute: typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute: typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute: typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
+  ServerRequiredAuthenticatedSettingsOperatorPlacementRoute: typeof ServerRequiredAuthenticatedSettingsOperatorPlacementRoute
   ServerRequiredAuthenticatedSettingsOperatorUsersRoute: typeof ServerRequiredAuthenticatedSettingsOperatorUsersRoute
   ServerRequiredAuthenticatedSettingsOperatorIndexRoute: typeof ServerRequiredAuthenticatedSettingsOperatorIndexRoute
 }
@@ -3794,6 +3812,8 @@ const ServerRequiredAuthenticatedSettingsOperatorRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute,
     ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute:
       ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute,
+    ServerRequiredAuthenticatedSettingsOperatorPlacementRoute:
+      ServerRequiredAuthenticatedSettingsOperatorPlacementRoute,
     ServerRequiredAuthenticatedSettingsOperatorUsersRoute:
       ServerRequiredAuthenticatedSettingsOperatorUsersRoute,
     ServerRequiredAuthenticatedSettingsOperatorIndexRoute:
@@ -3812,6 +3832,7 @@ interface ServerRequiredAuthenticatedSettingsPlatformRouteChildren {
   ServerRequiredAuthenticatedSettingsPlatformEmailRoute: typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
   ServerRequiredAuthenticatedSettingsPlatformIntakeRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntakeRoute
   ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute
+  ServerRequiredAuthenticatedSettingsPlatformPushRoute: typeof ServerRequiredAuthenticatedSettingsPlatformPushRoute
   ServerRequiredAuthenticatedSettingsPlatformSecurityRoute: typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   ServerRequiredAuthenticatedSettingsPlatformStorageRoute: typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   ServerRequiredAuthenticatedSettingsPlatformIndexRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
@@ -3831,6 +3852,8 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsPlatformIntakeRoute,
     ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute:
       ServerRequiredAuthenticatedSettingsPlatformIntegrationsRoute,
+    ServerRequiredAuthenticatedSettingsPlatformPushRoute:
+      ServerRequiredAuthenticatedSettingsPlatformPushRoute,
     ServerRequiredAuthenticatedSettingsPlatformSecurityRoute:
       ServerRequiredAuthenticatedSettingsPlatformSecurityRoute,
     ServerRequiredAuthenticatedSettingsPlatformStorageRoute:

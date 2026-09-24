@@ -18,7 +18,7 @@ both rules live in one place rather than in each of them.
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.api import resource_access
@@ -37,7 +37,6 @@ from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
-from app.services import rls as rls_service
 from app.services.tenant import archive as archive_service
 
 router = APIRouter()
@@ -66,17 +65,17 @@ async def _load(session: RLSSessionDep, entity_type: str, entity_id: int) -> Any
     stmt = select(model).where(model.id == entity_id)
     if entity_type not in {"task", "initiative"}:
         stmt = stmt.options(
-            selectinload(model.initiative).selectinload(Initiative.memberships),
+            selectinload(model.initiative),
             selectinload(model.grants).selectinload(ResourceGrant.role),
+            undefer(model.access_level),
         )
     elif entity_type == "task":
         stmt = stmt.options(
             selectinload(Task.project)
             .selectinload(Project.grants)
             .selectinload(ResourceGrant.role),
-            selectinload(Task.project)
-            .selectinload(Project.initiative)
-            .selectinload(Initiative.memberships),
+            selectinload(Task.project).selectinload(Project.initiative),
+            selectinload(Task.project).undefer(Project.access_level),
         )
     else:
         stmt = stmt.options(
@@ -118,7 +117,7 @@ def _authorize(
     here either way.
     """
     if entity_type == "initiative":
-        if not rls_service.is_guild_admin(guild_context.role):
+        if not guild_context.is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_ADMIN_REQUIRED,
@@ -132,6 +131,7 @@ def _authorize(
         user,
         access="write",
         allow_frozen=True,
+        context=guild_context,
     )
 
 

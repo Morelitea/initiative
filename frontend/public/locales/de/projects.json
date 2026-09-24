@@ -9,7 +9,7 @@
   "noMatchingProjects": "Keine Projekte entsprechen deinen Filtern.",
   "onlyPinnedMatch": "Nur angeheftete Projekte entsprechen deinen Filtern.",
   "accessRestricted": "Zugriff eingeschränkt",
-  "accessRestrictedDescription": "Du hast keine Berechtigung, Projekte in dieser Initiative anzuzeigen. Wende dich an einen Administrator, wenn du glaubst, dass dies ein Fehler ist.",
+  "accessRestrictedDescription": "Du hast keine Berechtigung, Projekte in dieser Initiative anzuzeigen. Wende dich an die Community-Administration oder an einen Initiativenmanager, wenn du glaubst, dass dies ein Fehler ist.",
   "view": {
     "grid": "Raster",
     "list": "Liste"
@@ -337,7 +337,24 @@
     "taskCount_one": "{{count}} Aufgabe",
     "taskCount_other": "{{count}} Aufgaben",
     "collapse": "{{name}} einklappen",
-    "expand": "{{name}} ausklappen"
+    "expand": "{{name}} ausklappen",
+    "fields": {
+      "label": "Felder",
+      "menuTitle": "Felder auf Karten",
+      "showAll": "Alle Felder anzeigen",
+      "hiddenCount_one": "{{count}} ausgeblendet",
+      "hiddenCount_other": "{{count}} ausgeblendet",
+      "description": "Beschreibung",
+      "assignees": "Zugewiesen",
+      "startDate": "Startdatum",
+      "dueDate": "Fälligkeitsdatum",
+      "recurrence": "Wiederholung",
+      "checklist": "Checkliste",
+      "priority": "Priorität",
+      "comments": "Kommentare",
+      "blockers": "Blocker",
+      "tags": "Tags"
+    }
   },
   "recurrence": {
     "repeat": "Wiederholen",
@@ -422,15 +439,6 @@
     "noComments": "Noch keine Kommentare.",
     "commentedOn": "kommentierte",
     "loadMore": "Mehr laden"
-  },
-  "export": {
-    "title": "Projekt exportieren",
-    "description": "Lade dieses Projekt als portable JSON-Sicherung oder als formatierten Bericht (PDF, CSV oder Excel) herunter.",
-    "detail": "Die JSON-Sicherung kann auf dieser oder jeder anderen Initiative-Installation wieder importiert werden — Verweise nutzen Namen und E-Mails, damit keine IDs aus dieser Datenbank durchsickern. Berichtsformate umfassen die nicht archivierten Aufgaben des Projekts.",
-    "exportButton": "Exportieren",
-    "noWriteAccess": "Du benötigst Schreibzugriff auf dieses Projekt, um es zu exportieren.",
-    "success": "Projekt exportiert",
-    "error": "Das Projekt konnte nicht exportiert werden. Bitte versuche es erneut."
   },
   "status": {
     "label": "Anzeigen",

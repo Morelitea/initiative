@@ -41,7 +41,7 @@ class TestRenaming:
         subject = await create_user(session, username="unsuitable", discriminator=42)
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/operator/users/{subject.id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "renamed"},
         )
@@ -59,7 +59,7 @@ class TestRenaming:
         subject = await create_user(session)
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/operator/users/{subject.id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "owner"},
         )
@@ -74,7 +74,7 @@ class TestRenaming:
         subject = await create_user(session, username_chosen=False)
 
         await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/operator/users/{subject.id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "assigned-name"},
         )
@@ -95,7 +95,7 @@ class TestRenaming:
         capfd.readouterr()
 
         await client.patch(
-            f"/api/v1/admin/users/{subject_id}/username",
+            f"/api/v1/operator/users/{subject_id}/username",
             headers=get_auth_headers(moderator),
             json={"username": "after"},
         )
@@ -118,7 +118,7 @@ class TestRenaming:
         subject = await create_user(session)
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject.id}/username",
+            f"/api/v1/operator/users/{subject.id}/username",
             headers=get_auth_headers(actor),
             json={"username": "nope"},
         )
@@ -138,7 +138,7 @@ class TestSuspension:
 
     async def _suspend(self, client, moderator, member, suspended=True, reason=None):
         return await client.post(
-            f"/api/v1/admin/users/{member.id}/suspension",
+            f"/api/v1/operator/users/{member.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": suspended, **({"reason": reason} if reason else {})},
         )
@@ -180,19 +180,20 @@ class TestSuspension:
         after = await client.get(
             f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(member)
         )
-        # The same code a non-member gets: a guild is never told that one of
-        # its members was suspended.
+        # Refused before any guild is looked at: the account is in time out.
         assert after.status_code == 403
-        assert after.json()["detail"] == "GUILD_ACCESS_DENIED"
+        assert after.json()["detail"] == "ACCOUNT_SUSPENDED"
 
-    async def test_its_guild_list_is_empty(self, client, session, moderator_and_member):
+    async def test_its_guild_list_is_refused(
+        self, client, session, moderator_and_member
+    ):
         moderator, member, _guild = moderator_and_member
         await self._suspend(client, moderator, member)
 
         response = await client.get("/api/v1/guilds/", headers=get_auth_headers(member))
 
-        assert response.status_code == 200
-        assert response.json() == []
+        assert response.status_code == 403
+        assert response.json()["detail"] == "ACCOUNT_SUSPENDED"
 
     async def test_nothing_is_taken_away(self, client, session, moderator_and_member):
         """Suspension writes one column. Lifting it restores the account
@@ -270,13 +271,13 @@ class TestSuspension:
         moderator, _member, _guild = moderator_and_member
 
         response = await client.post(
-            f"/api/v1/admin/users/{moderator.id}/suspension",
+            f"/api/v1/operator/users/{moderator.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "ADMIN_CANNOT_SUSPEND_SELF"
+        assert response.json()["detail"] == "OPERATOR_CANNOT_SUSPEND_SELF"
 
     async def test_a_closed_account_is_not_frozen(self, client, session):
         """Thawing it later would quietly reopen an account its owner closed."""
@@ -284,13 +285,36 @@ class TestSuspension:
         closed = await create_user(session, status=UserStatus.deactivated)
 
         response = await client.post(
-            f"/api/v1/admin/users/{closed.id}/suspension",
+            f"/api/v1/operator/users/{closed.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "ADMIN_CANNOT_SUSPEND_INACTIVE"
+        assert response.json()["detail"] == "OPERATOR_CANNOT_SUSPEND_INACTIVE"
+
+    @pytest.mark.parametrize(
+        ("actor_role", "subject_role"),
+        [
+            (UserRole.moderator, UserRole.operator),
+            (UserRole.moderator, UserRole.owner),
+            (UserRole.operator, UserRole.owner),
+        ],
+    )
+    async def test_an_account_that_outranks_you_is_refused(
+        self, client, session, actor_role, subject_role
+    ):
+        actor = await create_user(session, role=actor_role)
+        subject = await create_user(session, role=subject_role)
+
+        response = await client.post(
+            f"/api/v1/operator/users/{subject.id}/suspension",
+            headers=get_auth_headers(actor),
+            json={"suspended": True},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE"
 
     @pytest.mark.parametrize("role", [UserRole.member, UserRole.support])
     async def test_below_moderator_is_refused(self, client, session, role):
@@ -298,7 +322,7 @@ class TestSuspension:
         subject = await create_user(session)
 
         response = await client.post(
-            f"/api/v1/admin/users/{subject.id}/suspension",
+            f"/api/v1/operator/users/{subject.id}/suspension",
             headers=get_auth_headers(actor),
             json={"suspended": True},
         )
@@ -306,15 +330,15 @@ class TestSuspension:
 
 
 class TestNothingElse:
-    """The admin surface writes a fixed set of things about an account, and
+    """The operator surface writes a fixed set of things about an account, and
     each one is gated deliberately. One more appearing here is a decision, not
     an accident — this is what makes it one."""
 
-    def test_the_admin_router_writes_only_what_it_should(self):
+    def test_the_operator_router_writes_only_what_it_should(self):
         writes = {
             (route.path, verb)
             for route in app.routes
-            if getattr(route, "path", "").startswith("/api/v1/admin/users")
+            if getattr(route, "path", "").startswith("/api/v1/operator/users")
             for verb in getattr(route, "methods", set())
             if verb in {"POST", "PATCH", "PUT", "DELETE"}
         }
@@ -323,22 +347,22 @@ class TestNothingElse:
             # Support (users.age_unblock) — the one write the lowest rung
             # holds, because getting somebody back into their account after a
             # mistyped birth year is support work, not a moderation decision.
-            ("/api/v1/admin/users/{user_id}/age-block", "DELETE"),
+            ("/api/v1/operator/users/{user_id}/age-block", "DELETE"),
             # Moderator (content.moderate / users.manage).
-            ("/api/v1/admin/users/{user_id}/avatar", "DELETE"),
-            ("/api/v1/admin/users/{user_id}/username", "PATCH"),
-            ("/api/v1/admin/users/{user_id}/suspension", "POST"),
-            ("/api/v1/admin/users/{user_id}/reactivate", "POST"),
-            ("/api/v1/admin/users/{user_id}/restore", "POST"),
+            ("/api/v1/operator/users/{user_id}/avatar", "DELETE"),
+            ("/api/v1/operator/users/{user_id}/username", "PATCH"),
+            ("/api/v1/operator/users/{user_id}/suspension", "POST"),
+            ("/api/v1/operator/users/{user_id}/reactivate", "POST"),
+            ("/api/v1/operator/users/{user_id}/restore", "POST"),
             # Sends the holder a link; it never sets a password.
-            ("/api/v1/admin/users/{user_id}/reset-password", "POST"),
+            ("/api/v1/operator/users/{user_id}/reset-password", "POST"),
             # Clears a second factor the holder can no longer present — the
             # lost-phone path. Like the reset above it is a removal, never a
             # read: nothing here hands back the seed or the recovery codes.
-            ("/api/v1/admin/users/{user_id}/second-factor", "DELETE"),
+            ("/api/v1/operator/users/{user_id}/second-factor", "DELETE"),
             # Operator and above, deliberately out of a moderator's reach.
-            ("/api/v1/admin/users/{user_id}/platform-role", "PATCH"),
-            ("/api/v1/admin/users/{user_id}", "DELETE"),
+            ("/api/v1/operator/users/{user_id}/platform-role", "PATCH"),
+            ("/api/v1/operator/users/{user_id}", "DELETE"),
         }
 
 
@@ -352,7 +376,7 @@ class TestTheAggregateRoutes:
         a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
         return moderator, a
 
-    async def test_my_tasks_is_empty_once_suspended(
+    async def test_my_tasks_is_refused_once_suspended(
         self, client, session, suspended_with_work
     ):
         moderator, a = suspended_with_work
@@ -360,47 +384,46 @@ class TestTheAggregateRoutes:
         assert before.status_code == 200
 
         await client.post(
-            f"/api/v1/admin/users/{a.user.id}/suspension",
+            f"/api/v1/operator/users/{a.user.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
 
         after = await client.get("/api/v1/me/tasks", headers=a.headers)
-        assert after.status_code == 200
-        assert after.json()["items"] == []
+        assert after.status_code == 403
+        assert after.json()["detail"] == "ACCOUNT_SUSPENDED"
 
-    async def test_my_projects_is_empty_once_suspended(
+    async def test_my_projects_is_refused_once_suspended(
         self, client, session, suspended_with_work
     ):
         moderator, a = suspended_with_work
 
         await client.post(
-            f"/api/v1/admin/users/{a.user.id}/suspension",
+            f"/api/v1/operator/users/{a.user.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
 
         response = await client.get("/api/v1/me/projects", headers=a.headers)
-        assert response.status_code == 200
-        assert response.json()["items"] == []
+        assert response.status_code == 403
+        assert response.json()["detail"] == "ACCOUNT_SUSPENDED"
 
-    async def test_recents_is_empty_once_suspended(
+    async def test_recents_is_refused_once_suspended(
         self, client, session, suspended_with_work
     ):
         """``/recents`` builds its own guild list rather than going through
-        ``member_guild_ids``, so it is the case that proves the gate is where
-        every aggregate meets it and not only on the tidy path."""
+        ``member_guild_ids``; the account gate stops it before either."""
         moderator, a = suspended_with_work
 
         await client.post(
-            f"/api/v1/admin/users/{a.user.id}/suspension",
+            f"/api/v1/operator/users/{a.user.id}/suspension",
             headers=get_auth_headers(moderator),
             json={"suspended": True},
         )
 
         response = await client.get("/api/v1/recents/", headers=a.headers)
-        assert response.status_code == 200
-        assert response.json() == []
+        assert response.status_code == 403
+        assert response.json()["detail"] == "ACCOUNT_SUSPENDED"
 
     async def test_and_it_all_comes_back(self, client, session, suspended_with_work):
         """The memberships were never dropped, so lifting the suspension is the
@@ -409,13 +432,105 @@ class TestTheAggregateRoutes:
 
         for suspended in (True, False):
             await client.post(
-                f"/api/v1/admin/users/{a.user.id}/suspension",
+                f"/api/v1/operator/users/{a.user.id}/suspension",
                 headers=get_auth_headers(moderator),
                 json={"suspended": suspended},
             )
 
         response = await client.get("/api/v1/me/projects", headers=a.headers)
         assert response.json()["items"] != []
+
+
+class TestTimeOut:
+    """A suspended account signs in to its time-out screen and reaches the
+    allow-list — its own profile, sessions and notifications — and nothing
+    else, whatever its platform rung."""
+
+    @pytest.fixture
+    async def suspended(self, client, session):
+        moderator = await create_user(session, role=UserRole.moderator)
+        subject = await create_user(session, role=UserRole.moderator)
+        response = await client.post(
+            f"/api/v1/operator/users/{subject.id}/suspension",
+            headers=get_auth_headers(moderator),
+            json={"suspended": True},
+        )
+        assert response.status_code == 200, response.text
+        return subject
+
+    async def test_the_allow_list_answers(self, client, suspended):
+        headers = get_auth_headers(suspended)
+        for path in (
+            "/api/v1/users/me",
+            "/api/v1/users/me/time-out",
+            "/api/v1/auth/sessions",
+            "/api/v1/auth/device-tokens",
+            "/api/v1/notifications/",
+        ):
+            response = await client.get(path, headers=headers)
+            assert response.status_code == 200, (path, response.text)
+
+    async def test_it_holds_no_rung(self, client, suspended):
+        headers = get_auth_headers(suspended)
+        me = (await client.get("/api/v1/users/me", headers=headers)).json()
+        assert me["status"] == "suspended"
+        assert me["capabilities"] == []
+        assert me["can_create_guilds"] is False
+
+        response = await client.get("/api/v1/operator/users", headers=headers)
+        assert response.status_code == 403
+
+    async def test_everything_else_is_refused(self, client, suspended):
+        headers = get_auth_headers(suspended)
+        for method, path, body in (
+            ("patch", "/api/v1/users/me", {"full_name": "Changed"}),
+            ("post", "/api/v1/guilds/", {"name": "Mine"}),
+            ("post", "/api/v1/users/me/delete-account", {}),
+            ("get", "/api/v1/me/contacts", None),
+            ("get", "/api/v1/me/tasks", None),
+        ):
+            call = getattr(client, method)
+            response = await (
+                call(path, headers=headers, json=body)
+                if body is not None
+                else call(path, headers=headers)
+            )
+            assert response.status_code == 403, (path, response.text)
+            assert response.json()["detail"] == "ACCOUNT_SUSPENDED", path
+
+    async def test_the_screen_names_the_moderation_contact(
+        self, client, session, suspended
+    ):
+        from app.models.platform.app_setting import AppSetting
+
+        row = await session.get(AppSetting, 1) or AppSetting(id=1)
+        row.intake_general_contact = "ops@example.com"
+        row.intake_contacts = {"moderation": "trust@example.com"}
+        session.add(row)
+        await session.commit()
+
+        body = (
+            await client.get(
+                "/api/v1/users/me/time-out", headers=get_auth_headers(suspended)
+            )
+        ).json()
+        assert body["contact_email"] == "trust@example.com"
+        assert body["since"] is not None
+
+    async def test_the_screen_gives_the_reason(self, client, session):
+        moderator = await create_user(session, role=UserRole.moderator)
+        subject = await create_user(session)
+        await client.post(
+            f"/api/v1/operator/users/{subject.id}/suspension",
+            headers=get_auth_headers(moderator),
+            json={"suspended": True, "reason": "Spam in three communities"},
+        )
+        body = (
+            await client.get(
+                "/api/v1/users/me/time-out", headers=get_auth_headers(subject)
+            )
+        ).json()
+        assert body["reason"] == "Spam in three communities"
 
 
 class TestPlatformRole:
@@ -435,7 +550,7 @@ class TestPlatformRole:
         capfd.readouterr()
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject_id}/platform-role",
+            f"/api/v1/operator/users/{subject_id}/platform-role",
             headers=get_auth_headers(operator),
             json={"role": "support"},
         )
@@ -464,7 +579,7 @@ class TestPlatformRole:
         capfd.readouterr()
 
         response = await client.patch(
-            f"/api/v1/admin/users/{subject_id}/platform-role",
+            f"/api/v1/operator/users/{subject_id}/platform-role",
             headers=get_auth_headers(operator),
             json={"role": "owner"},
         )

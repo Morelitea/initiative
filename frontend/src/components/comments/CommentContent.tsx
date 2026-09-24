@@ -1,21 +1,13 @@
-import { Link } from "@tanstack/react-router";
 import type { ComponentPropsWithoutRef, Ref } from "react";
-import { useTranslation } from "react-i18next";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
-import { useCommentReferences } from "@/components/comments/CommentReferences";
-import { MENTION_BADGE, UserMention } from "@/components/user/UserMention";
-import { useGuilds } from "@/hooks/useGuilds";
-import { entityRefTypeFor } from "@/lib/entityResolver";
-import { guildPath } from "@/lib/guildUrl";
-import { remarkImageLinks, remarkLineBreaks } from "@/lib/remarkProse";
-import { referenceRef } from "@/lib/smartChips";
-import { entityRefRoute } from "@/lib/tools";
+import { isStoredUpload, remarkImageLinks, remarkLineBreaks } from "@/lib/remarkProse";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
-import { type MentionType, remarkMentions } from "./remarkCommentPlugins";
+import { LinkedMentionSpan, PlainMentionSpan } from "./MentionSpan";
+import { remarkMentions } from "./remarkCommentPlugins";
 
 interface CommentContentProps {
   content: string;
@@ -33,68 +25,8 @@ const PROSE_CLASS =
 
 const SPACED_CLASS = "[&>*+*]:mt-2 [&_h1]:mt-3 [&_h2]:mt-3 [&_h3]:mt-2";
 
-type SpanProps = ComponentPropsWithoutRef<"span"> & { node?: unknown };
 type AnchorProps = ComponentPropsWithoutRef<"a"> & { node?: unknown };
 type ImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
-
-/** Mentions reach here as spans carrying their type, id, and label — the shape
- *  `remarkMentions` folds them into. Every other span passes through. */
-const buildMentionSpan = (linked: boolean) =>
-  function MentionSpan({ children, node: _node, ...props }: SpanProps) {
-    const { t } = useTranslation(["comments", "search"]);
-    const { activeGuildId } = useGuilds();
-    const references = useCommentReferences();
-
-    const attrs = props as Record<string, string | undefined>;
-    const type = attrs["data-mention-type"] as MentionType | undefined;
-    const id = attrs["data-mention-id"];
-    const label = attrs["data-mention-label"] ?? "";
-
-    if (!type) {
-      return <span {...props}>{children}</span>;
-    }
-
-    if (type === "user") {
-      // The name is read, not trusted: a comment written a year ago says what
-      // that person is called today. The chip resolves it, links to them, and
-      // shows who they are on hover.
-      return <UserMention userId={id ? Number(id) : null} fallback={label} disableLink={!linked} />;
-    }
-
-    // A mention carries only an id, and an entity's address names its
-    // initiative — so these link at the `/go` resolver, which reads the entity
-    // and redirects. An id-less mention, or a kind with no page of its own,
-    // renders as plain text rather than a link that resolves to nothing.
-    const refType = entityRefTypeFor(type);
-    if (!refType || !id) {
-      return <span>{label}</span>;
-    }
-
-    const live = references.titles.get(referenceRef(type as SearchEntityType, Number(id)));
-    const text = t("contextPrefix", {
-      type: t(`search:types.${type}` as never, { defaultValue: type }),
-      name: live ?? label,
-    });
-    // Nothing came back for it once the answer has arrived: deleted, or never
-    // shared with this reader. It keeps its words and stops being a link.
-    if (references.ready && live === undefined) {
-      return <span className="text-muted-foreground/80">{text}</span>;
-    }
-    if (!linked) {
-      return <span className={MENTION_BADGE}>{text}</span>;
-    }
-
-    // Build a guild-scoped link directly instead of using the /navigate redirect.
-    const path = entityRefRoute(refType, Number(id));
-    return (
-      <Link
-        to={activeGuildId ? guildPath(activeGuildId, path) : path}
-        className="text-primary hover:underline"
-      >
-        {text}
-      </Link>
-    );
-  };
 
 const MarkdownAnchor = ({ children, node: _node, ...props }: AnchorProps) => (
   <a {...props} target="_blank" rel="noopener noreferrer">
@@ -104,25 +36,40 @@ const MarkdownAnchor = ({ children, node: _node, ...props }: AnchorProps) => (
 
 const PlainAnchor = ({ children }: AnchorProps) => <span>{children}</span>;
 
-/** `remarkImageLinks` rewrites every image ahead of this, so reaching here
- *  means an unexpected shape — name it rather than fetch it. */
-const MarkdownImage = ({ src, alt }: ImageProps) => (
+/** A picture by its name — for a clamped preview, and for any image that is
+ *  not one this app stores (`remarkImageLinks` makes those links, so reaching
+ *  here means an unexpected shape). */
+const ImageName = ({ src, alt }: ImageProps) => (
   <span>{alt || (typeof src === "string" ? src : "")}</span>
 );
 
-const LINKED_COMPONENTS = {
-  span: buildMentionSpan(true),
-  a: MarkdownAnchor,
-  img: MarkdownImage,
+/** A picture pasted into the comment, fetched from the server it is stored on. */
+const StoredImage = (props: ImageProps) => {
+  const { src, alt } = props;
+  if (typeof src !== "string" || !isStoredUpload(src)) return <ImageName {...props} />;
+  return (
+    <img
+      src={resolveUploadUrl(src) ?? src}
+      alt={alt ?? ""}
+      loading="lazy"
+      className="max-h-80 max-w-full rounded-md border border-border"
+    />
+  );
 };
-const PLAIN_COMPONENTS = {
-  span: buildMentionSpan(false),
-  a: PlainAnchor,
-  img: MarkdownImage,
-};
+
+const LINKED_COMPONENTS = { span: LinkedMentionSpan, a: MarkdownAnchor, img: StoredImage };
+const PLAIN_COMPONENTS = { span: PlainMentionSpan, a: PlainAnchor, img: StoredImage };
+const COMPACT_LINKED_COMPONENTS = { ...LINKED_COMPONENTS, img: ImageName };
+const COMPACT_PLAIN_COMPONENTS = { ...PLAIN_COMPONENTS, img: ImageName };
 // Mentions resolve before images, so an image-derived link is never mistaken
-// for one.
-const PLUGINS = [remarkGfm, remarkMentions, remarkImageLinks, remarkLineBreaks];
+// for one. A picture stored here stays a picture; one from anywhere else
+// becomes a link, so reading a comment never fetches from a site nobody chose.
+const PLUGINS = [
+  remarkGfm,
+  remarkMentions,
+  [remarkImageLinks, { keep: isStoredUpload }],
+  remarkLineBreaks,
+] satisfies Options["remarkPlugins"];
 
 export const CommentContent = ({
   content,
@@ -134,7 +81,15 @@ export const CommentContent = ({
   <div ref={ref} className={cn(PROSE_CLASS, !compact && SPACED_CLASS, className)}>
     <ReactMarkdown
       remarkPlugins={PLUGINS}
-      components={disableLinks ? PLAIN_COMPONENTS : LINKED_COMPONENTS}
+      components={
+        compact
+          ? disableLinks
+            ? COMPACT_PLAIN_COMPONENTS
+            : COMPACT_LINKED_COMPONENTS
+          : disableLinks
+            ? PLAIN_COMPONENTS
+            : LINKED_COMPONENTS
+      }
     >
       {content}
     </ReactMarkdown>

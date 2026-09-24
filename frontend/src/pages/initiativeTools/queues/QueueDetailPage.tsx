@@ -7,8 +7,6 @@ import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { ExportButton } from "@/components/exports/ExportButton";
-import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { ActHeldButton } from "@/components/initiativeTools/queues/ActHeldButton";
 import { AddQueueItemDialog } from "@/components/initiativeTools/queues/AddQueueItemDialog";
 import { EditQueueItemDialog } from "@/components/initiativeTools/queues/EditQueueItemDialog";
@@ -46,10 +44,9 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { useQueueRealtime } from "@/hooks/useResourceRealtime";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
-import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { toolExportEndpoint, toolListRoute, toolSettingsRoute } from "@/lib/tools";
+import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function QueueDetailPage() {
   const { t } = useTranslation(["queues", "common"]);
@@ -212,12 +209,6 @@ export function QueueDetailPage() {
           <Badge variant={queue.is_active ? "default" : "secondary"}>
             {queue.is_active ? t("active") : t("inactive")}
           </Badge>
-          <ExportButton
-            endpoint={toolExportEndpoint(Tool.queue)}
-            params={{ queue_id: queue.id }}
-            formats={TOOL_EXPORT_FORMATS[Tool.queue] ?? []}
-            filenameStem={exportFilenameStem(queue.name, "queue")}
-          />
           {canEdit && (
             <Button variant="outline" size="sm" asChild>
               <Link

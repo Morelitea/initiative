@@ -55,7 +55,6 @@ class GuildAppUserDelegation(SQLModel, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
 
     app_id: int = Field(
         sa_column=Column(
@@ -68,7 +67,7 @@ class GuildAppUserDelegation(SQLModel, table=True):
     user_id: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("users.id", ondelete="CASCADE"),
+            ForeignKey("users.id"),
             nullable=False,
             index=True,
         )
@@ -98,9 +97,7 @@ class GuildAppUserDelegation(SQLModel, table=True):
     #: for them.
     revoked_by_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(
-            Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-        ),
+        sa_column=Column(Integer, ForeignKey("users.id"), nullable=True),
     )
 
     #: How the member was authenticated when they gave it. Recorded so a grant

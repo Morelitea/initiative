@@ -197,6 +197,35 @@ describe("ToolSettingsAdvancedPage", () => {
 
     expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument();
   });
+  it("offers the owner an export of the tool, by the tool's own id", async () => {
+    resetFactories();
+    let sent: { format: string | null; queue_id: string | null } | null = null;
+    server.use(
+      guildHttp.get("/exports/queue", ({ request }) => {
+        const url = new URL(request.url);
+        sent = {
+          format: url.searchParams.get("format"),
+          queue_id: url.searchParams.get("queue_id"),
+        };
+        return new HttpResponse("a,b", { status: 200, headers: { "Content-Type": "text/csv" } });
+      })
+    );
+    renderSection(ToolSettingsAdvancedPage, buildEntity());
+
+    expect(await screen.findByText("Download a copy", { exact: false })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Export" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
+
+    await waitFor(() => expect(sent).toEqual({ format: "csv", queue_id: "7" }));
+  });
+
+  it("offers no export to someone who may edit it but not delete it", async () => {
+    resetFactories();
+    renderSection(ToolSettingsAdvancedPage, buildEntity({ my_permission_level: "write" }));
+
+    expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
+  });
 });
 
 describe("ToolSettingsAccessPage", () => {

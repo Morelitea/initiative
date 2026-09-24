@@ -105,6 +105,11 @@
       "archived": "“{{name}}” archived",
       "unarchived": "“{{name}}” is back"
     },
+    "export": {
+      "title": "Export",
+      "description": "Download a copy — a file you can import here or on another server, or a report to read. Only whoever can delete this can export it.",
+      "button": "Export"
+    },
     "title": "Settings",
     "description": "Manage details, access, and advanced options.",
     "tabDetails": "Details",
@@ -189,6 +194,11 @@
     "unavailable": "This device has no camera to take a photo with.",
     "failed": "That photo could not be read. Try again."
   },
+  "fileDrop": {
+    "release": "Drop it here",
+    "unsupported": "That kind of file can't be uploaded here.",
+    "tooLarge": "That file is larger than this server accepts."
+  },
   "archiveError": "Couldn't archive that. Please try again.",
   "unarchiveError": "Couldn't unarchive that. Please try again.",
   "markdownEditor": {
@@ -206,6 +216,23 @@
     "bulletedList": "Bulleted list",
     "numberedList": "Numbered list",
     "taskList": "Task list",
-    "more": "More formatting"
+    "more": "More formatting",
+    "image": "Image",
+    "uploadingImage": "Uploading {{name}}…",
+    "imageUploadFailed": "Couldn't add that picture."
+  },
+  "errorPage": {
+    "title": "Something went wrong",
+    "description": "This page ran into an error and could not be shown. Try again, or go to your tasks.",
+    "appDescription": "Initiative ran into an error and could not continue. Reloading starts it again.",
+    "details": "Error details",
+    "toMyTasks": "Go to {{myTasks}}",
+    "reload": "Reload",
+    "updatedTitle": "Initiative has been updated",
+    "updatedDescription": "A newer version is available. Reload to open this page in it."
+  },
+  "notFoundPage": {
+    "title": "Page not found",
+    "description": "Nothing is at this address. The link may be mistyped, or the page may have moved."
   }
 }

@@ -41,6 +41,38 @@ def test_roles_come_from_the_connection_urls(monkeypatch):
     assert (system.name, system.password) == ("sys", "pw3")
 
 
+def test_an_owner_database_url_gives_the_bootstrap_the_derived_logins(monkeypatch):
+    """With DATABASE_URL as the owner, the bootstrap runs as that owner and
+    maintains the canonical logins under their derived passwords."""
+    from pydantic_settings import SettingsConfigDict
+
+    from app.core.config import Settings, derive_database_password
+    from app.db import bootstrap
+
+    class _Hermetic(Settings):
+        model_config = SettingsConfigDict(env_file=None)
+
+    key = "f2d8a1c4b7e90365d4a2f8c1b6e3079a5c8d2e4f6a1b3c5d7e9f0a2b4c6d8e1f"
+    owner = "postgresql+asyncpg://owner:pw@h:5432/d"
+    resolved = _Hermetic(
+        SECRET_KEY=key,
+        DATABASE_URL=owner,
+        DATABASE_URL_APP="",
+        DATABASE_URL_ADMIN="",
+    )
+    monkeypatch.setattr(bootstrap, "settings", resolved)
+
+    assert resolved.DATABASE_URL_BOOTSTRAP == owner
+    assert bootstrap.owner_setting() == "DATABASE_URL"
+    provisioner, app_login, system = login_roles()
+    for role, name in (
+        (provisioner, "app_provisioner"),
+        (app_login, "app_user"),
+        (system, "app_admin"),
+    ):
+        assert (role.name, role.password) == (name, derive_database_password(key, name))
+
+
 def test_role_attributes_are_the_documented_ones():
     provisioner, app_login, system = login_roles()
     assert "CREATEROLE" in provisioner.attributes

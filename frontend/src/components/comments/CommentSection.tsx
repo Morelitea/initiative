@@ -3,14 +3,12 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CommentCreate, CommentRead, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/useComments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { entityMentionSyntax } from "@/lib/mentions";
 import { referenceTypeFor } from "@/lib/references";
 import { referenceRef } from "@/lib/smartChips";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -128,10 +126,6 @@ export const CommentSection = ({
   // Build comment tree
   const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
   const hasComments = comments.length > 0;
-  // A name `[[ ]]` could not find. Holding it here opens the dialog that makes
-  // it, which knows which tools this initiative has and which the writer may
-  // add — neither of which a text box should be deciding.
-  const [pendingCreate, setPendingCreate] = useState<string | null>(null);
 
   // Build display name maps from comment authors
   const userDisplayNames = useMemo(() => {
@@ -229,7 +223,6 @@ export const CommentSection = ({
             <p className="text-muted-foreground text-sm">{t("readOnlyNote")}</p>
           ) : (
             <CommentInput
-              onCreateRequest={setPendingCreate}
               value={content}
               onChange={setContent}
               onSubmit={handleSubmit}
@@ -277,22 +270,6 @@ export const CommentSection = ({
           </div>
         </CardContent>
       </Card>
-      {pendingCreate !== null && (
-        <CreateReferencedThingDialog
-          name={pendingCreate}
-          initiativeId={initiativeId}
-          onCreated={(made) => {
-            // Straight into the sentence being written, so making something
-            // never costs the writer their place.
-            setContent(
-              (current) =>
-                `${current}${entityMentionSyntax(made.entityType, made.name, made.entityId)} `
-            );
-            setPendingCreate(null);
-          }}
-          onClose={() => setPendingCreate(null)}
-        />
-      )}
     </CommentReferences>
   );
 };

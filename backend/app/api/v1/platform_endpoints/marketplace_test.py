@@ -159,3 +159,100 @@ class TestOperatorRescan:
 
     async def test_a_rescan_needs_a_session(self, client, catalog_dir):
         assert (await client.post(RESCAN_URL)).status_code == 401
+
+
+UPLOAD_URL = "/api/v1/marketplace/local/upload"
+
+
+def _counter_manifest(**overrides) -> dict:
+    return {
+        "uid": "VPR0AD00000001",
+        "public_id": "ours.party-tally",
+        "kind": "counter_group",
+        "name": "Party tally",
+        "publisher": "Our deployment",
+        "description": "Keep score.",
+        "version": "1.0.0",
+        "definition": {
+            "type": "initiative-counter-group",
+            "name": "Tally",
+            "counters": [{"name": "Hit points", "count": 0}],
+        },
+        **overrides,
+    }
+
+
+class TestUploadingAListingFile:
+    async def test_the_owner_publishes_a_file_as_a_local_listing(
+        self, client, acting_user
+    ):
+        owner = await acting_user("owner", guild_role=GuildRole.member)
+
+        response = await client.post(
+            UPLOAD_URL, json={"manifest": _counter_manifest()}, headers=owner.headers
+        )
+
+        assert response.status_code == 201, response.text
+        assert response.json()["version"] == "1.0.0"
+        shelf = await client.get(
+            owner.g("/marketplace/listings"),
+            params={"kind": "counter_group"},
+            headers=owner.headers,
+        )
+        [card] = [
+            item for item in shelf.json()["items"] if item["uid"] == "VPR0AD00000001"
+        ]
+        assert card["source"] == "local"
+
+    async def test_a_file_it_will_not_take_says_why(self, client, acting_user):
+        owner = await acting_user("owner")
+
+        response = await client.post(
+            UPLOAD_URL,
+            json={"manifest": _counter_manifest(definition={"type": "nope"})},
+            headers=owner.headers,
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_UPLOAD_INVALID
+        assert "initiative-counter-group" in response.json()["problem"]
+
+    async def test_a_uid_another_catalogue_publishes_is_not_taken_over(
+        self, client, acting_user, session
+    ):
+        from app.testing import create_marketplace_listing
+
+        await create_marketplace_listing(
+            session, uid="VPR0AD00000001", public_id="core.shipped"
+        )
+        owner = await acting_user("owner")
+
+        response = await client.post(
+            UPLOAD_URL, json={"manifest": _counter_manifest()}, headers=owner.headers
+        )
+
+        assert response.status_code == 422
+        assert "builtin" in response.json()["problem"]
+
+    @pytest.mark.parametrize("tier", ["operator", "member"])
+    async def test_uploading_is_the_owners(self, client, acting_user, tier):
+        actor = await acting_user(tier)
+
+        response = await client.post(
+            UPLOAD_URL, json={"manifest": _counter_manifest()}, headers=actor.headers
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_rescan_leaves_local_listings_alone(
+        self, client, acting_user, catalog_dir
+    ):
+        owner = await acting_user("owner")
+        await client.post(
+            UPLOAD_URL, json={"manifest": _counter_manifest()}, headers=owner.headers
+        )
+
+        scan = await client.post(RESCAN_URL, headers=owner.headers)
+
+        assert scan.status_code == 200, scan.text
+        assert scan.json()["withdrawn"] == 0

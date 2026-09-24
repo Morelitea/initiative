@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.core.auth_context import device_token_id
@@ -10,7 +10,8 @@ from app.schemas.platform.push import (
     PushTokenUnregisterRequest,
     PushTokenResponse,
 )
-from app.services.platform import push_tokens
+from app.core.messages import NotificationMessages
+from app.services.platform import app_settings, push_tokens
 
 router = APIRouter()
 
@@ -32,7 +33,16 @@ async def register_push_token(
     made the call, not the body: it is the same handle the device's message key
     store records, and matching the two is what lets a message wake the phone
     that can actually read it.
+
+    A deployment that has switched push notifications off declines (403) and
+    stores nothing: there is nothing for the token to be used for, and holding
+    it would be keeping an address this deployment has said it does not send to.
     """
+    if not (await app_settings.get_app_settings(session)).push_notifications_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=NotificationMessages.PUSH_DISABLED,
+        )
     await push_tokens.register_push_token(
         session=session,
         user_id=current_user.id,

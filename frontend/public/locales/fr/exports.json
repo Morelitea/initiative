@@ -7,6 +7,7 @@
     "failed": "L'export a échoué. Réessayez ou affinez le filtre.",
     "error": "Impossible d'exporter. Réessayez.",
     "selected": "Exporter la sélection",
+    "ownerRequired": "Seule la personne qui peut tous les supprimer peut les exporter.",
     "headingBackup": "Sauvegarde",
     "headingReport": "Rapport",
     "formatPdf": "Document PDF",
@@ -15,7 +16,12 @@
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Tableau Markdown",
     "formatMdChecklist": "Liste de tâches Markdown",
-    "formatJson": "JSON",
+    "formatJson": "Fichier importable (.json)",
+    "formatJsonWithPictures": "Fichier importable avec les images (.zip)",
+    "formatWikiPdf": "PDF (.zip)",
+    "formatWikiMarkdown": "Markdown (.zip)",
+    "formatWikiDocx": "Word (.zip)",
+    "formatWikiJson": "Fichier importable (.zip)",
     "formatOriginal": "Fichier d'origine",
     "formatMarkdown": "Markdown",
     "formatPng": "Image PNG",
@@ -47,8 +53,8 @@
       "estimateFailed": "Impossible de charger l’estimation de taille.",
       "overRowLimit": "Cet export dépasse la limite de taille — excluez certains outils pour continuer.",
       "overUploadLimit": "Les fichiers téléversés dépassent la limite de {{limit}} — excluez-les pour continuer.",
-      "willBeDelivered": "Cette exportation dépasse {{limit}} : elle sera écrite dans le dossier d'exportation du serveur au lieu d'être téléchargée. L'administration du serveur pourra vous remettre le fichier.",
-      "noDestination": "Cette exportation dépasse {{limit}} et aucun dossier d'exportation n'est configuré sur ce serveur, elle ne peut donc pas être téléchargée. Demandez à l'administration du serveur d'en configurer un."
+      "willBeDelivered": "Cette exportation dépasse {{limit}} : elle sera écrite dans le dossier d'exportation du serveur au lieu d'être téléchargée. La personne qui gère ce serveur pourra vous remettre le fichier.",
+      "noDestination": "Cette exportation dépasse {{limit}} et aucun dossier d'exportation n'est configuré sur ce serveur, elle ne peut donc pas être téléchargée. Demandez à la personne qui gère ce serveur d'en configurer un."
     },
     "report": {
       "documentNative": "Documents texte",
@@ -90,7 +96,7 @@
     "startedByUnknown": "Lancé par un ancien membre",
     "preparing": "Toujours en préparation — vous recevrez une notification dès que ce sera prêt.",
     "expires": "Le téléchargement expire",
-    "delivered": "Écrit dans le dossier d'exportation du serveur — demandez le fichier à l'administration du serveur.",
+    "delivered": "Écrit dans le dossier d'exportation du serveur — demandez le fichier à la personne qui gère ce serveur.",
     "expiredNote": "L'archive a été supprimée depuis.",
     "failedNote": "Rien n'a été exporté.",
     "nextAvailable": "Prochain export possible"

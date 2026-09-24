@@ -1,8 +1,15 @@
+"""Push-notification registrations (``push_tokens``).
+
+A device registers and unregisters under its owner's platform tier, whose
+policies admit that account's own rows. Delivery reads and prunes a
+recipient's rows on the system engine (``push_notifications.send_push_to_user``).
+"""
+
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import select, delete
+from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.push_token import PushToken
@@ -85,17 +92,41 @@ async def delete_push_token(
     return result.rowcount > 0
 
 
-async def update_last_used(
+async def purge_all(session: AsyncSession) -> int:
+    """Drop every stored push token, and say how many.
+
+    What a deployment switching push notifications off asks for: it stops
+    sending, and it stops holding the addresses it was sending to. A device
+    registers again the next time the app starts, so switching it back on
+    restores delivery without anybody doing anything.
+    """
+    result = await session.exec(delete(PushToken))
+    return result.rowcount or 0
+
+
+async def record_delivery(
     session: AsyncSession,
     *,
-    push_token: str,
+    user_id: int,
+    delivered_ids: Iterable[int],
+    dead_tokens: Iterable[str],
 ) -> None:
-    """Track successful delivery by updating last_used_at timestamp."""
-    stmt = select(PushToken).where(PushToken.push_token == push_token)
-    result = await session.exec(stmt)
-    token = result.one_or_none()
+    """Stamp the rows a push reached and drop the ones FCM reported gone.
 
-    if token:
-        token.last_used_at = datetime.now(timezone.utc)
-        session.add(token)
-        await session.commit()
+    Both halves are scoped to ``user_id``, the account the push was for. Does
+    not commit — the caller owns the transaction.
+    """
+    delivered = list(delivered_ids)
+    if delivered:
+        await session.exec(
+            update(PushToken)
+            .where(PushToken.user_id == user_id, PushToken.id.in_(delivered))
+            .values(last_used_at=datetime.now(timezone.utc))
+        )
+    dead = list(dead_tokens)
+    if dead:
+        await session.exec(
+            delete(PushToken).where(
+                PushToken.user_id == user_id, PushToken.push_token.in_(dead)
+            )
+        )

@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
@@ -43,7 +44,7 @@ from app.services.import_engine.common import (
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInPassing,
     grant_ownership,
     parse_envelope,
     resolve_property_values,
@@ -51,7 +52,7 @@ from app.services.import_engine.importers._base import (
 from app.services.tenant import tags as tags_service
 
 
-class CalendarImporter(QuotesNobody):
+class CalendarImporter(NamesPeopleInPassing):
     envelope_type = "initiative-calendar"
     permission = PermissionKey.create_calendars
 
@@ -72,7 +73,7 @@ class CalendarImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: CalendarEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
+        guild_id = routed_guild_id(session)
         member_handles = await load_initiative_member_handles(
             session, initiative_id=target_initiative.id
         )
@@ -92,7 +93,6 @@ class CalendarImporter(QuotesNobody):
             description=env.description,
             color=env.color or DEFAULT_CALENDAR_COLOR,
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
         )
         session.add(calendar)
@@ -180,7 +180,6 @@ class CalendarImporter(QuotesNobody):
             raise ValueError("unparseable event times")
         event = CalendarEvent(
             calendar_id=calendar_id,
-            guild_id=guild_id,
             title=item.title,
             description=item.description,
             location=item.location,
@@ -225,7 +224,6 @@ class CalendarImporter(QuotesNobody):
                 CalendarEventAttendee(
                     calendar_event_id=event.id,
                     user_id=uid,
-                    guild_id=guild_id,
                     rsvp_status=rsvp,
                 )
             )
@@ -234,9 +232,7 @@ class CalendarImporter(QuotesNobody):
         tags_created = 0
         tags_matched = 0
         for tag_name in item.tags:
-            resolved = await ensure_tag(
-                session, guild_id=guild_id, name=tag_name, color="#6b7280"
-            )
+            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
             if resolved.created:
                 tags_created += 1
             else:
@@ -252,6 +248,7 @@ class CalendarImporter(QuotesNobody):
             initiative_id=initiative_id,
             values=item.properties,
             member_handles=member_handles,
+            people=context.people if context is not None else None,
         )
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(

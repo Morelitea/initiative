@@ -7,10 +7,11 @@ tools' own gated endpoints, so the loaders here only need what serialization
 and the permission engine read.
 """
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import session as db_session
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
@@ -21,7 +22,8 @@ def dashboard_loader_options() -> list:
     """Eager-load everything dashboard serialization + authorization needs."""
     return [
         selectinload(Dashboard.grants).selectinload(ResourceGrant.role),
-        selectinload(Dashboard.initiative).selectinload(Initiative.memberships),
+        selectinload(Dashboard.initiative),
+        undefer(Dashboard.access_level),
     ]
 
 
@@ -53,10 +55,12 @@ async def get_dashboard_for_export(
     guild_id: int,
     *,
     dashboard_id: int,
+    access: str = "owner",
 ) -> Dashboard:
     """The dashboard-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. READ access
-    suffices — exporting is a formatted read.
+    the rule holds on the worker's render-time replay too. It takes the owner
+    rung, or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``).
 
     A dashboard built on an app this build does not ship is refused here: its
     definition belongs to its publisher, and the way to have it somewhere else
@@ -68,7 +72,7 @@ async def get_dashboard_for_export(
     from app.core.messages import ExportMessages
     from app.core.tools import Tool
     from app.services.export.provenance import builtin_listing_uids, is_exportable
-    from app.services.permissions import DAC_RESOURCES, require_access
+    from app.services.permissions import DAC_RESOURCES, require_export_access
 
     dashboard = await get_dashboard(session, dashboard_id)
     if dashboard is None:
@@ -81,11 +85,11 @@ async def get_dashboard_for_export(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=Tool.dashboard.feature_disabled_code,
         )
-    require_access(
+    require_export_access(
         DAC_RESOURCES[Tool.dashboard],
         dashboard,
-        current_user,
-        access="read",
+        context=db_session.guild_context(session),
+        access=access,
     )
     builtin = await builtin_listing_uids(session, [dashboard.listing_uid])
     if not is_exportable(dashboard.listing_uid, builtin):

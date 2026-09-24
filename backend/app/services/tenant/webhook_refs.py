@@ -64,7 +64,7 @@ async def name_for_subscriber(
     )
     wanted = {actor_id for actor_id in actor_ids if actor_id is not None}
 
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         guild_ref = await identity_refs.ensure_ref(
             session,
             entity_type=IdentityEntity.guild,
@@ -94,7 +94,7 @@ async def drop_subscription_refs(*, guild_id: int, subscription_id: int) -> int:
     Only the sector this module owns: a subscription an app registered is named
     in that app's, which outlives it and belongs to the install.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         dropped = await identity_refs.drop_sector_refs(
             session,
             sector_guild_id=guild_id,

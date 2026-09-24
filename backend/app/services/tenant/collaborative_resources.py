@@ -33,7 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Optional
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.core.search import SearchEntityType
@@ -74,23 +74,19 @@ async def _load_document(
     session: Any, resource_id: int, guild_id: int
 ) -> Optional[Collaborating]:
     from app.models.tenant.document import Document
-    from app.models.tenant.initiative import Initiative, InitiativeMember
     from app.models.tenant.resource_grant import ResourceGrant
 
     statement = (
         select(Document)
         .where(Document.id == resource_id)
         .options(
-            selectinload(Document.initiative)
-            .selectinload(Initiative.memberships)
-            .selectinload(InitiativeMember.role_ref),
+            selectinload(Document.initiative),
+            undefer(Document.access_level),
             selectinload(Document.grants).selectinload(ResourceGrant.role),
         )
     )
     document = (await session.exec(statement)).one_or_none()
     if document is None:
-        return None
-    if document.initiative and document.initiative.guild_id != guild_id:
         return None
     return Collaborating(
         body=document, governing=document, initiative_id=document.initiative_id
@@ -105,7 +101,6 @@ async def _load_wiki_page(
     That is the same rule the REST path applies — a page is the wiki's content
     — so the socket asks the same question of the same row.
     """
-    from app.models.tenant.initiative import Initiative, InitiativeMember
     from app.models.tenant.resource_grant import ResourceGrant
     from app.models.tenant.wiki import Wiki, WikiPage
 
@@ -119,16 +114,13 @@ async def _load_wiki_page(
         select(Wiki)
         .where(Wiki.id == page.wiki_id)
         .options(
-            selectinload(Wiki.initiative)
-            .selectinload(Initiative.memberships)
-            .selectinload(InitiativeMember.role_ref),
+            selectinload(Wiki.initiative),
+            undefer(Wiki.access_level),
             selectinload(Wiki.grants).selectinload(ResourceGrant.role),
         )
     )
     wiki = (await session.exec(statement)).one_or_none()
     if wiki is None:
-        return None
-    if wiki.initiative and wiki.initiative.guild_id != guild_id:
         return None
     return Collaborating(body=page, governing=wiki, initiative_id=wiki.initiative_id)
 

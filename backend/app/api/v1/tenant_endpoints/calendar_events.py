@@ -40,6 +40,7 @@ from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.platform.user import User
 from app.core.messages import CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
+    CalendarEventSummary,
     CalendarEventCreate,
     CalendarEventUpdate,
     CalendarEventRead,
@@ -58,6 +59,7 @@ from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
 from app.api import resource_access
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 from app.services.tenant import calendar_events as events_service
@@ -107,7 +109,7 @@ async def _get_event_or_404(
         event.calendar,
         user,
         access=access,
-        guild_role=guild_context.role,
+        context=guild_context,
     )
     return event
 
@@ -166,16 +168,18 @@ async def _exec_events(session, stmt) -> list[CalendarEvent]:
     return events
 
 
-def _cross_guild_event_dac_clause(guild_id: int, user_id: int) -> ColumnElement[bool]:
+def _cross_guild_event_dac_clause(
+    context: GuildContext, user_id: int
+) -> ColumnElement[bool]:
     """Sharing gate for the cross-guild ``/me`` calendar views.
 
-    The same clause the per-guild list applies, resolved per guild: the role
-    ``gather_across_guilds`` established for that guild is what it reads. PAM
-    never applies here — the gather only visits guilds the user is a real member
-    of — so the clause resolves to a no-op only for a guild admin.
+    The same clause the per-guild list applies, resolved per guild: the
+    standing ``gather_across_guilds`` established for that guild is what it
+    reads. PAM never applies here — the gather only visits guilds the user is a
+    real member of — so the clause resolves to a no-op only for a guild admin.
     """
     return permissions_service.granted_scope_clause(
-        Tool.calendar, CalendarEvent.calendar_id, user_id, guild_id=guild_id
+        Tool.calendar, CalendarEvent.calendar_id, user_id, context=context
     )
 
 
@@ -186,17 +190,20 @@ async def query_my_calendar_events(
     guild_ids: Optional[List[int]] = None,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
-) -> list[CalendarEvent]:
+) -> list[CalendarEventSummary]:
     """Shared cross-guild calendar-event query for ``list_my_calendar_events``
     and the ``/me/calendar-entries`` aggregate.
 
     Schema-per-guild: events live in per-guild schemas, so no single query can
     span guilds. Visit each of the user's
     guild schemas (routed to the user's own RLS context, so guild isolation +
-    DAC still hold) and merge, sorted by ``(start_at, guild_id, id)``.
+    DAC still hold) and merge, sorted by ``(start_at, guild_id, id)``. Each
+    event is serialized inside the guild it was read from, so the summary
+    carries that guild and the level the reader holds there.
     """
 
-    def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
+    async def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
+        context = require_guild_context(guild_session)
         # Guild calendars included: this is the user's own calendar view, one of
         # the two places their events show (the app's page is the other).
         conditions = [calendars_service.tool_enabled_clause()]
@@ -204,14 +211,23 @@ async def query_my_calendar_events(
             conditions.append(CalendarEvent.start_at >= start_after)
         if start_before is not None:
             conditions.append(CalendarEvent.start_at <= start_before)
-        conditions.append(_cross_guild_event_dac_clause(guild_id, current_user.id))
+        conditions.append(_cross_guild_event_dac_clause(context, current_user.id))
         stmt = (
             select(CalendarEvent)
             .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
             .where(*conditions)
             .options(*_calendar_event_loader_options())
         )
-        return _exec_events(guild_session, stmt)
+        # Serialized here, while the session is still routed into THIS guild:
+        # the summary names the guild and computes the reader's level from the
+        # role held there, and both would read the last guild visited if it
+        # waited for the merge.
+        return [
+            serialize_calendar_event_summary(
+                event, context=context, user_id=current_user.id, guild_id=guild_id
+            )
+            for event in await _exec_events(guild_session, stmt)
+        ]
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
@@ -249,10 +265,7 @@ async def list_my_calendar_events(
     start = (page - 1) * page_size
     page_events = events[start : start + page_size]
 
-    items = [
-        serialize_calendar_event_summary(e, user_id=current_user.id)
-        for e in page_events
-    ]
+    items = page_events
     has_next = page * page_size < total_count
     return CalendarEventListResponse(
         items=items,
@@ -283,12 +296,13 @@ async def export_my_calendar_events_ics(
     """
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
+        context = require_guild_context(guild_session)
         conditions = [calendars_service.tool_enabled_clause()]
         if start_after is not None:
             conditions.append(CalendarEvent.start_at >= start_after)
         if start_before is not None:
             conditions.append(CalendarEvent.start_at <= start_before)
-        conditions.append(_cross_guild_event_dac_clause(guild_id, current_user.id))
+        conditions.append(_cross_guild_event_dac_clause(context, current_user.id))
         stmt = (
             select(CalendarEvent)
             .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
@@ -310,24 +324,24 @@ async def export_my_calendar_events_ics(
             )
         )
 
-        async def _run() -> list[tuple[CalendarEvent, list[Related]]]:
+        async def _run() -> list[tuple[int, CalendarEvent, list[Related]]]:
             found = await _exec_events(guild_session, stmt)
             await tags_service.annotate_tags(guild_session, found)
             # Read while this session is still routed to THIS guild — edges live
             # in its schema — and paired with their event on the way out, so
             # nothing downstream has to key them. Ids repeat across schemas.
             documents = await ical_service.documents_for_events(guild_session, found)
-            return [(event, documents.get(event.id, [])) for event in found]
+            return [(guild_id, event, documents.get(event.id, [])) for event in found]
 
         return _run()
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
-    events = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    events.sort(key=lambda pair: (pair[0].start_at, pair[0].guild_id, pair[0].id))
+    rows = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
+    rows.sort(key=lambda row: (row[1].start_at, row[0], row[1].id))
 
-    ics_bytes = ical_service.events_to_ical(events)
+    ics_bytes = ical_service.events_to_ical([(event, docs) for _, event, docs in rows])
     return Response(
         content=ics_bytes,
         media_type="text/calendar",
@@ -420,9 +434,8 @@ def _calendar_event_loader_options():
         selectinload(CalendarEvent.calendar)
         .selectinload(Calendar.grants)
         .selectinload(ResourceGrant.role),
-        selectinload(CalendarEvent.calendar)
-        .selectinload(Calendar.initiative)
-        .selectinload(Initiative.memberships),
+        selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative),
+        selectinload(CalendarEvent.calendar).undefer(Calendar.access_level),
         selectinload(CalendarEvent.property_values).selectinload(
             CalendarEventPropertyValue.property_definition
         ),
@@ -460,7 +473,7 @@ async def query_guild_calendar_events(
     list of ids is a page of them, and events on whatever fell off the end would
     simply not be drawn.
     """
-    conditions = [CalendarEvent.guild_id == guild_context.guild_id]
+    conditions: list = []
 
     if guild_scope:
         conditions.append(
@@ -524,7 +537,7 @@ async def query_guild_calendar_events(
             Tool.calendar,
             CalendarEvent.calendar_id,
             current_user.id,
-            guild_id=guild_context.guild_id,
+            context=guild_context,
             initiative_id=initiative_id,
         )
     )
@@ -573,7 +586,10 @@ async def list_calendar_events(
     )
 
     items = [
-        serialize_calendar_event_summary(e, user_id=current_user.id) for e in events
+        serialize_calendar_event_summary(
+            e, user_id=current_user.id, context=guild_context
+        )
+        for e in events
     ]
     has_next = page * page_size < total_count
     return CalendarEventListResponse(
@@ -604,10 +620,17 @@ async def _event_documents(
 
 
 async def _serialized_event(
-    session: AsyncSession, event: CalendarEvent, user_id: int
+    session: AsyncSession,
+    event: CalendarEvent,
+    user_id: int,
+    *,
+    context: GuildContext,
 ) -> CalendarEventRead:
     return serialize_calendar_event(
-        event, user_id=user_id, documents=await _event_documents(session, event)
+        event,
+        context=context,
+        user_id=user_id,
+        documents=await _event_documents(session, event),
     )
 
 
@@ -620,7 +643,9 @@ async def read_calendar_event(
     include_deleted: IncludeDeletedDep = False,
 ) -> CalendarEventRead:
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    return await _serialized_event(session, event, current_user.id)
+    return await _serialized_event(
+        session, event, current_user.id, context=guild_context
+    )
 
 
 @router.post("/", response_model=CalendarEventRead, status_code=status.HTTP_201_CREATED)
@@ -640,7 +665,6 @@ async def create_calendar_event(
         recurrence_json = event_in.recurrence.model_dump_json()
 
     event = CalendarEvent(
-        guild_id=guild_context.guild_id,
         calendar_id=event_in.calendar_id,
         created_by=current_user.id,
         title=event_in.title.strip(),
@@ -694,7 +718,9 @@ async def create_calendar_event(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(session, hydrated, current_user.id)
+    return await _serialized_event(
+        session, hydrated, current_user.id, context=guild_context
+    )
 
 
 @router.patch("/{event_id}", response_model=CalendarEventRead)
@@ -808,7 +834,9 @@ async def update_calendar_event(
         await session.commit()
 
     hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(session, hydrated, current_user.id)
+    return await _serialized_event(
+        session, hydrated, current_user.id, context=guild_context
+    )
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -888,7 +916,9 @@ async def set_attendees(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(session, hydrated, current_user.id)
+    return await _serialized_event(
+        session, hydrated, current_user.id, context=guild_context
+    )
 
 
 @router.patch("/{event_id}/rsvp", response_model=CalendarEventRead)
@@ -914,7 +944,6 @@ async def update_rsvp(
         attendee = CalendarEventAttendee(
             calendar_event_id=event.id,
             user_id=current_user.id,
-            guild_id=guild_context.guild_id,
         )
 
     attendee.rsvp_status = rsvp_in.rsvp_status
@@ -934,7 +963,9 @@ async def update_rsvp(
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(session, hydrated, current_user.id)
+    return await _serialized_event(
+        session, hydrated, current_user.id, context=guild_context
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -967,7 +998,9 @@ async def set_event_tags(
     session.add(event)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(session, hydrated, current_user.id)
+    return await _serialized_event(
+        session, hydrated, current_user.id, context=guild_context
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1006,4 +1039,6 @@ async def set_event_properties(
     )
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(session, hydrated, current_user.id)
+    return await _serialized_event(
+        session, hydrated, current_user.id, context=guild_context
+    )

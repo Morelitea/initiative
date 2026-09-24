@@ -62,7 +62,6 @@ export function buildMarketplaceListingDetail(
     ...summary,
     long_description: null,
     definition: null,
-    versions: summary.latest_version ? [summary.latest_version] : [],
     ...overrides,
   };
 }

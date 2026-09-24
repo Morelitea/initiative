@@ -25,7 +25,7 @@ The rule is a simple one: **communities own community data, and people own their
 
 None of it is ours. We don't sell it, we don't mine it, and we don't train on it — there's no path in the architecture for us to. (The one time your content deliberately leaves your server is when somebody presses an AI **Generate** button, and then it's the provider's terms that apply. See [AI features](../account/ai-features.md#the-privacy-bit-which-is-genuinely-worth-reading).)
 
-If you host Initiative yourself, all of it sits in *your* database and *your* file storage, and backing it up is your job too. See [Backups & updates](../admin/backups-and-updates.md).
+If you host Initiative yourself, all of it sits in *your* database and *your* file storage, and backing it up is your job too. See [Backups & updates](../running-a-server/backups-and-updates.md).
 
 If we host it, we hold it **on behalf of the people it belongs to**, and the tools stay in their hands: export it whenever you like, delete it whenever you like, take it elsewhere. The export formats below are ordinary files, not something only we can open.
 
@@ -33,9 +33,9 @@ If we host it, we hold it **on behalf of the people it belongs to**, and the too
 
 Some of the choices below look severe until you know where they came from.
 
-We treat privacy as an architecture problem rather than a policy one. A policy lasts exactly as long as whoever owns the company next; a system with no path to your content doesn't depend on anybody's good intentions. Hence no standing administrative access to a community's data, cross-community access only through a time-bound grant that leaves a record, and direct messages encrypted so thoroughly that no key to them exists outside the two devices talking.
+We treat privacy as an architecture problem rather than a policy one. A policy lasts exactly as long as whoever owns the company next; a system with no path to your content doesn't depend on anybody's good intentions. Hence no standing access to a community's data for anybody running the platform, cross-community access only through a time-bound grant that leaves a record, and direct messages encrypted so thoroughly that no key to them exists outside the two devices talking.
 
-The practical upshot: **we can't feed your work to a model, because there's no pipe to put it in.** The AI features that do exist are ones you point at your own content deliberately, with a key you or your administrator supplied, and they send only what you asked. See [AI features](../account/ai-features.md).
+The practical upshot: **we can't feed your work to a model, because there's no pipe to put it in.** The AI features that do exist are ones you point at your own content deliberately, with a key supplied by you, your community, or whoever runs your server, and they send only what you asked. See [AI features](../account/ai-features.md).
 
 The longer version of why is on the [home page](../index.md#why-we-built-this).
 
@@ -49,7 +49,7 @@ If we host it, your data lives where our service runs. For a group with a reside
 
 - **In transit:** traffic between browsers and the server is encrypted over HTTPS.
 - **At rest:** the most sensitive stored fields — saved AI keys, single-sign-on secrets, email-server passwords, and email addresses — are encrypted in the database.
-- **End-to-end, for direct messages:** private messages are encrypted on the sending device and decrypted on the receiving one. Nobody in between can read them, including us and including an administrator of the server they passed through. See [Private messages](private-messages.md).
+- **End-to-end, for direct messages:** private messages are encrypted on the sending device and decrypted on the receiving one. Nobody in between can read them, including us and including whoever runs the server they passed through. See [Private messages](private-messages.md).
 - **Access control:** everything else is gated by the [six-layer model](how-your-data-is-kept-separate.md) and enforced in the database.
 
 ## What is kept in your browser
@@ -78,7 +78,7 @@ Initiative knows two: **analytics** — which pages get used and where people ge
 
 ### The cookie chooser
 
-A deployment can put the question to arriving visitors. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Admin › Branding**.
+A deployment can put the question to arriving visitors. It is **off by default** — most deployments are a group's own server, reached by people who were sent a link — and a platform owner turns it on under **Settings › Platform › Branding**.
 
 Where it is on and the deployment uses something optional, **Reject optional** and **Accept all** sit side by side at the same size, and either is one click; **Choose** opens a switch per category. Where the deployment uses nothing optional, there is nothing to decide, so it says what is kept and offers a single acknowledgement.
 
@@ -92,7 +92,7 @@ If the categories change, you're asked again.
 
 ### The one outside company
 
-Where an administrator has configured a **sign-up spam check** — hCaptcha, Cloudflare Turnstile or Google reCAPTCHA — that vendor's script runs on the sign-up form, and sets a cookie of its own under their terms. It loads on that form and nowhere else, and only on a deployment that configured one. The chooser names the vendor where it applies.
+Where whoever runs the server has configured a **sign-up spam check** — hCaptcha, Cloudflare Turnstile or Google reCAPTCHA — that vendor's script runs on the sign-up form, and sets a cookie of its own under their terms. It loads on that form and nowhere else, and only on a deployment that configured one. The chooser names the vendor where it applies.
 
 Fonts are served from the deployment's own server, and no page loads a script from anywhere but the vendor above.
 
@@ -105,23 +105,26 @@ Fonts are served from the deployment's own server, and no page loads a script fr
 
 Initiative is built to avoid locking your information in:
 
-- **Export a project** to a portable file you can keep or re-import elsewhere.
+- **Export any tool** — a project, a document, a wiki, a calendar and the rest — to a portable file you can keep or re-import elsewhere, from its **Settings → Advanced**. Exporting belongs to whoever can delete the thing: its owner, and anyone who can see everything in its initiative.
 - **Export spreadsheets** as CSV or Excel (XLSX).
 - **Export calendar events** as standard `.ics` files.
-- Administrators can **export the user list** as CSV.
+- Platform operators can **export the user list** as CSV.
 
 ### Removing data
 
-- **Anything you delete** goes to the **Trash** first, where it can be restored until the retention period passes — then it's permanently removed. Administrators set how long that is (see [Working with communities](../guides/communities.md#trash-and-retention)).
-- **Your account** can be **deactivated** (you can't sign in, but your content stays) or **deleted**. Deleting offers a choice: *anonymize* (your personal details are removed and your past contributions show as "Deleted user") or, for administrators, *hard delete* (everything is removed). See [Profile & preferences](../account/profile-and-preferences.md).
+- **Anything you delete** goes to the **Trash** first, where it can be restored until the retention period passes — then it's permanently removed. Community admins set how long that is (see [Working with communities](../guides/communities.md#trash-and-retention)).
+- **Your account** can be **deactivated** (you can't sign in, but your content stays) or **deleted**. Deleting offers a choice: *anonymize* (your personal details are removed and your past contributions show as "Deleted user") or, for platform operators, *hard delete* (everything is removed). See [Profile & preferences](../account/profile-and-preferences.md).
+- **Deletion takes effect immediately and completes after a retention window.** A deleted account disappears for everyone else at once and is erased when the window ends; signing back in before then cancels the deletion. A deleted community behaves the same way and can be restored by a platform operator until its window ends. The deployment sets both windows — 30 days for accounts and 90 days for communities unless changed, or no automatic erasure at all where a deployment is required to retain records. See [How long deleted things are kept](../running-a-server/configuration.md#how-long-deleted-things-are-kept).
 
 Together, the **export** tools above and these **removal** tools cover the two requests privacy laws ask for most often: handing someone a copy of the data held about them (a *right to access* request), and erasing their personal information (a *right to erasure* request).
+
+Where an erasure has to complete sooner than the retention window allows, a platform operator's **hard delete** removes the account and everything cascading from it immediately, and cannot be reversed.
 
 ### Accountability
 
 Actions that change who can reach what, how the deployment is configured, or where data goes are **recorded** in an audit log. Every entry is written out as one line to the deployment's log platform, which is where it is kept, queried and retained. Entries name accounts by id rather than by name or email address, never contain a password or a key, and outlive the accounts and communities they name. Each entry also records the request it came from: an identifier for that request, the network address it arrived from, and the browser or app it was made with. What is recorded:
 
-- **Privileged access.** When an administrator or support person uses an emergency "break-glass" grant, or a time-bound access request is approved, the entry says who, which community, and why. While that access is live, **every request made under it is recorded individually** — the route, the method, the response, and the grant it was made under — so what was reached is on the record and not only that access was held. Editing a document or a wiki page happens over a live connection rather than a request, and is recorded separately the first time it happens in a session.
+- **Privileged access.** When a platform operator or owner uses an emergency "break-glass" grant, or a time-bound access request is approved, the entry says who, which community, and why. While that access is live, **every request made under it is recorded individually** — the route, the method, the response, and the grant it was made under — so what was reached is on the record and not only that access was held. Editing a document or a wiki page happens over a live connection rather than a request, and is recorded separately the first time it happens in a session.
 - **Membership and roles.** Joining or leaving a community or an initiative, a change of role in either, invites issued and withdrawn, and every change to how a project, document or other item is shared.
 - **Configuration.** Sign-in providers and claim rules, a community's sign-in requirement and settings, email, storage and AI settings, app services and installed apps.
 - **Accounts and data.** Accounts created, deactivated, anonymized or deleted; communities created, deleted or exported; member lists exported; permanent deletion from the trash; API keys and webhooks; and each time content is sent to an AI provider.
@@ -138,7 +141,7 @@ A community that was private until now is refused a listing while it holds anybo
 
 If you answer that you are not old enough, that answer is kept — again, the fact and not the date — and you are not asked again. It closes the directory's Join button; it takes nothing away. Somebody on the support tier or above can reset the question for you, which is the way back from a mistyped year. Resetting it is recorded in the audit log, like every other action one person takes on another's account.
 
-Administrators of a deployment where every account is known to belong to an adult can switch the question off entirely, under **Settings › Admin › Community**.
+Where every account on a deployment is known to belong to an adult, the platform owner can switch the question off entirely, under **Settings › Platform › Community**.
 
 ## What could be handed over
 
@@ -179,14 +182,14 @@ Here's the honest, useful answer.
 
 - **Data-protection regulations (such as GDPR/CCPA):** your organization is the data controller. Initiative supports the technical side — export, erasure, access control, residency by choice of host — while lawful processing, consent, and records are organizational responsibilities. There is no third-party processor to sign an agreement with; *you* run it.
 - **Formal certifications (such as SOC 2, ISO 27001, HIPAA):** achieved by your hosting and processes — key management, backups, monitoring, physical security, staff access.
-- **Backups, disaster recovery, monitoring, and patching:** yours to run. See the [administrator guide](../admin/index.md).
+- **Backups, disaster recovery, monitoring, and patching:** yours to run. See the [server guide](../running-a-server/index.md).
 
 **If we host it**, the operational half is ours: running the service, backing it up, keeping it patched and current. What stays with you is what always stays with the organization using a tool — deciding what you collect, why you're allowed to, who in your group may see it, and answering the requests your own members make of you. Regulated data is worth a conversation before you commit to it rather than after.
 
 !!! warning "No legal advice"
     This page describes capabilities, not a legal compliance guarantee. For regulated data, review your specific obligations with a qualified professional and document how your deployment meets them.
 
-## A checklist for administrators
+## A checklist for whoever runs the server
 
 If compliance matters to your group, make sure you:
 
@@ -196,11 +199,11 @@ If compliance matters to your group, make sure you:
 - [ ] Keep Initiative **updated** to the latest release.
 - [ ] Configure **trash retention** to match your data-retention policy.
 - [ ] Prefer **single sign-on** so account lifecycle is managed centrally.
-- [ ] Review who holds **administrator** and **owner** roles, and who can break glass.
+- [ ] Review who holds the **operator** and **owner** platform roles, who holds each community's admin and superadmin seats, and who can break glass.
 
 ## Related
 
 - [How your data is kept separate](how-your-data-is-kept-separate.md) — the technical isolation model.
 - [Private messages](private-messages.md) — what end-to-end encryption covers.
-- [Backups & updates](../admin/backups-and-updates.md) — your operational responsibilities if you host it yourself.
+- [Backups & updates](../running-a-server/backups-and-updates.md) — your operational responsibilities if you host it yourself.
 - [Reporting a problem](reporting-a-problem.md) — responsible disclosure.

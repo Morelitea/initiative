@@ -62,7 +62,7 @@ from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.services.auth import addresses  # noqa: E402
 from app.services.platform import dm_settings  # noqa: E402
 from app.services.platform.usernames import allocate_from_seed  # noqa: E402
-from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
+from app.db.session import SystemSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
 from app.services.tenant.dashboard_definition import (  # noqa: E402
     normalize_dashboard_definition,
@@ -213,12 +213,7 @@ async def seed_initiative(
     ``guild_<id>``'s empty tables and left no initiative in them.
     """
     existing = (
-        await session.exec(
-            select(Initiative).where(
-                Initiative.guild_id == guild_id,
-                Initiative.name == name,
-            )
-        )
+        await session.exec(select(Initiative).where(Initiative.name == name))
     ).one_or_none()
     if existing is not None:
         await session.refresh(existing, attribute_names=["memberships"])
@@ -227,7 +222,6 @@ async def seed_initiative(
     initiative = Initiative(
         name=name,
         description="Seeded by scripts/seed_dev_data.py",
-        guild_id=guild_id,
         color=SEED_INITIATIVE_COLOR,
     )
     session.add(initiative)
@@ -242,7 +236,6 @@ async def seed_initiative(
             initiative_id=initiative.id,
             user_id=creator.id,
             role_id=role.id,
-            guild_id=guild_id,
         )
     )
     await session.flush()
@@ -265,8 +258,8 @@ def _tag_edge(kind: str, entity_id: int, tag: Tag) -> EntityRelationship:
 
     ``tagged_with`` is directional — a tag is a label, so the edge describes the
     thing carrying it — which is why the tagged entity is always the source.
-    ``guild_id`` is stated rather than left to the table's trigger: a tenant
-    write has to be routable when it is added, and the tag knows its guild.
+    The session is already routed to the community the tag is in, which is what
+    says where the edge lands.
     """
     return EntityRelationship(
         source_type=kind,
@@ -275,7 +268,6 @@ def _tag_edge(kind: str, entity_id: int, tag: Tag) -> EntityRelationship:
         target_type="tag",
         target_id=tag.id,
         provenance="manual",
-        guild_id=tag.guild_id,
         created_at=datetime.now(timezone.utc),
     )
 
@@ -304,7 +296,6 @@ def _attachment_edge(
         target_type=target[0],
         target_id=target[1],
         provenance="manual",
-        guild_id=guild_id,
         created_by=created_by,
         created_at=datetime.now(timezone.utc),
     )
@@ -729,7 +720,7 @@ async def _state_outlived_its_database(state: dict) -> bool:
     recorded = state.get("users") or []
     if not recorded:
         return False
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         survivor = (
             await session.exec(select(User.id).where(User.id.in_(recorded)))
         ).first()
@@ -1048,9 +1039,7 @@ async def _create_operations_guild(
         session, ids, guild, [operator, *members], admin_users=[operator]
     )
     await session.commit()
-    await set_rls_context(
-        session, user_id=owner.id, guild_id=guild.id, guild_role="admin"
-    )
+    await set_rls_context(session, guild_id=guild.id)
 
     initiative, _, _ = await _create_initiative(
         session,
@@ -1170,7 +1159,6 @@ async def _create_initiative(
             f"_create_initiative() got unexpected keyword argument(s): {', '.join(unknown)}"
         )
     initiative = Initiative(
-        guild_id=guild.id,
         name=name,
         description=description,
         color=color,
@@ -1208,7 +1196,6 @@ async def _create_initiative(
     pm_member = InitiativeMember(
         initiative_id=initiative.id,
         user_id=pm_user.id,
-        guild_id=guild.id,
         role_id=pm_role.id,
     )
     session.add(pm_member)
@@ -1221,7 +1208,6 @@ async def _create_initiative(
         m = InitiativeMember(
             initiative_id=initiative.id,
             user_id=user.id,
-            guild_id=guild.id,
             role_id=member_role.id,
         )
         session.add(m)
@@ -1395,9 +1381,7 @@ async def _create_community_guild(
     _expunge_guild_scoped(session)
     await provision_guild(guild_id)
     await _add_guild_members(session, ids, guild, members)
-    await set_rls_context(
-        session, user_id=admin.id, guild_id=guild_id, guild_role="admin"
-    )
+    await set_rls_context(session, guild_id=guild_id)
     initiative, _pm_role, _member_role = await _create_initiative(
         session,
         ids,
@@ -1482,9 +1466,7 @@ async def _apply_deferred_archives(session: AsyncSession, admin: User) -> None:
         by_guild.setdefault(guild_id, []).append((project_id, when))
 
     for guild_id, rows in by_guild.items():
-        await set_rls_context(
-            session, user_id=admin.id, guild_id=guild_id, guild_role="admin"
-        )
+        await set_rls_context(session, guild_id=guild_id)
         for project_id, when in rows:
             # Stated as a statement rather than through the ORM: project ids
             # start again in every community's schema, so the identity map would
@@ -1529,7 +1511,6 @@ async def _create_project(
     # the seed is about to give it. The date is remembered and stamped once the
     # project holds everything it is meant to hold.
     project = Project(
-        guild_id=guild.id,
         name=name,
         icon=icon,
         description=description,
@@ -1549,7 +1530,6 @@ async def _create_project(
         resource_type="project",
         resource_id=project.id,
         user_id=owner.id,
-        guild_id=guild.id,
         initiative_id=project.initiative_id,
         level=ResourceAccessLevel.owner,
     )
@@ -1561,7 +1541,6 @@ async def _create_project(
             resource_type="project",
             resource_id=project.id,
             user_id=user.id,
-            guild_id=guild.id,
             initiative_id=project.initiative_id,
             level=ResourceAccessLevel.write,
         )
@@ -1573,7 +1552,6 @@ async def _create_project(
             resource_type="project",
             resource_id=project.id,
             user_id=user.id,
-            guild_id=guild.id,
             initiative_id=project.initiative_id,
             level=ResourceAccessLevel.read,
         )
@@ -1585,7 +1563,6 @@ async def _create_project(
             resource_type="project",
             resource_id=project.id,
             role_id=role.id,
-            guild_id=guild.id,
             initiative_id=project.initiative_id,
             level=level,
         )
@@ -1596,7 +1573,6 @@ async def _create_project(
         p = ResourceGrant(
             resource_type="project",
             resource_id=project.id,
-            guild_id=guild.id,
             initiative_id=project.initiative_id,
             level=general_access,
             all_initiative_members=True,
@@ -1700,7 +1676,6 @@ async def _create_tasks(
         due = td.get("due_days")
         start = td.get("start_days")
         task = Task(
-            guild_id=guild.id,
             project_id=td["project_id"],
             task_status_id=status.id,
             title=td["title"],
@@ -1726,7 +1701,10 @@ async def _create_tasks(
         for assignee_name in td.get("assignees", []):
             user = all_users.get(assignee_name)
             if user:
-                a = TaskAssignee(task_id=task.id, user_id=user.id, guild_id=guild.id)
+                a = TaskAssignee(
+                    task_id=task.id,
+                    user_id=user.id,
+                )
                 session.add(a)
                 ids.add("task_assignees", {"task_id": task.id, "user_id": user.id})
 
@@ -1746,7 +1724,7 @@ async def _create_tags(
     """Create tags for a guild."""
     tags: dict[str, Tag] = {}
     for name, color in tag_defs:
-        tag = Tag(guild_id=guild.id, name=name, color=color)
+        tag = Tag(name=name, color=color)
         session.add(tag)
         await session.flush()
         tags[name] = tag
@@ -1813,7 +1791,6 @@ async def _create_documents(
         # common case) or a ready-made ``content`` blob with the
         # ``document_type`` that goes with it.
         doc = Document(
-            guild_id=guild.id,
             initiative_id=dd["initiative_id"],
             name=dd["title"],
             content=dd.get("content") or _doc(dd["paragraphs"]),
@@ -1830,7 +1807,6 @@ async def _create_documents(
             resource_type="document",
             resource_id=doc.id,
             user_id=creator.id,
-            guild_id=guild.id,
             initiative_id=doc.initiative_id,
             level=ResourceAccessLevel.owner,
         )
@@ -1845,7 +1821,6 @@ async def _create_documents(
                     resource_type="document",
                     resource_id=doc.id,
                     user_id=w.id,
-                    guild_id=guild.id,
                     initiative_id=doc.initiative_id,
                     level=ResourceAccessLevel.write,
                 )
@@ -1861,7 +1836,6 @@ async def _create_documents(
                     resource_type="document",
                     resource_id=doc.id,
                     user_id=r.id,
-                    guild_id=guild.id,
                     initiative_id=doc.initiative_id,
                     level=ResourceAccessLevel.read,
                 )
@@ -1875,7 +1849,6 @@ async def _create_documents(
                 resource_type="document",
                 resource_id=doc.id,
                 role_id=role.id,
-                guild_id=guild.id,
                 initiative_id=doc.initiative_id,
                 level=level,
             )
@@ -1886,7 +1859,6 @@ async def _create_documents(
             dp = ResourceGrant(
                 resource_type="document",
                 resource_id=doc.id,
-                guild_id=guild.id,
                 initiative_id=doc.initiative_id,
                 level=dd["general_access"],
                 all_initiative_members=True,
@@ -1951,7 +1923,6 @@ async def _create_comments(
         task = tasks.get(cd.get("task_title", ""))
         doc = docs.get(cd.get("doc_title", ""))
         comment = Comment(
-            guild_id=guild.id,
             content=cd["content"],
             created_by=author.id,
             task_id=task.id if task else None,
@@ -1973,7 +1944,6 @@ async def _create_favorites(
         fav = ProjectFavorite(
             user_id=user.id,
             project_id=project.id,
-            guild_id=guild.id,
         )
         session.add(fav)
         ids.add("project_favorites", {"user_id": user.id, "project_id": project.id})
@@ -1992,7 +1962,6 @@ async def _create_recent_views(
             user_id=user.id,
             entity_type="project",
             entity_id=project.id,
-            guild_id=guild.id,
         )
         session.add(view)
         ids.add(
@@ -2049,7 +2018,7 @@ async def _create_guild_settings(
     **kwargs,
 ) -> GuildSetting:
     """Create or update guild settings."""
-    gs = GuildSetting(guild_id=guild.id, **kwargs)
+    gs = GuildSetting(**kwargs)
     session.add(gs)
     await session.flush()
     ids.add("guild_settings", gs.id)
@@ -2059,21 +2028,21 @@ async def _create_guild_settings(
 async def _apply_user_settings(
     session: AsyncSession,
     ids: IDTracker,
-    admin_user: User,
+    owner_user: User,
     **overrides,
 ) -> None:
     """Modify the superuser's settings (tracked for cleanup reset)."""
     original = {
-        "timezone": admin_user.timezone,
-        "locale": admin_user.locale,
-        "color_theme": admin_user.color_theme,
-        "week_starts_on": admin_user.week_starts_on,
+        "timezone": owner_user.timezone,
+        "locale": owner_user.locale,
+        "color_theme": owner_user.color_theme,
+        "week_starts_on": owner_user.week_starts_on,
     }
     for key, value in overrides.items():
-        setattr(admin_user, key, value)
-    session.add(admin_user)
+        setattr(owner_user, key, value)
+    session.add(owner_user)
     await session.flush()
-    ids.add("user_settings_modified", {"user_id": admin_user.id, "original": original})
+    ids.add("user_settings_modified", {"user_id": owner_user.id, "original": original})
 
 
 # ---------------------------------------------------------------------------
@@ -2130,7 +2099,6 @@ async def _create_queues(
     for qd in queue_defs:
         creator = all_users[qd["created_by"]]
         queue = Queue(
-            guild_id=guild.id,
             initiative_id=qd["initiative_id"],
             name=qd["name"],
             description=qd.get("description"),
@@ -2147,7 +2115,6 @@ async def _create_queues(
             resource_type="queue",
             resource_id=queue.id,
             user_id=creator.id,
-            guild_id=guild.id,
             initiative_id=queue.initiative_id,
             level=ResourceAccessLevel.owner,
         )
@@ -2168,7 +2135,6 @@ async def _create_queues(
                     resource_type="queue",
                     resource_id=queue.id,
                     user_id=user.id,
-                    guild_id=guild.id,
                     initiative_id=queue.initiative_id,
                     level=ResourceAccessLevel.write,
                 )
@@ -2189,7 +2155,6 @@ async def _create_queues(
                     resource_type="queue",
                     resource_id=queue.id,
                     user_id=user.id,
-                    guild_id=guild.id,
                     initiative_id=queue.initiative_id,
                     level=ResourceAccessLevel.read,
                 )
@@ -2208,7 +2173,6 @@ async def _create_queues(
                 resource_type="queue",
                 resource_id=queue.id,
                 role_id=role.id,
-                guild_id=guild.id,
                 initiative_id=queue.initiative_id,
                 level=level,
             )
@@ -2226,7 +2190,6 @@ async def _create_queues(
             ga = ResourceGrant(
                 resource_type="queue",
                 resource_id=queue.id,
-                guild_id=guild.id,
                 initiative_id=queue.initiative_id,
                 level=qd["general_access"],
                 all_initiative_members=True,
@@ -2245,7 +2208,6 @@ async def _create_queues(
                 if linked_user:
                     user_id = linked_user.id
             qi = QueueItem(
-                guild_id=guild.id,
                 queue_id=queue.id,
                 label=item_def["label"],
                 position=item_def.get("position", 0),
@@ -2336,7 +2298,6 @@ async def _create_counter_groups(
     for gd in group_defs:
         creator = all_users[gd["created_by"]]
         group = CounterGroup(
-            guild_id=guild.id,
             initiative_id=gd["initiative_id"],
             name=gd["name"],
             description=gd.get("description"),
@@ -2351,7 +2312,6 @@ async def _create_counter_groups(
             resource_type="counter_group",
             resource_id=group.id,
             user_id=creator.id,
-            guild_id=guild.id,
             initiative_id=group.initiative_id,
             level=ResourceAccessLevel.owner,
         )
@@ -2372,7 +2332,6 @@ async def _create_counter_groups(
                     resource_type="counter_group",
                     resource_id=group.id,
                     user_id=user.id,
-                    guild_id=guild.id,
                     initiative_id=group.initiative_id,
                     level=grant.get("level", ResourceAccessLevel.write),
                 )
@@ -2391,7 +2350,6 @@ async def _create_counter_groups(
                 resource_type="counter_group",
                 resource_id=group.id,
                 role_id=grant["role_id"],
-                guild_id=guild.id,
                 initiative_id=group.initiative_id,
                 level=grant.get("level", ResourceAccessLevel.read),
             )
@@ -2409,7 +2367,6 @@ async def _create_counter_groups(
             ga = ResourceGrant(
                 resource_type="counter_group",
                 resource_id=group.id,
-                guild_id=guild.id,
                 initiative_id=group.initiative_id,
                 level=gd["general_access"],
                 all_initiative_members=True,
@@ -2427,7 +2384,6 @@ async def _create_counter_groups(
         # Counters
         for cd in gd.get("counters", []):
             counter = Counter(
-                guild_id=guild.id,
                 counter_group_id=group.id,
                 name=cd["name"],
                 color=cd.get("color"),
@@ -2576,7 +2532,6 @@ async def _create_dashboards(
         )
 
         dashboard = Dashboard(
-            guild_id=guild.id,
             initiative_id=dd["initiative_id"],
             name=dd["name"],
             description=dd.get("description"),
@@ -2671,7 +2626,6 @@ async def _create_calendar_events(
             # palette color derived from its id).
             initiative = await session.get(Initiative, ed["initiative_id"])
             calendar = Calendar(
-                guild_id=guild.id,
                 initiative_id=ed["initiative_id"],
                 name="Default Calendar",
                 color=(initiative.color if initiative else None)
@@ -2687,7 +2641,6 @@ async def _create_calendar_events(
                     resource_type="calendar",
                     resource_id=calendar.id,
                     user_id=creator.id,
-                    guild_id=guild.id,
                     initiative_id=calendar.initiative_id,
                     level=ResourceAccessLevel.owner,
                 )
@@ -2696,7 +2649,6 @@ async def _create_calendar_events(
                 ResourceGrant(
                     resource_type="calendar",
                     resource_id=calendar.id,
-                    guild_id=guild.id,
                     initiative_id=calendar.initiative_id,
                     level=ResourceAccessLevel.read,
                     all_initiative_members=True,
@@ -2704,7 +2656,6 @@ async def _create_calendar_events(
             )
         recurrence_raw = ed.get("recurrence")
         event = CalendarEvent(
-            guild_id=guild.id,
             calendar_id=calendar.id,
             title=ed["title"],
             description=ed.get("description"),
@@ -2727,7 +2678,6 @@ async def _create_calendar_events(
             attendee = CalendarEventAttendee(
                 calendar_event_id=event.id,
                 user_id=user.id,
-                guild_id=guild.id,
                 rsvp_status=att.get("rsvp_status", RSVPStatus.pending),
             )
             session.add(attendee)
@@ -2810,7 +2760,6 @@ async def _create_posts(
     for pd in post_defs:
         creator = all_users[pd["created_by"]]
         post = Post(
-            guild_id=guild.id,
             initiative_id=pd["initiative_id"],
             name=pd["name"],
             body=pd.get("body") or {},
@@ -2836,7 +2785,6 @@ async def _create_posts(
                 resource_type="post",
                 resource_id=post.id,
                 user_id=creator.id,
-                guild_id=guild.id,
                 initiative_id=post.initiative_id,
                 level=ResourceAccessLevel.owner,
             )
@@ -2847,7 +2795,6 @@ async def _create_posts(
                 ResourceGrant(
                     resource_type="post",
                     resource_id=post.id,
-                    guild_id=guild.id,
                     initiative_id=post.initiative_id,
                     level=general,
                     all_initiative_members=True,
@@ -2859,7 +2806,6 @@ async def _create_posts(
                     resource_type="post",
                     resource_id=post.id,
                     user_id=all_users[name].id,
-                    guild_id=guild.id,
                     initiative_id=post.initiative_id,
                     level=ResourceAccessLevel.read,
                 )
@@ -3016,7 +2962,6 @@ async def _create_wikis(
     for wd in wiki_defs:
         creator = all_users[wd["created_by"]]
         wiki = Wiki(
-            guild_id=guild.id,
             initiative_id=wd["initiative_id"],
             name=wd["name"],
             description=wd.get("description"),
@@ -3037,7 +2982,6 @@ async def _create_wikis(
                 resource_type="wiki",
                 resource_id=wiki.id,
                 user_id=creator.id,
-                guild_id=guild.id,
                 initiative_id=wiki.initiative_id,
                 level=ResourceAccessLevel.owner,
             )
@@ -3048,7 +2992,6 @@ async def _create_wikis(
                 ResourceGrant(
                     resource_type="wiki",
                     resource_id=wiki.id,
-                    guild_id=guild.id,
                     initiative_id=wiki.initiative_id,
                     level=general,
                     all_initiative_members=True,
@@ -3065,7 +3008,6 @@ async def _create_wikis(
             author = all_users[pd.get("created_by", wd["created_by"])]
             title = pd["title"]
             page = WikiPage(
-                guild_id=guild.id,
                 wiki_id=wiki.id,
                 position=position,
                 is_draft=pd.get("is_draft", False),
@@ -3167,7 +3109,6 @@ async def _create_galleries(
     for gd in gallery_defs:
         creator = all_users[gd["created_by"]]
         gallery = Gallery(
-            guild_id=guild.id,
             initiative_id=gd["initiative_id"],
             name=gd["name"],
             description=gd.get("description"),
@@ -3183,7 +3124,6 @@ async def _create_galleries(
                 resource_type="gallery",
                 resource_id=gallery.id,
                 user_id=creator.id,
-                guild_id=guild.id,
                 initiative_id=gallery.initiative_id,
                 level=ResourceAccessLevel.owner,
             )
@@ -3194,7 +3134,6 @@ async def _create_galleries(
                 ResourceGrant(
                     resource_type="gallery",
                     resource_id=gallery.id,
-                    guild_id=guild.id,
                     initiative_id=gallery.initiative_id,
                     level=general,
                     all_initiative_members=True,
@@ -3232,7 +3171,6 @@ async def _create_galleries(
                 session.add(
                     Upload(
                         filename=filename,
-                        guild_id=guild.id,
                         created_by=uploader.id,
                         size_bytes=len(png),
                         content_type="image/png",
@@ -3249,7 +3187,6 @@ async def _create_galleries(
                     session.add(
                         Upload(
                             filename=thumb_name,
-                            guild_id=guild.id,
                             created_by=uploader.id,
                             size_bytes=len(thumbnail.data),
                             content_type=thumbnail.content_type,
@@ -3259,7 +3196,6 @@ async def _create_galleries(
                 version_at = created_at + timedelta(days=3 * (number - 1))
                 if image is None:
                     image = GalleryImage(
-                        guild_id=guild.id,
                         gallery_id=gallery.id,
                         title=im.get("title"),
                         caption=im.get("caption"),
@@ -3287,7 +3223,6 @@ async def _create_galleries(
                 session.add(
                     GalleryImageVersion(
                         gallery_image_id=image.id,
-                        guild_id=guild.id,
                         version_number=number,
                         file_url=file_url,
                         thumbnail_url=thumbnail_url,
@@ -3428,7 +3363,7 @@ async def _create_access_grants(
 ) -> None:
     """Seed ``public.access_grants`` rows (the PAM / break-glass flow).
 
-    Must run with the session reset to the bare admin engine (no guild
+    Must run with the session reset to the bare system engine (no guild
     routing) — access_grants is a platform-scoped shared table.
 
     Each grant_def has:
@@ -3493,9 +3428,9 @@ async def seed() -> None:
     _mark_seed_incomplete()
     ids = IDTracker()
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         # -- Discover existing entities --
-        admin_user = await _find_superuser(session)
+        owner_user = await _find_superuser(session)
         primary_guild = await guilds_service.get_primary_guild(session)
 
         # ==============================================================
@@ -3642,14 +3577,14 @@ async def seed() -> None:
         await _apply_user_settings(
             session,
             ids,
-            admin_user,
+            owner_user,
             timezone="America/Los_Angeles",
             color_theme="kobold",
             week_starts_on=0,
         )
 
-        # Make the admin user available by name too
-        all_users: dict[str, User] = {"Admin User": admin_user, **new_users}
+        # Make the platform owner available by name too
+        all_users: dict[str, User] = {"Admin User": owner_user, **new_users}
 
         dm = new_users["Dungeon Master"]
         thorn = new_users["Thorn Ironforge"]
@@ -3689,7 +3624,7 @@ async def seed() -> None:
         await _set_guild_images(
             session,
             g1,
-            uploader=admin_user,
+            uploader=owner_user,
             icon=((190, 18, 60), (136, 19, 55)),
             banner=((69, 10, 30), (190, 18, 60)),
         )
@@ -3715,9 +3650,7 @@ async def seed() -> None:
         # Route into the primary community's schema (search_path + SET ROLE) so all
         # of its community-scoped data — initiatives, projects, tasks, ... — is
         # created there, not in public.
-        await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin"
-        )
+        await set_rls_context(session, guild_id=g1_id)
 
         # Look up the primary community's "Default Initiative", creating it if it
         # doesn't exist (same approach as the community 2/3 sections below).
@@ -3731,7 +3664,7 @@ async def seed() -> None:
         # rows. The result: guild_1.initiatives exists with zero rows, and
         # the previous code here (a SELECT followed by .one()) crashed with
         # NoResultFound.
-        g1_default_init = await seed_initiative(session, admin_user, guild_id=g1_id)
+        g1_default_init = await seed_initiative(session, owner_user, guild_id=g1_id)
         # guild_1.guild_settings has the same gap: normally one row is
         # inserted when a community is created, but a startup back-fill leaves
         # the table empty — create the row if it isn't there.
@@ -3749,7 +3682,6 @@ async def seed() -> None:
             m = InitiativeMember(
                 initiative_id=g1_default_init.id,
                 user_id=user.id,
-                guild_id=g1_id,
                 role_id=pm_role.id,
             )
             session.add(m)
@@ -3792,7 +3724,7 @@ async def seed() -> None:
             name="Campaign: Lost Mine of Phandelver",
             description="A classic introductory adventure in the Sword Coast",
             color="#059669",
-            pm_user=admin_user,
+            pm_user=owner_user,
             member_users=[dm, thorn, elara, p_support],
             join_policy=InitiativeJoinPolicy.request,
             queues_enabled=True,
@@ -3847,7 +3779,7 @@ async def seed() -> None:
             name="Phandalin Adventures",
             icon="\u2694\ufe0f",
             description="Classic starter campaign in the Sword Coast region",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[dm, thorn, elara],
         )
 
@@ -3859,7 +3791,7 @@ async def seed() -> None:
             name="Wave Echo Cave",
             icon="\U0001f48e",
             description="The lost mine of Phandelver and the Forge of Spells",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[dm],
             read_users=[thorn, elara],
         )
@@ -3873,7 +3805,7 @@ async def seed() -> None:
             icon="\U0001f4cb",
             description="Meta-campaign logistics and session planning",
             owner=dm,
-            write_users=[admin_user],
+            write_users=[owner_user],
         )
 
         g1_homebrew = await _create_project(
@@ -3885,7 +3817,7 @@ async def seed() -> None:
             icon="\U0001f4dc",
             description="Custom house rules, variant options, and homebrew content",
             owner=dm,
-            write_users=[admin_user, thorn],
+            write_users=[owner_user, thorn],
             general_access=ResourceAccessLevel.write,
         )
 
@@ -3911,7 +3843,7 @@ async def seed() -> None:
             description="A sprawling 200-room dungeon crawl beneath Castle Ravenloft. "
             "Used to stress-test large task lists.",
             owner=dm,
-            write_users=[admin_user, thorn, elara],
+            write_users=[owner_user, thorn, elara],
             read_users=[vex, sera],
         )
 
@@ -3929,7 +3861,7 @@ async def seed() -> None:
             description="Skeleton for a single-session adventure — hook, three scenes, "
             "a set-piece fight, and a payoff.",
             owner=dm,
-            write_users=[admin_user],
+            write_users=[owner_user],
             general_access=ResourceAccessLevel.read,
             is_template=True,
         )
@@ -3970,7 +3902,7 @@ async def seed() -> None:
             icon="\U0001f480",
             description="Wrapped after 22 sessions. Kept for the recap notes and the loot ledger.",
             owner=dm,
-            write_users=[admin_user, thorn],
+            write_users=[owner_user, thorn],
             read_users=[elara, vex],
             archived_days_ago=12,
         )
@@ -3997,7 +3929,7 @@ async def seed() -> None:
             name="Rules Playtest: Old Initiative Tracker",
             icon="\U0001f570\ufe0f",
             description="Superseded by the queues feature. Archived long enough ago to sort last.",
-            owner=admin_user,
+            owner=owner_user,
             archived_days_ago=210,
         )
 
@@ -4684,7 +4616,7 @@ async def seed() -> None:
                 ),
                 (g1_barovia.id, g1_docs["NPC Roster: Curse of Strahd"].id, dm),
                 (g1_barovia.id, g1_docs["Tarokka Card Reading Results"].id, dm),
-                (g1_phandalin.id, g1_docs["NPC Compendium: Phandelver"].id, admin_user),
+                (g1_phandalin.id, g1_docs["NPC Compendium: Phandelver"].id, owner_user),
                 (g1_session_zero.id, g1_docs["Session 1 Recap: Into the Mists"].id, dm),
                 (
                     g1_session_zero.id,
@@ -4793,8 +4725,8 @@ async def seed() -> None:
                 (elara, g1_wave_echo),
                 (vex, g1_ravenloft),
                 (sera, g1_barovia),
-                (admin_user, g1_phandalin),
-                (admin_user, g1_wave_echo),
+                (owner_user, g1_phandalin),
+                (owner_user, g1_wave_echo),
                 # Community admin favoriting a project they access purely via the
                 # community-admin override (admin1 is in no G1 initiative).
                 (admin1, g1_barovia),
@@ -4813,8 +4745,8 @@ async def seed() -> None:
                 (thorn, g1_phandalin),
                 (elara, g1_barovia),
                 (elara, g1_wave_echo),
-                (admin_user, g1_phandalin),
-                (admin_user, g1_session_zero),
+                (owner_user, g1_phandalin),
+                (owner_user, g1_session_zero),
             ],
         )
 
@@ -6952,12 +6884,12 @@ async def seed() -> None:
             ids,
             name="Starforge Collective",
             description="A science fiction tabletop campaign set in the far reaches of the galaxy",
-            creator=admin_user,
+            creator=owner_user,
         )
         await _set_guild_images(
             session,
             g2,
-            uploader=admin_user,
+            uploader=owner_user,
             icon=((37, 99, 235), (30, 58, 138)),
             banner=((15, 23, 42), (37, 99, 235)),
         )
@@ -6984,12 +6916,10 @@ async def seed() -> None:
         )
 
         # Route into the community before creating its content.
-        await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g2_id, guild_role="admin"
-        )
+        await set_rls_context(session, guild_id=g2_id)
 
         # Default initiative for g2
-        g2_default_init = await seed_initiative(session, admin_user, guild_id=g2_id)
+        g2_default_init = await seed_initiative(session, owner_user, guild_id=g2_id)
         # Track the roles and members that seed_initiative created
         result = await session.exec(
             select(InitiativeRoleModel).where(
@@ -7026,7 +6956,6 @@ async def seed() -> None:
             m = InitiativeMember(
                 initiative_id=g2_default_init.id,
                 user_id=user.id,
-                guild_id=g2_id,
                 role_id=g2_def_member_role.id,
             )
             session.add(m)
@@ -7047,7 +6976,7 @@ async def seed() -> None:
             name="Starfall: The Exodus Protocol",
             description="Humanity's last fleet searches for a new homeworld after Earth's collapse",
             color="#0EA5E9",
-            pm_user=admin_user,
+            pm_user=owner_user,
             member_users=[finley, kael, aurelia, vex, elara, p_member],
             queues_enabled=True,
             counter_groups_enabled=True,
@@ -7083,7 +7012,7 @@ async def seed() -> None:
             name="The Exodus Fleet",
             icon="\U0001f680",
             description="Managing the fleet's journey across the void between stars",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[finley, kael],
             read_users=[aurelia, vex, elara],
         )
@@ -7096,7 +7025,7 @@ async def seed() -> None:
             name="Colony Alpha",
             icon="\U0001f30d",
             description="Establishing the first settlement on the candidate planet",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[finley, aurelia],
             role_grants=[(g2_main_mem, ResourceAccessLevel.read)],
         )
@@ -7123,7 +7052,7 @@ async def seed() -> None:
             icon="\U0001f527",
             description="Ship upgrades, tech research, and equipment management",
             owner=kael,
-            write_users=[admin_user, elara],
+            write_users=[owner_user, elara],
             general_access=ResourceAccessLevel.write,
         )
 
@@ -7135,7 +7064,7 @@ async def seed() -> None:
             name="Campaign Planning",
             icon="\U0001f4c5",
             description="Session scheduling and campaign logistics",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[finley],
         )
 
@@ -7149,7 +7078,7 @@ async def seed() -> None:
             description="Boilerplate for every planetside excursion — landing party, hazards, "
             "extraction plan.",
             owner=finley,
-            write_users=[admin_user, kael],
+            write_users=[owner_user, kael],
             general_access=ResourceAccessLevel.read,
             is_template=True,
         )
@@ -7175,7 +7104,7 @@ async def seed() -> None:
             name="Prologue: Leaving Sol",
             icon="\U0001f31e",
             description="The first six sessions, closed out when the fleet cleared the heliopause.",
-            owner=admin_user,
+            owner=owner_user,
             write_users=[finley],
             read_users=[kael, aurelia],
             archived_days_ago=21,
@@ -7628,18 +7557,18 @@ async def seed() -> None:
                 (
                     g2_exodus.id,
                     g2_docs["Setting Bible: The Exodus Protocol"].id,
-                    admin_user,
+                    owner_user,
                 ),
                 (
                     g2_exodus.id,
                     g2_docs["Faction Guide: Krellix Dominion"].id,
-                    admin_user,
+                    owner_user,
                 ),
                 (g2_fringe.id, g2_docs["One-Shot: Smuggler's Run Briefing"].id, finley),
                 (
                     g2_planning.id,
                     g2_docs["Session 1 Recap: Into the Void"].id,
-                    admin_user,
+                    owner_user,
                 ),
             ],
         )
@@ -7813,8 +7742,8 @@ async def seed() -> None:
             ids,
             g2,
             [
-                (admin_user, g2_exodus),
-                (admin_user, g2_colony),
+                (owner_user, g2_exodus),
+                (owner_user, g2_colony),
                 (finley, g2_fringe),
                 (finley, g2_exodus),
                 (kael, g2_engineering),
@@ -7828,9 +7757,9 @@ async def seed() -> None:
             ids,
             g2,
             [
-                (admin_user, g2_exodus),
-                (admin_user, g2_colony),
-                (admin_user, g2_planning),
+                (owner_user, g2_exodus),
+                (owner_user, g2_colony),
+                (owner_user, g2_planning),
                 (finley, g2_fringe),
                 (finley, g2_exodus),
                 (kael, g2_engineering),
@@ -8361,7 +8290,7 @@ async def seed() -> None:
             [
                 ("task", t_repair_id, kael.id),
                 ("task", t_negotiate_id, finley.id),
-                ("document", doc_setting_g2_id, admin_user.id),
+                ("document", doc_setting_g2_id, owner_user.id),
             ],
         )
 
@@ -8984,7 +8913,7 @@ async def seed() -> None:
             g3,
             [
                 admin4,
-                admin_user,
+                owner_user,
                 finley,
                 dm,
                 thorn,
@@ -8997,9 +8926,7 @@ async def seed() -> None:
             admin_users=[admin4],
         )
 
-        await set_rls_context(
-            session, user_id=admin3.id, guild_id=g3_id, guild_role="admin"
-        )
+        await set_rls_context(session, guild_id=g3_id)
 
         # Default initiative (admin3, the community creator, becomes its PM)
         g3_default_init = await seed_initiative(session, admin3, guild_id=g3_id)
@@ -9036,11 +8963,10 @@ async def seed() -> None:
         # finley must be a member here: he owns the Campaign Notes project in
         # this initiative, and a DAC owner grant is useless without passing
         # the initiative gate first.
-        for user in [admin_user, dm, finley]:
+        for user in [owner_user, dm, finley]:
             m = InitiativeMember(
                 initiative_id=g3_default_init.id,
                 user_id=user.id,
-                guild_id=g3_id,
                 role_id=g3_def_member_role.id,
             )
             session.add(m)
@@ -9063,7 +8989,7 @@ async def seed() -> None:
             description="A pirate crew sails the Shattered Seas in search of the Leviathan's Heart",
             color="#DC2626",
             pm_user=finley,
-            member_users=[admin_user, dm, thorn, kael, aurelia, sera, p_owner],
+            member_users=[owner_user, dm, thorn, kael, aurelia, sera, p_owner],
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
@@ -9099,7 +9025,7 @@ async def seed() -> None:
             icon="\u2693",
             description="Managing the party's ship, crew, and upgrades",
             owner=finley,
-            write_users=[admin_user, thorn],
+            write_users=[owner_user, thorn],
             read_users=[kael, aurelia, sera],
         )
 
@@ -9112,7 +9038,7 @@ async def seed() -> None:
             icon="\U0001f4b0",
             description="The legendary hoard guarded by the sea beast",
             owner=finley,
-            write_users=[admin_user, dm],
+            write_users=[owner_user, dm],
             general_access=ResourceAccessLevel.read,
         )
 
@@ -9151,7 +9077,7 @@ async def seed() -> None:
             icon="\U0001f4dd",
             description="Session recaps and campaign logistics",
             owner=finley,
-            write_users=[admin_user, dm],
+            write_users=[owner_user, dm],
         )
 
         g3_voyage_tpl = await _create_project(
@@ -9190,7 +9116,7 @@ async def seed() -> None:
             icon="\U0001f5e1\ufe0f",
             description="Resolved three sessions ago. Archived once the new quartermaster settled in.",
             owner=finley,
-            write_users=[admin_user, thorn],
+            write_users=[owner_user, thorn],
             read_users=[kael],
             archived_days_ago=8,
         )
@@ -9203,7 +9129,7 @@ async def seed() -> None:
             name="Privateer Paperwork",
             icon="\U0001f4dc",
             description="Bookkeeping experiment nobody enjoyed. Archived, not deleted.",
-            owner=admin_user,
+            owner=owner_user,
             archived_days_ago=140,
         )
 
@@ -9824,8 +9750,8 @@ async def seed() -> None:
             [
                 (finley, g3_ship),
                 (finley, g3_treasure),
-                (admin_user, g3_treasure),
-                (admin_user, g3_navy_proj),
+                (owner_user, g3_treasure),
+                (owner_user, g3_navy_proj),
                 (dm, g3_navy_proj),
                 (dm, g3_islands),
                 (thorn, g3_ship),
@@ -9843,8 +9769,8 @@ async def seed() -> None:
                 (finley, g3_ship),
                 (finley, g3_treasure),
                 (finley, g3_planning),
-                (admin_user, g3_treasure),
-                (admin_user, g3_navy_proj),
+                (owner_user, g3_treasure),
+                (owner_user, g3_navy_proj),
                 (dm, g3_navy_proj),
                 (dm, g3_islands),
                 (thorn, g3_ship),
@@ -11434,7 +11360,7 @@ async def seed() -> None:
             ids,
             [
                 {
-                    # Pending request awaiting an approver (shows in the admin queue).
+                    # Pending request awaiting an approver (shows in the operator queue).
                     "user": p_support,
                     "guild_id": g2_id,
                     "access_level": AccessLevel.read,
@@ -11452,14 +11378,15 @@ async def seed() -> None:
                     "status": AccessGrantStatus.approved,
                     "reason": "Reviewing a content report against a queue in Realm of Tides.",
                     "requested_duration_minutes": 480,
-                    "approved_by": admin_user,
+                    "approved_by": owner_user,
                     "requested_delta": -timedelta(hours=2),
                     "decided_delta": -timedelta(hours=1),
                     "expires_delta": timedelta(hours=7),
                 },
                 {
                     # Live break-glass — operator self-issued and self-approved,
-                    # read_write (acts as a full community admin for the window).
+                    # read_write: edits existing content for the window. Only the
+                    # content half of the break-glass pair is seeded here.
                     "user": p_operator,
                     "guild_id": g2_id,
                     "access_level": AccessLevel.read_write,
@@ -11491,14 +11418,14 @@ async def seed() -> None:
                     "status": AccessGrantStatus.expired,
                     "reason": "Audited invite spam originating from the primary guild.",
                     "requested_duration_minutes": 240,
-                    "approved_by": admin_user,
+                    "approved_by": owner_user,
                     "requested_delta": -timedelta(days=3),
                     "decided_delta": -timedelta(days=3) + timedelta(minutes=10),
                     "expires_delta": -timedelta(days=3) + timedelta(hours=4),
                 },
             ],
         )
-        await _apply_deferred_archives(session, admin_user)
+        await _apply_deferred_archives(session, owner_user)
         # Last, so it covers every community the run created — including the
         # directory fillers, which are seeded after communities 1-3.
         seated = await _seat_community_superadmin(session, ids, g_superadmin)
@@ -11664,7 +11591,7 @@ async def clean() -> None:
     # that was listed in it. Put it back to the off state a fresh install has,
     # or the next un-seeded dev database starts with a directory nobody asked
     # for. app_settings is not truncated above, so this is its own write.
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await set_rls_context(session)
         app_settings = await get_app_settings(session)
         app_settings.community_directory_enabled = False

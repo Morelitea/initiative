@@ -436,3 +436,81 @@ async def test_report_pdf_embeds_outfit_font():
     # Regular body + bold headers/labels both come from the bundled Outfit cuts.
     assert "Outfit-Regular" in families
     assert "Outfit-Bold" in families
+
+
+async def test_document_pdf_draws_callouts_columns_and_merged_cells():
+    """The two block shapes that nest — a callout holding blocks, a table
+    whose cells span — compile, and their words are all on the page."""
+    import io
+
+    from pypdf import PdfReader
+
+    request = RenderRequest(
+        guild_id=1,
+        template_id="document",
+        format="pdf",
+        batch=(
+            RenderItem(
+                key="doc",
+                data={
+                    "title": "T",
+                    "blocks": [
+                        {
+                            "type": "callout",
+                            "variant": "warning",
+                            "blocks": [
+                                {
+                                    "type": "paragraph",
+                                    "runs": [{"text": "CALLOUTBODY"}],
+                                },
+                                {
+                                    "type": "callout",
+                                    "variant": "tip",
+                                    "blocks": [
+                                        {
+                                            "type": "paragraph",
+                                            "runs": [{"text": "INNERTIP"}],
+                                        }
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            "type": "table",
+                            "rows": [
+                                [[{"text": "WIDEHEAD"}]],
+                                [[{"text": "LEFTCELL"}], [{"text": "RIGHTCELL"}]],
+                            ],
+                            "spans": [[[2, 1]], [[1, 1], [1, 1]]],
+                            "width": 2,
+                        },
+                        {"type": "drawing", "data": '{"elements":[]}'},
+                        {
+                            "type": "columns",
+                            "widths": [25, 75],
+                            "columns": [
+                                [
+                                    {
+                                        "type": "paragraph",
+                                        "runs": [{"text": "NARROWCOL"}],
+                                    }
+                                ],
+                                [{"type": "paragraph", "runs": [{"text": "WIDECOL"}]}],
+                            ],
+                        },
+                    ],
+                },
+            ),
+        ),
+    )
+    artifacts = await LocalRenderBackend().render(request)
+    text = PdfReader(io.BytesIO(artifacts[0].content)).pages[0].extract_text()
+    for word in (
+        "Warning",
+        "CALLOUTBODY",
+        "INNERTIP",
+        "WIDEHEAD",
+        "LEFTCELL",
+        "RIGHTCELL",
+    ):
+        assert word in text

@@ -25,8 +25,7 @@ from app.db.session import (
     guild_schema_context,
     set_rls_context,
 )
-from app.models.platform.guild import GuildRole
-from app.testing import create_guild, create_guild_membership, create_user
+from app.testing import create_guild, create_guild_membership, create_user, route_as
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -44,9 +43,7 @@ async def test_commit_then_query_replays_context(session, role_session):
     await create_guild_membership(session, user=user, guild=guild)
 
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.admin.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild.id)
     assert await _scalar(s, "SELECT count(*) FROM projects") is not None
     await s.commit()
     # Previously this required reapply_rls_context(s); now it must just work.
@@ -64,9 +61,7 @@ async def test_context_dies_with_transaction(session, role_session):
     guild = await create_guild(session, creator=user)
 
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.admin.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild.id)
     assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild.id)
     await s.commit()
 
@@ -89,9 +84,7 @@ async def test_stale_user_snapshot_fails_closed(session, role_session):
     guild = await create_guild(session, creator=user)
 
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.member.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild.id)
     await s.commit()
     s.info[_RLS_ESTABLISHED_INFO_KEY] -= RLS_CONTEXT_MAX_AGE_SECONDS + 1
 
@@ -107,7 +100,7 @@ async def test_system_context_exempt_from_ttl(session, role_session):
     guild = await create_guild(session, creator=user)
 
     s = await role_session("app_admin")
-    await set_rls_context(s, guild_id=guild.id, guild_role=GuildRole.admin.value)
+    await set_rls_context(s, guild_id=guild.id)
     await s.commit()
     s.info[_RLS_ESTABLISHED_INFO_KEY] -= RLS_CONTEXT_MAX_AGE_SECONDS + 1
 
@@ -123,15 +116,11 @@ async def test_mid_transaction_reroute(session, role_session):
     guild_b = await create_guild(session, creator=user)
 
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild_a.id, guild_role=GuildRole.admin.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild_a.id)
     assert f"guild_{guild_a.id}" in await _scalar(
         s, "SELECT current_setting('search_path')"
     )
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild_b.id, guild_role=GuildRole.admin.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild_b.id)
     assert f"guild_{guild_b.id}" in await _scalar(
         s, "SELECT current_setting('search_path')"
     )
@@ -146,9 +135,7 @@ async def test_nested_transaction_inherits_context(session, role_session):
     guild = await create_guild(session, creator=user)
 
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.admin.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild.id)
     async with s.begin_nested():
         assert await _scalar(s, "SELECT count(*) FROM projects") is not None
         assert f"guild_{guild.id}" in await _scalar(
@@ -210,9 +197,7 @@ async def test_guild_schema_context_restores_a_callers_own_context(
     guild_b = await create_guild(session, creator=user)
 
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild_a.id, guild_role=GuildRole.admin.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild_a.id)
     stamp = s.info[_RLS_ESTABLISHED_INFO_KEY]
 
     async with guild_schema_context(s, guild_id=guild_b.id):

@@ -45,7 +45,8 @@ const detailColumnKey = (tool: Tool): DetailColumnKey =>
 
 /** An initiative, wherever it lives: ids repeat across communities, so the
  *  community is half the key. */
-const initiativeKey = (guildId: number, initiativeId: number) => `${guildId}:${initiativeId}`;
+const initiativeKey = (guildId: number | null, initiativeId: number) =>
+  `${guildId}:${initiativeId}`;
 
 const NameCell = ({ row }: { row: ToolRow }) => (
   <div className="flex min-w-[220px] items-center gap-2 sm:min-w-0">

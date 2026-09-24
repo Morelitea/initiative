@@ -43,17 +43,20 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.post import Post
 from app.models.tenant.relationship import EntityRelationship
+from app.models.tenant.task import Task
 from app.models.tenant.wiki import WikiPage
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant.relationships import Endpoint
 
-#: Kinds that carry a body of their own, and the column holding it. Everything
-#: here is a Lexical editor state; a kind absent from this map contributes
-#: nothing but its comments, which is the honest answer for a task whose
-#: description is plain text.
+#: Kinds that carry a body of their own, and the column holding it. A body is
+#: a Lexical editor state or markdown text — a task's description is written in
+#: the same composer as a comment, with the same ``#`` syntax — and
+#: :func:`references_in` reads either. A kind absent from this map contributes
+#: nothing but its comments.
 BODY_COLUMNS: dict[SearchEntityType, tuple[type, str]] = {
     SearchEntityType.document: (Document, "content"),
     SearchEntityType.post: (Post, "body"),
+    SearchEntityType.task: (Task, "description"),
     SearchEntityType.wiki_page: (WikiPage, "content"),
 }
 
@@ -85,7 +88,7 @@ async def sync_for_entity(
     content itself. It returns None when nothing needed repairing, so a caller
     can write back ``fixed or original``.
     """
-    wanted = references_in_body(body)
+    wanted = references_in(body)
     for text in await _comment_bodies(session, entity):
         wanted |= references_in_text(text)
     # Nothing in this vocabulary means anything from a thing to itself, and a
@@ -106,6 +109,13 @@ async def sync_for_entity(
     return repaired
 
 
+def references_in(body: Any) -> set[tuple[SearchEntityType, int]]:
+    """Every thing a body points at, whichever of the two shapes it is in."""
+    if isinstance(body, str):
+        return references_in_text(body)
+    return references_in_body(body)
+
+
 async def sync_for_comment(
     session: AsyncSession, comment: Comment, *, author_id: int | None = None
 ) -> None:
@@ -115,13 +125,13 @@ async def sync_for_comment(
     change what the conversation says, and none of them is a change to the
     comment's own edges, because a comment has none.
     """
-    parent = _comment_parent(comment)
+    parent = comment_parent(comment)
     if parent is None:
         return
     await sync_for_entity(
         session,
         parent,
-        body=await _own_body(session, parent),
+        body=await own_body(session, parent),
         author_id=author_id,
     )
 
@@ -150,7 +160,7 @@ async def referencing_documents(
     return list(rows.all())
 
 
-def _comment_parent(comment: Comment) -> Endpoint | None:
+def comment_parent(comment: Comment) -> Endpoint | None:
     """The thing a comment is about, as an edge would name it."""
     for kind, column in _COMMENT_COLUMNS.items():
         entity_id = getattr(comment, column, None)
@@ -159,7 +169,7 @@ def _comment_parent(comment: Comment) -> Endpoint | None:
     return None
 
 
-async def _own_body(session: AsyncSession, entity: Endpoint) -> Any:
+async def own_body(session: AsyncSession, entity: Endpoint) -> Any:
     """A thing's stored body, or None if its kind has none."""
     source = BODY_COLUMNS.get(entity.kind)
     if source is None:

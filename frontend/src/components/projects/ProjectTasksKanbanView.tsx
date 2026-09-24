@@ -11,7 +11,7 @@ import {
   pointerWithin,
   type UniqueIdentifier,
 } from "@dnd-kit/core";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -20,21 +20,34 @@ import type {
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
+import { KanbanFieldsMenu } from "@/components/projects/KanbanFieldsMenu";
+import {
+  buildKanbanCardFields,
+  type KanbanCardFields,
+  kanbanFieldsStorageKey,
+} from "@/components/projects/kanbanFields";
+import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { Badge } from "@/components/ui/badge";
+import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
+import { useProperties } from "@/hooks/useProperties";
+import { formatDateTime } from "@/lib/formatDate";
+import { mentionsAsText } from "@/lib/mentions";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
 type ProjectTasksKanbanViewProps = {
+  projectId: number;
+  initiativeId: number;
   taskStatuses: TaskStatusRead[];
   groupedTasks: Record<number, TaskListRead[]>;
   collapsedStatusIds: Set<number>;
   canReorderTasks: boolean;
   canOpenTask: boolean;
   taskHref: (taskId: number) => string;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   sensors: DndContextProps["sensors"];
   activeTask: TaskListRead | null;
   onDragStart: (event: DragStartEvent) => void;
@@ -47,6 +60,8 @@ type ProjectTasksKanbanViewProps = {
 };
 
 export const ProjectTasksKanbanView = ({
+  projectId,
+  initiativeId,
   taskStatuses,
   groupedTasks,
   collapsedStatusIds,
@@ -67,6 +82,24 @@ export const ProjectTasksKanbanView = ({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   useHorizontalDragScroll(scrollContainerRef);
 
+  // Which fields each card shows. Scoped to this project's initiative, like
+  // the table's property columns, so the menu lists the properties a task
+  // here can actually carry. No default-hidden ids: a board that has never
+  // been configured shows everything, as it did before the menu existed.
+  const { data: propertyDefinitions = [] } = useProperties({ initiativeId });
+  // The hook holds this in state, so its identity is stable between changes —
+  // which is what lets the memoized card skip re-rendering on every parent pass.
+  const [fieldVisibility, setFieldVisibility] = usePersistedColumnVisibility(
+    kanbanFieldsStorageKey(projectId),
+    EMPTY_DEFAULT_HIDDEN
+  );
+  // Built once per change rather than once per card, and stable in between so
+  // the memoized cards skip re-rendering on an unrelated parent pass.
+  const visibleFields = useMemo(
+    () => buildKanbanCardFields(fieldVisibility, propertyDefinitions),
+    [fieldVisibility, propertyDefinitions]
+  );
+
   const taskStatusesLength = taskStatuses.length;
   // Basis rather than min-width: it is what the collapse animates.
   const columnBasis = cn(
@@ -83,6 +116,13 @@ export const ProjectTasksKanbanView = ({
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
     >
+      <div className="mb-3 flex justify-end">
+        <KanbanFieldsMenu
+          propertyDefinitions={propertyDefinitions}
+          visibility={fieldVisibility}
+          onChange={setFieldVisibility}
+        />
+      </div>
       <div
         ref={scrollContainerRef}
         className="scrollbar-thin cursor-grab overflow-x-auto pb-4"
@@ -99,6 +139,7 @@ export const ProjectTasksKanbanView = ({
                 canWrite={canReorderTasks}
                 canOpenTask={canOpenTask}
                 priorityVariant={priorityVariant}
+                visibleFields={visibleFields}
                 taskHref={taskHref}
                 collapsed={isCollapsed}
                 onToggleCollapse={onToggleCollapse}
@@ -116,7 +157,11 @@ export const ProjectTasksKanbanView = ({
       </div>
       <DragOverlay>
         {activeTask ? (
-          <TaskDragOverlay task={activeTask} priorityVariant={priorityVariant} />
+          <TaskDragOverlay
+            task={activeTask}
+            priorityVariant={priorityVariant}
+            visibleFields={visibleFields}
+          />
         ) : null}
       </DragOverlay>
     </DndContext>
@@ -155,34 +200,47 @@ const getDroppableType = (
 const TaskDragOverlay = ({
   task,
   priorityVariant,
+  visibleFields,
 }: {
   task: TaskListRead;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
+  visibleFields: KanbanCardFields;
 }) => {
   const { t } = useTranslation("projects");
+  // The thing being dragged is the card, so it drops the same fields the card
+  // dropped — otherwise picking one up puts back what you just turned off.
+  const { shows } = visibleFields;
   return (
     <div className="w-64 space-y-3 rounded-lg border bg-card p-3 shadow-lg">
       <div className="space-y-1">
         <p className="font-medium">{task.title}</p>
-        {task.description ? (
-          <p className="text-muted-foreground text-xs">{truncateText(task.description, 80)}</p>
+        {shows("description") && task.description ? (
+          <p className="text-muted-foreground text-xs">
+            {truncateText(mentionsAsText(task.description), 80)}
+          </p>
         ) : null}
       </div>
       <div className="space-y-1 text-muted-foreground text-xs">
-        {task.assignees.length > 0 ? (
+        {shows("assignees") && task.assignees.length > 0 ? (
           <TaskAssigneeList assignees={task.assignees} className="text-xs" />
         ) : null}
-        {task.due_date ? (
-          <p>{t("kanban.due", { date: new Date(task.due_date).toLocaleString() })}</p>
+        {shows("dueDate") && task.due_date ? (
+          <p>{t("kanban.due", { date: formatDateTime(task.due_date) })}</p>
         ) : null}
       </div>
-      <TaskChecklistProgress progress={task.checklist_progress} />
-      <Badge variant={priorityVariant[task.priority]}>
-        {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
-      </Badge>
+      {shows("checklist") ? <TaskChecklistProgress progress={task.checklist_progress} /> : null}
+      {shows("priority") ? (
+        <Badge variant={priorityVariant[task.priority]}>
+          {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
+        </Badge>
+      ) : null}
     </div>
   );
 };
+
+// Module-level so its identity is stable; the hook re-seeds defaults whenever
+// this array's contents change.
+const EMPTY_DEFAULT_HIDDEN: string[] = [];
 
 const useHorizontalDragScroll = (ref: React.RefObject<HTMLDivElement | null>) => {
   useEffect(() => {

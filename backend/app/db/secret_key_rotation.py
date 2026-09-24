@@ -54,6 +54,8 @@ from app.core.encryption import (
     SALT_IMPORT_CREDENTIAL,
     SALT_OIDC_CLIENT_SECRET,
     SALT_OIDC_REFRESH_TOKEN,
+    SALT_CAPTCHA_SECRET_KEY,
+    SALT_FCM_SERVICE_ACCOUNT,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
     SALT_TOTP_SECRET,
@@ -83,14 +85,15 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # The seed behind an account's authenticator factor, Fernet at rest like
     # the secrets above it and re-keyed with them.
     ("user_totp_secrets", "secret_encrypted", SALT_TOTP_SECRET),
-    # One import job's credential for a foreign site. Almost always empty —
-    # a row lives for the length of one fetch — but a rotation that lands
-    # mid-import must not be what fails it.
-    ("import_credentials", "secret_encrypted", SALT_IMPORT_CREDENTIAL),
-    ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
-    # Pre-existing gap, found by the catalog-driven completeness test below: a
-    # rotation left the object-storage credential under the old key.
-    ("app_settings", "s3_secret_access_key_encrypted", SALT_S3_SECRET_KEY),
+    # The settings singleton's credentials, on their own companion row.
+    ("app_setting_secrets", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
+    ("app_setting_secrets", "s3_secret_access_key_encrypted", SALT_S3_SECRET_KEY),
+    ("app_setting_secrets", "captcha_secret_key_encrypted", SALT_CAPTCHA_SECRET_KEY),
+    (
+        "app_setting_secrets",
+        "fcm_service_account_json_encrypted",
+        SALT_FCM_SERVICE_ACCOUNT,
+    ),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
     # The address a sign-in code was sent to before any account held it. Same
     # ciphertext and same salt as the two address columns above, so it is
@@ -108,10 +111,14 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies). The member
-# key table carries own-row RLS, so the per-guild sweep sets
-# ``app.current_guild_role='admin'`` (see rotate_secret_key) to satisfy its admin
-# leg — otherwise the SET ROLE into guild_<id> would RLS-filter it to 0 rows.
+# key table carries own-row RLS; the sweep runs on the system engine, whose
+# login is what that policy's system leg names, so the SET ROLE into
+# guild_<id> reaches every member's row.
 _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
+    # One import job's secret for a foreign site. Almost always empty — a
+    # value lives for the length of one fetch — but a rotation that lands
+    # mid-import must not be what fails it.
+    ("import_jobs", "secret_encrypted", SALT_IMPORT_CREDENTIAL),
     ("guild_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
     ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
 ]
@@ -422,7 +429,7 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
     # System engine (policy-bound): the public half runs as app_admin under its
     # enumerated `_system` policies; each guild schema is entered by assuming
     # that guild's own role (app_admin holds INHERIT FALSE membership in all).
-    engine = db_session.admin_engine
+    engine = db_session.system_engine
 
     # Platform tables (public). Reads stream on one connection; writes commit on a
     # second (engine.begin()) — separate connections so an open read cursor and the
@@ -479,15 +486,6 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                     await conn_.execute(
                         text("SELECT set_config('role', :r, true)"),
                         {"r": guild_role_name(gid)},
-                    )
-                    # guild_ai_member_keys carries own-row RLS; the admin leg
-                    # (current_guild_role='admin') lets this full-authority
-                    # maintenance sweep see every member's row. Without it the
-                    # SET ROLE into guild_<id> filters the table to 0 rows.
-                    await conn_.execute(
-                        text(
-                            "SELECT set_config('app.current_guild_role', 'admin', true)"
-                        )
                     )
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(

@@ -182,7 +182,7 @@
     "noActiveInvites": "Keine aktiven Einladungen.",
     "unableToLoadInvites": "Einladungen konnten nicht geladen werden.",
     "unableToCreateInvite": "Einladung konnte nicht erstellt werden.",
-    "inviteSeatsFull": "Alle {{max}} Plätze sind belegt. Entferne ein Mitglied oder bitte einen Plattform-Administrator, das Limit zu erhöhen, bevor du eine weitere Einladung erstellst.",
+    "inviteSeatsFull": "Alle {{max}} Plätze sind belegt. Entferne ein Mitglied oder bitte die Person, die diesen Server betreibt, das Limit zu erhöhen, bevor du eine weitere Einladung erstellst.",
     "inviteSeatsFullPlan_one": "Der Tarif {{plan}} umfasst nur einen Platz, und der ist belegt. Mach ein Upgrade, um Leute in diese Community einzuladen.",
     "inviteSeatsFullPlan_other": "Alle {{count}} Plätze im Tarif {{plan}} sind belegt. Mach ein Upgrade, um weitere Leute einzuladen.",
     "inviteSeatsFullUpgrade_one": "Dein Tarif umfasst nur einen Platz, und der ist belegt. Mach ein Upgrade, um Leute in diese Community einzuladen.",
@@ -216,6 +216,22 @@
     "description": "Du bist kein Mitglied dieser Community. Bitte einen Community-Administrator um einen Einladungslink, um beizutreten.",
     "backToHome": "← Zurück zur Startseite"
   },
+  "closed": {
+    "title": "Diese Community ist gesperrt",
+    "description": "Niemand kann sie öffnen, bis die Sperre aufgehoben ist.",
+    "contact": "Wende dich an {{email}}.",
+    "contactNobody": "Wende dich an die Betreiber dieses Servers."
+  },
+  "statusNotice": {
+    "title": "Etwas stimmt nicht",
+    "description": "Wende dich an den Betreiber deiner Plattform.",
+    "readOnly": "Bis das geklärt ist, können Mitglieder hier alles lesen, aber nichts ändern.",
+    "paymentTitle": "Die Zahlung für {{name}} wurde abgelehnt",
+    "paymentDescription": "Aktualisiere deine Karte, um die Community wiederherzustellen.",
+    "updatePayment": "Zahlungsmethode aktualisieren",
+    "notNow": "Nicht jetzt",
+    "contactSupport": "Support kontaktieren"
+  },
   "noGuild": {
     "title": "Keine Community-Mitgliedschaft",
     "description": "Du bist noch kein Mitglied einer Community. Bitte einen Community-Administrator um einen Einladungslink oder erstelle eine neue Community, um loszulegen.",
@@ -245,6 +261,7 @@
     "userPendingApproval": "{{email}} wartet auf Genehmigung.",
     "mentionComment": "{{mentionedBy}} hat dich in einem Kommentar zu {{contextTitle}} erwähnt.",
     "mentionDocument": "{{mentionedBy}} hat dich in {{documentTitle}} erwähnt.",
+    "mentionTaskDescription": "{{mentionedBy}} hat dich in {{taskTitle}} erwähnt.",
     "commentOnTask": "{{commenterName}} hat {{taskTitle}} kommentiert.",
     "commentOnResource": "{{commenterName}} hat {{entityName}} kommentiert.",
     "postPublished": "{{authorName}} hat {{postName}} veröffentlicht.",
@@ -281,6 +298,8 @@
     "accountSuspended": "Dein Konto wurde gesperrt.",
     "accountSuspendedWithReason": "Dein Konto wurde gesperrt: {{reason}}",
     "accountUnsuspended": "Dein Konto ist nicht mehr gesperrt.",
+    "guildOnHold": "{{community}} ist pausiert. Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "guildOnHoldWithContact": "{{community}} ist pausiert. Wende dich an {{contact}}, um das zu klären.",
     "defaultNotification": "Du hast eine neue Benachrichtigung.",
     "push": {
       "enableTitle": "Push-Benachrichtigungen aktivieren",
@@ -314,7 +333,20 @@
         "personal": "Erwähnungen"
       }
     },
-    "ariaLabelCount": "Benachrichtigungen — {{count}} ungelesen"
+    "ariaLabelCount": "Benachrichtigungen — {{count}} ungelesen",
+    "plain": {
+      "document": "einem Dokument",
+      "event": "einem Termin",
+      "initiative": "einer Initiative",
+      "initiativeIn": "einer Initiative",
+      "item": "einem Element",
+      "post": "einen Beitrag",
+      "project": "Ein Projekt",
+      "projectIn": "einem Projekt",
+      "task": "Eine Aufgabe",
+      "taskObject": "deine Aufgabe",
+      "user": "Ein Benutzer"
+    }
   },
   "version": {
     "versionInformation": "Versionsinformationen",
@@ -341,7 +373,8 @@
     "readOnly": "Du hast temporären schreibgeschützten Zugriff auf {{guild}}.",
     "readWrite": "Du hast temporären Zugriff auf {{guild}}.",
     "guildReadOnly": "Diese Community ist schreibgeschützt",
-    "guildSuspended": "Diese Community ist gesperrt"
+    "guildSuspended": "Diese Community ist gesperrt",
+    "guildOnHold": "Diese Community ist pausiert"
   },
   "readOnlyBanner": {
     "message": "{{guild}} ist derzeit schreibgeschützt. Du kannst alles ansehen, aber Änderungen sind deaktiviert."

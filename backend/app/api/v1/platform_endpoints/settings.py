@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -13,28 +13,25 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
+from app.api.v1.platform_endpoints.access_grants import check_second_factor
+from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
 from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import get_system_session
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import (
     Guild,
     GuildMembership,
     GuildRole,
 )
 from app.models.platform.guild_administration import GuildAdministration
-from app.models.tenant.initiative import Initiative, InitiativeRoleModel
-from app.core.messages import AuthProviderMessages
-from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.oidc_claim_mapping import (
-    OIDCClaimMapping,
-    OIDCMappingTargetType,
-)
 from app.schemas.platform.settings import (
+    NotificationSettingsResponse,
+    NotificationSettingsUpdate,
     GuildNarrowingAgreement,
     GuildNarrowingPending,
     CommunitySettingsResponse,
@@ -50,32 +47,30 @@ from app.schemas.platform.settings import (
     LoginMethodsUpdate,
     SecondFactorRequirementUpdate,
     SessionLifetimeUpdate,
-    OIDCClaimMappingCreate,
-    OIDCClaimMappingRead,
-    OIDCClaimMappingUpdate,
-    OIDCMappingOptionsResponse,
-    OIDCMappingsResponse,
     OIDCSettingsResponse,
     PlatformAuthSettingsResponse,
     StorageBackfillStatusResponse,
+    CaptchaSettingsResponse,
+    CaptchaSettingsUpdate,
+    PushSettingsResponse,
+    PushSettingsUpdate,
     StorageSettingsResponse,
     StorageSettingsUpdate,
     StorageTestResponse,
 )
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import GuildStatus, operator_status_choices
 from app.schemas.platform.guild import (
     PlatformGuildRestore,
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
 )
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
-from app.schemas.platform.access_grant import BreakGlassCreate
+from app.schemas.platform.access_grant import BreakGlassCreate, SecondFactorAnswer
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.push import FCMConfigResponse
 from app.core.messages import (
     BillingMessages,
     GuildMessages,
-    InitiativeMessages,
     SettingsMessages,
 )
 from app.core.security import (
@@ -84,7 +79,6 @@ from app.core.security import (
 )
 from app.services.platform.identity_refs import billing_refs, billing_user_ref
 from app.services.platform import access_grants as access_grants_service
-from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import narrowing_review
 from app.services.auth import platform_provider as platform_provider_service
 from app.core.login_methods import (
@@ -96,8 +90,14 @@ from app.core.login_methods import (
 from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import push_config
+from app.services import captcha as captcha_service
+from app.services.captcha_config import ResolvedCaptchaConfig
+from app.services.platform import billing as billing_service
+from app.services.platform import billing_ping
 from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
+from app.services.platform import push_tokens
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import storage_backfill, storage_config
@@ -115,6 +115,14 @@ _SESSION_LIFETIME_FIELDS: tuple[str, ...] = (
     "session_idle_minutes",
 )
 
+#: What this deployment permits a notification to leave the app carrying, for
+#: the record.
+_NOTIFICATION_FIELDS: tuple[str, ...] = (
+    "push_notifications_enabled",
+    "email_notifications_enabled",
+    "redact_notification_content",
+)
+
 #: What the operator's caps and entitlements for one community consist of.
 _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
     "max_storage_bytes",
@@ -124,21 +132,7 @@ _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
     "support_enabled",
 )
 
-#: What a claim rule places somebody by, for the record.
-_CLAIM_RULE_FIELDS: tuple[str, ...] = (
-    "provider_id",
-    "claim_value",
-    "target_type",
-    "guild_role",
-    "initiative_id",
-    "initiative_role_id",
-)
-
-
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
-
-#: The guild roles a claim mapping may name, as the strings it stores them as.
-_MAPPABLE_GUILD_ROLES: frozenset[str] = claim_rules.MAPPABLE_GUILD_ROLES
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 router = APIRouter()
 
@@ -155,14 +149,16 @@ def _frontend_redirect_uri() -> str:
     return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
 
 
-def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
+def _email_settings_payload(
+    settings_obj: AppSetting, secrets: AppSettingSecret
+) -> EmailSettingsResponse:
     return EmailSettingsResponse(
         host=settings_obj.smtp_host,
         port=settings_obj.smtp_port,
         secure=settings_obj.smtp_secure,
         reject_unauthorized=settings_obj.smtp_reject_unauthorized,
         username=settings_obj.smtp_username,
-        has_password=bool(settings_obj.smtp_password_encrypted),
+        has_password=bool(secrets.smtp_password_encrypted),
         from_address=settings_obj.smtp_from_address,
         test_recipient=settings_obj.smtp_test_recipient,
     )
@@ -191,8 +187,8 @@ def _platform_oidc_response(provider) -> OIDCSettingsResponse:
 
 @router.get("/auth", response_model=OIDCSettingsResponse)
 async def get_oidc_settings(
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    session: SystemSessionDep,
+    _owner: ConfigManageDep,
 ) -> OIDCSettingsResponse:
     """The install's redirect addresses. System engine: ``auth_providers``
     carries no request-path grant; the capability gate stays
@@ -241,8 +237,8 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
 
 @router.get("/auth/platform", response_model=PlatformAuthSettingsResponse)
 async def get_platform_auth_settings(
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    session: SystemSessionDep,
+    _owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Which ways in are permitted. System engine: the guard counts read
     ``auth_providers`` and ``federated_identities``, neither of which carries a
@@ -253,8 +249,8 @@ async def get_platform_auth_settings(
 @router.put("/auth/methods", response_model=PlatformAuthSettingsResponse)
 async def update_login_methods(
     payload: LoginMethodsUpdate,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
+    session: SystemSessionDep,
+    owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set which ways in this deployment permits — at least one.
 
@@ -266,7 +262,7 @@ async def update_login_methods(
         session,
         methods=payload.methods,
         acknowledge_stranded=payload.acknowledge_stranded,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return await _platform_auth_payload(session)
 
@@ -276,8 +272,8 @@ async def update_login_methods(
 )
 async def update_second_factor_requirement(
     payload: SecondFactorRequirementUpdate,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
+    session: SystemSessionDep,
+    owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set who this deployment asks to hold a second factor.
 
@@ -293,7 +289,7 @@ async def update_second_factor_requirement(
     its owner holds a factor.
     """
     await auth_posture.set_second_factor_requirement(
-        session, level=payload.level, actor=admin
+        session, level=payload.level, actor=owner
     )
     return await _platform_auth_payload(session)
 
@@ -301,8 +297,8 @@ async def update_second_factor_requirement(
 @router.put("/auth/session-lifetime", response_model=PlatformAuthSettingsResponse)
 async def update_session_lifetime(
     payload: SessionLifetimeUpdate,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
+    session: SystemSessionDep,
+    owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
     """Set how long somebody may stay signed in before signing in again.
 
@@ -329,11 +325,78 @@ async def update_session_lifetime(
         await audit_service.record(
             session,
             event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
-            actor_user_id=admin.id,
+            actor_user_id=owner.id,
             detail={"area": "session_lifetime", **changed},
         )
     await session.commit()
     return await _platform_auth_payload(session)
+
+
+async def _notification_payload(session) -> NotificationSettingsResponse:
+    row = await app_settings_service.get_app_settings(session)
+    return NotificationSettingsResponse(
+        push_notifications_enabled=row.push_notifications_enabled,
+        email_notifications_enabled=row.email_notifications_enabled,
+        redact_notification_content=row.redact_notification_content,
+    )
+
+
+@router.get("/notifications", response_model=NotificationSettingsResponse)
+async def get_notification_settings(
+    session: UserSessionDep,
+    _owner: ConfigManageDep,
+) -> NotificationSettingsResponse:
+    """What this deployment permits a notification to leave the app carrying."""
+    return await _notification_payload(session)
+
+
+@router.put("/notifications", response_model=NotificationSettingsResponse)
+async def update_notification_settings(
+    payload: NotificationSettingsUpdate,
+    session: SystemSessionDep,
+    owner: ConfigManageDep,
+) -> NotificationSettingsResponse:
+    """Decide what this deployment permits a notification to leave the app with.
+
+    Every community is held to this as a ceiling: one may decline a channel the
+    deployment permits, and none may take back one the deployment has declined.
+
+    Switching push off drops the device tokens this deployment was holding, and
+    the registration endpoint declines while it stays off — so the deployment
+    stops sending and stops keeping the addresses it was sending to. Devices
+    register again the next time the app starts, which is what restores
+    delivery when it is switched back on.
+
+    Switching email off stops notification email and nothing else: a sign-in
+    code, an address to confirm, a password reset and the notices an account
+    gets about itself keep going, because this must not lock anybody out of
+    their account.
+    """
+    row = await app_settings_service.ensure_settings_row(session)
+    before = audit_service.snapshot(row, _NOTIFICATION_FIELDS)
+    dropping_push = row.push_notifications_enabled and not (
+        payload.push_notifications_enabled
+    )
+    row.push_notifications_enabled = payload.push_notifications_enabled
+    row.email_notifications_enabled = payload.email_notifications_enabled
+    row.redact_notification_content = payload.redact_notification_content
+    session.add(row)
+    await session.flush()
+    if dropping_push:
+        dropped = await push_tokens.purge_all(session)
+        logger.info("push notifications switched off; dropped %d token(s)", dropped)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, _NOTIFICATION_FIELDS)
+    )
+    if changed["changed"]:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
+            actor_user_id=owner.id,
+            detail={"area": "notifications", **changed},
+        )
+    await session.commit()
+    return await _notification_payload(session)
 
 
 @router.get("/interface", response_model=InterfaceSettingsResponse)
@@ -352,14 +415,14 @@ async def get_interface_settings(
 async def update_interface_settings(
     payload: InterfaceSettingsUpdate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> InterfaceSettingsResponse:
     settings_obj = await app_settings_service.update_interface_settings(
         session,
         light_accent_color=payload.light_accent_color,
         dark_accent_color=payload.dark_accent_color,
         cookie_consent_enabled=payload.cookie_consent_enabled,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
@@ -371,7 +434,7 @@ async def update_interface_settings(
 @router.get("/community", response_model=CommunitySettingsResponse)
 async def read_community_settings(
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> CommunitySettingsResponse:
     """The four community-wide decisions, for the owner's settings page.
 
@@ -389,6 +452,7 @@ async def read_community_settings(
         direct_messages_enabled=settings_obj.direct_messages_enabled,
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
         deleted_account_retention_days=settings_obj.deleted_account_retention_days,
+        on_hold_community_deletion_days=settings_obj.on_hold_community_deletion_days,
     )
 
 
@@ -396,7 +460,7 @@ async def read_community_settings(
 async def update_community_settings(
     payload: CommunitySettingsUpdate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> CommunitySettingsResponse:
     """Turn the community directory on or off for the whole deployment.
 
@@ -431,6 +495,9 @@ async def update_community_settings(
     put in it, so this field reads its presence rather than its value — omit it
     to leave the window alone. The figure is the deployment's; a community has
     no say in its own.
+
+    ``on_hold_community_deletion_days`` reads the same way: how long a
+    community stays on hold before it is deleted, and ``null`` for never.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
@@ -444,7 +511,10 @@ async def update_community_settings(
         deleted_account_retention_days=payload.deleted_account_retention_days,
         account_retention_provided="deleted_account_retention_days"
         in payload.model_fields_set,
-        actor_user_id=admin.id,
+        on_hold_community_deletion_days=payload.on_hold_community_deletion_days,
+        hold_deletion_provided="on_hold_community_deletion_days"
+        in payload.model_fields_set,
+        actor_user_id=owner.id,
     )
     return CommunitySettingsResponse(
         community_directory_enabled=settings_obj.community_directory_enabled,
@@ -453,28 +523,37 @@ async def update_community_settings(
         direct_messages_enabled=settings_obj.direct_messages_enabled,
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
         deleted_account_retention_days=settings_obj.deleted_account_retention_days,
+        on_hold_community_deletion_days=settings_obj.on_hold_community_deletion_days,
     )
 
 
 @router.get("/email", response_model=EmailSettingsResponse)
 async def get_email_settings(
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    system_session: SystemSessionDep,
+    _owner: ConfigManageDep,
 ) -> EmailSettingsResponse:
+    # Whether a password is stored is read on the system engine, which alone
+    # holds app_setting_secrets.
     settings_obj = await app_settings_service.get_app_settings(session)
-    return _email_settings_payload(settings_obj)
+    secrets = await app_settings_service.get_app_setting_secrets(system_session)
+    return _email_settings_payload(settings_obj, secrets)
 
 
 @router.put("/email", response_model=EmailSettingsResponse)
 async def update_email_settings(
     payload: EmailSettingsUpdate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    system_session: SystemSessionDep,
+    owner: ConfigManageDep,
 ) -> EmailSettingsResponse:
+    # The settings row is written under the owner's tier; the password, when
+    # one is sent, on the system engine.
     data = payload.model_dump(exclude_unset=True)
     password_provided = "password" in data
-    updated = await app_settings_service.update_email_settings(
+    updated, secrets = await app_settings_service.update_email_settings(
         session,
+        system_session=system_session,
         host=payload.host,
         port=payload.port,
         secure=payload.secure,
@@ -484,16 +563,16 @@ async def update_email_settings(
         password_provided=password_provided,
         from_address=payload.from_address,
         test_recipient=payload.test_recipient,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
-    return _email_settings_payload(updated)
+    return _email_settings_payload(updated, secrets)
 
 
 @router.post("/email/test")
 async def send_test_email(
     payload: EmailTestRequest,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> EmailTestResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     recipient = payload.recipient or settings_obj.smtp_test_recipient
@@ -524,7 +603,9 @@ async def send_test_email(
 # --- Object storage ---
 
 
-def _storage_settings_payload(settings_obj: AppSetting) -> StorageSettingsResponse:
+def _storage_settings_payload(
+    settings_obj: AppSetting, secrets: AppSettingSecret
+) -> StorageSettingsResponse:
     backend = (settings_obj.storage_backend or "local").lower()
     return StorageSettingsResponse(
         backend="s3" if backend == "s3" else "local",
@@ -532,7 +613,7 @@ def _storage_settings_payload(settings_obj: AppSetting) -> StorageSettingsRespon
         s3_region=settings_obj.s3_region or "us-east-1",
         s3_endpoint_url=settings_obj.s3_endpoint_url,
         s3_access_key_id=settings_obj.s3_access_key_id,
-        has_secret_access_key=bool(settings_obj.s3_secret_access_key_encrypted),
+        has_secret_access_key=bool(secrets.s3_secret_access_key_encrypted),
         s3_use_path_style=settings_obj.s3_use_path_style,
         s3_kms_key_id=settings_obj.s3_kms_key_id,
         s3_local_fallback=settings_obj.s3_local_fallback,
@@ -542,22 +623,30 @@ def _storage_settings_payload(settings_obj: AppSetting) -> StorageSettingsRespon
 @router.get("/storage", response_model=StorageSettingsResponse)
 async def get_storage_settings(
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    system_session: SystemSessionDep,
+    _owner: ConfigManageDep,
 ) -> StorageSettingsResponse:
+    # Whether a secret key is stored is read on the system engine, which alone
+    # holds app_setting_secrets.
     settings_obj = await app_settings_service.get_app_settings(session)
-    return _storage_settings_payload(settings_obj)
+    secrets = await app_settings_service.get_app_setting_secrets(system_session)
+    return _storage_settings_payload(settings_obj, secrets)
 
 
 @router.put("/storage", response_model=StorageSettingsResponse)
 async def update_storage_settings(
     payload: StorageSettingsUpdate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    system_session: SystemSessionDep,
+    owner: ConfigManageDep,
 ) -> StorageSettingsResponse:
+    # The settings row is written under the owner's tier; the secret key, when
+    # one is sent, on the system engine.
     data = payload.model_dump(exclude_unset=True)
     secret_provided = "s3_secret_access_key" in data
-    updated = await app_settings_service.update_storage_settings(
+    updated, secrets = await app_settings_service.update_storage_settings(
         session,
+        system_session=system_session,
         backend=payload.backend,
         s3_bucket=payload.s3_bucket,
         s3_region=payload.s3_region,
@@ -568,23 +657,23 @@ async def update_storage_settings(
         s3_use_path_style=payload.s3_use_path_style,
         s3_kms_key_id=payload.s3_kms_key_id,
         s3_local_fallback=payload.s3_local_fallback,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
-    return _storage_settings_payload(updated)
+    return _storage_settings_payload(updated, secrets)
 
 
 @router.post("/storage/test", response_model=StorageTestResponse)
 async def test_storage_connection(
     payload: StorageSettingsUpdate,
-    session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> StorageTestResponse:
-    # Test the submitted (possibly unsaved) config. If the admin left the secret
-    # blank, fall back to the saved one so they can re-test without re-typing it.
+    # Test the submitted (possibly unsaved) config. If the owner left the secret
+    # blank, fall back to the saved one so they can re-test without re-typing it
+    # (read on the system engine, which alone holds app_setting_secrets).
     data = payload.model_dump(exclude_unset=True)
     secret = payload.s3_secret_access_key
     if "s3_secret_access_key" not in data or not secret:
-        secret = await storage_config.resolve_saved_secret(session)
+        secret = await storage_config.resolve_saved_secret()
     candidate = storage_config.ResolvedStorageConfig(
         backend="s3" if payload.backend == "s3" else "local",
         bucket=(payload.s3_bucket or "").strip() or None,
@@ -618,8 +707,8 @@ def _backfill_payload(row: dict) -> StorageBackfillStatusResponse:
 
 @router.post("/storage/backfill", response_model=StorageBackfillStatusResponse)
 async def start_storage_backfill(
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    session: SystemSessionDep,
+    _owner: ConfigManageDep,
 ) -> StorageBackfillStatusResponse:
     # The backfill writes to S3 via the saved credentials, so they must be set
     # (the documented flow runs it while still serving on "local").
@@ -643,10 +732,119 @@ async def start_storage_backfill(
 
 @router.get("/storage/backfill", response_model=StorageBackfillStatusResponse)
 async def get_storage_backfill_status(
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
+    session: SystemSessionDep,
+    _owner: ConfigManageDep,
 ) -> StorageBackfillStatusResponse:
     return _backfill_payload(await storage_backfill.get_status(session))
+
+
+# --- Registration captcha ---
+
+
+def _captcha_payload(
+    settings_obj: AppSetting, secrets: AppSettingSecret
+) -> CaptchaSettingsResponse:
+    has_secret = bool(secrets.captcha_secret_key_encrypted)
+    provider = settings_obj.captcha_provider
+    return CaptchaSettingsResponse(
+        provider=provider,
+        site_key=settings_obj.captcha_site_key,
+        has_secret_key=has_secret,
+        # The client cannot see the secret, so it cannot work out whether
+        # enforcement is on. Answered here, by the same predicate the verifier
+        # uses, so the page and the register endpoint agree.
+        enforcing=captcha_service.is_configured(
+            ResolvedCaptchaConfig(
+                provider=provider,
+                site_key=settings_obj.captcha_site_key,
+                secret_key="stored" if has_secret else None,
+            )
+        ),
+    )
+
+
+@router.get("/captcha", response_model=CaptchaSettingsResponse)
+async def get_captcha_settings(
+    session: UserSessionDep,
+    system_session: SystemSessionDep,
+    _owner: ConfigManageDep,
+) -> CaptchaSettingsResponse:
+    settings_obj = await app_settings_service.get_app_settings(session)
+    secrets = await app_settings_service.get_app_setting_secrets(system_session)
+    return _captcha_payload(settings_obj, secrets)
+
+
+@router.put("/captcha", response_model=CaptchaSettingsResponse)
+async def update_captcha_settings(
+    payload: CaptchaSettingsUpdate,
+    session: UserSessionDep,
+    system_session: SystemSessionDep,
+    owner: ConfigManageDep,
+) -> CaptchaSettingsResponse:
+    # An absent secret_key keeps the stored one; an explicit null or "" clears
+    # it. Same contract as the storage page, so an owner can edit the site key
+    # without re-typing a secret they cannot read back.
+    data = payload.model_dump(exclude_unset=True)
+    updated, secrets = await app_settings_service.update_captcha_settings(
+        session,
+        system_session=system_session,
+        provider=payload.provider,
+        site_key=payload.site_key,
+        secret_key=payload.secret_key,
+        secret_provided="secret_key" in data,
+        actor_user_id=owner.id,
+    )
+    return _captcha_payload(updated, secrets)
+
+
+# --- Push notifications (FCM) ---
+
+
+def _push_payload(
+    settings_obj: AppSetting, secrets: AppSettingSecret
+) -> PushSettingsResponse:
+    return PushSettingsResponse(
+        enabled=settings_obj.fcm_enabled,
+        project_id=settings_obj.fcm_project_id,
+        application_id=settings_obj.fcm_application_id,
+        api_key=settings_obj.fcm_api_key,
+        sender_id=settings_obj.fcm_sender_id,
+        has_service_account=bool(secrets.fcm_service_account_json_encrypted),
+    )
+
+
+@router.get("/push", response_model=PushSettingsResponse)
+async def get_push_settings(
+    session: UserSessionDep,
+    system_session: SystemSessionDep,
+    _owner: ConfigManageDep,
+) -> PushSettingsResponse:
+    settings_obj = await app_settings_service.get_app_settings(session)
+    secrets = await app_settings_service.get_app_setting_secrets(system_session)
+    return _push_payload(settings_obj, secrets)
+
+
+@router.put("/push", response_model=PushSettingsResponse)
+async def update_push_settings(
+    payload: PushSettingsUpdate,
+    session: UserSessionDep,
+    system_session: SystemSessionDep,
+    owner: ConfigManageDep,
+) -> PushSettingsResponse:
+    data = payload.model_dump(exclude_unset=True)
+    updated, secrets = await app_settings_service.update_push_settings(
+        session,
+        system_session=system_session,
+        enabled=payload.enabled,
+        project_id=payload.project_id,
+        application_id=payload.application_id,
+        api_key=payload.api_key,
+        sender_id=payload.sender_id,
+        service_account_json=payload.service_account_json,
+        secret_provided="service_account_json" in data,
+        actor_user_id=owner.id,
+    )
+    return _push_payload(updated, secrets)
 
 
 @router.get("/fcm-config", response_model=FCMConfigResponse)
@@ -659,15 +857,20 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
     Service account credentials are NOT exposed.
 
     Rate limited to 20 requests per minute to prevent abuse.
+
+    Read from the settings row (``push_config``), not the environment: an owner
+    who turns push on in Settings has the mobile clients pick it up on their
+    next launch rather than on the next redeploy. The resolver opens its own
+    system-engine session, which is what lets this endpoint stay
+    unauthenticated and sessionless.
     """
+    cfg = await push_config.ensure_push_config_fresh()
     return FCMConfigResponse(
-        enabled=app_config.FCM_ENABLED,
-        project_id=app_config.FCM_PROJECT_ID if app_config.FCM_ENABLED else None,
-        application_id=app_config.FCM_APPLICATION_ID
-        if app_config.FCM_ENABLED
-        else None,
-        api_key=app_config.FCM_API_KEY if app_config.FCM_ENABLED else None,
-        sender_id=app_config.FCM_SENDER_ID if app_config.FCM_ENABLED else None,
+        enabled=cfg.enabled,
+        project_id=cfg.project_id if cfg.enabled else None,
+        application_id=cfg.application_id if cfg.enabled else None,
+        api_key=cfg.api_key if cfg.enabled else None,
+        sender_id=cfg.sender_id if cfg.enabled else None,
     )
 
 
@@ -689,18 +892,92 @@ def _guild_purge_at(guild: Guild, retention: int | None) -> datetime | None:
     return guild_purge.purge_at(guild.status_changed_at, retention)
 
 
+def _guild_storage_read(
+    guild: Guild,
+    administration: GuildAdministration | None,
+    *,
+    member_count: int,
+    has_seat: bool,
+    retention: int | None,
+) -> PlatformGuildStorageRead:
+    """One row of the Guilds tab.
+
+    ``administration`` is None only for a guild missing its companion row,
+    which is listed with blank caps rather than dropped.
+    """
+    current = GuildStatus(guild.status)
+    recorded = administration.billing_status if administration else None
+    return PlatformGuildStorageRead(
+        id=guild.id,
+        name=guild.name,
+        member_count=member_count,
+        purge_at=_guild_purge_at(guild, retention),
+        has_seat=has_seat,
+        tier_name=administration.tier_name if administration else None,
+        max_storage_bytes=(
+            administration.max_storage_bytes if administration else None
+        ),
+        max_users=administration.max_users if administration else None,
+        status=current,
+        status_changed_at=guild.status_changed_at,
+        status_choices=list(
+            operator_status_choices(
+                current,
+                billing_status=GuildStatus(recorded) if recorded else None,
+                billing_managed=billing_service.billing_managed(),
+            )
+        ),
+        auth_options=sorted(administration.auth_options) if administration else [],
+        banner_image_enabled=(
+            administration.banner_image_enabled if administration else True
+        ),
+        support_enabled=administration.support_enabled if administration else False,
+    )
+
+
+async def _member_tallies() -> tuple[dict[int, int], set[int]]:
+    """Each community's member count, and which communities hold their seat.
+
+    Two grouped queries for the whole deployment, on the system engine: the
+    platform tier reads no roster but its own memberships, and this list needs
+    only the totals, not the rows behind them.
+    """
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        counts = dict(
+            (
+                await system_session.exec(
+                    select(GuildMembership.guild_id, func.count()).group_by(
+                        GuildMembership.guild_id
+                    )
+                )
+            ).all()
+        )
+        seated = set(
+            (
+                await system_session.exec(
+                    select(GuildMembership.guild_id)
+                    .where(GuildMembership.role == GuildRole.superadmin)
+                    .distinct()
+                )
+            ).all()
+        )
+    return counts, seated
+
+
 @router.get("/guilds", response_model=list[PlatformGuildStorageRead])
 async def list_platform_guild_storage(
-    session: AdminSessionDep,
-    _admin: GuildsManageDep,
+    session: UserSessionDep,
+    _operator: GuildsManageDep,
 ) -> list[PlatformGuildStorageRead]:
     """List every guild with its storage cap, for the Operator dashboard Guilds tab.
 
-    Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
-    (``guilds``, ``guild_administration``, ``guild_memberships``) — no
-    guild-scoped content — so it runs on the system admin engine without routing
-    into any guild schema. The caps join in a single pass, and member counts come
-    from one grouped query rather than per-guild (no N+1).
+    Operator/owner (``guilds.manage``). Reads only shared ``public`` tables. The
+    guilds and their administration rows are read on the caller's platform
+    tier, under the ``guilds.manage`` policies on both; the caps join in a
+    single pass. Member counts and seats are totals read on the system engine
+    (``_member_tallies``), one grouped query each rather than per guild.
     """
     # Outer join on purpose: this is the operator's view of *every* guild, and a
     # guild missing its companion row must still be listed (with blank caps) so
@@ -714,50 +991,15 @@ async def list_platform_guild_storage(
             .order_by(Guild.name)
         )
     ).all()
-    counts = dict(
-        (
-            await session.exec(
-                select(GuildMembership.guild_id, func.count()).group_by(
-                    GuildMembership.guild_id
-                )
-            )
-        ).all()
-    )
     retention = await guild_purge.retention_days(session)
-    # Which guilds still hold the seat that configures them. One grouped query
-    # beside the member counts rather than a per-guild check, for the same
-    # reason: this list is every guild on the deployment.
-    seated = {
-        row
-        for row in (
-            await session.exec(
-                select(GuildMembership.guild_id)
-                .where(GuildMembership.role == GuildRole.superadmin)
-                .distinct()
-            )
-        ).all()
-    }
+    counts, seated = await _member_tallies()
     return [
-        PlatformGuildStorageRead(
-            id=g.id,
-            name=g.name,
+        _guild_storage_read(
+            g,
+            administration,
             member_count=counts.get(g.id, 0),
-            purge_at=_guild_purge_at(g, retention),
             has_seat=g.id in seated,
-            tier_name=administration.tier_name if administration else None,
-            max_storage_bytes=(
-                administration.max_storage_bytes if administration else None
-            ),
-            max_users=administration.max_users if administration else None,
-            status=GuildStatus(g.status),
-            status_changed_at=g.status_changed_at,
-            auth_options=sorted(administration.auth_options) if administration else [],
-            banner_image_enabled=(
-                administration.banner_image_enabled if administration else True
-            ),
-            support_enabled=(
-                administration.support_enabled if administration else False
-            ),
+            retention=retention,
         )
         for g, administration in rows
     ]
@@ -767,10 +1009,10 @@ async def list_platform_guild_storage(
 async def update_platform_guild_storage(
     guild_id: int,
     payload: PlatformGuildStorageUpdate,
-    session: AdminSessionDep,
-    admin: GuildsManageDep,
+    session: SystemSessionDep,
+    operator: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
-    """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
+    """Set a guild's storage/member caps and/or lifecycle status. Operator/owner.
 
     Writes only shared ``public`` columns — the caps and the sign-in entitlement
     on ``guild_administration``, the lifecycle ``status`` on ``guilds`` — so no
@@ -782,8 +1024,25 @@ async def update_platform_guild_storage(
     path (see ``_load_guild_context``) but never touches stored data, and PAM /
     break-glass grants override it so operators can't lock themselves out.
     Lowering a cap below current usage just blocks further uploads / new joins.
+
+    Where billing sets plans (``billing_service.billing_managed``), the caps and
+    entitlements are refused and the status may only move to one of the row's
+    ``status_choices``; the triggers of migration 0364 hold the database to the
+    same rule.
     """
     provided = payload.model_fields_set
+    managed = billing_service.billing_managed()
+    if managed and (
+        "max_storage_bytes" in provided
+        or "max_users" in provided
+        or payload.auth_options is not None
+        or payload.banner_image_enabled is not None
+        or payload.support_enabled is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=GuildMessages.GUILD_PLAN_SET_BY_BILLING,
+        )
     before: dict[str, Any] = {}
     status_before: str | None = None
     status_after: str | None = None
@@ -804,12 +1063,29 @@ async def update_platform_guild_storage(
             support_enabled=payload.support_enabled,
         )
         if payload.status is not None and guild.status != payload.status.value:
+            recorded = (
+                await guilds_service.get_administration(session, guild_id=guild_id)
+            ).billing_status
+            choices = operator_status_choices(
+                GuildStatus(guild.status),
+                billing_status=GuildStatus(recorded) if recorded else None,
+                billing_managed=managed,
+            )
+            if payload.status not in choices:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        GuildMessages.GUILD_STATUS_SET_BY_BILLING
+                        if managed
+                        else GuildMessages.GUILD_STATUS_NOT_SETTABLE
+                    ),
+                )
             logger.info(
                 "guild %s status %s -> %s by user %s",
                 guild_id,
                 guild.status,
                 payload.status.value,
-                admin.id,
+                operator.id,
             )
             status_before, status_after = guild.status, payload.status.value
             guild = await guilds_service.set_guild_status(
@@ -841,7 +1117,7 @@ async def update_platform_guild_storage(
         await audit_service.record(
             session,
             event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
-            actor_user_id=admin.id,
+            actor_user_id=operator.id,
             guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
@@ -851,41 +1127,39 @@ async def update_platform_guild_storage(
         await audit_service.record(
             session,
             event_type=AuditEventType.GUILD_STATUS_CHANGED,
-            actor_user_id=admin.id,
+            actor_user_id=operator.id,
             guild_id=guild_id,
             target_type="guild",
             target_id=guild_id,
             detail={"from": status_before, "to": status_after},
         )
     await session.commit()
-    member_count = await guilds_service.count_members(session, guild_id=guild_id)
-    return PlatformGuildStorageRead(
-        id=guild.id,
-        name=guild.name,
-        member_count=member_count,
-        tier_name=administration.tier_name,
-        max_storage_bytes=administration.max_storage_bytes,
-        max_users=administration.max_users,
-        status=GuildStatus(guild.status),
-        status_changed_at=guild.status_changed_at,
-        purge_at=_guild_purge_at(guild, await guild_purge.retention_days(session)),
+    if status_after is not None:
+        # Billing reads the new status for itself: a suspended community's
+        # subscription is paused, and one that comes back is resumed.
+        billing_ping.notify_lifecycle_changed(guild_id)
+        if status_after == GuildStatus.on_hold.value:
+            await guilds_service.announce_on_hold(session, guild_id)
+            guild = await guilds_service.get_guild(session, guild_id=guild_id)
+    return _guild_storage_read(
+        guild,
+        administration,
+        member_count=await guilds_service.count_members(session, guild_id=guild_id),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild.id),
-        auth_options=sorted(administration.auth_options),
-        banner_image_enabled=administration.banner_image_enabled,
-        support_enabled=administration.support_enabled,
+        retention=await guild_purge.retention_days(session),
     )
 
 
 @router.get("/guilds/{guild_id}/narrowings", response_model=list[GuildNarrowingPending])
 async def read_guild_narrowings(
     guild_id: int,
-    session: AdminSessionDep,
-    admin: GuildsManageDep,
+    session: SystemSessionDep,
+    operator: GuildsManageDep,
 ) -> list[GuildNarrowingPending]:
     """What this community says its own arrivals look like, and whether
     anybody has agreed.
 
-    Admin/owner (``guilds.manage``). The community writes these values itself
+    Operator/owner (``guilds.manage``). The community writes these values itself
     and nothing here can tell whether it holds the domain or tenant they name,
     so the answer is the deployment's. Support answers through the case raised
     when they are written; this is the same question where a deployment runs
@@ -902,8 +1176,8 @@ async def agree_guild_narrowing(
     guild_id: int,
     connection_id: int,
     payload: GuildNarrowingAgreement,
-    session: AdminSessionDep,
-    admin: GuildsManageDep,
+    session: SystemSessionDep,
+    operator: GuildsManageDep,
 ) -> GuildNarrowingPending:
     """Agree that these values are this community's, or withdraw that.
 
@@ -916,7 +1190,7 @@ async def agree_guild_narrowing(
         guild_id=guild_id,
         connection_id=connection_id,
         agreed=payload.agreed,
-        actor_user_id=admin.id,
+        actor_user_id=operator.id,
     )
 
 
@@ -924,21 +1198,23 @@ async def agree_guild_narrowing(
 async def restore_platform_guild(
     guild_id: int,
     payload: PlatformGuildRestore,
-    session: AdminSessionDep,
-    admin: GuildsManageDep,
+    session: SystemSessionDep,
+    operator: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
     """Bring a deleted guild back before its retention window runs out.
 
-    Admin/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+    Operator/owner (``guilds.manage``). Deleting a guild keeps it — the shared
     rows, the ``guild_<id>`` schema and the stored blobs all stay until
     ``guild_purge`` destroys them — so restoring is a status write plus, where
     the roster was emptied, seating somebody who can run the community again.
 
     The operator names the status it returns at, and must name a seat when the
     guild holds none. Both are re-checked in the service rather than trusted
-    from the payload. What does *not* come back is the guild's app
-    connections: those were revoked when it was deleted, and an admin
-    reconnects them.
+    from the payload. Where billing sets plans, the status is the one billing
+    last wrote or ``suspended`` (``restore_status_choices``); the trigger of
+    migration 0364 holds the database to the same rule. What does *not* come back is the guild's app
+    connections: those were revoked when it was deleted, and the community's
+    superadmin reconnects them.
 
     Writes only shared ``public`` columns (``guilds.status`` and, for the seat,
     ``guild_memberships``), so no guild-schema routing is needed.
@@ -949,7 +1225,7 @@ async def restore_platform_guild(
             guild_id=guild_id,
             status=payload.status,
             seat_user_id=payload.seat_user_id,
-            actor_user_id=admin.id,
+            actor_user_id=operator.id,
         )
     except ValueError as exc:
         code = str(exc)
@@ -957,30 +1233,28 @@ async def restore_platform_guild(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=code
             ) from exc
-        if code == GuildMessages.GUILD_NOT_DELETED:
+        if code in (
+            GuildMessages.GUILD_NOT_DELETED,
+            GuildMessages.GUILD_RESTORE_STATUS_SET_BY_BILLING,
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=code
             ) from exc
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=code
         ) from exc
-    logger.info("guild %s restored as %s by user %s", guild_id, guild.status, admin.id)
+    logger.info(
+        "guild %s restored as %s by user %s", guild_id, guild.status, operator.id
+    )
     await session.commit()
+    billing_ping.notify_lifecycle_changed(guild_id)
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
-    return PlatformGuildStorageRead(
-        id=guild.id,
-        name=guild.name,
+    return _guild_storage_read(
+        guild,
+        administration,
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
-        tier_name=administration.tier_name,
-        max_storage_bytes=administration.max_storage_bytes,
-        max_users=administration.max_users,
-        status=GuildStatus(guild.status),
-        status_changed_at=guild.status_changed_at,
-        purge_at=_guild_purge_at(guild, await guild_purge.retention_days(session)),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
-        auth_options=sorted(administration.auth_options),
-        banner_image_enabled=administration.banner_image_enabled,
-        support_enabled=administration.support_enabled,
+        retention=await guild_purge.retention_days(session),
     )
 
 
@@ -990,17 +1264,20 @@ async def restore_platform_guild(
 )
 async def create_platform_guild_billing_service_handoff(
     guild_id: int,
-    session: AdminSessionDep,
-    admin: GuildsManageDep,
+    session: SystemSessionDep,
+    operator: GuildsManageDep,
     console: Literal["support", "operator"] = "support",
+    answer: SecondFactorAnswer | None = None,
 ) -> BillingPortalHandoffResponse:
     """Mint the operator handoff into the billing portal for one guild.
 
-    Backs the Guilds tab's per-guild billing button. Admin/owner
-    (``guilds.manage``). The token names the ``access_grants`` row that
-    authorises the visit: an already-live grant is reused, otherwise one is
-    self-issued (read-only — the operator is not reaching guild content
-    through this) so the visit is recorded on both sides.
+    Backs the Guilds tab's billing buttons. Operator/owner (``guilds.manage``).
+    The token names the ``access_grants`` row that authorises the visit: a
+    live billing grant is reused, otherwise one is self-issued — after the
+    account's second factor, as breaking glass takes it — so the visit is
+    recorded on both sides. A billing grant reaches the billing account and
+    nothing in the guild; what it may do there is the billing service's to
+    decide.
     """
     if not app_config.BILLING_URL:
         raise HTTPException(
@@ -1008,10 +1285,10 @@ async def create_platform_guild_billing_service_handoff(
             detail=BillingMessages.PORTAL_NOT_CONFIGURED,
         )
 
-    exists = (
-        await session.exec(select(Guild.id).where(Guild.id == guild_id))
+    guild_name = (
+        await session.exec(select(Guild.name).where(Guild.id == guild_id))
     ).one_or_none()
-    if exists is None:
+    if guild_name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildMessages.GUILD_NOT_FOUND,
@@ -1019,15 +1296,21 @@ async def create_platform_guild_billing_service_handoff(
 
     grant = await access_grants_service.get_live_grant(
         session,
-        user_id=admin.id,
+        user_id=operator.id,
         guild_id=guild_id,
         purpose=AccessGrantPurpose.billing,
     )
     if grant is None:
+        await check_second_factor(
+            session,
+            actor=operator,
+            answer=answer or SecondFactorAnswer(),
+            during="billing_handoff",
+        )
         try:
             grant = await access_grants_service.break_glass(
                 session,
-                actor=admin,
+                actor=operator,
                 # A visit to the portal, and nothing in the guild.
                 level=AccessLevel.read.value,
                 payload=BreakGlassCreate(
@@ -1046,11 +1329,12 @@ async def create_platform_guild_billing_service_handoff(
             ) from exc
 
     try:
-        user_ref, guild_ref = await billing_refs(user_id=admin.id, guild_id=guild_id)
+        user_ref, guild_ref = await billing_refs(user_id=operator.id, guild_id=guild_id)
         token, expires_in_seconds = create_billing_support_handoff_token(
             grant_id=grant.id,
             user_ref=user_ref,
             guild_ref=guild_ref,
+            guild_name=guild_name,
             approver_ref=(
                 await billing_user_ref(user_id=grant.approved_by_id)
                 if grant.approved_by_id is not None
@@ -1067,396 +1351,12 @@ async def create_platform_guild_billing_service_handoff(
     await session.commit()
     logger.info(
         "billing portal: operator %s (%s) opened guild %s under grant %s",
-        admin.id,
-        admin.role.value,
+        operator.id,
+        operator.role.value,
         guild_id,
         grant.id,
     )
     return BillingPortalHandoffResponse(
         handoff_token=token,
         expires_in_seconds=expires_in_seconds,
-    )
-
-
-# --- OIDC Claim Mapping endpoints ---
-
-
-async def _route_admin_to_guild(session: AsyncSession, guild_id: int) -> None:
-    """Route the admin session into a guild's ``guild_<id>`` schema.
-
-    Initiatives and initiative roles are guild-scoped content: their rows live in
-    each guild's schema, not in the empty ``public`` template copies. Reading them
-    requires routing the session into that schema. ``expunge_all`` first because
-    row ids are unique only within a schema — a cached object from a previously
-    routed guild could otherwise be returned for a colliding id.
-    """
-    session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id)
-
-
-#: A rule's destination is resolved the same way whoever wrote it — the
-#: operator here, or the community on its own surface.
-_reset_admin_session = claim_rules.reset_to_admin_baseline
-_lookup_guild_initiative = claim_rules.lookup_guild_initiative
-
-
-async def _require_known_provider(session: AsyncSession, provider_id: int) -> None:
-    """A rule reads some provider's claims, so it has to name one that exists.
-
-    Which guild it grants in is the rule's own business: every provider is the
-    operator's, and a rule names whichever guild it places somebody in.
-    """
-    if await session.get(AuthProvider, provider_id) is None:
-        raise HTTPException(status_code=400, detail=AuthProviderMessages.NOT_FOUND)
-
-
-async def _enrich_mapping(
-    session: AsyncSession, mapping: OIDCClaimMapping
-) -> OIDCClaimMappingRead:
-    """Build a read schema with denormalized names."""
-    guild_name = None
-    initiative_name = None
-    initiative_role_name = None
-
-    # Which provider's claims this rule reads, by name — the editor lists rules
-    # from several and the value alone does not say whose it is.
-    provider_name = None
-    provider = (
-        await session.exec(
-            select(AuthProvider).where(AuthProvider.id == mapping.provider_id)
-        )
-    ).one_or_none()
-    if provider:
-        provider_name = provider.display_name
-
-    guild = (
-        await session.exec(select(Guild).where(Guild.id == mapping.guild_id))
-    ).one_or_none()
-    if guild:
-        guild_name = guild.name
-
-    if mapping.initiative_id is not None:
-        # Initiatives/roles are guild-scoped: resolve their names inside the
-        # mapping's guild schema, the only place they exist.
-        initiative, role = await _lookup_guild_initiative(
-            session,
-            mapping.guild_id,
-            mapping.initiative_id,
-            mapping.initiative_role_id,
-        )
-        if initiative:
-            initiative_name = initiative.name
-        if role:
-            initiative_role_name = role.display_name
-
-    return OIDCClaimMappingRead(
-        id=mapping.id,
-        provider_id=mapping.provider_id,
-        provider_name=provider_name,
-        claim_value=mapping.claim_value,
-        target_type=mapping.target_type.value
-        if isinstance(mapping.target_type, OIDCMappingTargetType)
-        else mapping.target_type,
-        guild_id=mapping.guild_id,
-        guild_role=mapping.guild_role,
-        initiative_id=mapping.initiative_id,
-        initiative_role_id=mapping.initiative_role_id,
-        guild_name=guild_name,
-        initiative_name=initiative_name,
-        initiative_role_name=initiative_role_name,
-    )
-
-
-@router.get("/oidc-mappings", response_model=OIDCMappingsResponse)
-async def get_oidc_mappings(
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCMappingsResponse:
-    provider = await platform_provider_service.get_platform_provider(session)
-    stmt = select(OIDCClaimMapping).order_by(OIDCClaimMapping.id)
-    mappings = (await session.exec(stmt)).all()
-    enriched = [await _enrich_mapping(session, m) for m in mappings]
-    return OIDCMappingsResponse(
-        claim_path=provider.role_claim_path if provider else None,
-        mappings=enriched,
-    )
-
-
-@router.post(
-    "/oidc-mappings",
-    response_model=OIDCClaimMappingRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_oidc_mapping(
-    payload: OIDCClaimMappingCreate,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
-) -> OIDCClaimMappingRead:
-    # Validate target_type
-    try:
-        target_type = OIDCMappingTargetType(payload.target_type)
-    except ValueError:
-        raise HTTPException(
-            status_code=400, detail=SettingsMessages.INVALID_TARGET_TYPE
-        )
-
-    # What a rule may hand out, from the one set that says so — a claim value
-    # grants an ordinary standing, never the seat that decides who may enter.
-    if payload.guild_role not in _MAPPABLE_GUILD_ROLES:
-        raise HTTPException(status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE)
-
-    # Validate guild exists
-    guild = (
-        await session.exec(select(Guild).where(Guild.id == payload.guild_id))
-    ).one_or_none()
-    if not guild:
-        raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
-
-    await _require_known_provider(session, payload.provider_id)
-
-    # Validate initiative fields if target_type is initiative
-    if target_type == OIDCMappingTargetType.initiative:
-        if not payload.initiative_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_ID_REQUIRED
-            )
-        if not payload.initiative_role_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_ID_REQUIRED
-            )
-        initiative, role = await _lookup_guild_initiative(
-            session,
-            payload.guild_id,
-            payload.initiative_id,
-            payload.initiative_role_id,
-        )
-        if not initiative:
-            raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
-        # Defence-in-depth: the lookup already routed into guild_<payload.guild_id>,
-        # so a found initiative's guild_id matches by construction. Retained to
-        # catch a data-integrity anomaly (an initiative row whose stored guild_id
-        # disagrees with its schema) rather than silently binding the mapping.
-        if initiative.guild_id != payload.guild_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_WRONG_GUILD
-            )
-        if not role:
-            raise HTTPException(
-                status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
-            )
-
-    mapping = OIDCClaimMapping(
-        provider_id=payload.provider_id,
-        claim_value=payload.claim_value.strip(),
-        target_type=target_type,
-        guild_id=payload.guild_id,
-        guild_role=payload.guild_role,
-        initiative_id=payload.initiative_id
-        if target_type == OIDCMappingTargetType.initiative
-        else None,
-        initiative_role_id=payload.initiative_role_id
-        if target_type == OIDCMappingTargetType.initiative
-        else None,
-    )
-    session.add(mapping)
-    await session.flush()
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.CLAIM_RULE_CREATED,
-        actor_user_id=admin.id,
-        guild_id=mapping.guild_id,
-        target_type="claim_rule",
-        target_id=mapping.id,
-        detail={
-            "via": "operator",
-            **audit_service.changed_fields(
-                {}, audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
-            ),
-        },
-    )
-    await session.commit()
-    await session.refresh(mapping)
-    return await _enrich_mapping(session, mapping)
-
-
-@router.put("/oidc-mappings/{mapping_id}", response_model=OIDCClaimMappingRead)
-async def update_oidc_mapping(
-    mapping_id: int,
-    payload: OIDCClaimMappingUpdate,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
-) -> OIDCClaimMappingRead:
-    mapping = (
-        await session.exec(
-            select(OIDCClaimMapping).where(OIDCClaimMapping.id == mapping_id)
-        )
-    ).one_or_none()
-    if not mapping:
-        raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
-
-    before = audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
-    data = payload.model_dump(exclude_unset=True)
-    if "provider_id" in data and data["provider_id"] is not None:
-        mapping.provider_id = data["provider_id"]
-    if "claim_value" in data and data["claim_value"] is not None:
-        mapping.claim_value = data["claim_value"].strip()
-    if "target_type" in data and data["target_type"] is not None:
-        try:
-            mapping.target_type = OIDCMappingTargetType(data["target_type"])
-        except ValueError:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INVALID_TARGET_TYPE
-            )
-    if "guild_id" in data and data["guild_id"] is not None:
-        guild = (
-            await session.exec(select(Guild).where(Guild.id == data["guild_id"]))
-        ).one_or_none()
-        if not guild:
-            raise HTTPException(status_code=400, detail=GuildMessages.GUILD_NOT_FOUND)
-        mapping.guild_id = data["guild_id"]
-    if "guild_role" in data and data["guild_role"] is not None:
-        if data["guild_role"] not in _MAPPABLE_GUILD_ROLES:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE
-            )
-        mapping.guild_role = data["guild_role"]
-    if "initiative_id" in data:
-        mapping.initiative_id = data["initiative_id"]
-    if "initiative_role_id" in data:
-        mapping.initiative_role_id = data["initiative_role_id"]
-
-    # Full validation of the final state: the provider can move in the same
-    # request that moves everything else.
-    await _require_known_provider(session, mapping.provider_id)
-
-    effective_target = mapping.target_type
-    if isinstance(effective_target, str):
-        effective_target = OIDCMappingTargetType(effective_target)
-    if effective_target == OIDCMappingTargetType.initiative:
-        if not mapping.initiative_id or not mapping.initiative_role_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_FIELDS_REQUIRED
-            )
-        initiative, role = await _lookup_guild_initiative(
-            session,
-            mapping.guild_id,
-            mapping.initiative_id,
-            mapping.initiative_role_id,
-        )
-        if not initiative:
-            raise HTTPException(status_code=400, detail=InitiativeMessages.NOT_FOUND)
-        # Defence-in-depth: structurally guaranteed now (the lookup routes into
-        # guild_<mapping.guild_id>), kept to catch a stored guild_id that disagrees
-        # with its schema rather than binding the mapping to a mismatched guild.
-        if initiative.guild_id != mapping.guild_id:
-            raise HTTPException(
-                status_code=400, detail=SettingsMessages.INITIATIVE_WRONG_GUILD
-            )
-        if not role:
-            raise HTTPException(
-                status_code=400, detail=InitiativeMessages.ROLE_NOT_FOUND
-            )
-    else:
-        # Guild-only mapping: clear initiative fields
-        mapping.initiative_id = None
-        mapping.initiative_role_id = None
-
-    mapping.updated_at = datetime.now(timezone.utc)
-    session.add(mapping)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(mapping, _CLAIM_RULE_FIELDS)
-    )
-    if changed["changed"]:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.CLAIM_RULE_UPDATED,
-            actor_user_id=admin.id,
-            guild_id=mapping.guild_id,
-            target_type="claim_rule",
-            target_id=mapping.id,
-            detail={"via": "operator", **changed},
-        )
-    await session.commit()
-    await session.refresh(mapping)
-    return await _enrich_mapping(session, mapping)
-
-
-@router.delete("/oidc-mappings/{mapping_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_oidc_mapping(
-    mapping_id: int,
-    session: AdminSessionDep,
-    admin: ConfigManageDep,
-) -> None:
-    mapping = (
-        await session.exec(
-            select(OIDCClaimMapping).where(OIDCClaimMapping.id == mapping_id)
-        )
-    ).one_or_none()
-    if not mapping:
-        raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
-    guild_id = mapping.guild_id
-    await session.delete(mapping)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.CLAIM_RULE_DELETED,
-        actor_user_id=admin.id,
-        guild_id=guild_id,
-        target_type="claim_rule",
-        target_id=mapping_id,
-        detail={"via": "operator"},
-    )
-    await session.commit()
-
-
-@router.get("/oidc-mappings/options")
-async def get_oidc_mapping_options(
-    session: AdminSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCMappingOptionsResponse:
-    """Return all guilds, initiatives, and initiative roles for the mapping form."""
-    # Guilds live in shared public; materialize them before routing into any guild
-    # schema (routing expunges the ORM objects).
-    guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
-    guild_payload = [{"id": g.id, "name": g.name} for g in guilds]
-
-    # Initiatives and initiative roles are guild-scoped content: their rows live
-    # only in each guild's guild_<id> schema. Route into
-    # every guild's schema in turn and collect them. Row ids are unique only within
-    # a schema, so each role carries its guild_id for the client to disambiguate
-    # against colliding initiative ids across guilds.
-    initiatives_payload: list[dict] = []
-    roles_payload: list[dict] = []
-    try:
-        for g in guild_payload:
-            await _route_admin_to_guild(session, g["id"])
-            initiatives = (
-                await session.exec(select(Initiative).order_by(Initiative.name))
-            ).all()
-            roles = (
-                await session.exec(
-                    select(InitiativeRoleModel).order_by(InitiativeRoleModel.position)
-                )
-            ).all()
-            initiatives_payload.extend(
-                {"id": i.id, "name": i.name, "guild_id": i.guild_id}
-                for i in initiatives
-            )
-            roles_payload.extend(
-                {
-                    "id": r.id,
-                    "name": r.display_name,
-                    "initiative_id": r.initiative_id,
-                    "guild_id": g["id"],
-                }
-                for r in roles
-            )
-    finally:
-        # Don't leave the pooled connection routed into the last guild's schema:
-        # reset to the neutral admin baseline like every write path in this file.
-        await _reset_admin_session(session)
-
-    return OIDCMappingOptionsResponse(
-        guilds=guild_payload,
-        initiatives=initiatives_payload,
-        initiative_roles=roles_payload,
     )

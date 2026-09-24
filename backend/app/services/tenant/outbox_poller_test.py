@@ -141,7 +141,6 @@ async def test_every_subscription_in_a_guild_is_drained(
     for index in range(3):
         session.add(
             WebhookSubscription(
-                guild_id=guild_id,
                 initiative_id=None,
                 created_by=user_id,
                 target_url=f"https://example.test/hook-{index}",
@@ -156,7 +155,7 @@ async def test_every_subscription_in_a_guild_is_drained(
 
     drained: list[int] = []
 
-    async def _record(session_, subscription, *, now):
+    async def _record(session_, subscription, *, guild_id, now):
         drained.append(subscription.id)
 
     monkeypatch.setattr(poller, "_drain_subscription", _record)
@@ -201,7 +200,6 @@ async def test_ledger_delivers_each_transaction_once(
 
     session.add(
         WebhookSubscription(
-            guild_id=guild_id,
             initiative_id=None,
             created_by=user_id,
             target_url="https://example.test/hook",
@@ -251,7 +249,6 @@ async def test_a_refused_batch_is_retried_not_lost(
 
     session.add(
         WebhookSubscription(
-            guild_id=guild_id,
             initiative_id=None,
             created_by=user_id,
             target_url="https://example.test/hook",
@@ -309,7 +306,6 @@ async def test_repeated_refusals_escalate_the_backoff(
 
     session.add(
         WebhookSubscription(
-            guild_id=guild_id,
             initiative_id=None,
             created_by=user_id,
             target_url="https://example.test/hook",
@@ -333,7 +329,7 @@ async def test_repeated_refusals_escalate_the_backoff(
     moment = datetime.now(timezone.utc)
     for _ in range(3):
         await poller._drain_guild(system, guild_id, now=moment)
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         row = (
             await session.exec(
                 sa_text(
@@ -378,7 +374,6 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     # The batch that will be refused until it gives up.
     await create_task(session, a.project)
     subscription = WebhookSubscription(
-        guild_id=guild_id,
         initiative_id=None,
         created_by=user_id,
         target_url="https://example.test/hook",
@@ -407,7 +402,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     moment = datetime.now(timezone.utc)
     for _ in range(len(poller._BACKOFF_SECONDS)):
         await poller._drain_guild(system, guild_id, now=moment)
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         row = (
             await session.exec(
                 sa_text(
@@ -440,7 +435,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
 
     # This pass is what exhausts the first batch's schedule.
     await poller._drain_guild(system, guild_id, now=moment)
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
 
     dead_row = (
         await session.exec(

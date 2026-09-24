@@ -30,7 +30,7 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
 from app.core.rate_limit import get_real_client_ip, limiter
-from app.db.session import get_admin_session, get_session
+from app.db.session import get_system_session, get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_email import UserEmail
 from app.schemas.platform.email_otp import (
@@ -49,12 +49,13 @@ from app.services.auth import email_otp as email_otp_service
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
 from app.services.platform import user_tokens
+from app.services.stream_authz import authority as stream_authority
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
@@ -74,9 +75,7 @@ async def _retire_credentials_predating_proof(
     session.add(user)
     # Staged rather than committed: the session this sign-in opens lands in
     # the same transaction, so the account never sits with nothing.
-    await user_tokens.revoke_user_sessions(
-        session, user=user, admin_session=session, commit=False
-    )
+    await user_tokens.revoke_user_sessions(session, user=user, commit=False)
     await audit_service.record(
         session,
         event_type=AuditEventType.AUTH_CREDENTIALS_RETIRED,
@@ -137,7 +136,7 @@ async def send_sign_in_code(
     request: Request,
     payload: EmailOtpSend,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
 ) -> EmailOtpSent:
     """Post a code to an address, and hand back the handle that names it.
 
@@ -149,30 +148,30 @@ async def send_sign_in_code(
     await captcha_service.verify_or_raise(
         payload.captcha_token, remote_ip=get_real_client_ip(request)
     )
-    if not await email_service.email_configured(admin_session):
+    if not await email_service.email_configured(system_session):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
         )
 
     address = payload.email.lower().strip()
-    user = await addresses.account_holding(admin_session, address)
+    user = await addresses.account_holding(system_session, address)
     # An account that cannot sign in is not one to send a code to, and reads
     # from here exactly like an address nobody holds.
     recipient = user if user is not None and user.status in SIGN_IN_STATUSES else None
     row = (
-        await addresses.row_for(admin_session, address)
+        await addresses.row_for(system_session, address)
         if recipient is not None
         else None
     )
     # An address nobody holds is a sign-up, where this deployment takes one.
     # Asked with the captcha already spent, because it was answered above.
     signing_up = user is None and await _registration_open(
-        request, admin_session, address=address, invite=payload.invite_code
+        request, system_session, address=address, invite=payload.invite_code
     )
 
     issued = await email_otp_service.issue(
-        admin_session,
+        system_session,
         user_id=recipient.id if recipient is not None else None,
         user_email_id=row.id if row is not None else None,
         native=payload.native,
@@ -182,7 +181,7 @@ async def send_sign_in_code(
     try:
         if recipient is not None:
             await email_service.send_sign_in_code_email(
-                admin_session,
+                system_session,
                 recipient,
                 email=address,
                 code=issued.code,
@@ -190,7 +189,7 @@ async def send_sign_in_code(
             )
         elif signing_up:
             await email_service.send_sign_up_code_email(
-                admin_session,
+                system_session,
                 email=address,
                 code=issued.code,
                 minutes=minutes,
@@ -201,7 +200,7 @@ async def send_sign_in_code(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
         ) from None
-    await admin_session.commit()
+    await system_session.commit()
     return EmailOtpSent(challenge=issued.handle)
 
 
@@ -212,17 +211,17 @@ async def verify_sign_in_code(
     response: Response,
     payload: EmailOtpVerify,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
 ) -> Token | Response:
     """Take the code back and open the session it earned."""
     await require_login_method(session, LoginMethod.email_otp)
     challenge = await email_otp_service.claim(
-        admin_session, handle=payload.challenge, code=payload.code
+        system_session, handle=payload.challenge, code=payload.code
     )
     if challenge is None:
         # The attempt is counted whether or not the code was any good, so the
         # commit comes before the refusal.
-        await admin_session.commit()
+        await system_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_OTP_INVALID,
@@ -233,42 +232,42 @@ async def verify_sign_in_code(
         if pending is None:
             # A code was asked for at an address nobody holds and no sign-up
             # followed from. There is nothing for it to open.
-            await admin_session.commit()
+            await system_session.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.EMAIL_OTP_INVALID,
             )
-        if not await challenge_service.consume(admin_session, challenge):
-            await admin_session.commit()
+        if not await challenge_service.consume(system_session, challenge):
+            await system_session.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.EMAIL_OTP_INVALID,
             )
         ticket = await email_otp_service.issue_ticket(
-            admin_session,
+            system_session,
             email=pending,
             native=email_otp_service.is_native(challenge),
         )
-        await admin_session.commit()
+        await system_session.commit()
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
             content={"registration_ticket": ticket},
         )
 
     user_id = challenge.user_id
-    user = await admin_session.get(User, user_id)
+    user = await system_session.get(User, user_id)
     if user is None or user.status not in SIGN_IN_STATUSES:
         await record_sign_in_failure(
-            admin_session, user, method="email_otp", reason="inactive"
+            system_session, user, method="email_otp", reason="inactive"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
 
-    if not await challenge_service.consume(admin_session, challenge):
+    if not await challenge_service.consume(system_session, challenge):
         # Spent between the claim and here, so the session it bought is not
         # this request's to open a second time.
-        await admin_session.commit()
+        await system_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_OTP_INVALID,
@@ -276,25 +275,27 @@ async def verify_sign_in_code(
 
     # Arriving at the address is what proves it, so an address the account had
     # never proved is proved now — and what the account held before that goes.
+    retired = False
     if challenge.user_email_id is not None:
         first_proof = await addresses.mark_proved(
-            admin_session, address_id=challenge.user_email_id
+            system_session, address_id=challenge.user_email_id
         )
         if first_proof:
-            await _retire_credentials_predating_proof(admin_session, user=user)
-        row = await admin_session.get(UserEmail, challenge.user_email_id)
+            await _retire_credentials_predating_proof(system_session, user=user)
+            retired = True
+        row = await system_session.get(UserEmail, challenge.user_email_id)
         if row is not None:
             row.last_login_at = datetime.now(timezone.utc)
-            admin_session.add(row)
+            system_session.add(row)
 
     native = email_otp_service.is_native(challenge)
     # The code proved the address; an account holding a second factor still
     # presents it, the same way a password sign-in does.
     if await auth_posture.login_method_allowed(
         session, LoginMethod.totp
-    ) and await totp_service.is_enrolled(admin_session, user_id=user_id):
+    ) and await totp_service.is_enrolled(system_session, user_id=user_id):
         follow_on = await challenge_service.create(
-            admin_session,
+            system_session,
             user_id=user_id,
             purpose=(
                 challenge_service.ChallengePurpose.sign_in_native
@@ -302,7 +303,9 @@ async def verify_sign_in_code(
                 else challenge_service.ChallengePurpose.sign_in
             ),
         )
-        await admin_session.commit()
+        await system_session.commit()
+        if retired:
+            await stream_authority.revoke_user_everywhere(user_id)
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={
@@ -311,16 +314,20 @@ async def verify_sign_in_code(
             },
         )
 
-    return await open_session(
+    opened = await open_session(
         request,
         response,
-        admin_session,
+        system_session,
         user_id=user_id,
         token_version=user.token_version,
         amr=["otp"],
         audit_detail={"method": "email_otp"},
         return_refresh_token=native,
     )
+    if retired:
+        # Connections opened on the credentials retired above close now.
+        await stream_authority.revoke_user_everywhere(user_id)
+    return opened
 
 
 @router.post(
@@ -334,7 +341,7 @@ async def register_with_code(
     response: Response,
     payload: EmailOtpRegister,
     session: SessionDep,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
 ) -> Token:
     """Make the account a proved address earned, and sign it in.
 
@@ -353,17 +360,17 @@ async def register_with_code(
 
     await require_login_method(session, LoginMethod.email_otp)
     ticket = await email_otp_service.claim_ticket(
-        admin_session, ticket=payload.registration_ticket
+        system_session, ticket=payload.registration_ticket
     )
     address = challenge_service.address_of(ticket) if ticket is not None else None
     if ticket is None or address is None:
-        await admin_session.commit()
+        await system_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_OTP_INVALID,
         )
-    if not await challenge_service.consume(admin_session, ticket):
-        await admin_session.commit()
+    if not await challenge_service.consume(system_session, ticket):
+        await system_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.EMAIL_OTP_INVALID,
@@ -371,7 +378,7 @@ async def register_with_code(
 
     registered = await _register_account(
         request,
-        admin_session,
+        system_session,
         details=RegistrationDetails(
             email=address,
             username=payload.username,
@@ -386,7 +393,7 @@ async def register_with_code(
     return await open_session(
         request,
         response,
-        admin_session,
+        system_session,
         user_id=registered.user.id,
         token_version=registered.user.token_version,
         amr=["otp"],

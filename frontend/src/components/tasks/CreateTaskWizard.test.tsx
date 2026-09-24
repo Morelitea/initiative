@@ -4,14 +4,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild, buildInitiative, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { useGuilds } from "@/hooks/useGuilds";
 
 // Two of each, so no step auto-advances past somebody.
 const guilds = [buildGuild({ name: "Anvil Club" }), buildGuild({ name: "Bellwether" })];
 
+const guildsValue: ReturnType<typeof useGuilds> = {
+  guilds: guilds,
+  activeGuildId: null,
+  activeGuild: null,
+  activeGuildReadOnly: false,
+  loading: false,
+  error: null,
+  refreshGuilds: vi.fn(),
+  switchGuild: vi.fn(),
+  syncGuildFromUrl: vi.fn(),
+  createGuild: vi.fn(),
+  updateGuildInState: vi.fn(),
+  reorderGuilds: vi.fn(),
+  canCreateGuilds: true,
+};
+
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useGuilds: () => ({ guilds }),
+  useGuilds: () => guildsValue,
 }));
 
 vi.mock("@/hooks/useInitiativeAccess", () => ({

@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 import app.schemas as schemas_pkg
 from app.schemas.base import (
     MAX_PLAIN_TEXT_LENGTH,
+    MAX_TITLE_LENGTH,
     RESERVED_SIGILS,
     RawTextStr,
     RichTextStr,
@@ -167,6 +168,21 @@ def test_title_str_allows_ordinary_punctuation() -> None:
 @pytest.mark.unit
 def test_title_str_none_passes_through() -> None:
     assert _Model(name="x", display=None).display is None
+
+
+@pytest.mark.unit
+def test_title_str_stops_at_the_bound() -> None:
+    at = "a" * MAX_TITLE_LENGTH
+    assert _Model(name="x", display=at).display == at
+    with pytest.raises(ValidationError):
+        _Model(name="x", display=at + "a")
+
+
+@pytest.mark.unit
+def test_plain_str_field_is_not_held_to_the_title_bound() -> None:
+    """A title is a label; a plain str field is bounded by the plain-text cap."""
+    long = "a" * (MAX_TITLE_LENGTH + 1)
+    assert _Model(name=long).name == long
 
 
 @pytest.mark.unit

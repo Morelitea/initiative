@@ -260,7 +260,7 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
 @pytest.mark.service
 async def test_deactivate_user(session: AsyncSession):
     """Deactivation flips status, drops memberships, bumps token_version,
-    and leaves PII intact so an admin can later reactivate."""
+    and leaves PII intact so an operator can later reactivate."""
     user = await create_user(
         session, email="todeactivate@example.com", full_name="Original Name"
     )
@@ -284,7 +284,7 @@ async def test_deactivate_user(session: AsyncSession):
 
     assert deactivated.status == UserStatus.deactivated
     assert deactivated.token_version == original_token_version + 1
-    # PII preserved — admin can reactivate.
+    # PII preserved — an operator can reactivate.
     assert deactivated.full_name == "Original Name"
     assert await addresses.holds_address(
         session, user_id=deactivated.id, email="todeactivate@example.com"
@@ -295,7 +295,7 @@ async def test_deactivate_user(session: AsyncSession):
 @pytest.mark.service
 async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_session):
     """Soft delete (anonymize) clears PII, blocks login, drops memberships,
-    demotes platform admins to member, revokes auth artifacts, and keeps
+    demotes platform staff to member, revokes auth artifacts, and keeps
     the row so historical FKs resolve."""
     from app.models.platform.api_key import UserApiKey
     from app.models.platform.federated_identity import FederatedIdentity
@@ -354,8 +354,8 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     original_id = user.id
     original_token_version = user.token_version
 
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, original_id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, original_id)
 
     stmt = select(User).where(User.id == original_id)
     result = await session.exec(stmt)
@@ -364,7 +364,7 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     # The row stays — same id, same created_at — so FKs resolve.
     assert anonymized.id == original_id
     assert anonymized.status == UserStatus.anonymized
-    # Platform-admin role demoted to member so the husk doesn't carry
+    # Platform staff role demoted to member so the husk doesn't carry
     # elevated privileges.
     assert anonymized.role == UserRole.member
     # PII gone.
@@ -512,8 +512,8 @@ async def test_soft_delete_user_scrubs_addressed_invites(
     assert guild_service.invite_is_active(victim_invite) is True
     await session.commit()
 
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, victim.id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, victim.id)
     session.expunge_all()
 
     scrubbed = (
@@ -574,8 +574,8 @@ async def test_hard_delete_user_scrubs_addressed_invites(
     victim_id = victim.id
     await session.commit()
 
-    admin_session = await role_session("app_admin")
-    await user_service.hard_delete_user(admin_session, victim_id)
+    system_session = await role_session("app_admin")
+    await user_service.hard_delete_user(system_session, victim_id)
     session.expunge_all()
 
     # User row is gone...
@@ -718,13 +718,13 @@ async def test_is_last_config_manager_excludes_operator(session: AsyncSession):
     from app.models.platform.user import UserRole
 
     await create_user(session, email="owner@example.com", role=UserRole.owner)
-    plain_admin = await create_user(
-        session, email="admin@example.com", role=UserRole.operator
+    operator = await create_user(
+        session, email="operator@example.com", role=UserRole.operator
     )
 
     assert (
         await user_service.is_last_capability_holder(
-            session, plain_admin.id, Capability.CONFIG_MANAGE
+            session, operator.id, Capability.CONFIG_MANAGE
         )
         is False
     )
@@ -756,7 +756,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     await create_initiative_member(session, initiative=initiative, user=member)
 
     # Sanity: the membership exists in the guild schema before deletion.
-    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild.id)
     before = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -764,12 +764,12 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     ).all()
     assert len(before) == 1
 
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, member.id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, member.id)
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild.id)
     after = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -794,6 +794,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
     (issue #794)."""
     from app.models.tenant.comment import Comment
     from app.models.tenant.document import Document
+    from app.models.tenant.task import Task
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
     from app.services.tenant.mention_parser import ANONYMIZED_MENTION_NAME
     from app.testing.factories import (
@@ -813,10 +814,33 @@ async def test_soft_delete_scrubs_embedded_mentions(
     initiative = await create_initiative(session, guild, author)
     await create_initiative_member(session, initiative=initiative, user=victim)
     project = await create_project(session, initiative, author)
-    task = await create_task(session, project)
+    task = await create_task(
+        session, project, description=f"pair with @[Vic Tim]({victim.id})"
+    )
+    # Finished work is scrubbed too: an archived task keeps its words, so it
+    # would keep the name.
+    archived_task = await create_task(
+        session,
+        project,
+        description=f"was @[Vic Tim]({victim.id})'s",
+        archived_at=datetime.now(timezone.utc),
+    )
 
     comment = await create_comment(
         session, author, task=task, content=f"ping @[Vic Tim]({victim.id}) thanks"
+    )
+    archived_comment = await create_comment(
+        session,
+        author,
+        task=archived_task,
+        content=f"ask @[Vic Tim]({victim.id})",
+    )
+    trashed_comment = await create_comment(
+        session,
+        author,
+        task=task,
+        content=f"bin @[Vic Tim]({victim.id})",
+        deleted_at=datetime.now(timezone.utc),
     )
     document = await create_document(
         session,
@@ -872,8 +896,8 @@ async def test_soft_delete_scrubs_embedded_mentions(
     )
     await session.commit()
 
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, victim_id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, victim_id)
 
     session.expunge_all()
     await route_session_to_guild(session, guild.id)
@@ -885,6 +909,38 @@ async def test_soft_delete_scrubs_embedded_mentions(
         refreshed_comment.content
         == f"ping @[{ANONYMIZED_MENTION_NAME}]({victim_id}) thanks"
     )
+
+    refreshed_archived_comment = (
+        await session.exec(select(Comment).where(Comment.id == archived_comment.id))
+    ).one()
+    assert refreshed_archived_comment.content == (
+        f"ask @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+    )
+
+    refreshed_trashed_comment = (
+        await session.exec(
+            select(Comment)
+            .where(Comment.id == trashed_comment.id)
+            .execution_options(include_deleted=True)
+        )
+    ).one()
+    assert refreshed_trashed_comment.content == (
+        f"bin @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+    )
+
+    descriptions = dict(
+        (
+            await session.exec(
+                select(Task.id, Task.description)
+                .where(Task.id.in_([task.id, archived_task.id]))  # type: ignore[union-attr]
+                .execution_options(include_archived=True)
+            )
+        ).all()
+    )
+    assert descriptions == {
+        task.id: f"pair with @[{ANONYMIZED_MENTION_NAME}]({victim_id})",
+        archived_task.id: f"was @[{ANONYMIZED_MENTION_NAME}]({victim_id})'s",
+    }
 
     refreshed_doc = (
         await session.exec(select(Document).where(Document.id == document.id))
@@ -937,11 +993,11 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(
     task_id = task.id
 
     # Anonymize first — this drops the guild membership rows.
-    admin_session = await role_session("app_admin")
-    await user_service.soft_delete_user(admin_session, victim_id)
+    system_session = await role_session("app_admin")
+    await user_service.soft_delete_user(system_session, victim_id)
     session.expunge_all()
 
-    await user_service.hard_delete_user(admin_session, victim_id)
+    await user_service.hard_delete_user(system_session, victim_id)
     session.expunge_all()
 
     # The users row is gone.
@@ -1048,6 +1104,123 @@ async def test_soft_delete_user_removes_the_second_factor(session: AsyncSession)
         await totp_service.remaining_recovery_codes(session, user_id=bystander_id)
         == totp_service.RECOVERY_CODE_COUNT
     )
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_soft_delete_user_empties_the_shared_tables(
+    session: AsyncSession, role_session
+):
+    """Everything a hard delete takes by cascade, anonymizing takes by hand:
+    the row stays, so no cascade fires. Run on the system engine, which is what
+    the purge worker erases on, so a missing grant fails here too."""
+    import uuid
+
+    from app.models.platform.announcement import AnnouncementReadReceipt
+    from app.models.platform.contact_grant import (
+        ContactGrant,
+        ContactGrantKind,
+        canonical_pair,
+    )
+    from app.models.platform.dm_conversation import (
+        DmConversation,
+        DmConversationMember,
+    )
+    from app.models.platform.dm_device import DmDevice
+    from app.models.platform.email_outbox import EmailOutboxItem
+    from app.models.platform.notification import Notification
+    from app.models.platform.profile_favorite import ProfileFavorite
+    from app.models.platform.user_cookie_consent import UserCookieConsent
+    from app.models.platform.user_decoration import UserDecoration
+    from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
+    from app.models.platform.user_dm_settings import UserDmSettings
+    from app.models.platform.user_ignore import UserIgnore
+    from app.models.platform.user_passkey import UserPasskey
+
+    user = await create_user(session)
+    other = await create_user(session)
+    guild = await create_guild(session, creator=other)
+    user.profile_decorations = {"trophies": ["core.first-task"]}
+    user.custom_status = {"text": "on holiday in Lisbon"}
+    session.add(user)
+    conversation = DmConversation()
+    session.add(conversation)
+    await session.flush()
+    low, high = canonical_pair(user.id, other.id)
+    session.add_all(
+        [
+            UserDecoration(
+                user_id=user.id, decoration_id="core.first-task", kind="trophy"
+            ),
+            UserPasskey(
+                user_id=user.id,
+                credential_id=uuid.uuid4().bytes,
+                public_key=b"key",
+                rp_id="example.com",
+                name="Work laptop",
+            ),
+            Notification(user_id=user.id, data={"task_title": "Secret plan"}),
+            EmailOutboxItem(
+                user_id=user.id,
+                category="task",
+                subject="Secret plan",
+                headline="Secret plan",
+                body="Secret plan",
+            ),
+            AnnouncementReadReceipt(user_id=user.id, announcement_key="builtin:x"),
+            UserCookieConsent(user_id=user.id, version=1),
+            DmDevice(user_id=user.id, identity_key=b"i", fingerprint_key=b"f"),
+            DmConversationMember(conversation_id=conversation.id, user_id=user.id),
+            DmConversationMember(conversation_id=conversation.id, user_id=other.id),
+            UserDmGuildOptout(user_id=user.id, guild_id=guild.id),
+            ProfileFavorite(user_id=user.id, favorite_user_id=other.id),
+            ProfileFavorite(user_id=other.id, favorite_user_id=user.id),
+            UserIgnore(user_id=user.id, ignored_user_id=other.id),
+            UserIgnore(user_id=other.id, ignored_user_id=user.id),
+            ContactGrant(
+                user_id_low=low,
+                user_id_high=high,
+                kind=ContactGrantKind.connection,
+                requested_by=other.id,
+            ),
+        ]
+    )
+    await session.commit()
+    user_id, other_id = user.id, other.id
+
+    await user_service.soft_delete_user(await role_session("app_admin"), user_id)
+    session.expire_all()
+
+    husk = await session.get(User, user_id)
+    assert husk.profile_decorations == {}
+    assert husk.custom_status == {}
+    for model, column in (
+        (UserDecoration, UserDecoration.user_id),
+        (UserPasskey, UserPasskey.user_id),
+        (Notification, Notification.user_id),
+        (EmailOutboxItem, EmailOutboxItem.user_id),
+        (AnnouncementReadReceipt, AnnouncementReadReceipt.user_id),
+        (UserCookieConsent, UserCookieConsent.user_id),
+        (DmDevice, DmDevice.user_id),
+        (DmConversationMember, DmConversationMember.user_id),
+        (UserDmSettings, UserDmSettings.user_id),
+        (UserDmGuildOptout, UserDmGuildOptout.user_id),
+        (ProfileFavorite, ProfileFavorite.user_id),
+        (ProfileFavorite, ProfileFavorite.favorite_user_id),
+        (UserIgnore, UserIgnore.user_id),
+        (UserIgnore, UserIgnore.ignored_user_id),
+        (ContactGrant, ContactGrant.user_id_low),
+        (ContactGrant, ContactGrant.user_id_high),
+    ):
+        rows = (await session.exec(select(model).where(column == user_id))).all()
+        assert rows == [], f"{column} kept a row"
+
+    # The other side of the conversation is still on it.
+    assert (
+        await session.exec(
+            select(DmConversationMember).where(DmConversationMember.user_id == other_id)
+        )
+    ).all()
 
 
 # ---------------------------------------------------------------------------

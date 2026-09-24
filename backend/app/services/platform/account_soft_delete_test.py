@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import AdminMessages
+from app.core.messages import OperatorMessages
 from app.models.platform.app_setting import DEFAULT_ACCOUNT_RETENTION_DAYS
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import (
@@ -59,11 +59,12 @@ def test_deleted_is_absent_but_may_still_sign_in():
     """
     assert UserStatus.deleted in ABSENT_STATUSES
     assert UserStatus.deleted in SIGN_IN_STATUSES
-    # A suspension is the other absence, and is not a way back in.
+    # A suspension is the other absence. It signs in, to be told it is in
+    # time out, and reaches nothing else.
     assert UserStatus.suspended in ABSENT_STATUSES
-    assert UserStatus.suspended not in SIGN_IN_STATUSES
+    assert UserStatus.suspended in SIGN_IN_STATUSES
     # Somebody taking a break is neither: they are not erased by a timer, and
-    # an admin is what brings them back.
+    # an operator is what brings them back.
     assert UserStatus.deactivated not in ABSENT_STATUSES
     assert UserStatus.deactivated not in SIGN_IN_STATUSES
 
@@ -188,7 +189,7 @@ async def test_an_operator_can_call_it_off_too(
     session.expunge_all()
 
     response = await client.post(
-        f"/api/v1/admin/users/{user.id}/restore", headers=operator.headers
+        f"/api/v1/operator/users/{user.id}/restore", headers=operator.headers
     )
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "active"
@@ -202,10 +203,10 @@ async def test_restore_refuses_an_account_that_is_not_deleted(
     user = await create_user(session)
 
     response = await client.post(
-        f"/api/v1/admin/users/{user.id}/restore", headers=operator.headers
+        f"/api/v1/operator/users/{user.id}/restore", headers=operator.headers
     )
     assert response.status_code == 409
-    assert response.json()["detail"] == AdminMessages.USER_NOT_DELETED
+    assert response.json()["detail"] == OperatorMessages.USER_NOT_DELETED
 
 
 async def test_restore_needs_a_capability(
@@ -215,7 +216,7 @@ async def test_restore_needs_a_capability(
     user = await create_user(session)
 
     response = await client.post(
-        f"/api/v1/admin/users/{user.id}/restore", headers=plain.headers
+        f"/api/v1/operator/users/{user.id}/restore", headers=plain.headers
     )
     assert response.status_code == 403
 
@@ -359,7 +360,7 @@ async def test_the_operator_shape_carries_the_erasure_date(
     await _delete_own_account(client, user)
     session.expunge_all()
 
-    listed = await client.get("/api/v1/admin/users", headers=operator.headers)
+    listed = await client.get("/api/v1/operator/users", headers=operator.headers)
     entry = next(u for u in listed.json() if u["id"] == user.id)
     assert entry["status"] == "deleted"
     assert entry["purge_at"] is not None

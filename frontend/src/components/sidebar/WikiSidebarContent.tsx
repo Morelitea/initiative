@@ -120,10 +120,9 @@ export const WikiSidebarContent = ({
   const movePageTo = (page: WikiPageSummary, parentPageId: number | null, position: number) => {
     // Both kinds of row sit in one tree; which endpoint keeps their place is
     // the only thing that differs, because a document's place belongs to the
-    // wiki — and it is always at the top of it, so it is never filed under a
-    // page.
+    // wiki rather than to the document.
     if (page.kind === WikiPageKind.document) {
-      moveDocument.mutate({ documentId: page.id, position });
+      moveDocument.mutate({ documentId: page.id, parent_page_id: parentPageId, position });
     } else {
       movePage.mutate({ pageId: page.id, parent_page_id: parentPageId, position });
     }

@@ -12,17 +12,21 @@ the worker on a fresh creator-routed session.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from pathlib import Path
+from typing import Any, AsyncIterator
 
 from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
+from app.db.session import routed_guild_id
 from app.core.messages import ImportEngineMessages
+from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
@@ -38,6 +42,7 @@ from app.services.import_engine.contract import (
     ImportEngineError,
     InlineImport,
 )
+from app.services.import_engine import limits as import_limits
 
 # Distinct namespace from the export engine's lock so the two caps don't
 # serialize against each other.
@@ -89,7 +94,6 @@ async def load_target_initiative(
         await session.exec(
             select(Initiative).where(
                 Initiative.id == initiative_id,
-                Initiative.guild_id == guild_id,
             )
         )
     ).one_or_none()
@@ -112,7 +116,7 @@ async def load_target_initiative(
     membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user.id
     )
-    is_admin = membership is not None and rls_service.is_guild_admin(membership.role)
+    is_admin = membership is not None and membership.role.reaches(GuildRole.admin)
     if not is_admin:
         has_perm = await rls_service.check_initiative_permission(
             session,
@@ -196,7 +200,7 @@ async def start_envelope_import(
     )
 
     rows = importer.count(validated)
-    if rows > settings.IMPORT_MAX_ROWS:
+    if rows > import_limits.IMPORT_MAX_ROWS:
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
 
     people = await plan_envelope_people(
@@ -204,7 +208,7 @@ async def start_envelope_import(
     )
     unplaced = [person for person in people if person.suggested_user_id is None]
 
-    if not unplaced and rows <= settings.IMPORT_INLINE_MAX_ROWS:
+    if not unplaced and rows <= import_limits.IMPORT_INLINE_MAX_ROWS:
         result = await apply_one_envelope(
             session,
             importer=importer,
@@ -221,7 +225,6 @@ async def start_envelope_import(
         guild_id, json.dumps(envelope).encode("utf-8"), suffix="json"
     )
     job = ImportJob(
-        guild_id=guild_id,
         created_by=user.id,
         source=envelope_type,
         params={"initiative_id": initiative.id},
@@ -234,7 +237,7 @@ async def start_envelope_import(
         else None,
         status=ImportJobStatus.staged if unplaced else ImportJobStatus.queued,
         expires_at=datetime.now(timezone.utc)
-        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+        + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
     await session.commit()
@@ -250,6 +253,7 @@ async def apply_one_envelope(
     target_initiative: Initiative,
     user: User,
     people_map: Any = None,
+    exclude_properties: Any = None,
 ) -> "EnvelopeImportResult":
     """Apply one envelope and then resolve the links it asserted.
 
@@ -264,13 +268,23 @@ async def apply_one_envelope(
     the handles in it are matched against the target initiative's own
     members, or carried as names.
     """
-    from app.services.import_engine.context import ImportContext
+    from app.services.import_engine.context import (
+        ImportContext,
+        excluded_property_names,
+        exported_from_here,
+    )
     from app.services.import_engine.people import resolve_people_map
+    from app.services.import_engine.references import resolve_references
 
+    guild_id = routed_guild_id(session)
     context = ImportContext(
-        people=await resolve_people_map(
-            session, guild_id=target_initiative.guild_id, raw=people_map
-        )
+        people=await resolve_people_map(session, guild_id=guild_id, raw=people_map),
+        excluded_properties=excluded_property_names(exclude_properties),
+        same_community=exported_from_here(
+            getattr(envelope, "source_instance_url", None),
+            getattr(envelope, "source_guild_id", None),
+            guild_id=guild_id,
+        ),
     )
     result = await importer.apply(
         session,
@@ -282,6 +296,7 @@ async def apply_one_envelope(
     resolution = await context.links.resolve(session, created_by=user.id)
     result.links_created = resolution.created
     result.links_unresolved = resolution.unresolved
+    await resolve_references(session, context, author_id=user.id)
     return result
 
 
@@ -303,7 +318,7 @@ async def count_active_jobs_locked(session: AsyncSession, *, user: User) -> None
             )
         )
     ).one()
-    if active >= settings.IMPORT_MAX_ACTIVE_JOBS_PER_USER:
+    if active >= import_limits.IMPORT_MAX_ACTIVE_JOBS_PER_USER:
         raise ImportEngineError(
             ImportEngineMessages.IMPORT_JOB_LIMIT_REACHED, status_code=429
         )
@@ -322,10 +337,22 @@ def stage_payload(guild_id: int, payload: bytes, *, suffix: str) -> str:
     return key
 
 
-def read_payload(guild_id: int, payload_ref: str) -> bytes | None:
-    """Read a staged payload back from the guild's storage backend (local FS
-    path or S3 stream transparently). None when the blob is gone."""
-    from pathlib import Path
+def stage_payload_file(guild_id: int, path: Path, *, suffix: str) -> str:
+    """:func:`stage_payload` for a payload already on disk, which is copied
+    to storage without being read into memory. Blocking; run it in a
+    thread."""
+    from app.services.storage import get_guild_storage
+
+    key = f"imports/{uuid.uuid4().hex}.{suffix}"
+    content_type = "application/json" if suffix == "json" else "application/zip"
+    get_guild_storage(guild_id).write_file(key, path, content_type=content_type)
+    return key
+
+
+def _spool_payload(guild_id: int, payload_ref: str) -> tuple[Path, bool] | None:
+    """Where a staged payload can be read as a file, and whether that file is
+    a temporary copy the caller removes."""
+    import tempfile
 
     from app.services.storage import get_guild_storage
 
@@ -333,8 +360,54 @@ def read_payload(guild_id: int, payload_ref: str) -> bytes | None:
     if blob is None:
         return None
     if blob.path is not None:
+        return Path(blob.path), False
+    if blob.stream is None:
+        return None
+    handle = tempfile.NamedTemporaryFile(prefix="import-payload-", delete=False)
+    try:
+        with handle:
+            for chunk in blob.stream:
+                handle.write(chunk)
+    except BaseException:
+        Path(handle.name).unlink(missing_ok=True)
+        raise
+    return Path(handle.name), True
+
+
+@asynccontextmanager
+async def open_payload(guild_id: int, payload_ref: str) -> AsyncIterator[Path | None]:
+    """A staged payload as a local file for the length of the block, or
+    ``None`` when the blob is gone.
+
+    Local storage hands back the stored file itself; an object store's is
+    copied to a temporary file first, a chunk at a time, and removed after.
+    Either way the payload is never held in memory whole.
+    """
+    spooled = await asyncio.to_thread(_spool_payload, guild_id, payload_ref)
+    if spooled is None:
+        yield None
+        return
+    path, temporary = spooled
+    try:
+        yield path
+    finally:
+        if temporary:
+            path.unlink(missing_ok=True)
+
+
+def read_payload(guild_id: int, payload_ref: str) -> bytes | None:
+    """Read a staged payload back from the guild's storage backend (local FS
+    path or S3 stream transparently). None when the blob is gone."""
+    from app.services.storage import get_guild_storage
+
+    blob = get_guild_storage(guild_id).open_readable(payload_ref)
+    if blob is None:
+        return None
+    if blob.path is not None:
         return Path(blob.path).read_bytes()
-    return blob.stream.read()  # type: ignore[union-attr]
+    if blob.stream is None:
+        return None
+    return b"".join(blob.stream)
 
 
 def delete_payload(guild_id: int, payload_ref: str | None) -> None:

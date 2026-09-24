@@ -7,13 +7,26 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
-import { holdsGuildSeat } from "@/lib/permissions";
+import {
+  administersGuild,
+  changesGuildSettings,
+  holdsGuildSeat,
+  reachesGuildContent,
+} from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 
 export const GuildSettingsLayout = () => {
   const { t } = useTranslation(["settings"]);
   const { activeGuild, activeGuildId } = useGuilds();
-  const isGuildAdmin = activeGuild?.is_admin ?? false;
+  // Running the community: held as its admin, or lent by a settings grant at
+  // either rung. Separate from reaching the work inside it, which a settings
+  // grant does not — the tabs built on content are dropped below rather than
+  // rendered into refusals.
+  const administers = administersGuild(activeGuild);
+  // Whether what the rung reaches may also be changed — the server's answer.
+  // Without it every control on these pages is shown disabled.
+  const changesSettings = changesGuildSettings(activeGuild);
+  const reachesContent = reachesGuildContent(activeGuild);
   // The seat above admin, which holds this community's sign-in and its
   // integrations — held outright, or lent for a window by a settings grant.
   const onTheGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
@@ -57,11 +70,17 @@ export const GuildSettingsLayout = () => {
             },
           ]
         : []),
-      {
-        value: "initiatives",
-        label: t("guildLayout.tabs.initiatives"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/initiatives") : "/settings/initiatives",
-      },
+      ...(reachesContent
+        ? [
+            {
+              value: "initiatives",
+              label: t("guildLayout.tabs.initiatives"),
+              path: urlGuildId
+                ? guildPath(urlGuildId, "/settings/initiatives")
+                : "/settings/initiatives",
+            },
+          ]
+        : []),
       // What the community hands to somebody outside it — an AI provider, an
       // app — is the seat's to decide, the way its sign-in is. An ordinary
       // admin runs the community; these say who else gets to see it.
@@ -76,11 +95,15 @@ export const GuildSettingsLayout = () => {
             },
           ]
         : []),
-      {
-        value: "trash",
-        label: t("guildLayout.tabs.trash"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
-      },
+      ...(reachesContent
+        ? [
+            {
+              value: "trash",
+              label: t("guildLayout.tabs.trash"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
+            },
+          ]
+        : []),
       // Taking the community's every initiative out in one file, or putting
       // one back, reaches as far as deleting it does — so it sits with the
       // same seat. An ordinary admin runs the community; this one moves it.
@@ -107,21 +130,9 @@ export const GuildSettingsLayout = () => {
       });
     }
     return tabs;
-  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin]);
+  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin, reachesContent]);
 
-  const canViewSettings = isGuildAdmin || isSuperadmin;
-  // A suspended guild refuses every /g content endpoint, so tabs backed by
-  // them (users, initiatives, integrations, trash, security) would only render
-  // errors. Keep the surfaces that stay functional: the general tab (identity,
-  // usage, plan) and the danger zone (deletion / data ownership).
-  const isSuspended = activeGuild?.status === "suspended";
-  const workingTabs = isSuspended
-    ? guildSettingsTabs.filter((tab) => tab.value === "guild" || tab.value === "danger-zone")
-    : guildSettingsTabs;
-  const seatOnly = new Set(["security", "integrations"]);
-  const availableTabs = isGuildAdmin
-    ? workingTabs
-    : workingTabs.filter((tab) => seatOnly.has(tab.value));
+  const canViewSettings = administers;
 
   if (!canViewSettings) {
     return (
@@ -147,24 +158,22 @@ export const GuildSettingsLayout = () => {
     path: extractSubPath(tab.path),
   }));
 
-  const activeTab = matchActiveTab(tabSubPaths, normalizedPath, availableTabs[0]?.value ?? "guild");
+  const activeTab = matchActiveTab(
+    tabSubPaths,
+    normalizedPath,
+    guildSettingsTabs[0]?.value ?? "guild"
+  );
 
-  // A read-only or suspended guild shows the admin a prominent notice pointing
-  // them to the platform operator (the status reaches admins only — see the
-  // backend GuildRead serialization). Static keys per status so the strict i18n
-  // typing stays happy (a `${status}` template would include `active`).
+  // A read-only guild shows the admin a prominent notice pointing them to the
+  // platform operator (the status reaches admins only — see the backend
+  // GuildRead serialization). A suspended one never reaches settings at all.
   const statusNotice =
-    activeGuild?.status === "suspended"
+    activeGuild?.status === "read_only"
       ? {
-          label: t("guildLayout.restricted.suspended.label"),
-          message: t("guildLayout.restricted.suspended.message"),
+          label: t("guildLayout.restricted.read_only.label"),
+          message: t("guildLayout.restricted.read_only.message"),
         }
-      : activeGuild?.status === "read_only"
-        ? {
-            label: t("guildLayout.restricted.read_only.label"),
-            message: t("guildLayout.restricted.read_only.message"),
-          }
-        : null;
+      : null;
 
   return (
     <div className="space-y-6">
@@ -177,15 +186,20 @@ export const GuildSettingsLayout = () => {
         {statusNotice && (
           <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>
         )}
+        {!changesSettings && (
+          <p className="text-muted-foreground text-sm">{t("guildLayout.viewOnly")}</p>
+        )}
       </div>
       <SettingsTabsNav
-        tabs={availableTabs}
+        tabs={guildSettingsTabs}
         activeTab={activeTab}
         onNavigate={(path) => router.navigate({ to: path })}
       />
-      <Suspense fallback={<SettingsPaneSkeleton />}>
-        <Outlet />
-      </Suspense>
+      <fieldset disabled={!changesSettings} className="m-0 min-w-0 border-0 p-0">
+        <Suspense fallback={<SettingsPaneSkeleton />}>
+          <Outlet />
+        </Suspense>
+      </fieldset>
     </div>
   );
 };

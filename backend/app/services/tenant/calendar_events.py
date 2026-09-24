@@ -22,7 +22,6 @@ from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.services.tenant import relationships
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services.tenant import tags as tags_service
@@ -50,9 +49,8 @@ async def get_event(
             selectinload(CalendarEvent.calendar)
             .selectinload(Calendar.grants)
             .selectinload(ResourceGrant.role),
-            selectinload(CalendarEvent.calendar)
-            .selectinload(Calendar.initiative)
-            .selectinload(Initiative.memberships),
+            selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative),
+            selectinload(CalendarEvent.calendar).undefer(Calendar.access_level),
             selectinload(CalendarEvent.property_values).selectinload(
                 CalendarEventPropertyValue.property_definition
             ),
@@ -123,7 +121,6 @@ async def set_event_attendees(
         attendee = CalendarEventAttendee(
             calendar_event_id=event.id,
             user_id=user_id,
-            guild_id=guild_id,
         )
         session.add(attendee)
 
@@ -154,7 +151,6 @@ async def set_event_documents(
     if document_ids:
         docs_stmt = select(Document.id).where(
             Document.id.in_(document_ids),
-            Document.guild_id == guild_id,
         )
         docs_result = await session.exec(docs_stmt)
         valid_ids = set(docs_result.all())

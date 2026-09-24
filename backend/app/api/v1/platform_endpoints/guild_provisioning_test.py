@@ -162,9 +162,9 @@ async def test_purge_succeeds_even_if_deprovision_fails(
     client: AsyncClient, session: AsyncSession, engine: AsyncEngine, monkeypatch
 ):
     """The guild row is deleted FIRST (the guild is gone from the app), then the
-    schema is dropped as best-effort cleanup. So a deprovision failure must NOT
-    fail the purge — the row is already gone; an orphaned empty schema is
-    harmless (reclaimed on retry / next provision)."""
+    schema is dropped. A deprovision failure must NOT fail the purge — the row
+    is already gone — and the schema it leaves is reclaimed on the next pass,
+    while a live guild's schema is left alone."""
     user = await create_user(session, email="deprov-fail@example.com")
     headers = get_auth_headers(user)
     resp = await client.post(
@@ -186,6 +186,7 @@ async def test_purge_succeeds_even_if_deprovision_fails(
     async def boom(_guild_id):
         raise RuntimeError("deprovisioning failed")
 
+    deprovision_guild = guild_purge.deprovision_guild
     monkeypatch.setattr(guild_purge, "deprovision_guild", boom)
     session.expunge_all()
     assert (
@@ -197,3 +198,16 @@ async def test_purge_succeeds_even_if_deprovision_fails(
 
     remaining = (await session.exec(select(Guild).where(Guild.id == gid))).all()
     assert remaining == [], "guild row is deleted even when schema cleanup fails"
+    assert await _schema_exists(engine, guild_schema_name(gid))
+
+    resp = await client.post(
+        "/api/v1/guilds/", headers=headers, json={"name": "Still Here"}
+    )
+    live_gid = resp.json()["id"]
+
+    monkeypatch.setattr(guild_purge, "deprovision_guild", deprovision_guild)
+    assert await guild_purge.reclaim_orphaned_guilds(session) == 1
+    assert not await _schema_exists(engine, guild_schema_name(gid))
+    assert not await _role_exists(engine, guild_role_name(gid))
+    assert await _schema_exists(engine, guild_schema_name(live_gid))
+    assert await guild_purge.reclaim_orphaned_guilds(session) == 0

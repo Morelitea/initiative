@@ -22,10 +22,9 @@ import { getErrorCode, getHttpStatus } from "@/lib/errorMessage";
 /**
  * How many statement reads one guild keeps in flight.
  *
- * Matched to the server's per-guild default so the common case — one reader,
- * one canvas — never asks for a slot that is not there. An operator who raises
- * `QUERY_MAX_CONCURRENT_PER_GUILD` loses nothing but a little parallelism; one
- * who lowers it falls back to the retry below.
+ * Matched to the server's per-guild cap so the common case — one reader, one
+ * canvas — never asks for a slot that is not there; a request that still finds
+ * none falls back to the retry below.
  */
 const LANE_WIDTH = 2;
 

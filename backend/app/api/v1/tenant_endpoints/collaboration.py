@@ -36,7 +36,7 @@ from app.api.deps import (
 )
 from app.core.messages import DocumentMessages
 from app.core.security import SESSION_COOKIE_NAME
-from app.db.session import AsyncSessionLocal, set_rls_context
+from app.db.session import AsyncSessionLocal
 from app.models.platform.user import User
 from app.services.tenant.collaboration import (
     broadcast_awareness,
@@ -51,7 +51,7 @@ from app.services.tenant.collaborative_resources import (
     resource_for,
 )
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.services.tenant import content_references
 from app.services.tenant import documents as documents_service
 from app.services.tenant.relationships import Endpoint
@@ -218,8 +218,8 @@ async def _collaborate(
 
         # Establish the guild access context through the single entry point —
         # real membership, a live PAM grant, or break-glass — so the document
-        # checks below see the *same* context (guild-admin DAC bypass, PAM scope,
-        # break-glass elevation, delegation pin) the REST path would. Hand-rolling
+        # checks below see the *same* context (the guild-admin rung, the rung a
+        # PAM or break-glass grant lends, delegation pin) the REST path would. Hand-rolling
         # this here is exactly what let a guild admin be denied on the socket
         # while allowed on the REST read.
         try:
@@ -243,13 +243,13 @@ async def _collaborate(
             return
         body = resolved.body
 
-        # Per-resource level via the shared DAC engine — guild-admin /
-        # break-glass bypass (→ owner), a live PAM grant lifted to its level, or
+        # Per-resource level via the shared DAC engine — guild admin (→ owner), a
+        # live PAM or break-glass grant lifted to its level, or
         # the resource's explicit user/role/all-members grants. The active role +
         # grant context was established above, and establish_guild_access already
         # proved guild reach, so the only open question is this level.
         level = permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[spec.tool], resolved.governing, user.id
+            resolved.governing, context=require_guild_context(session)
         )
         if level is None:
             logger.warning(
@@ -293,7 +293,7 @@ async def _collaborate(
         if again is None:
             return False  # initiative removed (RLS hides it) or the row is gone
         current = permissions_service.compute_permission(
-            permissions_service.DAC_RESOURCES[spec.tool], again.governing, check_user.id
+            again.governing, context=require_guild_context(check_session)
         )
         if current is None:
             return False  # read access revoked
@@ -478,7 +478,7 @@ async def _collaborate(
         # and only once nothing is connected to it — another tab of the same
         # account is another connection, and keeps it.
         async with AsyncSessionLocal() as session:
-            await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+            await establish_guild_access(session, user, guild_id)
             await collaboration_manager.persist_room(
                 guild_id, spec.resource_type, resource_id, session
             )
@@ -532,7 +532,7 @@ async def sync_document_content(
     # the REST path and the collaboration socket). The path is only a selector;
     # this validates real membership / a live PAM grant / break-glass and applies
     # the full RLS + role + grant context. Previously this endpoint did a
-    # membership-only check, so a break-glass admin or PAM grantee couldn't sync.
+    # membership-only check, so a break-glass or PAM grantee couldn't sync.
     try:
         await establish_guild_access(session, user, guild_id)
     except GuildAccessError:
@@ -552,7 +552,7 @@ async def sync_document_content(
     # Write level via the shared DAC engine (guild-admin / break-glass / PAM /
     # explicit grants), against the context establish_guild_access set above.
     level = permissions_service.compute_permission(
-        permissions_service.DAC_RESOURCES[Tool.document], document, user.id
+        document, context=require_guild_context(session)
     )
     if level not in ("write", "owner"):
         logger.warning(

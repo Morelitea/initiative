@@ -14,21 +14,11 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.pam_context import set_active_grant
-from app.core.role_context import (
-    set_active_role,
-    set_override_sharing_initiatives,
-)
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
     InitiativeRoleModel,
-)
-from app.services.permissions import (
-    DAC_RESOURCES,
-    compute_permission,
-    request_bypasses_dac,
 )
 
 
@@ -79,47 +69,6 @@ async def _setup(session: AsyncSession, acting_user):
         email="pm@example.com",
     )
     return admin, owner, pm, admin.guild, initiative
-
-
-# ── Enforcement: the gate-4 override leg (unit) ──────────────────────────────
-
-
-def test_request_overrides_sharing_bypasses_dac():
-    """A "Full access" initiative bypasses DAC (incl. owner-only ops), scoped to
-    that initiative; compute_permission reports owner there and nothing extra
-    elsewhere."""
-    set_active_role(None, None)
-    set_active_grant(None, None)
-    set_override_sharing_initiatives(frozenset({42}))
-
-    class _Row:
-        def __init__(self, guild_id, initiative_id):
-            self.guild_id = guild_id
-            self.initiative_id = initiative_id
-            self.grants = []
-            self.initiative = None
-
-    try:
-        assert request_bypasses_dac(1, initiative_id=42, access="write") is True
-        # Ignores require_owner — a moderator may manage sharing.
-        assert (
-            request_bypasses_dac(
-                1, initiative_id=42, access="write", require_owner=True
-            )
-            is True
-        )
-        # Scope-bound: a different initiative is not covered.
-        assert request_bypasses_dac(1, initiative_id=99, access="write") is False
-        assert (
-            compute_permission(DAC_RESOURCES["project"], _Row(1, 42), user_id=7)
-            == "owner"
-        )
-        assert (
-            compute_permission(DAC_RESOURCES["project"], _Row(1, 99), user_id=7)
-            != "owner"
-        )
-    finally:
-        set_override_sharing_initiatives(None)
 
 
 # ── The built-in roles as created ────────────────────────────────────────────

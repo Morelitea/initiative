@@ -107,7 +107,7 @@ async def test_dead_letter_count_is_visible_on_every_read(client, acting_user, s
     subscription_id = created.json()["id"]
     assert created.json()["dead_letter_count"] == 0
 
-    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=a.guild.id)
     await session.exec(
         sa_text(
             "INSERT INTO webhook_deliveries "

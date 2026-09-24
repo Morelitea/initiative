@@ -4,10 +4,13 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, Date, DateTime, String, Text
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -18,12 +21,16 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.task import Task, TaskStatus
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.project_activity import ProjectFavorite
-    from app.models.platform.guild import Guild
     from app.models.tenant.resource_grant import ResourceGrant
 
 
 class Project(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     __tablename__ = "projects"
     # A tool row is written before anything has been shared, so it is read
@@ -32,9 +39,6 @@ class Project(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     name: str = Field(index=True, nullable=False)
     icon: Optional[str] = Field(default=None, max_length=8)
     # TEXT in DDL (unbounded); sa_column keeps autogen quiet vs AutoString
@@ -74,7 +78,6 @@ class Project(
 
     initiative: Optional["Initiative"] = Relationship(back_populates="projects")
 
-    guild: Optional["Guild"] = Relationship()
     tasks: List["Task"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -104,3 +107,6 @@ class Project(
             "viewonly": True,
         }
     )
+
+
+attach_access_level(Project, Tool.project)

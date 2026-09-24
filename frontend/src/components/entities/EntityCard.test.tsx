@@ -23,6 +23,7 @@ const end = (overrides: Partial<RelatedEnd> = {}): RelatedEnd => ({
   updated_at: null,
   tool: Tool.document,
   tool_id: 4,
+  tool_title: null,
   image_urls: [],
   icon: null,
   color: null,
@@ -30,6 +31,7 @@ const end = (overrides: Partial<RelatedEnd> = {}): RelatedEnd => ({
   mime_type: null,
   original_filename: null,
   smart_link_url: null,
+  is_open: null,
   ...overrides,
 });
 

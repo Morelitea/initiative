@@ -21,26 +21,41 @@ Two triggers (per ``history/realtime-authorization-design.md`` + product decisio
     calls ``revoke_user`` and that user's content sockets are re-checked at once;
   * **within-initiative DAC / settings changes ride a bounded re-auth interval**
     — the background loop re-checks every socket every ``REAUTH_INTERVAL_SECONDS``.
+
+**The credential is re-checked too.** A socket keeps the sign-in it was opened
+with — the session row and ``token_version`` a session JWT named, or the device
+token — and every re-check asks whether that credential still stands: the
+session's rotation chain still has a live row, the account's ``token_version``
+has not moved, the device token has not been consumed. Ending a sign-in (sign
+out, ending a session from the list, a password change) calls
+``revoke_user_everywhere``, which re-checks rather than closes, so the account's
+other connections stay open when their own credentials still stand. One
+statement per table answers for every socket in a sweep.
 """
 
 import asyncio
 import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Set, Tuple
 
 from fastapi import WebSocket, status
 from sqlalchemy import text
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import GuildAccessError, establish_guild_access
 from app.core import auth_context
+from app.db import session as db_session
 from app.db.session import (
     CONNECTION_RESET_SQL,
     RLS_CONTEXT_MAX_AGE_SECONDS,
     AsyncSessionLocal,
 )
 from app.models.platform.user import User, UserStatus
+from app.services.auth import sessions as session_service
+from app.services.platform import user_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +65,13 @@ logger = logging.getLogger(__name__)
 # re-validates every registered socket well before any held context could
 # trip StaleAuthorizationContext, and the two bounds cannot drift apart.
 REAUTH_INTERVAL_SECONDS = RLS_CONTEXT_MAX_AGE_SECONDS // 2
+
+#: The close code for a socket whose credential has ended, as opposed to one
+#: whose access has (``WS_1008_POLICY_VIOLATION``). A client holding a newer
+#: credential for the same account — the session a step-up or a password
+#: change opened in its place — reconnects with it; one holding none is refused
+#: at the handshake.
+WS_CREDENTIAL_ENDED = 4001
 
 # An adapter authorizes one socket against its resource, on a session that has
 # ALREADY been guild-established: load the resource (RLS enforces guild +
@@ -91,6 +113,15 @@ class _StreamMember:
     # of them by, captured for the same reason: the gate reads these off the
     # context too, and a re-check runs in another task's.
     satisfied_claims: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    # The credential that opened the socket, captured at join from what the
+    # socket's authenticator recorded: the session row and ``token_version`` of
+    # a session JWT, or the device token's id. ``session_id`` moves forward
+    # along its rotation chain as the re-checks find the row the sign-in has
+    # reached. All three ``None`` for a member registered with no credential
+    # recorded, which has nothing of its own to re-check.
+    session_id: Optional[uuid.UUID] = None
+    token_version: Optional[int] = None
+    device_token_id: Optional[int] = None
     # Per-connection state the channel owns and the spine only carries:
     # collaboration keeps the display name and write level it computed at
     # join here. It lives on the member so a channel never needs a second
@@ -148,9 +179,10 @@ class StreamAuthority:
         re-checks replay it against the guild's (possibly changed) auth policy.
         The factor flags and the narrowing claims beside it are read from the
         joining request's own auth context, where the credential validator
-        recorded them.
+        recorded them, and so is which credential it was.
         """
         room: RoomKey = (guild_id, resource_type, resource_id)
+        credential = auth_context.session_credential()
         async with self._lock:
             self._members[websocket] = _StreamMember(
                 websocket=websocket,
@@ -162,6 +194,9 @@ class StreamAuthority:
                 satisfied_providers=satisfied_providers,
                 session_amr=auth_context.session_amr(),
                 satisfied_claims=auth_context.satisfied_claims(),
+                session_id=credential.session_id if credential else None,
+                token_version=credential.token_version if credential else None,
+                device_token_id=auth_context.device_token_id(),
                 meta=dict(meta) if meta else {},
             )
             self._rooms.setdefault(room, set()).add(websocket)
@@ -264,7 +299,10 @@ class StreamAuthority:
 
         For a change to the account rather than to one membership — a platform
         action has no guild to name, and the account holds sockets in all of
-        them.
+        them. Also for a change to one of its credentials: ending a session,
+        signing out, a password change. Each socket is re-checked against its
+        own credential, so the ones opened on a credential that still stands
+        stay open.
         """
         await self._recheck(lambda m: m.user.id == user_id)
 
@@ -273,9 +311,73 @@ class StreamAuthority:
     async def _recheck(self, predicate: Callable[[_StreamMember], bool]) -> None:
         async with self._lock:
             targets = [m for m in self._members.values() if predicate(m)]
+        if not targets:
+            return
+        ended = await self._ended_credentials(targets)
         for member in targets:
-            if not await self._still_authorized(member):
+            if member.websocket in ended:
+                await self._disconnect(member, code=WS_CREDENTIAL_ENDED)
+            elif not await self._still_authorized(member):
                 await self._disconnect(member)
+
+    async def _ended_credentials(self, targets: list[_StreamMember]) -> set[WebSocket]:
+        """The sockets among ``targets`` whose credential no longer stands.
+
+        One statement per kind of credential for the whole batch, on the system
+        engine, which is where ``auth_sessions`` and ``user_tokens`` are read.
+        A session's ``session_id`` is moved to the live row its chain has
+        reached, so the next check walks from there.
+
+        Fail closed: a lookup that errors ends every credential it was asked
+        about.
+        """
+        session_ids = {m.session_id for m in targets if m.session_id is not None}
+        device_ids = {
+            m.device_token_id for m in targets if m.device_token_id is not None
+        }
+        versioned = {m.user.id for m in targets if m.token_version is not None}
+        if not session_ids and not device_ids:
+            return set()
+        try:
+            async with db_session.SystemSessionLocal() as system_session:
+                tips = await session_service.live_chain_tips(
+                    system_session, session_ids=session_ids
+                )
+                live_devices = await user_tokens.live_device_token_ids(
+                    system_session, token_ids=device_ids
+                )
+                versions: dict[int, int] = {}
+                if versioned:
+                    rows = await system_session.exec(
+                        select(User.id, User.token_version).where(
+                            col(User.id).in_(versioned)
+                        )
+                    )
+                    versions = {user_id: version for user_id, version in rows.all()}
+        except Exception:
+            logger.exception(
+                "stream credential check failed; disconnecting to fail closed"
+            )
+            return {
+                m.websocket
+                for m in targets
+                if m.session_id is not None or m.device_token_id is not None
+            }
+
+        ended: set[WebSocket] = set()
+        for member in targets:
+            if member.session_id is not None:
+                tip = tips.get(member.session_id)
+                if tip is None or versions.get(member.user.id) != member.token_version:
+                    ended.add(member.websocket)
+                    continue
+                member.session_id = tip
+            if (
+                member.device_token_id is not None
+                and member.device_token_id not in live_devices
+            ):
+                ended.add(member.websocket)
+        return ended
 
     async def _still_authorized(self, member: _StreamMember) -> bool:
         """Re-run the FULL join check on a fresh session — every gate, one place.
@@ -333,10 +435,15 @@ class StreamAuthority:
             # being re-checked; put back whoever's it was.
             auth_context.set_platform_factor(held_factor)
 
-    async def _disconnect(self, member: _StreamMember) -> None:
+    async def _disconnect(
+        self,
+        member: _StreamMember,
+        *,
+        code: int = status.WS_1008_POLICY_VIOLATION,
+    ) -> None:
         await self.leave(member.websocket)
         try:
-            await member.websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await member.websocket.close(code=code)
         except Exception:
             pass
 

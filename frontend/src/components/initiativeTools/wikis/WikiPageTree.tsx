@@ -17,7 +17,6 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  Tool,
   type WikiPageHeading,
   WikiPageKind,
   type WikiPageSummary,
@@ -25,12 +24,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
-import { TOOL_ICONS } from "@/lib/tools";
+import { documentIcon } from "@/lib/documentIcon";
 import { cn } from "@/lib/utils";
-
-// A borrowed document is marked by the tool it comes from, so the row says
-// where it lives rather than carrying a mark invented for this list.
-const DocumentIcon = TOOL_ICONS[Tool.document];
 
 /** Which of a row's three bands a dragged page is over. */
 type DropIntent = "before" | "into" | "after";
@@ -59,12 +54,9 @@ const rowKey = (row: Pick<WikiPageSummary, "id" | "kind">) => `${row.kind}:${row
  * A page cannot be filed inside itself or inside anything filed under it —
  * that would take the branch out of the wiki, and the server refuses it too.
  *
- * A borrowed document lives at the top of the wiki and nowhere else. It
- * belongs to whatever else it is in as well, so this wiki does not get to file
- * it under one of its pages: over a nested row it may land nowhere at all,
- * rather than appearing to land there and snapping back to the top. For the
- * same reason a document is never a place to file anything, so only its edges
- * answer a page being dragged.
+ * A borrowed document is filed like a page — at the top or under any page,
+ * this wiki's record of where it put it — but it never holds anything itself,
+ * so only its edges answer a drag.
  */
 export const dropIntents = (
   dragged: Pick<WikiPageSummary, "id" | "kind">,
@@ -72,10 +64,8 @@ export const dropIntents = (
   descendantsOfDragged: ReadonlySet<number>
 ): DropIntent[] => {
   if (rowKey(dragged) === rowKey(target)) return [];
-  if (descendantsOfDragged.has(target.id)) return [];
-  if (dragged.kind === WikiPageKind.document) {
-    return (target.parent_page_id ?? null) === null ? ["before", "after"] : [];
-  }
+  // Only pages have anything under them, so only a page can be a descendant.
+  if (target.kind === WikiPageKind.page && descendantsOfDragged.has(target.id)) return [];
   return target.kind === WikiPageKind.document ? ["before", "after"] : ["before", "into", "after"];
 };
 
@@ -199,7 +189,7 @@ const WikiPageRow = ({
   onToggle: () => void;
   accentColor?: string | null;
   rowMenu?: ReactNode;
-  /** The rows for the pages filed under this one. */
+  /** The rows for what is filed under this page. */
   children: ReactNode[];
 }) => {
   const { t } = useTranslation("wikis");
@@ -214,6 +204,14 @@ const WikiPageRow = ({
   // the headings are only parts of this one.
   const expandable = headings.length > 0 || children.length > 0;
   const isDocument = page.kind === WikiPageKind.document;
+  // A borrowed document is marked as the kind of document it is — a PDF, a
+  // spreadsheet, a link to a design tool — the same mark it has everywhere.
+  const { Icon: DocumentIcon, colorClass: documentColor } = documentIcon({
+    document_type: page.document_type,
+    mime_type: page.file_content_type,
+    original_filename: page.original_filename,
+    smart_link_url: page.smart_link_url,
+  });
 
   // Pages and borrowed documents are one list, and one list is arranged as a
   // whole — so a document is dragged, and dropped onto, like anything else.
@@ -261,9 +259,7 @@ const WikiPageRow = ({
                   aria-label={open ? t("pages.collapse") : t("pages.expand")}
                 >
                   {isDocument ? (
-                    <DocumentIcon
-                      className={cn("size-4", open ? "text-foreground" : "text-muted-foreground")}
-                    />
+                    <DocumentIcon className={cn("size-4", documentColor)} />
                   ) : (
                     <CircleChevronRight
                       className={cn("h-4 w-4 transition-transform", open && "rotate-90")}
@@ -274,10 +270,8 @@ const WikiPageRow = ({
               </CollapsibleTrigger>
             ) : isDocument ? (
               <span className="flex h-7 w-7 shrink-0 items-center justify-center">
-                <DocumentIcon
-                  className="size-4 text-muted-foreground"
-                  aria-label={t("documents.openDocument")}
-                />
+                <span className="sr-only">{t("documents.openDocument")}</span>
+                <DocumentIcon className={cn("size-4", documentColor)} aria-hidden />
               </span>
             ) : (
               <span className="h-7 w-7 shrink-0" />
@@ -502,7 +496,8 @@ export const WikiPageTree = ({
       const id = frontier.pop();
       if (id === undefined) continue;
       for (const child of filed.get(id) ?? []) {
-        if (found.has(child.id)) continue;
+        // A document is filed under pages but holds nothing itself.
+        if (child.kind !== WikiPageKind.page || found.has(child.id)) continue;
         found.add(child.id);
         frontier.push(child.id);
       }
@@ -593,7 +588,9 @@ export const WikiPageTree = ({
         accentColor={accentColor}
         rowMenu={renderRowMenu?.(page)}
       >
-        {rowsUnder(page.id)}
+        {/* Only a page has rows under it — a document's id can be a page's
+            too, and must not collect that page's children. */}
+        {page.kind === WikiPageKind.page ? rowsUnder(page.id) : []}
       </WikiPageRow>
     ));
 

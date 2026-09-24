@@ -32,6 +32,12 @@ from app.schemas.platform.billing import BillingGuildTierApply, BillingGuildTier
 
 logger = logging.getLogger(__name__)
 
+# Pinned on both sides of the boundary — not deployment knobs.
+BILLING_AUDIENCE = "initiative:billing"
+BILLING_ISSUER = "initiative-billing"
+#: Max |now - signed timestamp| accepted, in seconds.
+BILLING_REPLAY_WINDOW_SECONDS = 300
+
 
 class BillingEnvelopeError(Exception):
     """The request failed envelope verification. ``code`` is the
@@ -80,6 +86,17 @@ def billing_inbound_enabled() -> bool:
     return bool(settings.BILLING_PUBLIC_KEY_PEM and settings.BILLING_HMAC_SECRET)
 
 
+def billing_managed() -> bool:
+    """True when a community's plan is set by the billing service.
+
+    A portal to change it in and a signed way for it to write both have to
+    exist; with either missing, the operator sets caps and entitlements by
+    hand. The database reads the same answer from ``public.billing_managed()``
+    (``app.db.billing_managed``).
+    """
+    return bool(settings.BILLING_URL) and billing_inbound_enabled()
+
+
 def verify_billing_envelope(
     *,
     method: str,
@@ -106,7 +123,7 @@ def verify_billing_envelope(
         ts = int(ts_header)
     except ValueError as exc:
         raise BillingEnvelopeError(BillingMessages.STALE_TIMESTAMP) from exc
-    window = max(1, settings.BILLING_REPLAY_WINDOW_SECONDS)  # never 0 (P-6)
+    window = BILLING_REPLAY_WINDOW_SECONDS
     if abs(time.time() - ts) > window:
         raise BillingEnvelopeError(BillingMessages.STALE_TIMESTAMP)
 
@@ -146,8 +163,8 @@ def verify_billing_envelope(
                 token,
                 key,
                 algorithms=["RS256"],
-                audience=settings.BILLING_AUDIENCE,
-                issuer=settings.BILLING_ISSUER,
+                audience=BILLING_AUDIENCE,
+                issuer=BILLING_ISSUER,
                 options={"require": ["exp", "iat", "iss", "aud", "jti"]},
             )
             break
@@ -210,6 +227,12 @@ _GUILD_TIER_COLUMNS = (
     # Billing's answer to "does this plan charge anybody" — see migration 0325.
     GuildAdministration.plan_is_free,
     Guild.status,
+)
+
+
+#: A guild in one of these takes no status write from billing at all.
+_BILLING_UNTOUCHABLE_STATUS_VALUES: frozenset[str] = frozenset(
+    {GuildStatus.suspended.value, GuildStatus.deleted.value}
 )
 
 
@@ -322,18 +345,35 @@ async def apply_guild_tier(
                 billing_capabilities.administration_values(payload.feature_keys)
             )
         guild_values: dict = {}
+        if payload.status is not None:
+            # Recorded whatever the guild's status is, so a suspension that
+            # lifts returns the guild to what billing last said.
+            administration_values["billing_status"] = payload.status.value
         if payload.status is not None and payload.status.value != row.status:
-            guild_values["status"] = payload.status.value
-            guild_values["status_changed_at"] = now
-            logger.info(
-                "billing: guild %s status %s -> %s (source=%s actor=%s event=%s)",
-                guild_id,
-                row.status,
-                payload.status.value,
-                payload.source.value,
-                payload.actor,
-                payload.event_id,
-            )
+            if row.status in _BILLING_UNTOUCHABLE_STATUS_VALUES:
+                # A status write never moves a guild out of ``suspended`` or
+                # ``deleted``: the operator's time out and deletion own those.
+                # The caps still land, and the status is recorded above.
+                logger.info(
+                    "billing: guild %s status write %s -> %s held (source=%s event=%s)",
+                    guild_id,
+                    row.status,
+                    payload.status.value,
+                    payload.source.value,
+                    payload.event_id,
+                )
+            else:
+                guild_values["status"] = payload.status.value
+                guild_values["status_changed_at"] = now
+                logger.info(
+                    "billing: guild %s status %s -> %s (source=%s actor=%s event=%s)",
+                    guild_id,
+                    row.status,
+                    payload.status.value,
+                    payload.source.value,
+                    payload.actor,
+                    payload.event_id,
+                )
         if administration_values or guild_values:
             if administration_values:
                 await session.exec(
@@ -379,7 +419,21 @@ async def guild_display_name(session: AsyncSession, guild_id: int) -> str | None
     ).one_or_none()
 
 
-async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int:
+async def guild_lifecycle_status(
+    session: AsyncSession, guild_id: int
+) -> GuildStatus | None:
+    """One guild's lifecycle status, ``deleted`` included, or None once purged.
+
+    On the billing session, like the name: ``status`` is among the columns the
+    billing role already reads for the tier write.
+    """
+    status = (
+        await session.exec(select(Guild.status).where(Guild.id == guild_id))
+    ).one_or_none()
+    return None if status is None else GuildStatus(status)
+
+
+async def guild_storage_usage(system_session: AsyncSession, guild_id: int) -> int:
     """Current stored bytes for one guild, for the signed usage read.
 
     ``uploads`` lives in the per-guild ``guild_<id>`` schema, which the
@@ -395,10 +449,10 @@ async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int
 
     # Existence check at the public baseline before routing into the schema.
     exists = (
-        await admin_session.exec(select(Guild.id).where(Guild.id == guild_id))
+        await system_session.exec(select(Guild.id).where(Guild.id == guild_id))
     ).one_or_none()
     if exists is None:
         raise BillingGuildNotFoundError(guild_id)
 
-    await set_rls_context(admin_session, guild_id=guild_id)
-    return await get_guild_storage_usage(admin_session)
+    await set_rls_context(system_session, guild_id=guild_id)
+    return await get_guild_storage_usage(system_session)

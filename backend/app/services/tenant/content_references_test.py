@@ -106,6 +106,19 @@ def test_a_hash_in_running_text_is_a_reference():
     assert references_in_text("see #task[Fix the bug](12) first") == {(TASK, 12)}
 
 
+def test_a_hash_reads_every_spelling_the_composer_writes():
+    """The composer kebabs a kind after ``#`` and once wrote ``#doc``; both
+    name the same things the kind's own spelling does."""
+    assert references_in_text(
+        "#wiki-page[Start](3) #counter-group[Tally](4) #doc[Spec](5) #wiki_page[A](6)"
+    ) == {
+        (SearchEntityType.wiki_page, 3),
+        (SearchEntityType.counter_group, 4),
+        (SearchEntityType.document, 5),
+        (SearchEntityType.wiki_page, 6),
+    }
+
+
 def test_a_hash_naming_no_known_kind_is_not_a_reference():
     assert references_in_text("#widget[Nope](3)") == set()
 
@@ -394,3 +407,53 @@ async def test_archiving_the_far_end_leaves_a_reference_standing(session, acting
     )
 
     assert await _references(session, anchor) == {("task", task.id)}
+
+
+# ---------------------------------------------------------------------------
+# A task's description is its body
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_a_task_description_is_read_as_the_task_s_body(session, acting_user):
+    """A description is markdown rather than an editor state, and names things
+    with the same `#` a comment does."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    doc = await create_document(session, a.initiative, a.user)
+    task = await create_task(
+        session, a.project, description=f"see #doc[Spec]({doc.id})"
+    )
+
+    assert await content_references.own_body(session, Endpoint(TASK, task.id)) == (
+        f"see #doc[Spec]({doc.id})"
+    )
+    await content_references.sync_for_entity(
+        session,
+        Endpoint(TASK, task.id),
+        body=task.description,
+        author_id=a.user.id,
+    )
+
+    assert await _references(session, Endpoint(TASK, task.id)) == {("document", doc.id)}
+
+
+@pytest.mark.integration
+async def test_a_comment_on_a_task_keeps_what_its_description_says(
+    session, acting_user
+):
+    """A comment's save recomputes its task's edges, and the description is one
+    of the things it recomputes from."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    doc = await create_document(session, a.initiative, a.user)
+    other = await create_task(session, a.project)
+    task = await create_task(session, a.project, description=f"#doc[Spec]({doc.id})")
+
+    comment = await create_comment(
+        session, a.user, task=task, content=f"and #task[That]({other.id})"
+    )
+    await content_references.sync_for_comment(session, comment, author_id=a.user.id)
+
+    assert await _references(session, Endpoint(TASK, task.id)) == {
+        ("document", doc.id),
+        ("task", other.id),
+    }

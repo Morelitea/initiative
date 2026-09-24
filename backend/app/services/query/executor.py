@@ -37,7 +37,6 @@ from asyncpg.exceptions import (
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.core.messages import QueryMessages
 from app.db import session as db_session
 from app.db.session import set_rls_context
@@ -173,6 +172,17 @@ async def _described(
     )
 
 
+#: How many queries one guild may have running at once, across the deployment.
+QUERY_MAX_CONCURRENT_PER_GUILD = 2
+#: How long one statement may run.
+QUERY_STATEMENT_TIMEOUT_MS = 5_000
+#: Sort/hash memory per statement, as a PostgreSQL size.
+QUERY_WORK_MEM = "16MB"
+#: The planner's estimate above which a statement is refused unrun.
+QUERY_MAX_COST = 1_000_000.0
+#: Rows one query may return.
+QUERY_MAX_ROWS = 5_000
+
 #: Names the query surface's locks apart from anything else that takes one.
 #: Advisory locks are keyed by two integers and share one space per database.
 _LOCK_SPACE = 0x51_55_45_52  # "QUER"
@@ -186,7 +196,7 @@ async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
     held for the transaction and released when it ends, so a query that fails
     or is cancelled gives its slot back without anything having to notice.
     """
-    for slot in range(settings.QUERY_MAX_CONCURRENT_PER_GUILD):
+    for slot in range(QUERY_MAX_CONCURRENT_PER_GUILD):
         taken = await connection.fetchval(
             "SELECT pg_try_advisory_xact_lock($1, $2)",
             _LOCK_SPACE + int(guild_id),
@@ -221,8 +231,8 @@ async def _bound_transaction(connection: Any) -> None:
     await connection.execute(
         _TRANSACTION_LIMITS,
         {
-            "statement_timeout": str(int(settings.QUERY_STATEMENT_TIMEOUT_MS)),
-            "work_mem": settings.QUERY_WORK_MEM,
+            "statement_timeout": str(QUERY_STATEMENT_TIMEOUT_MS),
+            "work_mem": QUERY_WORK_MEM,
         },
     )
 
@@ -323,13 +333,13 @@ async def execute(
             await set_rls_context(session, **routed)
 
             cost = await _estimated_cost(connection, statement)
-            if cost > settings.QUERY_MAX_COST:
+            if cost > QUERY_MAX_COST:
                 raise QueryError(QueryMessages.TOO_EXPENSIVE, f"{cost:.0f}")
 
             prepared = await connection.prepare(statement.sql)
             columns = await _described(connection, prepared, statement)
 
-            limit = settings.QUERY_MAX_ROWS
+            limit = QUERY_MAX_ROWS
             rows: list[tuple[Any, ...]] = []
             truncated = False
             async for record in prepared.cursor(*statement.parameters):

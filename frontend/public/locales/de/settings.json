@@ -21,14 +21,11 @@
     "title": "Community-Einstellungen",
     "subtitle": "Verwalte die Mitgliedschaft im Arbeitsbereich und die Community-Details.",
     "permissionDenied": "Du benötigst zusätzliche Berechtigungen, um diese Seite anzuzeigen.",
+    "viewOnly": "Du siehst diese Einstellungen über eine Zugriffsfreigabe. Um sie zu ändern, ist zusätzlich eine Lese-/Schreibfreigabe nötig.",
     "restricted": {
       "read_only": {
         "label": "Schreibgeschützt",
         "message": "Diese Community ist schreibgeschützt. Wende dich an die Betreiber dieses Servers, um den vollen Zugriff wiederherzustellen."
-      },
-      "suspended": {
-        "label": "Gesperrt",
-        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an die Betreiber dieses Servers."
       }
     },
     "tabs": {
@@ -103,21 +100,12 @@
     "removeConfirm": "Entfernen"
   },
   "security": {
-    "devicesTitle": "Angemeldete Geräte",
-    "devicesDescription": "Mobile Geräte, die derzeit an deinem Konto angemeldet sind. Durch das Widerrufen des Zugriffs wird das Gerät abgemeldet.",
     "loadingDevices": "Geräte werden geladen…",
     "devicesError": "Geräte konnten nicht geladen werden.",
-    "noDevices": "Keine Geräte angemeldet",
-    "noDevicesHint": "Wenn du dich von einem mobilen Gerät aus anmeldest, erscheint es hier.",
     "unknownDevice": "Unbekanntes Gerät",
     "loggedIn": "Angemeldet {{date}}",
-    "revoke": "Widerrufen",
-    "revokeDialogTitle": "Gerätezugriff widerrufen?",
-    "revokeDialogDescription": "Dadurch wird <bold>{{deviceName}}</bold> abgemeldet. Das Gerät muss sich erneut anmelden, um auf dein Konto zuzugreifen.",
     "revokeDialogCancel": "Abbrechen",
-    "revokeDialogConfirm": "Zugriff widerrufen",
     "revoking": "Wird widerrufen…",
-    "revokeSuccess": "Gerät abgemeldet",
     "revokeError": "Gerätezugriff konnte nicht widerrufen werden",
     "newKeyTitle": "Neuer API-Schlüssel",
     "newKeyDescription": "Kopiere diesen Schlüssel jetzt. Du kannst ihn später nicht mehr einsehen.",
@@ -162,7 +150,24 @@
     "deleteButton": "Löschen",
     "deleting": "Wird entfernt…",
     "deleteSuccess": "API-Schlüssel gelöscht",
-    "deleteError": "API-Schlüssel konnte nicht gelöscht werden"
+    "deleteError": "API-Schlüssel konnte nicht gelöscht werden",
+    "signedInTitle": "Wo du angemeldet bist",
+    "signedInDescription": "Die Browser und Geräte, die gerade in deinem Konto angemeldet sind. Eine Abmeldung beendet nur diese eine Sitzung.",
+    "noSignedIn": "Sonst nirgends",
+    "noSignedInHint": "Sobald du dich in einem anderen Browser oder auf einem anderen Gerät anmeldest, erscheint es hier.",
+    "thisDevice": "Dieses Gerät",
+    "activeAt": "aktiv {{when}}",
+    "signOut": "Abmelden",
+    "signOutDialogTitle": "Dieses Gerät abmelden?",
+    "signOutDialogDescription": "Damit endet die Sitzung auf <bold>{{deviceName}}</bold>. Es muss sich erneut anmelden.",
+    "signOutConfirm": "Abmelden",
+    "signedOutOne": "Abgemeldet",
+    "signOutOthers": "Überall sonst abmelden",
+    "signOutOthersDialogTitle": "Überall sonst abmelden?",
+    "signOutOthersDialogDescription_one": "Damit endet {{count}} weitere Sitzung. Hier bleibst du angemeldet.",
+    "signOutOthersDialogDescription_other": "Damit enden alle {{count}} weiteren Sitzungen. Hier bleibst du angemeldet.",
+    "signOutOthersConfirm": "Überall sonst abmelden",
+    "signedOutOthers": "Überall sonst abgemeldet"
   },
   "ai": {
     "loading": "KI-Einstellungen werden geladen…",
@@ -191,7 +196,7 @@
   "platformAI": {
     "title": "Plattform-KI",
     "description": "Lege fest, wie KI plattformweit konfiguriert wird. Wie bei der Anmeldung wird KI entweder von der Plattform oder von jeder Community verwaltet – niemals von beiden.",
-    "adminOnly": "Nur Plattform-Eigentümer können die KI-Einstellungen der Plattform verwalten.",
+    "platformOnly": "Nur Plattform-Eigentümer können die KI-Einstellungen der Plattform verwalten.",
     "modeLabel": "KI-Konfigurationsmodus",
     "mode_disabled": "Deaktiviert",
     "mode_disabled_description": "KI-Funktionen sind für alle deaktiviert.",
@@ -213,6 +218,15 @@
     "colorThemeDescription": "Wähle ein Farbdesign für die Anwendung.",
     "weekStartsOn": "Woche beginnt am",
     "weekStartsOnDescription": "Wähle, welcher Tag in Kalendern und Datumsauswahlfeldern zuerst angezeigt wird.",
+    "timeFormat": {
+      "label": "Zeitformat",
+      "description": "Uhrzeiten als 1:30 PM oder 13:30 anzeigen. Der Browser-Standard folgt der Sprache deines Browsers, die von der Uhr-Einstellung deines Betriebssystems nicht verändert wird.",
+      "options": {
+        "system": "Browser-Standard",
+        "12": "12-Stunden (1:30 PM)",
+        "24": "24-Stunden (13:30)"
+      }
+    },
     "recentTabsLimit": "Aktuelle Elemente in der Tab-Leiste",
     "recentTabsLimitDescription": "Wie viele kürzlich geöffnete Elemente in der Tab-Leiste der Kopfzeile behalten werden (1–100).",
     "language": "Sprache",
@@ -396,7 +410,7 @@
     "disconnectDescription": "Melde dich ab und trenne die Verbindung zu diesem Server. Du kannst dich danach mit einem anderen Server verbinden.",
     "disconnectButton": "Trennen",
     "deactivateTitle": "Konto deaktivieren",
-    "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Community entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Administrator kann dein Konto später wieder aktivieren.",
+    "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Community entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Person, die diesen Server betreibt, kann dein Konto später wieder aktivieren.",
     "permanentDeleteTitle": "Konto löschen",
     "permanentDeleteDescriptionText": "Ihr Konto verschwindet sofort für alle anderen. Endgültig gelöscht wird zunächst nichts — melden Sie sich vorher wieder an, und die Löschung ist abgesagt, mit Ihren Communitys und Ihrer Arbeit genau so, wie Sie sie verlassen haben. Danach gehen Projekte an andere über, und Kommentare und Dokumente bleiben, zeigen aber „[Gelöschter Nutzer]“.",
     "cannotBeUndone": "Eine Anmeldung stoppt die Löschung.",
@@ -416,7 +430,7 @@
     "checkBlockersDeactivateDescription": "Es wird geprüft, ob dein Konto deaktiviert werden kann",
     "confirmDeletionDescription": "Kontolöschung bestätigen",
     "confirmDeactivationDescription": "Kontodeaktivierung bestätigen",
-    "deactivateLabel": "Mein Konto deaktivieren (Administratoren können es später für dich aktivieren)",
+    "deactivateLabel": "Mein Konto deaktivieren (wer diesen Server betreibt, kann es später wieder aktivieren)",
     "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Betreiber des Servers können dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteLabel": "Mein Konto löschen (meine persönlichen Informationen entfernen)",
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
@@ -427,7 +441,7 @@
     "eligible": "Dein Konto ist zum Löschen berechtigt.",
     "eligibleDeactivate": "Dein Konto ist zur Deaktivierung berechtigt.",
     "actionSerious": "Diese Aktion ist schwerwiegend:",
-    "deactivateConfirmDescription": "Dein Konto wird deaktiviert. Du kannst dich nicht anmelden, bis ein Administrator dein Konto wieder aktiviert. Du wirst aus jeder Community entfernt, der du angehörst, und ein erneuter Beitritt erfordert eine neue Einladung. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
+    "deactivateConfirmDescription": "Dein Konto wird deaktiviert. Du kannst dich nicht anmelden, bis die Person, die diesen Server betreibt, es wieder aktiviert. Du wirst aus jeder Community entfernt, der du angehörst, und ein erneuter Beitritt erfordert eine neue Einladung. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteConfirmDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt. Du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "confirmPasswordLabel": "Bestätige dein Passwort",
     "enterPassword": "Gib dein Passwort ein",
@@ -440,7 +454,7 @@
     "softDeleteSuccess": "Dein Konto wurde anonymisiert."
   },
   "branding": {
-    "adminOnly": "Nur der Plattform-Eigentümer kann die Branding-Einstellungen verwalten.",
+    "platformOnly": "Nur der Plattform-Eigentümer kann die Branding-Einstellungen verwalten.",
     "colorsTitle": "Markenfarben",
     "colorsDescription": "Passe die Akzentfarben für den hellen und dunklen Modus an.",
     "loadingInterface": "Oberflächeneinstellungen werden geladen…",
@@ -517,7 +531,7 @@
     }
   },
   "email": {
-    "adminOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
+    "platformOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
     "title": "SMTP-E-Mail",
     "description": "Konfiguriere den SMTP-Server, der für Transaktions-E-Mails verwendet wird.",
     "loading": "E-Mail-Einstellungen werden geladen…",
@@ -547,57 +561,70 @@
     "saveSuccess": "E-Mail-Einstellungen gespeichert",
     "saveError": "E-Mail-Einstellungen konnten nicht gespeichert werden"
   },
+  "push": {
+    "platformOnly": "Nur der Plattform-Eigentümer kann die Einstellungen für Push-Benachrichtigungen verwalten.",
+    "loading": "Einstellungen für Push-Benachrichtigungen werden geladen…",
+    "loadError": "Einstellungen für Push-Benachrichtigungen konnten nicht geladen werden.",
+    "title": "Firebase Cloud Messaging",
+    "description": "Das Firebase-Projekt, bei dem sich die mobilen Apps registrieren und über das der Server Push-Benachrichtigungen sendet.",
+    "enabledLabel": "Push-Benachrichtigungen senden",
+    "enabledHelp": "Die mobilen Apps übernehmen das beim nächsten Öffnen. Kein Neustart nötig.",
+    "fields": {
+      "project_id": {
+        "label": "Projekt-ID",
+        "help": "Projekteinstellungen → Allgemein → Projekt-ID."
+      },
+      "application_id": {
+        "label": "App-ID",
+        "help": "Projekteinstellungen → Allgemein → Meine Apps → App-ID."
+      },
+      "api_key": {
+        "label": "Web-API-Schlüssel",
+        "help": "Projekteinstellungen → Allgemein → Web-API-Schlüssel."
+      },
+      "sender_id": {
+        "label": "Absender-ID",
+        "help": "Projekteinstellungen → Cloud Messaging → Absender-ID."
+      }
+    },
+    "serviceAccountLabel": "Dienstkontoschlüssel",
+    "serviceAccountSet": "Ein Schlüssel ist gespeichert. Füge einen neuen ein, um ihn zu ersetzen.",
+    "serviceAccountHelp": "Die gesamte JSON-Datei aus Projekteinstellungen → Dienstkonten → Neuen privaten Schlüssel generieren. Leer lassen, um den gespeicherten Schlüssel zu behalten.",
+    "serviceAccountInvalid": "Füge die ganze Schlüsseldatei ein: ein JSON-Objekt, samt geschweiften Klammern.",
+    "save": "Push-Einstellungen speichern",
+    "saving": "Speichern…",
+    "saved": "Push-Einstellungen gespeichert",
+    "error": "Push-Einstellungen konnten nicht gespeichert werden"
+  },
+  "captcha": {
+    "title": "Captcha",
+    "description": "Eine Prüfung, dass die Person, die sich registriert oder einen Anmeldecode per E-Mail anfordert, kein Bot ist.",
+    "on": "An",
+    "off": "Aus",
+    "providerLabel": "Anbieter",
+    "providers": {
+      "off": "Keiner",
+      "hcaptcha": "hCaptcha",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA v2"
+    },
+    "siteKeyLabel": "Websiteschlüssel",
+    "secretKeyLabel": "Geheimer Schlüssel",
+    "secretKeySet": "••••••••",
+    "secretKeyHelp": "Leer lassen, um den gespeicherten geheimen Schlüssel zu behalten.",
+    "incomplete": "Das Captcha ist aktiv, sobald Anbieter, Websiteschlüssel und geheimer Schlüssel gespeichert sind.",
+    "save": "Captcha-Einstellungen speichern",
+    "saving": "Speichern…",
+    "saved": "Captcha-Einstellungen gespeichert",
+    "error": "Captcha-Einstellungen konnten nicht gespeichert werden"
+  },
   "auth": {
-    "adminOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
+    "platformOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
     "loadError": "Authentifizierungseinstellungen konnten nicht geladen werden.",
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
     "mobileCallback": "Callback der mobilen App:",
-    "rulesTitle": "Zuordnungsregeln",
-    "rulesDescription": "Ordne OIDC-Claim-Werte Community- und Initiativen-Mitgliedschaften zu.",
-    "addRule": "Regel hinzufügen",
-    "noRules": "Noch keine Zuordnungsregeln konfiguriert.",
-    "mappingClaimValue": "Claim-Wert",
-    "mappingClaimValuePlaceholder": "z. B. engineering-team",
-    "mappingTargetType": "Zieltyp",
-    "mappingTargetTypeGuild": "Community",
-    "mappingTargetTypeInitiative": "Initiative",
-    "mappingGuild": "Community",
-    "mappingGuildPlaceholder": "Community auswählen",
-    "mappingGuildRole": "Community-Rolle",
-    "mappingInitiative": "Initiative",
-    "mappingInitiativePlaceholder": "Initiative auswählen",
-    "mappingInitiativeRole": "Initiativenrolle",
-    "mappingInitiativeRolePlaceholder": "Rolle auswählen",
-    "mappingSaving": "Speichern…",
-    "mappingCancel": "Abbrechen",
-    "mappingEdit": "Bearbeiten",
-    "mappingDelete": "Löschen",
-    "mappingCreateSuccess": "Zuordnung erstellt",
-    "mappingCreateError": "Zuordnung konnte nicht erstellt werden",
-    "mappingUpdateSuccess": "Zuordnung aktualisiert",
-    "mappingUpdateError": "Zuordnung konnte nicht aktualisiert werden",
-    "mappingDeleteSuccess": "Zuordnung gelöscht",
-    "mappingDeleteError": "Zuordnung konnte nicht gelöscht werden",
-    "mappingColumnClaim": "Claim-Wert",
-    "mappingColumnType": "Typ",
-    "mappingColumnGuild": "Community",
-    "mappingColumnGuildRole": "Community-Rolle",
-    "mappingColumnInitiative": "Initiative",
-    "mappingColumnInitiativeRole": "Initiativenrolle",
-    "mappingColumnActions": "Aktionen",
-    "mappingUpdate": "Aktualisieren",
-    "mappingAdd": "Hinzufügen",
-    "mappingRoleMember": "Mitglied",
-    "mappingRoleAdmin": "Administrator",
-    "mappingSelectGuildFirst": "Zuerst Community auswählen",
-    "mappingSelectInitiativeFirst": "Zuerst Initiative auswählen",
-    "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
-    "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
     "deploymentTitle": "Diese Installation",
-    "mappingProvider": "Anbieter",
-    "mappingProviderPlaceholder": "Welcher Anbieter diesen Claim liefert",
-    "mappingProviderHelp": "Eine Regel gilt für einen Anbieter. Eine Anmeldung über einen anderen liest sie nicht und macht nichts rückgängig, was sie bewirkt hat.",
     "methods": {
       "title": "Zugangswege",
       "description": "Wie sich Personen bei dieser Installation anmelden können. Mindestens eine Möglichkeit, eine Sitzung zu beginnen, bleibt aktiv.",
@@ -730,7 +757,7 @@
     "usernameChanged": "Benutzername geändert.",
     "suspend": "Sperren",
     "suspendTitle": "{{handle}} sperren?",
-    "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Community erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
+    "suspendBody": "Sie behalten alles – Mitgliedschaften, Freigaben und alles, was sie geschrieben haben – und erreichen nichts, bis die Sperre aufgehoben ist. Sie können sich weiterhin anmelden und sehen nur, dass sie gesperrt sind, deinen Grund und an wen sie sich wenden können.",
     "suspendReasonLabel": "Begründung (wird angezeigt)",
     "actionError": "Das hat nicht geklappt. Bitte erneut versuchen.",
     "clearAgeBlock": "Altersfrage zurücksetzen",
@@ -750,7 +777,7 @@
       "avatarConfirmBody": "Das Bild von {{handle}} wird entfernt und die Person wird benachrichtigt. Sie kann ein neues hochladen.",
       "access": "Zugriff",
       "suspendLabel": "Gesperrt",
-      "suspendHelp": "Ein gesperrtes Konto kann sich weiterhin anmelden und den Grund lesen, erreicht aber keine seiner Communitys.",
+      "suspendHelp": "Ein gesperrtes Konto kann sich anmelden und nachlesen, warum, und erreicht sonst nichts.",
       "role": "Plattformrolle",
       "roleLabel": "Rolle",
       "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben."
@@ -762,7 +789,7 @@
     "restoreSuccess": "{{handle}} wiederhergestellt.",
     "restoreError": "Das Konto konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
   },
-  "adminDeleteUser": {
+  "operatorDeleteUser": {
     "subtitle": "{{email}} löschen",
     "back": "Zurück",
     "next": "Weiter",
@@ -779,17 +806,9 @@
     "hardDeleteDescription": "Alle Benutzerdaten werden aus der Datenbank entfernt. Von diesem Benutzer verfasste Kommentare, Aufgaben und andere Inhalte werden per Kaskade gelöscht. Kann nicht rückgängig gemacht werden.",
     "blockersTitle": "Blockierungen",
     "blockersDescription": "Die folgenden Probleme müssen behoben werden, bevor dieser Benutzer gelöscht werden kann:",
-    "guildBlockerTitle": "Letzter Administrator in Community: {{guildName}}",
-    "guildBlockerDescription": "Ein anderes Mitglied zum Administrator befördern:",
-    "promoteToGuildAdmin": "Zum Administrator befördern",
-    "promoteSuccess": "Rolle aktualisiert",
-    "promoteError": "Rolle konnte nicht aktualisiert werden",
-    "deleteGuild": "Community löschen",
-    "deleteGuildConfirm": "Community „{{guildName}}“ löschen? Dadurch werden alle Community-Daten dauerhaft gelöscht.",
-    "deleteGuildSuccess": "Community gelöscht",
-    "deleteGuildError": "Community konnte nicht gelöscht werden",
-    "transferSelectPlaceholder": "Neuen Eigentümer auswählen",
-    "noUsersAvailable": "Keine Benutzer verfügbar",
+    "guildBlockerTitle": "Einziger Superadmin der Community: {{guildName}}",
+    "guildBlockerDescription": "Wer das Konto besitzt, kann ein anderes Mitglied zum Superadmin machen. Oder du nimmst Notfallzugriff auf die Community und ernennst in ihren Einstellungen einen Superadmin oder löschst die Community dort.",
+    "checkAgain": "Erneut prüfen",
     "confirmTitle": "Löschung bestätigen",
     "confirmDeactivateTitle": "Deaktivierung bestätigen",
     "confirmAnonymizeTitle": "Anonymisierung bestätigen",
@@ -820,7 +839,7 @@
       "error": "Notfallzugriff nicht möglich",
       "codeLabel": "Dein Authenticator-Code",
       "codePlaceholder": "123456 oder ein Wiederherstellungscode",
-      "codeHelp": "Jemand mit Administrationsrechten für diese Installation hat die Zwei-Faktor-Authentifizierung eingerichtet, daher musst du beim Notzugriff nachweisen, dass du es bist. Ein Authenticator-Code, ein Wiederherstellungscode oder einer deiner Passkeys genügt.",
+      "codeHelp": "Auf diesem Server ist die Zwei-Faktor-Authentifizierung aktiviert, daher musst du beim Notzugriff nachweisen, dass du es bist. Ein Authenticator-Code, ein Wiederherstellungscode oder einer deiner Passkeys genügt.",
       "codeNotEnrolled": "Für dieses Konto sind weder ein Authenticator noch ein Passkey eingerichtet. Richte unter Sicherheit eines davon ein und nutze dann den Notzugriff.",
       "passkeySubmit": "Notzugriff mit Passkey",
       "passkeyPresenting": "Warten auf deinen Passkey …"
@@ -874,11 +893,12 @@
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
-    "subtitle": "Anmeldung, Sicherheit, Branding, E-Mail, das Community-Verzeichnis, Integrationen, Speicher und Eingang für die gesamte Installation.",
+    "subtitle": "Anmeldung, Sicherheit, Branding, E-Mail, Push-Benachrichtigungen, das Community-Verzeichnis, Integrationen, Speicher und Eingang für die gesamte Installation.",
     "tabs": {
       "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
+      "push": "Push-Benachrichtigungen",
       "community": "Community",
       "storage": "Speicher",
       "intake": "Eingang",
@@ -887,7 +907,7 @@
     }
   },
   "appServices": {
-    "adminOnly": "Nur Plattform-Eigentümer können App-Dienste verwalten.",
+    "platformOnly": "Nur Plattform-Eigentümer können App-Dienste verwalten.",
     "loading": "App-Dienste werden geladen…",
     "loadError": "App-Dienste konnten nicht geladen werden.",
     "title": "App-Dienste",
@@ -988,18 +1008,89 @@
       "users": "Benutzer",
       "access": "Zugriff",
       "guilds": "Communitys",
+      "placement": "Zuordnung bei Anmeldung",
       "announcements": "Ankündigungen"
+    }
+  },
+  "providerPlacement": {
+    "title": "Zuordnung bei Anmeldung",
+    "description": "Ordne die Leute, die ein Anmeldeanbieter anmeldet – nach der Gruppe oder dem Verzeichnis, das er meldet –, einer Community zu, und dort einer Initiative, wenn du eine nennst.",
+    "loading": "Zuordnungsregeln werden geladen…",
+    "loadError": "Zuordnungsregeln konnten nicht geladen werden. Bitte versuche es erneut.",
+    "platformOnly": "Die Zuordnung bei Anmeldung verwalten Plattform-Operatoren und -Owner.",
+    "everywhere": {
+      "label": "Zuordnungsregeln auf jede Community anwenden",
+      "help": "Eingeschaltet ordnet eine Regel Leute der genannten Community zu, ob diese zugestimmt hat oder nicht. Jede Änderung wird protokolliert.",
+      "ownerOnly": "Das legt der Plattform-Owner fest.",
+      "confirmTitle": "Zuordnungsregeln auf jede Community anwenden?",
+      "confirmDescription": "Jede Regel ordnet dann Leute der genannten Community zu, auch Communitys, die den Regeln ihres Anbieters nicht zugestimmt haben. Die Änderung wird im Audit-Log festgehalten.",
+      "confirm": "Überall anwenden",
+      "enabled": "Zuordnungsregeln gelten jetzt für jede Community",
+      "disabled": "Zuordnungsregeln gelten jetzt dort, wo eine Community zugestimmt hat",
+      "error": "Konnte nicht ändern, wo Zuordnungsregeln gelten"
+    },
+    "noProviders": "Noch keine Anmeldeanbieter. Sobald einer auf der Seite Authentifizierung hinzugefügt ist, schreibst du hier seine Zuordnungsregeln.",
+    "noGroups": "Dieser Anbieter meldet noch keine Gruppen: Eine Regel mit einer Gruppe trifft auf niemanden zu, bis ein Owner auf der Seite Authentifizierung den Gruppen-Claim des Anbieters festlegt. Regeln, die nur ein Verzeichnis nennen, funktionieren bereits.",
+    "empty": "Noch keine Regeln für diesen Anbieter.",
+    "add": "Regel hinzufügen",
+    "addFor": "Regel für {{provider}} hinzufügen",
+    "addTitle": "Zuordnungsregel hinzufügen",
+    "addDescription": "Lege fest, auf wen bei {{provider}} diese Regel zutrifft und wo diese Leute landen.",
+    "editTitle": "Zuordnungsregel bearbeiten",
+    "editDescription": "Ordnet Leute von {{provider}} {{community}} zu. Eine Regel behält ihren Anbieter und ihre Community; für andere füge eine neue Regel hinzu.",
+    "editLabel": "Regel bearbeiten",
+    "match": {
+      "group": "Gruppe {{group}}",
+      "groupInDirectory": "Gruppe {{group}} in {{claim}} = {{value}}",
+      "directory": "Alle aus {{claim}} = {{value}}"
+    },
+    "landsInCommunity": "Tritt {{community}} bei als {{role}}",
+    "landsInInitiative": "Tritt {{community}} bei als {{role}}, und {{initiative}} als {{initiativeRole}}",
+    "notApplying": "Greift nicht",
+    "notApplyingHint": "Die Community hat den Regeln dieses Anbieters nicht zugestimmt, und sie gelten nicht überall.",
+    "groupLabel": "Gruppe",
+    "groupPlaceholder": "eng",
+    "groupHelp": "Genau so, wie der Anbieter sie schreibt. Leer lassen, um alle aus dem Verzeichnis unten zuzuordnen.",
+    "directoryLabel": "Nur Leute aus einem Verzeichnis",
+    "directoryHelp": "Für einen Anbieter, der Leute aus mehreren Verzeichnissen anmeldet: der Claim, der das Verzeichnis nennt, und der Wert dieses Verzeichnisses.",
+    "directoryClaimLabel": "Claim",
+    "directoryClaimPlaceholder": "idp",
+    "directoryValueLabel": "Wert",
+    "directoryValuePlaceholder": "acme-adfs",
+    "needsMatch": "Nenne eine Gruppe, ein Verzeichnis oder beides.",
+    "communityLabel": "Community",
+    "communityPlaceholder": "Community auswählen",
+    "communitySearch": "Communitys durchsuchen",
+    "communityEmpty": "Keine passenden Communitys",
+    "notAccepted": "Nicht zugestimmt",
+    "communityHelp": "Eine Community mit „Nicht zugestimmt“ übernimmt die Regeln dieses Anbieters, sobald sie ihnen auf ihrer Sicherheitsseite zustimmt.",
+    "targetsUnavailable": "Initiativen erscheinen, sobald diese Community die Regeln dieses Anbieters übernimmt.",
+    "save": "Regel speichern",
+    "added": "Regel hinzugefügt",
+    "addError": "Regel konnte nicht hinzugefügt werden",
+    "saved": "Regel gespeichert",
+    "saveError": "Regel konnte nicht gespeichert werden",
+    "remove": "Regel löschen",
+    "removeTitle": "Diese Regel löschen?",
+    "removeDescription": "Leute, auf die sie zutrifft, werden durch sie nicht mehr {{community}} zugeordnet, und was sie ihnen gegeben hat, wird bei ihrer nächsten Anmeldung über diesen Anbieter aufgehoben.",
+    "removed": "Regel gelöscht",
+    "removeError": "Regel konnte nicht gelöscht werden",
+    "requests": {
+      "title": "Wartet auf eine Antwort",
+      "help": "Diese Communitys haben bei einer Verbindung eine Domain oder einen Tenant als ihren eigenen angegeben. Stimmst du zu, treten die passenden Personen bei der Ankunft bei, sofern die Community das wünscht.",
+      "agreed": "Für {{community}} zugestimmt"
     }
   },
   "guilds": {
     "title": "Community-Limits",
     "description": "Lege pro Community Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
-    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um Community-Limits zu verwalten.",
+    "platformOnly": "Du benötigst die Plattform-Eigentümerrolle, um Community-Limits zu verwalten.",
     "loading": "Communitys werden geladen…",
     "loadError": "Communitys konnten nicht geladen werden. Bitte versuche es erneut.",
     "filterByName": "Communitys nach Namen filtern",
     "unlimitedPlaceholder": "Unbegrenzt",
     "helpText": "Speicherlimits sind in GB; Benutzerlimits sind eine Mitgliederzahl. Beide werden automatisch gespeichert – lass ein Feld leer für unbegrenzt.",
+    "helpTextBilling": "Die Abrechnung legt Limits, Funktionen und Status jeder Community fest. Hier kannst du eine Community sperren; wird die Sperre aufgehoben, erhält sie wieder den Status, den die Abrechnung zuletzt gesetzt hat.",
     "saved": "Speicherlimit für {{name}} aktualisiert.",
     "saveError": "Das Speicherlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
     "statusInputLabel": "Status für {{name}}",
@@ -1009,12 +1100,18 @@
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
       "suspended": "Gesperrt",
+      "on_hold": "Pausiert",
       "deleted": "Gelöscht"
     },
     "suspendConfirm": {
       "title": "{{name}} sperren?",
-      "description": "Mitglieder verlieren jeglichen Zugriff und die Community verschwindet aus ihrer Liste. Es wird nichts gelöscht und du kannst sie jederzeit reaktivieren; Betreiber behalten den Zugriff über eine Break-Glass-Berechtigung.",
+      "description": "Alle darin verlieren jeden Zugriff, auch die Administratoren, bis du die Sperre aufhebst. Mitglieder sehen sie nicht mehr; Administratoren sehen sie geschlossen. Nichts wird gelöscht, und Betreiber behalten über eine Notfallfreigabe Zugriff.",
       "confirm": "Community sperren"
+    },
+    "holdConfirm": {
+      "title": "{{name}} pausieren?",
+      "description": "Alle darin verlieren jeden Zugriff, auch die Administratoren, und sie verschwindet aus allen Listen. Nichts wird gelöscht. Ihre Superadmins erfahren einmal per E-Mail und in der App, an wen sie sich wenden können.",
+      "confirm": "Pausieren"
     },
     "columns": {
       "id": "ID",
@@ -1029,7 +1126,12 @@
       "openLabel": "Abrechnung für {{name}} öffnen",
       "openError": "Das Abrechnungsportal konnte nicht geöffnet werden.",
       "operatorLabel": "Abrechnungsvorgänge für {{name}}",
-      "operations": "Vorgänge"
+      "operations": "Vorgänge",
+      "factor": {
+        "title": "Bestätige, dass du es bist",
+        "description": "Wenn du die Abrechnung für {{name}} öffnest, erhältst du eine Abrechnungsfreigabe. Gib einen Code aus deiner Authenticator-App oder einen Wiederherstellungscode ein.",
+        "submit": "Abrechnung öffnen"
+      }
     },
     "sheet": {
       "open": "Verwalten",
@@ -1043,7 +1145,7 @@
       "bannerHelp": "Erlaubt das Hochladen eines Bannerbilds. Ohne das wählen sie stattdessen eine Bannerfarbe; ein bereits hochgeladenes Banner bleibt sichtbar.",
       "supportLabel": "Hilfeanfragen",
       "supportHelp": "Erlaubt den Mitgliedern, eine Hilfeanfrage zu senden. Aus öffnet „Hilfe anfordern“ stattdessen die FAQ.",
-      "supportNeedsIntake": "Hilfeanfragen können derzeit nirgendwohin gesendet werden. Verknüpfen Sie den Support-Stream unter Administration › Annahme mit einem Projekt, dann lässt sich dies einschalten.",
+      "supportNeedsIntake": "Hilfeanfragen können derzeit nirgendwohin gesendet werden. Verknüpfen Sie den Support-Stream unter Plattformeinstellungen › Eingang mit einem Projekt, dann lässt sich dies einschalten.",
       "authOption": {
         "restrictions": {
           "label": "Eigener Sicherheitsstandard",
@@ -1067,7 +1169,9 @@
         "agree": "Zustimmen",
         "withdraw": "Zurückziehen",
         "error": "Die Antwort konnte nicht gespeichert werden."
-      }
+      },
+      "setInBilling": "Die Abrechnung legt die Limits und Funktionen dieser Community fest.",
+      "changeInBilling": "In der Abrechnung ändern"
     },
     "unlimited": "Unbegrenzt",
     "restore": {
@@ -1090,7 +1194,7 @@
     }
   },
   "storage": {
-    "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",
+    "platformOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",
     "loading": "Speichereinstellungen werden geladen…",
     "loadError": "Speichereinstellungen konnten nicht geladen werden.",
     "title": "Objektspeicher",
@@ -1226,7 +1330,9 @@
       "makeItOurs": "Zu unserer machen",
       "claimNameLabel": "Claim-Name",
       "claimNamePlaceholder": "z. B. org, realm",
-      "joinsOnceAgreed": "Passende Ankommende treten sofort bei, sobald die Serverbetreiberin bestätigt, dass diese Werte Ihnen gehören. Bis dahin werden sie hereingelassen, und der Beitritt erfolgt per Einladung."
+      "joinsOnceAgreed": "Passende Ankommende treten sofort bei, sobald die Serverbetreiberin bestätigt, dass diese Werte Ihnen gehören. Bis dahin werden sie hereingelassen, und der Beitritt erfolgt per Einladung.",
+      "acceptsPlacementLabel": "Die Installation Leute von diesem Anbieter zuordnen lassen",
+      "acceptsPlacementHelp": "Die Zuordnungsregeln der Installation für diesen Anbieter können hier Leute hinzufügen, neben euren eigenen Regeln."
     },
     "rules": {
       "title": "Wo eure Leute landen",
@@ -1259,7 +1365,12 @@
       "removed": "Regel entfernt",
       "removeError": "Regel konnte nicht entfernt werden",
       "removeTitle": "Diese Regel entfernen?",
-      "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter."
+      "removeDescription": "Wer {{group}} trägt, wird hier nicht mehr zugeordnet, und wer durch diese Regel hier ist, verliert diese Stellung bei der nächsten Anmeldung über diesen Anbieter.",
+      "deployment": {
+        "title": "Von der Installation festgelegt",
+        "description": "Zuordnungsregeln, die die Betreiber dieser Installation für ihre Anbieter geschrieben haben und die diese Community nennen. Sie ordnen Leute hier neben euren eigenen Regeln zu, sobald ihr die Regeln eines Anbieters in seiner Verbindung zulasst.",
+        "everywhere": "Die Installation wendet ihre Zuordnungsregeln auf jede Community an."
+      }
     },
     "sections": {
       "whoGetsIn": "Wer hereinkommt",
@@ -1346,7 +1457,7 @@
     "callbackLabel": "Callback-URL",
     "claimPathLabel": "Gruppen-Claim",
     "claimPathPlaceholder": "groups",
-    "claimPathHelp": "Wo dieser Anbieter die Gruppen einer Person im Token ablegt. Keycloak verschachtelt sie unter realm_access.roles, die meisten anderen nutzen groups oder roles. Die Regeln unten lesen ihn.",
+    "claimPathHelp": "Wo dieser Anbieter die Gruppen einer Person im Token ablegt. Keycloak verschachtelt sie unter realm_access.roles, die meisten anderen nutzen groups oder roles. Die Regeln jeder Community lesen ihn.",
     "test": "Testen",
     "testing": "Test läuft…",
     "verify": "Prüfen",
@@ -1443,7 +1554,8 @@
     "title": "Meine KI",
     "description": "Sieh alle KI-Verbindungen, die dir in deinen Communitys zur Verfügung stehen. Füge dort, wo es erlaubt ist, deinen eigenen API-Schlüssel hinzu und wähle die Verbindung, die du verwendest.",
     "noneAvailable": "Dir sind noch keine KI-Verbindungen verfügbar.",
-    "managedByAdmin": "Von deinem Admin verwaltet – verwendet einen gemeinsamen Schlüssel.",
+    "sharedKeyGuild": "Verwendet einen gemeinsamen Schlüssel, den die Community-Administration festgelegt hat.",
+    "sharedKeyPlatform": "Verwendet einen gemeinsamen Schlüssel, den die Person festgelegt hat, die diesen Server betreibt.",
     "selected": "In Verwendung",
     "requiresKey": "Benötigt deinen Schlüssel",
     "keySet": "Dein Schlüssel ist gesetzt",
@@ -1470,7 +1582,7 @@
     "enabledToast": "Das Community-Verzeichnis ist aktiv.",
     "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
     "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
-    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben.",
+    "platformOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben.",
     "ageGateLabel": "Mitglieder bestätigen lassen, dass sie mindestens 16 sind",
     "ageGateHelpText": "Solange dies aktiv ist, wird jede Person, die über das Verzeichnis einer gelisteten Community beitritt, einmal um eine Altersbestätigung gebeten; die Antwort bleibt an ihrem Konto. Nur dieser Beitritt ist davon betroffen – Communitys mit Einladung fragen nie. Nur dort deaktivieren, wo bereits feststeht, dass jedes Konto einer erwachsenen Person gehört.",
     "ageGateOffTitle": "Nicht mehr nach dem Alter fragen?",
@@ -1486,6 +1598,18 @@
     "directMessagesOffConfirm": "Direktnachrichten deaktivieren",
     "directMessagesEnabledToast": "Direktnachrichten sind aktiv.",
     "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert.",
+    "holdDeletion": {
+      "title": "Pausierte Communitys löschen",
+      "description": "Eine pausierte Community ist für alle darin geschlossen. Ist sie am Ende dieser Frist noch pausiert, wird sie gelöscht, und wie lange sie danach aufbewahrt wird, legt die Frist darüber fest. Wer sie betreibt, erfährt das Datum, sobald sie pausiert wird.",
+      "label": "Löschen nach (Tagen pausiert)",
+      "placeholder": "Nie löschen",
+      "hint": "Gerechnet ab dem Zeitpunkt, an dem die jeweilige Community pausiert wurde — eine Änderung verschiebt also auch das Datum bereits pausierter Communitys.",
+      "neverHint": "Nichts wird nach Ablauf einer Frist gelöscht. Eine Community bleibt pausiert, bis jemand die Pause aufhebt oder sie löscht.",
+      "saved_one": "Pausierte Communitys werden nach {{count}} Tag gelöscht.",
+      "saved_other": "Pausierte Communitys werden nach {{count}} Tagen gelöscht.",
+      "savedNever": "Pausierte Communitys werden nie automatisch gelöscht.",
+      "save": "Frist für pausierte Communitys speichern"
+    },
     "retention": {
       "title": "Gelöschte Communitys aufbewahren",
       "description": "Eine gelöschte Community verschwindet sofort für alle darin, aber bis zum Ende dieser Frist wird nichts endgültig entfernt. Bis dahin kann ein Betreiber sie wiederherstellen.",
@@ -1692,6 +1816,51 @@
   },
   "platformSecurity": {
     "title": "Sicherheit",
-    "description": "Wie lange jemand angemeldet bleiben darf, bevor eine erneute Anmeldung nötig ist."
+    "description": "Wie lange jemand angemeldet bleiben darf, welches Captcha neuen Personen gestellt wird und was eine Benachrichtigung mitnimmt, wenn sie die App verlässt."
+  },
+  "notificationDelivery": {
+    "title": "Benachrichtigungen, die die App verlassen",
+    "description": "Diese Grenzen gelten für jede Community. Eine Community kann sie für sich verschärfen, aber keine kann sie lockern.",
+    "saved": "Benachrichtigungseinstellungen gespeichert",
+    "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
+    "push": {
+      "label": "Mobile Benachrichtigungen",
+      "onHelp": "Benachrichtigungen erreichen Telefone über Apple und Google.",
+      "offHelp": "Dieser Server sendet nichts an ein Telefon und speichert keine Geräteregistrierungen."
+    },
+    "email": {
+      "label": "E-Mail-Benachrichtigungen",
+      "onHelp": "Benachrichtigungen erreichen Postfächer in dem Rhythmus, den jede Person gewählt hat.",
+      "offHelp": "Es wird keine Benachrichtigungs-E-Mail gesendet. Anmeldecodes, Adressbestätigungen, Passwort-Zurücksetzungen und Kontohinweise gehen weiterhin raus."
+    },
+    "redact": {
+      "label": "Details in Benachrichtigungen ausblenden",
+      "onHelp": "Eine Benachrichtigung, die die App verlässt, nennt nur die Art des Ereignisses – „Du wurdest in einem Kommentar erwähnt“. In der App steht alles.",
+      "offHelp": "Eine Benachrichtigung, die die App verlässt, nennt, worum es geht: wer gehandelt hat und woran."
+    }
+  },
+  "guildNotifications": {
+    "title": "Benachrichtigungen, die die App verlassen",
+    "description": "Was die Benachrichtigungen dieser Community mitnehmen, wenn sie die App verlassen. Der Server beantwortet dieselben drei Fragen für alle; es gilt die strengere Antwort.",
+    "saved": "Benachrichtigungseinstellungen gespeichert",
+    "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
+    "push": {
+      "label": "Mobile Benachrichtigungen",
+      "onHelp": "Die Benachrichtigungen dieser Community erreichen die Telefone der Mitglieder.",
+      "offHelp": "Zu dieser Community wird nichts an ein Telefon gesendet. Die Glocke bleibt, und E-Mail ebenfalls, falls sie aktiv ist.",
+      "platformHelp": "Dieser Server sendet nichts an ein Telefon – hier gibt es nichts zu entscheiden."
+    },
+    "email": {
+      "label": "E-Mail-Benachrichtigungen",
+      "onHelp": "Die Benachrichtigungen dieser Community erreichen die Postfächer der Mitglieder.",
+      "offHelp": "Zu dieser Community wird keine Benachrichtigungs-E-Mail gesendet. Anmeldecodes und Passwort-Zurücksetzungen gehören zum Konto und gehen weiterhin raus.",
+      "platformHelp": "Dieser Server sendet keine Benachrichtigungs-E-Mail – hier gibt es nichts zu entscheiden."
+    },
+    "redact": {
+      "label": "Details in Benachrichtigungen ausblenden",
+      "onHelp": "Benachrichtigungen zu dieser Community nennen nur die Art des Ereignisses, sobald sie die App verlassen. Hier sehen Mitglieder alles.",
+      "offHelp": "Benachrichtigungen zu dieser Community nennen, worum es geht, sobald sie die App verlassen.",
+      "platformHelp": "Dieser Server blendet Details überall aus – diese Community ist bereits abgedeckt."
+    }
   }
 }

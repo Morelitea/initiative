@@ -2,7 +2,7 @@
 
 Each per-guild CONTENT table that is scoped to initiative membership is declared
 exactly once here, in ``INITIATIVE_PATHS`` — mapping the table to *how a row
-resolves its initiative* for ``public.initiative_access(...)``. From that one
+resolves its initiative* for ``initiative_access(...)``. From that one
 declaration we derive:
 
 - ``INITIATIVE_SCOPED_TABLES`` (``app.db.tenancy`` re-exports it and folds it
@@ -37,15 +37,28 @@ from app.core.relationships import (
     RelationshipType,
 )
 from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
+from app.db.authorization import IN_POLICY, STANDING, in_body
+
+#: The legs a policy reads, off this statement's standing.
+_P = IN_POLICY
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
 _UID = "(NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer"
 
+# A write flag is a Python bool where the render knows the answer, or the name
+# of a SQL boolean where it does not — inside a function body, its parameter.
+WriteFlag = bool | str
+
 # A path builder takes (table_name, write_flag) and returns the SQL predicate
 # (an initiative_access(...) call, possibly wrapped in an EXISTS join) shared by
 # the four policies — read uses write=False, write commands use write=True.
-PathBuilder = Callable[[str, bool], str]
+PathBuilder = Callable[[str, WriteFlag], str]
+
+# A folded builder takes (table_name, write_flag, share_write_flag) and returns
+# ONE predicate answering membership and sharing together — the shape of a
+# table whose gate is a function of a (kind, id) pair the row names.
+FoldedBuilder = Callable[[str, WriteFlag, WriteFlag], str]
 
 # A row-locator takes a trigger row alias ("NEW"/"OLD") and returns a scalar SQL
 # expression yielding that row's initiative id (or NULL).
@@ -60,6 +73,13 @@ ParentsLocator = Callable[[str], str]
 
 #: A row that hangs off nothing but its initiative.
 NO_PARENTS = "'[]'::jsonb"
+
+
+def _sql_bool(flag: WriteFlag) -> str:
+    """``true``/``false`` for a decided flag, the expression itself otherwise."""
+    if isinstance(flag, str):
+        return flag
+    return "true" if flag else "false"
 
 
 def _parent(table: str, id_expr: str) -> str:
@@ -107,7 +127,7 @@ def _parent_chain(frm: str, tie: str, id_expr: str, *hops: tuple[str, str]) -> s
 # A DAC builder has the same shape as a PathBuilder but may answer None, for a
 # table no tool's sharing governs — the guild's own vocabulary, an initiative's
 # configuration. None renders no leg at all rather than a `true` one.
-DacBuilder = Callable[[str, str, bool], "str | None"]
+DacBuilder = Callable[[str, str, WriteFlag], "str | None"]
 
 #: Every tool's own table, keyed by table name. The sharing gate is DERIVED from
 #: this rather than declared per table: a row is governed by the tool it belongs
@@ -151,6 +171,15 @@ class DacPath:
     via: tuple[tuple[str, str], ...] = ()
 
 
+def _switch_leg(tool: "Tool", initiative: str) -> str:
+    """Whether ``tool`` is switched on for ``initiative``, for this reader."""
+    return (
+        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
+        f" OR ({_P.this_guild} AND ({initiative}::text || ':{tool.value}')"
+        f" = ANY ({_P.field('enabled_tools')})))"
+    )
+
+
 def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) -> str:
     """Gate 4 alone, for a row that names its governing tool in a COLUMN.
 
@@ -161,8 +190,8 @@ def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) ->
     reads it applies the tool switches.
     """
     return (
-        f"public.resource_access({tool}, {resource_id}, {_UID}, "
-        f"{initiative}, {'true' if write else 'false'})"
+        f"resource_access({tool}, {resource_id}, {_UID}, "
+        f"{initiative}, {_sql_bool(write)}, {STANDING})"
     )
 
 
@@ -188,25 +217,26 @@ def _tool_gate(
     """
     legs: list[str] = []
 
-    # Every tool carries a switch on the initiative. A guild admin or a PAM
+    # Every tool carries a switch on the initiative. A community admin or a PAM
     # grantee reaches the content of a tool that is switched off — the endpoints
     # still refuse them, and a maintenance sweep has to be able to see it.
-    legs.append(
-        f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {initiative} IS NULL"
-        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-        f" WHERE i.id = {initiative}), false))"
-    )
+    #
+    # Which initiatives have it on is in the request's standing, as one pair per
+    # initiative the reader is in: an admin, a grantee and a system sweep are
+    # already admitted above, so those are the only ones whose switch can decide
+    # anything for them.
+    legs.append(_switch_leg(tool, initiative))
 
     key = tool.create_permission if creating else tool.view_permission
     default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
     legs.append(
-        f"public.initiative_role_permits({initiative}, {_UID}, '{key}', {default})"
+        f"initiative_role_permits({initiative}, {_UID}, '{key}', {default}, {STANDING})"
     )
 
     if not creating:
         legs.append(
-            f"public.resource_access('{tool.value}', {resource_id}, {_UID}, "
-            f"{initiative}, {'true' if write else 'false'})"
+            f"resource_access('{tool.value}', {resource_id}, {_UID}, "
+            f"{initiative}, {_sql_bool(write)}, {STANDING})"
         )
 
     return "(" + " AND ".join(legs) + ")"
@@ -249,10 +279,15 @@ def _dac_via(
     if tool is None:
         return DacPath(predicate=lambda t, c, w: None)
 
-    return DacPath(
-        tool=tool,
-        via=((fk, parent),),
-        predicate=lambda t, c, w: (
+    def build(t: str, c: str, w: bool) -> str | None:
+        # For a read the membership walk above already reached this parent, and
+        # that walk ran the parent's own SELECT policy, which asks this same
+        # question. Asking it again would consult ``resource_grants`` a second
+        # time per row for the same answer. ``ANSWERED`` rather than nothing,
+        # because a polymorphic path composes these arms per target type.
+        if c == "SELECT" and parent_answers_for_reads(parent):
+            return ANSWERED
+        return (
             f"EXISTS (SELECT 1 FROM {parent} {alias} "
             f"WHERE {alias}.{parent_pk} = {t}.{fk} AND "
             + _tool_gate(
@@ -264,24 +299,27 @@ def _dac_via(
                 creating=False,
             )
             + ")"
-        ),
-    )
+        )
+
+    return DacPath(tool=tool, via=((fk, parent),), predicate=build)
 
 
 def _dac_two_hop(mid: str, mid_fk: str, parent: str, fk: str) -> DacPath:
     """Two hops to the governing resource: ``table.<fk> -> mid -> parent`` — a
     task's tag link by its task's project, an attendee by its event's calendar."""
     tool = _TOOL_BY_TABLE[parent]
-    return DacPath(
-        tool=tool,
-        via=((fk, mid), (mid_fk, parent)),
-        predicate=lambda t, c, w: (
+
+    def build(t: str, c: str, w: bool) -> str | None:
+        if c == "SELECT" and parent_answers_for_reads(mid):
+            return ANSWERED
+        return (
             f"EXISTS (SELECT 1 FROM {mid} dmid JOIN {parent} dpar "
             f"ON dpar.id = dmid.{mid_fk} WHERE dmid.id = {t}.{fk} AND "
             + _tool_gate(tool, "dpar.id", "dpar.initiative_id", c, w, creating=False)
             + ")"
-        ),
-    )
+        )
+
+    return DacPath(tool=tool, via=((fk, mid), (mid_fk, parent)), predicate=build)
 
 
 @dataclass(frozen=True)
@@ -306,6 +344,11 @@ class InitiativePath:
     #: Derived by the factories below from the parent a table already declares,
     #: so it is never a second list to keep in step.
     dac: DacPath | None = None
+    #: Membership and sharing as ONE call, for a table whose gate is a function
+    #: of a (kind, id) pair its row names. The renderer passes both flags here
+    #: and renders no separate ``dac`` leg; ``predicate`` is the read form of
+    #: the same call.
+    folded: FoldedBuilder | None = None
 
 
 #: Types stored once per unordered pair, as a SQL list. A symmetric edge
@@ -315,31 +358,33 @@ _SYMMETRIC_SQL = ", ".join(f"'{t.value}'" for t in sorted(SYMMETRIC_TYPES))
 #: Rows nobody asserted: the save path read them out of a body.
 _FROM_CONTENT = f"'{Provenance.content.value}'"
 
-#: The routed guild-admin leg, for rows that span every initiative in a guild.
-_GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
+#: The community-administrator leg, for rows that span every initiative in a
+#: community, beside the one that admits trusted system maintenance. Both are
+#: the same legs the gate functions carry — one definition, in
+#: :mod:`app.db.authorization`.
+_GUILD_ADMIN = f"({_P.system} OR {_P.admin})"
 
 #: A live PAM window, either level. Used where a leg is about what a guild has
 #: switched on rather than about what one person may reach.
-_PAM_ANY = (
-    "current_setting('app.pam_read'::text, true) = 'true'::text"
-    " OR current_setting('app.pam_write'::text, true) = 'true'::text"
-)
+_PAM_ANY = _P.pam_any
 
 
 def _access(initiative_expr: str, write: bool) -> str:
-    return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
+    return (
+        f"initiative_access({initiative_expr}, {_UID}, {_sql_bool(write)}, {STANDING})"
+    )
 
 
 def _full_access(initiative_expr: str, write: bool) -> str:
     """Defer to the narrower standing: full access in this initiative.
 
-    ``public.initiative_full_access`` reads ``app.override_initiatives`` — the
+    ``initiative_full_access`` reads ``app.override_initiatives`` — the
     GUC the request already sets from the reader's roles, and the one
-    ``public.resource_access`` already consults for the sharing override. So a
+    ``resource_access`` already consults for the sharing override. So a
     table taking this path is reachable by whoever already sees everything in
     the initiative, and by the guild admin, and by nobody else.
     """
-    return f"public.initiative_full_access({initiative_expr}, {'true' if write else 'false'})"
+    return f"initiative_full_access({initiative_expr}, {_sql_bool(write)}, {STANDING})"
 
 
 def direct_full_access() -> InitiativePath:
@@ -353,12 +398,15 @@ def direct_full_access() -> InitiativePath:
 
 def via_full_access(parent: str, fk: str) -> InitiativePath:
     """One hop to a parent that is itself gated on full access."""
+
+    def predicate(t: str, w: bool) -> str:
+        walk = f"EXISTS (SELECT 1 FROM {parent} WHERE {parent}.id = {t}.{fk}"
+        if not w and parent_answers_for_reads(parent):
+            return walk + ")"
+        return f"{walk} AND {_full_access(f'{parent}.initiative_id', w)})"
+
     return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {parent} "
-            f"WHERE {parent}.id = {t}.{fk} "
-            f"AND {_full_access(f'{parent}.initiative_id', w)})"
-        ),
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
             f"WHERE {parent}.id = {r}.{fk})"
@@ -379,14 +427,39 @@ def direct() -> InitiativePath:
     )
 
 
+#: A sharing leg that the walk to the parent has already answered. Rendered as
+#: a literal rather than left out, because a polymorphic path composes one arm
+#: per target type and an arm has to be something; the planner folds it away,
+#: and :func:`app.db.guild_ddl` leaves it off the top level entirely.
+ANSWERED = "true"
+
+
+def parent_answers_for_reads(parent: str) -> bool:
+    """Whether walking to ``parent`` is, on its own, the read answer.
+
+    A child's read leg is an ``EXISTS`` into its parent, and that inner scan
+    runs the parent's own ``SELECT`` policy — which is the same question the
+    child was about to ask a second time. So where the parent carries one, the
+    walk is the whole of it.
+
+    A parent that carries none (the structural initiative tables, which are
+    guild-scoped by the schema boundary) answers nothing, and a child of one
+    keeps asking for itself.
+    """
+    return parent in INITIATIVE_PATHS
+
+
 def via(parent: str, fk: str, *, parent_pk: str = "id") -> InitiativePath:
     """One hop: ``table.<fk> -> parent.<parent_pk>``; parent has ``initiative_id``."""
+
+    def predicate(t: str, w: bool) -> str:
+        walk = f"EXISTS (SELECT 1 FROM {parent} WHERE {parent}.{parent_pk} = {t}.{fk}"
+        if not w and parent_answers_for_reads(parent):
+            return walk + ")"
+        return f"{walk} AND {_access(f'{parent}.initiative_id', w)})"
+
     return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {parent} "
-            f"WHERE {parent}.{parent_pk} = {t}.{fk} "
-            f"AND {_access(f'{parent}.initiative_id', w)})"
-        ),
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
             f"WHERE {parent}.{parent_pk} = {r}.{fk})"
@@ -398,12 +471,20 @@ def via(parent: str, fk: str, *, parent_pk: str = "id") -> InitiativePath:
 
 def via_task_project(fk: str = "task_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> tasks -> projects.initiative_id``."""
-    return InitiativePath(
-        predicate=lambda t, w: (
+
+    def predicate(t: str, w: bool) -> str:
+        if not w and parent_answers_for_reads("tasks"):
+            # One hop is enough for a read: the task's own policy is what walks
+            # on to its project.
+            return f"EXISTS (SELECT 1 FROM tasks tk WHERE tk.id = {t}.{fk})"
+        return (
             f"EXISTS (SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
             f"WHERE tk.id = {t}.{fk} "
             f"AND {_access('pr.initiative_id', w)})"
-        ),
+        )
+
+    return InitiativePath(
+        predicate=predicate,
         initiative_expr=lambda r: (
             f"(SELECT pr.initiative_id FROM tasks tk "  # noqa: S608
             f"JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = {r}.{fk})"
@@ -577,6 +658,13 @@ class CommentParent:
     #: parent IS the tool row and ``column`` already names it.
     tool_fk: str | None = None
 
+    @property
+    def kind(self) -> str:
+        """The parent's kind as ``entity_access`` is asked about it — the
+        column name without its ``_id``, which is the vocabulary an edge end
+        and a search entry already use for the same thing."""
+        return self.column.removesuffix("_id")
+
 
 def _tool_comment_parent(tool: Tool) -> CommentParent:
     """The comment parent for one tool — every tool's is the same shape.
@@ -640,42 +728,38 @@ COMMENT_PARENTS: dict[str, CommentParent] = {p.column: p for p in _COMMENT_PAREN
 COMMENT_PARENT_COLUMNS: tuple[str, ...] = tuple(COMMENT_PARENTS)
 
 
-def _comments_dac() -> DacPath:
-    """Which tool's sharing governs a comment — its one parent's.
+def _comment_parent_kind(t: str) -> str:
+    """The kind of the one parent a comment row names, read off its columns."""
+    arms = " ".join(
+        f"WHEN {t}.{p.column} IS NOT NULL THEN '{p.kind}'" for p in _COMMENT_PARENTS
+    )
+    return f"(CASE {arms} END)"
 
-    Derived from ``_COMMENT_PARENTS``, so the sharing legs and the membership
-    legs are the same list read twice. A parent that is not itself a tool row
-    takes the extra hop its registry entry names.
-    """
 
-    def build(t: str, command: str, w: bool) -> str:
-        legs = []
-        for parent in _COMMENT_PARENTS:
-            col = parent.column
-            if parent.tool_fk is None:
-                leg = _dac_via(parent.governed_by.plural, col)
-            else:
-                leg = _dac_two_hop(
-                    parent.table, parent.tool_fk, parent.governed_by.plural, col
-                )
-            legs.append(f"({t}.{col} IS NOT NULL AND {leg.predicate(t, command, w)})")
-        return "(" + " OR ".join(legs) + ")"
+def _comment_parent_id(t: str) -> str:
+    return "COALESCE(" + ", ".join(f"{t}.{p.column}" for p in _COMMENT_PARENTS) + ")"
 
-    return DacPath(predicate=build)
+
+def _entity_call(kind: str, entity_id: str, write: WriteFlag, share: WriteFlag) -> str:
+    return (
+        f"{ENTITY_ACCESS_FN}({kind}, {entity_id}, "
+        f"{_sql_bool(write)}, {_sql_bool(share)}, {STANDING})"
+    )
 
 
 def comments_path() -> InitiativePath:
-    """Comments hang off exactly one parent — a task or any tool entity —
-    declared once in ``_COMMENT_PARENTS`` and rendered here both ways."""
+    """Comments hang off exactly one parent — a task, a wiki page or any tool
+    entity — declared once in ``_COMMENT_PARENTS``.
 
-    def build(t: str, w: bool) -> str:
-        legs = [
-            f"({t}.{p.column} IS NOT NULL AND EXISTS ("
-            f"SELECT 1 FROM {p.frm} WHERE {p.tie} = {t}.{p.column} "
-            f"AND {_access(p.initiative, w)}))"
-            for p in _COMMENT_PARENTS
-        ]
-        return "(" + " OR ".join(legs) + ")"
+    The policy names that parent as the ``(kind, id)`` pair read off the row
+    and asks :data:`ENTITY_ACCESS_FN` about it, so a comment on a task is gated
+    by the same arm an edge to that task is. Membership and sharing ride in
+    the one call; a comment is a response, so the renderer passes read for the
+    sharing flag on every command (``DAC_WRITE_COMMANDS``).
+    """
+
+    def folded(t: str, w: WriteFlag, sw: WriteFlag) -> str:
+        return _entity_call(_comment_parent_kind(t), _comment_parent_id(t), w, sw)
 
     def locate(r: str) -> str:
         lookups = ", ".join(
@@ -696,54 +780,31 @@ def comments_path() -> InitiativePath:
         return f"COALESCE({lookups}, {NO_PARENTS})"
 
     return InitiativePath(
-        predicate=build, initiative_expr=locate, parents=chain, dac=_comments_dac()
+        predicate=lambda t, w: folded(t, w, False),
+        initiative_expr=locate,
+        parents=chain,
+        folded=folded,
     )
 
 
 def reactions_path() -> InitiativePath:
     """A reaction is reached by whoever can reach the thing it is on.
 
-    Polymorphic over ``(target_type, target_id)``, so each kind is one EXISTS
-    leg into the target's table, and the target's OWN path decides — for a
-    comment that is the multi-parent predicate declared just above, reused here
-    rather than restated. A new reactable kind adds a leg by adding a
-    ``ReactionTarget`` member; nothing about the gate is written twice.
+    Polymorphic over ``(target_type, target_id)``, which is the pair
+    :data:`ENTITY_ACCESS_FN` takes, so the policy is one call and the target's
+    own entry decides inside it: the comment arm walks to the comment's parent,
+    the post arm asks the post. A new reactable kind adds a ``ReactionTarget``
+    member, which puts its table on the function's arms; nothing about the
+    gate is written twice. Sharing rides in the call as read — reacting is
+    responding.
     """
     legs: dict[ReactionTarget, InitiativePath] = {
         ReactionTarget.comment: comments_path(),
         ReactionTarget.post: direct(),
     }
-    # The same targets, read for sharing. A post answers for itself and is
-    # named explicitly, because under an alias the table name no longer says
-    # which tool it is.
-    dac_legs: dict[ReactionTarget, DacPath] = {
-        ReactionTarget.comment: _comments_dac(),
-        ReactionTarget.post: _dac_self(Tool.post),
-    }
 
-    def build_dac(t: str, command: str, w: bool) -> str:
-        return (
-            "("
-            + " OR ".join(
-                f"({t}.target_type = '{target.value}' AND EXISTS ("
-                f"SELECT 1 FROM {target.table} rdac WHERE rdac.id = {t}.target_id "
-                f"AND {path.predicate('rdac', command, w)}))"
-                for target, path in dac_legs.items()
-            )
-            + ")"
-        )
-
-    def build(t: str, w: bool) -> str:
-        return (
-            "("
-            + " OR ".join(
-                f"({t}.target_type = '{target.value}' AND EXISTS ("
-                f"SELECT 1 FROM {target.table} rt WHERE rt.id = {t}.target_id "
-                f"AND {path.predicate('rt', w)}))"
-                for target, path in legs.items()
-            )
-            + ")"
-        )
+    def folded(t: str, w: WriteFlag, sw: WriteFlag) -> str:
+        return _entity_call(f"{t}.target_type", f"{t}.target_id", w, sw)
 
     def locate(r: str) -> str:
         arms = " ".join(
@@ -764,10 +825,10 @@ def reactions_path() -> InitiativePath:
         return f"COALESCE((CASE {r}.target_type {arms} END), {NO_PARENTS})"
 
     return InitiativePath(
-        predicate=build,
+        predicate=lambda t, w: folded(t, w, False),
         initiative_expr=locate,
         parents=chain,
-        dac=DacPath(predicate=build_dac),
+        folded=folded,
     )
 
 
@@ -792,44 +853,67 @@ def _relationship_end(
     return f"(CASE {r}.{side}_type {arms} ELSE NULL END)"
 
 
-#: The function name the relationships policies defer to. One call per end
-#: instead of one EXISTS per kind per end: the policy stays a few hundred bytes
-#: and the per-kind walk is planned once per session inside the function, where
+#: The function every polymorphic policy defers to. One call per (kind, id)
+#: instead of one EXISTS per kind: the policy stays a few hundred bytes, and
+#: the per-kind walk is planned once per session inside the function, where
 #: inlining it made every statement on the table plan a thousand-node tree.
-ENDPOINT_ACCESS_FN = "public.relationship_endpoint_access"
+ENTITY_ACCESS_FN = "entity_access"
 
 
-def _endpoint_dac(endpoint: EndpointKind) -> DacPath | None:
+def entity_tables() -> dict[str, str]:
+    """Every kind :data:`ENTITY_ACCESS_FN` answers for, and the table its ids
+    point at — what an edge end, a reaction target, a recent view or a
+    comment's parent may name. Derived from those four registries, so a kind
+    reaches the gate the moment one of them names it, and refused at import
+    if two of them point one kind at different tables.
+    """
+    tables: dict[str, str] = {}
+    for kind, table in (
+        *((k.value, e.table) for k, e in ENDPOINT_KINDS.items()),
+        *((t.value, t.table) for t in ReactionTarget),
+        *RECENT_ENTITY_TABLES.items(),
+        *((p.kind, p.table) for p in _COMMENT_PARENTS),
+    ):
+        if tables.setdefault(kind, table) != table:
+            raise ValueError(f"kind {kind!r} names two tables: {tables[kind]}, {table}")
+    return tables
+
+
+def _entity_dac(table: str) -> DacPath | None:
     """The sharing leg for one kind, with its tool NAMED.
 
-    Both ends are reached under an alias here. Where the row IS the governing
+    Every kind is reached under an alias here. Where the row IS the governing
     resource (``via`` empty), ``_dac_self`` reads the tool off the name it is
     handed — which under an alias is not a table name, so it would find no tool
     and render no gate at all. The lookup it wants is the same one, against the
-    real table; naming the tool is what ``reactions_path`` does for the same
-    reason.
+    real table, so the tool is named.
 
     A kind that reaches its resource through a parent keeps the leg its own
     entry declares: that walk names each table, so it survives the alias.
     """
-    path = INITIATIVE_PATHS.get(endpoint.table)
+    path = INITIATIVE_PATHS.get(table)
     dac = path.dac if path is not None else None
     if dac is None or dac.via:
         return dac
-    tool = dac.tool or _TOOL_BY_TABLE.get(endpoint.table)
+    tool = dac.tool or _TOOL_BY_TABLE.get(table)
     return _dac_self(tool) if tool is not None else None
 
 
-def _endpoint_predicate(endpoint: EndpointKind, write: bool) -> str:
-    """What one kind asks of a reader, membership and sharing together.
+def _entity_arm(table: str) -> str:
+    """What one kind asks of a reader beyond being able to see the row.
 
-    The same two legs ``guild_ddl`` ANDs onto every other table's policies,
-    rendered here because they go inside the function rather than inside the
-    policy. Sharing needs no per-command variant: the only thing a command
-    changes in this leg is whether an INSERT is the governed resource being
-    created, and an endpoint reached under an alias never is.
+    The arm looks the row up in the kind's own table, so the kind's SELECT
+    policies decide whether the reader may see it at all — and those policies
+    ARE the read form of the two legs ``guild_ddl`` renders for the table
+    (membership and sharing), plus the trash restrictions. Restating them here
+    would evaluate the same predicate twice on the same row, so the arm states
+    only what a read does not answer: the write standing, when a flag asks
+    for it, rendered with the flag decided so the planner sees a constant.
+
+    A kind whose own entry is folded asks it whole, for the same reason only
+    when a flag is set: a comment's arm is one more call, to its parent.
     """
-    path = INITIATIVE_PATHS.get(endpoint.table)
+    path = INITIATIVE_PATHS.get(table)
     if path is None:
         # Guild-level, and stated rather than defaulted. A tag is the guild's
         # own vocabulary: every member already sees every tag, so existence
@@ -838,64 +922,64 @@ def _endpoint_predicate(endpoint: EndpointKind, write: bool) -> str:
         # because the permissive reading of a missing initiative admits any
         # member rather than nobody.
         return "TRUE"
-    legs = [path.predicate("re", write)]
-    dac = _endpoint_dac(endpoint)
+    if path.folded is not None:
+        return "(NOT p_need_write AND NOT p_need_share_write) OR " + path.folded(
+            "re", "p_need_write", "p_need_share_write"
+        )
+    legs = [f"(NOT p_need_write OR ({path.predicate('re', True)}))"]
+    dac = _entity_dac(table)
     if dac is not None:
-        sharing = dac.predicate("re", "UPDATE" if write else "SELECT", write)
+        sharing = dac.predicate("re", "UPDATE", True)
         if sharing is not None:
-            legs.append(sharing)
-    return " AND ".join(f"({leg})" for leg in legs)
+            legs.append(f"(NOT p_need_share_write OR ({sharing}))")
+    return " AND ".join(legs)
 
 
-def render_endpoint_access_fn() -> str:
-    """The per-kind gate, as one function the policies call twice.
+def render_entity_access_fn() -> str:
+    """The per-kind gate, as one function every polymorphic policy calls.
 
     Rendered from ``INITIATIVE_PATHS`` like every policy here, so a kind's gate
     is still declared once. ``plpgsql`` rather than ``LANGUAGE sql``: a SQL
     function of this shape gets inlined back into the calling query, which is
     the thing being avoided. Not ``SECURITY DEFINER`` — it runs as the caller,
-    so each endpoint table's own policies apply inside it too, and the guild
-    schema it reads is whichever one the request is routed to.
+    so each kind's own policies apply inside it too, and the guild schema it
+    reads is whichever one the request is routed to.
+
+    ``p_need_write`` is what the reader needs of the initiative;
+    ``p_need_share_write`` what they need of the resource's sharing. A table
+    whose writes are edits passes the same flag twice; one whose writes are
+    responses passes read for the second whatever the command. ``p_st`` is the
+    statement's standing, which each arm hands on to the gates it calls.
     """
-    arms = []
-    for kind, endpoint in ENDPOINT_KINDS.items():
-
-        def exists(write: bool) -> str:
-            return (
-                f"EXISTS (SELECT 1 FROM {endpoint.table} re "  # noqa: S608
-                f"WHERE re.id = p_entity_id "
-                f"AND {_endpoint_predicate(endpoint, write)})"
-            )
-
-        arms.append(
-            f"        WHEN '{kind.value}' THEN\n"
-            f"            IF p_need_write THEN\n"
-            f"                RETURN {exists(True)};\n"
-            f"            END IF;\n"
-            f"            RETURN {exists(False)};"
-        )
-    body = "\n".join(arms)
+    arms = "\n".join(
+        f"        WHEN '{kind}' THEN\n"
+        f"            RETURN EXISTS (SELECT 1 FROM {table} re "
+        f"WHERE re.id = p_entity_id AND ({_entity_arm(table)}));"
+        for kind, table in sorted(entity_tables().items())
+    )
+    arms = in_body(arms)
     return f"""
-CREATE OR REPLACE FUNCTION {ENDPOINT_ACCESS_FN}(
-    p_kind text, p_entity_id integer, p_need_write boolean
+CREATE OR REPLACE FUNCTION {ENTITY_ACCESS_FN}(
+    p_kind text, p_entity_id integer, p_need_write boolean, p_need_share_write boolean,
+    p_st standing
 ) RETURNS boolean
     LANGUAGE plpgsql STABLE
-    AS $endpoint_access$
+    AS $entity_access$
 BEGIN
     CASE p_kind
-{body}
+{arms}
         ELSE
             RETURN false;
     END CASE;
 END;
-$endpoint_access$;
+$entity_access$;
 """
 
 
 def relationships_path() -> InitiativePath:
     """An edge is reached by whoever can reach BOTH of the things it connects.
 
-    Polymorphic on both ends, so each end defers to :func:`render_endpoint_access_fn`
+    Polymorphic on both ends, so each end defers to :func:`render_entity_access_fn`
     — which asks that kind's OWN entry here for the membership predicate and
     the sharing leg. The two ends are ANDed: a row is invisible unless the
     reader clears each of them. A
@@ -936,8 +1020,11 @@ def relationships_path() -> InitiativePath:
             else "false"
         )
         return (
-            f"({ENDPOINT_ACCESS_FN}({t}.source_type, {t}.source_id, {need_write})"
-            f" AND {ENDPOINT_ACCESS_FN}({t}.target_type, {t}.target_id, false))"
+            "("
+            + _entity_call(f"{t}.source_type", f"{t}.source_id", need_write, need_write)
+            + " AND "
+            + _entity_call(f"{t}.target_type", f"{t}.target_id", False, False)
+            + ")"
         )
 
     def locate(r: str) -> str:
@@ -1007,21 +1094,23 @@ def _search_tool_gate(t: str, write: bool) -> str:
     so it answers the same three questions the source does rather than trusting
     that it was right when it was written.
     """
-    switch_arms = " ".join(
-        f"WHEN '{tool.value}' THEN "
+    # The switch no longer needs an arm per tool: the pair the standing carries
+    # is ``<initiative>:<tool>``, and the row names its own tool in a column.
+    switch = (
         f"({_GUILD_ADMIN} OR {_PAM_ANY} OR {t}.initiative_id IS NULL"
-        f" OR COALESCE((SELECT i.{tool.plural}_enabled FROM initiatives i"
-        f" WHERE i.id = {t}.initiative_id), false))"
-        for tool in Tool
+        f" OR {t}.dac_tool IS NULL"
+        f" OR ({_P.this_guild}"
+        f" AND ({t}.initiative_id::text || ':' || {t}.dac_tool)"
+        f" = ANY ({_P.field('enabled_tools')})))"
     )
     role_arms = " ".join(
-        f"WHEN '{tool.value}' THEN public.initiative_role_permits("
+        f"WHEN '{tool.value}' THEN initiative_role_permits("
         f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
-        f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()})"
+        f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()}, {STANDING})"
         for tool in Tool
     )
     return (
-        f"((CASE {t}.dac_tool {switch_arms} ELSE true END)"
+        f"({switch}"
         f" AND (CASE {t}.dac_tool {role_arms} ELSE true END)"
         f" AND {_resource_call(f'{t}.dac_tool', f'{t}.dac_id', f'{t}.initiative_id', write)})"
     )
@@ -1055,13 +1144,13 @@ def search_entries_path() -> InitiativePath:
 
 
 def recent_views_path() -> InitiativePath:
-    def build(t: str, w: bool) -> str:
-        legs = [
-            f"({t}.entity_type = '{etype}' AND EXISTS (SELECT 1 FROM {tbl} "
-            f"WHERE {tbl}.id = {t}.entity_id AND {_access(f'{tbl}.initiative_id', w)}))"
-            for etype, tbl in RECENT_ENTITY_TABLES.items()
-        ]
-        return "(" + " OR ".join(legs) + ")"
+    """A reader's own record of visiting something, reached exactly like the
+    thing itself: ``(entity_type, entity_id)`` is the pair the entity function
+    takes, and every recentable kind is one of its arms. Keeping the record
+    asks nothing of sharing beyond reading."""
+
+    def folded(t: str, w: WriteFlag, sw: WriteFlag) -> str:
+        return _entity_call(f"{t}.entity_type", f"{t}.entity_id", w, sw)
 
     def locate(r: str) -> str:
         arms = " ".join(
@@ -1071,16 +1160,10 @@ def recent_views_path() -> InitiativePath:
         )
         return f"(CASE {r}.entity_type {arms} END)"
 
-    def build_dac(t: str, command: str, w: bool) -> str:
-        legs = [
-            f"({t}.entity_type = '{etype}' AND "
-            f"{_dac_via(tbl, 'entity_id').predicate(t, command, w)})"
-            for etype, tbl in RECENT_ENTITY_TABLES.items()
-        ]
-        return "(" + " OR ".join(legs) + ")"
-
     return InitiativePath(
-        predicate=build, initiative_expr=locate, dac=DacPath(predicate=build_dac)
+        predicate=lambda t, w: folded(t, w, False),
+        initiative_expr=locate,
+        folded=folded,
     )
 
 

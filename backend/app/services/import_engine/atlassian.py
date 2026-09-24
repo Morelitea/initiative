@@ -24,7 +24,13 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import random
+import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from typing import AsyncIterator, Awaitable, Callable
 from urllib.parse import urlsplit
 
 import httpx
@@ -37,7 +43,7 @@ from app.schemas.tenant.atlassian import (
     AtlassianJiraProject,
 )
 from app.services.import_engine.contract import ImportEngineError
-from app.services.safe_http import request_public_target
+from app.services.safe_http import ResponseTooLargeError, request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -45,11 +51,17 @@ from app.services.webhook_target_url import (
 
 logger = logging.getLogger(__name__)
 
-#: How long one call to the site may take. A probe makes several, so this is
-#: deliberately short: the person is sitting in front of a wizard, and a site
-#: that cannot answer a listing in ten seconds is not one we can read a
-#: thousand issues from either.
+#: How long one step of a call may take: connecting, or waiting for the next
+#: part of the answer. A probe makes several calls, so this is deliberately
+#: short: the person is sitting in front of a wizard, and a site that cannot
+#: answer a listing in ten seconds is not one we can read a thousand issues
+#: from either. The call as a whole is bounded separately
+#: (``RetryPolicy.call_deadline_seconds``).
 REQUEST_TIMEOUT_SECONDS = 10.0
+
+#: The most a JSON answer from the site may decode to. A page of issues with
+#: their rendered fields runs to a few megabytes; this is well past that.
+MAX_JSON_BYTES = 64 * 1024 * 1024
 
 #: How many listing calls run at once. Counts are one call per project or
 #: space, so a site with fifty of each would be a hundred round trips in
@@ -66,6 +78,127 @@ MAX_PROBE_ENTRIES = 200
 #: each), and a checklist is readable long before its two-hundredth row; the
 #: rest report ``None``, which the wizard renders as "not counted".
 MAX_COUNTED_ENTRIES = 100
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """How long one call will wait out a site that says "slow down".
+
+    Atlassian answers a burst with ``429`` and, usually, a ``Retry-After``
+    saying when to come back. Honouring it is the difference between a short
+    pause and a long block, so a throttled call waits and tries again — up to
+    ``attempts`` tries in all, and never for longer than ``max_wait_seconds``
+    at a time. A site that asks for a longer wait than that is not asking for
+    a retry; the call gives up with ``IMPORT_SOURCE_RATE_LIMITED`` instead of
+    sleeping on it.
+
+    ``call_deadline_seconds`` is the most one call may take from start to
+    finish, retries and waits included. :data:`REQUEST_TIMEOUT_SECONDS`
+    bounds each read of the answer; this bounds the answer as a whole, so a
+    site that sends its body a few bytes at a time still ends. A call past it
+    is ``IMPORT_SOURCE_UNREACHABLE``. A download gets longer in proportion to
+    its size (see :func:`get_bytes`).
+    """
+
+    attempts: int
+    max_wait_seconds: float
+    call_deadline_seconds: float
+
+
+#: The worker's fetch. Nobody is watching the clock, and a fetch that fails on
+#: its first 429 would fail on every site big enough to be worth importing.
+#: The deadline leaves room for every wait the retries allow.
+BACKGROUND = RetryPolicy(attempts=4, max_wait_seconds=60.0, call_deadline_seconds=300.0)
+
+#: The connect probe. A person is sitting in the wizard waiting for a listing,
+#: so the waits are kept short enough that the request still answers.
+INTERACTIVE = RetryPolicy(attempts=2, max_wait_seconds=5.0, call_deadline_seconds=20.0)
+
+#: Called from inside a long step of a fetch; see :func:`throttled`.
+Heartbeat = Callable[[], Awaitable[None]]
+
+#: The slowest a download is allowed to arrive, beyond the call's own
+#: deadline: a 50 MiB file gets about seven more minutes.
+DOWNLOAD_FLOOR_BYTES_PER_SECOND = 128 * 1024
+
+#: The first wait when the site gives no ``Retry-After``; each retry doubles it.
+BACKOFF_BASE_SECONDS = 1.0
+
+#: Added on top of every wait, as a fraction of it, so the probe's concurrent
+#: calls do not all come back at the same instant and get throttled again.
+#: Only ever added: a call never returns earlier than the site asked.
+JITTER_FRACTION = 0.25
+
+
+def _retry_after_seconds(response: httpx.Response) -> float | None:
+    """The wait a ``Retry-After`` header asks for, or ``None`` without one.
+
+    The header is either a number of seconds or an HTTP date. Anything that
+    parses as neither is treated as absent — the backoff takes over — rather
+    than trusted.
+    """
+    raw = response.headers.get("Retry-After")
+    if not raw:
+        return None
+    raw = raw.strip()
+    try:
+        seconds = float(raw)
+    except ValueError:
+        try:
+            when = parsedate_to_datetime(raw)
+        except (TypeError, ValueError):
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        seconds = (when - datetime.now(timezone.utc)).total_seconds()
+    if seconds != seconds:  # NaN
+        return None
+    return max(0.0, seconds)
+
+
+def _retry_delay(attempt: int, retry_after: float | None) -> float:
+    """How long to wait before retry number ``attempt`` (counting from 0),
+    before jitter."""
+    if retry_after is not None:
+        return retry_after
+    return BACKOFF_BASE_SECONDS * (2**attempt)
+
+
+async def _sleep(seconds: float) -> None:
+    """Looked up at call time, so a test can wait without waiting."""
+    await asyncio.sleep(seconds)
+
+
+#: How often a fetch reports from inside a long step — a page of issues, a
+#: page's attachments — rather than only between projects and spaces. The
+#: report is how the job shows it is still alive, and how a cancel reaches it.
+HEARTBEAT_SECONDS = 10.0
+
+
+def throttled(beat: Callable[[], Awaitable[None]] | None) -> Heartbeat:
+    """``beat``, called at most once every :data:`HEARTBEAT_SECONDS` however
+    often the result is. ``None`` gives a heartbeat that does nothing."""
+    last = time.monotonic()
+
+    async def tick() -> None:
+        nonlocal last
+        if beat is None:
+            return
+        now = time.monotonic()
+        if now - last < HEARTBEAT_SECONDS:
+            return
+        last = now
+        await beat()
+
+    return tick
+
+
+@dataclass
+class Walk:
+    """Whether a paged read reached the end of what the site had, rather than
+    stopping at a bound of ours. Set by the read; ``False`` until it is."""
+
+    complete: bool = False
 
 
 @dataclass(frozen=True)
@@ -112,12 +245,27 @@ def normalize_site_url(raw: str) -> str:
     return f"https://{parts.netloc}"
 
 
+@asynccontextmanager
+async def _deadline(seconds: float, path: str) -> AsyncIterator[None]:
+    """Run the block within ``seconds``, or end it as the site being
+    unreachable."""
+    try:
+        async with asyncio.timeout(seconds):
+            yield
+    except TimeoutError:
+        logger.info("atlassian call past its deadline path=%s", path)
+        raise ImportEngineError(
+            ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE
+        ) from None
+
+
 async def get_json(
     credential: AtlassianCredential,
     path: str,
     *,
     method: str = "GET",
     json: object | None = None,
+    retry: RetryPolicy = BACKGROUND,
 ) -> object:
     """One call to the site, with every way it can go wrong turned into a code.
 
@@ -125,7 +273,153 @@ async def get_json(
     The response body is returned parsed; a body that is not JSON is treated
     as the site being unreachable, because a proxy's error page is not an
     answer from Atlassian.
+
+    A ``429`` is waited out under ``retry`` (see :class:`RetryPolicy`) before
+    it becomes ``IMPORT_SOURCE_RATE_LIMITED``. Nothing else is retried: every
+    other failure is an answer, and asking again would get the same one.
     """
+    async with _deadline(retry.call_deadline_seconds, path):
+        response = await _send(
+            credential,
+            path,
+            method=method,
+            json=json,
+            retry=retry,
+            max_bytes=MAX_JSON_BYTES,
+        )
+    return _parse(response, path)
+
+
+async def get_bytes(
+    credential: AtlassianCredential,
+    path: str,
+    *,
+    max_bytes: int,
+    retry: RetryPolicy = BACKGROUND,
+    follow_redirect: bool = False,
+) -> bytes:
+    """A file from the site — an attachment's content — as raw bytes.
+
+    Throttling is waited out exactly as for :func:`get_json`. A body over
+    ``max_bytes`` raises ``IMPORT_TOO_LARGE``: the caller checked the size the
+    site declared before asking, and this is the same bound held against what
+    actually arrived, since a declaration is somebody else's to get wrong.
+
+    ``follow_redirect`` is for Confluence, whose download answers with one
+    hop to Atlassian's media host, the address carrying its own short-lived
+    grant. That hop is followed once, to a public https address, and without
+    this credential: the token is for the site, and goes nowhere else.
+
+    The whole download, the hop included, has the retry policy's deadline
+    plus the time ``max_bytes`` takes at
+    :data:`DOWNLOAD_FLOOR_BYTES_PER_SECOND`.
+    """
+    deadline = retry.call_deadline_seconds + max_bytes / DOWNLOAD_FLOOR_BYTES_PER_SECOND
+    async with _deadline(deadline, path):
+        response = await _send(
+            credential,
+            path,
+            method="GET",
+            json=None,
+            retry=retry,
+            accept="*/*",
+            max_bytes=max_bytes,
+        )
+        if response.status_code in (401, 403):
+            raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_AUTH)
+        if follow_redirect and response.status_code in (301, 302, 303, 307, 308):
+            response = await _follow(response, path, max_bytes=max_bytes)
+    if response.status_code >= 300:
+        # A redirect is not followed: the attachment endpoint is asked for its
+        # content directly, and anything else is not an answer.
+        logger.info(
+            "atlassian download failed status=%s path=%s", response.status_code, path
+        )
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
+    data = response.content
+    if len(data) > max_bytes:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
+    return data
+
+
+async def _follow(
+    response: httpx.Response, path: str, *, max_bytes: int
+) -> httpx.Response:
+    """The one redirect a download is allowed, fetched without credentials."""
+    location = response.headers.get("location") or ""
+    if urlsplit(location).scheme != "https":
+        logger.info("atlassian download redirect refused path=%s", path)
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
+    try:
+        return await request_public_target(
+            "GET",
+            location,
+            headers={"Accept": "*/*"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_bytes=max_bytes,
+        )
+    except ResponseTooLargeError:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
+    except WebhookTargetUrlPrivateError:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_PRIVATE_HOST)
+    except (WebhookTargetUrlError, httpx.TimeoutException, httpx.TransportError):
+        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
+
+
+async def _send(
+    credential: AtlassianCredential,
+    path: str,
+    *,
+    method: str,
+    json: object | None,
+    retry: RetryPolicy,
+    accept: str = "application/json",
+    max_bytes: int,
+) -> httpx.Response:
+    """One call, with a ``429`` waited out under ``retry``.
+
+    Returns whatever the site answered other than "slow down"; the caller
+    decides what that answer means.
+    """
+    for attempt in range(retry.attempts):
+        response = await _request(
+            credential,
+            path,
+            method=method,
+            json=json,
+            accept=accept,
+            max_bytes=max_bytes,
+        )
+        if response.status_code != 429:
+            return response
+        if attempt + 1 >= retry.attempts:
+            break
+        delay = _retry_delay(attempt, _retry_after_seconds(response))
+        if delay > retry.max_wait_seconds:
+            # Told to come back later than this call is willing to wait: that
+            # is a block, not a pause, and sleeping on it helps nobody.
+            break
+        delay += random.uniform(0, delay * JITTER_FRACTION)
+        logger.info(
+            "atlassian throttled path=%s attempt=%s waiting=%.1fs",
+            path,
+            attempt + 1,
+            delay,
+        )
+        await _sleep(delay)
+    raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED)
+
+
+async def _request(
+    credential: AtlassianCredential,
+    path: str,
+    *,
+    method: str,
+    json: object | None,
+    accept: str = "application/json",
+    max_bytes: int,
+) -> httpx.Response:
+    """Send one request, with the transport's failures turned into codes."""
     url = f"{credential.site_url}{path}"
     try:
         response = await request_public_target(
@@ -133,22 +427,27 @@ async def get_json(
             url,
             headers={
                 "Authorization": credential.auth_header,
-                "Accept": "application/json",
+                "Accept": accept,
             },
             json=json,
             timeout=REQUEST_TIMEOUT_SECONDS,
+            max_bytes=max_bytes,
         )
+    except ResponseTooLargeError:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     except WebhookTargetUrlPrivateError:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_PRIVATE_HOST)
     except WebhookTargetUrlError:
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
     except (httpx.TimeoutException, httpx.TransportError):
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_UNREACHABLE)
+    return response
 
+
+def _parse(response: httpx.Response, path: str) -> object:
+    """A non-throttled answer as JSON, or the code for what went wrong."""
     if response.status_code in (401, 403):
         raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_AUTH)
-    if response.status_code == 429:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED)
     if response.status_code >= 400:
         # Logged by status only: the body is somebody else's server talking,
         # and it can hold anything.
@@ -190,6 +489,7 @@ async def _jira_issue_count(
             "/rest/api/3/search/approximate-count",
             method="POST",
             json={"jql": f'project = "{project_key}"'},
+            retry=INTERACTIVE,
         )
     except ImportEngineError:
         return None
@@ -212,6 +512,7 @@ async def _confluence_page_count(
         payload = await get_json(
             credential,
             f"/wiki/rest/api/search?cql=space=%22{space_key}%22+and+type=page&limit=0",
+            retry=INTERACTIVE,
         )
     except ImportEngineError:
         return None
@@ -233,7 +534,9 @@ async def probe_jira(credential: AtlassianCredential) -> AtlassianJiraProbe:
     """
     try:
         payload = await get_json(
-            credential, "/rest/api/3/project/search?maxResults=200"
+            credential,
+            "/rest/api/3/project/search?maxResults=200",
+            retry=INTERACTIVE,
         )
     except ImportEngineError as exc:
         if exc.code == ImportEngineMessages.IMPORT_SOURCE_AUTH:
@@ -271,7 +574,9 @@ async def probe_confluence(credential: AtlassianCredential) -> AtlassianConfluen
     reported rather than thrown.
     """
     try:
-        payload = await get_json(credential, "/wiki/api/v2/spaces?limit=200")
+        payload = await get_json(
+            credential, "/wiki/api/v2/spaces?limit=200", retry=INTERACTIVE
+        )
     except ImportEngineError as exc:
         if exc.code == ImportEngineMessages.IMPORT_SOURCE_AUTH:
             raise

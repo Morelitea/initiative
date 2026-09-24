@@ -50,7 +50,8 @@
     "assignedBy": "assigned by <strong>{{name}}</strong>",
     "inProject": "in <strong>{{projectName}}</strong>",
     "footer": "Visit Initiative to review the tasks.",
-    "textBody": "Here is your hourly summary of tasks assigned to you:"
+    "textBody": "Here is your hourly summary of tasks assigned to you:",
+    "redactedItem": "A task was assigned to you"
   },
   "mention": {
     "document": {
@@ -67,6 +68,11 @@
       "subject": "Your task was mentioned",
       "title": "Your task was mentioned",
       "body": "<strong>{{actor}}</strong> mentioned <strong>{{task}}</strong> in <strong>{{context}}</strong>"
+    },
+    "taskDescription": {
+      "subject": "You were mentioned in {{task}}",
+      "title": "You were mentioned",
+      "body": "<strong>{{actor}}</strong> mentioned you in the description of <strong>{{task}}</strong>"
     },
     "greeting": "Hi <strong>{{name}}</strong>,",
     "buttonLabel": "View"
@@ -142,7 +148,8 @@
     "taskDetail": "project: <strong>{{projectName}}</strong>, due <strong>{{dueDate}}</strong>",
     "footer": "Visit Initiative to get back on track.",
     "textBody_one": "You have {{count}} overdue task:",
-    "textBody_other": "You have {{count}} overdue tasks:"
+    "textBody_other": "You have {{count}} overdue tasks:",
+    "redactedItem": "A task is overdue"
   },
   "accessGrant": {
     "buttonLabel": "Open Access dashboard",
@@ -209,7 +216,8 @@
     "body": "Here is your summary of reactions to what you posted:",
     "line": "from <strong>{{name}}</strong> on",
     "footer": "Visit Initiative to see the conversation.",
-    "textBody": "Here is your summary of reactions to what you posted:"
+    "textBody": "Here is your summary of reactions to what you posted:",
+    "redactedItem": "Somebody reacted to something you posted"
   },
   "quietHours": {
     "summary": {
@@ -360,5 +368,18 @@
     "recoverable": "Nothing has been destroyed yet. Until <strong>{{date}}</strong>, whoever runs this server can put it back exactly as it was — ask them if this was not meant to happen.",
     "recoverableNoDate": "Nothing has been destroyed. Whoever runs this server can put it back exactly as it was — ask them if this was not meant to happen.",
     "textBody": "The community {{community}} has been deleted. Its members no longer see it. Nothing has been destroyed yet, and whoever runs this server can put it back."
+  },
+  "communityOnHold": {
+    "subject": "{{community}} is on hold",
+    "title": "{{community}} is on hold",
+    "greeting": "Hello,",
+    "body": "<strong>{{community}}</strong> is on hold, so nobody can open it for now — its members and its administrators alike. Nothing in it has been changed or removed.",
+    "deletion": "If it is still on hold on <strong>{{date}}</strong>, it will be deleted.",
+    "contact": "Contact <strong>{{contact}}</strong> to sort it out.",
+    "contactNobody": "Contact whoever runs this server to sort it out.",
+    "textBody": "{{community}} is on hold, so nobody can open it for now. Nothing in it has been changed or removed.",
+    "textDeletion": "If it is still on hold on {{date}}, it will be deleted.",
+    "textContact": "Contact {{contact}} to sort it out.",
+    "textContactNobody": "Contact whoever runs this server to sort it out."
   }
 }

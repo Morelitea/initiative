@@ -2,13 +2,13 @@ from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, Integer
-from sqlmodel import Field, Relationship
+from sqlmodel import Field
 from pydantic import ConfigDict
 
 from app.models.tenant._mixins import CreatedByMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.platform.guild import Guild
+    pass
 
 
 class GuildSetting(CreatedByMixin, table=True):
@@ -17,7 +17,6 @@ class GuildSetting(CreatedByMixin, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", unique=True, nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -31,8 +30,4 @@ class GuildSetting(CreatedByMixin, table=True):
     retention_days: Optional[int] = Field(
         default=90,
         sa_column=Column(Integer, nullable=True, server_default="90"),
-    )
-
-    guild: Optional["Guild"] = Relationship(
-        back_populates="settings", sa_relationship_kwargs={"uselist": False}
     )

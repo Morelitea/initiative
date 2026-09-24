@@ -1007,3 +1007,65 @@ def _wire(value: Any, declared: Optional[FieldType] = None) -> Any:
     if value is None or isinstance(value, (str, bool, int, float)):
         return value
     return str(value)
+
+
+# --- a statement over the community's datasets, described without running it --
+
+
+@dataclass(frozen=True)
+class StatementColumn:
+    """One column a statement returns, as far as the tree says."""
+
+    name: str
+    type: FieldType
+    #: The closed vocabulary the column draws from, when it is a field that has
+    #: one (a status category, a priority).
+    options: tuple[str, ...] = ()
+    #: Whether it is an aggregate over rows rather than a value of one row.
+    aggregate: bool = False
+
+
+def describe_statement(
+    sql: str,
+) -> tuple[tuple[StatementColumn, ...], tuple[str, ...]]:
+    """What a statement over the community's datasets returns, and which
+    datasets it reads — worked out from the tree alone.
+
+    The live path asks the database about any output the registry cannot name.
+    A caller with no database to ask — a marketplace listing previewing on
+    sample rows — reads the same tree the way this module reads a statement
+    over an app's rows: a field is the field the registry declares, and an
+    expression is typed by what it is built from.
+    """
+    from app.services.fields import dataset
+    from app.services.query.resolve import (
+        _expand_relations,
+        _relations,
+        _target_spec,
+    )
+
+    select = _parse(sql)
+    _check_nodes(select)
+    _expand_relations(select)
+    scope = _relations(select)
+    declared: dict[str, RowColumn] = {}
+    for name in scope.values():
+        for field_name, spec in dataset(name).by_name.items():
+            declared.setdefault(field_name, RowColumn(field_name, spec.type))
+    columns = _output_columns(select, declared)
+    described: list[StatementColumn] = []
+    for target, column in zip(select.targetList or (), columns):
+        spec = _target_spec(target, scope)
+        aggregate = (
+            isinstance(target.val, ast.FuncCall)
+            and _function_name(target.val) in _AGGREGATE_TYPES
+        )
+        described.append(
+            StatementColumn(
+                name=column.name,
+                type=spec.type if spec is not None else column.type,
+                options=tuple(spec.options) if spec is not None else (),
+                aggregate=aggregate,
+            )
+        )
+    return tuple(described), tuple(sorted(set(scope.values())))

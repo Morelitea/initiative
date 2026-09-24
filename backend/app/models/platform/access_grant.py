@@ -78,11 +78,12 @@ LEVEL_LABEL_KEYS: dict[str, str] = {
     "superadmin": "accessGrant.levelSuperadmin",
 }
 
-#: What ``access_level`` may say, per purpose. The CHECK in migration 0298
-#: mirrors this.
+#: What ``access_level`` may say, per purpose. The CHECK in migration 0364
+#: mirrors this. A billing grant has one level: what its holder may do in the
+#: billing account is the billing service's to decide.
 LEVELS_BY_PURPOSE: dict[str, tuple[str, ...]] = {
     "content": ACCESS_LEVELS,
-    "billing": ACCESS_LEVELS,
+    "billing": (AccessLevel.read.value,),
     "settings": SETTINGS_LEVELS,
 }
 ACCESS_GRANT_STATUSES: tuple[str, ...] = tuple(
@@ -97,11 +98,11 @@ class AccessGrant(SQLModel, table=True):
     """A time-bound, per-guild privileged-access grant (PAM).
 
     A lower-privilege platform user (e.g. ``support``) requests temporary
-    access to one guild; an ``owner``/``admin`` approves it; it auto-expires.
+    access to one guild; an ``operator``/``owner`` approves it; it auto-expires.
     This is the least-privilege alternative to the standing all-guild
-    ``data.bypass`` that ``admin``/``owner`` hold.
+    ``data.bypass`` that ``operator``/``owner`` hold.
 
-    Managed cross-guild by platform staff, so endpoints use the admin
+    Managed cross-guild by platform staff, so endpoints use the system
     (RLS-bypassing) session with explicit capability + ownership checks —
     the same pattern as the ``users`` table.
     """

@@ -19,6 +19,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.db.guild_standing import GuildContext
+from app.models.platform.guild import Guild
 from app.schemas.tenant.guild_app import serialize_guild_app
 
 pytestmark = pytest.mark.unit
@@ -41,6 +43,17 @@ DEFINITION = {
     # which parses it off this same payload.
     "automation": {"nodes": [{"id": "low_stock"}]},
 }
+
+
+#: The standing a request in this app's community carries, which is what the
+#: serializer names the community from. Built here because these payloads are
+#: built without a request.
+CONTEXT = GuildContext(
+    guild=Guild(id=7, name="g"),
+    user_id=11,
+    guild_id=7,
+    standing_guild_id=7,
+)
 
 
 def _app(**overrides) -> SimpleNamespace:
@@ -75,7 +88,7 @@ def _app(**overrides) -> SimpleNamespace:
 
 
 def test_the_pinned_definition_is_passed_through_verbatim():
-    payload = serialize_guild_app(_app())
+    payload = serialize_guild_app(_app(), context=CONTEXT)
 
     assert payload.definition == DEFINITION
     # Including the block this build never interprets — the delegate reads it
@@ -86,21 +99,22 @@ def test_the_pinned_definition_is_passed_through_verbatim():
 def test_the_config_state_the_app_reported_is_carried():
     """Until an app reports, an install has no verdict; once it does, the
     settings page can say whether the app is happy without leaving the app."""
-    assert serialize_guild_app(_app()).config_state == "ok"
+    assert serialize_guild_app(_app(), context=CONTEXT).config_state == "ok"
     assert (
         serialize_guild_app(
-            _app(config_state="invalid", config_state_detail="missing_read_orders")
+            _app(config_state="invalid", config_state_detail="missing_read_orders"),
+            context=CONTEXT,
         ).config_state_detail
         == "missing_read_orders"
     )
-    assert serialize_guild_app(_app(config_state="unverified")).config_state == (
-        "unverified"
-    )
+    assert serialize_guild_app(
+        _app(config_state="unverified"), context=CONTEXT
+    ).config_state == ("unverified")
 
 
 def test_no_stored_value_appears_anywhere_in_the_payload():
     payload = serialize_guild_app(
-        _app(config={"admin": {"shop_domain": "example.test"}})
+        _app(config={"admin": {"shop_domain": "example.test"}}), context=CONTEXT
     )
 
     serialized = payload.model_dump_json()
@@ -114,5 +128,8 @@ def test_no_stored_value_appears_anywhere_in_the_payload():
 def test_needs_config_still_reads_from_presence():
     """A required guild-wide field with nothing in it is the one thing this
     build can know by itself, and it is unaffected by the passthrough."""
-    assert serialize_guild_app(_app(config_secrets={})).needs_config is True
-    assert serialize_guild_app(_app()).needs_config is False
+    assert (
+        serialize_guild_app(_app(config_secrets={}), context=CONTEXT).needs_config
+        is True
+    )
+    assert serialize_guild_app(_app(), context=CONTEXT).needs_config is False

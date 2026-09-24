@@ -1,11 +1,22 @@
+import hashlib
+import hmac
 import logging
 import re
 from collections.abc import Sequence
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, EmailStr, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    EmailStr,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
@@ -130,6 +141,97 @@ def _validate_strong_key(value: str, var_name: str, *, rotation_hint: bool) -> s
     return value
 
 
+#: Settings whose environment variable is only a FIRST-BOOT SEED.
+#:
+#: Each of these is stored in the database on first start and edited in
+#: Settings → Platform from then on, so the env var is read once and the row wins
+#: afterwards. ``app/services/platform/app_settings.py`` (``_seed_from_env``) is
+#: the mechanism; the credential-bearing ones are encrypted at rest under a salt
+#: registered in ``app/db/secret_key_rotation.py``, so they rotate with
+#: SECRET_KEY.
+#:
+#: Declared here so the deployment contract can say so out loud: an operator
+#: does not need any of these to bring the app up, and a deployment tool does
+#: not need to carry them as deploy-time secrets. See ``env-contract.json``.
+RUNTIME_SEEDED_SETTINGS = frozenset(
+    {
+        # Outbound mail.
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_SECURE",
+        "SMTP_REJECT_UNAUTHORIZED",
+        "SMTP_USERNAME",
+        "SMTP_PASSWORD",
+        "SMTP_FROM_ADDRESS",
+        "SMTP_TEST_RECIPIENT",
+        # Object storage.
+        "STORAGE_BACKEND",
+        "S3_BUCKET",
+        "S3_REGION",
+        "S3_ENDPOINT_URL",
+        "S3_ACCESS_KEY_ID",
+        "S3_SECRET_ACCESS_KEY",
+        "S3_USE_PATH_STYLE",
+        "S3_KMS_KEY_ID",
+        "S3_LOCAL_FALLBACK",
+        # The platform OIDC provider. Seeded into the provider row by
+        # app/services/auth/platform_provider.py; after that the row holds the
+        # secret, which is why rotating it upstream needs a paste in Settings.
+        "OIDC_ENABLED",
+        "OIDC_ISSUER",
+        "OIDC_CLIENT_ID",
+        "OIDC_CLIENT_SECRET",
+        "OIDC_PROVIDER_NAME",
+        "OIDC_SCOPES",
+        # The registration captcha (0368). Provider and site key are public;
+        # the verification secret is encrypted on app_setting_secrets.
+        "CAPTCHA_PROVIDER",
+        "CAPTCHA_SITE_KEY",
+        "CAPTCHA_SECRET_KEY",
+        # Push notifications (0368). Everything but the service-account JSON
+        # reaches a device or a page; that one is encrypted at rest.
+        "FCM_ENABLED",
+        "FCM_PROJECT_ID",
+        "FCM_APPLICATION_ID",
+        "FCM_API_KEY",
+        "FCM_SENDER_ID",
+        "FCM_SERVICE_ACCOUNT_JSON",
+    }
+)
+
+#: Operator-supplied credentials with no database path, and so no way to set
+#: them after deployment. The environment would be the only place they could
+#: live, which makes them the only reason a deployment tool needs a free-form
+#: secret passthrough.
+#:
+#: **Empty since 0368**, when the captcha secret and the FCM service account --
+#: the last two -- moved onto the settings singleton. Kept rather than deleted
+#: because it is a claim worth being able to check: anything added here is a
+#: setting an operator can never change without a redeploy, and a deployment
+#: tool has to carry it as a secret. Prefer the seeded set above.
+ENV_ONLY_FEATURE_CREDENTIALS: frozenset[str] = frozenset()
+
+#: The app's three logins: the setting whose URL connects as each, and the
+#: login's canonical name — what the app calls it when it makes the login
+#: itself, and what a URL naming no user is read as.
+DATABASE_LOGINS: tuple[tuple[str, str], ...] = (
+    ("DATABASE_URL", "app_provisioner"),
+    ("DATABASE_URL_APP", "app_user"),
+    ("DATABASE_URL_ADMIN", "app_admin"),
+)
+
+
+def derive_database_password(secret_key: str, role: str) -> str:
+    """The password a derived login is given: one per role, from SECRET_KEY.
+
+    The bootstrap sets it on every start, so it follows SECRET_KEY through a
+    rotation without anything else to change.
+    """
+    return hmac.new(
+        secret_key.encode(), b"database-login:" + role.encode(), hashlib.sha256
+    ).hexdigest()
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -137,19 +239,30 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # The database, in one of two shapes.
+    #
+    # Usually the database owner, with DATABASE_URL_APP and DATABASE_URL_ADMIN
+    # left unset. The app then makes its three logins itself (see
+    # DATABASE_LOGINS), with passwords derived from SECRET_KEY, and
+    # `_resolve_database_logins` rewrites these four settings into the second
+    # shape, so nothing that reads them needs to know which one was given.
+    #
+    # Or the app_provisioner login, with DATABASE_URL_APP (app_user, the request
+    # path) and DATABASE_URL_ADMIN (app_admin, the system engine) set beside it,
+    # for a deployment that names its logins and passwords itself.
     DATABASE_URL: str = (
         "postgresql+asyncpg://initiative:initiative@localhost:5432/initiative"
     )
-    DATABASE_URL_APP: (
-        str  # Non-superuser connection for RLS-enforced queries (required)
-    )
-    DATABASE_URL_ADMIN: str  # System-engine login (BYPASSRLS, grant-bounded) for jobs/seeding (required)
+    DATABASE_URL_APP: str = ""
+    DATABASE_URL_ADMIN: str = ""
     # The database owner, used once at startup to apply the prerequisites the
     # three logins above cannot create for themselves: the logins themselves,
     # and the guild-search match operator (see app.db.bootstrap). The
     # connection is opened, used and disposed before the app serves anything.
     # Unset it and the app verifies those prerequisites instead of applying
     # them; a deployment that provisions its database out of band never sets it.
+    # Only set it beside DATABASE_URL_APP and DATABASE_URL_ADMIN: otherwise
+    # DATABASE_URL is already the owner, and this is filled in from it.
     DATABASE_URL_BOOTSTRAP: str | None = None
     # Where to hold the realtime signal channel's own connection. ``LISTEN`` is
     # session state and so wants a connection of its own, apart from the pooled
@@ -180,51 +293,6 @@ class Settings(BaseSettings):
     # so it can be rotated freely — the only cost is forcing every user to re-login,
     # with no impact on encrypted-at-rest data. Falls back to SECRET_KEY when unset.
     JWT_SIGNING_KEY: str | None = None
-
-    # --- The SQL query surface ----------------------------------------------
-    #
-    # Each of these is a bound, so each has a floor of one: a value below that
-    # would not loosen the limit, it would turn it off or refuse every query.
-    #: Connections kept for reader-written SQL. Small on purpose: it is the
-    #: bound on how much of the database's attention those statements can hold.
-    QUERY_POOL_SIZE: int = Field(default=4, gt=0)
-    #: How long a query waits for one of them before giving up.
-    QUERY_POOL_TIMEOUT_SECONDS: int = Field(default=5, gt=0)
-    #: How many queries one guild may have running at once, across the
-    #: deployment.
-    QUERY_MAX_CONCURRENT_PER_GUILD: int = Field(default=2, gt=0)
-    #: How long one statement may run.
-    QUERY_STATEMENT_TIMEOUT_MS: int = Field(default=5_000, gt=0)
-    #: Sort/hash memory per statement, as a PostgreSQL size.
-    QUERY_WORK_MEM: str = "16MB"
-    #: The planner's estimate above which a statement is refused unrun.
-    QUERY_MAX_COST: float = Field(default=1_000_000.0, gt=0)
-    #: Rows one query may return.
-    QUERY_MAX_ROWS: int = Field(default=5_000, gt=0)
-
-    @field_validator("QUERY_WORK_MEM")
-    @classmethod
-    def _rebuild_work_mem(cls, value: str) -> str:
-        """Read the setting as a number and a unit, and write it back out.
-
-        The result reaches ``SET LOCAL work_mem``, so what goes there is built
-        here from an integer and one of four known words rather than passed
-        through — a value this cannot read is a configuration error and says
-        so at startup.
-        """
-        text = value.strip()
-        unit = ""
-        for known in ("kB", "MB", "GB", "TB"):
-            if text.endswith(known):
-                unit = known
-                text = text[: -len(known)].strip()
-                break
-        if not text.isdigit() or int(text) <= 0:
-            raise ValueError(
-                "QUERY_WORK_MEM must be a positive number, optionally followed "
-                "by kB, MB, GB or TB — for example '16MB'"
-            )
-        return f"{int(text)}{unit}"
 
     # The JWT algorithm and cookie names are constants in app.core.security
     # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — a settable
@@ -281,6 +349,63 @@ class Settings(BaseSettings):
                 "Postgres role names)"
             )
         return value
+
+    _database_logins_derived: bool = PrivateAttr(default=False)
+
+    @model_validator(mode="after")
+    def _resolve_database_logins(self) -> "Settings":
+        has_app, has_admin = bool(self.DATABASE_URL_APP), bool(self.DATABASE_URL_ADMIN)
+        if has_app != has_admin:
+            given, missing = (
+                ("DATABASE_URL_APP", "DATABASE_URL_ADMIN")
+                if has_app
+                else ("DATABASE_URL_ADMIN", "DATABASE_URL_APP")
+            )
+            raise ValueError(
+                f"{given} is set but {missing} is not. Set both, with DATABASE_URL "
+                f"as app_provisioner, to name the app's logins yourself; or set "
+                f"neither, with DATABASE_URL as the database owner, and the app "
+                f"makes them."
+            )
+        if has_app:
+            return self
+        if self.DATABASE_URL_BOOTSTRAP:
+            raise ValueError(
+                "DATABASE_URL_BOOTSTRAP is set without DATABASE_URL_APP and "
+                "DATABASE_URL_ADMIN. Without those two, DATABASE_URL is the "
+                "database owner and the app makes its own logins, so remove "
+                "DATABASE_URL_BOOTSTRAP. To name the logins yourself instead, set "
+                "DATABASE_URL (as app_provisioner), DATABASE_URL_APP and "
+                "DATABASE_URL_ADMIN."
+            )
+        owner = make_url(self.DATABASE_URL)
+        self.DATABASE_URL_BOOTSTRAP = self.DATABASE_URL
+        for setting, role in DATABASE_LOGINS:
+            login = owner.set(
+                username=role,
+                password=derive_database_password(self.SECRET_KEY, role),
+            )
+            setattr(self, setting, login.render_as_string(hide_password=False))
+        self._database_logins_derived = True
+        return self
+
+    @property
+    def database_logins_derived(self) -> bool:
+        """Whether DATABASE_URL named the owner and the app made its logins."""
+        return self._database_logins_derived
+
+    def database_login(self, setting: str) -> tuple[str, str | None]:
+        """The (name, password) one of the DATABASE_LOGINS settings connects as.
+
+        A deployment may name its logins anything; this is the name its URL
+        gives, or the canonical one when the URL gives none.
+        """
+        canonical = dict(DATABASE_LOGINS)[setting]
+        try:
+            url = make_url(getattr(self, setting))
+        except ArgumentError:
+            return canonical, None
+        return url.username or canonical, url.password or None
 
     @property
     def jwt_signing_key(self) -> str:
@@ -340,11 +465,15 @@ class Settings(BaseSettings):
 
     @property
     def content_security_policy(self) -> str:
-        """Enforced CSP for the served SPA (pentest MED-001)."""
-        return self.content_security_policy_with_frames(())
+        """Enforced CSP for the served SPA (pentest MED-001), with the env's
+        captcha provider -- what a process that has not read its settings row
+        yet serves."""
+        return self.content_security_policy_with_frames(
+            (), captcha_provider=self.CAPTCHA_PROVIDER
+        )
 
     def content_security_policy_with_frames(
-        self, app_frame_origins: Sequence[str]
+        self, app_frame_origins: Sequence[str], *, captcha_provider: str | None
     ) -> str:
         """The app-wide CSP, optionally admitting the registered frame origins.
 
@@ -376,9 +505,8 @@ class Settings(BaseSettings):
         frame_src = ["'self'", *CSP_EMBED_FRAME_ORIGINS]
         worker_src = ["'self'", "blob:"]
 
-        provider = self.CAPTCHA_PROVIDER
-        if provider in CSP_CAPTCHA_ORIGINS:
-            extra = CSP_CAPTCHA_ORIGINS[provider]
+        if captcha_provider in CSP_CAPTCHA_ORIGINS:
+            extra = CSP_CAPTCHA_ORIGINS[captcha_provider]
             script_src += extra
             style_src += extra
             frame_src += extra
@@ -525,7 +653,7 @@ class Settings(BaseSettings):
     # Point at your own object store (e.g. a self-hosted Garage instance): set
     # S3_BUCKET + S3_ENDPOINT_URL + S3_REGION, S3_USE_PATH_STYLE=true (Garage and
     # most non-AWS stores), and the access/secret keys (or leave them unset to use
-    # the ambient credential chain). See docs/en/admin/object-storage.md.
+    # the ambient credential chain). See docs/en/running-a-server/object-storage.md.
     S3_BUCKET: str | None = None
     S3_REGION: str = "us-east-1"
     S3_ENDPOINT_URL: str | None = None
@@ -538,7 +666,6 @@ class Settings(BaseSettings):
     # (serves blobs not yet copied by the backfill). Turn off once the backfill is
     # verified complete. Only consulted when STORAGE_BACKEND="s3".
     S3_LOCAL_FALLBACK: bool = False
-    STATIC_DIR: str = "static"
 
     # --- Marketplace ------------------------------------------------------
     # A directory of listing manifests (*.json) this deployment publishes as
@@ -551,32 +678,9 @@ class Settings(BaseSettings):
     MARKETPLACE_EXTRA_CATALOG_DIR: str | None = None
 
     # --- Data export engine ---
-    # Render backend seam. Only "local" (typst-py in-process) ships; a
-    # distributed/cloud backend would be an additive second implementation.
-    EXPORT_BACKEND: str = "local"
-    # Inline-vs-job auto-select: at or under this many rows the PDF renders
-    # in-request; above it the request becomes a persisted ExportJob.
-    EXPORT_INLINE_MAX_ROWS: int = 200
-    # Hard ceiling on rows in one export snapshot — the real DoS bound (the
-    # list-endpoint pagination caps deliberately do NOT apply to exports).
-    EXPORT_MAX_ROWS: int = 10_000
-    # Per-user cap on jobs that are queued or running at once.
-    EXPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
-    # Aggregate (initiative/guild) exports: their own row ceiling — a guild
-    # dump legitimately exceeds EXPORT_MAX_ROWS — and a byte cap on included
-    # uploads.
+    # The engine's own row, job and byte bounds are constants in
+    # ``app.services.export.limits``; these are the deployment's choices.
     #
-    # The archive now assembles on disk, one rendered artifact at a time
-    # (``engine._stream_zip_to_storage``), so peak memory no longer scales
-    # with how much a community has. The byte cap is therefore about how long
-    # a job may run and how much scratch disk it may use, not about what fits
-    # in RAM — which is why it is measured in gigabytes now rather than the
-    # 256 MiB that in-memory assembly could afford.
-    #
-    # The row ceiling still bounds the enumeration the adapter holds while it
-    # builds, so it stays — an order of magnitude higher, but a real bound.
-    EXPORT_MAX_BACKUP_ROWS: int = 500_000
-    EXPORT_MAX_BACKUP_UPLOAD_BYTES: int = 10_737_418_240  # 10 GiB
     # The line between an archive the app hands back over HTTP and one it
     # writes to the operator's destination. A download is served by this
     # process for as long as the client's connection lasts, so this is a bound
@@ -603,33 +707,6 @@ class Settings(BaseSettings):
     # the moment it switched storage over. Filesystem storage signs nothing,
     # so this does nothing there whatever it is set to.
     EXPORT_PRESIGNED_DOWNLOADS: bool = False
-    # Lifetime of a signed download URL. Short: it only has to outlive the
-    # redirect and the start of the transfer.
-    EXPORT_DOWNLOAD_URL_TTL_SECONDS: int = 300
-    # Artifact retention: expires_at = render time + this; the GC pass then
-    # deletes the artifact and marks the job expired.
-    EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days
-
-    # --- Import engine (mirrors the export knobs; imports are writes) ------
-    # Inline-vs-job auto-select: at or under this many rows the envelope
-    # applies in-request; above it the payload is staged and a job queued.
-    IMPORT_INLINE_MAX_ROWS: int = 200
-    # Hard ceiling on rows in one envelope import.
-    IMPORT_MAX_ROWS: int = 10_000
-    # Per-user cap on jobs that are staged, queued, or running at once.
-    IMPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
-    # Byte bound on a single envelope request body (rows bound the content,
-    # but a pathological single-field envelope must be bounded in bytes too).
-    IMPORT_MAX_ENVELOPE_BYTES: int = 20_971_520  # 20 MiB
-    # Staged payloads awaiting confirm/apply expire after this.
-    IMPORT_STAGED_TTL_HOURS: int = 24
-    # Backup-zip imports: upload byte cap (mirrors the export bundle cap),
-    # plus zip-bomb bounds independent of the transfer cap — total declared
-    # uncompressed size and member count.
-    IMPORT_MAX_BACKUP_UPLOAD_BYTES: int = 268_435_456  # 256 MiB
-    IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES: int = 1_073_741_824  # 4x the upload cap
-    IMPORT_MAX_ZIP_MEMBERS: int = 20_000
-
     # First/bootstrap user — becomes the platform `owner` tier (there is no
     # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
     # as aliases so existing deployments keep working.
@@ -671,20 +748,6 @@ class Settings(BaseSettings):
     # so a SET ROLE always targets the role the migration actually created.
     PLATFORM_ROLE_PREFIX: str = ""
 
-    # Privileged Access Management (PAM): time-bound, per-guild access grants.
-    PAM_DEFAULT_DURATION_MINUTES: int = 240  # 4 hours
-    PAM_MAX_DURATION_MINUTES: int = 1440  # 24 hours (absolute ceiling on any grant)
-    # Per-role maximum grant duration (least privilege: lower-trust roles get
-    # shorter windows). Each is clamped to PAM_MAX_DURATION_MINUTES.
-    PAM_SUPPORT_MAX_MINUTES: int = 240  # 4 hours
-    PAM_MODERATOR_MAX_MINUTES: int = 480  # 8 hours
-    PAM_ADMIN_MAX_MINUTES: int = 1440  # 24 hours
-    # Break-glass (self-approved, data.bypass holders): deliberately short — a
-    # self-issued emergency grant skips the second-person approval, so its window
-    # is conservative and re-triggered to extend. Capped below the role maxima.
-    PAM_BREAK_GLASS_DEFAULT_MINUTES: int = 60  # 1 hour
-    PAM_BREAK_GLASS_MAX_MINUTES: int = 240  # 4 hours (ceiling on a self-approved grant)
-
     # Optional captcha gate on the public registration endpoint to push
     # back on bot signups. ``CAPTCHA_PROVIDER`` selects the vendor —
     # ``"hcaptcha"`` / ``"turnstile"`` / ``"recaptcha"`` — and the SPA
@@ -711,14 +774,6 @@ class Settings(BaseSettings):
     # to pick the right verifying key — useful when rotating.
     HANDOFF_SIGNING_KEY_ID: str | None = None
 
-    # Inbound delegation from an app service acting for one of its members.
-    # The app presents a JWT signed with its own private key (RS256); the
-    # public half lives on that app's registration, which is also what says
-    # whether it may delegate at all. These two are the envelope every such
-    # token is checked against.
-    AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
-    AUTO_DELEGATION_ISSUER: str = "initiative-auto"
-
     # --- App platform (external app services; default OFF) ----------------
     # An app service is an external container this deployment has wired up
     # (see the app service registry). Everything below is unset on a default
@@ -736,13 +791,8 @@ class Settings(BaseSettings):
     # Key id stamped on the JWT header so an app can pick the right verifying
     # key out of the published JWKS while a rotation is in flight.
     APP_PLATFORM_SIGNING_KEY_ID: str | None = None
-    # ``iss`` on context JWTs.
-    APP_PLATFORM_ISSUER: str = "initiative"
-    # ``aud`` is this prefix plus the registration's public_id, so a token
-    # minted for one app is not accepted by another.
-    APP_PLATFORM_AUDIENCE_PREFIX: str = "initiative-app:"
     # Path to a mounted file of app service registrations, reconciled into the
-    # database at startup so a chart can wire approved apps with no admin
+    # database at startup so a chart can wire approved apps with no owner
     # clicks. JSON (or a JSON array in a .json file):
     #   [{"public_id": "acme.shopify", "base_url": "http://shopify:9100",
     #     "embed_origin": "https://shopify.example.com",
@@ -802,10 +852,6 @@ class Settings(BaseSettings):
     # value before the cutover or the old value afterwards; clear it only once
     # every billing instance signs with BILLING_HMAC_SECRET.
     BILLING_HMAC_SECRET_PREVIOUS: str | None = None
-    BILLING_AUDIENCE: str = "initiative:billing"
-    BILLING_ISSUER: str = "initiative-billing"
-    # Max |now - signed timestamp| accepted, in seconds. Never 0.
-    BILLING_REPLAY_WINDOW_SECONDS: int = Field(default=300, ge=1)
     # Outbound base URL of the billing service, for the fire-and-forget
     # membership-change ping (guild id + event id only — no member data).
     # The ping is dispatched only when this AND BILLING_HMAC_SECRET are set.
@@ -855,10 +901,6 @@ class Settings(BaseSettings):
     # How often the background refresh re-fetches the index. ~15 minutes keeps a
     # withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
-    # How old a signed index may be before it is refused. A signature stays
-    # valid forever, so freshness is what stops a served copy from being frozen
-    # in place; the publish pipeline re-signs on a schedule well inside this.
-    MARKETPLACE_REGISTRY_MAX_AGE_SECONDS: int = Field(default=7 * 86400, ge=300)
     # Operator kill switch. False stops the background refresh and the
     # "refresh now" endpoint without unsetting the URL or the keys, so a
     # deployment can pause ingestion and resume with its trust settings intact.
@@ -871,12 +913,6 @@ class Settings(BaseSettings):
     # https + public-address policy. The connection is pinned to the
     # resolved address regardless of this setting.
     WEBHOOK_ALLOW_PRIVATE_TARGETS: bool = False
-
-    # How long delivered change events are kept in each guild's outbox before
-    # the retention sweep drops them. An instance that never registers a target
-    # still accumulates the log, so this bounds it; a subscriber further behind
-    # than this has stopped consuming and resumes from the current head.
-    WEBHOOK_OUTBOX_RETENTION_DAYS: int = 7
 
     BEHIND_PROXY: bool = (
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
@@ -929,6 +965,17 @@ class Settings(BaseSettings):
                 f"got {value!r}"
             )
         return level
+
+    # The bearer token a Prometheus scrape presents to read
+    # ``{API_V1_STR}/metrics``. Unset (the default), that route answers 404.
+    METRICS_TOKEN: str | None = None
+
+    @field_validator("METRICS_TOKEN", mode="before")
+    @classmethod
+    def _blank_metrics_token_is_unset(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
     # Mount the in-app MCP server at ``/api/v1/mcp/`` (route-backed). Off by
     # default; enable per-environment via env / .env. Tools ride the real auth +
@@ -1002,8 +1049,8 @@ class Settings(BaseSettings):
 # Use caching to avoid re-reading the env file over and over
 # (FastAPI startup imports Config many times).
 def get_settings() -> Settings:
-    # Required fields (DATABASE_URL_*, SECRET_KEY) are loaded from the
-    # environment by pydantic-settings, which ty can't see.
+    # The required field (SECRET_KEY) is loaded from the environment by
+    # pydantic-settings, which ty can't see.
     return Settings()  # ty: ignore[missing-argument]
 
 

@@ -20,6 +20,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDmPermissions } from "@/hooks/useDirectMessages";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { USER_SEARCH_PAGE_SIZE, useUserSearch } from "@/hooks/useUsers";
+import { rungReaches } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
 
@@ -128,7 +129,7 @@ export const GuildMembersPage = () => {
             {/* Only the exception is worn. Badging the other nine rows in ten
                 "member" would say nothing and cost the width the actions
                 need. */}
-            {row.original.is_guild_admin ? (
+            {rungReaches(row.original.guild_role, "admin") ? (
               <Badge variant="secondary" className="shrink-0">
                 {row.original.guild_role === GuildRole.superadmin
                   ? t("members.superadmin")

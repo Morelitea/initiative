@@ -377,6 +377,12 @@ describe("DataTable sorting", () => {
   });
 });
 
+/** One sized column and one that leaves its width to the table. */
+const sizedColumns: AppColumnDef<Row>[] = [
+  { id: "pin", header: "Pin", cell: () => "\u00b7", size: 40 },
+  { accessorKey: "name", header: "Name", cell: ({ row }) => row.original.name },
+];
+
 describe("DataTable virtualization", () => {
   // jsdom gives every element a zero height, so the virtualizer windows down to
   // no rows at all — which rows render can only be checked in a real browser.
@@ -403,6 +409,36 @@ describe("DataTable virtualization", () => {
       expect(next).toBeInTheDocument();
     }
     expect(screen.getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
+  });
+
+  // With the automatic layout algorithm the browser sizes columns from the
+  // cells it can see, and a virtualized table swaps those out on every scroll —
+  // so the widths have to come from the column definitions instead.
+  it.each([
+    ["pins the column widths while virtualized", true, "40px", true],
+    ["leaves the widths to the browser when virtualization is off", false, undefined, false],
+  ])("%s", (_label, enableVirtualization, firstWidth, fixed) => {
+    const { container } = render(
+      <DataTable
+        columns={sizedColumns}
+        data={manyRows}
+        enableVirtualization={enableVirtualization}
+        virtualRowHeight={48}
+      />
+    );
+
+    const table = container.querySelector("table") as HTMLTableElement;
+    expect(table.classList.contains("table-fixed")).toBe(fixed);
+
+    const cols = Array.from(container.querySelectorAll("colgroup col"));
+    if (!enableVirtualization) {
+      expect(cols).toHaveLength(0);
+      return;
+    }
+    expect(cols).toHaveLength(2);
+    expect((cols[0] as HTMLElement).style.width).toBe(firstWidth);
+    // A column that declares no size falls back to the table default.
+    expect((cols[1] as HTMLElement).style.width).toBe("150px");
   });
 });
 

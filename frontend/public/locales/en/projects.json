@@ -9,7 +9,7 @@
   "noMatchingProjects": "No projects match your filters.",
   "onlyPinnedMatch": "Only pinned projects match your filters.",
   "accessRestricted": "Access Restricted",
-  "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Contact an administrator if you believe this is an error.",
+  "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Ask a community admin or an initiative manager if you believe this is an error.",
   "view": {
     "grid": "Grid",
     "list": "List"
@@ -337,7 +337,24 @@
     "taskCount_one": "{{count}} task",
     "taskCount_other": "{{count}} tasks",
     "collapse": "Collapse {{name}}",
-    "expand": "Expand {{name}}"
+    "expand": "Expand {{name}}",
+    "fields": {
+      "label": "Fields",
+      "menuTitle": "Fields on cards",
+      "showAll": "Show all fields",
+      "hiddenCount_one": "{{count}} hidden",
+      "hiddenCount_other": "{{count}} hidden",
+      "description": "Description",
+      "assignees": "Assignees",
+      "startDate": "Start date",
+      "dueDate": "Due date",
+      "recurrence": "Repeats",
+      "checklist": "Checklist",
+      "priority": "Priority",
+      "comments": "Comments",
+      "blockers": "Blockers",
+      "tags": "Tags"
+    }
   },
   "recurrence": {
     "repeat": "Repeat",
@@ -422,15 +439,6 @@
     "noComments": "No comments yet.",
     "commentedOn": "commented on",
     "loadMore": "Load more"
-  },
-  "export": {
-    "title": "Export project",
-    "description": "Download this project as a portable JSON backup, or as a formatted report (PDF, CSV, or Excel).",
-    "detail": "The JSON backup can be re-imported on this instance or any other Initiative installation — cross-row references use names and emails so IDs from this database don't leak. Report formats cover the project's unarchived tasks.",
-    "exportButton": "Export",
-    "noWriteAccess": "You need write access on this project to export it.",
-    "success": "Project exported",
-    "error": "Could not export the project. Please try again."
   },
   "status": {
     "label": "Show",

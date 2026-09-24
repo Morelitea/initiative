@@ -31,7 +31,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
 from app.api.v1.platform_endpoints.session_opening import upgrade_session
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.models.platform.user import User
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import (
@@ -52,10 +52,11 @@ from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
 from app.services.auth import sessions as session_service
 from app.services.auth.assurance import SECOND_FACTOR_AMR
+from app.services.stream_authz import authority as stream_authority
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: Setting a factor up and presenting one have to answer while the
@@ -74,13 +75,13 @@ def _iso(value: Optional[datetime]) -> Optional[str]:
 @router.get("/totp", response_model=SecondFactorStatus)
 async def read_second_factor(
     current_user: FactorExemptUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
 ) -> SecondFactorStatus:
     """What the account holds. A started-but-unproved enrolment reads as not
     enrolled, because that is what the sign-in makes of it too."""
-    offered = await auth_posture.login_method_allowed(admin_session, LoginMethod.totp)
+    offered = await auth_posture.login_method_allowed(system_session, LoginMethod.totp)
     password_required = has_usable_password(current_user.hashed_password)
-    factor = await totp_service.get_factor(admin_session, user_id=current_user.id)
+    factor = await totp_service.get_factor(system_session, user_id=current_user.id)
     enrolled = factor is not None and factor.confirmed_at is not None
     # An account that signs in without a password keeps a recovery set whether
     # or not it is enrolled: the codes answer for the account there rather than
@@ -88,7 +89,7 @@ async def read_second_factor(
     passwordless = not password_required
     remaining = (
         await totp_service.remaining_recovery_codes(
-            admin_session, user_id=current_user.id
+            system_session, user_id=current_user.id
         )
         if enrolled or passwordless
         else 0
@@ -116,7 +117,7 @@ async def read_second_factor(
 async def begin_second_factor(
     request: Request,
     current_user: FactorExemptUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: SecondFactorEnrolStart,
     _first_party: str = FirstPartyOnly,
 ) -> SecondFactorEnrolment:
@@ -125,12 +126,12 @@ async def begin_second_factor(
     Nothing is asked for at sign-in until it is confirmed, so an enrolment
     begun and abandoned costs the account nothing. Beginning again replaces it.
     """
-    if not await auth_posture.login_method_allowed(admin_session, LoginMethod.totp):
+    if not await auth_posture.login_method_allowed(system_session, LoginMethod.totp):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.TOTP_NOT_PERMITTED,
         )
-    if await totp_service.is_enrolled(admin_session, user_id=current_user.id):
+    if await totp_service.is_enrolled(system_session, user_id=current_user.id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthMessages.TOTP_ALREADY_ENROLLED,
@@ -141,16 +142,16 @@ async def begin_second_factor(
     # person signs in with where there is one, so an account with two entries
     # is told apart; the handle otherwise.
     account = (
-        await addresses.primary_address(admin_session, user_id=current_user.id)
+        await addresses.primary_address(system_session, user_id=current_user.id)
         or current_user.username
     )
     enrolment = await totp_service.begin_enrolment(
-        admin_session,
+        system_session,
         user_id=current_user.id,
         account=account,
         issuer=totp_service.issuer_name(),
     )
-    await admin_session.commit()
+    await system_session.commit()
     return SecondFactorEnrolment(secret=enrolment.secret, otpauth_uri=enrolment.uri)
 
 
@@ -159,7 +160,7 @@ async def begin_second_factor(
 async def confirm_second_factor(
     request: Request,
     current_user: FactorExemptUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: SecondFactorConfirm,
     _first_party: str = FirstPartyOnly,
 ) -> RecoveryCodes:
@@ -169,7 +170,7 @@ async def confirm_second_factor(
     Sessions are left alone: the person is where they are and has just proved
     it.
     """
-    factor = await totp_service.get_factor(admin_session, user_id=current_user.id)
+    factor = await totp_service.get_factor(system_session, user_id=current_user.id)
     if factor is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -181,31 +182,31 @@ async def confirm_second_factor(
             detail=AuthMessages.TOTP_ALREADY_ENROLLED,
         )
     if not await totp_service.confirm_enrolment(
-        admin_session, user_id=current_user.id, code=payload.code
+        system_session, user_id=current_user.id, code=payload.code
     ):
         await audit_service.record(
-            admin_session,
+            system_session,
             event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
             actor_user_id=current_user.id,
             detail={"method": "totp", "during": "enrolment"},
         )
-        await admin_session.commit()
+        await system_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.TOTP_INVALID
         )
 
     codes = await totp_service.issue_recovery_codes(
-        admin_session, user_id=current_user.id
+        system_session, user_id=current_user.id
     )
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_SECOND_FACTOR_ENROLLED,
         actor_user_id=current_user.id,
         detail={"method": "totp"},
     )
-    await admin_session.commit()
+    await system_session.commit()
     await email_service.announce_second_factor_change(
-        admin_session, current_user, enabled=True
+        system_session, current_user, enabled=True
     )
     return RecoveryCodes(codes=codes)
 
@@ -215,7 +216,7 @@ async def confirm_second_factor(
 async def disable_second_factor(
     request: Request,
     current_user: CurrentUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: SecondFactorDisable,
     _first_party: str = FirstPartyOnly,
 ) -> None:
@@ -224,7 +225,7 @@ async def disable_second_factor(
     Asks for the password and for the factor itself — a live code, or one of
     the recovery codes. Every other session goes with it; this one stays.
     """
-    if not await totp_service.is_enrolled(admin_session, user_id=current_user.id):
+    if not await totp_service.is_enrolled(system_session, user_id=current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
@@ -233,42 +234,44 @@ async def disable_second_factor(
 
     if payload.recovery_code:
         proved = await totp_service.consume_recovery_code(
-            admin_session, user_id=current_user.id, code=payload.recovery_code
+            system_session, user_id=current_user.id, code=payload.recovery_code
         )
         refusal = AuthMessages.RECOVERY_CODE_INVALID
     else:
         proved = await totp_service.verify_code(
-            admin_session, user_id=current_user.id, code=payload.code or ""
+            system_session, user_id=current_user.id, code=payload.code or ""
         )
         refusal = AuthMessages.TOTP_INVALID
     if not proved:
         await audit_service.record(
-            admin_session,
+            system_session,
             event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
             actor_user_id=current_user.id,
             detail={"method": "totp", "during": "removal"},
         )
-        await admin_session.commit()
+        await system_session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
-    await totp_service.disable(admin_session, user_id=current_user.id)
-    await challenge_service.revoke_for_user(admin_session, user_id=current_user.id)
+    await totp_service.disable(system_session, user_id=current_user.id)
+    await challenge_service.revoke_for_user(system_session, user_id=current_user.id)
     # Every other session, and not this one: the change was made from a page
     # that should still be signed in when it finishes.
     await session_service.revoke_all_for_user(
-        admin_session,
+        system_session,
         user_id=current_user.id,
         except_session_id=getattr(request.state, "session_id", None),
     )
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_SECOND_FACTOR_DISABLED,
         actor_user_id=current_user.id,
         detail={"method": "totp"},
     )
-    await admin_session.commit()
+    await system_session.commit()
+    # Connections opened on the ended sessions close; this one's stay.
+    await stream_authority.revoke_user_everywhere(current_user.id)
     await email_service.announce_second_factor_change(
-        admin_session, current_user, enabled=False
+        system_session, current_user, enabled=False
     )
 
 
@@ -278,7 +281,7 @@ async def step_up_with_factor(
     request: Request,
     response: Response,
     current_user: FactorExemptUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: SecondFactorStepUpAnswer,
     _first_party: str = FirstPartyOnly,
 ) -> Token:
@@ -293,7 +296,7 @@ async def step_up_with_factor(
     shape the provider step-up uses — satisfying one community's requirement
     never un-satisfies another's.
     """
-    if not await totp_service.is_enrolled(admin_session, user_id=current_user.id):
+    if not await totp_service.is_enrolled(system_session, user_id=current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
@@ -301,31 +304,31 @@ async def step_up_with_factor(
 
     if payload.recovery_code:
         accepted = await totp_service.consume_recovery_code(
-            admin_session, user_id=current_user.id, code=payload.recovery_code
+            system_session, user_id=current_user.id, code=payload.recovery_code
         )
         method, factor_amr = "recovery_code", [SECOND_FACTOR_AMR]
         refusal = AuthMessages.RECOVERY_CODE_INVALID
     else:
         accepted = await totp_service.verify_code(
-            admin_session, user_id=current_user.id, code=payload.code or ""
+            system_session, user_id=current_user.id, code=payload.code or ""
         )
         method, factor_amr = "totp", ["otp", SECOND_FACTOR_AMR]
         refusal = AuthMessages.TOTP_INVALID
 
     if not accepted:
         await audit_service.record(
-            admin_session,
+            system_session,
             event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
             actor_user_id=current_user.id,
             detail={"method": method, "during": "step_up"},
         )
-        await admin_session.commit()
+        await system_session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
     return await upgrade_session(
         request,
         response,
-        admin_session,
+        system_session,
         user=current_user,
         add_amr=factor_amr,
     )
@@ -336,7 +339,7 @@ async def step_up_with_factor(
 async def regenerate_recovery_codes(
     request: Request,
     current_user: CurrentUser,
-    admin_session: AdminSessionDep,
+    system_session: SystemSessionDep,
     payload: RecoveryCodesRegenerate,
     _first_party: str = FirstPartyOnly,
 ) -> RecoveryCodes:
@@ -348,23 +351,23 @@ async def regenerate_recovery_codes(
     """
     passwordless = not has_usable_password(current_user.hashed_password)
     if not passwordless and not await totp_service.is_enrolled(
-        admin_session, user_id=current_user.id
+        system_session, user_id=current_user.id
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
     await require_password_or_recent_proof(
-        request, admin_session, current_user, payload.current_password
+        request, system_session, current_user, payload.current_password
     )
 
     codes = await totp_service.issue_recovery_codes(
-        admin_session, user_id=current_user.id
+        system_session, user_id=current_user.id
     )
     await audit_service.record(
-        admin_session,
+        system_session,
         event_type=AuditEventType.AUTH_RECOVERY_CODES_ISSUED,
         actor_user_id=current_user.id,
     )
-    await admin_session.commit()
+    await system_session.commit()
     return RecoveryCodes(codes=codes)

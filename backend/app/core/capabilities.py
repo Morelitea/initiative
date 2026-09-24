@@ -18,7 +18,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, FrozenSet
 
-from app.models.platform.user import UserRole
+from app.models.platform.user import UserRole, UserStatus
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user import User
@@ -31,10 +31,9 @@ class Capability(str, Enum):
     ``UserRead.capabilities``); treat them as part of the API contract.
     """
 
-    # Read-only cross-guild visibility (served via admin endpoints that
-    # bypass RLS, gated purely by capability).
+    # Read-only visibility of the platform's user list (served via operator
+    # endpoints, gated purely by capability).
     USERS_READ = "users.read"
-    GUILDS_READ = "guilds.read"
 
     # Trust & safety / user lifecycle.
     CONTENT_MODERATE = "content.moderate"
@@ -58,8 +57,8 @@ class Capability(str, Enum):
     ROLES_ASSIGN = "roles.assign"
 
     # The right to self-issue a break-glass PAM grant (operator+owner only). This is
-    # NOT a standing all-guild bypass: instead of an ambient superadmin flag
-    # god-mode, the holder records a scoped, time-bound, audited grant in one step
+    # NOT a standing all-guild bypass: instead of an ambient all-guild flag,
+    # the holder records a scoped, time-bound, audited grant in one step
     # (created + self-approved) to reach one guild's data, then routes through the
     # normal PAM path until it expires. Lower tiers reach a guild via the
     # request→approve flow instead.
@@ -68,7 +67,6 @@ class Capability(str, Enum):
     # Privileged Access Management (time-bound, per-guild grants).
     ACCESS_REQUEST = "access.request"
     ACCESS_APPROVE = "access.approve"
-    ACCESS_READ = "access.read"
 
     # App-wide configuration (OIDC, SMTP, branding, role labels). owner only.
     CONFIG_MANAGE = "config.manage"
@@ -88,7 +86,6 @@ _MEMBER: FrozenSet[Capability] = frozenset()
 _SUPPORT: FrozenSet[Capability] = _MEMBER | {
     Capability.USERS_READ,
     Capability.USERS_AGE_UNBLOCK,
-    Capability.GUILDS_READ,
     Capability.ACCESS_REQUEST,
 }
 
@@ -104,7 +101,6 @@ _OPERATOR: FrozenSet[Capability] = _MODERATOR | {
     Capability.DATA_BYPASS,
     Capability.ROLES_ASSIGN,
     Capability.ACCESS_APPROVE,
-    Capability.ACCESS_READ,
 }
 
 _OWNER: FrozenSet[Capability] = (
@@ -146,31 +142,36 @@ def roles_with_capability(capability: Capability) -> FrozenSet[UserRole]:
     )
 
 
+def standing_capabilities(role: UserRole, status: UserStatus) -> FrozenSet[Capability]:
+    """What a standing role grants an account in ``status``.
+
+    A suspended account holds none: it is in time out, and its rung comes back
+    untouched when the suspension lifts.
+    """
+    if status == UserStatus.suspended:
+        return frozenset()
+    return capabilities_for(role)
+
+
 def user_has_capability(user: "User", capability: Capability) -> bool:
     """True iff the user's standing platform role grants ``capability``.
 
     This reflects *standing* privilege only. Time-bound PAM grants (cross-guild
     data access) are resolved separately when the guild session is built.
     """
-    return capability in capabilities_for(user.role)
+    return capability in standing_capabilities(user.role, user.status)
 
 
-# Privilege ladder, least → most. Assignment is bounded by rank rather than
-# capability-subset: the presets aren't strictly nested (owner intentionally
-# drops ``access.request``, which the lower tiers carry), so a subset check
-# would wrongly forbid an owner from assigning ``operator``. Mirrors the
-# frontend's PLATFORM_ROLE_ORDER.
-_ROLE_RANK: dict[UserRole, int] = {
-    UserRole.member: 0,
-    UserRole.support: 1,
-    UserRole.moderator: 2,
-    UserRole.operator: 3,
-    UserRole.owner: 4,
-}
+# Privilege ladder, least → most, taken from ``UserRole``'s declaration order.
+# Assignment is bounded by rank rather than capability-subset: the presets
+# aren't strictly nested (owner intentionally drops ``access.request``, which
+# the lower tiers carry), so a subset check would wrongly forbid an owner from
+# assigning ``operator``. Mirrors the frontend's PLATFORM_ROLE_ORDER.
+_ROLE_ORDER: tuple[UserRole, ...] = tuple(UserRole)
 
 
 def role_rank(role: UserRole) -> int:
-    return _ROLE_RANK.get(role, 0)
+    return _ROLE_ORDER.index(role)
 
 
 def can_assign_role(actor: "User", target_role: UserRole) -> bool:

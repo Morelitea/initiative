@@ -1,0 +1,46 @@
+<p>Task lists (checked and unchecked, nested), a block task, and a decision log.</p><h2>First week</h2><ac:task-list ac:task-list-id="51c3e5c74c9c">
+<ac:task>
+<ac:task-id>1</ac:task-id>
+<ac:task-uuid>3271c27e04f3</ac:task-uuid>
+<ac:task-status>complete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Get a laptop</span></ac:task-body>
+</ac:task>
+<ac:task>
+<ac:task-id>2</ac:task-id>
+<ac:task-uuid>0ffdfd656bde</ac:task-uuid>
+<ac:task-status>complete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Join the chat workspace</span></ac:task-body>
+</ac:task>
+<ac:task>
+<ac:task-id>3</ac:task-id>
+<ac:task-uuid>b675ceca73e6</ac:task-uuid>
+<ac:task-status>incomplete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Read the <ac:link><ri:page ri:space-key="IMPTEST" ri:content-title="Architecture Overview" ri:version-at-save="1" /><ac:link-body>Architecture Overview</ac:link-body></ac:link></span></ac:task-body>
+</ac:task>
+<ac:task-list ac:task-list-id="2f07ff106c3e">
+<ac:task>
+<ac:task-id>4</ac:task-id>
+<ac:task-uuid>182623243d98</ac:task-uuid>
+<ac:task-status>incomplete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Nested: skim the database section</span></ac:task-body>
+</ac:task>
+<ac:task>
+<ac:task-id>5</ac:task-id>
+<ac:task-uuid>28a7813df23a</ac:task-uuid>
+<ac:task-status>complete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Nested: done already</span></ac:task-body>
+</ac:task>
+</ac:task-list><ac:task>
+<ac:task-id>6</ac:task-id>
+<ac:task-uuid>8d7f5d6f38e8</ac:task-uuid>
+<ac:task-status>incomplete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Pair with <ac:link><ri:user ri:account-id="redacted" /></ac:link> by <time datetime="2026-10-02" /></span></ac:task-body>
+</ac:task>
+</ac:task-list><h2>Block task</h2><ac:task-list ac:task-list-id="1db19af725df">
+<ac:task>
+<ac:task-id>7</ac:task-id>
+<ac:task-uuid>13773a92ced8</ac:task-uuid>
+<ac:task-status>incomplete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks"><p>Ship your first change</p></span></ac:task-body>
+</ac:task>
+</ac:task-list><h2>Decisions</h2><ac:adf-extension><ac:adf-node type="decision-list"><ac:adf-attribute key="local-id">4e2dc8ac1478</ac:adf-attribute><ac:adf-node type="decision-item"><ac:adf-attribute key="local-id">3e64d0349d2f</ac:adf-attribute><ac:adf-attribute key="state">DECIDED</ac:adf-attribute><ac:adf-content>New hires get prod read access in week two</ac:adf-content></ac:adf-node><ac:adf-node type="decision-item"><ac:adf-attribute key="local-id">52d56cfc882d</ac:adf-attribute><ac:adf-attribute key="state">UNDECIDED</ac:adf-attribute><ac:adf-content>Whether to rotate on-call in month one</ac:adf-content></ac:adf-node></ac:adf-node><ac:adf-fallback><ul class="decision-list"><li>New hires get prod read access in week two</li><li>Whether to rotate on-call in month one</li></ul></ac:adf-fallback></ac:adf-extension>

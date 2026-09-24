@@ -44,7 +44,7 @@ If your reminders are arriving at genuinely baffling hours, this is the thing to
 
 See your events by **day, week, month, year, or as a list**.
 
-Events **import and export as standard `.ics` files**, which every other calendar app on earth speaks.
+Events **import and export as standard `.ics` files**, which every other calendar app on earth speaks. A calendar exports from its **Settings → Advanced**, for whoever could also delete it.
 
 So you can pull a whole season's fixtures in at once, or push the rehearsal schedule straight into everyone's phone calendar — including the members who will never, under any circumstances, open Initiative.
 

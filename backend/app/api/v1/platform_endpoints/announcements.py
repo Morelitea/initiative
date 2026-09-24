@@ -6,8 +6,12 @@ Two audiences on one router, deliberately kept apart by path and by session:
   run on ``UserSessionDep``, so a draft is invisible to them at the database
   rather than by a filter someone could forget. What they may record is their
   own receipt, and RLS confines that to their own rows.
-* **Authors** (``/announcements/admin/…``) hold ``announcements.manage`` and
-  run on the system engine, which is what can see a draft at all.
+* **Authors** (``/announcements/operator/…``) hold ``announcements.manage`` and
+  also run on ``UserSessionDep``: the tiers holding that capability read and
+  write every announcement and picture through their own policies
+  (``announcements_manage``, ``announcement_images_manage``), drafts included.
+  Deleting a notice clears its readers' receipts afterwards on the system
+  engine, which alone reaches other people's receipts.
 
 Pictures are served from ``/announcements/images/{sha256}`` and authenticated
 the way ``/uploads/*`` is — an ``<img>`` carries the session cookie on web and
@@ -35,7 +39,7 @@ from app.api.deps import (
     require_capability,
 )
 from app.core.capabilities import Capability
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import set_rls_context
 from app.core.messages import AnnouncementMessages
 from app.models.platform.announcement import (
     ANNOUNCEMENT_IMAGE_MAX_BYTES,
@@ -43,8 +47,8 @@ from app.models.platform.announcement import (
 )
 from app.models.platform.user import User
 from app.schemas.platform.announcement import (
-    AnnouncementAdminListResponse,
-    AnnouncementAdminRead,
+    AnnouncementOperatorListResponse,
+    AnnouncementOperatorRead,
     AnnouncementImageRead,
     AnnouncementListResponse,
     AnnouncementUpdate,
@@ -54,10 +58,6 @@ from app.services.platform import announcements as announcements_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 
 router = APIRouter()
-
-# The system engine: the only role that can see a draft, and the one that holds
-# the picture bytes.
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 #: ``db:<id>`` or ``builtin:<slug>`` — the two forms a receipt can name. Bounded
 #: here so a malformed key is a 422 rather than a lookup.
@@ -168,41 +168,41 @@ async def read_announcement_image(
 # --- authoring ---------------------------------------------------------------
 
 
-@router.get("/admin", response_model=AnnouncementAdminListResponse)
+@router.get("/operator", response_model=AnnouncementOperatorListResponse)
 async def list_all_announcements(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _author: AuthorDep,
-) -> AnnouncementAdminListResponse:
+) -> AnnouncementOperatorListResponse:
     """Every announcement, drafts and compiled-in notices included."""
-    return AnnouncementAdminListResponse(
+    return AnnouncementOperatorListResponse(
         items=await announcements_service.list_all(session)
     )
 
 
 @router.post(
-    "/admin", response_model=AnnouncementAdminRead, status_code=status.HTTP_201_CREATED
+    "/operator",
+    response_model=AnnouncementOperatorRead,
+    status_code=status.HTTP_201_CREATED,
 )
 async def create_announcement(
     payload: AnnouncementWrite,
-    session: AdminSessionDep,
-    author: AuthorDep,
-) -> AnnouncementAdminRead:
-    announcement = await announcements_service.create(
-        session, payload=payload, author_id=author.id
-    )
+    session: UserSessionDep,
+    _author: AuthorDep,
+) -> AnnouncementOperatorRead:
+    announcement = await announcements_service.create(session, payload=payload)
     await announcements_service.prune_unreferenced_images(session)
     await session.commit()
     await session.refresh(announcement)
-    return announcements_service.to_admin_read(announcement)
+    return announcements_service.to_operator_read(announcement)
 
 
-@router.patch("/admin/{announcement_id}", response_model=AnnouncementAdminRead)
+@router.patch("/operator/{announcement_id}", response_model=AnnouncementOperatorRead)
 async def update_announcement(
     announcement_id: int,
     payload: AnnouncementUpdate,
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _author: AuthorDep,
-) -> AnnouncementAdminRead:
+) -> AnnouncementOperatorRead:
     announcement = await _load(session, announcement_id)
     await announcements_service.update(
         session, announcement=announcement, payload=payload
@@ -210,30 +210,39 @@ async def update_announcement(
     await announcements_service.prune_unreferenced_images(session)
     await session.commit()
     await session.refresh(announcement)
-    return announcements_service.to_admin_read(announcement)
+    return announcements_service.to_operator_read(announcement)
 
 
-@router.delete("/admin/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/operator/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_announcement(
     announcement_id: int,
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _author: AuthorDep,
 ) -> Response:
     announcement = await _load(session, announcement_id)
-    await announcements_service.delete_announcement(session, announcement=announcement)
+    key = await announcements_service.delete_announcement(
+        session, announcement=announcement
+    )
     await announcements_service.prune_unreferenced_images(session)
     await session.commit()
+    # Receipts are each reader's own rows; the system engine clears them once
+    # the notice they name is gone.
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        await announcements_service.delete_receipts(system_session, key=key)
+        await system_session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
-    "/admin/images",
+    "/operator/images",
     response_model=AnnouncementImageRead,
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_announcement_image(
-    session: AdminSessionDep,
-    author: AuthorDep,
+    session: UserSessionDep,
+    _author: AuthorDep,
     file: UploadFile = File(...),
 ) -> AnnouncementImageRead:
     """Store one picture and return the URL a section should point at."""
@@ -245,9 +254,7 @@ async def upload_announcement_image(
             detail=AnnouncementMessages.IMAGE_TOO_LARGE,
         )
     try:
-        image = await announcements_service.store_image(
-            session, data=data, user_id=author.id
-        )
+        image = await announcements_service.store_image(session, data=data)
     except announcements_service.AnnouncementImageError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)

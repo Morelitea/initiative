@@ -23,7 +23,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
-from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -45,6 +44,7 @@ from app.testing.factories import (
     create_task_status,
     create_user,
 )
+from app.testing import route_as
 
 LOS_ANGELES = ZoneInfo("America/Los_Angeles")
 
@@ -62,7 +62,6 @@ async def _create_task(session, project, title="Test Task", checklist=None):
         title=title,
         project_id=project.id,
         task_status_id=status.id,
-        guild_id=project.guild_id,
         checklist=checklist or [],
     )
     session.add(task)
@@ -594,7 +593,7 @@ async def test_unassigning_withdraws_the_pending_digest_item(
     )
     assert assign.status_code == 200
 
-    await set_rls_context(session, user_id=user.user.id, guild_id=user.guild.id)
+    await route_as(session, user_id=user.user.id, guild_id=user.guild.id)
     pending = (
         await session.exec(
             select(TaskAssignmentDigestItem).where(
@@ -611,7 +610,7 @@ async def test_unassigning_withdraws_the_pending_digest_item(
     assert unassign.status_code == 200
 
     session.expunge_all()
-    await set_rls_context(session, user_id=user.user.id, guild_id=user.guild.id)
+    await route_as(session, user_id=user.user.id, guild_id=user.guild.id)
     pending = (
         await session.exec(
             select(TaskAssignmentDigestItem).where(
@@ -1229,13 +1228,11 @@ async def test_filter_tasks_by_status(
         title="Todo Task",
         project_id=a.project.id,
         task_status_id=todo_status.id,
-        guild_id=a.guild.id,
     )
     task2 = Task(
         title="Done Task",
         project_id=a.project.id,
         task_status_id=done_status.id,
-        guild_id=a.guild.id,
     )
     session.add(task1)
     session.add(task2)
@@ -1342,7 +1339,6 @@ async def test_completing_a_recurring_task_opens_the_next_occurrence(
         title="Recurring Task",
         project_id=a.project.id,
         task_status_id=todo.id,
-        guild_id=a.guild.id,
         due_date=due,
         recurrence=recurrence,
         recurrence_strategy=strategy,
@@ -1422,7 +1418,6 @@ async def test_rolling_recurrence_counts_from_the_users_own_calendar_day(
         title="Feed frogs",
         project_id=a.project.id,
         task_status_id=todo.id,
-        guild_id=a.guild.id,
         due_date=due,
         recurrence=recurrence,
         recurrence_strategy="rolling",
@@ -1932,7 +1927,6 @@ async def test_a_blocker_the_reader_cannot_open_is_not_counted(
             resource_id=owner.project.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=owner.guild.id,
             initiative_id=owner.initiative.id,
         )
     )

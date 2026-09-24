@@ -132,9 +132,19 @@ _WRITABLE_SEGMENTS = (
 #     the count itself moves through these three. Without them, writing a
 #     counter would mean renaming it. ``reset`` and ``reset-all`` are not here:
 #     they discard counts rather than record one.
+#   * Ticking one checklist item. ``PATCH /tasks/{id}`` rewrites the list's
+#     lines but deliberately never its ``done`` flags, so without this an agent
+#     that finished a piece of a task could say so only in a comment. It names
+#     one item and touches only that one, the same write the app's checkbox
+#     makes.
 _EXTRA_WRITE_ROUTE_MAPS = [
     RouteMap(
         methods=["POST"], pattern=r".*/tasks/" + _ID + "/move$", mcp_type=MCPType.TOOL
+    ),
+    RouteMap(
+        methods=["PATCH"],
+        pattern=r".*/tasks/" + _ID + "/checklist/" + _ID + "$",
+        mcp_type=MCPType.TOOL,
     ),
     *(
         RouteMap(

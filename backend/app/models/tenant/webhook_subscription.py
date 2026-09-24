@@ -31,14 +31,6 @@ class WebhookSubscription(CreatedByMixin, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    guild_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("guilds.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        )
-    )
     initiative_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
@@ -47,10 +39,15 @@ class WebhookSubscription(CreatedByMixin, table=True):
             nullable=True,
         ),
     )
+    # Who registered it, and nothing more. This named the account a delivery
+    # was read as until ``history/webhook-scope-not-principal-design.md``; a
+    # subscription's reach is the scope it declares, so the column is ordinary
+    # authorship now. NOT NULL because the one path that makes one of these is
+    # a person's request — the mixin is the floor, not a ceiling.
     created_by: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("users.id", ondelete="CASCADE"),
+            ForeignKey("users.id"),
             nullable=False,
         )
     )

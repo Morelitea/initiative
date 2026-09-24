@@ -13,10 +13,13 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -27,7 +30,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Gallery(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     """A collection of pictures in an initiative.
 
@@ -57,7 +65,6 @@ class Gallery(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(
         sa_column=Column(
             Integer,
@@ -149,7 +156,6 @@ class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
     _display_field: ClassVar[str] = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     gallery_id: int = Field(
         sa_column=Column(
             Integer,
@@ -231,7 +237,6 @@ class GalleryImageVersion(CreatedByMixin, table=True):
             index=True,
         )
     )
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
     version_number: int = Field(nullable=False)
     file_url: str = Field(sa_column=Column(String(length=512), nullable=False))
     thumbnail_url: Optional[str] = Field(
@@ -255,3 +260,6 @@ class GalleryImageVersion(CreatedByMixin, table=True):
     )
 
     image: Optional[GalleryImage] = Relationship(back_populates="versions")
+
+
+attach_access_level(Gallery, Tool.gallery)

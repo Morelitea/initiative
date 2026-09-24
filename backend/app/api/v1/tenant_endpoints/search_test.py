@@ -714,7 +714,6 @@ async def test_a_suggestion_says_whether_it_is_yours_to_change(
             resource_id=theirs.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=theirs.guild_id,
             initiative_id=theirs.initiative_id,
         )
     )

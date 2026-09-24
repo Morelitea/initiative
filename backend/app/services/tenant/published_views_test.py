@@ -426,7 +426,7 @@ class TestTheReaderCannotBeSmuggledIn:
         from app.db.session import set_rls_context
         from app.models.tenant.dashboard import Dashboard
 
-        await set_rls_context(session, guild_id=author.guild.id, guild_role="admin")
+        await set_rls_context(session, guild_id=author.guild.id)
         row = await session.get(Dashboard, dashboard_id)
         assert row is not None
         row.definition = dashboard_body(
@@ -477,7 +477,7 @@ class TestTheReaderCannotBeSmuggledIn:
         from app.db.session import set_rls_context
         from app.models.tenant.dashboard import Dashboard
 
-        await set_rls_context(session, guild_id=author.guild.id, guild_role="admin")
+        await set_rls_context(session, guild_id=author.guild.id)
         row = await session.get(Dashboard, dashboard_id)
         assert row is not None
         row.definition = dashboard_body(
@@ -593,7 +593,7 @@ class TestTheGrantItself:
         )
         from app.db.session import set_rls_context
 
-        await set_rls_context(session, guild_id=author.guild.id, guild_role="admin")
+        await set_rls_context(session, guild_id=author.guild.id)
         grant = (
             await session.exec(
                 select(ResourceGrant).where(ResourceGrant.dashboard_id == dashboard_id)

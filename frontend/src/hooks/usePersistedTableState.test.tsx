@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { DataTable } from "@/components/ui/data-table";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { getItem, setItem } from "@/lib/storage";
+import type { AppColumnDef } from "@/lib/table";
 
 const KEY = "test-table";
 
@@ -15,7 +16,7 @@ const data: Row[] = [
   { id: 2, name: "a", team: "blue" },
 ];
 
-const columns = [
+const columns: AppColumnDef<Row>[] = [
   {
     id: "name",
     accessorKey: "name",
@@ -28,7 +29,7 @@ const columns = [
     enableSorting: true,
   },
   { id: "team", accessorKey: "team", header: "Team", cell: ({ row }) => row.original.team },
-] as never;
+];
 
 /** Wired exactly the way a list wires it: stored state seeds, changes write. */
 function Harness({ storageKey = KEY }: { storageKey?: string }) {

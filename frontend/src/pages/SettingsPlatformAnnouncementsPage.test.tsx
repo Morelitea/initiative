@@ -5,11 +5,11 @@ import { describe, expect, it } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { AnnouncementAdminRead } from "@/api/generated/initiativeAPI.schemas";
+import type { AnnouncementOperatorRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { SettingsPlatformAnnouncementsPage } from "./SettingsPlatformAnnouncementsPage";
 
-const live: AnnouncementAdminRead = {
+const live: AnnouncementOperatorRead = {
   key: "db:1",
   id: 1,
   title: "Board view is new",
@@ -21,7 +21,7 @@ const live: AnnouncementAdminRead = {
   guild_admins_only: false,
 };
 
-const draft: AnnouncementAdminRead = {
+const draft: AnnouncementOperatorRead = {
   ...live,
   key: "db:2",
   id: 2,
@@ -29,7 +29,7 @@ const draft: AnnouncementAdminRead = {
   published_at: null,
 };
 
-const builtin: AnnouncementAdminRead = {
+const builtin: AnnouncementOperatorRead = {
   ...live,
   key: "builtin:breaking",
   id: null,
@@ -38,8 +38,8 @@ const builtin: AnnouncementAdminRead = {
   is_builtin: true,
 };
 
-const listResponds = (items: AnnouncementAdminRead[]) => {
-  server.use(http.get("*/api/v1/announcements/admin", () => HttpResponse.json({ items })));
+const listResponds = (items: AnnouncementOperatorRead[]) => {
+  server.use(http.get("*/api/v1/announcements/operator", () => HttpResponse.json({ items })));
 };
 
 describe("SettingsPlatformAnnouncementsPage", () => {
@@ -70,7 +70,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted: Record<string, unknown> | null = null;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", async ({ request }) => {
+      http.post("*/api/v1/announcements/operator", async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...live, ...posted }, { status: 201 });
       })
@@ -96,7 +96,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted: Record<string, unknown> | null = null;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", async ({ request }) => {
+      http.post("*/api/v1/announcements/operator", async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...live, ...posted }, { status: 201 });
       })
@@ -128,7 +128,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted = false;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", () => {
+      http.post("*/api/v1/announcements/operator", () => {
         posted = true;
         return HttpResponse.json(live, { status: 201 });
       })
@@ -159,7 +159,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted: Record<string, unknown> | null = null;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", async ({ request }) => {
+      http.post("*/api/v1/announcements/operator", async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...live, ...posted }, { status: 201 });
       })
@@ -184,7 +184,7 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     let posted = false;
     listResponds([]);
     server.use(
-      http.post("*/api/v1/announcements/admin", () => {
+      http.post("*/api/v1/announcements/operator", () => {
         posted = true;
         return HttpResponse.json(live, { status: 201 });
       })

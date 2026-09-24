@@ -14,10 +14,12 @@ import {
   updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch,
 } from "@/api/generated/auth-providers/auth-providers";
 import type {
-  AuthProviderAdminRead,
   AuthProviderCreate,
+  AuthProviderOwnerRead,
   AuthProviderProbeResult,
   AuthProviderUpdate,
+  CaptchaSettingsResponse,
+  CaptchaSettingsUpdate,
   ChangelogResponse,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
@@ -29,11 +31,8 @@ import type {
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   LoginMethodsUpdate,
-  OIDCClaimMappingCreate,
-  OIDCClaimMappingRead,
-  OIDCClaimMappingUpdate,
-  OIDCMappingOptionsResponse,
-  OIDCMappingsResponse,
+  NotificationSettingsResponse,
+  NotificationSettingsUpdate,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
   PlatformGuildRestore,
@@ -41,6 +40,8 @@ import type {
   PlatformGuildStorageUpdate,
   PlatformProviderDefaultRead,
   PlatformProviderDefaultUpdate,
+  PushSettingsResponse,
+  PushSettingsUpdate,
   SecondFactorRequirementUpdate,
   SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
@@ -50,25 +51,25 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut,
-  createOidcMappingApiV1SettingsOidcMappingsPost,
-  deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete,
+  getCaptchaSettingsApiV1SettingsCaptchaGet,
   getEmailSettingsApiV1SettingsEmailGet,
   getFcmConfigApiV1SettingsFcmConfigGet,
+  getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey,
   getGetEmailSettingsApiV1SettingsEmailGetQueryKey,
   getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey,
   getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey,
-  getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey,
-  getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
+  getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
   getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey,
+  getGetPushSettingsApiV1SettingsPushGetQueryKey,
   getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
   getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
   getInterfaceSettingsApiV1SettingsInterfaceGet,
   getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey,
-  getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
-  getOidcMappingsApiV1SettingsOidcMappingsGet,
+  getNotificationSettingsApiV1SettingsNotificationsGet,
   getOidcSettingsApiV1SettingsAuthGet,
   getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
+  getPushSettingsApiV1SettingsPushGet,
   getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey,
   getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
   getStorageSettingsApiV1SettingsStorageGet,
@@ -78,12 +79,14 @@ import {
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
   testStorageConnectionApiV1SettingsStorageTestPost,
+  updateCaptchaSettingsApiV1SettingsCaptchaPut,
   updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateLoginMethodsApiV1SettingsAuthMethodsPut,
-  updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
+  updateNotificationSettingsApiV1SettingsNotificationsPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
+  updatePushSettingsApiV1SettingsPushPut,
   updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut,
   updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut,
   updateStorageSettingsApiV1SettingsStoragePut,
@@ -108,8 +111,8 @@ export const useOidcSettings = (options?: QueryOpts<OIDCSettingsResponse>) => {
   });
 };
 
-export const useAuthProviders = (options?: QueryOpts<AuthProviderAdminRead[]>) => {
-  return useQuery<AuthProviderAdminRead[]>({
+export const useAuthProviders = (options?: QueryOpts<AuthProviderOwnerRead[]>) => {
+  return useQuery<AuthProviderOwnerRead[]>({
     queryKey: getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey(),
     queryFn: () => listAuthProvidersApiV1SettingsAuthProvidersGet(),
     ...options,
@@ -146,20 +149,6 @@ export const useAgreeGuildNarrowing = (
     options
   );
 
-export const useOidcMappings = () => {
-  return useQuery<OIDCMappingsResponse>({
-    queryKey: getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey(),
-    queryFn: () => getOidcMappingsApiV1SettingsOidcMappingsGet(),
-  });
-};
-
-export const useOidcMappingOptions = () => {
-  return useQuery<OIDCMappingOptionsResponse>({
-    queryKey: getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey(),
-    queryFn: () => getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet(),
-  });
-};
-
 export const useEmailSettings = (options?: QueryOpts<EmailSettingsResponse>) => {
   return useQuery<EmailSettingsResponse>({
     queryKey: getGetEmailSettingsApiV1SettingsEmailGetQueryKey(),
@@ -183,6 +172,20 @@ export const useStorageBackfillStatus = (options?: QueryOpts<StorageBackfillStat
     ...options,
   });
 };
+
+export const useCaptchaSettings = (options?: QueryOpts<CaptchaSettingsResponse>) =>
+  useQuery<CaptchaSettingsResponse>({
+    queryKey: getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey(),
+    queryFn: () => getCaptchaSettingsApiV1SettingsCaptchaGet(),
+    ...options,
+  });
+
+export const usePushSettings = (options?: QueryOpts<PushSettingsResponse>) =>
+  useQuery<PushSettingsResponse>({
+    queryKey: getGetPushSettingsApiV1SettingsPushGetQueryKey(),
+    queryFn: () => getPushSettingsApiV1SettingsPushGet(),
+    ...options,
+  });
 
 export const useInterfaceSettings = (options?: QueryOpts<InterfaceSettingsResponse>) => {
   return useQuery<InterfaceSettingsResponse>({
@@ -227,9 +230,9 @@ export const useChangelog = (
 // ── Settings Mutations ──────────────────────────────────────────────────────
 
 export const useCreateAuthProvider = (
-  options?: MutationOpts<AuthProviderAdminRead, AuthProviderCreate>
+  options?: MutationOpts<AuthProviderOwnerRead, AuthProviderCreate>
 ) =>
-  useApiMutation<AuthProviderAdminRead, AuthProviderCreate>(
+  useApiMutation<AuthProviderOwnerRead, AuthProviderCreate>(
     {
       mutationFn: (data) => createAuthProviderApiV1SettingsAuthProvidersPost(data),
       invalidate: () => invalidate(q.authProviders()),
@@ -238,9 +241,9 @@ export const useCreateAuthProvider = (
   );
 
 export const useUpdateAuthProvider = (
-  options?: MutationOpts<AuthProviderAdminRead, { providerId: number; data: AuthProviderUpdate }>
+  options?: MutationOpts<AuthProviderOwnerRead, { providerId: number; data: AuthProviderUpdate }>
 ) =>
-  useApiMutation<AuthProviderAdminRead, { providerId: number; data: AuthProviderUpdate }>(
+  useApiMutation<AuthProviderOwnerRead, { providerId: number; data: AuthProviderUpdate }>(
     {
       mutationFn: ({ providerId, data }) =>
         updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch(providerId, data),
@@ -329,6 +332,32 @@ export const useUpdateCommunitySettings = (
  * Where sign-in is configured, which ways in are permitted, and what changing
  * either would cost. Owner only.
  */
+/**
+ * What this deployment permits a notification to leave the app carrying, and
+ * how many device tokens switching push off would drop.
+ */
+export const useNotificationSettings = (options?: QueryOpts<NotificationSettingsResponse>) =>
+  useQuery<NotificationSettingsResponse>({
+    queryKey: getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey(),
+    queryFn: () => getNotificationSettingsApiV1SettingsNotificationsGet(),
+    ...options,
+  });
+
+/**
+ * Set the three answers. Switching push off also drops the device tokens the
+ * deployment was holding, so the count the page shows moves with the write.
+ */
+export const useUpdateNotificationSettings = (
+  options?: MutationOpts<NotificationSettingsResponse, NotificationSettingsUpdate>
+) =>
+  useApiMutation<NotificationSettingsResponse, NotificationSettingsUpdate>(
+    {
+      mutationFn: (data) => updateNotificationSettingsApiV1SettingsNotificationsPut(data),
+      invalidate: () => invalidate(q.notificationSettings()),
+    },
+    options
+  );
+
 export const usePlatformAuthSettings = (options?: QueryOpts<PlatformAuthSettingsResponse>) =>
   useQuery<PlatformAuthSettingsResponse>({
     queryKey: getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey(),
@@ -395,6 +424,36 @@ export const useUpdateSecondFactorRequirement = (
           >[0]
         ),
       invalidate: () => invalidate(q.platformAuthSettings()),
+    },
+    options
+  );
+
+/**
+ * Set the registration captcha. Also invalidates the boot config, which is
+ * where the sign-up page reads the provider and site key from.
+ */
+export const useUpdateCaptchaSettings = (
+  options?: MutationOpts<CaptchaSettingsResponse, CaptchaSettingsUpdate>
+) =>
+  useApiMutation<CaptchaSettingsResponse, CaptchaSettingsUpdate>(
+    {
+      mutationFn: (data) => updateCaptchaSettingsApiV1SettingsCaptchaPut(data),
+      invalidate: () => invalidate(q.captchaSettings(), q.appConfig()),
+    },
+    options
+  );
+
+/**
+ * Set the Firebase connection. Also invalidates the public half the app reads
+ * when it registers for push.
+ */
+export const useUpdatePushSettings = (
+  options?: MutationOpts<PushSettingsResponse, PushSettingsUpdate>
+) =>
+  useApiMutation<PushSettingsResponse, PushSettingsUpdate>(
+    {
+      mutationFn: (data) => updatePushSettingsApiV1SettingsPushPut(data),
+      invalidate: () => invalidate(q.pushSettings(), q.fcmConfig()),
     },
     options
   );
@@ -488,47 +547,6 @@ export const useUpdateGuildStorage = (
           data as Parameters<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>[1]
         ),
       invalidate: () => invalidate(q.platformGuilds()),
-    },
-    options
-  );
-
-// ── OIDC Claim Mapping Mutations ────────────────────────────────────────────
-
-export const useCreateOidcMapping = (
-  options?: MutationOpts<OIDCClaimMappingRead, OIDCClaimMappingCreate>
-) =>
-  useApiMutation<OIDCClaimMappingRead, OIDCClaimMappingCreate>(
-    {
-      mutationFn: (data) =>
-        createOidcMappingApiV1SettingsOidcMappingsPost(
-          data as Parameters<typeof createOidcMappingApiV1SettingsOidcMappingsPost>[0]
-        ),
-      invalidate: () => invalidate(q.oidcMappings()),
-    },
-    options
-  );
-
-export const useUpdateOidcMapping = (
-  options?: MutationOpts<OIDCClaimMappingRead, { mappingId: number; data: OIDCClaimMappingUpdate }>
-) =>
-  useApiMutation<OIDCClaimMappingRead, { mappingId: number; data: OIDCClaimMappingUpdate }>(
-    {
-      mutationFn: ({ mappingId, data }) =>
-        updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut(
-          mappingId,
-          data as Parameters<typeof updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut>[1]
-        ),
-      invalidate: () => invalidate(q.oidcMappings()),
-    },
-    options
-  );
-
-export const useDeleteOidcMapping = (options?: MutationOpts<void, number>) =>
-  useApiMutation<void, number>(
-    {
-      mutationFn: (mappingId) =>
-        deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete(mappingId),
-      invalidate: () => invalidate(q.oidcMappings()),
     },
     options
   );

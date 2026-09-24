@@ -7,6 +7,7 @@
     "failed": "The export failed. Try again or narrow the filter.",
     "error": "Could not export. Please try again.",
     "selected": "Export Selected",
+    "ownerRequired": "Only whoever can delete all of these can export them.",
     "headingBackup": "Backup",
     "headingReport": "Report",
     "formatPdf": "PDF document",
@@ -15,7 +16,12 @@
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Markdown table",
     "formatMdChecklist": "Markdown task list",
-    "formatJson": "JSON",
+    "formatJson": "Importable file (.json)",
+    "formatJsonWithPictures": "Importable file with pictures (.zip)",
+    "formatWikiPdf": "PDF (.zip)",
+    "formatWikiMarkdown": "Markdown (.zip)",
+    "formatWikiDocx": "Word (.zip)",
+    "formatWikiJson": "Importable file (.zip)",
     "formatOriginal": "Original file",
     "formatMarkdown": "Markdown",
     "formatPng": "PNG image",
@@ -47,8 +53,8 @@
       "estimateFailed": "Couldn't load the size estimate.",
       "overRowLimit": "This export exceeds the size limit — exclude some tools to continue.",
       "overUploadLimit": "Uploaded files exceed the {{limit}} limit — exclude uploads to continue.",
-      "willBeDelivered": "This export is over {{limit}}, so it will be written to the server's export folder instead of downloaded. Your server administrator can give you the file.",
-      "noDestination": "This export is over {{limit}} and this server has no export folder set up, so it can't be downloaded. Ask your server administrator to configure one."
+      "willBeDelivered": "This export is over {{limit}}, so it will be written to the server's export folder instead of downloaded. Whoever runs this server can give you the file.",
+      "noDestination": "This export is over {{limit}} and this server has no export folder set up, so it can't be downloaded. Ask whoever runs this server to configure one."
     },
     "report": {
       "documentNative": "Text documents",
@@ -90,7 +96,7 @@
     "startedByUnknown": "Started by a former member",
     "preparing": "Still preparing — you'll get a notification when it's ready.",
     "expires": "Download expires",
-    "delivered": "Written to the server's export folder — ask your server administrator for the file.",
+    "delivered": "Written to the server's export folder — ask whoever runs this server for the file.",
     "expiredNote": "The archive has been cleaned up.",
     "failedNote": "Nothing was exported.",
     "nextAvailable": "Next export available"

@@ -86,7 +86,7 @@ async def _resolve(
     """The row behind a reference, or 404.
 
     Asked through ``visible_ids``, which joins the row to whatever governs it
-    and calls ``public.resource_access`` — the same function the tables' own
+    and calls ``resource_access`` — the same function the tables' own
     policies call. A thing the caller cannot open is absent rather than
     forbidden, which is what every other read here does with one.
     """

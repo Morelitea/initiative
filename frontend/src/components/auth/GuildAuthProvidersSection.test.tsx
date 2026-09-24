@@ -13,11 +13,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { GuildProviderConnectionRead } from "@/api/generated/initiativeAPI.schemas";
 
 const connect = vi.fn();
 const updateConnection = vi.fn();
 
-const row = (overrides: Record<string, unknown> = {}) => ({
+const row = (
+  overrides: Partial<GuildProviderConnectionRead> = {}
+): GuildProviderConnectionRead => ({
   id: 1,
   provider_id: 11,
   provider_slug: "entra",
@@ -27,12 +30,14 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   claim_values: [],
   enabled: true,
   auto_join: false,
+  narrowing_approved: false,
+  accepts_provider_placement: false,
   login_ready: true,
   inherited: false,
   ...overrides,
 });
 
-let connections: unknown[] = [];
+let connections: GuildProviderConnectionRead[] = [];
 
 vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
@@ -95,8 +100,35 @@ describe("GuildAuthProvidersSection", () => {
     connections = [row({ id: 5, inherited: false })];
     render();
 
-    expect(screen.getByRole("switch")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Enabled" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /make it ours/i })).not.toBeInTheDocument();
+  });
+
+  it("lets a connection of its own accept the deployment's placement rules", async () => {
+    const user = userEvent.setup();
+    connections = [row({ id: 5, inherited: false, accepts_provider_placement: false })];
+    render();
+
+    const accepts = screen.getByRole("switch", {
+      name: /let the deployment place people from this provider/i,
+    });
+    expect(accepts).not.toBeChecked();
+
+    await user.click(accepts);
+
+    expect(updateConnection).toHaveBeenCalledWith(
+      { connectionId: 5, data: { accepts_provider_placement: true } },
+      expect.anything()
+    );
+  });
+
+  it("offers no placement answer on an inherited arrangement", () => {
+    connections = [row({ id: null, inherited: true })];
+    render();
+
+    expect(
+      screen.queryByText(/let the deployment place people from this provider/i)
+    ).not.toBeInTheDocument();
   });
 
   it("still offers a provider it only inherits in the picker", () => {

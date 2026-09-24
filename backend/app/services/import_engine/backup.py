@@ -26,19 +26,22 @@ Safety model:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
 import zipfile
-from typing import Any
+from pathlib import Path
+from typing import Any, Awaitable, Callable
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
+from app.core.references import format_ref
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
-from app.core.config import settings
 from app.core.messages import ImportEngineMessages
 from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.user import User
@@ -61,8 +64,15 @@ from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
 )
-from app.services.import_engine.context import ImportContext
+from app.services.import_engine.context import (
+    ImportContext,
+    excluded_property_names,
+    exported_from_here,
+)
+from app.services.import_engine.links import resolve_page_links
+from app.services.import_engine.references import resolve_references
 from app.services.tenant import tags as tags_service
+from app.services.import_engine import limits as import_limits
 
 # Apply order within an initiative — convention, not correctness (cross-tool
 # references in envelopes are display text only).
@@ -122,23 +132,43 @@ def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
 logger = logging.getLogger(__name__)
 
 
-def open_backup_zip(payload: bytes) -> zipfile.ZipFile:
-    """Open + bound-check a backup zip. Raises IMPORT_ZIP_INVALID /
-    IMPORT_TOO_LARGE before anything beyond the central directory is read."""
+def open_backup_zip(payload: bytes | Path, *, fetched: bool = False) -> zipfile.ZipFile:
+    """Open + bound-check a backup zip, held in memory or read from a file.
+    Raises IMPORT_ZIP_INVALID / IMPORT_TOO_LARGE before anything beyond the
+    central directory is read.
+
+    ``fetched`` is a bundle this app wrote itself from a foreign source, which
+    is held to the fetch's bounds rather than an upload's."""
+    max_members = (
+        import_limits.IMPORT_FETCH_MAX_ZIP_MEMBERS
+        if fetched
+        else import_limits.IMPORT_MAX_ZIP_MEMBERS
+    )
+    max_bytes = (
+        import_limits.IMPORT_FETCH_MAX_BUNDLE_BYTES
+        if fetched
+        else import_limits.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES
+    )
     try:
-        archive = zipfile.ZipFile(io.BytesIO(payload))
+        archive = zipfile.ZipFile(
+            payload if isinstance(payload, Path) else io.BytesIO(payload)
+        )
     except Exception as exc:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
     infos = archive.infolist()
-    if len(infos) > settings.IMPORT_MAX_ZIP_MEMBERS:
+    if len(infos) > max_members:
         raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     declared = 0
     for info in infos:
         name = info.filename
+        # A bare "/" is a directory entry some zip writers add for the root;
+        # it names nothing and holds nothing.
+        if name == "/" and info.is_dir():
+            continue
         if name.startswith("/") or ".." in name.split("/"):
             raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
         declared += info.file_size
-        if declared > settings.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES:
+        if declared > max_bytes:
             raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
     return archive
 
@@ -180,10 +210,11 @@ def _reject_non_flat_asset_keys(manifest: BackupManifest) -> None:
 
 
 def plan_backup(
-    payload: bytes,
+    payload: bytes | Path,
     *,
     existing_initiative_names: set[str],
     member_ids_by_handle: dict[str, int] | None = None,
+    fetched: bool = False,
 ) -> BackupImportPlan:
     """The confirm-screen summary. Reads only the manifest — cheap enough to
     run synchronously inside the upload request.
@@ -193,10 +224,12 @@ def plan_backup(
     than read here because this function holds no session: the plan is a
     reading of one file, and the roster is a fact about the community it is
     being read into.
+
+    ``fetched`` is as for :func:`open_backup_zip`.
     """
     from app.services.import_engine.importers import IMPORTERS
 
-    archive = open_backup_zip(payload)
+    archive = open_backup_zip(payload, fetched=fetched)
     manifest = read_manifest(archive)
 
     unknown_types = sorted(
@@ -213,8 +246,13 @@ def plan_backup(
     taken = set(existing_initiative_names)
     initiatives: list[BackupPlanInitiative] = []
     for mi in manifest.initiatives:
-        proposed = unique_name(taken, mi.name)
-        taken.add(proposed)
+        if mi.target_initiative_id is not None:
+            # Filed into one that exists: no name is claimed, so none is
+            # proposed, and it cannot push a created one into a suffix.
+            proposed = mi.name
+        else:
+            proposed = unique_name(taken, mi.name)
+            taken.add(proposed)
         counts: dict[str, int] = {}
         for entry in manifest.entries:
             if entry.initiative_id == mi.id:
@@ -226,6 +264,7 @@ def plan_backup(
                 proposed_name=proposed,
                 tools=mi.tools,
                 entry_counts=counts,
+                target_initiative_id=mi.target_initiative_id,
             )
         )
     roster = member_ids_by_handle or {}
@@ -279,20 +318,27 @@ async def apply_backup(
     *,
     user: User,
     guild_id: int,
-    payload: bytes,
+    payload: bytes | Path,
     include: dict[str, bool] | None,
     people_map: Any = None,
+    exclude_properties: Any = None,
+    heartbeat: Callable[[], Awaitable[None]] | None = None,
+    fetched: bool = False,
 ) -> BackupImportResult:
     """Restore a backup zip into new initiatives, as ``user``, on the
     worker's creator-routed session. Flushes and COMMITS per chunk (the
-    always-create policy makes partial progress durable and never re-run)."""
+    always-create policy makes partial progress durable and never re-run).
+
+    ``heartbeat`` is called after each asset and each entry, so the job can
+    show it is still being applied. ``fetched`` is as for
+    :func:`open_backup_zip`."""
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
     from app.models.platform.guild import GuildRole
     from app.services.platform import guilds as guilds_service
     from app.services.tenant import initiatives as initiatives_service
 
-    archive = open_backup_zip(payload)
+    archive = open_backup_zip(payload, fetched=fetched)
     manifest = read_manifest(archive)
     result = BackupImportResult()
 
@@ -315,7 +361,9 @@ async def apply_backup(
     # Assets first, one chunk: written under their ORIGINAL storage keys so
     # embedded editor-state image references resolve without rewriting.
     if manifest.assets:
-        await _restore_assets(session, archive, manifest, guild_id, user, result)
+        await _restore_assets(
+            session, archive, manifest, guild_id, user, result, heartbeat
+        )
         await session.commit()
 
     assets_by_key = {a.storage_key: a for a in manifest.assets}
@@ -334,7 +382,12 @@ async def apply_backup(
     from app.services.import_engine.people import resolve_people_map
 
     context = ImportContext(
-        people=await resolve_people_map(session, guild_id=guild_id, raw=people_map)
+        people=await resolve_people_map(session, guild_id=guild_id, raw=people_map),
+        excluded_properties=excluded_property_names(exclude_properties),
+        source_url=manifest.source_instance_url,
+        same_community=exported_from_here(
+            manifest.source_instance_url, manifest.guild.id, guild_id=guild_id
+        ),
     )
 
     for mi in manifest.initiatives:
@@ -411,6 +464,8 @@ async def apply_backup(
                 entry.tool, {"created": 0, "failed": 0, "skipped": 0}
             )
             bucket[outcome.status] += 1
+            if heartbeat is not None:
+                await heartbeat()
         await session.commit()
 
     # Everything is in the database; now the names can become edges.
@@ -420,9 +475,44 @@ async def apply_backup(
     resolution = await context.links.resolve(session, created_by=user.id)
     result.links_created = resolution.created
     result.links_unresolved = resolution.unresolved
+    # What a body names is placed on what it became here.
+    await resolve_references(session, context, author_id=user.id)
+    # And a link written in a task to a page that came over in the same
+    # bundle becomes a mention of that page.
+    await resolve_page_links(session, context.links, site_url=context.source_url)
+    await _file_documents_under_pages(session, context)
     await session.commit()
 
     return result
+
+
+async def _file_documents_under_pages(
+    session: AsyncSession, context: ImportContext
+) -> None:
+    """File each document an entry placed under a page of its wiki, now that
+    the document, the wiki and the page all exist. One whose page or wiki did
+    not arrive stays at the top of the wiki, where joining it put it."""
+    from app.models.tenant.wiki import Wiki
+    from app.services.import_engine.links import wiki_page_slug_ref
+    from app.services.tenant import wikis as wikis_service
+
+    wikis: dict[int, Wiki] = {}
+    for document_ref, wiki_ref, page_slug in context.placements:
+        document = context.links.lookup(document_ref)
+        wiki_end = context.links.lookup(wiki_ref)
+        if document is None or wiki_end is None:
+            continue
+        page = context.links.lookup(wiki_page_slug_ref(wiki_end.id, page_slug))
+        if page is None:
+            continue
+        wiki = wikis.get(wiki_end.id)
+        if wiki is None:
+            wiki = await session.get(Wiki, wiki_end.id)
+            if wiki is None:
+                continue
+            wikis[wiki_end.id] = wiki
+        wikis_service.file_document(wiki, document.id, parent_page_id=page.id)
+        session.add(wiki)
 
 
 async def _resolve_target_initiative(
@@ -510,7 +600,7 @@ async def _apply_entry(
         return EntryResult(**base, status="skipped")
     if entry.type == "file":
         outcome = await _apply_file_entry(
-            session, entry, initiative, user, assets_by_key, base
+            session, entry, initiative, user, assets_by_key, base, context=context
         )
         _record_entry(context, entry, outcome)
         return outcome
@@ -572,6 +662,9 @@ def _record_entry(
     if kind is None or entity_id is None:
         return
     context.links.register(_entry_ref(entry.path), kind, entity_id)
+    # And by what it was where it was exported, which is how a reference in
+    # somebody else's body names it.
+    context.links.register(format_ref(kind, entry.entity_id), kind, entity_id)
     if entry.attach_to is None:
         return
     relationship = _ATTACH_RELATIONSHIPS.get(entry.attach_to.kind)
@@ -580,6 +673,14 @@ def _record_entry(
     context.links.link(
         _entry_ref(entry.path), relationship, _entry_ref(entry.attach_to.ref)
     )
+    if entry.attach_to.kind == "wiki" and entry.attach_to.page:
+        context.placements.append(
+            (
+                _entry_ref(entry.path),
+                _entry_ref(entry.attach_to.ref),
+                entry.attach_to.page,
+            )
+        )
 
 
 async def _apply_structural_entry(
@@ -727,7 +828,9 @@ async def _apply_initiative_structure(session, initiative, user: User, payload) 
     placed = 0
     members = payload.get("members") or []
     if members:
-        handles = await load_guild_member_handles(session, guild_id=initiative.guild_id)
+        handles = await load_guild_member_handles(
+            session, guild_id=routed_guild_id(session)
+        )
         already = {
             row
             for row in await session.exec(
@@ -746,7 +849,6 @@ async def _apply_initiative_structure(session, initiative, user: User, payload) 
                 InitiativeMember(
                     initiative_id=initiative.id,
                     user_id=user_id,
-                    guild_id=initiative.guild_id,
                     role_id=role.id if role is not None else None,
                 )
             )
@@ -763,6 +865,8 @@ async def _apply_file_entry(
     user: User,
     assets_by_key: dict[str, Any],
     base: dict,
+    *,
+    context: ImportContext | None = None,
 ) -> EntryResult:
     """A file document: its content is the restored ``assets/`` blob."""
     from app.models.tenant.document import Document, DocumentType
@@ -797,9 +901,8 @@ async def _apply_file_entry(
                 document_type=DocumentType.file,
                 content={},
                 initiative_id=initiative.id,
-                guild_id=initiative.guild_id,
                 created_by=user.id,
-                file_url=f"/uploads/{initiative.guild_id}/{storage_key}",
+                file_url=f"/uploads/{routed_guild_id(session)}/{storage_key}",
                 # The original name lives in the manifest's asset record —
                 # the uploads row's filename IS the storage key.
                 original_filename=(
@@ -821,7 +924,6 @@ async def _apply_file_entry(
             for tag_name in entry.tags:
                 resolved = await ensure_tag(
                     session,
-                    guild_id=initiative.guild_id,
                     name=tag_name,
                     color="#6b7280",
                 )
@@ -844,6 +946,7 @@ async def _apply_file_entry(
                     initiative_id=initiative.id,
                     values=values,
                     member_handles=member_handles,
+                    people=context.people if context is not None else None,
                 )
                 for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
                     session.add(
@@ -881,6 +984,7 @@ async def _restore_assets(
     guild_id: int,
     user: User,
     result: BackupImportResult,
+    heartbeat: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
     """Write ``assets/`` blobs to guild storage under their original keys,
     register ``uploads`` rows, dedup against keys that already exist (a
@@ -941,7 +1045,8 @@ async def _restore_assets(
             raise ImportEngineError(
                 ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
             )
-        storage.write(
+        await asyncio.to_thread(
+            storage.write,
             asset.storage_key,
             data,
             content_type=asset.content_type or "application/octet-stream",
@@ -949,7 +1054,6 @@ async def _restore_assets(
         session.add(
             Upload(
                 filename=asset.storage_key,
-                guild_id=guild_id,
                 created_by=user.id,
                 size_bytes=len(data),
                 content_type=asset.content_type,
@@ -958,3 +1062,5 @@ async def _restore_assets(
         )
         result.assets_restored += 1
         result.asset_bytes += len(data)
+        if heartbeat is not None:
+            await heartbeat()

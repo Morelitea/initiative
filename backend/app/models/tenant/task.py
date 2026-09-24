@@ -42,9 +42,6 @@ class TaskStatus(CreatedByMixin, table=True):
     __tablename__ = "task_statuses"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     project_id: int = Field(foreign_key="projects.id", nullable=False)
     name: str = Field(
         sa_column=Column(String(length=100), nullable=False),
@@ -91,9 +88,6 @@ class TaskAssignee(SQLModel, table=True):
         )
     )
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
 
 
 class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
@@ -101,9 +95,6 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
     _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     project_id: int = Field(foreign_key="projects.id", nullable=False)
     task_status_id: int = Field(foreign_key="task_statuses.id", nullable=False)
     title: str = Field(nullable=False)

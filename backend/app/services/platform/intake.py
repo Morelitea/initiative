@@ -107,6 +107,20 @@ async def operations_guild_id(session: AsyncSession) -> Optional[int]:
     return row.operations_guild_id if row is not None else None
 
 
+async def contact_for(session: AsyncSession, stream: IntakeStream) -> Optional[str]:
+    """Who somebody is told to contact about ``stream``.
+
+    The stream's own address, else the deployment's general one, else
+    ``None`` — in which case the notice names nobody. Never another stream's
+    address: each inbox answers its own kind of work, and the general address
+    is the catch-all. Readable on any session, since ``app_settings`` is.
+    """
+    row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
+    if row is None:
+        return None
+    return (row.intake_contacts or {}).get(stream.value) or row.intake_general_contact
+
+
 async def _binding_for(
     session: AsyncSession, stream: IntakeStream
 ) -> Optional[IntakeBinding]:
@@ -129,14 +143,14 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
     Runs on its own system session and routes into the operations guild, the
     way :func:`open_case` does, because the binding lives there.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         guild_id = await operations_guild_id(session)
         if guild_id is None:
             return False
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         return await _binding_for(session, stream) is not None
 
 
@@ -309,13 +323,13 @@ async def open_case(
     """
     # Imported here, not at module scope, so the session maker is read at call
     # time — the idiom the other system-engine callers use.
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     moment = now or datetime.now(timezone.utc)
     if dedupe_key is not None and len(dedupe_key) > DEDUPE_KEY_LENGTH:
         raise ValueError("dedupe_key is longer than the column that stores it")
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         guild_id = await operations_guild_id(session)
         if guild_id is None:
             return None
@@ -323,7 +337,7 @@ async def open_case(
         # Ids are unique only within a schema, so nothing cached from the
         # public read may survive into the routed one.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
 
         binding = await _binding_for(session, stream)
         if binding is None:

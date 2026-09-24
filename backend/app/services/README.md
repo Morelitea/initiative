@@ -8,7 +8,7 @@ content or shared/platform data.
 | Location | Operates on | Session it runs under | Examples |
 |---|---|---|---|
 | `tenant/` | per-guild content (`guild_<id>` schemas) | `RLSSessionDep` under `/g/{guild_id}/…` | documents, tasks (statuses), queues, counters, calendar_events, comments, initiatives, properties, project import/export, soft_delete, trash_purge, webhook dispatch/subscriptions |
-| `platform/` | shared/public-schema tables | `UserSessionDep` / `AdminSessionDep` (no guild) | users, guilds, access_grants, api_keys, app_settings, push/user tokens, user_notifications, ws_auth |
+| `platform/` | shared/public-schema tables | `UserSessionDep` / `SystemSessionDep` (no guild) | users, guilds, access_grants, api_keys, app_settings, push/user tokens, user_notifications, ws_auth |
 | *root* (here) | **both sides** — cross-cutting infra | varies / called by both | `rls`, `membership`, `permissions`, `realtime`, `stream_authz`, `email`, `notifications`, `cross_guild`, `ai_settings`, `ai_generation`, `background_tasks`, `soft-delete filters`, `captcha`, `hibp`, … |
 
 ## The rule for the root

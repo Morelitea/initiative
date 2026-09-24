@@ -182,7 +182,7 @@
     "noActiveInvites": "Aucune invitation active.",
     "unableToLoadInvites": "Impossible de charger les invitations.",
     "unableToCreateInvite": "Impossible de créer l'invitation.",
-    "inviteSeatsFull": "Les {{max}} places sont occupées. Retirez un membre ou demandez à un administrateur de la plateforme d'augmenter la limite avant de créer une autre invitation.",
+    "inviteSeatsFull": "Les {{max}} places sont occupées. Retirez un membre ou demandez à la personne qui gère ce serveur d'augmenter la limite avant de créer une autre invitation.",
     "inviteSeatsFullPlan_one": "Le forfait {{plan}} ne comprend qu'une place, et elle est occupée. Mettez à niveau pour inviter des personnes dans cette communauté.",
     "inviteSeatsFullPlan_other": "Les {{count}} places du forfait {{plan}} sont occupées. Mettez à niveau pour inviter plus de personnes.",
     "inviteSeatsFullUpgrade_one": "Votre forfait ne comprend qu'une place, et elle est occupée. Mettez à niveau pour inviter des personnes dans cette communauté.",
@@ -216,6 +216,22 @@
     "description": "Vous n'êtes pas membre de cette communauté. Demandez à un administrateur un lien d'invitation pour rejoindre.",
     "backToHome": "← Retour à l'accueil"
   },
+  "closed": {
+    "title": "Cette communauté est suspendue",
+    "description": "Personne ne peut l’ouvrir tant que la suspension n’est pas levée.",
+    "contact": "Contactez {{email}}.",
+    "contactNobody": "Contactez la personne qui gère ce serveur."
+  },
+  "statusNotice": {
+    "title": "Un problème est survenu",
+    "description": "Contactez l'opérateur de votre plateforme.",
+    "readOnly": "En attendant, les membres peuvent tout lire ici, mais ne peuvent rien modifier.",
+    "paymentTitle": "Le paiement pour {{name}} a été refusé",
+    "paymentDescription": "Mettez à jour votre carte pour rétablir la communauté.",
+    "updatePayment": "Mettre à jour le moyen de paiement",
+    "notNow": "Pas maintenant",
+    "contactSupport": "Contacter le support"
+  },
   "noGuild": {
     "title": "Aucune appartenance à une communauté",
     "description": "Vous n'êtes encore membre d'aucune communauté. Demandez à un administrateur un lien d'invitation, ou créez un nouvelle communauté pour commencer.",
@@ -245,6 +261,7 @@
     "userPendingApproval": "{{email}} attend une approbation.",
     "mentionComment": "{{mentionedBy}} vous a mentionné dans un commentaire sur {{contextTitle}}.",
     "mentionDocument": "{{mentionedBy}} vous a mentionné dans {{documentTitle}}.",
+    "mentionTaskDescription": "{{mentionedBy}} vous a mentionné dans {{taskTitle}}.",
     "commentOnTask": "{{commenterName}} a commenté sur {{taskTitle}}.",
     "commentOnResource": "{{commenterName}} a commenté sur {{entityName}}.",
     "postPublished": "{{authorName}} a publié {{postName}}.",
@@ -281,6 +298,8 @@
     "accountSuspended": "Votre compte a été suspendu.",
     "accountSuspendedWithReason": "Votre compte a été suspendu : {{reason}}",
     "accountUnsuspended": "Votre compte n'est plus suspendu.",
+    "guildOnHold": "{{community}} est en attente. Contactez la personne qui gère ce serveur pour régler la situation.",
+    "guildOnHoldWithContact": "{{community}} est en attente. Contactez {{contact}} pour régler la situation.",
     "defaultNotification": "Vous avez une nouvelle notification.",
     "push": {
       "enableTitle": "Activer les notifications push",
@@ -314,7 +333,20 @@
         "personal": "Mentions"
       }
     },
-    "ariaLabelCount": "Notifications — {{count}} non lues"
+    "ariaLabelCount": "Notifications — {{count}} non lues",
+    "plain": {
+      "document": "un document",
+      "event": "un événement",
+      "initiative": "une initiative",
+      "initiativeIn": "une initiative",
+      "item": "un élément",
+      "post": "une publication",
+      "project": "Un projet",
+      "projectIn": "un projet",
+      "task": "Une tâche",
+      "taskObject": "votre tâche",
+      "user": "Un utilisateur"
+    }
   },
   "version": {
     "versionInformation": "Informations de version",
@@ -341,7 +373,8 @@
     "readOnly": "Vous avez un accès temporaire en lecture seule à {{guild}}.",
     "readWrite": "Vous avez un accès temporaire à {{guild}}.",
     "guildReadOnly": "Cette communauté est en lecture seule",
-    "guildSuspended": "Cette communauté est suspendue"
+    "guildSuspended": "Cette communauté est suspendue",
+    "guildOnHold": "Cette communauté est en attente"
   },
   "readOnlyBanner": {
     "message": "{{guild}} est actuellement en lecture seule. Vous pouvez tout consulter, mais les modifications sont désactivées."

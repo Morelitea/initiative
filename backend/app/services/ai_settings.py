@@ -27,6 +27,7 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.encryption import SALT_AI_API_KEY, decrypt_field, encrypt_field
 from app.core.messages import AIMessages
@@ -117,7 +118,7 @@ class _PlatformConfig:
     connections: tuple[_ConnRow, ...]
 
 
-# Only the admin-only operator CONNECTIONS are cached (the expensive read). The
+# Only the owner-only platform CONNECTIONS are cached (the expensive read). The
 # mode + a monotonic version live on app_settings, which every role can read, so
 # each request reads them fresh on its own (guild) session and reloads the cached
 # connections only when the version moves. An operator change therefore reaches
@@ -126,8 +127,8 @@ _cache: _PlatformConfig | None = None
 
 
 async def _load_platform_connections() -> tuple[_ConnRow, ...]:
-    """Read the operator connections on the system engine (admin-only table)."""
-    async with db_session.admin_engine.connect() as conn:
+    """Read the operator connections on the system engine (app_admin-only table)."""
+    async with db_session.system_engine.connect() as conn:
         # Pooled connection: shed any guild role a prior checkout assumed.
         await conn.execute(text("SELECT set_config('role', 'none', false)"))
         conn_rows = (
@@ -203,13 +204,11 @@ async def _purge_platform_connection_member_data(connection_id: int) -> None:
     per guild — a failing schema is rolled back and logged; the rows are inert
     once the connection is gone.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         guild_ids = (await session.exec(select(Guild.id).order_by(Guild.id))).all()
         for gid in guild_ids:
             try:
-                await db_session.set_rls_context(
-                    session, guild_id=gid, guild_role="admin"
-                )
+                await db_session.set_rls_context(session, guild_id=gid)
                 await session.exec(
                     delete(GuildAIMemberKey).where(
                         GuildAIMemberKey.connection_scope == "platform",
@@ -664,7 +663,6 @@ async def create_guild_connection(
     # Guild connections are always public-only (scope="guild" => no private).
     await _validate_connection_base_url(payload.provider, base_url, "guild")
     row = GuildAIConnection(
-        guild_id=guild_id,
         created_by=user_id,
         label=payload.label.strip(),
         provider=payload.provider.value,
@@ -754,7 +752,7 @@ async def update_guild_connection(
             session,
             event_type=AuditEventType.AI_CONNECTION_UPDATED,
             actor_user_id=actor_user_id,
-            guild_id=row.guild_id,
+            guild_id=routed_guild_id(session),
             target_type="ai_connection",
             target_id=row.id,
             detail={
@@ -774,7 +772,7 @@ async def delete_guild_connection(
     row = await session.get(GuildAIConnection, connection_id)
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
-    guild_id = row.guild_id
+    guild_id = routed_guild_id(session)
     await session.delete(row)
     await audit_service.record(
         session,
@@ -785,15 +783,9 @@ async def delete_guild_connection(
         target_id=connection_id,
         detail={"scope": ConnectionScope.guild.value},
     )
-    prior_role = (
-        await session.exec(
-            text("SELECT current_setting('app.current_guild_role', true)")
-        )
-    ).one()[0]
-    # Connection administration includes removing every member reference.
-    await session.exec(
-        text("SELECT set_config('app.current_guild_role', 'admin', true)")
-    )
+    # Connection administration includes removing every member reference. The
+    # own-row policy on those tables admits the community's administrator,
+    # which the seat holder running this already is in the request's standing.
     await session.exec(
         delete(GuildAIMemberKey).where(
             GuildAIMemberKey.connection_scope == ConnectionScope.guild.value,
@@ -805,10 +797,6 @@ async def delete_guild_connection(
             GuildAIMemberPref.connection_scope == ConnectionScope.guild.value,
             GuildAIMemberPref.connection_id == connection_id,
         )
-    )
-    await session.exec(
-        text("SELECT set_config('app.current_guild_role', :role, true)"),
-        params={"role": prior_role or ""},
     )
     await session.commit()
 
@@ -930,7 +918,6 @@ async def set_member_key(
     else:
         session.add(
             GuildAIMemberKey(
-                guild_id=guild_id,
                 user_id=user.id,  # type: ignore[arg-type]
                 connection_scope=payload.scope.value,
                 connection_id=payload.connection_id,
@@ -980,7 +967,6 @@ async def set_member_pref(
     else:
         session.add(
             GuildAIMemberPref(
-                guild_id=guild_id,
                 user_id=user.id,  # type: ignore[arg-type]
                 connection_scope=payload.scope.value,
                 connection_id=payload.connection_id,

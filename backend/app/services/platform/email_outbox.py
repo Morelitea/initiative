@@ -41,7 +41,7 @@ from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.models.platform.user_notification_prefs import EmailCadence
 from app.services import email as email_service
-from app.services.platform import notification_prefs
+from app.services.platform import notification_policy, notification_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +83,27 @@ async def enqueue(
     request, usually — and appends to ``public.email_outbox``. An append, and
     only that: the row is the worker's from here on.
 
+    Every notification email in the app is written here, which is where the
+    deployment's and the community's answers about what may reach a mailbox are
+    applied: one of them declining writes nothing, and either of them asking for
+    a redacted notification stores the kind of thing that happened instead of
+    what it was about — so the row carries no more than the mail will.
+
     ``prefs`` is the recipient's settings document, which the caller has
-    already loaded to decide the email was wanted at all.
+    already loaded to decide the email was wanted at all. The switches are read
+    once per transaction of ``session``, so a fan-out asks once.
     """
+    policy = await notification_policy.for_send(session, guild_id)
+    if not policy.email:
+        return False
+    if policy.redact:
+        locale = getattr(recipient, "locale", None) or "en"
+        pieces = email_service.EmailPieces(
+            subject=notification_policy.redacted_subject(category, locale),
+            headline=notification_policy.redacted_subject(category, locale),
+            body=notification_policy.redacted_body(category, locale),
+            link=pieces.link,
+        )
     if not await email_service.email_configured(session):
         # Nothing to drain it, so nothing is written. A caller holding a queue
         # keeps it rather than treating this as delivered.
@@ -441,9 +459,9 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> None:
 
 
 async def process_email_outbox() -> None:
-    from app.db.session import AdminSessionLocal, set_rls_context
+    from app.db.session import SystemSessionLocal, set_rls_context
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await set_rls_context(session)
         await _run_pass(session, now=datetime.now(timezone.utc))
 

@@ -5,8 +5,8 @@ import { chooseNoGuildLayout } from "./noGuildLayout";
 /**
  * The route gate this helper drives is an auth boundary: a wrong
  * answer either traps a user with zero memberships out of their own
- * account-management surface, or admits a non-admin into the
- * platform-admin shell. Tests here pin the truth table.
+ * account-management surface, or admits someone without platform access into the
+ * platform shell. Tests here pin the truth table.
  */
 describe("chooseNoGuildLayout", () => {
   describe("when the user has at least one guild", () => {
@@ -15,21 +15,21 @@ describe("chooseNoGuildLayout", () => {
         chooseNoGuildLayout({
           hasGuilds: true,
           pathname: "/profile",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("main");
       expect(
         chooseNoGuildLayout({
           hasGuilds: true,
           pathname: "/settings/operator",
-          isPlatformAdmin: true,
+          canAccessPlatformAreas: true,
         })
       ).toBe("main");
       expect(
         chooseNoGuildLayout({
           hasGuilds: true,
           pathname: "/projects/42",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("main");
     });
@@ -41,7 +41,7 @@ describe("chooseNoGuildLayout", () => {
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/profile",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("shell");
     });
@@ -51,14 +51,14 @@ describe("chooseNoGuildLayout", () => {
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/profile/danger",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("shell");
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/profile/security",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("shell");
     });
@@ -71,7 +71,7 @@ describe("chooseNoGuildLayout", () => {
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/profilex",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("empty");
     });
@@ -83,7 +83,7 @@ describe("chooseNoGuildLayout", () => {
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/communities",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("shell");
     });
@@ -93,26 +93,26 @@ describe("chooseNoGuildLayout", () => {
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/communitiesx",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("empty");
     });
   });
 
-  describe("platform-admin settings routes (no guilds)", () => {
-    it("renders the shell when the user is a platform admin", () => {
+  describe("platform routes (no guilds)", () => {
+    it("renders the shell when the user can reach the platform areas", () => {
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/settings/operator",
-          isPlatformAdmin: true,
+          canAccessPlatformAreas: true,
         })
       ).toBe("shell");
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/settings/operator/users",
-          isPlatformAdmin: true,
+          canAccessPlatformAreas: true,
         })
       ).toBe("shell");
       // Platform settings (config) lives under /settings/platform now.
@@ -120,27 +120,27 @@ describe("chooseNoGuildLayout", () => {
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/settings/platform/branding",
-          isPlatformAdmin: true,
+          canAccessPlatformAreas: true,
         })
       ).toBe("shell");
     });
 
-    it("falls through to NoGuildState for non-admins", () => {
-      // Non-admins shouldn't get the shell chrome for a route they
+    it("falls through to NoGuildState without platform access", () => {
+      // Someone without platform access shouldn't get the shell chrome for a route they
       // can't see content on — the layout would redirect them to
       // their own community settings anyway.
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/settings/operator",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("empty");
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/settings/platform/branding",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("empty");
     });
@@ -152,21 +152,21 @@ describe("chooseNoGuildLayout", () => {
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/",
-          isPlatformAdmin: false,
+          canAccessPlatformAreas: false,
         })
       ).toBe("empty");
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/projects/1",
-          isPlatformAdmin: true,
+          canAccessPlatformAreas: true,
         })
       ).toBe("empty");
       expect(
         chooseNoGuildLayout({
           hasGuilds: false,
           pathname: "/settings/security",
-          isPlatformAdmin: true,
+          canAccessPlatformAreas: true,
         })
       ).toBe("empty");
     });

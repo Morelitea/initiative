@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional, Set, cast
 
 from sqlalchemy import ColumnElement, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -56,6 +56,7 @@ from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.services import rls as rls_service
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references
 from app.services import notifications
 from app.services import permissions as permissions_service
@@ -314,7 +315,6 @@ async def _get_task_context(
         .join(Initiative, Initiative.id == Project.initiative_id)
         .where(
             Task.id == task_id,
-            Initiative.guild_id == guild_id,
         )
     )
     result = await session.exec(stmt)
@@ -389,21 +389,11 @@ async def _get_tool_context(
     )
     if target.tool in permissions_service.READ_VISIBLE:
         # This tool has something between "shared with me" and "I can see it",
-        # and answering it asks whether the caller could edit the row — which
-        # reads its sharing and its initiative's roster. Loaded only for the
-        # tools that ask, so the other six pay nothing.
-        stmt = stmt.options(
-            selectinload(target.model.grants),  # type: ignore[attr-defined]
-            selectinload(target.model.initiative).selectinload(  # type: ignore[attr-defined]
-                Initiative.memberships
-            ),
-        )
+        # and answering it asks whether the caller could edit the row. Loaded
+        # only for the tools that ask, so the other six pay nothing.
+        stmt = stmt.options(undefer(target.model.access_level))  # type: ignore[attr-defined]
     row = (await session.exec(stmt)).one_or_none()
     if row is None:
-        return None
-    initiative = row.initiative
-    owner_guild = initiative.guild_id if initiative is not None else row.guild_id
-    if owner_guild != guild_id:
         return None
     return _ParentContext(
         column=target.column,
@@ -500,14 +490,9 @@ async def _ensure_parent_access(
         # post is a draft, and reading or writing its comments would say it
         # exists. Asked before the sharing decision below, because the answer
         # for anyone who could edit it is the ordinary one.
-        if permissions_service.hidden_from_reader(
-            target.tool, ctx.resource, cast(int, user.id)
-        ):
+        if permissions_service.hidden_from_reader(target.tool, ctx.resource):
             raise CommentNotFoundError(target.not_found)
 
-    guild_id = anchor_row.guild_id
-    if permissions_service.request_bypasses_dac(guild_id, access=access):
-        return
     if await _shares_resource(
         session,
         anchor_model.id,  # type: ignore[attr-defined]
@@ -801,7 +786,7 @@ async def _load_task_with_assignees(
         select(Task, Project, Initiative)
         .join(Project, Project.id == Task.project_id)
         .join(Initiative, Initiative.id == Project.initiative_id)
-        .where(Task.id == task_id, Initiative.guild_id == guild_id)
+        .where(Task.id == task_id)
         .options(selectinload(Task.assignees))
     )
     result = await session.exec(stmt)
@@ -954,6 +939,7 @@ async def _process_comment_notifications(
                     task_id=task.id,
                     task_title=task.title,
                     project_name=project_name,
+                    project_id=task.project_id,
                     guild_id=guild_id,
                     initiative_id=ctx.initiative_id,
                     tool=comment_tool,
@@ -1067,7 +1053,6 @@ async def delete_comment(
         is_initiative_manager = await rls_service.is_initiative_manager(
             session,
             initiative_id=initiative_id,
-            user=user,
         )
 
     if not (is_author or is_guild_admin or is_initiative_manager):
@@ -1098,8 +1083,12 @@ async def update_comment(
     user: User,
     guild_id: int,
     content: str,
-) -> Comment:
-    """Update a comment's content. Only the original author can edit."""
+) -> tuple[Comment, set[str]]:
+    """Update a comment's content. Only the original author can edit.
+
+    Also returns the pasted pictures the edit took out that nothing else shows,
+    now released; their files are the caller's to delete once it has committed.
+    """
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
@@ -1118,10 +1107,17 @@ async def update_comment(
     await _ensure_parent_access(session, ctx, user=user, access="read")
     _stamp_task_project(ctx, comment)
 
+    previous_content = comment.content
     comment.content = content
     comment.updated_at = datetime.now(timezone.utc)
     session.add(comment)
     await session.flush()
+    released = await attachments_service.release_pasted_images(
+        session,
+        attachments_service.upload_urls_in_markdown(previous_content)
+        - attachments_service.upload_urls_in_markdown(content),
+        leaving={Comment: {cast(int, comment.id)}},
+    )
     await content_references.sync_for_comment(
         session, comment, author_id=cast(int, user.id)
     )
@@ -1130,4 +1126,4 @@ async def update_comment(
     # carry the reactions the comment still has — serializing without them
     # would blank the chips until the next refetch.
     await attach_reactions(session, comment)
-    return comment
+    return comment, released

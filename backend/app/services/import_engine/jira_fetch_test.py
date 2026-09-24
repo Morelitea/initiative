@@ -18,8 +18,21 @@ import pytest
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import atlassian, jira_fetch
 from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine import limits as import_limits
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _no_waiting(monkeypatch):
+    """A throttled call retries after a wait; the tests take the retry and
+    skip the wait."""
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(atlassian, "_sleep", fake_sleep)
+
 
 CREDENTIAL = atlassian.AtlassianCredential(
     site_url="https://acme.atlassian.net",
@@ -251,14 +264,43 @@ async def test_a_cursor_that_is_not_a_string_ends_the_walk(monkeypatch):
 async def test_the_row_budget_is_shared_across_projects(monkeypatch):
     """One enormous project must not eat the whole import's ceiling and leave
     the others empty without saying so."""
-    from app.core.config import settings
 
-    monkeypatch.setattr(settings, "IMPORT_MAX_ROWS", 3)
+    monkeypatch.setattr(import_limits, "IMPORT_FETCH_MAX_ROWS", 3)
     _site(monkeypatch, issues=[_issue(f"ACME-{i}", f"Task {i}") for i in range(10)])
     _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OTHER"])
 
     assert report.tasks == 3
     assert report.projects == 1
+    # Said, not merely done: one project was cut short and one left out.
+    assert report.projects_over_limit == ["ACME", "OTHER"]
+
+
+async def test_a_project_stopped_with_more_to_read_is_named(monkeypatch):
+    """The budget ran out exactly at a page boundary, with the site still
+    offering more: that project was not read in full either."""
+    monkeypatch.setattr(import_limits, "IMPORT_FETCH_MAX_ROWS", 2)
+    _site(
+        monkeypatch,
+        pages=[
+            ([_issue("ACME-1", "One"), _issue("ACME-2", "Two")], "cursor-1"),
+            ([_issue("ACME-3", "Three")], None),
+        ],
+    )
+    _payload, report = await _bundle(monkeypatch)
+    assert report.tasks == 2
+    assert report.projects_over_limit == ["ACME"]
+
+
+async def test_a_project_read_to_its_end_is_not_named(monkeypatch):
+    _site(
+        monkeypatch,
+        pages=[
+            ([_issue("ACME-1", "One")], "cursor-1"),
+            ([_issue("ACME-2", "Two")], None),
+        ],
+    )
+    _payload, report = await _bundle(monkeypatch)
+    assert report.projects_over_limit == []
 
 
 # --- when the site misbehaves ----------------------------------------------
@@ -287,6 +329,49 @@ async def test_an_unreadable_project_is_counted_not_fatal(monkeypatch):
 
     assert report.projects == 1
     assert report.unreadable_projects == ["LOCKED"]
+
+
+async def test_progress_hears_every_project_read_or_not(monkeypatch):
+    """The job row climbs one project at a time, and a locked project is
+    still a step taken — otherwise a fetch stuck behind it looks stalled."""
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/rest/api/3/project/LOCKED" in url:
+            return httpx.Response(403, json={})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            key = url.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"key": key, "name": key})
+        if "search/jql" in url:
+            return httpx.Response(200, json={"issues": [_issue("ACME-1", "One")]})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    heard: list[tuple[int, int, list[str]]] = []
+
+    async def progress(report):
+        heard.append((report.projects, report.tasks, list(report.unreadable_projects)))
+
+    await _bundle(monkeypatch, project_keys=["ACME", "LOCKED"], progress=progress)
+
+    assert heard == [(1, 1, []), (1, 1, ["LOCKED"])]
+
+
+async def test_a_progress_listener_can_stop_the_walk(monkeypatch):
+    """What a cancel looks like from in here: the listener raises, and no
+    further project is asked for."""
+    calls = _site(monkeypatch, issues=[_issue("ACME-1", "One")])
+
+    class Stop(Exception):
+        pass
+
+    async def progress(report):
+        raise Stop
+
+    with pytest.raises(Stop):
+        await _bundle(monkeypatch, project_keys=["ACME", "OTHER"], progress=progress)
+    assert not any("/project/OTHER" in call["url"] for call in calls)
 
 
 async def test_every_project_unreadable_is_a_failure(monkeypatch):
@@ -351,3 +436,509 @@ async def test_the_zip_stays_inside_the_members_bound(monkeypatch):
     payload, _ = await _bundle(monkeypatch)
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
         assert len(archive.infolist()) == 2  # manifest + one envelope
+
+
+async def test_a_throttled_board_lookup_is_not_mistaken_for_no_board(monkeypatch):
+    """A board the token cannot read is fine to do without; a site that is
+    throttling us is not the same thing, and importing without the column
+    order would hide it."""
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/rest/agile/1.0/board" in url:
+            return httpx.Response(429, json={})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            return httpx.Response(200, json={"key": "ACME", "name": "ACME"})
+        return httpx.Response(200, json={"issues": []})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    with pytest.raises(ImportEngineError) as exc:
+        await _bundle(monkeypatch)
+    assert exc.value.code == ImportEngineMessages.IMPORT_SOURCE_RATE_LIMITED
+
+
+# --- links -------------------------------------------------------------------
+
+
+def _two_projects(monkeypatch, issues_by_project):
+    """A site with a project per key, each answering its own issues."""
+    calls: list[dict] = []
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        calls.append({"url": url, "json": json})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            key = url.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"key": key, "name": key})
+        if "search/jql" in url and json is not None:
+            key = json["jql"].split('"')[1]
+            return httpx.Response(200, json={"issues": issues_by_project[key]})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    return calls
+
+
+def _blocked_by(key, blocker, link_id):
+    return {
+        "id": link_id,
+        "type": {"name": "Blocks", "outward": "blocks"},
+        "inwardIssue": {"key": blocker},
+    }
+
+
+def _blocks_link(key, blocked, link_id):
+    return {
+        "id": link_id,
+        "type": {"name": "Blocks", "outward": "blocks"},
+        "outwardIssue": {"key": blocked},
+    }
+
+
+async def test_links_are_asked_for(monkeypatch):
+    calls = _site(monkeypatch, issues=[_issue("ACME-1", "One")])
+    await _bundle(monkeypatch)
+    search = next(c for c in calls if "search/jql" in c["url"])
+    # Every navigable field, which carries the links and the parent too: which
+    # of a site's fields anybody filled in is only known by reading them.
+    assert search["json"]["fields"][0] == "*navigable"
+
+
+async def test_links_are_counted_once_and_split_by_whether_both_ends_came(
+    monkeypatch,
+):
+    """Both sides of a Jira link report it, so it is counted by id. A link
+    between two ticked projects will be drawn; one to an issue nobody ticked
+    will not, and the plan says how many before anybody confirms."""
+    _two_projects(
+        monkeypatch,
+        {
+            "ACME": [
+                _issue(
+                    "ACME-1",
+                    "Fit it",
+                    issuelinks=[_blocks_link("ACME-1", "ACME-2", "10")],
+                ),
+                _issue(
+                    "ACME-2",
+                    "Hang it",
+                    parent={"key": "ACME-1"},
+                    issuelinks=[
+                        _blocked_by("ACME-2", "ACME-1", "10"),
+                        _blocked_by("ACME-2", "OPS-1", "11"),
+                    ],
+                ),
+            ],
+            "OPS": [
+                _issue(
+                    "OPS-1",
+                    "Order hinges",
+                    issuelinks=[
+                        _blocks_link("OPS-1", "ACME-2", "11"),
+                        _blocked_by("OPS-1", "HR-4", "12"),
+                    ],
+                )
+            ],
+        },
+    )
+
+    _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OPS"])
+
+    # Drawn: 10 (ACME-1 blocks ACME-2), 11 (OPS-1 blocks ACME-2, across the
+    # two projects), and ACME-2's parent. Not: 12, whose far end is in a
+    # project nobody ticked.
+    assert report.links == 3
+    assert report.links_outside_selection == 1
+
+
+async def test_the_links_land_in_the_bundle(monkeypatch):
+    _site(
+        monkeypatch,
+        issues=[
+            _issue("ACME-1", "Fit it"),
+            _issue(
+                "ACME-2",
+                "Hang it",
+                issuelinks=[_blocked_by("ACME-2", "ACME-1", "10")],
+            ),
+        ],
+    )
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    payload, _report = await _bundle(monkeypatch)
+    archive = open_backup_zip(payload)
+    manifest = read_manifest(archive)
+    envelope = json.loads(archive.read(manifest.entries[0].path))
+    assert envelope["tasks"][1]["links"] == [
+        {"type": "depends_on", "target_external_ref": "jira:ACME-1"}
+    ]
+
+
+# --- fields ------------------------------------------------------------------
+
+
+async def test_the_field_catalog_is_read_once_and_counts_sum_across_projects(
+    monkeypatch,
+):
+    """The catalog is the site's, not a project's, so one read serves every
+    project; and the same field on two boards is one property in the
+    initiative they land in, carried by every task that filled it."""
+    catalog_calls = []
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if url.endswith("/rest/api/3/field"):
+            catalog_calls.append(url)
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": "customfield_1",
+                        "name": "Story points",
+                        "custom": True,
+                        "schema": {"type": "number"},
+                    }
+                ],
+            )
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            key = url.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"key": key, "name": key})
+        if "search/jql" in url and json is not None:
+            key = json["jql"].split('"')[1]
+            return httpx.Response(
+                200,
+                json={"issues": [_issue(f"{key}-1", "One", customfield_1=3)]},
+            )
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OPS"])
+
+    assert len(catalog_calls) == 1
+    assert report.properties["Story points"] == ("number", 2)
+    assert report.properties["Jira key"] == ("text", 2)
+
+
+async def test_a_catalog_the_site_will_not_give_is_not_fatal(monkeypatch):
+    """The built-ins still map by their own ids; only a site's own fields go
+    untyped, and are left out."""
+    _site(monkeypatch, issues=[_issue("ACME-1", "One", priority={"name": "High"})])
+    _payload, report = await _bundle(monkeypatch)
+    assert report.properties["Priority"] == ("select", 1)
+
+
+# --- sprints -----------------------------------------------------------------
+
+
+def _sprint_site(monkeypatch, issues):
+    catalog = [
+        {
+            "id": "customfield_10020",
+            "name": "Sprint",
+            "custom": True,
+            "schema": {
+                "type": "array",
+                "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+            },
+        }
+    ]
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if url.endswith("/rest/api/3/field"):
+            return httpx.Response(200, json=catalog)
+        if "/rest/agile/1.0/board/3" in url:
+            return httpx.Response(200, json={"id": 3, "name": "Door team"})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            return httpx.Response(200, json={"key": "ACME", "name": "ACME"})
+        if "search/jql" in url:
+            return httpx.Response(200, json={"issues": issues})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+
+
+def _sprinted(key, *sprint_ids):
+    return _issue(
+        key,
+        key,
+        customfield_10020=[
+            {
+                "id": sprint_id,
+                "name": f"Sprint {sprint_id}",
+                "boardId": 3,
+                "startDate": "2024-03-04T09:00:00.000Z",
+                "endDate": "2024-03-18T09:00:00.000Z",
+            }
+            for sprint_id in sprint_ids
+        ],
+    )
+
+
+async def test_sprints_ride_in_the_bundle_as_a_calendar_its_tasks_point_at(
+    monkeypatch,
+):
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    _sprint_site(monkeypatch, [_sprinted("ACME-1", 7), _sprinted("ACME-2", 7, 8)])
+    payload, report = await _bundle(monkeypatch)
+
+    assert (report.sprints, report.sprint_calendars, report.sprints_undated) == (
+        2,
+        1,
+        0,
+    )
+    archive = open_backup_zip(payload)
+    manifest = read_manifest(archive)
+    calendar_entry = next(e for e in manifest.entries if e.tool == "calendar")
+    assert manifest.initiatives[0].tools["calendar"] == "included"
+    calendar = json.loads(archive.read(calendar_entry.path))
+    assert calendar["name"] == "Door team"
+    assert [e["external_ref"] for e in calendar["events"]] == [
+        "jira-sprint:7",
+        "jira-sprint:8",
+    ]
+    project = json.loads(
+        archive.read(next(e for e in manifest.entries if e.tool == "project").path)
+    )
+    links = {t["external_ref"]: t["links"] for t in project["tasks"]}
+    assert {"type": "related_to", "target_external_ref": "jira-sprint:8"} in links[
+        "jira:ACME-2"
+    ]
+
+
+async def test_sprints_blocked_by_the_target_are_counted_and_left_out(monkeypatch):
+    """Counted, so the plan can say what is being left behind; and no task is
+    pointed at a sprint that will not exist."""
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    _sprint_site(monkeypatch, [_sprinted("ACME-1", 7)])
+    payload, report = await _bundle(
+        monkeypatch, sprints_blocked_by="IMPORT_TOOL_DISABLED"
+    )
+
+    assert report.sprints == 1
+    assert report.sprint_calendars == 0
+    assert report.sprints_skipped == "IMPORT_TOOL_DISABLED"
+    manifest = read_manifest(open_backup_zip(payload))
+    assert [e.tool for e in manifest.entries] == ["project"]
+    project = json.loads(open_backup_zip(payload).read(manifest.entries[0].path))
+    assert project["tasks"][0]["links"] == []
+
+
+# --- comments ----------------------------------------------------------------
+
+
+def _adf(text):
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
+    }
+
+
+def _comment(author, text, created, **extra):
+    return {
+        "author": {"displayName": author},
+        "body": _adf(text),
+        "created": created,
+        **extra,
+    }
+
+
+async def test_comments_come_with_their_issue_and_the_rest_are_paged_in(monkeypatch):
+    """The search carries the first page and a total; only an issue with more
+    than that costs a call of its own, and the whole thread arrives."""
+    comment_calls = []
+
+    first = [_comment("Robin", "One", "2024-03-04T09:00:00.000+0000")]
+    rest = [
+        _comment("Robin", "One", "2024-03-04T09:00:00.000+0000"),
+        _comment("Sam", "Two", "2024-03-05T09:00:00.000+0000"),
+    ]
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "/comment?" in url:
+            comment_calls.append(url)
+            return httpx.Response(200, json={"comments": rest, "total": 2})
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            return httpx.Response(200, json={"key": "ACME", "name": "ACME"})
+        if "search/jql" in url:
+            assert json is not None and "comment" in json["fields"]
+            return httpx.Response(
+                200,
+                json={
+                    "issues": [
+                        _issue(
+                            "ACME-1", "Long", comment={"comments": first, "total": 2}
+                        ),
+                        _issue(
+                            "ACME-2",
+                            "Short",
+                            comment={
+                                "comments": [
+                                    _comment(
+                                        "Ash", "Hi", "2024-03-06T09:00:00.000+0000"
+                                    )
+                                ],
+                                "total": 1,
+                            },
+                        ),
+                    ]
+                },
+            )
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    payload, report = await _bundle(monkeypatch)
+
+    assert len(comment_calls) == 1 and "/issue/ACME-1/comment" in comment_calls[0]
+    assert report.comments == 3
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    archive = open_backup_zip(payload)
+    manifest = read_manifest(archive)
+    envelope = json.loads(archive.read(manifest.entries[0].path))
+    assert [c["body"] for c in envelope["tasks"][0]["comments"]] == ["One", "Two"]
+    people = {p.handle: p.comment_count for p in manifest.people}
+    assert people == {"Robin": 1, "Sam": 1, "Ash": 1}
+
+
+async def test_comments_can_be_left_behind(monkeypatch):
+    calls = _site(
+        monkeypatch,
+        issues=[
+            _issue(
+                "ACME-1",
+                "One",
+                comment={
+                    "comments": [
+                        _comment("Robin", "Hi", "2024-03-04T09:00:00.000+0000")
+                    ],
+                    "total": 1,
+                },
+            )
+        ],
+    )
+    payload, report = await _bundle(monkeypatch, include_comments=False)
+    search = next(c for c in calls if "search/jql" in c["url"])
+    assert "comment" not in search["json"]["fields"]
+    assert report.comments == 0
+
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    archive = open_backup_zip(payload)
+    envelope = json.loads(archive.read(read_manifest(archive).entries[0].path))
+    assert envelope["tasks"][0]["comments"] == []
+
+
+async def test_comments_spend_the_row_budget(monkeypatch):
+    """A comment is a row. Two issues with two comments each fill a budget of
+    four, so the next project is not started."""
+
+    thread = {
+        "comments": [
+            _comment("Robin", "a", "2024-03-04T09:00:00.000+0000"),
+            _comment("Robin", "b", "2024-03-05T09:00:00.000+0000"),
+        ],
+        "total": 2,
+    }
+    _site(monkeypatch, issues=[_issue("ACME-1", "One", comment=thread)])
+    monkeypatch.setattr(import_limits, "IMPORT_FETCH_MAX_ROWS", 3)
+    _payload, report = await _bundle(monkeypatch, project_keys=["ACME", "OTHER"])
+    assert report.projects == 1
+    assert report.projects_over_limit == ["OTHER"]
+
+
+# --- images --------------------------------------------------------------------
+
+
+def _image_site(monkeypatch, issues, content=b"\x89PNG-bytes"):
+    calls: list[dict] = []
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        calls.append({"url": url, "json": json})
+        if "/attachment/content/" in url:
+            return httpx.Response(200, content=content)
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=STATUSES)
+        if "/rest/api/3/project/" in url:
+            return httpx.Response(200, json={"key": "ACME", "name": "ACME"})
+        if "search/jql" in url:
+            return httpx.Response(200, json={"issues": issues})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(atlassian, "request_public_target", fake_request)
+    return calls
+
+
+def _with_image(key, filename="door.png", att_id="10"):
+    return _issue(
+        key,
+        key,
+        attachment=[
+            {"id": att_id, "filename": filename, "mimeType": "image/png", "size": 11}
+        ],
+    )
+
+
+async def test_images_ride_in_the_bundle_as_assets_the_task_points_at(monkeypatch):
+    """Restored by the ordinary backup apply under a key made here: the
+    manifest lists it, the zip holds it, and the task shows it."""
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    calls = _image_site(monkeypatch, [_with_image("ACME-1")])
+    payload, report = await _bundle(monkeypatch)
+
+    search = next(c for c in calls if "search/jql" in c["url"])
+    assert "attachment" in search["json"]["fields"]
+    download = next(c for c in calls if "/attachment/content/" in c["url"])
+    assert download["url"].endswith("/attachment/content/10?redirect=false")
+    assert (report.images, report.image_bytes) == (1, len(b"\x89PNG-bytes"))
+
+    archive = open_backup_zip(payload)
+    manifest = read_manifest(archive)
+    (asset,) = manifest.assets
+    assert asset.original_filename == "door.png"
+    assert archive.read(asset.path) == b"\x89PNG-bytes"
+    envelope = json.loads(archive.read(manifest.entries[0].path))
+    assert f"/uploads/1/{asset.storage_key}" in envelope["tasks"][0]["description"]
+
+
+async def test_images_can_be_left_behind(monkeypatch):
+    from app.services.import_engine.backup import open_backup_zip, read_manifest
+
+    calls = _image_site(monkeypatch, [_with_image("ACME-1")])
+    payload, report = await _bundle(monkeypatch, include_attachments=False)
+    assert not [c for c in calls if "/attachment/content/" in c["url"]]
+    assert report.images == 0
+    assert read_manifest(open_backup_zip(payload)).assets == []
+
+
+async def test_a_cancel_reaches_a_fetch_inside_one_project(monkeypatch):
+    """Progress is heard between pages too, not only between projects, so a
+    cancel stops a large project part way through."""
+    monkeypatch.setattr(atlassian, "HEARTBEAT_SECONDS", 0)
+    calls = _site(
+        monkeypatch,
+        pages=[
+            ([_issue("ACME-1", "One")], "cursor-1"),
+            ([_issue("ACME-2", "Two")], None),
+        ],
+    )
+
+    class Stop(Exception):
+        pass
+
+    async def progress(report):
+        raise Stop
+
+    with pytest.raises(Stop):
+        await _bundle(monkeypatch, progress=progress)
+    assert sum("search/jql" in call["url"] for call in calls) == 1

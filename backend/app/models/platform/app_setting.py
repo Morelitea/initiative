@@ -1,7 +1,7 @@
 from typing import Optional
 
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import ENUM as PGEnum
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, text
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum, JSONB
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
 
@@ -43,6 +43,13 @@ DEFAULT_GUILD_RETENTION_DAYS = 90
 #: both, because they answer to different things — what a deployment owes the
 #: people in it, and what it owes the person leaving.
 DEFAULT_ACCOUNT_RETENTION_DAYS = 30
+
+#: How long a community sits on hold before it is deleted, in days.
+#:
+#: Deleted, not destroyed: once this runs out the community moves to
+#: ``deleted`` and the retention window above starts, so an operator can still
+#: put it back. The figure is the deployment's, like the retention window.
+DEFAULT_HOLD_DELETION_DAYS = 30
 
 #: The shortest window a deployment may set, for either. A day, because a
 #: window measured in hours is not one somebody notices their mistake inside
@@ -153,6 +160,15 @@ class AppSetting(SQLModel, table=True):
             Integer, nullable=True, server_default=str(DEFAULT_GUILD_RETENTION_DAYS)
         ),
     )
+    # How long a community stays on hold before it is deleted, in days, counted
+    # from when it was put there. NULL means never: a held community waits for
+    # somebody to lift the hold or delete it.
+    on_hold_community_deletion_days: Optional[int] = Field(
+        default=DEFAULT_HOLD_DELETION_DAYS,
+        sa_column=Column(
+            Integer, nullable=True, server_default=str(DEFAULT_HOLD_DELETION_DAYS)
+        ),
+    )
     login_methods: list[str] = Field(
         default_factory=lambda: [m.value for m in DEFAULT_LOGIN_METHODS],
         sa_column=Column(
@@ -203,9 +219,7 @@ class AppSetting(SQLModel, table=True):
     smtp_username: Optional[str] = Field(
         default=None, sa_column=Column(String(255), nullable=True)
     )
-    smtp_password_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
-    )
+    # The SMTP password lives on ``app_setting_secrets``.
     smtp_from_address: Optional[str] = Field(
         default=None, sa_column=Column(String(255), nullable=True)
     )
@@ -235,6 +249,15 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
 
+    # Whether the platform's sign-in placement rules apply to every community
+    # they name, rather than only to the communities that accepted them on
+    # their connection. For a deployment that is one organisation, where the
+    # communities are its teams. Every change is recorded.
+    provider_placement_everywhere: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # Whether this deployment offers direct messages at all -- My Messages,
     # and every connection and message request that feeds it. On by default, so
     # a deployment that upgrades into it keeps the messaging its people are
@@ -244,6 +267,14 @@ class AppSetting(SQLModel, table=True):
     direct_messages_enabled: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Whether a member's share to this deployment's marketplace goes on the
+    # shelf straight away. Off by default: each one waits for the owner to
+    # approve it. A deployment whose members all know each other turns it on.
+    marketplace_members_publish_directly: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
     # The direct-message policy a newly created account starts on. Read once,
@@ -257,6 +288,37 @@ class AppSetting(SQLModel, table=True):
             nullable=False,
             server_default=DmPolicy.private.value,
         ),
+    )
+
+    # Whether a notification may reach a phone at all. On by default, which is
+    # what every deployment has had. Off means this deployment sends none: no
+    # push leaves it, the registration endpoint declines, and the device tokens
+    # it was holding are dropped, so switching it off is the whole answer rather
+    # than the delivery half of one. Devices register again when it comes back.
+    push_notifications_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # And the other place a notification lands: a mailbox. Off means no
+    # notification email is written, on any cadence. It is the *notification*
+    # half of email and nothing else — a sign-in code, an address to confirm, a
+    # password reset and the notices an account gets about itself are not
+    # notifications and keep going, because switching this off must not lock
+    # anybody out of their account.
+    email_notifications_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Whether a notification that leaves the app may say what it is about. Off
+    # by default: a push that reads "Ana mentioned you in Q3 budget" is the one
+    # worth sending. On, a notification that leaves reduces to the kind of thing
+    # that happened — "You were mentioned in a comment" — and the app is where
+    # the rest of it is. The bell inside the app is unaffected either way.
+    redact_notification_content: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
     # AI config ownership mode: "platform" (the operator's connections apply to
@@ -298,9 +360,7 @@ class AppSetting(SQLModel, table=True):
     s3_access_key_id: Optional[str] = Field(
         default=None, sa_column=Column(String(255), nullable=True)
     )
-    s3_secret_access_key_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
-    )
+    # The S3 secret access key lives on ``app_setting_secrets``.
     s3_use_path_style: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
@@ -311,6 +371,41 @@ class AppSetting(SQLModel, table=True):
     s3_local_fallback: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
+    # ── captcha ────────────────────────────────────────────────────────
+    # The registration captcha, moved off env-only configuration in 0368. The
+    # provider name and site key are public — the site key is rendered into the
+    # page — so they sit here; the secret that verifies a token is on
+    # ``app_setting_secrets``. Enforcement needs all three, which is what
+    # ``app.services.captcha_config`` resolves.
+    captcha_provider: Optional[str] = Field(
+        default=None, sa_column=Column(String(50), nullable=True)
+    )
+    captcha_site_key: Optional[str] = Field(
+        default=None, sa_column=Column(String(500), nullable=True)
+    )
+
+    # ── push notifications (FCM) ───────────────────────────────────────
+    # Same move, same split. Everything here reaches a device or a page; the
+    # service-account JSON that mints an access token does not, and is on
+    # ``app_setting_secrets``.
+    fcm_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    fcm_project_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(200), nullable=True)
+    )
+    fcm_application_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(200), nullable=True)
+    )
+    # Firebase's API key is public by design (it ships in the client).
+    fcm_api_key: Optional[str] = Field(
+        default=None, sa_column=Column(String(500), nullable=True)
+    )
+    fcm_sender_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(50), nullable=True)
     )
 
     # The guild that receives this deployment's operations work — security,
@@ -326,4 +421,19 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(
             Integer, ForeignKey("guilds.id", ondelete="SET NULL"), nullable=True
         ),
+    )
+
+    # Who somebody is told to contact about operations work, set on the
+    # owner's intake settings page. One catch-all address for the deployment,
+    # and one optional address per intake stream keyed by its value; a stream
+    # with none of its own falls back to the catch-all and never to another
+    # stream (``app.services.platform.intake.contact_for``). Independent of the
+    # operations guild: a deployment that routes nothing can still say who to
+    # write to.
+    intake_general_contact: Optional[str] = Field(
+        default=None, sa_column=Column(String(320), nullable=True)
+    )
+    intake_contacts: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )

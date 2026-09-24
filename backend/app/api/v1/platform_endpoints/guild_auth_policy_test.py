@@ -44,6 +44,7 @@ from app.testing.factories import (
     get_auth_token,
     guild_administration,
 )
+from app.testing import route_as
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
@@ -463,20 +464,10 @@ async def test_the_last_seat_cannot_be_vacated_while_a_requirement_stands(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The requirement is lifted from the surface the seat holds, so the last
-    holder stays for as long as the requirement does — asked for by the
-    operator's role endpoint, and asked for by their own hand on the way
-    out."""
+    holder stays for as long as the requirement does — asked for by their own
+    hand on the way out."""
     keyholder = await _a_seat_and_a_requirement(session, acting_user)
-    operator = await acting_user("operator")
-    guild_id, keyholder_id = keyholder.guild.id, keyholder.user.id
-
-    demoted = await client.patch(
-        f"/api/v1/admin/guilds/{guild_id}/members/{keyholder_id}/role",
-        headers=operator.headers,
-        json={"role": "member"},
-    )
-    assert demoted.status_code == 400, demoted.text
-    assert demoted.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
+    guild_id = keyholder.guild.id
 
     left = await client.delete(
         f"/api/v1/guilds/{guild_id}/leave", headers=keyholder.headers
@@ -491,28 +482,26 @@ async def test_the_last_seat_stays_even_with_no_requirement(
     """Lifting the sign-in requirement does not free the seat.
 
     It did once, while the seat was about sign-in alone. It now holds billing
-    too, and only an operator can seat a guild that has emptied it — so a guild
-    keeps one whatever its sign-in rule says.
+    too, and a guild that has emptied it has nobody inside who can seat
+    another — so a guild keeps one whatever its sign-in rule says.
     """
     keyholder = await _a_seat_and_a_requirement(session, acting_user)
-    operator = await acting_user("operator")
     policy_row = await session.get(GuildAuthPolicy, keyholder.guild.id)
     await session.delete(policy_row)
     await session.commit()
-    role_url = (
-        f"/api/v1/admin/guilds/{keyholder.guild.id}/members/{keyholder.user.id}/role"
-    )
 
-    refused = await client.patch(
-        role_url, headers=operator.headers, json={"role": "member"}
+    refused = await client.delete(
+        f"/api/v1/guilds/{keyholder.guild.id}/leave", headers=keyholder.headers
     )
     assert refused.status_code == 400, refused.text
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
     # A second holder is what frees the first.
-    await acting_user(guild_role=GuildRole.superadmin, guild=keyholder.guild)
+    second = await acting_user(guild_role=GuildRole.superadmin, guild=keyholder.guild)
     allowed = await client.patch(
-        role_url, headers=operator.headers, json={"role": "member"}
+        f"/api/v1/guilds/{keyholder.guild.id}/members/{keyholder.user.id}",
+        headers=second.headers,
+        json={"role": "member"},
     )
     assert allowed.status_code == 204, allowed.text
 
@@ -678,50 +667,45 @@ async def test_the_database_refuses_a_password_requirement(session: AsyncSession
 async def test_db_layer_blocks_unsatisfied_session(
     session: AsyncSession, role_session, acting_user
 ):
-    """The RLS gate itself: with a required policy, a routed user session that
-    hasn't satisfied the provider sees ZERO content rows — regardless of any
-    app-layer gate. Satisfied sessions, the user-attributed system sentinel,
-    and pure system routings (no user) all see the rows."""
+    """The RLS gate itself: with a required policy, the standing a session
+    carries is what the content policies read, and a session whose standing
+    does not answer the policy sees ZERO content rows. Satisfied sessions, the
+    user-attributed system sentinel, and pure system routings (no user) all see
+    the rows."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_auth_policy(session, a.guild, provider)
-    user_id, guild_id, provider_id = a.user.id, a.guild.id, provider.id
+    user_id, guild_id = a.user.id, a.guild.id
 
     app_session = await role_session("app_user")
 
     async def _visible_projects() -> int:
         return len((await app_session.exec(select(Project))).all())
 
-    # Unsatisfied member/admin session: nothing.
-    await set_rls_context(
-        app_session, user_id=user_id, guild_id=guild_id, guild_role="admin"
-    )
-    assert await _visible_projects() == 0
+    # Unsatisfied member/admin session: the seam refuses it outright.
+    with pytest.raises(GuildAccessError):
+        await route_as(app_session, user_id=user_id, guild_id=guild_id)
 
-    # Satisfied session: content visible.
-    await set_rls_context(
+    # User-attributed system work carries the sentinel, and reads the rows.
+    await route_as(
         app_session,
         user_id=user_id,
         guild_id=guild_id,
-        guild_role="admin",
-        satisfied_providers=[provider_id],
-        satisfied_claims=satisfied_claims_for(provider_id),
-    )
-    assert await _visible_projects() == 1
-
-    # User-attributed system work carries the sentinel.
-    await set_rls_context(
-        app_session,
-        user_id=user_id,
-        guild_id=guild_id,
-        guild_role="admin",
         satisfied_providers=SYSTEM_SATISFIED,
     )
     assert await _visible_projects() == 1
 
-    # Pure system routing (no user context) is not a session to gate.
-    await set_rls_context(app_session, guild_id=guild_id, guild_role="admin")
-    assert await _visible_projects() == 1
+    # And the database is the backstop rather than that refusal: with the one
+    # value the standing recorded cleared, the same session reads nothing.
+    await app_session.exec(text("SELECT set_config('app.guild_auth_ok', '', true)"))
+    assert await _visible_projects() == 0
+    await app_session.rollback()
+
+    # A routing with nobody behind it is not a session to gate — and on the
+    # request login it is not a sweep either: what admits a sweep is the
+    # connection's own login, which this is not, so it reads nothing.
+    await set_rls_context(app_session, guild_id=guild_id)
+    assert await _visible_projects() == 0
 
 
 # --- The rule is decided twice, and the two must agree ----------------------

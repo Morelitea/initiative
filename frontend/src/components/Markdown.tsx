@@ -3,11 +3,18 @@ import ReactMarkdown from "react-markdown";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
+import { LinkedMentionSpan } from "@/components/comments/MentionSpan";
+import { remarkMentions } from "@/components/comments/remarkCommentPlugins";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 interface MarkdownProps {
   content: string;
   className?: string;
+  /** Reads the mention syntax the mention composer writes — `@[Ada](4)`,
+   *  `#task[Ship it](12)` — as chips rather than links to a bare number. Only
+   *  prose written in that composer carries it, so it is asked for. */
+  mentions?: boolean;
 }
 
 /** Anything that can be wider than its container is wrapped or scrolled here,
@@ -63,16 +70,31 @@ function MarkdownAnchor({ node: _node, href, children, ...props }: AnchorProps) 
   );
 }
 
-export const Markdown = ({ content, className }: MarkdownProps) => {
+type ImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
+
+/** A picture stored here is addressed at the server, which on the native app is
+ *  not the origin the page is served from. */
+function MarkdownImage({ node: _node, src, alt, ...props }: ImageProps) {
+  const resolved = typeof src === "string" ? (resolveUploadUrl(src) ?? src) : src;
+  return <img src={resolved} alt={alt ?? ""} loading="lazy" {...props} />;
+}
+
+const PLAIN_PLUGINS = [remarkGfm];
+const MENTION_PLUGINS = [remarkGfm, remarkMentions];
+const REHYPE_PLUGINS = [rehypeSlug];
+const PLAIN_COMPONENTS = { a: MarkdownAnchor, img: MarkdownImage };
+const MENTION_COMPONENTS = { a: MarkdownAnchor, img: MarkdownImage, span: LinkedMentionSpan };
+
+export const Markdown = ({ content, className, mentions = false }: MarkdownProps) => {
   if (!content) {
     return null;
   }
   return (
     <div className={cn(CONTAINMENT_CLASS, PROSE_CLASS, className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSlug]}
-        components={{ a: MarkdownAnchor }}
+        remarkPlugins={mentions ? MENTION_PLUGINS : PLAIN_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
+        components={mentions ? MENTION_COMPONENTS : PLAIN_COMPONENTS}
       >
         {content}
       </ReactMarkdown>

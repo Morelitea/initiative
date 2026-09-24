@@ -105,6 +105,11 @@
       "archived": "„{{name}}“ archiviert",
       "unarchived": "„{{name}}“ ist zurück"
     },
+    "export": {
+      "title": "Exportieren",
+      "description": "Eine Kopie herunterladen – als Datei, die sich hier oder auf einem anderen Server importieren lässt, oder als Bericht zum Lesen. Exportieren kann nur, wer dies auch löschen darf.",
+      "button": "Exportieren"
+    },
     "title": "Einstellungen",
     "description": "Verwalte Details, Zugriff und erweiterte Optionen.",
     "tabDetails": "Details",
@@ -189,6 +194,11 @@
     "unavailable": "Dieses Gerät hat keine Kamera für ein Foto.",
     "failed": "Dieses Foto konnte nicht gelesen werden. Versuche es erneut."
   },
+  "fileDrop": {
+    "release": "Hier ablegen",
+    "unsupported": "Diese Art von Datei kann hier nicht hochgeladen werden.",
+    "tooLarge": "Diese Datei ist größer, als dieser Server annimmt."
+  },
   "archiveError": "Das konnte nicht archiviert werden. Bitte versuche es erneut.",
   "unarchiveError": "Das konnte nicht aus dem Archiv geholt werden. Bitte versuche es erneut.",
   "markdownEditor": {
@@ -206,6 +216,23 @@
     "bulletedList": "Aufzählung",
     "numberedList": "Nummerierte Liste",
     "taskList": "Aufgabenliste",
-    "more": "Weitere Formatierung"
+    "more": "Weitere Formatierung",
+    "image": "Bild",
+    "uploadingImage": "{{name}} wird hochgeladen…",
+    "imageUploadFailed": "Das Bild konnte nicht hinzugefügt werden."
+  },
+  "errorPage": {
+    "title": "Etwas ist schiefgelaufen",
+    "description": "Auf dieser Seite ist ein Fehler aufgetreten, sie konnte nicht angezeigt werden. Versuche es erneut oder gehe zu deinen Aufgaben.",
+    "appDescription": "In Initiative ist ein Fehler aufgetreten, die App kann nicht fortfahren. Neu laden startet sie erneut.",
+    "details": "Fehlerdetails",
+    "toMyTasks": "Zu {{myTasks}}",
+    "reload": "Neu laden",
+    "updatedTitle": "Initiative wurde aktualisiert",
+    "updatedDescription": "Eine neuere Version ist verfügbar. Lade neu, um diese Seite darin zu öffnen."
+  },
+  "notFoundPage": {
+    "title": "Seite nicht gefunden",
+    "description": "Unter dieser Adresse gibt es nichts. Der Link ist vielleicht falsch geschrieben, oder die Seite wurde verschoben."
   }
 }

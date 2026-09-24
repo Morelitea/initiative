@@ -41,6 +41,7 @@ from app.services.marketplace.definitions import (
     app_widget_type,
     normalize_publisher,
     normalize_listing_definition,
+    normalize_listing_example,
     reserved_prefix_problem,
 )
 from app.services.marketplace import contract
@@ -347,6 +348,8 @@ async def upsert_listing(
     *,
     source: str,
     bundled_with: Optional[str] = None,
+    hold_for_review: bool = False,
+    submitted_by: Optional[int] = None,
 ) -> MarketplaceListing:
     """Create or update one listing and the version its manifest describes.
 
@@ -362,6 +365,12 @@ async def upsert_listing(
     other caller leaves it ``None`` and is publishing something that stands on
     its own. A publish whose ownership disagrees with the stored row is refused
     rather than applied, in either direction.
+
+    ``hold_for_review`` stores the version without offering it: it does not
+    become the listing's latest, a new listing is created unavailable, and an
+    existing one keeps the name and description it is shown under. Approving
+    it is :func:`approve_version`. ``submitted_by`` records the member who
+    shared a new listing; it is never changed afterwards.
     """
     if source not in LISTING_SOURCES:
         raise CatalogError(f"unknown listing source {source!r}")
@@ -378,6 +387,7 @@ async def upsert_listing(
 
     try:
         definition = normalize_listing_definition(kind, manifest.get("definition"))
+        example = normalize_listing_example(kind, manifest.get("example"), definition)
 
         # Required on every ingestion path: seeding, an operator upload, a
         # registry refresh. There is no path that publishes without one.
@@ -450,8 +460,15 @@ async def upsert_listing(
     }
     if existing is None:
         listing = MarketplaceListing(
-            uid=uid, public_id=public_id, created_at=now, **published
+            uid=uid,
+            public_id=public_id,
+            created_at=now,
+            submitted_by=submitted_by,
+            **{**published, "available": not hold_for_review},
         )
+    elif hold_for_review:
+        # What the shelf shows stays as it is until somebody approves a change.
+        listing = existing
     else:
         listing = existing
         for field, value in published.items():
@@ -475,13 +492,16 @@ async def upsert_listing(
             version=version_str,
             published_at=now,
             definition=definition,
+            example=example,
             release_notes=release_notes,
             min_app_version=min_app_version,
+            awaiting_review=hold_for_review,
         )
         session.add(version)
         await session.flush()
     elif (
         version.definition != definition
+        or version.example != example
         or version.release_notes != release_notes
         or version.min_app_version != min_app_version
     ):
@@ -500,7 +520,8 @@ async def upsert_listing(
             "different content; publish a new version instead"
         )
 
-    listing.latest_version_id = version.id
+    if not version.awaiting_review:
+        listing.latest_version_id = version.id
     session.add(listing)
     await session.flush()
 
@@ -675,11 +696,15 @@ async def withdraw_listing(session: AsyncSession, uid: str) -> bool:
 async def listing_versions(
     session: AsyncSession, listing_id: int
 ) -> Sequence[MarketplaceListingVersion]:
-    """Every published version of a listing, newest first."""
+    """Every published version of a listing, newest first. A version still
+    waiting for review is not published yet, and is not among them."""
     return (
         await session.exec(
             select(MarketplaceListingVersion)
-            .where(MarketplaceListingVersion.listing_id == listing_id)
+            .where(
+                MarketplaceListingVersion.listing_id == listing_id,
+                MarketplaceListingVersion.awaiting_review.is_(False),
+            )
             .order_by(MarketplaceListingVersion.published_at.desc())
         )
     ).all()

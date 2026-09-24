@@ -8,14 +8,17 @@ import {
   isUserShelf,
   parseCommunityShelf,
   parseListingKind,
+  UNSHELVED_KINDS,
   USER_SHELVES,
 } from "./marketplace";
 
 describe("who a listing is offered to", () => {
   it("places every kind the server knows on exactly one shelf", () => {
     // A kind added server-side and missed here would be offered by neither
-    // marketplace — invisible rather than obviously broken.
-    const placed = [...USER_SHELVES, ...COMMUNITY_SHELVES];
+    // marketplace — invisible rather than obviously broken. A kind held back
+    // on purpose is listed as unshelved, which is a decision rather than an
+    // omission.
+    const placed = [...USER_SHELVES, ...COMMUNITY_SHELVES, ...UNSHELVED_KINDS];
     expect(new Set(placed).size).toBe(placed.length);
     expect(new Set(placed)).toEqual(new Set(Object.values(ListingKind)));
   });

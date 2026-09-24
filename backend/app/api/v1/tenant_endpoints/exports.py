@@ -23,17 +23,21 @@ from app.api.deps import (
     RLSSessionDep,
     get_current_active_user,
     get_guild_membership,
+    require_seat,
 )
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.core.user_display import display_name
-from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.schemas.tenant.backup_export import BackupEstimate
-from app.schemas.tenant.export_job import ExportJobRead, GuildExportStatus
+from app.schemas.tenant.export_job import (
+    ExportJobRead,
+    GuildExportStatus,
+    serialize_export_job,
+)
 from app.services import audit as audit_service
 from app.services.export.engine import ExportError, InlineExport, start_export
 from app.services.storage import (
@@ -41,6 +45,7 @@ from app.services.storage import (
     content_disposition_attachment,
     get_guild_storage,
 )
+from app.services.export import limits as export_limits
 
 router = APIRouter()
 
@@ -73,11 +78,11 @@ def _allow_job(guild_context: GuildContext) -> bool:
 
 
 def _job_response(
-    job: ExportJob, status_code: int = status.HTTP_200_OK
+    job: ExportJob, *, guild_id: int, status_code: int = status.HTTP_200_OK
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
-        content=ExportJobRead.model_validate(job).model_dump(mode="json"),
+        content=serialize_export_job(job, guild_id=guild_id).model_dump(mode="json"),
     )
 
 
@@ -132,7 +137,9 @@ async def export_tasks(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/project", response_model=None)
@@ -151,7 +158,7 @@ async def export_project(
 ) -> Union[Response, JSONResponse]:
     """Export a project: ``json`` is the self-contained backup envelope (the
     same JSON ``POST /projects/import`` consumes); ``pdf``/``csv``/``xlsx``
-    render a project report (unarchived tasks). Requires write access on the
+    render a project report (unarchived tasks). Takes the owner rung on the
     project. Small projects return the file inline; large ones return ``202``
     with a queued job to poll and download."""
     try:
@@ -173,7 +180,9 @@ async def export_project(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/document", response_model=None)
@@ -197,8 +206,8 @@ async def export_document(
     """Export a document. Valid formats depend on the document type:
     ``json`` for Lexical (importable envelope) and whiteboards (standard
     Excalidraw file), ``csv``/``xlsx`` for spreadsheets, ``file`` for uploaded
-    files (unconverted, original name), ``md`` for smart links. Read access
-    suffices. Small documents return the file inline; large ones return
+    files (unconverted, original name), ``md`` for smart links. Takes the owner
+    rung on the document. Small documents return the file inline; large ones return
     ``202`` with a queued job to poll and download."""
     try:
         result = await start_export(
@@ -219,7 +228,9 @@ async def export_document(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/queue", response_model=None)
@@ -239,8 +250,8 @@ async def export_queue(
     """Export a queue: ``json`` is an importable envelope (items, rotation
     state, tags by name — member assignments and linked documents/tasks ride
     along as display text); ``pdf``/``csv``/``xlsx`` render the turn order as
-    a table and ``md`` as a numbered list. Read access suffices.
-    Small queues return the file inline; large ones return ``202`` with a
+    a table and ``md`` as a numbered list. Takes the owner rung on the
+    queue. Small queues return the file inline; large ones return ``202`` with a
     queued job to poll and download."""
     try:
         result = await start_export(
@@ -257,7 +268,9 @@ async def export_queue(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/counter-group", response_model=None)
@@ -276,7 +289,8 @@ async def export_counter_group(
 ) -> Union[Response, JSONResponse]:
     """Export a counter group: ``json`` is an importable envelope (every
     counter's configuration and current value); ``pdf``/``csv``/``xlsx``/
-    ``md`` render the counters as a table. Read access suffices. Small groups
+    ``md`` render the counters as a table. Takes the owner rung on the
+    group. Small groups
     return the file inline; large ones return ``202`` with a queued job to
     poll and download."""
     try:
@@ -298,7 +312,9 @@ async def export_counter_group(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/dashboard", response_model=None)
@@ -317,8 +333,8 @@ async def export_dashboard(
 ) -> Union[Response, JSONResponse]:
     """Export a dashboard as an importable envelope: its presentation spec and
     canvas config. A dashboard owns no child content — the data it displays
-    belongs to the tools it points at — so there is no report format. Read
-    access suffices. A dashboard built on an app this build does not ship
+    belongs to the tools it points at — so there is no report format. Takes
+    the owner rung on it. A dashboard built on an app this build does not ship
     cannot be exported; install that app where you want it instead. Small
     selections return the file inline; large ones return ``202`` with a queued
     job to poll and download."""
@@ -341,7 +357,138 @@ async def export_dashboard(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
+
+
+@router.get("/post", response_model=None)
+async def export_post(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    post_id: Optional[int] = Query(default=None),
+    post_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per post, zipped"
+    ),
+    format: Literal["json"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export a post as an importable envelope: its body, tags and poll.
+    A notice has no report shape, so there is no rendered format. Takes the owner rung on it. Small selections
+    return the file inline; large ones return ``202`` with a queued job to
+    poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="post",
+            format=format,
+            params={
+                "post_id": post_id,
+                "post_ids": post_ids,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
+
+
+@router.get("/wiki", response_model=None)
+async def export_wiki(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    wiki_id: Optional[int] = Query(default=None),
+    wiki_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per wiki, zipped"
+    ),
+    format: Literal["json", "pdf", "md", "docx"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export a wiki: ``json`` is an importable envelope (every page, the tree
+    they sit in, and its home page); ``pdf``/``md``/``docx`` are the published
+    pages as one document, each under a heading at its depth. The download is
+    always a zip: the wiki, and under ``documents/`` each document filed in it
+    that the caller could export on its own. Takes the owner rung on
+    the wiki. Small selections return the file inline; large ones return
+    ``202`` with a queued job to poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="wiki",
+            format=format,
+            params={
+                "wiki_id": wiki_id,
+                "wiki_ids": wiki_ids,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
+
+
+@router.get("/gallery", response_model=None)
+async def export_gallery(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    gallery_id: Optional[int] = Query(default=None),
+    gallery_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per gallery, zipped"
+    ),
+    format: Literal["json"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export a gallery as a zip: its importable envelope, and each picture it
+    names under ``assets/``. Takes the owner rung on it. Small selections
+    return the file inline; large ones return ``202`` with a queued job to
+    poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="gallery",
+            format=format,
+            params={
+                "gallery_id": gallery_id,
+                "gallery_ids": gallery_ids,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/calendar", response_model=None)
@@ -366,10 +513,11 @@ async def export_calendars(
 ) -> Union[Response, JSONResponse]:
     """Export calendars: ``ics`` is one iCalendar file per calendar (RRULE and
     attendee RSVPs preserved); ``json`` is one importable envelope per
-    calendar holding its events. With no ids and no initiative, every calendar
-    visible to the caller in the guild exports — calendar sharing applies
-    throughout. Read access suffices. Small exports return the file inline;
-    large ones return ``202`` with a queued job to poll and download."""
+    calendar holding its events. Each calendar takes the owner rung on it: with
+    no ids, every calendar the caller may export in the initiative (or across
+    the guild) is included, and the rest are left out. Small exports return the
+    file inline; large ones return ``202`` with a queued job to poll and
+    download."""
     try:
         result = await start_export(
             session,
@@ -390,7 +538,9 @@ async def export_calendars(
 
     if isinstance(result, InlineExport):
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
@@ -412,25 +562,6 @@ def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
             detail=ExportMessages.EXPORT_INVALID_PARAMS,
         )
     return value
-
-
-def _require_guild_seat(guild_context: GuildContext) -> None:
-    """A whole community's archive belongs to the seat.
-
-    The community's every initiative in one file is not the same errand as
-    running the community, so it sits with the seat rather than with an
-    ordinary admin — beside the other things only that seat decides.
-
-    Held outright, too: a lent seat is not it, and neither is a break-glass
-    stand-in. The adapter re-checks the creator's own membership at render
-    time, so a synthesized role would only fail later; reject it up front.
-    """
-
-    if guild_context.is_pam or guild_context.role is not GuildRole.superadmin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED,
-        )
 
 
 async def _guild_export_available_at(session) -> Optional[datetime]:
@@ -504,7 +635,7 @@ async def estimate_aggregate_export(
     from app.services.export.adapters.backup import estimate_backup
 
     if scope == "guild":
-        _require_guild_seat(guild_context)
+        require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     try:
         return await estimate_backup(
             session,
@@ -592,7 +723,9 @@ async def export_initiative(
 
     if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/guild", response_model=None)
@@ -620,7 +753,7 @@ async def export_guild(
     only (held outright; the adapter re-checks at render time so a vacated
     seat fails the job closed), and once per cooldown window. Always returns
     ``202`` with a queued job to poll and download."""
-    _require_guild_seat(guild_context)
+    require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     await _require_guild_cooldown_elapsed(session)
     try:
         result = await start_export(
@@ -659,7 +792,9 @@ async def export_guild(
 
     if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
         return _inline_response(result)
-    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+    return _job_response(
+        result, guild_id=guild_context.guild_id, status_code=status.HTTP_202_ACCEPTED
+    )
 
 
 @router.get("/guild/status", response_model=GuildExportStatus)
@@ -675,7 +810,7 @@ async def read_guild_export_status(
     Seat-only, like the export it describes. Two bounded reads: the newest
     ``guild`` job, and the cooldown the create route enforces.
     """
-    _require_guild_seat(guild_context)
+    require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     latest = (
         await session.exec(
             select(ExportJob)
@@ -693,7 +828,9 @@ async def read_guild_export_status(
     return GuildExportStatus(
         cooldown_hours=settings.EXPORT_GUILD_COOLDOWN_HOURS,
         next_available_at=await _guild_export_available_at(session),
-        latest=ExportJobRead.model_validate(latest) if latest is not None else None,
+        latest=serialize_export_job(latest, guild_id=guild_context.guild_id)
+        if latest is not None
+        else None,
         latest_started_by=started_by or None,
     )
 
@@ -703,14 +840,13 @@ async def list_export_jobs(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> list[ExportJob]:
+) -> list[ExportJobRead]:
     """The caller's export jobs, newest first (RLS scopes the rows: own rows,
     or the whole guild for a guild admin)."""
-    return list(
-        await session.exec(
-            select(ExportJob).order_by(ExportJob.created_at.desc()).limit(_LIST_LIMIT)
-        )
+    jobs = await session.exec(
+        select(ExportJob).order_by(ExportJob.created_at.desc()).limit(_LIST_LIMIT)
     )
+    return [serialize_export_job(job, guild_id=guild_context.guild_id) for job in jobs]
 
 
 @router.get("/{job_id}", response_model=ExportJobRead)
@@ -719,14 +855,14 @@ async def get_export_job(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> ExportJob:
+) -> ExportJobRead:
     job = await session.get(ExportJob, job_id)
     if job is None:  # includes rows RLS hides — 404, never 403
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ExportMessages.EXPORT_JOB_NOT_FOUND,
         )
-    return job
+    return serialize_export_job(job, guild_id=guild_context.guild_id)
 
 
 @router.get("/{job_id}/download")
@@ -777,7 +913,7 @@ async def download_export_artifact(
     signed = (
         storage.presign_get(
             job.artifact_ref,
-            ttl=settings.EXPORT_DOWNLOAD_URL_TTL_SECONDS,
+            ttl=export_limits.EXPORT_DOWNLOAD_URL_TTL_SECONDS,
             filename=filename,
         )
         if settings.EXPORT_PRESIGNED_DOWNLOADS

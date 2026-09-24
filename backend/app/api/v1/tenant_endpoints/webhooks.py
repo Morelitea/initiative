@@ -4,16 +4,18 @@ Register a URL and the change events it should receive; the delivery worker
 POSTs signed, content-free envelopes to it (see
 ``app.services.tenant.outbox_poller``).
 
-**A subscription never sees more than the member who created it.** Delivery
-reads the change log *as that member*, so RLS decides which events reach the
-target and keeps deciding as access changes — leaving an initiative or losing a
-PAM grant stops the matching deliveries with no edit here. That is why these
-routes need no permission of their own: a subscription's reach is its owner's
-reach, and an app acting for a member acts at exactly that member's level.
+**A subscription's reach is the scope it names.** ``initiative_id`` means that
+initiative's changes; omitting it means the whole community's, which is why
+registering one of those is a guild admin's to do. Nobody's standing is read at
+delivery: an envelope is identifiers and changed column names, and a consumer
+reads current state back through the REST path, where every gate applies to the
+read. An automation calling back does so under a delegation naming a member,
+gated as if that member had asked, on a grant re-read every call.
 
-``initiative_id`` narrows a subscription to one initiative. Omitting it means
-"everything in this guild I can reach" — which for a guild admin is the guild,
-and for a member is their initiatives.
+So a subscription is the community's integration configuration rather than the
+personal property of whoever registered it, and it outlives their membership,
+their role and their account. See
+``history/webhook-scope-not-principal-design.md``.
 
   POST   /api/v1/g/{guild_id}/webhooks/subscriptions
     body: {target_url, event_types, fields?, initiative_id?}
@@ -28,8 +30,10 @@ retrying. It is the only surface a broken target has: the poller itself never
 raises, so a nonzero count is what tells whoever owns the subscription to
 check the target or deactivate it.
 
-Mutation routes require the acting user to be the subscription's creator or a
-guild admin — ordinary ownership, the same rule any other guild resource uses.
+Who may rewrite or remove one is the row's own gates, the same ones that govern
+the content it watches: initiative write access for an initiative-scoped
+subscription, guild admin for a community-wide one. Authorship is not a gate in
+this app.
 """
 
 from __future__ import annotations
@@ -96,7 +100,7 @@ async def _validate_target_url(url: str) -> None:
 
 
 async def _named(
-    row: WebhookSubscription, *, dead_letter_count: int
+    row: WebhookSubscription, *, guild_id: int, dead_letter_count: int
 ) -> WebhookSubscriptionRead:
     """One subscription, with the guild and its creator named for its receiver.
 
@@ -104,7 +108,7 @@ async def _named(
     what a receiver reads here is what it will be sent.
     """
     guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
-        guild_id=row.guild_id,
+        guild_id=guild_id,
         app_install_id=row.app_install_id,
         subscription_id=row.id,
         actor_ids=(row.created_by,),
@@ -142,9 +146,9 @@ async def create_subscription(
     omit it. The receiver must persist it from this response or rotate the
     subscription if they lose it.
 
-    Any member of the guild may register one, because doing so grants no access:
-    delivery reads the change log as this creator, so the target receives
-    exactly what they can see and nothing more.
+    A subscription is the community's configuration: delivery carries the change
+    log of the scope it names, the initiative it was registered against or, for
+    one a guild admin registers, the whole community.
 
     Target policy: ``target_url`` must be https and resolve to a public unicast
     address; private, loopback and link-local addresses are rejected.
@@ -168,7 +172,13 @@ async def create_subscription(
 
     return WebhookSubscriptionCreated(
         # A subscription that was just created has no delivery history yet.
-        **(await _named(subscription, dead_letter_count=0)).model_dump(),
+        **(
+            await _named(
+                subscription,
+                guild_id=guild_context.guild_id,
+                dead_letter_count=0,
+            )
+        ).model_dump(),
         hmac_secret=secret,
     )
 
@@ -187,7 +197,14 @@ async def list_subscriptions(
     counts = await subscriptions_service.dead_letter_counts(
         session, subscription_ids=[row.id for row in rows]
     )
-    return [await _named(row, dead_letter_count=counts.get(row.id, 0)) for row in rows]
+    return [
+        await _named(
+            row,
+            guild_id=guild_context.guild_id,
+            dead_letter_count=counts.get(row.id, 0),
+        )
+        for row in rows
+    ]
 
 
 @router.patch(
@@ -203,8 +220,9 @@ async def update_subscription(
 ) -> WebhookSubscriptionRead:
     """Partial-update target_url, event_types, or active flag.
 
-    Only the acting user who created it, or a guild admin, may mutate.
-    ``target_url`` (when provided) is re-validated against the SSRF allowlist.
+    Who may is the UPDATE policy — initiative write access, or guild admin for
+    a community-wide subscription. ``target_url`` (when provided) is
+    re-validated against the SSRF allowlist.
     """
     if payload.target_url is not None:
         await _validate_target_url(str(payload.target_url))
@@ -229,7 +247,11 @@ async def update_subscription(
     counts = await subscriptions_service.dead_letter_counts(
         session, subscription_ids=[row.id]
     )
-    return await _named(row, dead_letter_count=counts.get(row.id, 0))
+    return await _named(
+        row,
+        guild_id=guild_context.guild_id,
+        dead_letter_count=counts.get(row.id, 0),
+    )
 
 
 @router.delete(
@@ -243,8 +265,8 @@ async def delete_subscription(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    """Hard-delete a subscription. Cross-guild lookups 404; non-owner
-    non-admin attempts 403."""
+    """Hard-delete a subscription. Who may is the DELETE policy, the same gates
+    that govern the content it watches; a cross-guild lookup is a 404."""
     try:
         await subscriptions_service.delete_subscription(
             session,

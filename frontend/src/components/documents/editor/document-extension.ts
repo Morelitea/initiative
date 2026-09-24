@@ -20,13 +20,16 @@ import { RichTextExtension } from "@lexical/rich-text";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { configExtension, defineExtension, type InitialEditorStateType } from "lexical";
 
+import { CalloutExtension } from "@/components/ui/editor/extensions/callout-extension";
 import { EmojisExtension } from "@/components/ui/editor/extensions/emojis-extension";
+import { ExcalidrawExtension } from "@/components/ui/editor/extensions/excalidraw-extension";
 import { HeadingAnchorExtension } from "@/components/ui/editor/extensions/heading-anchor-extension";
 import { ImagesExtension } from "@/components/ui/editor/extensions/images-extension";
 import { KeywordsExtension } from "@/components/ui/editor/extensions/keywords-extension";
 import { LayoutExtension } from "@/components/ui/editor/extensions/layout-extension";
 import { ListMaxIndentLevelExtension } from "@/components/ui/editor/extensions/list-max-indent-level-extension";
 import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
+import { StatusExtension } from "@/components/ui/editor/extensions/status-extension";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
 import { EntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
@@ -113,6 +116,9 @@ export function documentExtension({
       ImagesExtension,
       KeywordsExtension,
       LayoutExtension,
+      CalloutExtension,
+      ExcalidrawExtension,
+      StatusExtension,
       HeadingAnchorExtension,
       ListMaxIndentLevelExtension,
       MarkdownShortcutsExtension,

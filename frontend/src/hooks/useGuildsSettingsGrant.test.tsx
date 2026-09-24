@@ -101,7 +101,7 @@ describe("settings grants in the community switcher", () => {
   it("keeps a settings grant alongside an ordinary membership", async () => {
     get.mockImplementation((path: string) => {
       if (path === "/guilds/") {
-        return Promise.resolve({ data: [buildGuild({ id: 8, role: "member", is_admin: false })] });
+        return Promise.resolve({ data: [buildGuild({ id: 8, role: "member" })] });
       }
       if (path === "/access-grants/") {
         return Promise.resolve({
@@ -128,5 +128,59 @@ describe("settings grants in the community switcher", () => {
     );
 
     await waitFor(() => expect(screen.getByText('{"settings":"superadmin"}')).toBeVisible());
+  });
+
+  it("takes what may be changed from the community's own entry", async () => {
+    get.mockImplementation((path: string) => {
+      if (path === "/guilds/") return Promise.resolve({ data: [] });
+      if (path === "/access-grants/") {
+        return Promise.resolve({
+          data: [
+            {
+              guild_id: 8,
+              guild_name: "Granted Community",
+              purpose: "settings",
+              access_level: "admin",
+              is_live: true,
+              requested_at: "2026-09-17T20:00:00Z",
+              expires_at: "2026-09-17T22:00:00Z",
+            },
+          ],
+        });
+      }
+      if (path === "/guilds/8") {
+        return Promise.resolve({
+          data: buildGuild({ id: 8, role: "admin", can_write_settings: false, retention_days: 30 }),
+        });
+      }
+      throw new Error(`Unexpected read: ${path}`);
+    });
+
+    const EntryProbe = () => {
+      const { activeGuild } = useGuilds();
+      return (
+        <output>
+          {JSON.stringify({
+            access: activeGuild?.accessType,
+            settings: activeGuild?.grantSettingsLevel,
+            writes: activeGuild?.can_write_settings,
+            retention: activeGuild?.retention_days,
+          })}
+        </output>
+      );
+    };
+
+    render(
+      <GuildProvider>
+        <EntryProbe />
+      </GuildProvider>
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('{"access":"grant","settings":"admin","writes":false,"retention":30}')
+      ).toBeVisible()
+    );
+    expect(get).toHaveBeenCalledWith("/guilds/8");
   });
 });

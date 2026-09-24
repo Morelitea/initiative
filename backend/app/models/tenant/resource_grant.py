@@ -49,6 +49,28 @@ class ResourceAccessLevel(str, Enum):
     write = "write"
     read = "read"
 
+    def reaches(self, level: "ResourceAccessLevel") -> bool:
+        """Whether this level carries what ``level`` carries.
+
+        The sharing ladder asked as a comparison rather than as a set per
+        question: ``write`` reaches ``read``, ``owner`` reaches both.
+        """
+        return RESOURCE_LEVEL_LADDER.index(self) >= RESOURCE_LEVEL_LADDER.index(level)
+
+
+#: The sharing ladder, lowest rung first — the one ordering, which the
+#: policies' write leg and the app's level arithmetic both read.
+RESOURCE_LEVEL_LADDER: tuple[ResourceAccessLevel, ...] = (
+    ResourceAccessLevel.read,
+    ResourceAccessLevel.write,
+    ResourceAccessLevel.owner,
+)
+
+#: The levels that let somebody change a resource; ``read`` is the third.
+WRITE_LEVELS: tuple[ResourceAccessLevel, ...] = tuple(
+    level for level in RESOURCE_LEVEL_LADDER if level.reaches(ResourceAccessLevel.write)
+)
+
 
 class ResourceGrant(CreatedByMixin, table=True):
     __tablename__ = "resource_grants"
@@ -94,7 +116,6 @@ class ResourceGrant(CreatedByMixin, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     # Carried directly so RLS is a plain initiative_access(initiative_id) — no hop.
     #
     # NULL means the grant is on a guild-level resource: one that belongs to no
@@ -121,7 +142,7 @@ class ResourceGrant(CreatedByMixin, table=True):
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("users.id", ondelete="CASCADE"),
+            ForeignKey("users.id"),
             nullable=True,
         ),  # indexed by composite partial ix_resource_grants_user
     )
@@ -136,7 +157,7 @@ class ResourceGrant(CreatedByMixin, table=True):
     #: The dashboard this resource is readable *through*. A published view: the
     #: tile shows the same rows to everyone the dashboard reaches, rather than
     #: each viewer's own. It answers only while a request is drawing that
-    #: dashboard — see ``public.resource_access`` and ``app.via_dashboard_id``.
+    #: dashboard — see ``resource_access`` and ``app.via_dashboard_id``.
     dashboard_id: Optional[int] = Field(
         default=None,
         sa_column=Column(

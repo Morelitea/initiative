@@ -145,3 +145,56 @@ async def test_two_things_claiming_one_name_keeps_the_first(session, acting_user
         relationship_type=RelationshipType.related_to,
         other_kind=SearchEntityType.task,
     ) == [other.id]
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (["Priority", "Team"], frozenset({"Priority", "Team"})),
+        (None, frozenset()),
+        ("Priority", frozenset()),
+        (["Priority", 3, "", None], frozenset({"Priority"})),
+    ],
+)
+def test_unticked_properties_are_read_back_defensively(raw, expected):
+    """They round-tripped through a request into the job's params, so only a
+    list of names counts."""
+    from app.services.import_engine.context import excluded_property_names
+
+    assert excluded_property_names(raw) == expected
+
+
+def test_a_confluence_page_link_is_named_by_its_page_id_on_its_own_site():
+    from app.services.import_engine.links import confluence_page_ref
+
+    site = "https://acme.atlassian.net"
+    assert confluence_page_ref(f"{site}/wiki/spaces/DOCS/pages/12/Guide", site) == (
+        "confluence:12"
+    )
+    assert confluence_page_ref(
+        f"{site}/wiki/pages/viewpage.action?pageId=34", site
+    ) == ("confluence:34")
+    # Another site's page, or not a page at all, is no ref.
+    assert (
+        confluence_page_ref("https://other.atlassian.net/wiki/spaces/X/pages/1", site)
+        is None
+    )
+    assert confluence_page_ref(f"{site}/browse/ACME-1", site) is None
+
+
+def test_a_link_to_a_page_that_came_over_becomes_a_mention_of_it():
+    from app.services.import_engine.links import rewrite_page_links
+
+    text = (
+        "See [the guide](https://acme.atlassian.net/wiki/spaces/D/pages/2/Guide), "
+        "[https://acme.atlassian.net/wiki/spaces/D/pages/2](<https://acme.atlassian.net/wiki/spaces/D/pages/2>) "
+        "and [elsewhere](https://example.com)."
+    )
+
+    def resolve(url):
+        return (7, "Guide") if "/pages/2" in url else None
+
+    assert rewrite_page_links(text, resolve) == (
+        "See #wiki_page[the guide](7), #wiki_page[Guide](7) and "
+        "[elsewhere](https://example.com)."
+    )

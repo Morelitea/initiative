@@ -19,6 +19,7 @@ from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
     LIVE_STATUS_VALUES,
+    UNLISTED_STATUSES,
     DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
@@ -27,12 +28,15 @@ from app.models.platform.guild import (
     GuildMembership,
     GuildRole,
     GuildStatus,
+    restore_status_choices,
 )
 from app.models.platform.guild_administration import GuildAdministration
+from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User, UserStatus
 from app.services import audit as audit_service
 from app.services.auth import addresses
+from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
@@ -526,27 +530,27 @@ async def list_memberships(
     """Return (guild, membership, retention_days, member_count, administration)
     for each guild the user belongs to.
 
-    The guild + membership rows are shared (public). ``retention_days`` lives in
-    each guild's own schema (``guild_settings``), so it's read per guild with the
-    user's membership context — a single cross-guild join would hit the empty
-    public table and report NULL for everyone. ``guild_settings.id`` is a
-    per-schema serial that collides across schemas, so each settings row is
-    detached after reading so a cached row can't shadow the next guild's. It is
-    read only where the caller is that guild's admin: retention is one of the
-    administration fields ``GuildRead`` withholds from ordinary members, so for
-    them it comes back ``None`` and costs no query.
+    One bounded pass, whatever the number of guilds:
 
-    ``member_count`` is the total number of members in the guild. It's read
-    inside the same per-guild loop because the ``guild_memberships_select`` RLS
-    policy only exposes sibling rows while that guild's context is active
-    (``guild_id = current_guild_id``); under the caller's user-only context a
-    cross-guild count would see just the user's own row.
-
-    ``administration`` (caps + plan label + sign-in entitlement) is read on the
-    same admin-only terms as retention, and for the same reason: ``GuildRead``
-    serves those fields to guild admins alone, so a member's request never pays
-    for the row."""
-    from app.db.session import set_rls_context  # lazy: avoids a circular import
+    * The guild and membership rows, and ``administration`` (caps, plan label
+      and sign-in entitlement), are shared tables the caller reads on their own
+      platform tier: ``guild_administration`` admits a member's own guilds.
+      ``administration`` is read only for the guilds the caller administers,
+      since ``GuildRead`` serves those fields to guild admins alone.
+    * ``member_count`` is every guild's total, counted in one grouped query on
+      the system engine over the guild ids the caller's own read returned. The
+      caller's tier reads only its own membership rows, so a count there would
+      see one member per guild.
+    * ``retention_days`` lives in each guild's own schema (``guild_settings``)
+      and is one of the administration fields, so it is read only where the
+      caller is that guild's admin, each guild entered through the seam on its
+      settings surface (:func:`gather_across_guilds`). A guild the seam does not
+      admit the caller to right now reports ``None``; a member's entry is
+      ``None`` and costs no query.
+    """
+    # lazy: avoids a circular import
+    from app.db.session import SystemSessionLocal, set_rls_context
+    from app.services.cross_guild import gather_across_guilds
 
     await set_rls_context(session, user_id=user_id)
     pairs = (
@@ -562,52 +566,80 @@ async def list_memberships(
         )
     ).all()
 
-    out: list[
-        tuple[Guild, GuildMembership, int | None, int, GuildAdministration | None]
-    ] = []
-    for guild, membership in pairs:
-        # A suspended guild disappears from its members' guild list; guild
-        # ADMINS keep the entry so they can still reach the settings surface
-        # (billing / data ownership / danger zone stay theirs while the guild
-        # is only suspended). No status is serialized either way — the row is
-        # simply absent for members.
-        #
-        # A DELETED guild disappears for everyone, admins included: there is no
-        # billing surface left to reach and the danger zone has already been
-        # used. Only a platform operator sees it, and only to restore it.
-        if guild.status == GuildStatus.deleted.value:
-            continue
-        if (
-            guild.status not in LIVE_STATUS_VALUES
-            and membership.role not in GUILD_ADMIN_ROLES
-        ):
-            continue
-        await set_rls_context(session, user_id=user_id, guild_id=guild.id)
-        retention: int | None = None
-        administration: GuildAdministration | None = None
-        if membership.role in GUILD_ADMIN_ROLES:
-            row = (
-                await session.exec(
-                    select(GuildSetting).where(GuildSetting.guild_id == guild.id)
-                )
-            ).one_or_none()
-            # No row yet → the 90-day default; an explicit NULL is the user's "never".
-            retention = 90 if row is None else row.retention_days
-            if row is not None:
-                session.expunge(row)
-            administration = (
+    # A suspended guild disappears from its members' guild list. Guild ADMINS
+    # keep the entry, carrying its status, so the app can show them a closed
+    # community rather than a missing one — they reach nothing inside it until
+    # the platform lifts the suspension. The row is simply absent for members.
+    #
+    # A guild ON HOLD or DELETED disappears for everyone, admins included. Only
+    # a platform operator sees it.
+    listed = [
+        (guild, membership)
+        for guild, membership in pairs
+        if GuildStatus(guild.status) not in UNLISTED_STATUSES
+        and (guild.status in LIVE_STATUS_VALUES or membership.role in GUILD_ADMIN_ROLES)
+    ]
+    if not listed:
+        return []
+
+    administered = [
+        guild for guild, membership in listed if membership.role in GUILD_ADMIN_ROLES
+    ]
+    administrations: dict[int, GuildAdministration] = {}
+    if administered:
+        administrations = {
+            row.guild_id: row
+            for row in (
                 await session.exec(
                     select(GuildAdministration).where(
-                        GuildAdministration.guild_id == guild.id
+                        GuildAdministration.guild_id.in_(
+                            [guild.id for guild in administered]
+                        )
                     )
                 )
-            ).one_or_none()
-        member_count = await count_members(session, guild_id=guild.id)
-        out.append((guild, membership, retention, member_count, administration))
+            ).all()
+        }
 
-    # Restore the user-only context the caller (UserSessionDep) handed us.
-    await set_rls_context(session, user_id=user_id)
-    return out
+    async with SystemSessionLocal() as system_session:
+        counts = await count_members_by_guild(
+            system_session, guild_ids=[guild.id for guild, _ in listed]
+        )
+
+    retention: dict[int, int | None] = {}
+    live_administered = [
+        guild.id for guild in administered if guild.status in LIVE_STATUS_VALUES
+    ]
+    if live_administered:
+
+        async def _retention(
+            routed: AsyncSession, guild_id: int
+        ) -> list[tuple[int, int | None]]:
+            return [(guild_id, await get_guild_retention_days(routed, guild_id))]
+
+        retention = dict(
+            await gather_across_guilds(
+                session,
+                user_id,
+                live_administered,
+                _retention,
+                for_settings=True,
+            )
+        )
+        # Back to the user-only context the caller (UserSessionDep) handed us.
+        await set_rls_context(session, user_id=user_id)
+
+    return [
+        (
+            guild,
+            membership,
+            retention.get(guild.id) if membership.role in GUILD_ADMIN_ROLES else None,
+            counts.get(guild.id, 0),
+            administrations.get(guild.id)
+            if membership.role in GUILD_ADMIN_ROLES
+            else None,
+        )
+        for guild, membership in listed
+    ]
 
 
 async def count_members_by_guild(
@@ -652,7 +684,7 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     """Seed a guild_settings row. guild_settings is guild-scoped (it holds
     private config like API keys), so under schema-per-guild this must run with
     the session already routed to the guild's schema."""
-    settings_row = GuildSetting(guild_id=guild_id, retention_days=90)
+    settings_row = GuildSetting(retention_days=90)
     session.add(settings_row)
     await session.flush()
     return settings_row
@@ -776,12 +808,9 @@ async def seed_guild_content(
     from app.services.tenant import mandatory_apps as mandatory_apps_service
 
     await provision_guild(guild_id)
-    await set_rls_context(
-        session,
-        user_id=owner.id,
-        guild_id=guild_id,
-        guild_role=GuildRole.admin.value,
-    )
+    # Seeding is the system engine's, routed into the new schema: the guild
+    # has no members yet and nobody is asking for anything.
+    await set_rls_context(session, guild_id=guild_id)
     await create_guild_settings(session, guild_id)
     try:
         # Inside a savepoint, so a failure here rolls back the app install and
@@ -1058,7 +1087,7 @@ async def get_guild_retention_days(session: AsyncSession, guild_id: int) -> int 
     collapses both to None and silently re-enables auto-purge for guilds
     that opted out.
     """
-    stmt = select(GuildSetting).where(GuildSetting.guild_id == guild_id)
+    stmt = select(GuildSetting).limit(1)
     result = await session.exec(stmt)
     row = result.one_or_none()
     if row is None:
@@ -1298,6 +1327,70 @@ async def _deletion_notice(
     )
 
 
+async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
+    """Tell the community's seat holders, once, that it is on hold and whom to
+    contact.
+
+    Called after the commit that put it there, on the system engine. The people
+    told are its superadmins: the hold is about paying for it, which is the
+    seat's errand. Each gets one line in their bell — an account notice, not
+    one filed under the community, which none of them can open now — and one
+    letter at every proved address, which names the day the community is
+    deleted if the hold is still in place. Neither is allowed to fail the hold.
+    """
+    from app.db.session import set_rls_context
+    from app.services import email as email_service
+    from app.services.platform import guild_purge
+    from app.services.platform import intake as intake_service
+    from app.services.platform import user_notifications
+
+    await set_rls_context(session)
+    guild = (
+        await session.exec(select(Guild).where(Guild.id == guild_id))
+    ).one_or_none()
+    if guild is None or guild.status != GuildStatus.on_hold.value:
+        return
+    contact = await intake_service.contact_for(session, IntakeStream.support)
+    days = await guild_purge.hold_deletion_days(session)
+    delete_at = (
+        guild_purge.hold_deletes_at(guild.status_changed_at, days)
+        if days is not None and guild.status_changed_at is not None
+        else None
+    )
+    seat_holders = (
+        await session.exec(
+            select(GuildMembership.user_id).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
+    recipients: list[str] = []
+    for user_id in seat_holders:
+        await user_notifications.create_notification(
+            session,
+            user_id=user_id,
+            notification_type=NotificationType.guild_on_hold,
+            data={"community": guild.name, "contact": contact, "target_path": "/"},
+        )
+        recipients.extend(await addresses.proven_addresses(session, user_id=user_id))
+    await session.commit()
+    if not recipients:
+        return
+    try:
+        await email_service.send_community_on_hold_email(
+            session,
+            recipients=sorted(set(recipients)),
+            community=guild.name,
+            contact=contact,
+            delete_at=delete_at,
+        )
+    except email_service.EmailNotConfiguredError:
+        logger.info("no mail configured; community hold not announced by letter")
+    except Exception:  # pragma: no cover - delivery is best-effort here
+        logger.exception("could not send the community hold notice")
+
+
 async def soft_delete_guild(
     session: AsyncSession,
     guild: Guild,
@@ -1305,6 +1398,7 @@ async def soft_delete_guild(
     actor_user_id: int | None = None,
     via: str = "admin",
     target_user_id: int | None = None,
+    keep_roster: bool = False,
 ) -> CommunityDeletionNotice:
     """Delete a guild by moving it to ``deleted``, keeping everything.
 
@@ -1332,6 +1426,8 @@ async def soft_delete_guild(
     like any other. Every larger community keeps its roster, because those rows
     describe other people, and bringing the community back without them would
     make a restore into a different community with the same name.
+    ``keep_roster`` keeps even that one row, for a deletion nobody asked for:
+    a hold that ran out.
 
     Everyone is poked first, for the same reason :func:`delete_guild` does it:
     by the time this returns, every one of those people has an account that
@@ -1342,18 +1438,17 @@ async def soft_delete_guild(
     notice = await _deletion_notice(session, guild)
     await _signal_members_present(session, guild_id=guild_id, action="membership")
     members = await count_members(session, guild_id=guild_id)
-    clear_roster = members <= 1
-    if actor_user_id is not None:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.GUILD_DELETED,
-            actor_user_id=actor_user_id,
-            target_user_id=target_user_id,
-            guild_id=guild_id,
-            target_type="guild",
-            target_id=guild_id,
-            detail={"via": via, "roster_cleared": clear_roster},
-        )
+    clear_roster = not keep_roster and members <= 1
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_DELETED,
+        actor_user_id=actor_user_id,
+        target_user_id=target_user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"via": via, "roster_cleared": clear_roster},
+    )
     if clear_roster:
         await session.exec(
             delete(GuildMembership).where(GuildMembership.guild_id == guild_id)
@@ -1397,9 +1492,9 @@ async def restore_guild(
     """Bring a deleted guild back at ``status``, seating ``seat_user_id``.
 
     Raises :class:`ValueError` carrying a message code: the guild must be
-    ``deleted``, the status it returns at must not be, and a guild whose roster
-    no longer holds a seat must be given one — an account named here is made
-    its ``superadmin``.
+    ``deleted``, the status it returns at must be one of
+    :func:`restore_status_choices`, and a guild whose roster no longer holds a
+    seat must be given one — an account named here is made its ``superadmin``.
 
     The operator names the status rather than the guild remembering it. A
     community suspended for nonpayment and then deleted should not come back
@@ -1411,6 +1506,13 @@ async def restore_guild(
         raise ValueError(GuildMessages.GUILD_NOT_DELETED)
     if status == GuildStatus.deleted:
         raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+    if billing_service.billing_managed():
+        recorded = (await get_administration(session, guild_id=guild_id)).billing_status
+        if status not in restore_status_choices(
+            billing_status=GuildStatus(recorded) if recorded else None,
+            billing_managed=True,
+        ):
+            raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_SET_BY_BILLING)
 
     await lock_guild_seats(session, guild_id)
     seated: int | None = None
@@ -1923,8 +2025,9 @@ async def must_keep_superadmin(
 
     True when they hold ``superadmin`` and are the only one who does. Every
     guild keeps one: the seat holds the sign-in configuration and the billing
-    portal, and only an operator can seat a guild that has emptied it — so
-    emptying it is not something a guild can be allowed to do to itself.
+    portal, and a guild that has emptied it has nobody inside who can seat
+    another — so emptying it is not something a guild can be allowed to do to
+    itself.
 
     Narrower once: the last holder stayed only while a sign-in requirement
     stood, which was right while the seat was about sign-in alone and rare

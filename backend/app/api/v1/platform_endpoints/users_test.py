@@ -16,7 +16,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.usernames import url_handle
 from app.db.query import MAX_ID_FILTER_VALUES
-from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import Presence, User, UserStatus
 from app.models.platform.user_decoration import UserDecoration
@@ -33,7 +32,6 @@ from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_initiative,
-    create_initiative_member,
     create_marketplace_listing,
     create_profile_pack,
     create_project,
@@ -41,6 +39,7 @@ from app.testing.factories import (
     create_user,
     get_auth_token,
 )
+from app.testing import route_as
 
 #: Every test here drives the API through the real app and a real database.
 pytestmark = pytest.mark.integration
@@ -242,7 +241,7 @@ async def _queue_assignment_item(session: AsyncSession, user, guild) -> None:
     initiative = await create_initiative(session, guild, user, name="Queue")
     project = await create_project(session, initiative, user, name="Queue Project")
     task = await create_task(session, project, title="Queued")
-    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    await route_as(session, user_id=user.id, guild_id=guild.id)
     session.add(
         TaskAssignmentDigestItem(
             user_id=user.id,
@@ -258,7 +257,7 @@ async def _queue_assignment_item(session: AsyncSession, user, guild) -> None:
 
 async def _pending_assignment_items(session: AsyncSession, user, guild) -> int:
     session.expunge_all()
-    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    await route_as(session, user_id=user.id, guild_id=guild.id)
     rows = (
         await session.exec(
             select(TaskAssignmentDigestItem).where(
@@ -363,12 +362,11 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
         "status",
         "profile_decorations",
         "guild_role",
-        "is_guild_admin",
     }
-    # Asserted as a value, not only as a key. The schema defaults it to False,
-    # so a key-set check passes just as happily on an endpoint that never
-    # fills it in -- which is the state this test was written against.
-    assert summary["is_guild_admin"] is False
+    # Asserted as a value, not only as a key. The schema leaves it unset, so a
+    # key-set check passes just as happily on an endpoint that never fills it
+    # in -- which is the state this test was written against.
+    assert summary["guild_role"] == "member"
     # This guild takes the default and shows names.
     assert summary["full_name"] == "Aaa"
 
@@ -688,6 +686,34 @@ async def test_a_setting_outside_its_range_is_refused(
         assert in_detail in response.json()["detail"].lower()
 
 
+async def test_time_format_round_trip(client, acting_user):
+    """Each clock convention round-trips, and a new account answers "system"."""
+    a = await acting_user()
+
+    me = await client.get("/api/v1/users/me", headers=a.headers)
+    assert me.status_code == 200
+    assert me.json()["time_format"] == "system"
+
+    for value in ("12", "24", "system"):
+        response = await client.patch(
+            "/api/v1/users/me", headers=a.headers, json={"time_format": value}
+        )
+        assert response.status_code == 200, value
+        assert response.json()["time_format"] == value
+
+
+async def test_time_format_rejects_unknown(client, acting_user):
+    """A convention the app has no name for never reaches the column."""
+    a = await acting_user()
+
+    response = await client.patch(
+        "/api/v1/users/me", headers=a.headers, json={"time_format": "48"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_TIME_FORMAT"
+
+
 async def test_task_completion_visual_feedback_round_trip(client, acting_user):
     """Each known visual-feedback option round-trips through PATCH /users/me."""
     a = await acting_user()
@@ -986,6 +1012,29 @@ async def test_users_me_reports_linked_identity(client, session, acting_user):
     assert response.json()["has_federated_identity"] is False
 
 
+async def test_updating_yourself_reports_your_own_linked_identity(
+    client, session, acting_user
+):
+    """PATCH /users/me reads the caller's own identity links on their platform
+    tier and carries the answer back, for an empty update and a real one."""
+    linked = await acting_user()
+    await create_federated_identity(session, linked.user)
+    plain = await acting_user()
+
+    for body in ({}, {"full_name": "Renamed"}):
+        response = await client.patch(
+            "/api/v1/users/me", headers=linked.headers, json=body
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["has_federated_identity"] is True
+
+    response = await client.patch(
+        "/api/v1/users/me", headers=plain.headers, json={"full_name": "Plain"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["has_federated_identity"] is False
+
+
 async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
     """Headers naming a session row opened a moment ago — what an account with
     no password to re-check answers a confirmation with."""
@@ -1084,38 +1133,6 @@ async def test_self_delete_asks_a_password_account_for_its_password(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "USER_INVALID_PASSWORD"
-
-
-async def test_initiative_members_excludes_anonymized(
-    client, session, acting_user, role_session
-):
-    """The transfer-target picker offers people, so an anonymized husk is not
-    on it — only accounts that are still somebody."""
-    from app.services.platform import users as users_service
-
-    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
-    departing = await create_user(session)
-    await create_initiative_member(
-        session, initiative=creator.initiative, user=departing
-    )
-    survivor = await create_user(session)
-    await create_initiative_member(
-        session, initiative=creator.initiative, user=survivor
-    )
-
-    # Anonymize the departing user — they should disappear from the picker.
-    admin_session = await role_session("app_admin")
-    await users_service.soft_delete_user(admin_session, departing.id)
-
-    response = await client.get(
-        f"/api/v1/users/me/initiative-members/{creator.initiative.id}",
-        params={"guild_id": creator.guild.id},
-        headers=creator.headers,
-    )
-    assert response.status_code == 200
-    ids = {member["id"] for member in response.json()}
-    assert departing.id not in ids
-    assert survivor.id in ids
 
 
 async def test_profile_carries_the_basics(client, session, acting_user):
@@ -1492,6 +1509,8 @@ async def test_library_carries_what_a_pack_granted(client, session, acting_user)
         # No listing behind this row in this test, so no name to carry.
         "name": None,
         "source": "studio.midnight-pack",
+        # Nor a picture of its own.
+        "image_url": None,
     }
     assert len(items) == len(SHIPPED_DECORATIONS) + 1
     assert "pack.elsewhere" not in {item["id"] for item in items}

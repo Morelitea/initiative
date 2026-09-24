@@ -1,6 +1,6 @@
 """Shared guild- and initiative-membership checks.
 
-Initiative scoping has **one** definition: the ``public.initiative_access`` SQL
+Initiative scoping has **one** definition: the ``initiative_access`` SQL
 function (initiative member OR guild admin OR PAM grant, read from the request
 GUCs). The guild-schema RLS policies call it, and ``initiative_scope_clause``
 here calls the *same* function — for the tables the policies deliberately do
@@ -28,6 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.models.tenant.initiative import InitiativeMember
+from app.db.authorization import standing_arg
 
 
 # ---------------------------------------------------------------------------
@@ -58,17 +59,20 @@ def initiative_scope_clause(
     need_write: bool = False,
 ) -> ColumnElement[bool]:
     """Initiative-scope predicate for embedding in any SELECT — the **single
-    source of truth**: it defers to the ``public.initiative_access`` SQL function
+    source of truth**: it defers to the ``initiative_access`` SQL function
     (initiative member OR guild admin OR PAM grant, read from the request GUCs),
     the exact same predicate the guild-schema RLS policies use. There is one rule,
     in one place, called by both the database and the app.
 
-    Because the function reads ``app.current_guild_role`` / ``app.pam_*`` from the
+    Because the function reads the request's standing (``app.guild_admin``,
+    ``app.member_initiatives``) and ``app.pam_*`` from the
     session GUCs, the guild-admin and PAM legs come "for free" on any routed
     session (``RLSSessionDep`` or a per-guild ``set_rls_context``). ``need_write``
     selects the read vs. write PAM leg.
     """
-    return func.initiative_access(initiative_id_col, user_id, need_write)
+    return func.initiative_access(
+        initiative_id_col, user_id, need_write, standing_arg()
+    )
 
 
 #: Distinguishes "this row has no initiative_id column" from "its initiative_id

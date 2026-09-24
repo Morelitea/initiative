@@ -23,7 +23,6 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.db import session as db_session
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
@@ -33,6 +32,7 @@ from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services.export import engine as export_engine
 from app.services.platform import accounts as accounts_service
 from app.services.platform import user_notifications
+from app.services.export import limits as export_limits
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def _open_user_session() -> AsyncSession:
 
 async def process_export_jobs() -> None:
     now = datetime.now(timezone.utc)
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         await set_rls_context(session)
         guild_ids = list(
             await session.exec(
@@ -64,7 +64,7 @@ async def process_export_jobs() -> None:
         )
         for guild_id in guild_ids:
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            await set_rls_context(session, guild_id=guild_id)
             outcomes = await _process_guild_jobs(session, guild_id=guild_id, now=now)
             await session.commit()
             # Notify creators from the UNROUTED system context: the guild-admin
@@ -129,7 +129,7 @@ async def _process_guild_jobs(
             # retention they keep there, and is not ours to sweep up.
             job.expires_at = (
                 datetime.now(timezone.utc)
-                + timedelta(hours=settings.EXPORT_ARTIFACT_TTL_HOURS)
+                + timedelta(hours=export_limits.EXPORT_ARTIFACT_TTL_HOURS)
                 if location.artifact_ref
                 else None
             )
@@ -214,7 +214,7 @@ async def process_export_gc() -> None:
     from app.services.storage import get_guild_storage
 
     now = datetime.now(timezone.utc)
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         await set_rls_context(session)
         guild_ids = list(
             await session.exec(
@@ -225,7 +225,7 @@ async def process_export_gc() -> None:
         )
         for guild_id in guild_ids:
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            await set_rls_context(session, guild_id=guild_id)
             jobs = list(
                 await session.exec(
                     select(ExportJob).where(

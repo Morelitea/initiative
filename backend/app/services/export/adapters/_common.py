@@ -94,6 +94,12 @@ class ToolExportAdapter:
     # template. A tool with report formats names its own.
     template_id: str = "data-table"
     formats: frozenset[str] = frozenset({"json"})
+    #: What a marketplace listing of this tool shows beside what it installs.
+    #: A tool made of content previews with an example the publisher filled in;
+    #: a tool made of queries over the community's data previews with sample
+    #: data generated from the queries' shapes, because its results are the
+    #: publisher's community, not something they made for the listing.
+    example_is_generated: bool = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -116,6 +122,11 @@ class ToolExportAdapter:
     def item(self, entity: Any, ctx: BuildContext, /) -> RenderItem:
         """Serialise one entity into its render item."""
         raise NotImplementedError
+
+    def items(self, entity: Any, ctx: BuildContext, /) -> tuple[RenderItem, ...]:
+        """Every file one entity becomes. One, unless its contents travel
+        beside it — a gallery's pictures ride next to its envelope."""
+        return (self.item(entity, ctx),)
 
     async def prepare(self, session: AsyncSession, entities: list[Any], /) -> Any:
         """Anything the item builders need across the whole batch, loaded in
@@ -178,9 +189,24 @@ class ToolExportAdapter:
             now=localize_now(datetime.now(timezone.utc), params.get("tz")),
             prepared=await self.prepare(session, entities),
         )
+        batch = tuple(item for entity in entities for item in self.items(entity, ctx))
+        if format == "json":
+            # An envelope names people by handle, never by id — including the
+            # people its body mentions, which the item builders cannot look
+            # up because they hold no session.
+            # Nor does it name other things by id: each reference carries the
+            # ref it had, for the import to point at whatever that became.
+            from app.services.import_engine.mentions import detach_envelope_mentions
+            from app.services.import_engine.references import (
+                detach_envelope_references,
+            )
+
+            for item in batch:
+                await detach_envelope_mentions(session, item.data)
+                detach_envelope_references(item.data, guild_id=guild_id)
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=tuple(self.item(entity, ctx) for entity in entities),
+            batch=batch,
         )

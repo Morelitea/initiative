@@ -25,6 +25,8 @@ Pages nest. Hover any page in the tree and a **+** appears to start one undernea
 
 Drag a page onto another to file it underneath. Drag it to a row's top or bottom edge to put it beside instead. A page cannot be dropped inside itself, which is the one move the tree will not let you make.
 
+Documents you already have can sit in a wiki too: **Add a document** at the bottom of the tree offers every document in the initiative — a PDF, a spreadsheet, a whiteboard, a link. Each opens in the wiki the way it opens anywhere, and drags like a page, so the fire risk assessment can live under "Health and safety" where people will actually look for it. Nothing is copied. The document keeps its own address and its own sharing, and can sit somewhere else entirely in another wiki.
+
 A page is written in the same editor as a document, with the same toolbar and the same shortcuts. If you've written a document here, you already know how — and like a document, several people can write on the same page at once, each with their own cursor.
 
 ## Linking, which is the actual point
@@ -75,6 +77,12 @@ Pages aren't shared separately. A wiki is one thing to share, because the whole 
 A wiki opens on whichever page you nominate as its home — **Set as home page** from a page's own menu. Nominate nothing and it opens on the first page in the tree, which is fine for a while and gets less fine as it grows.
 
 Make the home page a contents page. A short one. Three sentences saying what this wiki is, and links to the four places most people are actually going.
+
+## Taking a copy
+
+**Settings → Advanced** on the wiki exports it, for whoever could also delete it. As a **PDF**, **Markdown** or **Word** file it's the whole wiki as one document: every page under a heading with its title, nested as deep as the page sits, each starting a new page in PDF and Word, drafts left out. As an **importable file** it keeps every page, the tree, the home page and the documents filed in it — import it from another wiki page and the documents are filed back under the same pages.
+
+Whichever you pick, the download is a zip: the wiki, and the documents filed in it, each in the format that suits it — text in the format you picked, spreadsheets as Excel, uploads as themselves. A document you couldn't export on its own stays behind.
 
 ## Deleting a page
 

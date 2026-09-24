@@ -71,7 +71,7 @@ def _recent_proof_required() -> HTTPException:
 
 async def require_password_or_recent_proof(
     request: Request,
-    admin_session: AsyncSession,
+    system_session: AsyncSession,
     user: User,
     supplied: Optional[str],
     *,
@@ -96,10 +96,10 @@ async def require_password_or_recent_proof(
         return
 
     session_id = require_session_row(request)
-    row = await admin_session.get(AuthSession, session_id)
+    row = await system_session.get(AuthSession, session_id)
     if row is None or row.user_id != user.id or row.revoked_at is not None:
         raise _recent_proof_required()
-    started = await chain_started_at(admin_session, session_id=session_id)
+    started = await chain_started_at(system_session, session_id=session_id)
     if started is None or datetime.now(timezone.utc) - started > timedelta(
         minutes=RECENT_PROOF_MINUTES
     ):

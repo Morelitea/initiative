@@ -12,6 +12,8 @@ table placement:
 * ``app_admin`` (and ``app_user``) per-table grants equal the audited registry
   in ``app.db.system_grants`` — new shared tables give the system engine (and
   the bare login role) nothing until the registry (and a migration) says so;
+* each ``platform_<tier>`` role's direct table grants equal the tier registry
+  rendered through the capabilities;
 * every RLS-enabled shared table is FORCEd (even table owners obey policies);
 * the retired ``is_superadmin`` GUC appears in no policy anywhere;
 * no app role may CREATE objects in ``public`` (search_path hijack guard);
@@ -30,80 +32,21 @@ from app.db.user_columns import (
     PUBLIC_PROFILE_COLUMNS,
     PUBLISHED_COLUMNS,
 )
+from app.db.public_rls import PUBLIC_RLS
 from app.db.system_grants import (
+    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
+    SHARED_TABLE_APP_SUPERADMIN_GRANTS,
     SHARED_TABLE_APP_USER_GRANTS,
+    SHARED_TABLE_PLATFORM_BASE_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
+    tier_table_grants,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
-# Shared tables that carry (FORCEd) row-level security.
-_RLS_SHARED_TABLES = {
-    "access_grants",
-    "announcement_images",
-    "announcement_reads",
-    "announcements",
-    "app_service_nonces",
-    "app_service_registrations",
-    "app_settings",
-    "auth_provider_secrets",
-    "auth_providers",
-    "auth_sessions",
-    "billing_event_log",
-    "contact_grants",
-    "dm_conversation_members",
-    "dm_conversations",
-    "dm_devices",
-    "dm_one_time_keys",
-    "dm_queue",
-    "federated_identities",
-    "federated_identity_secrets",
-    "guild_administration",
-    "guild_auth_policies",
-    "guild_images",
-    "guild_invites",
-    "guild_memberships",
-    "guild_provider_connections",
-    "guilds",
-    "identity_refs",
-    "legal_acceptances",
-    "marketplace_listing_versions",
-    "marketplace_listings",
-    "marketplace_media",
-    "marketplace_registry_state",
-    "oidc_claim_mappings",
-    "platform_ai_connections",
-    "platform_provider_defaults",
-    "profile_favorites",
-    "storage_backfill_state",
-    "user_api_keys",
-    "user_avatars",
-    "user_decorations",
-    "user_dm_guild_optouts",
-    "user_cookie_consent",
-    "user_dm_settings",
-    "user_emails",
-    "user_email_assertions",
-    # The account's second factor, its seed, the codes that stand in for it,
-    # and a sign-in held between its password and its code. Forced with no
-    # policies: no request-path role is granted anything on them.
-    "user_totp",
-    "user_totp_secrets",
-    "mfa_recovery_codes",
-    "auth_challenges",
-    # WebAuthn credentials, on the same terms: forced with no policies, so
-    # nothing but the system engine reads or writes one.
-    "user_passkeys",
-    # One import job's credential for a foreign site, on the same terms:
-    # forced with no policies, because no request-path role ever reads one
-    # back — it is written by the connect request and read by the worker,
-    # both on the system engine.
-    "import_credentials",
-    "user_ignores",
-    "user_notification_prefs",
-    "user_view_preferences",
-    "users",
-}
+# Shared tables that carry (FORCEd) row-level security: what the registry in
+# app.db.public_rls says is on. The catalog is the other side of the check.
+_RLS_SHARED_TABLES = {t for t, rls in PUBLIC_RLS.items() if rls.enabled}
 
 
 @pytest.fixture(autouse=True)
@@ -131,6 +74,7 @@ def _app_role_family() -> list[str]:
         "app_admin",
         "app_guild_base",
         f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+        "app_superadmin",
         *(platform_role_name(t) for t in PLATFORM_TIERS),
         billing_role_name(),
     ]
@@ -203,6 +147,187 @@ async def test_app_admin_grants_match_audited_matrix(engine):
 async def test_app_user_grants_match_audited_matrix(engine):
     live = await _table_grants_for(engine, "app_user")
     _assert_matrix("app_user", live, SHARED_TABLE_APP_USER_GRANTS)
+
+
+async def test_app_guild_base_grants_match_audited_matrix(engine):
+    """The guild floor's reach into ``public`` is what the registry says.
+
+    ``app_guild_base`` is what every ``guild_<id>`` role inherits, and it is
+    granted by the schema default rather than table by table — so this is the
+    check that a shared table added later has had its reach decided (an entry
+    in the registry, and a ``REVOKE`` in the migration where that entry says
+    ``None``) instead of inherited."""
+    live = await _table_grants_for(engine, "app_guild_base")
+    _assert_matrix("app_guild_base", live, SHARED_TABLE_APP_GUILD_BASE_GRANTS)
+
+
+async def test_platform_base_grants_match_audited_matrix(engine):
+    """The platform floor's reach into ``public`` is what the registry says.
+
+    ``platform_base`` is what every ``platform_<tier>`` role inherits, and like
+    the guild floor it is granted by the schema default rather than table by
+    table — so this is the check that a shared table added later has had its
+    reach decided instead of inherited."""
+    live = await _table_grants_for(
+        engine, f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    )
+    _assert_matrix("platform_base", live, SHARED_TABLE_PLATFORM_BASE_GRANTS)
+
+
+async def test_app_superadmin_grants_match_audited_matrix(engine):
+    """The seat floor holds what the registry says and nothing more.
+
+    ``app_superadmin`` takes no default privileges, so anything here that the
+    registry does not name arrived by a hand-written grant."""
+    live = await _table_grants_for(engine, "app_superadmin")
+    _assert_matrix("app_superadmin", live, SHARED_TABLE_APP_SUPERADMIN_GRANTS)
+
+
+async def test_platform_tier_grants_match_the_tier_registry(engine):
+    """Each tier holds, of its own, what the tier registry renders and nothing
+    more.
+
+    Only the grants naming the tier role itself are read: what it inherits
+    from ``platform_base`` is the platform floor's matrix, checked above. A
+    tier the registry gives nothing holds no table grant at all."""
+    for tier, tables in sorted(tier_table_grants().items()):
+        role = f"{settings.PLATFORM_ROLE_PREFIX}{tier}"
+        live = await _table_grants_for(engine, role)
+        _assert_matrix(role, live, tables)
+
+
+async def test_the_guild_floor_does_not_delete_a_community(engine):
+    """A community is created, deleted and purged on the system engine; the
+    guild floor reads it and writes only the columns its admin edits."""
+    async with engine.connect() as conn:
+        for role in ("app_guild_base", "app_guild_base_ro"):
+            for verb in ("INSERT", "DELETE"):
+                held = await conn.scalar(
+                    text("SELECT has_table_privilege(:role, 'public.guilds', :verb)"),
+                    {"role": role, "verb": verb},
+                )
+                assert not held, f"{role} must not hold {verb} on guilds"
+
+
+async def test_an_invite_is_reached_only_from_its_community(engine):
+    """The platform floor and the bare login hold nothing on ``guild_invites``,
+    and the guild floor holds no UPDATE. Its policies name the guild floors
+    alone."""
+    async with engine.connect() as conn:
+        for role in (f"{settings.PLATFORM_ROLE_PREFIX}platform_base", "app_user"):
+            for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                held = await conn.scalar(
+                    text(
+                        "SELECT has_table_privilege(:role,"
+                        " 'public.guild_invites', :verb)"
+                    ),
+                    {"role": role, "verb": verb},
+                )
+                assert not held, f"{role} must not hold {verb} on guild_invites"
+        held = await conn.scalar(
+            text(
+                "SELECT has_table_privilege('app_guild_base',"
+                " 'public.guild_invites', 'UPDATE')"
+            )
+        )
+        assert not held, "app_guild_base must not hold UPDATE on guild_invites"
+        roles = {
+            tuple(sorted(row[0]))
+            for row in (
+                await conn.execute(
+                    text(
+                        "SELECT roles FROM pg_policies WHERE schemaname = 'public'"
+                        " AND tablename = 'guild_invites'"
+                    )
+                )
+            ).all()
+        }
+    assert roles <= {("app_guild_base",), ("app_guild_base", "app_guild_base_ro")}, (
+        f"guild_invites policies name roles beyond the guild floors: {roles}"
+    )
+
+
+async def test_the_seat_floor_alone_writes_the_sign_in_rule(engine):
+    """Setting how a community signs its members in is the seat's.
+
+    Every floor reads the rule — the gate function runs under whichever role
+    the request assumed — and only the floor a seat route inherits writes it."""
+    async with engine.connect() as conn:
+        for role in (
+            "app_guild_base",
+            f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+            "app_user",
+        ):
+            for verb in ("INSERT", "UPDATE", "DELETE"):
+                held = await conn.scalar(
+                    text(
+                        "SELECT has_table_privilege(:role,"
+                        " 'public.guild_auth_policies', :verb)"
+                    ),
+                    {"role": role, "verb": verb},
+                )
+                assert not held, f"{role} must not hold {verb} on guild_auth_policies"
+        for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+            held = await conn.scalar(
+                text(
+                    "SELECT has_table_privilege('app_superadmin',"
+                    " 'public.guild_auth_policies', :verb)"
+                ),
+                {"verb": verb},
+            )
+            assert held, f"app_superadmin must hold {verb} on guild_auth_policies"
+
+
+async def test_the_seat_writes_only_its_own_switches(engine):
+    """The seat changes what its community asks of the people reaching it, and
+    nothing else about the community.
+
+    Six columns: whether personal API keys are accepted, whether a second
+    factor is required, whether the session standard is held to, and the three
+    that say what a notification may leave carrying. A name, an icon, an owner
+    or a lifecycle status is not the seat's, and a new column on ``guilds`` is
+    not either until a migration says so.
+    """
+    writable = {
+        "allow_api_keys",
+        "require_second_factor",
+        "enforce_compliance_session",
+        "allow_push_notifications",
+        "allow_email_notifications",
+        "redact_notification_content",
+    }
+    async with engine.connect() as conn:
+        held = await conn.scalar(
+            text("SELECT has_table_privilege('app_superadmin', 'public.guilds', :v)"),
+            {"v": "UPDATE"},
+        )
+        assert not held, "the seat floor must hold no table-wide UPDATE on guilds"
+
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT column_name, has_column_privilege("
+                    "'app_superadmin', 'public.guilds', column_name, 'UPDATE'"
+                    ") AS can_write FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'guilds'"
+                )
+            )
+        ).all()
+        assert rows, "guilds must exist"
+        granted = {name for name, can_write in rows if can_write}
+        assert granted == writable, (
+            "the seat floor's UPDATE on guilds must be exactly the switches its "
+            f"own routes set; got {sorted(granted)}"
+        )
+
+        for verb in ("INSERT", "DELETE"):
+            held = await conn.scalar(
+                text(
+                    "SELECT has_table_privilege('app_superadmin', 'public.guilds', :v)"
+                ),
+                {"v": verb},
+            )
+            assert not held, f"the seat floor must not hold {verb} on guilds"
 
 
 async def test_guild_image_bytes_are_unreadable_by_request_roles(engine):
@@ -588,10 +713,11 @@ async def test_guild_membership_write_policies_are_tightened(engine):
     """Every request-path membership write is scoped to the caller's own row.
 
     Self-leave DELETE and the reorder UPDATE both match on
-    ``app.current_user_id``, and a request-path insert is pinned to a plain
-    member (migrations 0145, 0266). The UPDATE matching the caller rather than
-    the routed guild is what lets the guild list be reordered from the platform
-    path, which carries no guild at all."""
+    ``app.current_user_id`` (migrations 0145, 0266). Joining is the system
+    engine's (0354): no request-path role holds INSERT and no policy admits
+    one. The UPDATE matching the caller rather than the routed guild is what
+    lets the guild list be reordered from the platform path, which carries no
+    guild at all."""
     async with engine.connect() as conn:
         policies = {
             name: (permissive, cmd, qual, with_check)
@@ -622,12 +748,24 @@ async def test_guild_membership_write_policies_are_tightened(engine):
         "update policy must not require a routed guild — the guild list is "
         f"reordered with none: {update_policy[2]!r}"
     )
-    insert_policy = policies.get("guild_memberships_request_insert_member_only")
-    assert insert_policy is not None, "member-only insert policy is missing"
-    assert insert_policy[0] == "RESTRICTIVE", "insert-member policy must be RESTRICTIVE"
-    assert "member" in (insert_policy[3] or ""), (
-        f"insert-member policy must pin role to member: {insert_policy[3]!r}"
+    inserting = sorted(
+        name for name, (_, cmd, _, _) in policies.items() if cmd == "INSERT"
     )
+    assert inserting == [], f"no policy admits a request-path join: {inserting}"
+    async with engine.connect() as conn:
+        for role in (
+            "app_guild_base",
+            f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+            "app_user",
+        ):
+            held = await conn.scalar(
+                text(
+                    "SELECT has_table_privilege(:role,"
+                    " 'public.guild_memberships', 'INSERT')"
+                ),
+                {"role": role},
+            )
+            assert not held, f"{role} must not hold INSERT on guild_memberships"
 
 
 async def test_access_grants_are_writable_only_by_the_system_engine(engine):

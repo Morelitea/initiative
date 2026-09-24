@@ -23,8 +23,8 @@ import { Capability, hasCapability } from "@/lib/permissions";
 export const SettingsBrandingPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const interfaceQuery = useInterfaceSettings({ enabled: isPlatformAdmin });
+  const canManagePlatformConfig = hasCapability(user, Capability.configManage);
+  const interfaceQuery = useInterfaceSettings({ enabled: canManagePlatformConfig });
 
   // Both colours are picked and then saved together, so a refetch between the
   // picking and the saving must not put the old pair back.
@@ -61,8 +61,8 @@ export const SettingsBrandingPage = () => {
     );
   };
 
-  if (!isPlatformAdmin) {
-    return <p className="text-muted-foreground text-sm">{t("branding.adminOnly")}</p>;
+  if (!canManagePlatformConfig) {
+    return <p className="text-muted-foreground text-sm">{t("branding.platformOnly")}</p>;
   }
 
   return (

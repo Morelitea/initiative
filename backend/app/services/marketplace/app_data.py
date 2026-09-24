@@ -55,6 +55,7 @@ import httpx
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
 from app.core.messages import AppDataMessages, AppServiceMessages, GuildAppMessages
 from app.core.security import (
     AppPlatformSigningNotConfiguredError,
@@ -522,9 +523,9 @@ async def _load_registration(public_id: str) -> AppServiceRegistration:
     guild session serving the request. Read per call rather than cached, so the
     operator's kill switch takes effect on the next request in every worker.
     """
-    async with db_session.AdminSessionLocal() as admin:
+    async with db_session.SystemSessionLocal() as system_session:
         row = (
-            await admin.exec(
+            await system_session.exec(
                 select(AppServiceRegistration).where(
                     AppServiceRegistration.public_id == public_id
                 )
@@ -579,6 +580,7 @@ def clear_app_data_cache(
 
 def _cache_key(
     *,
+    guild_id: int | None,
     app: GuildApp,
     endpoint_id: str,
     canonical_params: str,
@@ -606,7 +608,7 @@ def _cache_key(
             default=str,
         ).encode("utf-8")
     ).hexdigest()
-    return f"{app.guild_id}:{app.id}:{endpoint_id}:{canonical_params}:{fingerprint}"
+    return f"{guild_id}:{app.id}:{endpoint_id}:{canonical_params}:{fingerprint}"
 
 
 def _cache_get(key: str) -> Optional[AppDataResult]:
@@ -731,6 +733,7 @@ async def _call_app(
     *,
     registration: AppServiceRegistration,
     app: GuildApp,
+    guild_id: int | None,
     endpoint: Mapping[str, Any],
     endpoint_id: str,
     params: Mapping[str, str],
@@ -753,9 +756,7 @@ async def _call_app(
     try:
         # What this install calls the guild. The token and the body name it
         # the same way, because it is the only name the app has for it.
-        guild_ref = await ensure_app_guild_ref(
-            guild_id=app.guild_id, app_install_id=app.id
-        )
+        guild_ref = await ensure_app_guild_ref(guild_id=guild_id, app_install_id=app.id)
         try:
             token, _ = mint_context_token(
                 public_id=public_id,
@@ -851,7 +852,11 @@ async def fetch_app_source(
     )
 
     key = _cache_key(
-        app=app, endpoint_id=endpoint_id, canonical_params=canonical, refs=refs
+        guild_id=routed_guild_id(session),
+        app=app,
+        endpoint_id=endpoint_id,
+        canonical_params=canonical,
+        refs=refs,
     )
     cached = _cache_get(key)
     if cached is not None:
@@ -870,6 +875,7 @@ async def fetch_app_source(
         result = await _call_app(
             registration=registration,
             app=app,
+            guild_id=routed_guild_id(session),
             endpoint=endpoint,
             endpoint_id=endpoint_id,
             params=params,

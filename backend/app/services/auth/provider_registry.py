@@ -29,7 +29,7 @@ from app.db.errors import (
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.schemas.platform.settings import (
-    AuthProviderAdminRead,
+    AuthProviderOwnerRead,
     AuthProviderCreate,
     AuthProviderUpdate,
 )
@@ -68,8 +68,8 @@ def provider_callback_url(slug: str) -> str:
     return f"{base}{API_V1_STR}/auth/{slug}/callback"
 
 
-def admin_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderAdminRead:
-    return AuthProviderAdminRead(
+def owner_read(row: AuthProvider, *, secret_set: bool) -> AuthProviderOwnerRead:
+    return AuthProviderOwnerRead(
         id=row.id,
         slug=row.slug,
         display_name=row.display_name,
@@ -127,7 +127,7 @@ async def editable_provider(session: AsyncSession, provider_id: int) -> AuthProv
     return row
 
 
-async def list_providers(session: AsyncSession) -> list[AuthProviderAdminRead]:
+async def list_providers(session: AsyncSession) -> list[AuthProviderOwnerRead]:
     rows = (
         await session.exec(select(AuthProvider).order_by(AuthProvider.display_name))
     ).all()
@@ -144,7 +144,7 @@ async def list_providers(session: AsyncSession) -> list[AuthProviderAdminRead]:
                 )
             ).all()
         )
-    return [admin_read(row, secret_set=row.id in with_secret) for row in rows]
+    return [owner_read(row, secret_set=row.id in with_secret) for row in rows]
 
 
 async def create_provider(
@@ -152,7 +152,7 @@ async def create_provider(
     provider_in: AuthProviderCreate,
     *,
     actor_user_id: int | None = None,
-) -> AuthProviderAdminRead:
+) -> AuthProviderOwnerRead:
     """Create a provider. Slugs are unique across the registry (409).
 
     ``actor_user_id`` is who made it, for the record staged beside the insert.
@@ -199,7 +199,7 @@ async def create_provider(
     await session.commit()
     await session.refresh(row)
     logger.info("auth provider %s (%s) created", row.slug, row.id)
-    return admin_read(row, secret_set=bool(provider_in.client_secret))
+    return owner_read(row, secret_set=bool(provider_in.client_secret))
 
 
 async def update_provider(
@@ -208,7 +208,7 @@ async def update_provider(
     provider_in: AuthProviderUpdate,
     *,
     actor_user_id: int | None = None,
-) -> AuthProviderAdminRead:
+) -> AuthProviderOwnerRead:
     row = await editable_provider(session, provider_id)
     update_data = provider_in.model_dump(exclude_unset=True)
     before = audit_service.snapshot(row, AUDITED_FIELDS)
@@ -236,7 +236,7 @@ async def update_provider(
         )
     await session.commit()
     await session.refresh(row)
-    return admin_read(row, secret_set=await secret_is_set(session, row.id))
+    return owner_read(row, secret_set=await secret_is_set(session, row.id))
 
 
 async def _release_initiative_memberships(
@@ -255,7 +255,7 @@ async def _release_initiative_memberships(
     guild_ids = (await session.exec(select(Guild.id))).all()
     for guild_id in guild_ids:
         session.expunge_all()
-        await db_session.set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await db_session.set_rls_context(session, guild_id=guild_id)
         await session.exec(
             update(InitiativeMember)
             .where(InitiativeMember.oidc_provider_id == provider_id)

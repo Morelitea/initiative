@@ -6,7 +6,7 @@ See plan & ``project_export.py`` for the format. The algorithm:
 2. Resolve the target initiative + its guild + member handles.
 3. Create the ``Project`` (importer is owner; rename on collision).
 4. Bulk-create per-project task statuses; build ``name → id`` map.
-5. Upsert tags by ``(guild_id, name)``; build ``name → id`` map; attach
+5. Upsert tags by name; build ``name → id`` map; attach
    to project via ``project_tags``.
 6. Upsert property definitions by ``(initiative_id, name)``. On type
    collision, create a new definition named ``<name>_<type>`` instead
@@ -19,6 +19,7 @@ See plan & ``project_export.py`` for the format. The algorithm:
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -52,8 +53,18 @@ from app.schemas.tenant.project_export import (
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
-from app.services.import_engine.people import PeopleMap, initiative_member_id
+from app.services.import_engine.links import links_to_pages
+from app.services.import_engine.references import (
+    has_source_references,
+    note_or_settle,
+)
+from app.services.import_engine.people import (
+    PeopleMap,
+    initiative_member_id,
+    quoted_account,
+)
 from app.services.tenant import task_completion
+from app.services.tenant.task_statuses import defaults_for_category
 from app.services.import_engine.common import (
     decode_property_value,
     ensure_tag,
@@ -105,16 +116,6 @@ async def import_project(
     # membership however the handle was resolved, and a mapped account is
     # known by its id rather than by a handle to look up.
     initiative_member_ids = frozenset(initiative_member_handles.values())
-    target_guild_id = target_initiative.guild_id
-    if target_guild_id is None:
-        # Initiatives are created with a guild (services/initiatives.py
-        # requires it). Reaching here means data corruption, not user
-        # input — fail loudly rather than create guild-less tags that
-        # would silently leak across guilds.
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ProjectExportMessages.INITIATIVE_NOT_FOUND,
-        )
 
     # 1. Project row (rename on collision)
     project_name = await _unique_project_name(
@@ -131,7 +132,6 @@ async def import_project(
         start_date=envelope.project.start_date,
         end_date=envelope.project.end_date,
         initiative_id=target_initiative.id,
-        guild_id=target_guild_id,
     )
     session.add(project)
     await session.flush()  # populate project.id
@@ -144,7 +144,6 @@ async def import_project(
             user_id=importer.id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=target_guild_id,
             initiative_id=project.initiative_id,
         )
     )
@@ -154,14 +153,14 @@ async def import_project(
     status_id_to_category: dict[int, TaskStatusCategory] = {}
     default_status_id: int | None = None
     for s in envelope.task_statuses:
+        default_color, default_icon = defaults_for_category(s.category)
         status_row = TaskStatus(
             project_id=project.id,
-            guild_id=target_guild_id,
             name=s.name,
             category=s.category,
             position=s.position,
-            color=s.color,
-            icon=s.icon,
+            color=s.color or default_color,
+            icon=s.icon or default_icon,
             is_default=s.is_default,
         )
         session.add(status_row)
@@ -186,7 +185,6 @@ async def import_project(
     for t in envelope.tags:
         tag_id = await ensure_tag(
             session,
-            guild_id=target_guild_id,
             name=t.name,
             color=t.color,
         )
@@ -203,10 +201,17 @@ async def import_project(
 
     # 4. Property definitions → (name, type) → id map (shared conventions:
     # match by name+type with option compatibility, rename on collision).
+    # A property unticked on the review is not declared at all; its values
+    # then resolve to nothing and are skipped below, with the rest.
+    excluded = context.excluded_properties if context is not None else frozenset()
     resolved_props = await resolve_property_definitions(
         session,
         initiative_id=target_initiative.id,
-        definitions=envelope.property_definitions,
+        definitions=[
+            definition
+            for definition in envelope.property_definitions
+            if definition.name not in excluded
+        ],
     )
     prop_key_to_id = resolved_props.key_to_id
     property_create_count = resolved_props.created
@@ -222,7 +227,6 @@ async def import_project(
             session,
             envelope_task=t,
             project_id=project.id,
-            guild_id=target_guild_id,
             importer_id=importer.id,
             status_name_to_id=status_name_to_id,
             status_id_to_category=status_id_to_category,
@@ -281,7 +285,6 @@ async def _import_task(
     *,
     envelope_task: ProjectExportTask,
     project_id: int,
-    guild_id: int | None,
     importer_id: int,
     status_name_to_id: dict[str, int],
     status_id_to_category: dict[int, TaskStatusCategory],
@@ -307,10 +310,14 @@ async def _import_task(
 
     task = Task(
         project_id=project_id,
-        guild_id=guild_id,
         task_status_id=status_id,
         title=envelope_task.title,
-        description=envelope_task.description,
+        description=_link_mentions(
+            envelope_task.description,
+            envelope_task.mention_handles,
+            context=context,
+            initiative_member_handles=initiative_member_handles,
+        ),
         priority=envelope_task.priority,
         start_date=envelope_task.start_date,
         due_date=envelope_task.due_date,
@@ -355,7 +362,6 @@ async def _import_task(
         if tid is None:
             resolved = await ensure_tag(
                 session,
-                guild_id=guild_id,
                 name=task_tag.name,
                 color=task_tag.color,
             )
@@ -381,7 +387,12 @@ async def _import_task(
         if uid in seen_user_ids:
             continue
         seen_user_ids.add(uid)
-        session.add(TaskAssignee(task_id=task.id, user_id=uid, guild_id=guild_id))
+        session.add(
+            TaskAssignee(
+                task_id=task.id,
+                user_id=uid,
+            )
+        )
 
     # Property values
     for pv in envelope_task.property_values:
@@ -389,12 +400,24 @@ async def _import_task(
         if prop_id is None:
             # Defensive: skip values whose property couldn't be resolved
             continue
-        column_kwargs = decode_property_value(pv, initiative_member_handles)
+        column_kwargs = decode_property_value(
+            pv,
+            initiative_member_handles,
+            people=context.people if context is not None else None,
+        )
         if column_kwargs is None:
             continue  # user_reference with no matching handle — skip silently
         session.add(
             TaskPropertyValue(task_id=task.id, property_id=prop_id, **column_kwargs)
         )
+
+    if context is not None and links_to_pages(task.description):
+        context.links.note_body(SearchEntityType.task, task.id)
+    # An exported description names other things by the refs they had; they
+    # are placed once every entry of the job has been written.
+    task.description = note_or_settle(
+        context, SearchEntityType.task, task.id, task.description
+    )
 
     # What this task was called at the source, and what it says it points at.
     # Both are handed to the job's collector and resolved once every entry has
@@ -408,6 +431,14 @@ async def _import_task(
                 envelope_task.external_ref, link.type, link.target_external_ref
             )
 
+    # A reply hangs under the comment it answers. The envelope lists comments
+    # oldest first, so a parent is written before its replies; only a comment
+    # something answers is flushed for its id. A reply whose parent did not
+    # come across (restricted at the source, or empty) stands on its own.
+    answered = {
+        c.reply_to_ref for c in envelope_task.comments if c.reply_to_ref is not None
+    }
+    written: dict[str, int] = {}
     comment_count = 0
     for envelope_comment in envelope_task.comments:
         body = (envelope_comment.body or "").strip()
@@ -419,16 +450,32 @@ async def _import_task(
             initiative_member_handles=initiative_member_handles,
             importer_id=importer_id,
         )
-        session.add(
-            Comment(
-                task_id=task.id,
-                guild_id=guild_id,
-                content=body,
-                created_by=author_id,
-                imported_author_name=source_name,
-                created_at=envelope_comment.created_at or datetime.now(timezone.utc),
-            )
+        comment = Comment(
+            task_id=task.id,
+            content=_link_mentions(
+                body,
+                envelope_comment.mention_handles,
+                context=context,
+                initiative_member_handles=initiative_member_handles,
+            ),
+            created_by=author_id,
+            imported_author_name=source_name,
+            parent_comment_id=written.get(envelope_comment.reply_to_ref or ""),
+            created_at=envelope_comment.created_at or datetime.now(timezone.utc),
         )
+        session.add(comment)
+        if context is not None and links_to_pages(comment.content):
+            await session.flush()
+            context.links.note_body(SearchEntityType.comment, comment.id)
+        if has_source_references(comment.content):
+            await session.flush()
+            comment.content = note_or_settle(
+                context, SearchEntityType.comment, comment.id, comment.content
+            )
+        ref = envelope_comment.external_ref
+        if ref is not None and ref in answered and ref not in written:
+            await session.flush()
+            written[ref] = comment.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         comment_count += 1
 
     return len(seen_user_ids), comment_count
@@ -446,6 +493,47 @@ def _timestamps(envelope_task: ProjectExportTask) -> dict[str, datetime]:
     if envelope_task.updated_at is not None:
         stamps["updated_at"] = envelope_task.updated_at
     return stamps
+
+
+def _link_mentions(
+    text: str | None,
+    handles: list[str],
+    *,
+    context: ImportContext | None,
+    initiative_member_handles: dict[str, int],
+) -> str | None:
+    """``text`` with each ``@<handle>`` it mentions linked to an account here.
+
+    Placed the way a comment's author is (:func:`_comment_author`): the
+    account the people step mapped the handle to, else a member of the target
+    initiative with that exact handle. A mention nobody places stays the name
+    it arrived as. Handles are tried longest first, so ``@Ann Lee`` is never
+    read as ``@Ann`` followed by a surname.
+    """
+    if not text or not handles:
+        return text
+    people = context.people if context is not None else PeopleMap()
+    targets: dict[str, int] = {}
+    for handle in handles:
+        mapped = quoted_account(
+            handle, people=people, member_handles=initiative_member_handles
+        )
+        if mapped is not None:
+            targets[handle] = mapped
+    if not targets:
+        return text
+    ordered = sorted(set(handles), key=len, reverse=True)
+    pattern = re.compile("@(" + "|".join(re.escape(h) for h in ordered) + r")(?![\w])")
+
+    def link(match: re.Match[str]) -> str:
+        handle = match.group(1)
+        user_id = targets.get(handle)
+        if user_id is None:
+            return match.group(0)
+        label = handle.replace("[", "").replace("]", "")
+        return f"@[{label}]({user_id})"
+
+    return pattern.sub(link, text)
 
 
 def _comment_author(

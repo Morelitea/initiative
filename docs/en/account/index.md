@@ -8,7 +8,7 @@ Settings live in three places, depending on who they affect. Which sounds like t
 
 - **User settings** — you. Open them from your name and picture at the bottom of the sidebar.
 - **Community settings** — a whole workspace, for community admins. See [Working with communities](../guides/communities.md).
-- **Platform settings** — the whole server, for its owner. See the [administrator guide](../admin/index.md).
+- **Platform settings** — the whole server, for its owner. See the [server guide](../running-a-server/index.md).
 
 This section is about **your** settings.
 
@@ -22,8 +22,7 @@ This section is about **your** settings.
 | **Notifications** | What you're told about, and where. See [Notifications](../guides/notifications.md). |
 | **Privacy** | Who can ask to message you, your connections, and pending requests. See [Messages](../guides/messages.md#who-can-reach-you). |
 | **AI** | Your personal AI settings. Only appears if there's a connection for you to set up. See [AI features](ai-features.md). |
-| **Import** | Bring tasks in from other tools. See below. |
-| **Security** | [Two-factor authentication](two-factor-authentication.md), [passkeys](passkeys.md), signed-in devices and access keys. See [API keys & integrations](api-keys-and-integrations.md). |
+| **Security** | [Two-factor authentication](two-factor-authentication.md), [passkeys](passkeys.md), [where you're signed in](profile-and-preferences.md#where-youre-signed-in), and access keys. See [API keys & integrations](api-keys-and-integrations.md). |
 | **Trash** | Things you recently deleted. |
 | **Danger Zone** | Deactivate or delete your account. |
 
@@ -51,13 +50,4 @@ This section is about **your** settings.
 
 ## Importing from another tool
 
-Coming from another tool? You do not have to retype four years of tasks by hand. Open **User settings → Import** and follow the wizard:
-
-1. **Upload** your export file from the other tool.
-2. **Configure** which list or board to bring in, and pick the **target project**.
-3. **Map statuses** so the old columns line up with yours.
-4. **Review the results.**
-
-Supported sources: **Todoist**, **TickTick**, **Trello**, **Asana**, and **Vikunja**. Anything nested under a task arrives as that task's checklist.
-
-Anything that can't be matched gets reported rather than quietly dropped, so you find out what needs a hand now rather than in three weeks when somebody asks where their task went.
+Work coming over from **Todoist**, **TickTick** or **Vikunja** has to land somewhere, and "somewhere" is always a community. So the import wizard lives with that community's other data, in **Community settings → Data** — see [Bringing work in from another tool](../guides/communities.md#bringing-work-in-from-another-tool).

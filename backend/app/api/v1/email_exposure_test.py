@@ -3,9 +3,10 @@
 Two shapes carry a stored address in full: ``UserRead`` on the ``/users/me``
 routes, and ``UserEmailRead`` on the routes listing the addresses an account
 holds. Both are served only to the address's owner. Every other route that
-returns an account returns ``AdminUserRead``, which masks it, and the shapes
+returns an account returns ``OperatorUserRead``, which masks it, and the shapes
 that carry an address field alongside other data — the guild invite, the
-access grant — mask it too.
+access grant — mask it too. A deployment's contact address is not an account's
+and is served in full wherever it is shown.
 
 These tests read the OpenAPI schema and hold the app to that split, so a new
 route or a new shape has to be a deliberate addition to the lists below rather
@@ -41,7 +42,12 @@ SELF_SHAPES = {
 #: Shapes that carry an address field and mask it. Each has a validator
 #: applying ``app.core.email_masking.mask_email``; adding a name here means
 #: having added that validator.
-MASKED_SHAPES = {"AdminUserRead", "AccessGrantRead", "GuildInviteRead"}
+MASKED_SHAPES = {"OperatorUserRead", "AccessGrantRead", "GuildInviteRead"}
+
+#: Shapes that carry a deployment's contact address: one an operator published
+#: so people can write to it, not an account's stored address. It is served in
+#: full, because a masked contact cannot be written to.
+CONTACT_SHAPES = {"AccountTimeOutRead", "GuildRead", "IntakeSettingsRead"}
 
 
 def _operations() -> Iterable[tuple[str, str, dict]]:
@@ -126,7 +132,7 @@ def test_the_walk_reaches_a_nested_shape() -> None:
 def test_the_unmasked_shapes_are_served_only_on_their_own_routes() -> None:
     """An unmasked shape reaches a response only where the caller owns it.
 
-    A route serving somebody else's account uses ``AdminUserRead`` instead; one
+    A route serving somebody else's account uses ``OperatorUserRead`` instead; one
     that genuinely belongs on a list is added to it explicitly.
     """
     spec = app.openapi()
@@ -141,7 +147,7 @@ def test_the_unmasked_shapes_are_served_only_on_their_own_routes() -> None:
     }
     assert not leaked, (
         f"{sorted(leaked)} — these routes return a shape carrying the stored "
-        "address. Serve somebody else's account as AdminUserRead."
+        "address. Serve somebody else's account as OperatorUserRead."
     )
 
 
@@ -166,7 +172,7 @@ def test_every_other_address_field_comes_from_a_masking_shape() -> None:
         if "email" in field.lower() and _is_address(node)
     }
 
-    unaccounted = carrying - MASKED_SHAPES - set(SELF_SHAPES)
+    unaccounted = carrying - MASKED_SHAPES - CONTACT_SHAPES - set(SELF_SHAPES)
     assert not unaccounted, (
         f"{sorted(unaccounted)} carry an address field in a response without "
         "masking it."

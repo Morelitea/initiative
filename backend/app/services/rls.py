@@ -1,36 +1,24 @@
-"""Mandatory Access Control — RLS and guild/initiative-level security.
+"""Initiative-level access helpers and the sharing pickers' roster queries.
 
-This module centralizes all Row-Level Security (RLS) related application
-logic, guild-level access checks, and initiative-level access checks.
-It is the single source of truth for understanding what the database
-enforces and for performing access checks in the application layer.
+What the database enforces is the guild schema's own policies and functions
+(``app/db/authorization.py``); what a request holds is its standing
+(``GuildContext``, built by the seam in ``app/api/deps``). This module keeps the
+questions those two do not answer as a value: who manages an initiative, which
+of its members a role permits, and the roster and override queries the sharing
+surfaces list from.
 
-Security layers managed here:
-  1. Guild isolation  — PERMISSIVE RLS: guild_id = current_guild_id
-     All guild members can *read* data within their guild.
-  2. Guild RBAC       — Only guild admins may write/update/delete
-     guild-scoped configuration (guild settings, invites, initiatives).
-     Members can only read and participate via subsequent layers.
-     Enforced in application code: ``require_guild_admin()``,
-     ``is_guild_admin()``, ``require_guild_membership()``.
-  3. Initiative membership — PERMISSIVE RLS on every guild-schema content
-     table, all deferring to ``public.initiative_access()`` (the single
-     source of truth: initiative member OR guild admin OR PAM grant).
-  4. Initiative RBAC — Application-level feature access via PermissionKey
-
-The complementary DAC (Discretionary Access Control) layer for
-project/document-level permissions lives in ``permissions.py``.
+The guild-level questions that used to live here — is this an admin, does
+this account hold the seat, is there a membership row — are the standing's:
+``GuildContext.is_admin``, ``.seat``, ``.reaches``.
 """
 
 from __future__ import annotations
 
-from fastapi import HTTPException, status
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import func
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildMessages, InitiativeMessages
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
+from app.core.messages import InitiativeMessages
 from app.models.tenant.initiative import (
     InitiativeMember,
     InitiativeRoleModel,
@@ -40,106 +28,8 @@ from app.models.tenant.initiative import (
 from app.models.platform.user import User
 
 # Re-export the RLS context helper so callers can import from a single place.
-from app.db.session import set_rls_context  # noqa: F401
-
-
-# ---------------------------------------------------------------------------
-# Guild-level access checks
-# ---------------------------------------------------------------------------
-
-
-def is_guild_admin(guild_role: GuildRole) -> bool:
-    """Whether the role carries a guild admin's authority.
-
-    ``superadmin`` sits above ``admin``, so it answers yes here — the
-    question is authority, and it has an admin's.
-    """
-    return guild_role in GUILD_ADMIN_ROLES
-
-
-def require_guild_admin(guild_role: GuildRole) -> None:
-    """Raise HTTPException(403) unless the guild role is admin.
-
-    Use this for operations that only guild admins may perform:
-    creating initiatives, managing guild settings, managing invites, etc.
-    """
-    if guild_role not in GUILD_ADMIN_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
-        )
-
-
-async def holds_guild_seat(
-    session: AsyncSession, *, guild_id: int, user_id: int
-) -> bool:
-    """Whether this account holds ``guild_id``'s top seat.
-
-    Asked of ``public.guild_superadmin``, the same function the policies on
-    ``guild_auth_policies`` defer to — so the rule has one definition and this
-    reads it rather than restating it against a Python enum. The pattern is
-    ``initiative_scope_clause``'s: the app and the database agree because they
-    are the same SQL.
-
-    Exact, not "or above". An ordinary ``admin`` answers no here and yes to
-    :func:`is_guild_admin`: running a community, and deciding who may enter it
-    or what it is billed for, are different jobs.
-    """
-    return bool(
-        (await session.exec(select(func.guild_superadmin(guild_id, user_id)))).one()
-    )
-
-
-async def require_guild_seat(
-    session: AsyncSession, *, guild_id: int, user_id: int
-) -> None:
-    """Raise HTTPException(403) unless this account holds the guild's seat.
-
-    Use this for the guild's sign-in configuration and its billing portal.
-    Every other guild-admin operation wants :func:`require_guild_admin`.
-    """
-    if not await holds_guild_seat(session, guild_id=guild_id, user_id=user_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,
-        )
-
-
-async def get_guild_membership(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    user_id: int,
-) -> GuildMembership | None:
-    """Look up a user's guild membership."""
-    from sqlmodel import select
-
-    stmt = select(GuildMembership).where(
-        GuildMembership.guild_id == guild_id,
-        GuildMembership.user_id == user_id,
-    )
-    result = await session.exec(stmt)
-    return result.one_or_none()
-
-
-async def require_guild_membership(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    user_id: int,
-) -> GuildMembership:
-    """Return the membership or raise 403."""
-    membership = await get_guild_membership(
-        session,
-        guild_id=guild_id,
-        user_id=user_id,
-    )
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.NOT_GUILD_MEMBER,
-        )
-    return membership
+from app.db.session import require_guild_context, set_rls_context  # noqa: F401
+from app.db.authorization import standing_arg
 
 
 # ---------------------------------------------------------------------------
@@ -147,72 +37,29 @@ async def require_guild_membership(
 # ---------------------------------------------------------------------------
 
 
-async def _get_membership_with_role(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-) -> InitiativeMember | None:
-    """Get initiative membership with role eagerly loaded."""
-    from sqlalchemy.orm import selectinload
-    from sqlmodel import select
-
-    stmt = (
-        select(InitiativeMember)
-        .options(
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            )
-        )
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            InitiativeMember.user_id == user_id,
-        )
-    )
-    result = await session.exec(stmt)
-    return result.one_or_none()
-
-
 # ---------------------------------------------------------------------------
 # Initiative manager checks
 # ---------------------------------------------------------------------------
 
 
-async def is_initiative_manager(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
-) -> bool:
-    """Check if user has manager-level role in the initiative."""
-    # No standing platform bypass: ``data.bypass`` no longer confers manager
-    # authority. An admin/owner reaches a guild only via an explicit break-glass
-    # grant, and a grant — like the existing PAM model — confers scoped content
-    # read/write (enforced by RLS + the resource-access helpers), never initiative
-    # management. So manager status is membership-derived only.
-    membership = await _get_membership_with_role(
-        session, initiative_id=initiative_id, user_id=user.id
-    )
-    if not membership or not membership.role_ref:
-        return False
-    return membership.role_ref.is_manager
+async def is_initiative_manager(session: AsyncSession, *, initiative_id: int) -> bool:
+    """Whether this request manages ``initiative_id``, by the standing.
+
+    The seam computed ``app.manager_initiatives`` from the roster and the
+    roles' rows when it routed the session; this reads that answer back rather
+    than asking the rows again. Granted access manages nothing.
+    """
+    context = require_guild_context(session)
+    return initiative_id in context.manager_initiatives
 
 
 async def assert_initiative_manager(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
+    session: AsyncSession, *, initiative_id: int
 ) -> None:
-    """Raise ``PermissionError`` unless user is an initiative manager."""
-    if await is_initiative_manager(session, initiative_id=initiative_id, user=user):
+    """Raise ``PermissionError`` unless this request manages the initiative."""
+    if await is_initiative_manager(session, initiative_id=initiative_id):
         return
     raise PermissionError(InitiativeMessages.MANAGER_REQUIRED)
-
-
-# ---------------------------------------------------------------------------
-# Initiative permission checks (RBAC via PermissionKey)
-# ---------------------------------------------------------------------------
 
 
 async def check_initiative_permission(
@@ -222,27 +69,30 @@ async def check_initiative_permission(
     user: User,
     permission_key: PermissionKey,
 ) -> bool:
-    """Check if user has a specific permission in the initiative.
+    """Whether ``user``'s role in the initiative permits ``permission_key``.
 
-    Args:
-        session: Database session
-        initiative_id: ID of the initiative
-        user: User to check permissions for
-        permission_key: Permission to check (e.g., PermissionKey.create_documents)
-
-    Returns:
-        True if user has the permission, False otherwise
+    Asked of the schema's own ``initiative_role_permits`` — the function the
+    content policies call — so the rule has one body: a manager holds every
+    key, a stored row decides, and the key's documented default decides when
+    there is none. It reads the standing the session was routed with, so it
+    answers for the request's own account.
     """
-    # No standing platform bypass: ``data.bypass`` no longer grants every
-    # permission. A break-glass / PAM grantee's content visibility and read/write
-    # are handled by the dedicated PAM path (list filters' ``has_active_grant``,
-    # the ``require_*_access`` helpers, and RLS at the assumed guild role) — a
-    # grant never confers initiative-level permission keys here, so permission is
-    # membership-derived only.
-    membership = await _get_membership_with_role(
-        session, initiative_id=initiative_id, user_id=user.id
+    default = DEFAULT_PERMISSION_VALUES.get(permission_key, False)
+    return bool(
+        (
+            await session.exec(
+                select(
+                    func.initiative_role_permits(
+                        initiative_id,
+                        user.id,
+                        permission_key.value,
+                        default,
+                        standing_arg(),
+                    )
+                )
+            )
+        ).one()
     )
-    return _role_grants(membership.role_ref if membership else None, permission_key)
 
 
 def _role_grants(
@@ -331,13 +181,13 @@ def override_sharing_initiatives_select(user_id: int):
     """Select the initiative ids (in the routed guild schema) where the user
     holds a role with ``override_share_restrictions`` ("Full access") — the set
     the request's DAC override consults
-    (``role_context.request_overrides_sharing``).
+    (:meth:`app.db.guild_standing.GuildContext.overrides_sharing`).
 
     One indexed read over the user's memberships, joined to their role. Handed
-    out as a statement rather than a result because the guild dependency folds
+    out as a statement rather than a result because the standing statement folds
     it into the ``set_config`` that records the answer
-    (:func:`app.db.session.apply_override_initiatives`), so this stays the one
-    place that says which initiatives those are.
+    (:data:`app.db.guild_standing.STANDING_SQL`), so this stays the one place
+    that says which initiatives those are.
     """
     from sqlmodel import select
 

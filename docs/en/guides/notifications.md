@@ -152,18 +152,28 @@ Set a window — 22:00 to 07:00, say — and email and mobile hold off inside it
 
 If push shows as **Blocked**, that's your phone rather than us. Open your device settings, find Initiative, and let it talk to you. We can ask; your phone decides.
 
+## What your server and community decide
+
+Your settings pick from what's on offer. Two people decide what that is — whoever runs the server, and each community for itself — and both can only ever make things quieter.
+
+Either can keep notifications **inside the app**, rather than reaching phones or mailboxes. Either can also ask that what does travel says the kind of thing that happened — *"You were mentioned in a comment"* — and leaves the details for the app. Somewhere with a rule about what may appear on a lock screen has a reason for that.
+
+The **bell always carries the whole thing**, wherever those two land. It stays inside the app, so it has everything.
+
+A switch that looks decided for you was decided in one of those two places, and whoever runs the community will know which. Your account's own post — sign-in codes, address confirmations, password resets — arrives regardless: that's correspondence, not notification.
+
 ## Announcements
 
-Notifications are about *your* work. An **announcement** is about the app itself: a version that changed something, a setting that moved, a maintenance window your administrator wants you to know about.
+Notifications are about *your* work. An **announcement** is about the app itself: a version that changed something, a setting that moved, a maintenance window whoever runs the server wants you to know about.
 
 They arrive as a dialog rather than quietly in the bell, because they're the kind of thing genuinely worth stopping you for. Some are a single card; a longer one becomes a few pages you step through with **Next**. **Got it** clears it and it doesn't come back — unless whoever wrote it asked for more than one acknowledgement, in which case the dialog says so up front.
 
 Dismissed one at speed and immediately regretted it? Nothing is lost. The **info icon in the sidebar footer** opens **Past announcements**: everything you've been shown, newest first, read and unread marked, with a filter for the ones you haven't read. Pictures open full size on a click.
 
-Run a server and want to write one? See [Announcements](../admin/announcements.md).
+Run a server and want to write one? See [Announcements](../running-a-server/announcements.md).
 
 ## Related
 
 - [Your space](your-space.md) — where your tasks and events gather.
 - [Profile & preferences](../account/profile-and-preferences.md) — your timezone and everything else.
-- [Announcements](../admin/announcements.md) — writing them, for administrators.
+- [Announcements](../running-a-server/announcements.md) — writing them, for operators.

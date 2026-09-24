@@ -13,6 +13,8 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.services import captcha as captcha_service
+from app.services import captcha_config
+from app.services.captcha_config import ResolvedCaptchaConfig
 
 
 class _FakeResponse:
@@ -62,9 +64,28 @@ def _configure(
     secret: str | None = "s",
     site: str | None = "k",
 ):
+    """Put the verifier in a given configuration, without a database.
+
+    The configuration moved onto the settings row in 0368, so these tests set
+    the RESOLVED value rather than the env vars that now only seed it. The env
+    vars are patched to match anyway: they are what
+    ``current_captcha_config`` falls back to, and leaving them disagreeing with
+    the resolved config would make a failure here ambiguous about which one the
+    code read.
+    """
+    cfg = ResolvedCaptchaConfig(provider=provider, site_key=site, secret_key=secret)
     monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", provider)
     monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", secret)
     monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", site)
+
+    async def _resolved() -> ResolvedCaptchaConfig:
+        return cfg
+
+    # Patched rather than seeded through the cache so no test here opens a
+    # database session: this file is unit-marked, and the resolver's own
+    # behaviour is covered in captcha_config_test.py.
+    monkeypatch.setattr(captcha_config, "ensure_captcha_config_fresh", _resolved)
+    monkeypatch.setattr(captcha_config, "current_captcha_config", lambda: cfg)
 
 
 @pytest.mark.unit

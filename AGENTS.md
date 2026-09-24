@@ -38,7 +38,7 @@ history/
 
 ## Project Structure & Module Organization
 
-`backend/` hosts the FastAPI service; routers sit in `app/api`, config in `core`, persistence helpers in `db`, domain models in `models`, payloads in `schemas`, and business logic in `services`, with `main.py` as the uvicorn entry point. `frontend/src` stays feature-first (`api`, `components`, `features`, `pages`, `hooks`, `lib`, `types`). Dockerfiles plus the root `docker-compose.yml` wire Postgres, backend, and the nginx React build. User-facing documentation is a Zensical static site under `docs/en/` (build/preview with `zensical build`/`serve`; see `docs/en/admin/maintaining-these-docs.md`).
+`backend/` hosts the FastAPI service; routers sit in `app/api`, config in `core`, persistence helpers in `db`, domain models in `models`, payloads in `schemas`, and business logic in `services`, with `main.py` as the uvicorn entry point. `frontend/src` stays feature-first (`api`, `components`, `features`, `pages`, `hooks`, `lib`, `types`). Dockerfiles plus the root `docker-compose.yml` wire Postgres, backend, and the nginx React build. User-facing documentation is a Zensical static site under `docs/en/` (build/preview with `zensical build`/`serve`; see `docs/en/running-a-server/maintaining-these-docs.md`).
 
 ## Build, Test, and Development Commands
 
@@ -337,7 +337,7 @@ Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, and optional `FIR
 Tenancy is enforced in Postgres, not just app code. See **CLAUDE.md → "Tenancy, Database Architecture & RLS"** for the authoritative full detail. Key facts:
 
 - **Schema-per-guild.** Each guild's content lives in its own `guild_<id>` schema; shared identity/config lives in `public`. Isolation = the schema boundary + per-request `SET ROLE`.
-- **Three logins:** `app_user` (`DATABASE_URL_APP`, RLS-enforced request path), `app_admin` (`DATABASE_URL_ADMIN`, the **only** BYPASSRLS role — jobs/seeding/bootstrapping), superuser (`DATABASE_URL`, migrations + provisioning). No standing all-guild bypass on the request path; `app.is_superadmin` is retired from it.
+- **Three logins:** `app_user` (RLS-enforced request path), `app_admin` (the **only** BYPASSRLS role — jobs/seeding/bootstrapping), `app_provisioner` (migrations + provisioning, not a superuser). `DATABASE_URL` alone is the database owner and the app derives all three (see CLAUDE.md); `DATABASE_URL_APP`/`_ADMIN` name them explicitly. No standing all-guild bypass on the request path; `app.is_superadmin` is retired from it.
 - **Guild context is path-based:** guild requests are addressed as `/g/{guild_id}/…`. There is **no `X-Guild-ID` header and no `users.active_guild_id`** (both removed). Cross-guild "my" views are `/api/v1/me/*`.
 - **Initiative-member RLS** on guild content defers to one function, `public.initiative_access(initiative_id, user_id, need_write)` (member OR guild admin OR PAM). A non-member sees **404** (row hidden), not 403. The structural initiative tables are guild-scoped only (not initiative-gated).
 - **Cross-guild access** (PAM / break-glass) is time-bound, per-guild, and audited — never a standing bypass.
@@ -348,14 +348,14 @@ Tenancy is enforced in Postgres, not just app code. See **CLAUDE.md → "Tenancy
 |---|---|---|
 | `RLSSessionDep` (`get_guild_session`) | `app_user` → `SET ROLE guild_<id>`/`_ro` | Guild-scoped data under `/g/{guild_id}/…`. Pair with `GuildContextDep`. |
 | `UserSessionDep` (`get_user_session`) | `app_user` → `platform_<tier>` | Authenticated cross-guild/platform reads with no guild (`/me/*`, list/reorder/leave guilds). |
-| `AdminSessionDep` (`get_admin_session`) | `app_admin` (**BYPASSRLS**) | Bootstrapping (create guild, accept invite), platform user/access-grant mgmt, background jobs, seeding. |
+| `SystemSessionDep` (`get_system_session`) | `app_admin` (**BYPASSRLS**) | Bootstrapping (create guild, accept invite), platform user/access-grant mgmt, background jobs, seeding. |
 | `SessionDep` (`get_session`) | `app_user`, login role | Unauthenticated, or handlers that call `set_rls_context()` themselves after validating. |
 
 ### Rules for writing backend endpoints
 
 1. **Default to `RLSSessionDep`** (+ `GuildContextDep`) for any guild-scoped data; the guild comes from the `/g/{guild_id}` path. Never use `SessionDep` for guild-scoped data.
 2. **After every `session.commit()` followed by a query** (incl. `session.refresh()`), call `await reapply_rls_context(session)` — a commit may release the connection back to the pool.
-3. **Use `UserSessionDep`** for authenticated cross-guild/platform reads; reserve `AdminSessionDep` (BYPASSRLS) for bootstrapping/lifecycle/jobs that can't run under a scoped role.
+3. **Use `UserSessionDep`** for authenticated cross-guild/platform reads; reserve `SystemSessionDep` (BYPASSRLS) for bootstrapping/lifecycle/jobs that can't run under a scoped role.
 4. **Gate platform endpoints on `require_capability(...)`** — never reintroduce a request-path `is_superadmin`.
 5. **`set_rls_context()` uses `set_config()`** so the assumed role/GUCs land on the same pooled connection as subsequent queries.
 

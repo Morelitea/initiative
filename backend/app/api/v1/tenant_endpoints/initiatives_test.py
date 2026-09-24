@@ -26,7 +26,7 @@ from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.services import email as email_service
 from app.services.platform import email_outbox
 from app.services.tenant import initiatives as initiatives_service
-from app.testing import set_notification_prefs
+from app.testing import guild_of, set_notification_prefs
 from app.testing.factories import create_initiative
 
 
@@ -92,14 +92,13 @@ async def _project_shared_with_the_initiative(session: AsyncSession, initiative,
     from app.testing.schema_harness import route_session_to_guild
 
     project = await create_project(session, initiative, owner, name="Shared work")
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, guild_of(initiative))
     session.add(
         ResourceGrant(
             resource_type="project",
             resource_id=project.id,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=initiative.guild_id,
             initiative_id=initiative.id,
         )
     )
@@ -309,7 +308,7 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
 ):
     """A grantee holds no membership in the guild — the grant is what they
     navigate by, so the default listing stays the whole guild for its window.
-    Break-glass reads it the same way, as a full guild admin for that window.
+    Break-glass reads it the same way: its content grant is one of these.
     """
     owner = await acting_user(guild_role=GuildRole.admin)
     await create_initiative(session, owner.guild, owner.user, name="Apollo")
@@ -331,8 +330,8 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
     ("verb", "caller", "target", "status_code", "detail"),
     [
         ("create", "admin", "own", 201, None),
-        ("create", "manager", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
-        ("create", "member", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
+        ("create", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("create", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
         ("update", "admin", "own", 200, None),
         ("update", "manager", "own", 200, None),
         ("update", "member", "own", 403, InitiativeMessages.MANAGER_REQUIRED),
@@ -340,8 +339,8 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
         ("archive", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
         ("archive", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
         ("delete", "admin", "own", 204, None),
-        ("delete", "manager", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
-        ("delete", "member", "own", 403, GuildMessages.GUILD_PERMISSION_REQUIRED),
+        ("delete", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("delete", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
         ("delete", "admin", "default", 400, InitiativeMessages.CANNOT_DELETE_DEFAULT),
     ],
 )
@@ -590,15 +589,14 @@ async def test_search_initiative_members_slim_and_filtered(
         "status",
         "profile_decorations",
         "guild_role",
-        "is_guild_admin",
     }
-    # Asserted as a value, not only as a key: the schema defaults it to False,
-    # so a key-set check passes just as happily on an endpoint that never
-    # fills it in.
+    # Asserted as a value, not only as a key: the schema leaves it unset, so a
+    # key-set check passes just as happily on an endpoint that never fills it
+    # in.
     by_name = {item["full_name"]: item for item in body["items"]}
-    assert by_name["Zed Admin"]["is_guild_admin"] is True
-    assert by_name["Alice Wonderland"]["is_guild_admin"] is False
-    assert by_name["Bob Builder"]["is_guild_admin"] is False
+    assert by_name["Zed Admin"]["guild_role"] == "admin"
+    assert by_name["Alice Wonderland"]["guild_role"] == "member"
+    assert by_name["Bob Builder"]["guild_role"] == "member"
 
     # Filtered by handle, which every guild has for every member.
     response = await client.get(
@@ -2142,7 +2140,7 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     notes = await _notifications_for(session, member.user.id, expected_type)
     assert len(notes) == 1
     assert notes[0].data["initiative_id"] == initiative.id
-    assert notes[0].data["initiative_name"] == "Knockable"
+    assert "initiative_name" not in notes[0].data
     assert notes[0].data["request_id"] == request_id
 
     assert [m["recipient_id"] for m in sent] == [member.user.id]

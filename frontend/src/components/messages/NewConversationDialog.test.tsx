@@ -59,7 +59,7 @@ const person = (id: number, username: string): ContactRead => ({
   full_name: null,
   avatar_url: null,
   status: "active",
-  profile_decorations: {},
+  profile_decorations: { banner: null, frame: null, frame_tint: [], trophies: [], grad_year: null },
   guild_role: null,
   presence: "offline",
   shared_guild_ids: [7],

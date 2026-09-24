@@ -11,7 +11,7 @@ catalog, so an install describes the form it was actually configured against.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
@@ -19,6 +19,9 @@ from app.schemas.base import SanitizedBaseModel
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant.guild_apps import app_artifacts
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
 
 
 class GuildAppInstall(SanitizedBaseModel):
@@ -339,6 +342,7 @@ class GuildAppMembersResponse(SanitizedBaseModel):
 def serialize_guild_app(
     app: Any,
     *,
+    context: "GuildContext",
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
 ) -> GuildAppRead:
@@ -355,7 +359,7 @@ def serialize_guild_app(
     service_state = install_state or InstallState()
     return GuildAppRead(
         id=app.id,
-        guild_id=app.guild_id,
+        guild_id=context.guild_id,
         listing_uid=app.listing_uid,
         listing_version=app.listing_version,
         app_kind=app.app_kind,
@@ -428,6 +432,7 @@ def serialize_connection(
 def serialize_guild_app_detail(
     app: Any,
     *,
+    context: "GuildContext",
     member_rows: Dict[str, Any],
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
@@ -439,7 +444,9 @@ def serialize_guild_app_detail(
     ``update_version`` is resolved by the caller, which is the layer holding a
     session that can read the catalog.
     """
-    base = serialize_guild_app(app, install_state=install_state, avatar_url=avatar_url)
+    base = serialize_guild_app(
+        app, context=context, install_state=install_state, avatar_url=avatar_url
+    )
     connections = [
         serialize_connection(
             app, connection, member_row=member_rows.get(connection.get("id") or "")

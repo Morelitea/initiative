@@ -15,10 +15,11 @@ from collections.abc import AsyncGenerator
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 
 import asyncpg
 import pytest
+from sqlalchemy.engine import make_url
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -34,7 +35,7 @@ from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.db.session import (
     clear_rls_context,
-    get_admin_session,
+    get_system_session,
     get_session,
 )
 from app.testing.schema_harness import clear_search_path_pin
@@ -111,8 +112,8 @@ settings.WEBHOOK_ALLOW_PRIVATE_TARGETS = False
 # bootstrap superuser, overridable via the standard postgres-image variables.
 _su_user = os.environ.get("POSTGRES_USER", "initiative")
 _su_password = os.environ.get("POSTGRES_PASSWORD", "initiative")
-_app_db = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
-_su_netloc = f"{_app_db.hostname}:{_app_db.port or 5432}"
+_app_db = make_url(settings.DATABASE_URL)
+_su_netloc = f"{_app_db.host}:{_app_db.port or 5432}"
 _base_url = (
     f"postgresql+asyncpg://{quote(_su_user, safe='')}:"
     f"{quote(_su_password, safe='')}@{_su_netloc}"
@@ -186,7 +187,7 @@ async def connect_su_postgres() -> asyncpg.Connection:
     return await asyncpg.connect(
         user=_su_user,
         password=_su_password,
-        host=_app_db.hostname,
+        host=_app_db.host,
         port=_app_db.port or 5432,
         database="postgres",
     )
@@ -334,34 +335,39 @@ async def _bootstrap_under_lock() -> None:
         await lock_conn.close()
 
 
-async def _refresh_template_rls() -> None:
-    """Put the registry-rendered RLS on ``guild_template``, as boot does.
+async def _apply_public_rls() -> None:
+    """Put the registry's policies on the shared tables, as boot does.
 
-    Migrations deliberately do not render the registry — a historical migration
-    would freeze whatever it said the day it was written — so a guild table added
-    after the baseline snapshot reaches the template with structure but no
-    policies. Every real install closes that gap in ``backfill_guild_schemas``
-    moments after migrating; a database built by migrations alone never does, and
-    would leave the template a picture no guild schema matches.
+    A shared table's policies come from ``app.db.public_rls`` rather than its
+    migration, and a deployment applies them in ``ensure_public_rls`` moments
+    after migrating. This is that step for the worker's own database, run on
+    every session so a registry edit reaches a database that was migrated
+    before it."""
+    from app.db.public_rls import apply_public_rls_if_changed
 
-    Renders the registry directly rather than calling ``apply_template_rls``.
-    That helper goes through the provisioning bundle, which reflects structure
-    live from the app's own DATABASE_URL database — a database CI has no reason
-    to have built. The RLS half needs no reflection: it is a pure function of the
-    registry, so it can be rendered here and run against this worker's database.
-    """
-    from app.db.guild_ddl import TEMPLATE_SCHEMA, render_guild_rls_ddl
-
-    ddl = render_guild_rls_ddl()
     engine = create_async_engine(TEST_DATABASE_URL)
     try:
         async with engine.begin() as conn:
-            raw = await conn.get_raw_connection()
-            await raw.driver_connection.execute(
-                f'SET search_path TO "{TEMPLATE_SCHEMA}", public;\n'
-                f"{ddl}\n"
-                "SET search_path TO public;"
-            )
+            await apply_public_rls_if_changed(conn)
+    finally:
+        await engine.dispose()
+
+
+async def _retire_public_authorization_copies() -> None:
+    """Drop the ``public`` copies of the guild functions, as boot does after
+    the back-fill. The migrations create them; a provisioned schema binds its
+    own; a fresh database has nothing bound to them, so the drop goes through
+    here. A copy something still binds is left, as boot leaves it."""
+    from app.db.authorization import drop_public_copies
+    from app.db.schema_provisioning import strip_template_registry_objects
+
+    engine = create_async_engine(TEST_DATABASE_URL)
+    try:
+        # As the boot back-fill does first: a template that earlier runs
+        # rendered the registries into still binds the public copies.
+        async with engine.begin() as conn:
+            await strip_template_registry_objects(conn)
+        await drop_public_copies(engine)
     finally:
         await engine.dispose()
 
@@ -385,7 +391,7 @@ async def _test_db_is_at_head() -> bool:
         conn = await asyncpg.connect(
             user=_su_user,
             password=_su_password,
-            host=_app_db.hostname,
+            host=_app_db.host,
             port=_app_db.port or 5432,
             database=TEST_DB_NAME,
         )
@@ -402,8 +408,8 @@ async def _test_db_is_at_head() -> bool:
 
 def _run_test_migrations() -> None:
     """Ensure the worker's test database exists, apply the privileged bootstrap
-    and migrate it (serialized across workers by the advisory lock), refresh the
-    template's RLS the way boot does, then arm the statement_timeout net.
+    and migrate it (serialized across workers by the advisory lock), then arm the
+    statement_timeout net.
 
     The migration is skipped outright when the database is already at head — see
     ``_test_db_is_at_head``; the two steps after it run against this worker's OWN
@@ -423,7 +429,8 @@ def _run_test_migrations() -> None:
         # unlike any real one, with the app's tables owned by a login the app
         # never connects as.
         asyncio.run(_bootstrap_under_lock())
-    asyncio.run(_refresh_template_rls())
+    asyncio.run(_apply_public_rls())
+    asyncio.run(_retire_public_authorization_copies())
     asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
 
@@ -579,6 +586,30 @@ async def role_session():
         await eng.dispose()
 
 
+@pytest.fixture
+async def reading_as(role_session):
+    """A session that reads a community the way a request reads it.
+
+    The default ``session`` fixture connects as the test-infrastructure
+    superuser, and a superuser cannot see a policy hide a row — even routed,
+    its *login* is still one the database treats as trusted. A test that
+    asserts what the policies allow therefore reads on the real request login,
+    through the same seam a request goes through, and sets its data up on the
+    ordinary session (the factories commit, so a separate connection sees it).
+
+        s = await reading_as(member.id, guild.id)
+        assert sorted(await s.exec(select(Queue.name))) == []
+    """
+    from app.testing import route_as
+
+    async def _make(user_id: int, guild_id: int):
+        session = await role_session("app_user")
+        await route_as(session, user_id=user_id, guild_id=guild_id)
+        return session
+
+    return _make
+
+
 # Guild ids whose schema was provisioned during the CURRENT test. Lets the
 # session-teardown SKIP the pg_namespace / pg_roles cleanup scan for the (vast
 # majority of) tests that never provision a guild — only a test that actually
@@ -596,10 +627,14 @@ async def _schema_test_harness(engine, monkeypatch):
     - Points the provisioning engine at the test DB so create_guild / the guilds
       endpoint provision schemas/roles on the test database.
     - Points the system (admin) engine at the test DB **as the real app_admin
-      role**, so maintenance jobs that use ``db_session.admin_engine`` /
-      ``AdminSessionLocal`` directly (secret-key rotation, upload back-fills,
+      role**, so maintenance jobs that use ``db_session.system_engine`` /
+      ``SystemSessionLocal`` directly (secret-key rotation, upload back-fills,
       workers) run against test data under the real policy-bound role instead
       of silently hitting the dev database.
+    - Points the request-path engine at the test DB **as the real app_user
+      role**, for the same reason: the sockets and the seams that open a
+      session of their own (``db_session.AsyncSessionLocal``) rather than
+      taking the request's run against test data under the RLS-enforced role.
     - Wraps ``provision_guild`` (the universal provisioning choke point — factory,
       guild endpoints, backfill, and conversion all route through it) to record
       which guilds got a schema this test, so teardown can skip its cleanup scan
@@ -616,10 +651,10 @@ async def _schema_test_harness(engine, monkeypatch):
     # test so a stale render can't leak across the per-worker test DB lifecycle.
     schema_provisioning.reset_provisioning_bundle()
 
-    test_admin_engine = create_async_engine(
+    test_system_engine = create_async_engine(
         _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
     )
-    monkeypatch.setattr(db_session, "admin_engine", test_admin_engine)
+    monkeypatch.setattr(db_session, "system_engine", test_system_engine)
 
     # The query surface keeps a pool of its own, so it needs pointing at this
     # worker's database like the others — it is created at import against the
@@ -630,9 +665,24 @@ async def _schema_test_harness(engine, monkeypatch):
     monkeypatch.setattr(db_session, "query_engine", test_query_engine)
     monkeypatch.setattr(
         db_session,
-        "AdminSessionLocal",
+        "SystemSessionLocal",
         async_sessionmaker(
-            bind=test_admin_engine,
+            bind=test_system_engine,
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        ),
+    )
+
+    test_app_engine = create_async_engine(
+        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
+    )
+    monkeypatch.setattr(db_session, "engine", test_app_engine)
+    monkeypatch.setattr(
+        db_session,
+        "AsyncSessionLocal",
+        async_sessionmaker(
+            bind=test_app_engine,
             autoflush=False,
             expire_on_commit=False,
             class_=AsyncSession,
@@ -652,8 +702,9 @@ async def _schema_test_harness(engine, monkeypatch):
         schema_provisioning, "provision_guild", _tracking_provision_guild
     )
     yield
-    await test_admin_engine.dispose()
+    await test_system_engine.dispose()
     await test_query_engine.dispose()
+    await test_app_engine.dispose()
 
 
 @pytest.fixture(scope="function")
@@ -809,24 +860,24 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     for *data setup* (factories commit, so the request connection sees the rows) and
     for the privileged teardown (TRUNCATE / DROP SCHEMA / DROP ROLE).
 
-    ``AdminSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS,
+    ``SystemSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS,
     grant-bounded) session,
-    mirroring the production admin engine, so bootstrapping endpoints (guild
+    mirroring the production system engine, so bootstrapping endpoints (guild
     creation, background-job style ops) keep their intended RLS bypass instead of
     silently leaning on the superuser.
 
-    Each request/admin session is bound to a single connection so the per-request
+    Each request/system session is bound to a single connection so the per-request
     ``SET ROLE`` / ``search_path`` GUCs persist across the request's statements.
     """
     app_engine = create_async_engine(
         _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
     )
-    admin_engine = create_async_engine(
+    system_engine = create_async_engine(
         _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
     )
     req_conn = await app_engine.connect()
-    admin_conn = await admin_engine.connect()
-    # NOTE on deadlocks: the request path (app_user) and admin path (app_admin)
+    admin_conn = await system_engine.connect()
+    # NOTE on deadlocks: the request path (app_user) and system path (app_admin)
     # are now SEPARATE connections, so an endpoint that locks a row on one and
     # waits on the other can app-level deadlock — a wait Postgres can't detect.
     # The net is the DATABASE-level statement_timeout armed in _run_test_migrations
@@ -835,7 +886,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     req_session = async_sessionmaker(
         bind=req_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )()
-    admin_session = async_sessionmaker(
+    system_session = async_sessionmaker(
         bind=admin_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )()
 
@@ -856,7 +907,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         await session.commit()
 
     # Mirror production's per-request session lifecycle: ``get_session`` /
-    # ``get_admin_session`` yield from ``async with AsyncSessionLocal()``, which
+    # ``get_system_session`` yield from ``async with AsyncSessionLocal()``, which
     # rolls back and releases locks when the request ends. The test reuses ONE
     # persistent session per role (bound to a connection so SET ROLE / search_path
     # survive), so it must roll back per request itself — otherwise a handler that
@@ -873,22 +924,27 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         # transaction-local context died with the request's rollback.
         clear_rls_context(req_session)
         clear_search_path_pin(req_session)
+        # A fresh session also starts with an empty identity map: a row an
+        # earlier request loaded would otherwise come back as that request saw
+        # it, not as the database now holds it.
+        req_session.expunge_all()
         try:
             yield req_session
         finally:
             await req_session.rollback()
 
-    async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
+    async def override_get_system_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
-        clear_rls_context(admin_session)
-        clear_search_path_pin(admin_session)
+        clear_rls_context(system_session)
+        clear_search_path_pin(system_session)
+        system_session.expunge_all()
         try:
-            yield admin_session
+            yield system_session
         finally:
-            await admin_session.rollback()
+            await system_session.rollback()
 
     app.dependency_overrides[get_session] = override_get_session
-    app.dependency_overrides[get_admin_session] = override_get_admin_session
+    app.dependency_overrides[get_system_session] = override_get_system_session
 
     # Disable rate limiting in tests
     limiter.enabled = False
@@ -912,7 +968,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             yield test_client
     finally:
         app.dependency_overrides.clear()
-        # Release the request/admin connections BEFORE the session-fixture teardown
+        # Release the request/system connections BEFORE the session-fixture teardown
         # runs its privileged TRUNCATE/DROP SCHEMA (which would block on any lock
         # these idle-in-transaction connections still hold, hanging the NEXT test
         # until its statement_timeout fires).
@@ -924,7 +980,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         # it failed — so it runs for every engine regardless.
         for sess, conn, eng in (
             (req_session, req_conn, app_engine),
-            (admin_session, admin_conn, admin_engine),
+            (system_session, admin_conn, system_engine),
         ):
             with suppress(Exception):
                 await sess.close()

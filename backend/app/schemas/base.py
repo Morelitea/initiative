@@ -48,14 +48,23 @@ RESERVED_SIGILS: Final = frozenset("#@")
 RESERVED_SIGIL_CODE: Final = "RESERVED_SIGIL_IN_NAME"
 
 
+# A name or title is a label: it is read in a sidebar, a breadcrumb, a card and
+# a notification line, where the room it gets is a line rather than a page. Well
+# under MAX_PLAIN_TEXT_LENGTH, which bounds a plain-text field of any kind. A
+# field that wants a shorter one says so itself (``max_length=``); this is the
+# ceiling for the ones that say nothing.
+MAX_TITLE_LENGTH: Final = 255
+
+
 class _SigilFreeMarker:
-    """Marker: field is a name or title, and is held to :data:`RESERVED_SIGILS`."""
+    """Marker: field is a name or title, and is held to :data:`RESERVED_SIGILS`
+    and :data:`MAX_TITLE_LENGTH`."""
 
 
 TitleStr = Annotated[str, _SigilFreeMarker()]
-"""str for a name/title a person types: sanitized, and rejected if it holds a
-reserved sigil. Read schemas deliberately do NOT use it — a row stored before
-the rule has to stay readable."""
+"""str for a name/title a person types: sanitized, bounded, and rejected if it
+holds a reserved sigil. Read schemas deliberately do NOT use it — a row stored
+before the rules has to stay readable."""
 
 
 def _strip_to_plain_text(value: str) -> str:
@@ -160,7 +169,8 @@ class SanitizedBaseModel(BaseModel):
     (rich text) or :data:`RawTextStr` (large or opaque data) opt out of both,
     even when wrapped in ``Optional[...]``. Enum-typed fields are skipped.
 
-    Fields typed :data:`TitleStr` additionally reject :data:`RESERVED_SIGILS`.
+    Fields typed :data:`TitleStr` are additionally bounded at
+    :data:`MAX_TITLE_LENGTH` and reject :data:`RESERVED_SIGILS`.
     """
 
     @model_validator(mode="before")
@@ -183,8 +193,14 @@ class SanitizedBaseModel(BaseModel):
                         f"{MAX_PLAIN_TEXT_LENGTH} characters"
                     )
                 cleaned = _strip_to_plain_text(value)
-                # Checked on the stripped value, which is what gets stored.
-                if field_name in sigil_free and RESERVED_SIGILS.intersection(cleaned):
-                    raise ValueError(RESERVED_SIGIL_CODE)
+                # Both checked on the stripped value, which is what gets stored.
+                if field_name in sigil_free:
+                    if len(cleaned) > MAX_TITLE_LENGTH:
+                        raise ValueError(
+                            f"{field_name} exceeds the maximum length of "
+                            f"{MAX_TITLE_LENGTH} characters"
+                        )
+                    if RESERVED_SIGILS.intersection(cleaned):
+                        raise ValueError(RESERVED_SIGIL_CODE)
                 data[field_name] = cleaned
         return data

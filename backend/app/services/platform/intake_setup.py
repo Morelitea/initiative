@@ -6,8 +6,8 @@ module is what the owner's settings page calls to read and change both.
 
 Every write here is the platform owner's (``config.manage``): binding a stream
 is deployment configuration of the same class as OIDC, SMTP and branding.
-Reaching the guild's own schema is the system engine routed into it as a guild
-admin, the same way every other platform surface that reads guild rows does.
+Reaching the guild's own schema is the system engine routed into it by the
+guild alone, the same way every other platform surface that reads guild rows does.
 """
 
 from __future__ import annotations
@@ -56,13 +56,13 @@ class BindingView:
 
 
 async def _route(session: AsyncSession, guild_id: int) -> None:
-    """Route the system session into a guild's schema as its admin.
+    """Route the system session into a guild's schema.
 
     ``expunge_all`` first: ids are unique only within a schema, so nothing
     cached from ``public`` (or from another guild) may be handed back here.
     """
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
 
 
 async def _unroute(session: AsyncSession) -> None:
@@ -97,13 +97,51 @@ async def set_operations_guild(
                 detail=IntakeMessages.GUILD_NOT_ACTIVE,
             )
 
-    row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
-    if row is None:
-        row = AppSetting(id=1)
+    row = await _settings_row(session)
     row.operations_guild_id = guild_id
     session.add(row)
     await session.commit()
     return guild_id
+
+
+async def _settings_row(session: AsyncSession) -> AppSetting:
+    row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
+    return row if row is not None else AppSetting(id=1)
+
+
+async def set_general_contact(session: AsyncSession, email: Optional[str]) -> None:
+    """Set the deployment's catch-all contact address, or clear it."""
+    await _unroute(session)
+    row = await _settings_row(session)
+    row.intake_general_contact = email
+    session.add(row)
+    await session.commit()
+
+
+async def set_stream_contact(
+    session: AsyncSession, stream: IntakeStream, email: Optional[str]
+) -> None:
+    """Set one stream's contact address, or clear it back to the general one."""
+    await _unroute(session)
+    row = await _settings_row(session)
+    contacts = dict(row.intake_contacts or {})
+    if email is None:
+        contacts.pop(stream.value, None)
+    else:
+        contacts[stream.value] = email
+    # A fresh dict, so the JSONB column is seen as changed.
+    row.intake_contacts = contacts
+    session.add(row)
+    await session.commit()
+
+
+async def contacts(session: AsyncSession) -> tuple[Optional[str], dict[str, str]]:
+    """The general address and every stream's own, as set."""
+    await _unroute(session)
+    row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
+    if row is None:
+        return None, {}
+    return row.intake_general_contact, dict(row.intake_contacts or {})
 
 
 async def _resolve_project(

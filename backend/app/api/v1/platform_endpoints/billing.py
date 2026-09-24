@@ -22,16 +22,21 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep
 from app.core.messages import BillingMessages
-from app.db.session import get_admin_session, set_billing_context
+from app.db import session as db_session
+from app.db.session import get_system_session, set_billing_context
 from app.schemas.platform.billing import (
     BillingGuildNameRead,
     BillingGuildNameRequest,
+    BillingGuildStatusRead,
+    BillingGuildStatusRequest,
     BillingGuildTierApply,
     BillingGuildTierRead,
     BillingUsageRead,
     BillingUsageRequest,
 )
+from app.models.platform.guild import GuildStatus
 from app.services.platform import billing as billing_service
+from app.services.platform import guilds as guilds_service
 from app.services.platform import identity_refs
 from app.services.platform.billing import (
     BillingEnvelopeError,
@@ -45,7 +50,7 @@ router = APIRouter(include_in_schema=False)
 # The storage read needs the system engine to reach the guild schema (the
 # billing role is confined to public); the billing session still owns the
 # jti burn.
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 def _payload_error_code(exc: ValidationError) -> str:
@@ -132,6 +137,7 @@ async def apply_guild_tier(
     guild_id = await _resolve_guild(payload.guild_ref)
     await set_billing_context(session, guild_id=guild_id)
     await _burn_jti(session, claims)
+    status_before = await billing_service.guild_lifecycle_status(session, guild_id)
     try:
         result = await billing_service.apply_guild_tier(
             session, payload, guild_id=guild_id
@@ -154,6 +160,14 @@ async def apply_guild_tier(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
         ) from exc
     await session.commit()
+    if (
+        result.status is GuildStatus.on_hold
+        and status_before is not GuildStatus.on_hold
+    ):
+        # Told once, on the way in, and on the system engine: the billing
+        # role writes guild status and caps and nothing else.
+        async with db_session.SystemSessionLocal() as system_session:
+            await guilds_service.announce_on_hold(system_session, guild_id)
     return result
 
 
@@ -183,14 +197,35 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
     return BillingGuildNameRead(guild_ref=payload.guild_ref, name=name)
 
 
+@router.post("/guild-status", response_model=BillingGuildStatusRead)
+async def guild_status(request: Request, session: SessionDep) -> BillingGuildStatusRead:
+    """Signed read: one guild's lifecycle status, ``deleted`` included.
+
+    Only a purged guild 404s, with the jti unredeemed.
+    """
+    claims, payload = await _verify_and_parse(request, BillingGuildStatusRequest)
+    guild_id = await _resolve_guild(payload.guild_ref)
+    await set_billing_context(session, guild_id=guild_id)
+    await _burn_jti(session, claims)
+
+    guild_status = await billing_service.guild_lifecycle_status(session, guild_id)
+    if guild_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.GUILD_NOT_FOUND,
+        )
+    await session.commit()  # persist the one-shot jti redemption
+    return BillingGuildStatusRead(guild_ref=payload.guild_ref, status=guild_status)
+
+
 @router.post("/usage", response_model=BillingUsageRead)
 async def guild_usage(
-    request: Request, session: SessionDep, admin_session: AdminSessionDep
+    request: Request, session: SessionDep, system_session: SystemSessionDep
 ) -> BillingUsageRead:
     """Signed read: current stored bytes for one guild.
 
     Envelope-verified and jti-burned on the billing session like the other
-    reads; the actual ``SUM(uploads.size_bytes)`` runs on ``admin_session``
+    reads; the actual ``SUM(uploads.size_bytes)`` runs on ``system_session``
     routed into the guild schema (the billing role can't reach it). A missing
     guild 404s with the jti unredeemed (retryable).
     """
@@ -199,7 +234,9 @@ async def guild_usage(
     await set_billing_context(session, guild_id=guild_id)
     await _burn_jti(session, claims)
     try:
-        usage_bytes = await billing_service.guild_storage_usage(admin_session, guild_id)
+        usage_bytes = await billing_service.guild_storage_usage(
+            system_session, guild_id
+        )
     except BillingGuildNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

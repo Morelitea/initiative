@@ -24,7 +24,7 @@ import type { GuildEntry } from "@/hooks/useGuilds";
 import { routeTree } from "@/routeTree.gen";
 
 import { buildBanner, buildGuild } from "./factories";
-import { renderPage } from "./helpers/render";
+import { buildRouterContext, renderPage } from "./helpers/render";
 
 const appConfig = vi.hoisted(() => ({ directory: true }));
 vi.mock("@/hooks/useAppConfig", () => ({
@@ -52,6 +52,7 @@ const community: CommunityGuildRead = {
   banner: buildBanner(),
   categories: ["art"],
   member_count: 12,
+  online_count: 0,
   already_member: false,
 };
 
@@ -59,10 +60,10 @@ const DIRECTORY_ROUTE_ID = "/_serverRequired/_authenticated/communities";
 
 /** The router the app builds, from the generated tree rather than a tree
  *  assembled for the test — the registration is the thing under test. */
-const router = createRouter({ routeTree });
+const router = createRouter({ routeTree, context: buildRouterContext() });
 
 const resolvedRouteId = (pathname: string): string => {
-  const matches = router.matchRoutes({ pathname, search: {} }, { preload: true });
+  const matches = router.matchRoutes(pathname, {});
   return String(matches.at(-1)?.routeId ?? "__none__");
 };
 

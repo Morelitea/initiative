@@ -106,36 +106,49 @@ async def test_initiative_member_clause_filters_rows(session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_initiative_scope_clause_legs(session: AsyncSession):
-    """member / guild-admin / (no standing platform-bypass) legs of the clause."""
+async def test_initiative_scope_clause_legs(session: AsyncSession, reading_as):
+    """member / guild-admin / (no standing platform-bypass) legs of the clause.
+
+    The clause defers to ``initiative_access``, which answers about the reader
+    the session was established for — so each of these enters the community as
+    that reader, the way a request does.
+    """
+    from app.api.deps import GuildAccessError
     from app.models.platform.user import UserRole
 
-    admin, member, outsider, _guild, initiative = await _setup(session)
-    platform_admin = await create_user(
+    admin, member, outsider, guild, initiative = await _setup(session)
+    platform_operator = await create_user(
         session, email="platform@example.com", role=UserRole.operator
     )
 
     async def scoped_ids(user) -> list[int]:
+        try:
+            reader = await reading_as(user.id, guild.id)
+        except GuildAccessError:
+            # Not in the community at all, which is the narrower answer.
+            return []
         stmt = select(Initiative.id).where(
             membership_service.initiative_scope_clause(user.id, Initiative.id)
         )
-        return list((await session.exec(stmt)).all())
+        rows = list((await reader.exec(stmt)).all())
+        await reader.rollback()
+        return rows
 
     assert await scoped_ids(member) == [initiative.id]  # member leg
     assert await scoped_ids(admin) == [initiative.id]  # guild-admin leg
     assert await scoped_ids(outsider) == []  # no leg
-    # Phase 3: ``data.bypass`` is NOT a standing leg any more — a platform admin
-    # with no membership and no live grant sees nothing (they must break-glass).
-    assert await scoped_ids(platform_admin) == []
+    # ``data.bypass`` is NOT a standing leg — a platform operator with no
+    # membership and no live grant sees nothing (they must break-glass).
+    assert await scoped_ids(platform_operator) == []
 
 
 @pytest.mark.integration
-async def test_initiative_scope_clause_pam_leg(session: AsyncSession):
-    """A live read PAM grant satisfies the scope clause via initiative_access's
-    pam_read leg; a non-member with no grant matches nothing. (The grant's
-    guild-scoping is enforced by schema routing + RLS — see access_grants_rls_test.)
+async def test_initiative_scope_clause_pam_leg(session: AsyncSession, reading_as):
+    """A live read grant satisfies the scope clause via initiative_access's
+    pam_read leg; the same account with no grant reaches nothing at all.
     """
-    from app.db.session import set_rls_context
+    from app.api.deps import GuildAccessError
+    from app.testing import create_access_grant
 
     _admin, _member, outsider, guild, initiative = await _setup(session)
 
@@ -144,15 +157,12 @@ async def test_initiative_scope_clause_pam_leg(session: AsyncSession):
             membership_service.initiative_scope_clause(outsider.id, Initiative.id)
         )
 
-    # Routed as a read PAM grantee for this guild (sets pam_read + routes into the
-    # guild schema), exactly like the request path does.
-    await set_rls_context(
-        session, user_id=outsider.id, pam_guild_id=guild.id, pam_read=True
-    )
-    assert list((await session.exec(stmt())).all()) == [initiative.id]
+    # Without the grant there is no way in: the seam refuses an account that
+    # belongs to neither the community nor a live grant.
+    with pytest.raises(GuildAccessError):
+        await reading_as(outsider.id, guild.id)
 
-    # Same outsider routed as a (non-)member with no grant: matches nothing.
-    await set_rls_context(
-        session, user_id=outsider.id, guild_id=guild.id, guild_role="member"
-    )
-    assert list((await session.exec(stmt())).all()) == []
+    await create_access_grant(session, user=outsider, guild=guild)
+    reader = await reading_as(outsider.id, guild.id)
+    assert list((await reader.exec(stmt())).all()) == [initiative.id]
+    await reader.rollback()

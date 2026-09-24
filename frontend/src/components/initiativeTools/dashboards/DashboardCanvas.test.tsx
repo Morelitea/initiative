@@ -63,6 +63,7 @@ const render = (
       definition={definition}
       config={readConfig({})}
       catalog={catalog}
+      initiativeId={undefined}
       canEdit={canEdit}
       isLoading={isLoading}
       onLayoutChange={onLayoutChange}

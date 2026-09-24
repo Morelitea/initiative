@@ -6,17 +6,18 @@ Initiative; Counters are independent numeric values clamped to optional
 """
 
 from datetime import datetime, timezone
+from app.db import session as db_session
 from app.core.tools import Tool
 from decimal import Decimal
 from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.services.permissions import (
     DAC_RESOURCES,
-    require_access,
+    require_export_access,
 )
 from app.models.tenant.counter import (
     Counter,
@@ -41,12 +42,12 @@ from app.services.tenant import tags as tags_service
 
 def list_loader_options() -> list:
     """Eager-load what a counter-group *list* row needs: its counters (for the
-    count), its sharing, its initiative's memberships (the DAC engine reads
-    them) and its tags."""
+    count), its sharing, the level the request holds on it and its tags."""
     return [
         selectinload(CounterGroup.counters),
         selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
-        selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
+        selectinload(CounterGroup.initiative),
+        undefer(CounterGroup.access_level),
     ]
 
 
@@ -62,7 +63,8 @@ async def get_counter_group(
         .options(
             selectinload(CounterGroup.counters),
             selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
-            selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
+            selectinload(CounterGroup.initiative),
+            undefer(CounterGroup.access_level),
         )
     )
     if populate_existing:
@@ -80,12 +82,13 @@ async def get_counter_group_for_export(
     guild_id: int,
     *,
     group_id: int,
+    access: str = "owner",
 ) -> CounterGroup:
-    """The counter-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. READ access
-    suffices — exporting is a formatted read. The guild role is resolved here
-    rather than taken from a request context, so the seam works
-    transport-free."""
+    """The counter-export adapter's seam: fetch + authorize in one place so the
+    rule holds on the worker's render-time replay too. It takes the owner rung,
+    or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The guild role is resolved here
+    rather than taken from a request context, so the seam works transport-free."""
     from fastapi import HTTPException, status as http_status
 
     group = await get_counter_group(session, group_id)
@@ -99,11 +102,11 @@ async def get_counter_group_for_export(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=Tool.counter_group.feature_disabled_code,
         )
-    require_access(
+    require_export_access(
         DAC_RESOURCES[Tool.counter_group],
         group,
-        current_user,
-        access="read",
+        context=db_session.guild_context(session),
+        access=access,
     )
     return group
 
@@ -223,7 +226,6 @@ async def duplicate_counter_group(
     copy. Adds the new rows to the session and flushes; the caller commits.
     """
     new_group = CounterGroup(
-        guild_id=guild_id,
         initiative_id=source.initiative_id,
         created_by=user_id,
         name=name,
@@ -239,7 +241,6 @@ async def duplicate_counter_group(
             user_id=user_id,
             role_id=None,
             level=ResourceAccessLevel.owner,
-            guild_id=guild_id,
             initiative_id=new_group.initiative_id,
         )
     )
@@ -255,7 +256,6 @@ async def duplicate_counter_group(
                     user_id=None,
                     role_id=grant.role_id,
                     level=grant.level,
-                    guild_id=guild_id,
                     initiative_id=new_group.initiative_id,
                 )
             )
@@ -267,7 +267,6 @@ async def duplicate_counter_group(
                     user_id=grant.user_id,
                     role_id=None,
                     level=grant.level,
-                    guild_id=guild_id,
                     initiative_id=new_group.initiative_id,
                 )
             )
@@ -283,7 +282,6 @@ async def duplicate_counter_group(
             continue
         session.add(
             Counter(
-                guild_id=guild_id,
                 counter_group_id=new_group.id,
                 name=counter.name,
                 color=counter.color,

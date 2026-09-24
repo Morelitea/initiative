@@ -27,7 +27,7 @@ const INITIATIVE_ID = 50;
 const BOB_ID = 101;
 const EDITOR_ROLE_ID = 200;
 
-const bob = buildUserPublic({ id: BOB_ID, full_name: "Bob Builder", email: "bob@example.com" });
+const bob = buildUserPublic({ id: BOB_ID, full_name: "Bob Builder" });
 
 const initiative = buildInitiative({
   id: INITIATIVE_ID,
@@ -42,6 +42,7 @@ const roles: InitiativeRoleRead[] = [
     display_name: "Editor",
     is_builtin: false,
     is_manager: false,
+    override_share_restrictions: false,
     position: 0,
     permissions: {},
     member_count: 1,

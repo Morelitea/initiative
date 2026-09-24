@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DocumentType, Tool, type WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { WikiPageSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,9 +14,8 @@ import { Input } from "@/components/ui/input";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useAddWikiDocument } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
-import { TOOL_ICONS } from "@/lib/tools";
-
-const DocumentIcon = TOOL_ICONS[Tool.document];
+import { documentIcon } from "@/lib/documentIcon";
+import { cn } from "@/lib/utils";
 
 interface AddWikiDocumentDialogProps {
   wikiId: number;
@@ -36,10 +35,8 @@ interface AddWikiDocumentDialogProps {
  * Nothing is copied. The document keeps its address and its sharing, and this
  * only records that it belongs here too.
  *
- * Only WRITTEN documents are offered. A wiki draws a page it has borrowed with
- * the same editor it draws its own, so a spreadsheet or a whiteboard put in
- * one would be opened as prose it is not — and it is better not to be offered
- * a thing than to be handed it broken.
+ * Every kind of document is offered — a file, a spreadsheet, a whiteboard, a
+ * link — and each is read in the wiki the way its own kind is drawn.
  */
 export const AddWikiDocumentDialog = ({
   wikiId,
@@ -53,7 +50,7 @@ export const AddWikiDocumentDialog = ({
   const add = useAddWikiDocument(wikiId);
 
   const documentsQuery = useDocumentsList(
-    { initiative_id: initiativeId, document_type: DocumentType.native, page_size: 0 },
+    { initiative_id: initiativeId, page_size: 0 },
     { enabled: open }
   );
 
@@ -89,26 +86,34 @@ export const AddWikiDocumentDialog = ({
             <p className="px-3 py-2 text-muted-foreground text-sm">{t("documents.none")}</p>
           ) : (
             <ul className="space-y-0.5">
-              {candidates.map((document) => (
-                <li key={document.id}>
-                  <Button
-                    variant="ghost"
-                    className="h-auto w-full justify-start gap-2 px-3 py-2 text-left"
-                    disabled={add.isPending}
-                    onClick={() =>
-                      add.mutate(document.id, {
-                        onSuccess: () => {
-                          toast.success(t("documents.added"));
-                          onOpenChange(false);
-                        },
-                      })
-                    }
-                  >
-                    <DocumentIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="min-w-0 flex-1 truncate">{document.name}</span>
-                  </Button>
-                </li>
-              ))}
+              {candidates.map((document) => {
+                const { Icon, colorClass } = documentIcon({
+                  document_type: document.document_type,
+                  mime_type: document.file_content_type,
+                  original_filename: document.original_filename,
+                  smart_link_url: document.smart_link_url,
+                });
+                return (
+                  <li key={document.id}>
+                    <Button
+                      variant="ghost"
+                      className="h-auto w-full justify-start gap-2 px-3 py-2 text-left"
+                      disabled={add.isPending}
+                      onClick={() =>
+                        add.mutate(document.id, {
+                          onSuccess: () => {
+                            toast.success(t("documents.added"));
+                            onOpenChange(false);
+                          },
+                        })
+                      }
+                    >
+                      <Icon className={cn("size-4 shrink-0", colorClass)} aria-hidden />
+                      <span className="min-w-0 flex-1 truncate">{document.name}</span>
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

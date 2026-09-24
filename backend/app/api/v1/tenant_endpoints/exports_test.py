@@ -30,7 +30,7 @@ from sqlmodel import select
 from app.api import deps as api_deps
 from app.core.config import settings
 from app.core.search import SearchEntityType
-from app.core.tools import TOGGLEABLE_TOOLS
+from app.core.tools import TOGGLEABLE_TOOLS, Tool, tool_export_source
 from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
@@ -64,8 +64,11 @@ from app.testing.factories import (
     create_relationship,
     create_tag,
     create_task,
+    create_tool_entity,
     create_upload,
+    enable_all_tools,
 )
+from app.services.export import limits as export_limits
 
 pytestmark = pytest.mark.integration
 
@@ -399,7 +402,7 @@ async def test_inline_export_respects_task_filters(
 async def test_export_max_rows_bound(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
-    monkeypatch.setattr(settings, "EXPORT_MAX_ROWS", 1)
+    monkeypatch.setattr(export_limits, "EXPORT_MAX_ROWS", 1)
     a = await _actor_with_tasks(acting_user, session, count=2)
     resp = await _export(client, a, "tasks")
     assert resp.status_code == 400
@@ -409,7 +412,7 @@ async def test_export_max_rows_bound(
 async def test_large_export_becomes_job(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     resp = await _export(client, a, "tasks")
     assert resp.status_code == 202
@@ -431,8 +434,8 @@ async def test_large_export_becomes_job(
 async def test_job_limit_per_user(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
-    monkeypatch.setattr(settings, "EXPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
     a = await _actor_with_tasks(acting_user, session)
     assert (await _export(client, a, "tasks")).status_code == 202
     second = await _export(client, a, "tasks")
@@ -445,7 +448,7 @@ async def test_jobs_are_own_row_isolated(
 ):
     """Another member of the SAME guild sees neither the job nor its download
     (RLS hides the row -> 404); a guild admin sees it via the admin leg."""
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     resp = await _export(client, a, "tasks")
     assert resp.status_code == 202
@@ -475,7 +478,7 @@ async def test_worker_renders_job_and_download_succeeds(
     """The queued job renders in the default format (pdf), downloads once it is
     ``done``, stays off the media route, and leaves the creator an inbox entry
     pointing at it — the recovery path when they navigated away mid-render."""
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     resp = await _export(client, a, "tasks")
     assert resp.status_code == 202
@@ -555,7 +558,7 @@ async def test_project_report_formats_render_the_live_tasks_only(
 async def test_project_export_job_path_renders_json(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     resp = await _export(client, a, "project", project_id=a.project.id)
     assert resp.status_code == 202
@@ -702,6 +705,10 @@ async def test_smart_link_exports_the_importable_document_envelope(
         "content": {"url": "https://example.com/spec"},
         "tags": [],
         "properties": [],
+        # Where it was taken, so an import can tell whether an id in it still
+        # names the same thing.
+        "source_instance_url": settings.APP_URL,
+        "source_guild_id": a.guild.id,
     }
 
 
@@ -903,7 +910,7 @@ async def test_document_export_file_passthrough(
     assert "Q3%20Report%20Final.pdf" in resp.headers["content-disposition"]
 
     # Job path: the original filename survives via the job-id-prefixed key.
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", -1)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", -1)
     queued = await _export(
         client, a, "document", document_id=file_doc.id, format="file"
     )
@@ -928,7 +935,7 @@ async def test_passthrough_exports_do_not_collide_by_filename(
     """Two members exporting a same-named file each get their own artifact: the
     job id is in the storage basename (the directory a nested key would add is
     stripped by both backends), so the refs stay distinct."""
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", -1)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", -1)
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
 
     async def queue_export(blob_key, blob_bytes):
@@ -1003,7 +1010,6 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
     key = "exports/424242.pdf"
     storage.write(key, b"%PDF-fake", content_type="application/pdf")
     job = ExportJob(
-        guild_id=a.guild.id,
         created_by=a.user.id,
         source="tasks",
         template_id="task-table",
@@ -1267,6 +1273,268 @@ async def test_export_of_content_outside_the_callers_initiative_is_not_found(
 
     resp = await _export(client, a, source, headers=outsider.headers, **params)
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Who may export a tool
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("tool", list(Tool), ids=lambda tool: tool.value)
+async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
+    client: AsyncClient, acting_user, session, tool
+):
+    """An export hands the whole thing over, so it is for whoever may delete
+    it: its owner, and anyone with full access to it — the community's admin,
+    an initiative role that overrides sharing. Somebody it is shared with to
+    edit may read and change it, and still may not take a copy away. Every
+    tool, from the registry."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await enable_all_tools(session, a.initiative)
+    entity = await create_tool_entity(session, tool, a.initiative, a.user)
+    editor = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await route_session_to_guild(session, a.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type=tool.value,
+            resource_id=entity.id,
+            user_id=editor.user.id,
+            level=ResourceAccessLevel.write,
+            initiative_id=a.initiative.id,
+        )
+    )
+    await session.commit()
+    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    source = tool_export_source(tool)
+    params = {f"{tool.value}_id": entity.id, "format": "json"}
+
+    refused = await _export(client, a, source, headers=editor.headers, **params)
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "EXPORT_OWNER_REQUIRED"
+    for who in (a, admin):
+        resp = await _export(client, a, source, headers=who.headers, **params)
+        assert resp.status_code == 200, (who.user.id, resp.text)
+
+
+def _page_body(text: str) -> dict:
+    return {
+        "root": {
+            "type": "root",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "text": text, "format": 0}],
+                }
+            ],
+        }
+    }
+
+
+async def _wiki_with_filed_documents(session, a, acting_user):
+    """A wiki whose pages nest, one draft, and four documents filed in it: a
+    text document, a spreadsheet and an upload the exporter owns — the upload
+    filed under the first page — and one they can only read."""
+    from app.core.relationships import RelationshipType
+    from app.testing.factories import create_wiki, create_wiki_page
+
+    await enable_all_tools(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    # Written child-first: the export must still put the parent above it.
+    parent = await create_wiki_page(
+        session, wiki, a.user, title="Rules", content=_page_body("Be kind"), position=0
+    )
+    await create_wiki_page(
+        session,
+        wiki,
+        a.user,
+        title="Combat",
+        content=_page_body("Roll initiative"),
+        parent_page_id=parent.id,
+        position=0,
+    )
+    await create_wiki_page(
+        session,
+        wiki,
+        a.user,
+        title="Secret plans",
+        content=_page_body("Not yet"),
+        is_draft=True,
+        position=1,
+    )
+    notes = await create_document(
+        session, a.initiative, a.user, name="Session notes", content=_page_body("Hi")
+    )
+    sheet = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="Loot",
+        document_type=DocumentType.spreadsheet,
+        content={},
+    )
+    other = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    theirs = await create_document(
+        session, a.initiative, other.user, name="Their map", content=_page_body("x")
+    )
+    await route_session_to_guild(session, a.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=theirs.id,
+            user_id=a.user.id,
+            level=ResourceAccessLevel.read,
+            initiative_id=a.initiative.id,
+        )
+    )
+    await session.commit()
+    handout = await _file_document(
+        session,
+        a,
+        name="Handout",
+        key="handout-key.pdf",
+        filename="handout.pdf",
+        payload=MINIMAL_PDF,
+        content_type="application/pdf",
+    )
+    for document in (notes, sheet, theirs, handout):
+        await create_relationship(
+            session,
+            a.guild,
+            source=(SearchEntityType.document, document.id),
+            target=(SearchEntityType.wiki, wiki.id),
+            relationship_type=RelationshipType.part_of,
+        )
+    from app.models.tenant.wiki import Wiki
+    from app.services.tenant.wikis import file_document
+
+    await route_session_to_guild(session, a.guild.id)
+    row = await session.get(Wiki, wiki.id)
+    file_document(row, handout.id, parent_page_id=parent.id, position=3)
+    session.add(row)
+    await session.commit()
+    return wiki
+
+
+#: The smallest file a document upload is recognised as a PDF from.
+MINIMAL_PDF = (
+    b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    b"2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n"
+    b"trailer<</Root 1 0 R>>\n%%EOF\n"
+)
+
+
+async def test_a_wiki_exports_as_one_document_with_its_filed_documents(
+    client: AsyncClient, acting_user, session
+):
+    """A wiki reads as one document — each published page under a heading at
+    its depth, parents before children, drafts left out — and the documents
+    filed in it that the exporter could export on their own ride beside it
+    under ``documents/``, in the format their type allows."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+
+    resp = await _export(client, a, "wiki", wiki_id=wiki.id, format="md")
+    assert resp.status_code == 200, resp.text
+    archive = _zip(resp)
+    names = sorted(archive.namelist())
+    [page_file] = [n for n in names if not n.startswith("documents/")]
+    text = archive.read(page_file).decode()
+    assert text.index("# Rules") < text.index("Be kind") < text.index("## Combat")
+    assert "Roll initiative" in text
+    assert "Secret plans" not in text
+    filed = [n for n in names if n.startswith("documents/")]
+    assert any(
+        n.startswith("documents/session_notes") and n.endswith(".md") for n in filed
+    )
+    assert any(n.startswith("documents/loot") and n.endswith(".xlsx") for n in filed)
+    assert "documents/handout.pdf" in filed
+    assert not any("their_map" in n for n in filed)
+
+    # Each page starts a page of its own: two published pages, one break.
+    docx_zip = _zip(await _export(client, a, "wiki", wiki_id=wiki.id, format="docx"))
+    [wiki_docx] = [
+        n for n in docx_zip.namelist() if n.endswith(".docx") and "/" not in n
+    ]
+    with zipfile.ZipFile(io.BytesIO(docx_zip.read(wiki_docx))) as package:
+        body = package.read("word/document.xml").decode()
+    assert body.count('w:type="page"') == 1
+
+    pdf_zip = _zip(await _export(client, a, "wiki", wiki_id=wiki.id, format="pdf"))
+    [wiki_pdf] = [n for n in pdf_zip.namelist() if n.endswith(".pdf") and "/" not in n]
+    pages = PdfReader(io.BytesIO(pdf_zip.read(wiki_pdf))).pages
+    assert len(pages) >= 2
+    assert "Combat" not in pages[0].extract_text()
+
+
+async def test_a_wikis_importable_file_carries_its_filed_documents(
+    client: AsyncClient, acting_user, session
+):
+    """The importable file carries the filed documents inside the wiki's
+    envelope, each with where it is filed, and an upload's bytes beside it
+    under ``assets/``."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+
+    resp = await _export(client, a, "wiki", wiki_id=wiki.id, format="json")
+    assert resp.status_code == 200, resp.text
+    archive = _zip(resp)
+    assert "assets/handout-key.pdf" in archive.namelist()
+    [envelope_name] = [n for n in archive.namelist() if n.endswith(".json")]
+    envelope = json.loads(archive.read(envelope_name))
+    by_name = {
+        (entry.get("envelope") or entry.get("upload"))["name"]: entry
+        for entry in envelope["documents"]
+    }
+    assert set(by_name) == {"Session notes", "Loot", "Handout"}
+    assert by_name["Handout"]["page"] == "rules"
+    assert by_name["Handout"]["upload"]["storage_key"] == "handout-key.pdf"
+    assert by_name["Session notes"]["envelope"]["type"] == "initiative-document"
+
+
+async def test_a_gallery_exports_as_a_zip_of_its_envelope_and_pictures(
+    client: AsyncClient, acting_user, session
+):
+    """A gallery's envelope names its pictures by storage key, so the download
+    carries the pictures beside it under ``assets/``. One whose file is gone is
+    still listed and left out of the zip, which is what an import expects."""
+    from app.testing.factories import create_gallery, create_gallery_image
+    from app.services.storage import get_guild_storage
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await enable_all_tools(session, a.initiative)
+    gallery = await create_gallery(session, a.initiative, a.user, name="Barovia maps")
+    kept = await create_gallery_image(session, gallery, a.user, title="Village")
+    gone = await create_gallery_image(
+        session, gallery, a.user, title="Castle", write_blob=False
+    )
+    kept_key = kept.file_url.rsplit("/", 1)[-1]
+    gone_key = gone.file_url.rsplit("/", 1)[-1]
+
+    resp = await _export(client, a, "gallery", gallery_id=gallery.id, format="json")
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"] == "application/zip"
+    archive = _zip(resp)
+    [envelope_name] = [n for n in archive.namelist() if n.endswith(".json")]
+    assert envelope_name.endswith(".initiative-gallery.json")
+    envelope = json.loads(archive.read(envelope_name))
+    assert {image["storage_key"] for image in envelope["images"]} == {
+        kept_key,
+        gone_key,
+    }
+    assert sorted(archive.namelist()) == sorted([envelope_name, f"assets/{kept_key}"])
+    stored = get_guild_storage(a.guild.id).open_readable(kept_key)
+    assert stored is not None and stored.path is not None
+    assert archive.read(f"assets/{kept_key}") == stored.path.read_bytes()
 
 
 # ---------------------------------------------------------------------------
@@ -1569,7 +1837,7 @@ async def test_bulk_counter_group_pdf_zip_through_job_path(
 ):
     """A bulk selection over the inline threshold becomes a job; the worker
     renders and stores the ZIP, and the download carries the bundle name."""
-    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     g1 = await create_counter_group(session, a.initiative, a.user, name="Party")
     g2 = await create_counter_group(session, a.initiative, a.user, name="Villains")
@@ -1700,9 +1968,10 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
 async def test_calendar_export_applies_calendar_sharing(
     client: AsyncClient, acting_user, session
 ):
-    """Calendar sharing holds for exports: a calendar not shared with the
-    exporter stays OUT of their export-all — while a guild admin still reaches
-    it by explicit selection."""
+    """Calendar sharing holds for exports: export-all carries the calendars the
+    exporter may export — the ones they own — and leaves out one they can only
+    read as well as one not shared with them at all. Asking for either by id
+    is refused, while a guild admin still reaches them by explicit selection."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     b = await acting_user(
@@ -1711,9 +1980,11 @@ async def test_calendar_export_applies_calendar_sharing(
         initiative=a.initiative,
         initiative_role="member",
     )
-    open_cal = await create_calendar(session, a.initiative, a.user, name="Open")
+    own_cal = await create_calendar(session, a.initiative, b.user, name="Theirs")
+    read_cal = await create_calendar(session, a.initiative, a.user, name="Readable")
     secret_cal = await create_calendar(session, a.initiative, a.user, name="Secret")
-    await create_calendar_event(session, open_cal, a.user, title="Open session")
+    await create_calendar_event(session, own_cal, b.user, title="Their session")
+    await create_calendar_event(session, read_cal, a.user, title="Read only")
     secret = await create_calendar_event(session, secret_cal, a.user, title="Hidden")
     # Strip every grant except the creator's own — b can no longer see it.
     # (is_distinct_from: role grants carry a NULL user_id, which a plain
@@ -1730,19 +2001,20 @@ async def test_calendar_export_applies_calendar_sharing(
 
     resp = await _export(client, a, "calendar", headers=b.headers, format="json")
     envelope = json.loads(_assert_export(resp, "json"))
-    assert envelope["name"] == "Open"
-    assert {e["title"] for e in envelope["events"]} == {"Open session"}
+    assert envelope["name"] == "Theirs"
+    assert {e["title"] for e in envelope["events"]} == {"Their session"}
 
-    # Explicitly requesting the hidden calendar is refused outright.
-    denied = await _export(
-        client,
-        a,
-        "calendar",
-        headers=b.headers,
-        format="ics",
-        calendar_ids=[secret_cal.id],
-    )
-    assert denied.status_code == 403
+    # Explicitly requesting one they may not export is refused outright.
+    for calendar in (read_cal, secret_cal):
+        denied = await _export(
+            client,
+            a,
+            "calendar",
+            headers=b.headers,
+            format="ics",
+            calendar_ids=[calendar.id],
+        )
+        assert denied.status_code == 403, calendar.name
 
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     admin_resp = await _export(
@@ -1899,7 +2171,6 @@ async def test_initiative_backup_includes_read_only_projects(
             resource_id=theirs.id,
             user_id=exporter.user.id,
             level=ResourceAccessLevel.read,
-            guild_id=theirs.guild_id,
             initiative_id=theirs.initiative_id,
         )
     )
@@ -1918,6 +2189,56 @@ async def test_initiative_backup_includes_read_only_projects(
     manifest = json.loads(archive.read("manifest.json"))
     project_entries = [e for e in manifest["entries"] if e["tool"] == "project"]
     assert {e["title"] for e in project_entries} == {"Theirs"}
+
+
+async def test_a_backup_lists_its_assignees_among_its_people(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """The restore asks who everybody is before it writes anything, and an
+    assignee is somebody it has to place — a task restored into a community
+    where that handle means nobody would otherwise arrive unassigned, with
+    nobody having been asked."""
+    from app.core.user_display import handle_of
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_task(session, a.project, title="Carry the torch", assignees=[a.user])
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+
+    assert {
+        "handle": handle_of(a.user),
+        "name": None,
+        "comment_count": 0,
+    } in manifest["people"]
+
+
+async def test_a_backup_lists_who_its_user_properties_name(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A restore places a user-type property value through the people step,
+    so the manifest has to list whoever one names — or the step never asks,
+    and the value lands only on an exact name match."""
+    from app.core.user_display import handle_of
+    from app.models.tenant.property import PropertyType
+    from app.testing.factories import (
+        create_property_definition,
+        create_task_property_value,
+    )
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Report it")
+    reporter = await create_property_definition(
+        session, a.initiative, name="Reporter", type=PropertyType.user_reference
+    )
+    await create_task_property_value(session, task, reporter, value_user_id=a.user.id)
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+
+    assert handle_of(a.user) in [p["handle"] for p in manifest["people"]]
 
 
 async def test_aggregate_export_hides_dac_invisible_rows(
@@ -2085,7 +2406,7 @@ async def test_backup_upload_byte_cap(
 ):
     """The uploads byte cap rejects an oversized backup at request time, before
     a job row exists."""
-    monkeypatch.setattr(settings, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
+    monkeypatch.setattr(export_limits, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _file_document(
         session,
@@ -2112,7 +2433,7 @@ async def test_backup_embedded_image_bytes_hit_cap_at_build(
     """Embedded document images aren't visible to the pre-flight count (it only
     sizes file documents), so the cap catches them at build time: the job fails
     closed instead of assembling an over-cap archive."""
-    monkeypatch.setattr(settings, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
+    monkeypatch.setattr(export_limits, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await create_upload(
         session, a.guild, a.user, filename="huge.png", size_bytes=1_000_000
@@ -2241,8 +2562,8 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
     assert body["uploads_approximate"] is True
     # entities (8) + tasks (1) + uploads MiB (0)
     assert body["estimated_rows"] == 9
-    assert body["max_rows"] == settings.EXPORT_MAX_BACKUP_ROWS
-    assert body["max_upload_bytes"] == settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES
+    assert body["max_rows"] == export_limits.EXPORT_MAX_BACKUP_ROWS
+    assert body["max_upload_bytes"] == export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES
 
     without_uploads = await _export(
         client,
@@ -2845,3 +3166,55 @@ async def test_download_stays_proxied_unless_the_operator_turns_it_on(
     )
     assert dl.status_code == 200
     assert dl.headers["content-type"] == "application/zip"
+
+
+async def test_a_backup_says_which_wiki_page_a_file_is_filed_under(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A file document in a wiki crosses as ``attach_to`` naming the wiki's
+    entry — and, when it sits under one of the wiki's pages, that page's slug,
+    so a restore files it there again."""
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant.wikis import file_document
+    from app.testing.factories import create_wiki, create_wiki_page
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a.initiative.wikis_enabled = True
+    session.add(a.initiative)
+    await session.commit()
+    file_doc = await _file_document(
+        session,
+        a,
+        name="Rulebook",
+        key="rulebook-abc.pdf",
+        filename="Rulebook.pdf",
+        payload=b"%PDF-rules",
+        content_type="application/pdf",
+    )
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    page = await create_wiki_page(session, wiki, a.user, title="Rules")
+    await relationships_service.create(
+        session,
+        source=relationships_service.Endpoint(SearchEntityType.document, file_doc.id),
+        relationship_type=RelationshipType.part_of,
+        target=relationships_service.Endpoint(SearchEntityType.wiki, wiki.id),
+        created_by=a.user.id,
+    )
+    file_document(wiki, file_doc.id, parent_page_id=page.id)
+    session.add(wiki)
+    await session.commit()
+
+    resp = await _export(
+        client, a, "initiative", initiative_id=a.initiative.id, include_uploads=True
+    )
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    wiki_entry = next(e for e in manifest["entries"] if e["type"] == "initiative-wiki")
+    (entry,) = [e for e in manifest["entries"] if e["type"] == "file"]
+    assert entry["attach_to"] == {
+        "kind": "wiki",
+        "ref": wiki_entry["path"],
+        "page": page.slug,
+    }

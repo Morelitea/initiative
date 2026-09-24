@@ -82,7 +82,7 @@ class GuildRead(GuildBase):
     the guilds router:
 
     - The fields below with no note are for **every member**: guild identity,
-      the caller's own membership, the roster size, ``content_read_only``.
+      the caller's own rung, the roster size, ``content_read_only``.
     - The ones marked ADMIN-ONLY are guild administration — caps, plan label,
       retention window, lifecycle status, sign-in entitlement. They back
       admin-gated surfaces, so a regular member's payload leaves them ``None``.
@@ -95,12 +95,17 @@ class GuildRead(GuildBase):
     )
 
     id: int
+    #: The rung this caller holds in the community: the membership row's own,
+    #: or the one a live settings grant confers for its window. It is the only
+    #: thing here that says what they may do — administering is this reaching
+    #: ``admin`` and the seat is it reaching ``superadmin``, asked of the
+    #: ladder rather than answered again as a flag apiece.
     role: GuildRole
-    #: Whether this membership administers the guild — admin or above.
-    #: Computed where the payload is already split by it, so a surface asks
-    #: the server one question instead of each screen deciding what the
-    #: role means.
-    is_admin: bool = False
+    #: Whether this caller may change the configuration its rung reaches. The
+    #: membership row's administrator does; a settings grant does only beside
+    #: a ``read_write`` content grant. The same rule the settings routes refuse
+    #: a change by.
+    can_write_settings: bool = False
     position: int
     created_at: datetime
     updated_at: datetime
@@ -117,16 +122,21 @@ class GuildRead(GuildBase):
     # path (billing_foss_test scans for that). Enforcement reads
     # max_storage_bytes / max_users / status.
     tier_name: Optional[str] = None
-    # ADMIN-ONLY. Lifecycle status, so their settings page can show a "contact
-    # your operator" chip. ``None`` for non-admin members — the moderation hold
-    # is never disclosed to them (suspended guilds are also filtered from their
-    # guild list entirely).
+    # ADMIN-ONLY. Lifecycle status, so the app can show an admin a suspended
+    # community as closed and a read-only one with its notice. ``None`` for
+    # non-admin members — the moderation hold is never disclosed to them
+    # (suspended guilds are also filtered from their guild list entirely).
     status: Optional[GuildStatus] = None
     # True when content writes are frozen (read_only lifecycle status). Unlike
     # ``status`` this IS serialized to every member: writes fail at the
     # database role level regardless, so the UI must be able to drop its write
     # affordances — the flag discloses the effect, not the reason.
     content_read_only: bool = False
+    # ADMIN-ONLY, and only for a suspended guild: who the closed entry tells
+    # them to contact — the deployment's moderation contact, else its general
+    # one (``app.services.platform.intake.contact_for``). ``None`` when neither
+    # is set, or for any other guild.
+    contact_email: Optional[str] = None
     # ADMIN-ONLY. What this guild may do about its own sign-in (operator
     # entitlement), so their settings UI knows which surfaces to offer;
     # ``None`` for non-admin members (they never configure auth).
@@ -168,6 +178,10 @@ class GuildRead(GuildBase):
     # the banner's: this payload lists every guild the caller is in, and the
     # icon used to be a data URI inlined into all of them.
     icon_url: Optional[str] = None
+
+
+class GuildPaymentIssueRead(SanitizedBaseModel):
+    payment_failed: bool = False
 
 
 class GuildInviteCreate(SanitizedBaseModel):
@@ -280,6 +294,10 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # only to platform operators here — never to guild members (GuildRead omits it).
     status: GuildStatus = GuildStatus.active
     status_changed_at: Optional[datetime] = None
+    # The statuses the operator may move this guild to, the current one
+    # included where it is one of them (``operator_status_choices``). Empty
+    # for a deleted guild.
+    status_choices: List[GuildStatus] = Field(default_factory=list)
     # When a deleted guild is destroyed: its deletion time plus the retention
     # window. Null unless ``status`` is ``deleted``. Computed from the two
     # columns beside it rather than stored, so the window is stated in one
@@ -413,6 +431,9 @@ class GuildAuthSettingsRead(SanitizedBaseModel):
     allow_api_keys: bool
     enforce_compliance_session: bool
     require_second_factor: bool = False
+    allow_push_notifications: bool = True
+    allow_email_notifications: bool = True
+    redact_notification_content: bool = False
 
 
 class GuildApiAccessRead(SanitizedBaseModel):
@@ -461,6 +482,32 @@ class GuildSessionLimitUpdate(SanitizedBaseModel):
     hours, whatever the deployment's own limit says."""
 
     enforce_compliance_session: bool
+
+
+class GuildNotificationPolicyRead(SanitizedBaseModel):
+    """What this community's notifications may leave the app carrying."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    allow_push_notifications: bool
+    allow_email_notifications: bool
+    redact_notification_content: bool
+    #: What the deployment already asks of every community, so the page can say
+    #: that a switch has nothing to add rather than offering the same answer
+    #: twice. The stricter of the two applies, so a deployment that has already
+    #: declined a channel leaves nothing here to decline.
+    push_allowed_by_platform: bool = True
+    email_allowed_by_platform: bool = True
+    redacted_by_platform: bool = False
+
+
+class GuildNotificationPolicyUpdate(SanitizedBaseModel):
+    """Set them. Each one restricts this community's notifications and nothing
+    else: no switch here relaxes what the deployment has already said."""
+
+    allow_push_notifications: bool
+    allow_email_notifications: bool
+    redact_notification_content: bool
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

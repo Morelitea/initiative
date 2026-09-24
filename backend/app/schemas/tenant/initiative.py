@@ -16,6 +16,7 @@ from app.models.tenant.initiative import (
 from app.schemas.platform.user import UserPublic, UserSummary
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.initiative import (
         Initiative,
         InitiativeMember,
@@ -209,7 +210,10 @@ class InitiativeRead(InitiativeBase):
     )
 
     id: int
-    guild_id: int
+    #: The community this initiative was read in. Set by
+    #: :func:`serialize_initiative`; a payload pydantic builds while validating
+    #: another carries none until that serializer replaces it.
+    guild_id: Optional[int] = None
     is_default: bool = False
     # Hidden from the main sidebar once set (see Initiative.archived_at).
     archived_at: Optional[datetime] = None
@@ -352,7 +356,25 @@ def member_tool_flags(
     return flags
 
 
-def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
+class InitiativeSummary(SanitizedBaseModel):
+    """An initiative as something else names it: enough to label and link it.
+
+    What a project, a document or a task carries about the initiative it is in.
+    The initiative's own read is :class:`InitiativeRead`, roster and all.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    name: str
+    color: Optional[str] = None
+
+
+def serialize_initiative(
+    initiative: "Initiative", *, context: "GuildContext"
+) -> InitiativeRead:
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
@@ -378,7 +400,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         )
     return InitiativeRead(
         id=initiative.id,
-        guild_id=initiative.guild_id,
+        guild_id=context.guild_id,
         name=initiative.name,
         description=initiative.description,
         color=initiative.color,

@@ -13,7 +13,9 @@ from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.services.platform import access_grants as access_grants_service
 from app.testing.factories import (
+    create_auth_provider,
     create_guild,
+    create_guild_auth_policy,
     create_guild_membership,
     create_initiative,
     create_user,
@@ -45,6 +47,46 @@ async def _request_and_approve(client, *, requester, approver, guild, rung):
     )
     assert decided.status_code == 200, decided.text
     return decided.json()
+
+
+async def _request_pair_and_approve(
+    client, session, *, requester, approver, guild, access, rung
+):
+    """One request asking for both axes, and both grants approved.
+
+    A request names the content rung and, beside it, the settings rung. Each
+    axis becomes its own row, so each is approved and audited on its own.
+    """
+    from app.models.platform.access_grant import AccessGrant
+
+    asked = await client.post(
+        "/api/v1/access-grants/",
+        headers=get_auth_headers(requester),
+        json={
+            "guild_id": guild.id,
+            "access_level": access,
+            "settings_level": rung,
+            "reason": "the community cannot sign in",
+        },
+    )
+    assert asked.status_code == 201, asked.text
+
+    pending = (
+        await session.exec(
+            select(AccessGrant).where(
+                AccessGrant.user_id == requester.id,
+                AccessGrant.guild_id == guild.id,
+            )
+        )
+    ).all()
+    assert {grant.purpose for grant in pending} == {"content", "settings"}
+    for grant in pending:
+        decided = await client.post(
+            f"/api/v1/access-grants/{grant.id}/approve",
+            headers=get_auth_headers(approver),
+            json={},
+        )
+        assert decided.status_code == 200, decided.text
 
 
 async def test_a_settings_grant_reaches_settings_and_no_content(
@@ -142,8 +184,14 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
     )
     assert pref.status_code == 200, pref.text
 
-    await _request_and_approve(
-        client, requester=support, approver=owner, guild=guild, rung="superadmin"
+    await _request_pair_and_approve(
+        client,
+        session,
+        requester=support,
+        approver=owner,
+        guild=guild,
+        access="read_write",
+        rung="superadmin",
     )
     deleted = await client.delete(
         f"/api/v1/g/{guild.id}/settings/ai/connections/{connection_id}",
@@ -197,6 +245,9 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
         "allow_api_keys": False,
         "enforce_compliance_session": True,
         "require_second_factor": False,
+        "allow_email_notifications": True,
+        "allow_push_notifications": True,
+        "redact_notification_content": False,
     }
 
 
@@ -367,3 +418,252 @@ async def test_a_combined_conflict_sends_no_external_notification(
 
     assert response.status_code == 409, response.text
     send.assert_not_awaited()
+
+
+# --- What each rung actually reaches -----------------------------------------
+
+
+async def test_the_admin_rung_runs_the_community_without_entering_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """``admin`` is "what a guild admin administers" — the community's own
+    settings and its roster, and none of the work inside it. On its own the
+    rung reads; changing what it reaches takes a read_write grant beside it."""
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    await create_initiative(session, guild, owner, name="Private Wing")
+
+    await _request_and_approve(
+        client, requester=support, approver=owner, guild=guild, rung="admin"
+    )
+    headers = get_auth_headers(support)
+
+    entry = await client.get(f"/api/v1/guilds/{guild.id}", headers=headers)
+    assert entry.status_code == 200, entry.text
+    assert entry.json()["role"] == "admin"
+    assert entry.json()["can_write_settings"] is False
+
+    renamed = await client.patch(
+        f"/api/v1/guilds/{guild.id}",
+        headers=headers,
+        json={"name": "Renamed By Support"},
+    )
+    assert renamed.status_code == 403, renamed.text
+    assert renamed.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
+
+    roster = await client.get(f"/api/v1/g/{guild.id}/users/", headers=headers)
+    assert roster.status_code == 200, roster.text
+    assert {row["id"] for row in roster.json()} == {owner.id}
+
+    content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    assert content.status_code in (403, 404), content.text
+
+
+async def test_the_admin_rung_writes_beside_a_read_write_grant(
+    client: AsyncClient, session: AsyncSession
+):
+    """The two asks together: the rung names the surface, the read_write grant
+    lets it be changed — and, being a content grant, opens the work too."""
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    await create_initiative(session, guild, owner, name="Private Wing")
+
+    await _request_pair_and_approve(
+        client,
+        session,
+        requester=support,
+        approver=owner,
+        guild=guild,
+        access="read_write",
+        rung="admin",
+    )
+    headers = get_auth_headers(support)
+
+    renamed = await client.patch(
+        f"/api/v1/guilds/{guild.id}",
+        headers=headers,
+        json={"name": "Renamed By Support"},
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["name"] == "Renamed By Support"
+    assert renamed.json()["can_write_settings"] is True
+
+    entry = await client.get(f"/api/v1/guilds/{guild.id}", headers=headers)
+    assert entry.json()["can_write_settings"] is True
+
+    content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    assert content.status_code == 200, content.text
+
+
+async def test_the_lent_seat_lifts_the_communitys_sign_in_requirement(
+    client: AsyncClient, session: AsyncSession
+):
+    """The write the seat's own floor carries, made by somebody holding the
+    seat for a window rather than by membership — with the read_write grant
+    beside the rung that lets a lent seat change what it reads."""
+    from app.testing.factories import create_auth_provider, create_guild_auth_policy
+
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_auth_policy(session, guild, provider)
+
+    await _request_pair_and_approve(
+        client,
+        session,
+        requester=support,
+        approver=owner,
+        guild=guild,
+        access="read_write",
+        rung="superadmin",
+    )
+
+    cleared = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=get_auth_headers(support),
+        json={"policy": "open"},
+    )
+
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["policy"] == "open"
+
+    # Read back through the surface rather than the setup session, which is
+    # holding its own view of the row this just removed.
+    after = await client.get(
+        f"/api/v1/guilds/{guild.id}/auth-policy", headers=get_auth_headers(support)
+    )
+    assert after.status_code == 200, after.text
+    assert after.json()["policy"] == "open"
+
+
+async def test_a_lent_seat_reads_the_sign_in_rule_and_does_not_change_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """The seat's rung on its own is a view of what the seat holds."""
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_auth_policy(session, guild, provider)
+
+    await _request_and_approve(
+        client, requester=support, approver=owner, guild=guild, rung="superadmin"
+    )
+    headers = get_auth_headers(support)
+
+    read = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
+    assert read.status_code == 200, read.text
+    assert read.json()["policy"] != "open"
+
+    refused = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "open"},
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
+
+
+async def test_the_admin_rung_does_not_reach_the_seats_own_surface(
+    client: AsyncClient, session: AsyncSession
+):
+    """The two rungs are a ladder: the lower one runs the community and does
+    not decide who may enter it."""
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+
+    await _request_and_approve(
+        client, requester=support, approver=owner, guild=guild, rung="admin"
+    )
+
+    response = await client.get(
+        f"/api/v1/guilds/{guild.id}/auth-settings", headers=get_auth_headers(support)
+    )
+
+    assert response.status_code == 403, response.text
+
+
+async def test_the_pair_one_request_asks_for_reaches_both_axes(
+    client: AsyncClient, session: AsyncSession
+):
+    """The ordinary shape of a PAM request: a content rung and, beside it, a
+    settings rung. Somebody sent to fix a sign-in that is keeping a community
+    out holds both — the configuration to change the rule, and the content
+    access they asked for to see what it was doing."""
+    from app.testing.factories import create_auth_provider, create_guild_auth_policy
+
+    owner = await create_user(session, role=UserRole.owner)
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    await create_initiative(session, guild, owner, name="Private Wing")
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_auth_policy(session, guild, provider)
+
+    await _request_pair_and_approve(
+        client,
+        session,
+        requester=support,
+        approver=owner,
+        guild=guild,
+        access="read_write",
+        rung="superadmin",
+    )
+    headers = get_auth_headers(support)
+
+    # The settings axis: the rule this session cannot itself satisfy is still
+    # theirs to lift, which is the errand.
+    cleared = await client.put(
+        f"/api/v1/guilds/{guild.id}/auth-policy",
+        headers=headers,
+        json={"policy": "open"},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["policy"] == "open"
+
+    # And the content axis, which the same request asked for separately.
+    content = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    assert content.status_code == 200, content.text
+    assert [row["name"] for row in content.json()] == ["Private Wing"]
+
+    # The seat's own surfaces come with the rung, lent as well as held: taking
+    # the community out in one file is one of the things that seat does.
+    export = await client.get(
+        f"/api/v1/g/{guild.id}/exports/guild/status", headers=headers
+    )
+    assert export.status_code == 200, export.text
+
+
+async def test_a_members_guild_list_says_whether_they_change_its_settings(
+    client: AsyncClient, session: AsyncSession
+):
+    """The membership row answers for a member: its administrator changes the
+    settings, an ordinary member has none to change."""
+    admin = await create_user(session)
+    member = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=member, guild=guild)
+
+    for user, expected in ((admin, True), (member, False)):
+        listed = await client.get("/api/v1/guilds/", headers=get_auth_headers(user))
+        assert listed.status_code == 200, listed.text
+        (entry,) = [row for row in listed.json() if row["id"] == guild.id]
+        assert entry["can_write_settings"] is expected
+
+
+async def test_a_member_does_not_read_the_settings_entry(
+    client: AsyncClient, session: AsyncSession
+):
+    """The entry is served on the settings surface, so it asks for its rung."""
+    admin = await create_user(session)
+    member = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=member, guild=guild)
+
+    refused = await client.get(
+        f"/api/v1/guilds/{guild.id}", headers=get_auth_headers(member)
+    )
+    assert refused.status_code == 403, refused.text

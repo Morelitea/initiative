@@ -1,0 +1,14 @@
+<h2>Date</h2><p><time datetime="2026-09-01" /></p><h2>Attendees</h2><ul><li><p><ac:link><ri:user ri:account-id="redacted" /></ac:link></p></li><li><p>[@guest] (not an Atlassian user)</p></li></ul><h2>Discussion</h2><p>Agreed the Q3 theme is wikis. See <ac:link><ri:page ri:space-key="IMPTEST" ri:content-title="Roadmap 2026" ri:version-at-save="1" /><ac:link-body>Roadmap 2026</ac:link-body></ac:link>.</p><h2>Action items</h2><ac:task-list ac:task-list-id="69216d854a11">
+<ac:task>
+<ac:task-id>1</ac:task-id>
+<ac:task-uuid>ff2abd4a637c</ac:task-uuid>
+<ac:task-status>complete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Draft the importer plan</span></ac:task-body>
+</ac:task>
+<ac:task>
+<ac:task-id>2</ac:task-id>
+<ac:task-uuid>22aa3d18e8bc</ac:task-uuid>
+<ac:task-status>incomplete</ac:task-status>
+<ac:task-body><span class="placeholder-inline-tasks">Build a fixture space</span></ac:task-body>
+</ac:task>
+</ac:task-list><h2>Decisions</h2><ac:adf-extension><ac:adf-node type="decision-list"><ac:adf-attribute key="local-id">0831567a82f2</ac:adf-attribute><ac:adf-node type="decision-item"><ac:adf-attribute key="local-id">dc26ffe8a161</ac:adf-attribute><ac:adf-attribute key="state">DECIDED</ac:adf-attribute><ac:adf-content>Confluence spaces import as wikis</ac:adf-content></ac:adf-node></ac:adf-node><ac:adf-fallback><ul class="decision-list"><li>Confluence spaces import as wikis</li></ul></ac:adf-fallback></ac:adf-extension>

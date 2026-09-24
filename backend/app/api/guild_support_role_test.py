@@ -18,7 +18,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import _load_guild_context
-from app.core.messages import GuildMessages
+from app.core.messages import AccessGrantMessages, GuildMessages
 from app.models.platform.access_grant import (
     AccessGrant,
     AccessGrantPurpose,
@@ -141,7 +141,7 @@ async def test_a_content_grant_alone_does_not_reach_guild_settings(
 
     resp = await client.get(_ai_url(admin.guild.id), headers=get_auth_headers(support))
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == GuildMessages.GUILD_PERMISSION_REQUIRED
+    assert resp.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
 
 async def test_support_read_grant_reads_guild_settings(
@@ -180,15 +180,14 @@ async def test_the_admin_rung_does_not_reach_the_ai_settings_surface(
 
     resp = await client.get(_ai_url(admin.guild.id), headers=get_auth_headers(support))
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == GuildMessages.GUILD_PERMISSION_REQUIRED
+    assert resp.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
 
 async def test_support_read_grant_cannot_write_guild_settings(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The seat's rung admits them; the read content grant still routes them
-    into the SELECT-only role, so a settings WRITE (creating a connection) is
-    denied at the database layer → generic 403."""
+    """The seat's rung admits them to read; changing a connection asks for a
+    read_write content grant beside it, so a read grant is refused by name."""
     admin = await acting_user(guild_role=GuildRole.admin)
 
     support = await create_user(session, role=UserRole.support)
@@ -203,7 +202,7 @@ async def test_support_read_grant_cannot_write_guild_settings(
         json={"label": "x", "provider": "openai"},
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+    assert resp.json()["detail"] == AccessGrantMessages.WRITE_GRANT_REQUIRED
 
 
 async def test_support_read_write_grant_writes_guild_settings(
@@ -238,7 +237,7 @@ async def test_plain_member_still_denied_guild_settings(
     a = await acting_user(guild_role=GuildRole.member)
     resp = await client.get(_ai_url(a.guild.id), headers=a.headers)
     assert resp.status_code == 403
-    assert resp.json()["detail"] == GuildMessages.GUILD_PERMISSION_REQUIRED
+    assert resp.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
 
 # ---------------------------------------------------------------------------
@@ -249,30 +248,14 @@ async def test_plain_member_still_denied_guild_settings(
 async def test_guild_admin_cannot_assign_support_role(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The member-facing role endpoint rejects ``support`` (it would otherwise
-    hit the guild_role enum, which has only admin/member)."""
+    """The member-facing role endpoint rejects ``support``: it is synthesized
+    for a grant and never stored as a membership role."""
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
     resp = await client.patch(
         f"/api/v1/guilds/{admin.guild.id}/members/{member.user.id}",
         headers=admin.headers,
-        json={"role": "support"},
-    )
-    assert resp.status_code == 400
-    assert resp.json()["detail"] == GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE
-
-
-async def test_platform_admin_cannot_assign_support_role(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The platform-admin role endpoint rejects ``support`` too."""
-    owner = await create_user(session, role=UserRole.owner)
-    target = await acting_user(guild_role=GuildRole.member)
-
-    resp = await client.patch(
-        f"/api/v1/admin/guilds/{target.guild.id}/members/{target.user.id}/role",
-        headers=get_auth_headers(owner),
         json={"role": "support"},
     )
     assert resp.status_code == 400

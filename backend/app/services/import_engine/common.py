@@ -15,7 +15,7 @@ same way:
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from sqlalchemy import func
 from sqlmodel import select
@@ -26,6 +26,9 @@ from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.property import PropertyDefinition, PropertyType
 from app.models.tenant.tag import Tag
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.services.import_engine.people import PeopleMap
 
 
 class TagResolved:
@@ -66,28 +69,20 @@ def options_compatible(
 async def ensure_tag(
     session: AsyncSession,
     *,
-    guild_id: int,
     name: str,
     color: str,
 ) -> TagResolved:
-    """Find a tag by ``(guild_id, name)`` or create it.
-
-    ``guild_id`` is intentionally non-optional: a ``None`` here would
-    silently match guild-less tags (``WHERE guild_id IS NULL``) and
-    cross-pollinate across guilds. Callers must guarantee a real guild
-    before reaching this helper.
+    """Find a tag by name in the routed guild's schema, or create it there.
 
     The match is case-insensitive to mirror the tag CRUD's duplicate-name
     rule — otherwise an import could mint a case-variant duplicate that the
     endpoints would reject with a 409.
     """
-    stmt = select(Tag).where(
-        Tag.guild_id == guild_id, func.lower(Tag.name) == name.strip().lower()
-    )
+    stmt = select(Tag).where(func.lower(Tag.name) == name.strip().lower())
     existing = (await session.exec(stmt)).one_or_none()
     if existing is not None:
         return TagResolved(id=existing.id, created=False)
-    tag = Tag(guild_id=guild_id, name=name, color=color)
+    tag = Tag(name=name, color=color)
     session.add(tag)
     await session.flush()
     return TagResolved(id=tag.id, created=True)
@@ -248,11 +243,19 @@ class _EnvelopePropertyValue(Protocol):
 def decode_property_value(
     pv: _EnvelopePropertyValue,
     initiative_member_handles: dict[str, int],
+    *,
+    people: "PeopleMap | None" = None,
 ) -> dict[str, Any] | None:
     """Convert an envelope property value back to the typed column kwargs.
 
-    Returns ``None`` if the value is a user reference whose handle isn't a
-    member of the target initiative — caller skips the row silently.
+    A user reference names somebody by handle, and is placed the way an
+    assignee is (``people.initiative_member_id``): the account the import's
+    people step mapped the handle to, else a member whose handle is the same
+    string — and a member of the target initiative either way, because a
+    property on a task in an initiative points at somebody in it.
+
+    Returns ``None`` when a user reference places nobody — the caller skips
+    that one value, and the property reads as empty.
     """
     t = pv.property_type
     if t in (PropertyType.text, PropertyType.url, PropertyType.select):
@@ -270,7 +273,14 @@ def decode_property_value(
     if t == PropertyType.user_reference:
         if not pv.value_handle:
             return {"value_user_id": None}
-        uid = initiative_member_handles.get(handle_key(pv.value_handle))
+        from app.services.import_engine.people import PeopleMap, initiative_member_id
+
+        uid = initiative_member_id(
+            pv.value_handle,
+            people=people if people is not None else PeopleMap(),
+            member_handles=initiative_member_handles,
+            member_ids=frozenset(initiative_member_handles.values()),
+        )
         if uid is None:
             # Drop the value rather than the whole row; the UI renders the
             # property as "—".

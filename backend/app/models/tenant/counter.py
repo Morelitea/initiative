@@ -6,10 +6,13 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -25,7 +28,12 @@ class CounterViewMode(str, Enum):
 
 
 class CounterGroup(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     """Initiative-scoped container for a set of related counters."""
 
@@ -36,7 +44,6 @@ class CounterGroup(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     name: str = Field(nullable=False, max_length=255)
     description: Optional[str] = Field(
@@ -78,7 +85,6 @@ class Counter(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "counters"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     counter_group_id: int = Field(
         sa_column=Column(
             Integer,
@@ -138,3 +144,6 @@ class Counter(CreatedByMixin, SoftDeleteMixin, table=True):
     )
 
     group: Optional[CounterGroup] = Relationship(back_populates="counters")
+
+
+attach_access_level(CounterGroup, Tool.counter_group)

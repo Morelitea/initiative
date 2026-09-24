@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.tenant import webhook_dispatcher
 from app.services.tenant.webhook_dispatcher import _sign, dispatch_event
@@ -122,7 +123,6 @@ async def _make_subscription(
     """Helper: create a sub bound to a real guild+user so FKs hold."""
     now = datetime.now(timezone.utc)
     sub = WebhookSubscription(
-        guild_id=guild.id,
         initiative_id=initiative_id,
         created_by=user.id,
         app_install_id=app_install_id,
@@ -133,6 +133,7 @@ async def _make_subscription(
         created_at=now,
         updated_at=now,
     )
+    await route_session_to_guild(session, guild.id)
     session.add(sub)
     await session.commit()
     return sub
@@ -349,6 +350,9 @@ async def test_dispatch_does_not_cross_guilds(session):
         event_types=["task.created"],
     )
 
+    # The real caller is a request routed into guild A; B's rows are in
+    # another schema, and the dispatcher reads the one its session is on.
+    await route_session_to_guild(session, guild_a.id)
     with patch(
         "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
     ) as mock_deliver:

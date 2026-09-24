@@ -8,7 +8,9 @@ drift test proves exactly what ``alembic revision --autogenerate`` would see.
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable, Iterable
+
+from sqlalchemy import ForeignKeyConstraint
 
 from app.db.system_grants import NON_MODEL_SHARED_TABLES
 from app.db.tenancy import GUILD_SCOPED_TABLES
@@ -44,8 +46,6 @@ def make_include_object(guild_autogen: bool) -> IncludeObject:
       emit. Metadata-declared indexes/uniques missing from the template are
       still created (a real model change); reflected-only ones are never
       dropped.
-    * ``guild_id`` columns are trigger-populated and DDL-owned (NOT NULL in
-      the schema, Optional in models) — their nullability is not a diff.
     """
 
     def include_object(obj, name, type_, reflected, compare_to) -> bool:
@@ -65,8 +65,57 @@ def make_include_object(guild_autogen: bool) -> IncludeObject:
             return False  # wholly artifact-owned (names + cross-schema omissions)
         if type_ in ("index", "unique_constraint", "check_constraint"):
             return not reflected or compare_to is not None  # never drop artifact-owned
-        if type_ == "column" and name == "guild_id":
-            return False  # trigger-populated; DDL owns its NOT NULL
         return True
 
     return include_object
+
+
+def _reaches_out_of_the_schema(item: Any) -> bool:
+    """Whether ``item`` is a foreign key to a table outside the guild schema."""
+    return isinstance(item, ForeignKeyConstraint) and any(
+        element.target_fullname.rsplit(".", 1)[0] not in GUILD_SCOPED_TABLES
+        for element in item.elements
+    )
+
+
+def strip_cross_schema_foreign_keys(directives: Iterable[Any]) -> None:
+    """Drop the keys a guild schema cannot hold from newly generated tables.
+
+    ``include_object`` above already refuses foreign keys as a *diff*, but a
+    table being created carries its constraints inside the ``CreateTableOp``
+    rather than beside it, so none of them is ever offered to that filter. A
+    new tool table therefore arrived with
+    ``sa.ForeignKeyConstraint(["created_by"], ["users.id"])`` written into its
+    migration — a reference from a ``guild_<id>`` schema to ``public``, which
+    provisioning omits when it renders the schema (``app.db.guild_ddl``). It
+    reached ``guild_template`` and stopped there, which is how twenty-three of
+    them accumulated before 20260922_0349 removed them.
+
+    The models keep declaring ``foreign_key="users.id"``: it is what tells the
+    app that an integer column names a person, which is how a filter on
+    ``created_by`` gets a member picker (``app.services.fields.derive``) and
+    how search resolves the resource a row is gated against. This strips it
+    only where it would become DDL.
+
+    Guild mode only — a reference between two ``public`` tables is an ordinary
+    key that the database does hold.
+    """
+    for script in directives:
+        for container in (
+            getattr(script, "upgrade_ops", None),
+            getattr(script, "downgrade_ops", None),
+        ):
+            if container is not None:
+                _strip(container)
+
+
+def _strip(container: Any) -> None:
+    for operation in getattr(container, "ops", ()):
+        if hasattr(operation, "ops"):  # ModifyTableOps and friends nest
+            _strip(operation)
+        if hasattr(operation, "columns"):  # CreateTableOp
+            operation.columns = [
+                item
+                for item in operation.columns
+                if not _reaches_out_of_the_schema(item)
+            ]

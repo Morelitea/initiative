@@ -41,7 +41,7 @@ A task can hold:
 | Field | What it's for |
 |---|---|
 | **Title** | A short name. Required. |
-| **Description** | The detail. Formatting works, with a **Preview**. |
+| **Description** | The detail. Formatting works, with a **Preview**, and so do `@`, `#` and `[[ ]]` — see [Mentions & links](mentions-and-links.md). Paste or drag in a screenshot and it lands where your cursor is; take it back out, or leave without saving, and it's gone from storage too. |
 | **Status** | Where it's got to. |
 | **Priority** | Low, Medium, High, or Urgent. |
 | **Start date** | When work should begin. |
@@ -116,6 +116,7 @@ Cards in columns, one column per status. Drag a card along as the work moves.
 
 - **Drag and drop** between columns to change status.
 - **Collapse** a column you're deliberately not thinking about.
+- **Fields** decides what a card shows. Turn off what this project doesn't use — priority, dates, tags, the checklist bar, the comment and blocker counts, any custom property — and the cards get shorter and quicker to read. It's *Fields* rather than *Columns* because on a board the columns are your statuses. Remembered per project, so a board you've never fiddled with shows everything it has.
 
 ![A project in Kanban view](../images/projects/view-kanban.png)
 
@@ -168,7 +169,9 @@ Next time, start *from* it and skip the fiddling. Ideal for anything you do more
 
 ## Exporting a project
 
-**Export a project** to a portable file — an offline copy, a move somewhere else, or a backup of one specific project. It imports back in later.
+**Export a project** to a portable file — an offline copy, a move somewhere else, or a backup of one specific project. It imports back in later. It's in **Project settings → Advanced**, next to deleting it, and it belongs to the same people: whoever owns the project, and anyone who can see everything in its initiative.
+
+The task list's own **Export** — the tasks you've filtered to, or the ones you've selected, as a PDF, a spreadsheet or Markdown — stays where it is.
 
 !!! note "People are named by handle"
     An export identifies assignees, event attendees and person-type fields by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't.

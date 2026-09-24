@@ -982,6 +982,12 @@ def _convert_node(node: dict, list_depth: int = 0) -> str:
         return _convert_list_item(node, list_depth)
     elif node_type == "quote":
         return _convert_quote(node)
+    elif node_type == "callout":
+        return _convert_callout(node, list_depth)
+    elif node_type in ("layout-container", "layout-item"):
+        # Columns read one after another: what matters to a model is the
+        # words and their order, not where they sat on the page.
+        return _convert_nodes(node.get("children", []), list_depth)
     elif node_type == "code":
         return _convert_code_block(node)
     elif node_type == "horizontalrule":
@@ -1002,6 +1008,16 @@ def _convert_node(node: dict, list_depth: int = 0) -> str:
         if children:
             return _convert_inline_children(children)
         return node.get("text", "")
+
+
+def _convert_callout(node: dict, list_depth: int = 0) -> str:
+    """A callout as Obsidian writes one: its kind, then its blocks behind
+    ``>``."""
+    variant = str(node.get("variant") or "note")
+    body = _convert_nodes(node.get("children", []), list_depth)
+    lines = [f"> [!{variant}]"]
+    lines.extend(f"> {line}" if line else ">" for line in body.split("\n"))
+    return "\n".join(lines)
 
 
 def _convert_paragraph(node: dict) -> str:

@@ -22,7 +22,7 @@ from app.models.platform.user import (
 )
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
@@ -38,13 +38,15 @@ from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
+from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from app.schemas.platform.user import AdminUserRead, UserRead, UserSummary
+    from app.schemas.platform.user import OperatorUserRead, UserRead, UserSummary
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
+from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 
 
@@ -105,8 +107,8 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
     """Communities where this account holds the only superadmin seat.
 
     An ordinary admin does not count: a community left with admins but no
-    seat cannot appoint one, reach its billing, or change its sign-in until
-    an operator seats somebody. A community whose only member is this account
+    seat has nobody inside who can appoint one, reach its billing, or change
+    its sign-in. A community whose only member is this account
     does not count either — there is nobody there to strand.
     """
     from app.models.platform.guild import Guild
@@ -139,11 +141,8 @@ async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[
 async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
     """Communities this account's removal would leave without a superadmin.
 
-    What :func:`is_last_guild_superadmin` reports, with the roster the operator
-    needs to act on it: ``guild_id``, ``guild_name``, and the other members —
-    the people who could be made superadmin instead of the community being
-    deleted. An empty ``other_members`` is the case where deleting the
-    community is the only way through.
+    What :func:`is_last_guild_superadmin` reports, with the id the operator
+    needs to act on it: ``guild_id`` and ``guild_name``.
     """
     from app.models.platform.guild import Guild
     from app.services.platform.guilds import would_strand_guild
@@ -169,26 +168,7 @@ async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List
             if not guild:
                 continue
 
-            # Who could take the seat instead.
-            members_stmt = (
-                select(User)
-                .join(GuildMembership, GuildMembership.user_id == User.id)
-                .where(
-                    GuildMembership.guild_id == membership.guild_id,
-                    GuildMembership.user_id != user_id,
-                    User.status == UserStatus.active,
-                )
-            )
-            members_result = await session.exec(members_stmt)
-            other_members = members_result.all()
-
-            blockers.append(
-                {
-                    "guild_id": guild.id,
-                    "guild_name": guild.name,
-                    "other_members": other_members,
-                }
-            )
+            blockers.append({"guild_id": guild.id, "guild_name": guild.name})
 
     return blockers
 
@@ -197,7 +177,7 @@ async def check_deletion_eligibility(
     session: AsyncSession,
     user_id: int,
     *,
-    admin_context: bool = False,
+    operator_context: bool = False,
 ) -> tuple[bool, List[str]]:
     """
     Check if user can be deleted.
@@ -215,16 +195,17 @@ async def check_deletion_eligibility(
     Args:
         session: Database session
         user_id: ID of the user to check
-        admin_context: If True, adjust message wording for admin perspective
+        operator_context: If True, word the blockers for an operator reading another account
     """
     blockers = []
 
     for guild_name in await is_last_guild_superadmin(session, user_id):
-        if admin_context:
+        if operator_context:
             blockers.append(
                 f"User is the only superadmin of community '{guild_name}'. "
-                f"Another user must be made superadmin or the community must be "
-                f"deleted first."
+                f"They can make another member superadmin, or somebody holding "
+                f"break-glass access to the community can appoint one, or delete "
+                f"the community, from its settings."
             )
         else:
             blockers.append(
@@ -283,7 +264,7 @@ async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> 
     for guild_id in guild_ids:
         # ids repeat per schema, so the identity map is cleared between guilds.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         await _end_app_access(session, user_id=user_id, guild_id=guild_id)
         await session.flush()
     await set_rls_context(session)
@@ -334,7 +315,7 @@ async def _drop_user_memberships(
 
     for gid in guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
         await initiatives_service.remove_user_from_guild_initiatives(
             session,
             guild_id=gid,
@@ -376,7 +357,7 @@ async def deactivate_user(
     Sets ``status = deactivated``, drops the user from every guild and
     initiative they belong to, and bumps ``token_version`` so any
     outstanding JWTs stop authenticating. PII (name, email, avatar) is
-    left intact so the user can be reactivated by an admin later.
+    left intact so the user can be reactivated by an operator later.
 
     ``actor_user_id`` is who asked for it — the account holder, or somebody
     acting on the account.
@@ -534,6 +515,82 @@ async def _scrub_invites_addressed_to(
             session.add(invite)
 
 
+async def _erase_personal_rows(session: AsyncSession, *, user_id: int) -> None:
+    """Delete the shared-table rows that are about this person and nobody else.
+
+    A hard delete gets all of these from the ``users`` foreign key. Anonymizing
+    keeps the row, so the cascade never fires and each one is deleted here.
+    Rows that pair this account with somebody else go from both sides: a husk
+    on another person's contacts, ignore list or conversation is a trace of
+    the account just the same.
+    """
+    from app.models.platform.announcement import AnnouncementReadReceipt
+    from app.models.platform.contact_grant import ContactGrant
+    from app.models.platform.dm_conversation import DmConversationMember
+    from app.models.platform.dm_device import DmDevice
+    from app.models.platform.email_outbox import EmailOutboxItem
+    from app.models.platform.profile_favorite import ProfileFavorite
+    from app.models.platform.user_cookie_consent import UserCookieConsent
+    from app.models.platform.user_decoration import UserDecoration
+    from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
+    from app.models.platform.user_dm_settings import UserDmSettings
+    from app.models.platform.user_ignore import UserIgnore
+    from app.models.platform.user_passkey import UserPasskey
+
+    # What the profile was dressed in: every decoration an installed pack
+    # granted. What it was wearing is on the ``users`` row, cleared by the caller.
+    await session.exec(delete(UserDecoration).where(UserDecoration.user_id == user_id))
+    # Passkeys name the device they live on, and a husk signs in with nothing.
+    await session.exec(delete(UserPasskey).where(UserPasskey.user_id == user_id))
+    # Notifications quote the content they point at; the email queued behind
+    # them quotes it again, and would otherwise still be sent.
+    await session.exec(
+        delete(EmailOutboxItem).where(EmailOutboxItem.user_id == user_id)
+    )
+    await session.exec(delete(Notification).where(Notification.user_id == user_id))
+    await session.exec(
+        delete(AnnouncementReadReceipt).where(
+            AnnouncementReadReceipt.user_id == user_id
+        )
+    )
+    await session.exec(
+        delete(UserCookieConsent).where(UserCookieConsent.user_id == user_id)
+    )
+    # Direct messages: the devices (their keys and queued ciphertext go with
+    # them by cascade), the account's place on each conversation, and its
+    # settings.
+    await session.exec(delete(DmDevice).where(DmDevice.user_id == user_id))
+    await session.exec(
+        delete(DmConversationMember).where(DmConversationMember.user_id == user_id)
+    )
+    await session.exec(delete(UserDmSettings).where(UserDmSettings.user_id == user_id))
+    await session.exec(
+        delete(UserDmGuildOptout).where(UserDmGuildOptout.user_id == user_id)
+    )
+    # The social graph, both directions.
+    await session.exec(
+        delete(ProfileFavorite).where(
+            or_(
+                ProfileFavorite.user_id == user_id,
+                ProfileFavorite.favorite_user_id == user_id,
+            )
+        )
+    )
+    await session.exec(
+        delete(UserIgnore).where(
+            or_(UserIgnore.user_id == user_id, UserIgnore.ignored_user_id == user_id)
+        )
+    )
+    await session.exec(
+        delete(ContactGrant).where(
+            or_(
+                ContactGrant.user_id_low == user_id,
+                ContactGrant.user_id_high == user_id,
+            )
+        )
+    )
+
+
 async def soft_delete_user(
     session: AsyncSession, user_id: int, *, actor_user_id: int | None = None
 ) -> None:
@@ -573,12 +630,11 @@ async def soft_delete_user(
         session.expunge_all()
         await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
         # Drop the user's AI credentials (member API keys) + connection
-        # preference in this guild — the encrypted keys are a secret we must not
-        # leave behind. The CASCADE FK to public.users is a soft cross-schema ref
-        # (dropped in the guild schema), so it never fires; delete explicitly,
-        # routed as guild admin so the own-row RLS admits it.
+        # preference in this guild — the encrypted keys are a secret we must
+        # not leave behind, and this delete is what removes them. Routed as
+        # guild admin so the own-row RLS admits it.
         await session.exec(
             delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
         )
@@ -610,14 +666,14 @@ async def soft_delete_user(
         user.username = usernames.random_name()
         user.discriminator = usernames.random_discriminator()
     # Drop any platform role back to member. The row is now an empty husk
-    # that can't act on anything; leaving the admin role on it would be
+    # that can't act on anything; leaving a staff role on it would be
     # misleading in audit views and would inflate any role-only count
     # that doesn't also filter by status.
     user.role = UserRole.member
 
     # Every address the account held is replaced with one sentinel. It reads as
     # obvious nonsense if it is ever decrypted, and its domain is RFC 2606
-    # example.com so EmailStr serialization on user-facing endpoints (the admin
+    # example.com so EmailStr serialization on user-facing endpoints (the operator
     # user list, and so on) does not reject the row.
     sentinel_email = (
         f"anonymized-{user_id}-{secrets.token_hex(8)}@anonymized.example.com"
@@ -640,6 +696,10 @@ async def soft_delete_user(
     # The picture is a row of its own now, so nulling the column is not enough
     # — the husk must not keep a face.
     await user_avatars_service.delete_avatar(session, user_id=user_id)
+    # Nor a look: the banner, frame and trophies it wore, and the status it set.
+    user.profile_decorations = {}
+    user.custom_status = {}
+    await _erase_personal_rows(session, user_id=user_id)
 
     # Drop the notification settings document so the account leaves no
     # behavioural profile behind. Absent reads as every default, which is where
@@ -800,14 +860,12 @@ async def hard_delete_user(
     guild_ids = list((await session.exec(select(Guild.id))).all())
 
     # Phase 1 — guild-scoped cleanup, ROUTED INTO EACH GUILD'S SCHEMA. Every
-    # statement below targets a guild-scoped table whose live rows live in
-    # ``guild_<id>``; running them on the default (public) context would hit the
-    # frozen pre-conversion backup and silently leave the user's content behind
-    # in every guild. ``flush`` (not commit) keeps everything in the single
+    # statement below targets a guild-scoped table, which exists only in
+    # ``guild_<id>``. ``flush`` (not commit) keeps everything in the single
     # transaction committed at the end, so a failure rolls the whole delete back.
     for gid in guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
 
         # Releases their owner grants (content is left unowned) and drops their
         # memberships.
@@ -821,17 +879,25 @@ async def hard_delete_user(
         # hard deletes need it here, before the row disappears.
         await set_system_guild_context(session, guild_id=gid)
         await anonymize_user_mentions(session, user_id=user_id)
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
 
-        # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
+        # Per-user guild-scoped rows: each one is deleted or nulled here, in
+        # every guild schema, because this loop does it and nothing else will.
+        # account_erasure_rows_test asserts the outcome for each table.
         await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))
         await session.exec(
             delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id)
         )
         await session.exec(delete(RecentView).where(RecentView.user_id == user_id))
+        # The ledger that stops an event reminder being sent twice: one row per
+        # (event, person), of no use to anyone once the person is gone.
+        await session.exec(
+            delete(EventReminderDispatch).where(
+                EventReminderDispatch.user_id == user_id
+            )
+        )
         # AI credentials (member API keys) + connection preference for this
-        # guild. CASCADE to public.users is a soft cross-schema ref (dropped in
-        # the guild schema), so it never fires — delete explicitly.
+        # guild — held in custody for them, so erasure must not leave them.
         await session.exec(
             delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
         )
@@ -847,6 +913,14 @@ async def hard_delete_user(
             update(TaskAssignmentDigestItem)
             .where(TaskAssignmentDigestItem.assigned_by_id == user_id)
             .values(assigned_by_id=None)
+        )
+        await session.exec(
+            delete(ReactionDigestItem).where(ReactionDigestItem.user_id == user_id)
+        )
+        await session.exec(
+            update(ReactionDigestItem)
+            .where(ReactionDigestItem.reactor_id == user_id)
+            .values(reactor_id=None)
         )
         # All per-user DAC grants (project, document, queue, counter group,
         # calendar event) live in the polymorphic resource_grants table now;
@@ -951,12 +1025,12 @@ async def summaries_with_guild_role(
 ) -> List["UserSummary"]:
     """``UserSummary`` per user, with the guild role actually filled in.
 
-    ``UserSummary`` defaults ``guild_role`` to ``None`` and ``is_guild_admin``
-    to ``False``, and ``model_validate`` over a profile row carries nothing
-    that could correct either -- the role lives on ``GuildMembership``, not on
-    the profile. So a guild admin came back from the roster endpoints looking
-    like an ordinary member, and a key-set assertion could not see it: the
-    field was present, and wrong.
+    ``UserSummary`` defaults ``guild_role`` to ``None``, and
+    ``model_validate`` over a profile row carries nothing that could correct
+    it -- the rung lives on ``GuildMembership``, not on the profile. So a
+    guild admin came back from the roster endpoints looking like an ordinary
+    member, and a key-set assertion could not see it: the field was present,
+    and wrong.
 
     One query for the whole batch, so this does not reintroduce an N+1 on a
     typeahead.
@@ -974,7 +1048,6 @@ async def summaries_with_guild_role(
         role = roles.get(user.id)
         if role is not None:
             summary.guild_role = role.value
-            summary.is_guild_admin = role in GUILD_ADMIN_ROLES
         summaries.append(summary)
     return summaries
 
@@ -1076,16 +1149,16 @@ async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
     Private, and deliberately so. It returns addresses in the clear for
     whatever ids it is handed, and decides nothing about who may see them —
     that belongs to the two shapes below, which is the only thing that calls
-    it: ``to_self_read`` for the address's own holder, ``to_admin_read`` for
+    it: ``to_self_read`` for the address's own holder, ``to_operator_read`` for
     everybody else, masked.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as admin_session:
+    async with SystemSessionLocal() as system_session:
         return (
-            await addresses.primary_addresses(admin_session, user_ids=user_ids),
+            await addresses.primary_addresses(system_session, user_ids=user_ids),
             await addresses.accounts_with_a_proven_address(
-                admin_session, user_ids=user_ids
+                system_session, user_ids=user_ids
             ),
         )
 
@@ -1094,7 +1167,7 @@ async def to_self_read(user: User) -> "UserRead":
     """An account's own record, with the address it is reached at, in full.
 
     For handing somebody their *own* account and nothing else — the address is
-    unmasked. Reading somebody else's account gets ``to_admin_read``.
+    unmasked. Reading somebody else's account gets ``to_operator_read``.
 
     The address and whether one has been proved both live in ``user_emails``,
     so the ``users`` row cannot answer either on its own. This is where the two
@@ -1110,12 +1183,12 @@ async def to_self_read(user: User) -> "UserRead":
     return payload
 
 
-async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
+async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     """The same, for staff reading other people's accounts.
 
     The shape masks the address itself.
     """
-    from app.schemas.platform.user import AdminUserRead
+    from app.schemas.platform.user import OperatorUserRead
 
     primary, proven = await _reach([u.id for u in users])
     # Only asked when somebody on this page is actually waiting out a window,
@@ -1125,9 +1198,9 @@ async def to_admin_read(users: List[User]) -> List["AdminUserRead"]:
         if any(u.status == UserStatus.deleted for u in users)
         else None
     )
-    out: List[AdminUserRead] = []
+    out: List[OperatorUserRead] = []
     for user in users:
-        payload = AdminUserRead.model_validate(user)
+        payload = OperatorUserRead.model_validate(user)
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
         payload.purge_at = _erase_at(user, retention)
@@ -1141,11 +1214,11 @@ async def _account_retention_days() -> int | None:
     Same reason as :func:`_reach`: this shape is built outside any particular
     request's session, and the setting is one row read once for the whole page.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.services.platform import app_settings as app_settings_service
 
-    async with AdminSessionLocal() as admin_session:
-        row = await app_settings_service.get_app_settings(admin_session)
+    async with SystemSessionLocal() as system_session:
+        row = await app_settings_service.get_app_settings(system_session)
         return row.deleted_account_retention_days
 
 
@@ -1165,6 +1238,6 @@ def _erase_at(user: User, retention: int | None) -> datetime | None:
     return erase_at(user.status_changed_at, retention)
 
 
-async def to_admin_read_one(user: User) -> "AdminUserRead":
-    """``to_admin_read`` for the routes that return one account."""
-    return (await to_admin_read([user]))[0]
+async def to_operator_read_one(user: User) -> "OperatorUserRead":
+    """``to_operator_read`` for the routes that return one account."""
+    return (await to_operator_read([user]))[0]

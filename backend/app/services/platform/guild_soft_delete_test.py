@@ -12,8 +12,12 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import config as config_module
 from app.core.messages import GuildMessages
-from app.models.platform.app_setting import DEFAULT_GUILD_RETENTION_DAYS
+from app.models.platform.app_setting import (
+    DEFAULT_GUILD_RETENTION_DAYS,
+    DEFAULT_HOLD_DELETION_DAYS,
+)
 from app.models.platform.guild import (
     LIVE_STATUSES,
     OPERATOR_SETTABLE_STATUSES,
@@ -22,8 +26,11 @@ from app.models.platform.guild import (
     GuildRole,
     GuildStatus,
 )
-from app.services.platform import guild_purge
+from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
+from app.services import email as email_service
+from app.services.platform import billing_ping, guild_purge
 from app.services.platform import guilds as guilds_service
+from app.services.platform.identity_refs import billing_guild_ref, existing_ref
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -78,6 +85,7 @@ def test_deleted_is_not_a_status_that_reaches_content():
     # Every status is either live or refused — none is unaccounted for.
     assert set(GuildStatus) - LIVE_STATUSES == {
         GuildStatus.suspended,
+        GuildStatus.on_hold,
         GuildStatus.deleted,
     }
 
@@ -212,6 +220,72 @@ async def test_restore_brings_it_back_at_the_status_the_operator_names(
     # And its admin has it back.
     listed = await client.get("/api/v1/guilds/", headers=get_auth_headers(admin))
     assert [g["id"] for g in listed.json()] == [guild.id]
+
+
+async def _billing_ref(guild_id: int) -> str | None:
+    return await existing_ref(
+        entity_type=IdentityEntity.guild,
+        entity_id=guild_id,
+        purpose=IdentityPurpose.billing,
+    )
+
+
+@pytest.fixture
+def lifecycle_pings(monkeypatch):
+    """Billing configured, and the lifecycle pings captured instead of sent."""
+    monkeypatch.setattr(
+        config_module.settings, "BILLING_SERVICE_URL", "https://billing.internal"
+    )
+    monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET", "ping-secret")
+    sent: list[int] = []
+
+    async def _capture(guild_id: int) -> None:
+        sent.append(guild_id)
+
+    monkeypatch.setattr(billing_ping, "_send_lifecycle_ping", _capture)
+    return sent
+
+
+async def test_billing_keeps_its_name_for_a_deleted_community_and_hears_both_ways(
+    client: AsyncClient, session: AsyncSession, acting_user, lifecycle_pings
+):
+    """A soft delete keeps the guild's billing reference, and both the delete
+    and the restore send a lifecycle ping."""
+    operator = await acting_user("owner")
+    admin, guild = await _seated_guild(session)
+    await create_guild_membership(session, user=await create_user(session), guild=guild)
+    ref = await billing_guild_ref(guild_id=guild.id)
+
+    await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
+    assert await _billing_ref(guild.id) == ref
+    assert lifecycle_pings == [guild.id]
+
+    response = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/restore",
+        headers=operator.headers,
+        json={"status": "active"},
+    )
+    assert response.status_code == 200, response.text
+    assert await _billing_ref(guild.id) == ref
+    assert lifecycle_pings == [guild.id, guild.id]
+
+
+async def test_the_purge_is_what_drops_billings_name(
+    client: AsyncClient, session: AsyncSession
+):
+    admin, guild = await _seated_guild(session)
+    await billing_guild_ref(guild_id=guild.id)
+    await _delete_via_danger_zone(client, guild=guild, headers=get_auth_headers(admin))
+    session.expunge_all()
+    row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
+
+    await guild_purge.purge_due_guilds(
+        session,
+        now=guild_purge.purge_at(row.status_changed_at, DEFAULT_GUILD_RETENTION_DAYS)
+        + timedelta(minutes=1),
+    )
+
+    assert await _billing_ref(guild.id) is None
 
 
 async def test_restore_refuses_a_community_that_is_not_deleted(
@@ -524,3 +598,171 @@ async def test_the_notice_is_gathered_before_the_roster_goes(session):
     )
 
     assert notice.recipients == ["gd-solo@example.com"]
+
+
+# ── When a hold runs out ────────────────────────────────────────────────────
+
+
+async def _hold_since(session: AsyncSession, guild_id: int, held_at: datetime) -> None:
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+    row.status = GuildStatus.on_hold.value
+    row.status_changed_at = held_at
+    session.add(row)
+    await session.commit()
+    session.expunge_all()
+
+
+async def test_a_hold_that_runs_out_deletes_the_community(
+    session: AsyncSession, lifecycle_pings, monkeypatch
+):
+    """Deleted, not destroyed: the retention window starts from here, the seat
+    hears as it would from any deletion, and billing is told to read it.
+    Nobody asked for it, so even a community of one keeps its roster."""
+    seat = await create_user(session, email="hold-seat@example.com")
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    guild_id, name = guild.id, guild.name
+    held_at = datetime.now(timezone.utc) - timedelta(
+        days=DEFAULT_HOLD_DELETION_DAYS + 1
+    )
+    await _hold_since(session, guild_id, held_at)
+    letters = []
+
+    async def _capture(_session, notice, **_kwargs) -> None:
+        letters.append(notice)
+
+    monkeypatch.setattr(email_service, "announce_community_deleted", _capture)
+
+    assert (
+        await guild_purge.delete_expired_holds(session, now=datetime.now(timezone.utc))
+        == 1
+    )
+
+    session.expunge_all()
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+    assert row.status == GuildStatus.deleted.value
+    assert row.status_changed_at > held_at, "the retention window counts from now"
+    roster = (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild_id)
+        )
+    ).all()
+    assert len(roster) == 1
+    assert lifecycle_pings == [guild_id]
+    assert [(n.community_name, n.recipients) for n in letters] == [
+        (name, ["hold-seat@example.com"])
+    ]
+
+
+async def test_a_hold_waits_out_its_whole_window(session: AsyncSession):
+    _, guild = await _seated_guild(session)
+    guild_id = guild.id
+    held_at = datetime.now(timezone.utc) - timedelta(days=1)
+    await _hold_since(session, guild_id, held_at)
+    deletes_at = guild_purge.hold_deletes_at(held_at, DEFAULT_HOLD_DELETION_DAYS)
+
+    assert (
+        await guild_purge.delete_expired_holds(
+            session, now=deletes_at - timedelta(minutes=1)
+        )
+        == 0
+    )
+    session.expunge_all()
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+    assert row.status == GuildStatus.on_hold.value
+
+    session.expunge_all()
+    assert (
+        await guild_purge.delete_expired_holds(
+            session, now=deletes_at + timedelta(minutes=1)
+        )
+        == 1
+    )
+
+
+async def test_only_a_hold_runs_out(session: AsyncSession):
+    """Every other status is left as it is, however long it has been."""
+    kept = {}
+    for status in OPERATOR_SETTABLE_STATUSES:
+        if status is GuildStatus.on_hold:
+            continue
+        guild = await create_guild(session, creator=await create_user(session))
+        row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
+        row.status = status.value
+        row.status_changed_at = datetime.now(timezone.utc) - timedelta(days=365)
+        session.add(row)
+        kept[guild.id] = status.value
+    await session.commit()
+    session.expunge_all()
+
+    assert (
+        await guild_purge.delete_expired_holds(session, now=datetime.now(timezone.utc))
+        == 0
+    )
+    for guild_id, status in kept.items():
+        row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+        assert row.status == status
+
+
+async def test_a_deployment_can_leave_holds_in_place(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Clearing the figure means a hold never runs out on its own."""
+    operator = await acting_user("owner")
+    _, guild = await _seated_guild(session)
+    guild_id = guild.id
+    await _hold_since(session, guild_id, datetime.now(timezone.utc))
+
+    response = await client.put(
+        "/api/v1/settings/community",
+        headers=operator.headers,
+        json={
+            "community_directory_enabled": False,
+            "on_hold_community_deletion_days": None,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["on_hold_community_deletion_days"] is None
+
+    session.expunge_all()
+    assert (
+        await guild_purge.delete_expired_holds(
+            session, now=datetime.now(timezone.utc) + timedelta(days=3650)
+        )
+        == 0
+    )
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+    assert row.status == GuildStatus.on_hold.value
+
+
+async def test_the_hold_notice_names_the_day_it_is_deleted(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    operator = await acting_user("owner")
+    _, guild = await _seated_guild(session)
+    guild_id = guild.id
+    held_at = datetime.now(timezone.utc)
+    await _hold_since(session, guild_id, held_at)
+    sent = []
+
+    async def _capture(_session, **kwargs) -> None:
+        sent.append(kwargs["delete_at"])
+
+    monkeypatch.setattr(email_service, "send_community_on_hold_email", _capture)
+
+    await guilds_service.announce_on_hold(session, guild_id)
+    assert sent == [held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)]
+
+    await client.put(
+        "/api/v1/settings/community",
+        headers=operator.headers,
+        json={
+            "community_directory_enabled": False,
+            "on_hold_community_deletion_days": None,
+        },
+    )
+    session.expunge_all()
+    await guilds_service.announce_on_hold(session, guild_id)
+    assert sent[1] is None

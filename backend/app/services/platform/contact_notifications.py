@@ -80,10 +80,10 @@ async def notify(
     Failures here are logged and swallowed: the grant row is already written,
     and being told about it is not worth failing the request over.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     try:
-        async with AdminSessionLocal() as session:
+        async with SystemSessionLocal() as session:
             recipient = await session.get(User, recipient_id)
             actor = await session.get(User, actor_id)
             if recipient is None or actor is None:
@@ -154,4 +154,5 @@ async def _write(
         title,
         body,
         data={"type": notification_type.value, **data},
+        locale=getattr(recipient, "locale", None) or "en",
     )

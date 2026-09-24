@@ -46,6 +46,7 @@ from app.services.notifications import (
 )
 from app.models.platform.guild import Guild, GuildRole
 from app.testing import (
+    guild_of,
     create_calendar,
     create_calendar_event,
     create_comment,
@@ -58,11 +59,12 @@ from app.testing import (
     create_user,
     set_notification_prefs,
 )
+from app.testing import route_as
 
 
 async def _dispatch(session: AsyncSession) -> None:
     """Drive the reminder pass with the test session. The worker's
-    AdminSessionLocal (app_admin) sees the shared users table; mirror that so the
+    SystemSessionLocal (app_admin) sees the shared users table; mirror that so the
     user-list read isn't RLS-filtered (the gather inside is still member-scoped)."""
     await set_rls_context(session)
     await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
@@ -83,7 +85,6 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
     attendee = CalendarEventAttendee(
         calendar_event_id=event.id,
         user_id=user.id,
-        guild_id=event.guild_id,
         rsvp_status=rsvp,
     )
     session.add(attendee)
@@ -91,7 +92,7 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
     # Reminders are gathered in the attendee's own context, so they must be a
     # guild + initiative member to see the event under RLS (as the real app
     # enforces — you can only attend events in initiatives you belong to).
-    guild = await session.get(Guild, event.guild_id)
+    guild = await session.get(Guild, guild_of(event))
     await create_guild_membership(
         session, user=user, guild=guild, role=GuildRole.member
     )
@@ -99,6 +100,9 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
 
 
 async def _reminders_for(session: AsyncSession, user_id: int) -> list[Notification]:
+    # The pass leaves the session routed into the last community it visited.
+    # The bell is read on the platform context, so read it back there.
+    await set_rls_context(session)
     result = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,
@@ -113,7 +117,6 @@ def _unsaved_event(
 ) -> CalendarEvent:
     """In-memory event for the pure-unit formatting tests (never persisted)."""
     return CalendarEvent(
-        guild_id=1,
         calendar_id=1,
         created_by=1,
         title=title,
@@ -204,7 +207,7 @@ async def test_event_reminder_fires_once_within_lead_window(
     assert len(await _reminders_for(session, attendee.id)) == 1
 
     # The dispatch ledger is guild-scoped; read it under the guild's context.
-    await set_rls_context(session, user_id=attendee.id, guild_id=guild.id)
+    await route_as(session, user_id=attendee.id, guild_id=guild.id)
     dispatches = await session.exec(
         select(EventReminderDispatch).where(
             EventReminderDispatch.user_id == attendee.id
@@ -363,7 +366,6 @@ async def _overdue_task_in_new_guild(
         archived_at=datetime.now(timezone.utc) if project_archived else None,
     )
     status = TaskStatus(
-        guild_id=guild.id,
         project_id=project.id,
         name="Todo",
         category=TaskStatusCategory.todo,
@@ -374,7 +376,6 @@ async def _overdue_task_in_new_guild(
     await session.commit()
     await session.refresh(status)
     task = Task(
-        guild_id=guild.id,
         project_id=project.id,
         task_status_id=status.id,
         title=f"{label} overdue",
@@ -385,7 +386,12 @@ async def _overdue_task_in_new_guild(
     session.add(task)
     await session.commit()
     await session.refresh(task)
-    session.add(TaskAssignee(task_id=task.id, user_id=user.id, guild_id=guild.id))
+    session.add(
+        TaskAssignee(
+            task_id=task.id,
+            user_id=user.id,
+        )
+    )
     await session.commit()
     return guild
 
@@ -425,7 +431,7 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
 
-    # Mirror the worker's starting context: its AdminSessionLocal (app_admin) sees
+    # Mirror the worker's starting context: its SystemSessionLocal (app_admin) sees
     # the shared users table; the gather inside still scopes guild data per member.
     await set_rls_context(session)
     await _run_overdue_pass(session, now=datetime.now(timezone.utc))
@@ -439,8 +445,11 @@ def _capture_push(monkeypatch) -> list[dict]:
     sent: list[dict] = []
 
     async def _fake_push(
-        *, session, user_id, notification_type, title, body, data=None
+        *, session, user_id, notification_type, title, body, data=None, **rest
     ):
+        # ``rest`` carries what the seam resolves for itself — the community
+        # whose answer applies, the recipient's language. Accepted and recorded
+        # so a caller that stops passing one is visible here.
         sent.append(
             {
                 "user_id": user_id,
@@ -448,6 +457,7 @@ def _capture_push(monkeypatch) -> list[dict]:
                 "title": title,
                 "body": body,
                 "data": data or {},
+                **rest,
             }
         )
         return 1
@@ -660,7 +670,6 @@ async def _assignment_item_in_new_guild(
     initiative = await create_initiative(session, guild, user, name=label)
     project = await create_project(session, initiative, user, name=f"{label} Project")
     status = TaskStatus(
-        guild_id=guild.id,
         project_id=project.id,
         name="Todo",
         category=TaskStatusCategory.todo,
@@ -671,7 +680,6 @@ async def _assignment_item_in_new_guild(
     await session.commit()
     await session.refresh(status)
     task = Task(
-        guild_id=guild.id,
         project_id=project.id,
         task_status_id=status.id,
         title=f"{label} task",
@@ -681,7 +689,7 @@ async def _assignment_item_in_new_guild(
     await session.commit()
     await session.refresh(task)
     # digest items have no guild_id column, so route by search_path before insert.
-    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    await route_as(session, user_id=user.id, guild_id=guild.id)
     session.add(
         TaskAssignmentDigestItem(
             user_id=user.id,
@@ -729,7 +737,7 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
 
     # Items were marked processed in each guild's own schema.
     for guild_id in (guild_a.id, guild_b.id):
-        await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+        await route_as(session, user_id=user.id, guild_id=guild_id)
         pending = (
             await session.exec(
                 select(TaskAssignmentDigestItem).where(
@@ -940,7 +948,7 @@ async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
 
     async def _row_count() -> int:
         session.expunge_all()
-        await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+        await route_as(session, user_id=user.id, guild_id=guild.id)
         rows = (await session.exec(select(TaskAssignmentDigestItem))).all()
         return len(rows)
 
@@ -1022,7 +1030,7 @@ async def _reaction_item_in_new_guild(
     # reacted to, so it cannot be queued against an id that resolves nowhere.
     comment = await create_comment(session, user, task=task, content=f"{label} thread")
 
-    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    await route_as(session, user_id=user.id, guild_id=guild.id)
     session.add(
         ReactionDigestItem(
             user_id=user.id,
@@ -1072,7 +1080,7 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     assert {"\U0001f44d", "\U0001f389"} <= set(captured["body"])
 
     for guild_id in (guild_a.id, guild_b.id):
-        await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+        await route_as(session, user_id=user.id, guild_id=guild_id)
         pending = (
             await session.exec(
                 select(ReactionDigestItem).where(

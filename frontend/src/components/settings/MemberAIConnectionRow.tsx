@@ -24,7 +24,8 @@ interface MemberAIConnectionRowProps {
 /**
  * One connection the member can select as active, with an inline editor for
  * their personal API key. When the connection doesn't allow member keys it's
- * shown read-only (it uses the admin's shared key), but still selectable.
+ * shown read-only (it uses the shared key set by whoever owns the connection),
+ * but still selectable.
  */
 export const MemberAIConnectionRow = ({
   connection,
@@ -78,7 +79,11 @@ export const MemberAIConnectionRow = ({
 
       <div className="space-y-2 pl-7">
         {!connection.allow_member_keys ? (
-          <p className="text-muted-foreground text-xs">{t("memberAI.managedByAdmin")}</p>
+          <p className="text-muted-foreground text-xs">
+            {connection.scope === "platform"
+              ? t("memberAI.sharedKeyPlatform")
+              : t("memberAI.sharedKeyGuild")}
+          </p>
         ) : editing ? (
           <div className="space-y-2">
             <Input

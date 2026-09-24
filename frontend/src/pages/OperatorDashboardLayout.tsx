@@ -14,7 +14,7 @@ import {
 import { matchActiveTab } from "@/lib/tabs";
 
 /**
- * Operational admin area: platform users and time-bound access grants.
+ * Operator dashboard: platform users and time-bound access grants.
  * Reachable by support/moderator/operator/owner depending on capability.
  * App-wide *configuration* lives in the separate Platform settings area.
  */
@@ -37,6 +37,12 @@ export const OperatorDashboardLayout = () => {
         value: "guilds",
         label: t("operatorDashboard.tabs.guilds"),
         path: "/settings/operator/communities",
+        capabilities: [Capability.guildsManage],
+      },
+      {
+        value: "placement",
+        label: t("operatorDashboard.tabs.placement"),
+        path: "/settings/operator/placement",
         capabilities: [Capability.guildsManage],
       },
       {

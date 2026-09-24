@@ -5,9 +5,10 @@ The matrix under test (see history/guild-suspension-design.md):
 - ``read_only``: members keep content READS but writes are denied at the
   Postgres role level (routed into ``guild_<id>_ro``); initiative isolation
   still holds.
-- ``suspended``: members lose all content access (generic 403 — the status is
-  never disclosed) and the guild vanishes from their guild list. Guild ADMINS
-  keep the guild listed and keep the settings surface writable.
+- ``suspended``: the guild is in time out. Members AND admins lose every
+  surface — content, settings, the seat's routes, leaving — with a generic 403
+  (the status is never disclosed to a member). The guild vanishes from
+  members' guild lists; admins keep a closed entry that carries the status.
 - PAM/break-glass grants override the status entirely: a grantee behaves
   byte-identically against a suspended guild and an active one.
 - Joins (invite redemption) are refused for any non-active guild, reported as
@@ -23,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import GuildMessages
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildInvite, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.services.tenant import task_statuses as task_statuses_service
@@ -33,6 +35,7 @@ from app.testing import (
     create_task,
     create_user,
     get_auth_headers,
+    route_as,
 )
 
 pytestmark = pytest.mark.integration
@@ -70,7 +73,7 @@ async def _live_grant(
 
 
 # ---------------------------------------------------------------------------
-# suspended: members and admins lose content
+# suspended: members and admins lose every surface
 # ---------------------------------------------------------------------------
 
 
@@ -91,36 +94,67 @@ async def test_member_gets_generic_403_on_suspended_guild(
     assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
 
 
-async def test_admin_suspended_content_blocked_settings_writable(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize("role", [GuildRole.admin, GuildRole.superadmin])
+async def test_admin_of_suspended_guild_reaches_nothing(
+    client: AsyncClient, session: AsyncSession, acting_user, role: GuildRole
 ):
-    """A guild ADMIN of a suspended guild loses content like anyone else but
-    keeps the settings surface fully writable (billing / data ownership)."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    """An administrator of a suspended guild is refused like any member, on
+    content, the settings surface and the seat's routes alike, and cannot
+    leave: the membership is kept as it was until the suspension lifts."""
+    a = await acting_user(guild_role=role, initiative=True)
     await _set_status(session, a.guild, GuildStatus.suspended)
 
-    # Content: blocked, generic code.
-    resp = await client.get(a.g("/initiatives/"), headers=a.headers)
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+    refusals = [
+        await client.get(a.g("/initiatives/"), headers=a.headers),
+        await client.patch(
+            f"/api/v1/guilds/{a.guild.id}",
+            headers=a.headers,
+            json={"name": "Still Ours"},
+        ),
+        await client.get(f"/api/v1/guilds/{a.guild.id}/auth-policy", headers=a.headers),
+        await client.get(
+            f"/api/v1/guilds/{a.guild.id}/billing/payment-issue", headers=a.headers
+        ),
+        await client.delete(f"/api/v1/guilds/{a.guild.id}/leave", headers=a.headers),
+    ]
+    for resp in refusals:
+        assert resp.status_code == 403, (resp.request.url, resp.text)
+        assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
 
-    # Settings: still writable (this endpoint gates on real guild-admin
-    # membership, deliberately outside the content choke point).
-    resp = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
-        headers=a.headers,
-        json={"name": "Still Ours"},
-    )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["name"] == "Still Ours"
+    await session.refresh(a.guild)
+    assert a.guild.name != "Still Ours"
+    resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    assert a.guild.id in [g["id"] for g in resp.json()], "membership is kept"
+
+
+@pytest.mark.parametrize(
+    "role", [GuildRole.member, GuildRole.admin, GuildRole.superadmin]
+)
+async def test_a_guild_on_hold_is_gone_for_everyone_in_it(
+    client: AsyncClient, session: AsyncSession, acting_user, role: GuildRole
+):
+    """On hold refuses every surface and leaves every list, admins' included."""
+    a = await acting_user(guild_role=role, initiative=True)
+    await _set_status(session, a.guild, GuildStatus.on_hold)
+
+    for resp in (
+        await client.get(a.g("/initiatives/"), headers=a.headers),
+        await client.get(f"/api/v1/guilds/{a.guild.id}/auth-policy", headers=a.headers),
+        await client.delete(f"/api/v1/guilds/{a.guild.id}/leave", headers=a.headers),
+    ):
+        assert resp.status_code == 403, (resp.request.url, resp.text)
+        assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+
+    listed = (await client.get("/api/v1/guilds/", headers=a.headers)).json()
+    assert a.guild.id not in [g["id"] for g in listed]
 
 
 async def test_suspended_guild_hidden_from_members_listed_for_admins(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The guild list drops a suspended guild for members but keeps it for
-    guild admins. The status is serialized to the admin (for their settings-page
-    chip) but never to a member — members don't even see the row here."""
+    guild admins, carrying the status so the app shows it closed. Members don't
+    even see the row."""
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
     await _set_status(session, admin.guild, GuildStatus.suspended)
@@ -134,6 +168,36 @@ async def test_suspended_guild_hidden_from_members_listed_for_admins(
     listed = [g for g in resp.json() if g["id"] == admin.guild.id]
     assert listed, "admin must still see the suspended guild"
     assert listed[0]["status"] == "suspended", "admin sees the lifecycle status"
+
+
+async def test_suspended_guild_names_who_to_contact_for_admins(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The closed entry carries the moderation contact, falling back to the
+    general one; a read-only guild's entry carries none."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    other_guild = await create_guild(session, creator=admin.user)
+    await _set_status(session, admin.guild, GuildStatus.suspended)
+    await _set_status(session, other_guild, GuildStatus.read_only)
+
+    settings_row = await session.get(AppSetting, 1) or AppSetting(id=1)
+    settings_row.intake_general_contact = "ops@example.com"
+    session.add(settings_row)
+    await session.commit()
+
+    def entry(body, guild):
+        return next(g for g in body if g["id"] == guild.id)
+
+    body = (await client.get("/api/v1/guilds/", headers=admin.headers)).json()
+    assert entry(body, admin.guild)["contact_email"] == "ops@example.com"
+    assert entry(body, other_guild)["contact_email"] is None
+
+    settings_row = await session.get(AppSetting, 1) or AppSetting(id=1)
+    settings_row.intake_contacts = {"moderation": "trust@example.com"}
+    session.add(settings_row)
+    await session.commit()
+    body = (await client.get("/api/v1/guilds/", headers=admin.headers)).json()
+    assert entry(body, admin.guild)["contact_email"] == "trust@example.com"
 
 
 async def test_read_only_status_visible_to_admin_not_member(
@@ -171,6 +235,20 @@ async def test_establish_guild_access_refuses_suspended(
 
     with pytest.raises(GuildAccessError):
         await establish_guild_access(session, a.user, a.guild.id)
+
+
+async def test_establish_for_settings_refuses_suspended_admin(
+    session: AsyncSession, acting_user
+):
+    """The settings surface is refused the same way: nobody in a suspended
+    guild is routed into it, whatever the surface."""
+    from app.api.deps import GuildAccessError, establish_guild_access
+
+    a = await acting_user(guild_role=GuildRole.admin)
+    await _set_status(session, a.guild, GuildStatus.suspended)
+
+    with pytest.raises(GuildAccessError):
+        await establish_guild_access(session, a.user, a.guild.id, for_settings=True)
 
 
 # ---------------------------------------------------------------------------
@@ -374,8 +452,8 @@ async def test_break_glass_reads_a_suspended_guild(
     initiative = await create_initiative(session, guild, owner, name="Frozen Wing")
     await _set_status(session, guild, GuildStatus.suspended)
 
-    platform_admin = await create_user(session, role=UserRole.operator)
-    headers = get_auth_headers(platform_admin)
+    platform_operator = await create_user(session, role=UserRole.operator)
+    headers = get_auth_headers(platform_operator)
     resp = await client.post(
         "/api/v1/access-grants/break-glass",
         json={
@@ -399,6 +477,11 @@ async def test_break_glass_reads_a_suspended_guild(
         json={"description": "reviewed under a grant"},
     )
     assert resp.status_code == 403, resp.text
+
+    # The settings grant beside it reaches the community's configuration,
+    # which its own administrators no longer do.
+    resp = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
+    assert resp.status_code == 200, resp.text
 
 
 async def test_scoped_read_grant_reads_suspended_guild(
@@ -616,12 +699,10 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
     import sqlalchemy.exc
     from sqlalchemy import text as sa_text
 
-    from app.db.session import set_rls_context
-
     a = await acting_user(guild_role=GuildRole.admin)
 
     s = await role_session("app_user")
-    await set_rls_context(s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin")
+    await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
 
     # Identity columns: allowed.
     await s.exec(
@@ -643,9 +724,7 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
             "ARRAY['providers']::guild_auth_option[]",
         ),
     ]:
-        await set_rls_context(
-            s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"
-        )
+        await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
         with pytest.raises(sqlalchemy.exc.ProgrammingError, match="permission denied"):
             await s.exec(
                 sa_text(f"UPDATE {table} SET {column} = {value} WHERE {key} = :gid"),
@@ -654,7 +733,7 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
         await s.rollback()
 
     # Reading its own caps is allowed — the settings page shows usage against them.
-    await set_rls_context(s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin")
+    await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
     readable = (
         await s.exec(
             sa_text(
@@ -671,7 +750,7 @@ async def test_platform_guild_status_endpoint_requires_guilds_manage(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The operator endpoint stays capability-gated: a plain member (and the
-    guild's own admin) get 403; a platform admin flips the status."""
+    guild's own admin) get 403; a platform operator flips the status."""
     a = await acting_user(guild_role=GuildRole.admin)
 
     resp = await client.patch(
@@ -681,10 +760,10 @@ async def test_platform_guild_status_endpoint_requires_guilds_manage(
     )
     assert resp.status_code == 403
 
-    platform_admin = await create_user(session, role=UserRole.operator)
+    platform_operator = await create_user(session, role=UserRole.operator)
     resp = await client.patch(
         f"/api/v1/settings/guilds/{a.guild.id}",
-        headers=get_auth_headers(platform_admin),
+        headers=get_auth_headers(platform_operator),
         json={"status": "suspended"},
     )
     assert resp.status_code == 200, resp.text

@@ -34,7 +34,7 @@ class AuthSession(SQLModel, table=True):
     **app_admin-only.** Session validation is a pre-auth lookup *by refresh-token
     hash* (the user is unknown until it resolves), so it structurally cannot run
     under own-row RLS — it runs on the system engine, exactly like access_grants.
-    "List/revoke my sessions" also runs on the system engine (``AdminSessionDep``)
+    "List/revoke my sessions" also runs on the system engine (``SystemSessionDep``)
     filtered by the authenticated user, so the refresh-token hash never crosses the
     request path. The schema-default request-path DML is REVOKEd in the migration.
     """
@@ -55,6 +55,9 @@ class AuthSession(SQLModel, table=True):
         Index("ix_auth_sessions_user_id", "user_id"),
         # Supports the background expiry sweep (GC of past-expiry sessions).
         Index("ix_auth_sessions_expires_at", "expires_at"),
+        # The chain walks go from a row to its children: revoking a chain, and
+        # finding the live row a chain has reached.
+        Index("ix_auth_sessions_parent_id", "parent_id"),
     )
 
     id: uuid.UUID = Field(

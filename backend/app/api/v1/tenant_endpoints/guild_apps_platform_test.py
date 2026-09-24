@@ -609,7 +609,7 @@ class TestInitiativeHandoff:
             self._path(member, a.initiative.id, app.id, "runs"), headers=member.headers
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.SURFACE_ADMIN_ONLY
+        assert response.json()["detail"] == GuildAppMessages.SURFACE_MANAGER_ONLY
 
     async def test_a_member_of_the_initiative_opens_a_member_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -1068,7 +1068,6 @@ class TestUninstallStopsDeliveries:
 
         now = datetime.now(timezone.utc)
         theirs = WebhookSubscription(
-            guild_id=a.guild.id,
             initiative_id=a.initiative.id,
             created_by=a.user.id,
             app_install_id=app.id,
@@ -1082,7 +1081,6 @@ class TestUninstallStopsDeliveries:
         # A member's own, registered against a URL of their own: nothing to do
         # with this install, and untouched by its removal.
         mine = WebhookSubscription(
-            guild_id=a.guild.id,
             initiative_id=a.initiative.id,
             created_by=a.user.id,
             app_install_id=None,
@@ -1127,7 +1125,6 @@ class TestUninstallStopsDeliveries:
 
         now = datetime.now(timezone.utc)
         sub = WebhookSubscription(
-            guild_id=a.guild.id,
             initiative_id=a.initiative.id,
             created_by=a.user.id,
             app_install_id=app.id,

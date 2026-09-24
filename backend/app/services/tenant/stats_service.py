@@ -97,10 +97,8 @@ async def calculate_user_streak(
     )
 
     if guild_id:
-        activity_stmt = (
-            activity_stmt.join(Project, Project.id == Task.project_id)
-            .join(Initiative, Initiative.id == Project.initiative_id)
-            .where(Initiative.guild_id == guild_id)
+        activity_stmt = activity_stmt.join(Project, Project.id == Task.project_id).join(
+            Initiative, Initiative.id == Project.initiative_id
         )
 
     activity_result = await session.exec(activity_stmt)
@@ -177,10 +175,8 @@ async def calculate_on_time_rate(
     )
 
     if guild_id:
-        stmt = (
-            stmt.join(Project, Project.id == Task.project_id)
-            .join(Initiative, Initiative.id == Project.initiative_id)
-            .where(Initiative.guild_id == guild_id)
+        stmt = stmt.join(Project, Project.id == Task.project_id).join(
+            Initiative, Initiative.id == Project.initiative_id
         )
 
     result = await session.exec(stmt)
@@ -220,10 +216,8 @@ async def calculate_avg_completion_days(
     )
 
     if guild_id:
-        stmt = (
-            stmt.join(Project, Project.id == Task.project_id)
-            .join(Initiative, Initiative.id == Project.initiative_id)
-            .where(Initiative.guild_id == guild_id)
+        stmt = stmt.join(Project, Project.id == Task.project_id).join(
+            Initiative, Initiative.id == Project.initiative_id
         )
 
     result = await session.exec(stmt)
@@ -285,10 +279,8 @@ async def get_completed_counts(
     )
 
     if guild_id:
-        base_stmt = (
-            base_stmt.join(Project, Project.id == Task.project_id)
-            .join(Initiative, Initiative.id == Project.initiative_id)
-            .where(Initiative.guild_id == guild_id)
+        base_stmt = base_stmt.join(Project, Project.id == Task.project_id).join(
+            Initiative, Initiative.id == Project.initiative_id
         )
 
     result = await session.exec(base_stmt)
@@ -334,11 +326,9 @@ async def get_velocity_data(
         )
 
         if guild_id:
-            assigned_stmt = (
-                assigned_stmt.join(Project, Project.id == Task.project_id)
-                .join(Initiative, Initiative.id == Project.initiative_id)
-                .where(Initiative.guild_id == guild_id)
-            )
+            assigned_stmt = assigned_stmt.join(
+                Project, Project.id == Task.project_id
+            ).join(Initiative, Initiative.id == Project.initiative_id)
 
         assigned_result = await session.exec(assigned_stmt)
         assigned_count = assigned_result.scalar() or 0
@@ -357,11 +347,9 @@ async def get_velocity_data(
         )
 
         if guild_id:
-            completed_stmt = (
-                completed_stmt.join(Project, Project.id == Task.project_id)
-                .join(Initiative, Initiative.id == Project.initiative_id)
-                .where(Initiative.guild_id == guild_id)
-            )
+            completed_stmt = completed_stmt.join(
+                Project, Project.id == Task.project_id
+            ).join(Initiative, Initiative.id == Project.initiative_id)
 
         completed_result = await session.exec(completed_stmt)
         completed_count = completed_result.scalar() or 0
@@ -411,10 +399,8 @@ async def get_heatmap_data(
     )
 
     if guild_id:
-        activity_stmt = (
-            activity_stmt.join(Project, Project.id == Task.project_id)
-            .join(Initiative, Initiative.id == Project.initiative_id)
-            .where(Initiative.guild_id == guild_id)
+        activity_stmt = activity_stmt.join(Project, Project.id == Task.project_id).join(
+            Initiative, Initiative.id == Project.initiative_id
         )
 
     result = await session.exec(activity_stmt)
@@ -449,37 +435,40 @@ async def get_heatmap_data(
 async def get_guild_breakdown(
     session: AsyncSession,
     user_id: int,
+    guild_id: int,
 ) -> List[GuildTaskBreakdown]:
-    """
-    Get task completion breakdown by guild.
+    """This community's completed-task count for the reader.
 
-    Returns count of completed tasks per guild for the user.
+    One row, or none when there is nothing to report. The session is routed
+    into one community's schema, so that is the only community it can answer
+    for; the caller runs a pass per community and merges them.
     """
     from app.models.platform.guild import Guild
 
-    stmt = (
-        select(Guild.id, Guild.name, func.count(Task.id).label("completed_count"))
-        .join(Initiative, Initiative.guild_id == Guild.id)
-        .join(Project, Project.initiative_id == Initiative.id)
-        .join(Task, Task.project_id == Project.id)
-        .join(TaskAssignee, TaskAssignee.task_id == Task.id)
-        .join(TaskStatus, TaskStatus.id == Task.task_status_id)
-        .where(
-            TaskAssignee.user_id == user_id,
-            TaskStatus.category == TaskStatusCategory.done,
+    completed_row = (
+        await session.exec(
+            select(func.count(Task.id))
+            .join(Project, Project.id == Task.project_id)
+            .join(TaskAssignee, TaskAssignee.task_id == Task.id)
+            .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+            .where(
+                TaskAssignee.user_id == user_id,
+                TaskStatus.category == TaskStatusCategory.done,
+            )
         )
-        .group_by(Guild.id, Guild.name)
-        .order_by(func.count(Task.id).desc())
-    )
-
-    result = await session.exec(stmt)
-    rows = result.all()
-
+    ).one()
+    # A SQLAlchemy ``select`` of one column answers in rows, not scalars.
+    completed = int(completed_row[0])
+    if not completed:
+        return []
+    name_row = (
+        await session.exec(select(Guild.name).where(Guild.id == guild_id))
+    ).one_or_none()
+    name = name_row[0] if name_row is not None else None
     return [
         GuildTaskBreakdown(
-            guild_id=guild_id, guild_name=guild_name, completed_count=count
+            guild_id=guild_id, guild_name=name or "", completed_count=completed
         )
-        for guild_id, guild_name, count in rows
     ]
 
 
@@ -523,10 +512,8 @@ async def get_backlog_trend(
     )
 
     if guild_id:
-        assigned_stmt = (
-            assigned_stmt.join(Project, Project.id == Task.project_id)
-            .join(Initiative, Initiative.id == Project.initiative_id)
-            .where(Initiative.guild_id == guild_id)
+        assigned_stmt = assigned_stmt.join(Project, Project.id == Task.project_id).join(
+            Initiative, Initiative.id == Project.initiative_id
         )
 
     assigned_result = await session.exec(assigned_stmt)
@@ -546,11 +533,9 @@ async def get_backlog_trend(
     )
 
     if guild_id:
-        completed_stmt = (
-            completed_stmt.join(Project, Project.id == Task.project_id)
-            .join(Initiative, Initiative.id == Project.initiative_id)
-            .where(Initiative.guild_id == guild_id)
-        )
+        completed_stmt = completed_stmt.join(
+            Project, Project.id == Task.project_id
+        ).join(Initiative, Initiative.id == Project.initiative_id)
 
     completed_result = await session.exec(completed_stmt)
     completed_count = completed_result.scalar() or 0
@@ -578,7 +563,7 @@ async def _compute_guild_stats(
         session, user.id, user.timezone, user.week_starts_on, guild_id
     )
     heatmap_data = await get_heatmap_data(session, user.id, user.timezone, guild_id)
-    guild_breakdown = await get_guild_breakdown(session, user.id)
+    guild_breakdown = await get_guild_breakdown(session, user.id, guild_id)
     backlog_trend = await get_backlog_trend(
         session, user.id, user.timezone, user.week_starts_on, guild_id
     )
@@ -674,6 +659,7 @@ async def get_user_stats(
     ``guild_id`` is given (exact), otherwise every guild the user belongs to,
     merged.
     """
+    from app.api.deps import GuildAccessError, establish_guild_access
     from app.db.session import set_rls_context
     from app.services.cross_guild import member_guild_ids
 
@@ -687,7 +673,12 @@ async def get_user_stats(
     parts: List[UserStatsResponse] = []
     for gid in target_guilds:
         session.expunge_all()
-        await set_rls_context(session, user_id=user.id, guild_id=gid)
+        # Through the seam, so these numbers count what a request to that
+        # community would have shown this reader and nothing else.
+        try:
+            await establish_guild_access(session, user, gid)
+        except GuildAccessError:
+            continue
         parts.append(await _compute_guild_stats(session, user, gid, days))
 
     # Reset to the user-only (public) baseline so the caller's session isn't

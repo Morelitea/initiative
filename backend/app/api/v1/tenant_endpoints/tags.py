@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Annotated, List, Sequence
+from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import ColumnElement, func, update as sa_update
@@ -38,6 +38,7 @@ from app.schemas.tenant.tag import (
     TagBulkEditResponse,
     TagCreate,
     TagRead,
+    serialize_tag,
     TagUpdate,
     TaggedEntitiesResponse,
     TaggedTaskSummary,
@@ -57,7 +58,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Tag:
     """Fetch a tag by ID, ensuring it belongs to the specified guild."""
-    stmt = select(Tag).where(Tag.id == tag_id, Tag.guild_id == guild_id)
+    stmt = select(Tag).where(Tag.id == tag_id)
     result = await session.exec(stmt)
     tag = result.one_or_none()
     if tag is None:
@@ -75,7 +76,6 @@ async def _check_duplicate_name(
 ) -> None:
     """Check for case-insensitive duplicate tag name within guild."""
     stmt = select(Tag).where(
-        Tag.guild_id == guild_id,
         func.lower(Tag.name) == name.lower().strip(),
     )
     if exclude_tag_id is not None:
@@ -93,15 +93,11 @@ async def list_tags(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> Sequence[Tag]:
+) -> list[TagRead]:
     """List all tags in the current guild."""
-    stmt = (
-        select(Tag)
-        .where(Tag.guild_id == guild_context.guild_id)
-        .order_by(Tag.name.asc())
-    )
+    stmt = select(Tag).order_by(Tag.name.asc())
     result = await session.exec(stmt)
-    return result.all()
+    return [serialize_tag(tag, guild_id=guild_context.guild_id) for tag in result.all()]
 
 
 @router.post("/", response_model=TagRead, status_code=status.HTTP_201_CREATED)
@@ -110,19 +106,18 @@ async def create_tag(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> Tag:
+) -> TagRead:
     """Create a new tag in the current guild."""
     await _check_duplicate_name(session, guild_context.guild_id, tag_in.name)
 
     tag = Tag(
-        guild_id=guild_context.guild_id,
         name=tag_in.name.strip(),
         color=tag_in.color,
     )
     session.add(tag)
     await session.commit()
     await session.refresh(tag)
-    return tag
+    return serialize_tag(tag, guild_id=guild_context.guild_id)
 
 
 @router.post("/bulk", response_model=TagBulkEditResponse)
@@ -253,9 +248,10 @@ async def get_tag(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     include_deleted: IncludeDeletedDep = False,
-) -> Tag:
+) -> TagRead:
     """Get a specific tag by ID."""
-    return await _get_tag_or_404(session, tag_id, guild_context.guild_id)
+    tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
+    return serialize_tag(tag, guild_id=guild_context.guild_id)
 
 
 @router.patch("/{tag_id}", response_model=TagRead)
@@ -265,7 +261,7 @@ async def update_tag(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> Tag:
+) -> TagRead:
     """Update a tag's name or color."""
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
 
@@ -286,7 +282,7 @@ async def update_tag(
     session.add(tag)
     await session.commit()
     await session.refresh(tag)
-    return tag
+    return serialize_tag(tag, guild_id=guild_context.guild_id)
 
 
 @router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -335,7 +331,7 @@ async def get_tag_entities(
     # own id — so the clause is built against each.
     def _project_scope(col: ColumnElement[int]) -> ColumnElement[bool]:
         return permissions_service.granted_scope_clause(
-            Tool.project, col, current_user.id, guild_id=guild_context.guild_id
+            Tool.project, col, current_user.id, context=guild_context
         )
 
     # Get tasks with this tag that user can access
@@ -390,7 +386,7 @@ async def get_tag_entities(
         Tool.document,
         Document.id,
         current_user.id,
-        guild_id=guild_context.guild_id,
+        context=guild_context,
     )
 
     # Get documents with this tag that user can access

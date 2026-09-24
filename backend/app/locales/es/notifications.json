@@ -47,6 +47,10 @@
     "task": {
       "title": "Tu tarea fue mencionada",
       "body": "{{actor}} mencionó {{task}} en {{context}}"
+    },
+    "taskDescription": {
+      "title": "Te mencionaron",
+      "body": "{{actor}} te mencionó en la descripción de {{task}}"
     }
   },
   "comment": {
@@ -149,6 +153,68 @@
     "messageAccepted": {
       "title": "Solicitud de mensaje aceptada",
       "body": "{{actor}} aceptó tu solicitud de mensaje"
+    }
+  },
+  "redacted": {
+    "mentions": {
+      "title": "Te mencionaron",
+      "body": "Abre Initiative para ver dónde."
+    },
+    "replies": {
+      "title": "Tienes una respuesta",
+      "body": "Abre Initiative para leerla."
+    },
+    "comments": {
+      "title": "Nuevo comentario",
+      "body": "Abre Initiative para leerlo."
+    },
+    "reactions": {
+      "title": "Nueva reacción",
+      "body": "Abre Initiative para verla."
+    },
+    "assignments": {
+      "title": "Nueva tarea asignada",
+      "body": "Abre Initiative para verla."
+    },
+    "due_dates": {
+      "title": "Tareas vencidas",
+      "body": "Abre Initiative para verlas."
+    },
+    "membership": {
+      "title": "Tu membresía cambió",
+      "body": "Abre Initiative para ver qué cambió."
+    },
+    "approvals": {
+      "title": "Algo está esperando por ti",
+      "body": "Abre Initiative para revisarlo."
+    },
+    "posts": {
+      "title": "Nueva publicación",
+      "body": "Abre Initiative para leerla."
+    },
+    "events": {
+      "title": "Un evento cambió",
+      "body": "Abre Initiative para verlo."
+    },
+    "event_reminders": {
+      "title": "Evento próximo",
+      "body": "Abre Initiative para verlo."
+    },
+    "direct_messages": {
+      "title": "Nuevo mensaje",
+      "body": "Abre Initiative para leerlo."
+    },
+    "connections": {
+      "title": "Novedades de contactos",
+      "body": "Abre Initiative para verlas."
+    },
+    "jobs": {
+      "title": "Terminó un proceso que iniciaste",
+      "body": "Abre Initiative para verlo."
+    },
+    "account": {
+      "title": "Un aviso sobre tu cuenta",
+      "body": "Abre Initiative para leerlo."
     }
   },
   "quietHours": {

@@ -63,6 +63,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         ACCOUNT_PURGE_POLL_SECONDS,
         process_account_purges,
     )
+    from app.services.platform.identity_refs import (
+        IDENTITY_REF_SWEEP_POLL_SECONDS,
+        process_identity_ref_sweep,
+    )
     from app.services.tenant.app_updates import (
         AUTO_UPDATE_POLL_SECONDS,
         process_app_auto_updates,
@@ -89,8 +93,8 @@ def start_background_tasks() -> list[asyncio.Task]:
     from app.services.import_engine.worker import (
         IMPORT_GC_POLL_SECONDS,
         IMPORT_POLL_SECONDS,
+        dispatch_import_jobs,
         process_import_gc,
-        process_import_jobs,
     )
     from app.services.export.worker import (
         process_export_jobs,
@@ -187,6 +191,13 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(
+                process_identity_ref_sweep,
+                IDENTITY_REF_SWEEP_POLL_SECONDS,
+                "identity-ref-sweep",
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(
                 process_announcement_image_purge,
                 IMAGE_PURGE_POLL_SECONDS,
                 "announcement-image-purge",
@@ -240,7 +251,7 @@ def start_background_tasks() -> list[asyncio.Task]:
             _loop_worker(process_export_gc, EXPORT_GC_POLL_SECONDS, "export-gc")
         ),
         asyncio.create_task(
-            _loop_worker(process_import_jobs, IMPORT_POLL_SECONDS, "import-jobs")
+            _loop_worker(dispatch_import_jobs, IMPORT_POLL_SECONDS, "import-jobs")
         ),
         asyncio.create_task(
             _loop_worker(process_import_gc, IMPORT_GC_POLL_SECONDS, "import-gc")

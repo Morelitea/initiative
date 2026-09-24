@@ -136,6 +136,7 @@ def _strip_html(html: str) -> str:
 
 
 def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
+    """The connection settings, without the password (see ``_smtp_password``)."""
     host = settings_obj.smtp_host
     from_address = settings_obj.smtp_from_address
     if not host or not from_address:
@@ -147,11 +148,22 @@ def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
         secure=bool(settings_obj.smtp_secure),
         reject_unauthorized=bool(settings_obj.smtp_reject_unauthorized),
         username=settings_obj.smtp_username,
-        password=decrypt_field(settings_obj.smtp_password_encrypted, SALT_SMTP_PASSWORD)
-        if settings_obj.smtp_password_encrypted
-        else None,
+        password=None,
         from_address=from_address,
     )
+
+
+async def _smtp_password() -> str | None:
+    """The stored SMTP password, decrypted, or ``None`` when none is stored.
+
+    Read on a system-engine session of its own: ``app_setting_secrets`` is
+    granted to no request-path role, and a message goes out from whichever
+    session its caller holds.
+    """
+    secrets_row = await app_settings_service.load_app_setting_secrets()
+    if not secrets_row.smtp_password_encrypted:
+        return None
+    return decrypt_field(secrets_row.smtp_password_encrypted, SALT_SMTP_PASSWORD)
 
 
 def _smtp_context(reject_unauthorized: bool) -> ssl.SSLContext:
@@ -274,7 +286,10 @@ async def send_email(
         raise ValueError("At least one recipient email is required")
     if settings_obj is None:
         settings_obj = await app_settings_service.get_app_settings(session)
+    # Built before the password is read: an install with no mail server raises
+    # here without opening a system-engine session.
     config = _build_smtp_config(settings_obj)
+    config.password = await _smtp_password()
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = config.from_address
@@ -356,13 +371,13 @@ async def _account_recipients(user: User) -> list[str]:
     On its own system-engine session rather than the caller's. Which addresses
     an account holds is reached there and nowhere else, and the callers here
     arrive with whichever session their endpoint runs on — a password reset
-    with the request-path one, an operator's reset with the admin one.
+    with the request-path one, an operator's reset with the system one.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.services.auth import addresses
 
-    async with AdminSessionLocal() as admin_session:
-        return await addresses.proven_addresses(admin_session, user_id=user.id)
+    async with SystemSessionLocal() as system_session:
+        return await addresses.proven_addresses(system_session, user_id=user.id)
 
 
 async def _send_to_primary(
@@ -383,11 +398,11 @@ async def _send_to_primary(
     On its own system-engine session, for the reason ``_account_recipients``
     gives. An account with no primary address is not written to.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
     from app.services.auth import addresses
 
-    async with AdminSessionLocal() as admin_session:
-        address = await addresses.primary_address(admin_session, user_id=user.id)
+    async with SystemSessionLocal() as system_session:
+        address = await addresses.primary_address(system_session, user_id=user.id)
     if address is None:
         logger.warning("no primary address for account %s; not sending", user.id)
         return
@@ -869,6 +884,83 @@ async def announce_community_deleted(
         logger.exception("could not send the community deletion receipt")
 
 
+async def send_community_on_hold_email(
+    session: AsyncSession,
+    *,
+    recipients: list[str],
+    community: str,
+    contact: str | None,
+    delete_at: datetime | None = None,
+    locale: str = "en",
+) -> None:
+    """Tell the people who hold a community's seat that it is on hold, whom
+    to contact about it, and, where the hold runs out, when it is deleted.
+
+    ``delete_at`` is None where this deployment never deletes a held community.
+    """
+    settings_obj, accent = await _email_context(session)
+    next_step = (
+        email_t("communityOnHold.contact", locale=locale, contact=contact)
+        if contact
+        else email_t("communityOnHold.contactNobody", locale=locale)
+    )
+    date = delete_at.strftime("%-d %B %Y") if delete_at is not None else None
+    deadline = (
+        f"<p>{email_t('communityOnHold.deletion', locale=locale, date=date)}</p>"
+        if date
+        else ""
+    )
+    body = f"""
+    <p>{email_t("communityOnHold.greeting", locale=locale)}</p>
+    <p>{email_t("communityOnHold.body", locale=locale, community=community)}</p>
+    {deadline}
+    <p>{next_step}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("communityOnHold.title", locale=locale, community=community),
+        body,
+        accent,
+        locale=locale,
+    )
+    text_next = (
+        email_t(
+            "communityOnHold.textContact", locale=locale, contact=contact, escape=False
+        )
+        if contact
+        else email_t("communityOnHold.textContactNobody", locale=locale, escape=False)
+    )
+    await send_email(
+        session,
+        recipients=recipients,
+        subject=email_t(
+            "communityOnHold.subject", locale=locale, community=community, escape=False
+        ),
+        html_body=html_body,
+        text_body=" ".join(
+            part
+            for part in (
+                email_t(
+                    "communityOnHold.textBody",
+                    locale=locale,
+                    community=community,
+                    escape=False,
+                ),
+                email_t(
+                    "communityOnHold.textDeletion",
+                    locale=locale,
+                    date=date,
+                    escape=False,
+                )
+                if date
+                else None,
+                text_next,
+            )
+            if part
+        ),
+        settings_obj=settings_obj,
+    )
+
+
 async def send_second_factor_changed_email(
     session: AsyncSession, user: User, *, enabled: bool
 ) -> None:
@@ -1100,7 +1192,7 @@ def access_grant_pieces(
             level=level_label,
             requester=requester or "",
         ),
-        link=_frontend_url("/settings/admin/access"),
+        link=_frontend_url("/settings/operator/access"),
         link_label=email_t("accessGrant.buttonLabel", locale=locale),
     )
 
@@ -1155,6 +1247,15 @@ def initiative_join_request_pieces(
     )
 
 
+def _redacted_item(text: str, link: str | None) -> str:
+    """One digest line for a community that asks for redacted notifications.
+
+    The kind of thing that happened, and the way back to it. Nothing in it
+    comes from the content, so there is nothing here to escape.
+    """
+    return f'<li><a href="{link}">{text}</a></li>' if link else f"<li>{text}</li>"
+
+
 def task_assignment_digest_pieces(
     user: User, assignments: Sequence[dict]
 ) -> EmailPieces:
@@ -1162,6 +1263,11 @@ def task_assignment_digest_pieces(
     locale = _user_locale(user)
 
     def assignment_html(item: dict) -> str:
+        if item.get("redacted"):
+            return _redacted_item(
+                email_t("taskAssignment.redactedItem", locale=locale),
+                item.get("link"),
+            )
         # ``title`` is user-controlled and spliced into markup directly (not via
         # email_t), so escape it here.
         title = _html.escape(item.get("task_title") or "Task")
@@ -1197,6 +1303,10 @@ def reaction_digest_pieces(user: User, reactions: Sequence[dict]) -> EmailPieces
     locale = _user_locale(user)
 
     def reaction_html(item: dict) -> str:
+        if item.get("redacted"):
+            return _redacted_item(
+                email_t("reaction.redactedItem", locale=locale), item.get("link")
+            )
         # ``emoji`` and ``context_title`` are user-controlled and spliced into
         # markup directly (not via email_t), so escape them here.
         emoji = _html.escape(item.get("emoji") or "")
@@ -1243,6 +1353,10 @@ def overdue_tasks_pieces(user: User, tasks: Sequence[dict]) -> EmailPieces:
     locale = _user_locale(user)
 
     def overdue_html(item: dict) -> str:
+        if item.get("redacted"):
+            return _redacted_item(
+                email_t("overdue.redactedItem", locale=locale), item.get("link")
+            )
         # ``title`` is user-controlled and spliced into markup directly (not via
         # email_t), so escape it here.
         title = _html.escape(item.get("title") or "Task")

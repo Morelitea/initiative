@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 
 import type { GuildRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { NotFoundPage, RouteErrorPage } from "@/components/errors/ErrorPages";
 
 import { routeTree } from "./routeTree.gen";
 
@@ -74,6 +75,8 @@ export const router = createRouter({
   defaultStaleTime: 0,
   scrollRestoration: true,
   defaultViewTransition: true,
+  defaultErrorComponent: RouteErrorPage,
+  defaultNotFoundComponent: NotFoundPage,
 });
 
 // Register the router for type safety

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { ProjectExportCard } from "@/components/projects/settings/ProjectExportCard";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -135,12 +134,6 @@ export const ProjectSettingsAdvancedTab = ({
             )}
           </CardFooter>
         </Card>
-
-        <ProjectExportCard
-          projectId={projectId}
-          projectName={project.name}
-          canWriteProject={canWriteProject}
-        />
       </>
     </>
   );

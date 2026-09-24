@@ -12,7 +12,7 @@ button. Not ``hard_delete_user`` — anonymizing keeps the row, so the work the
 account touched still tells one departed author from another.
 
 Polled by ``background_tasks._loop_worker`` once an hour on
-``AdminSessionLocal`` (the ``app_admin`` login). ``soft_delete_user`` routes
+``SystemSessionLocal`` (the ``app_admin`` login). ``soft_delete_user`` routes
 into each guild schema itself to scrub mention markup, so there is nothing to
 route here.
 """
@@ -25,7 +25,7 @@ import logging
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.user import User, UserStatus
 
 
@@ -119,5 +119,5 @@ async def process_account_purges() -> None:
     """One pass of the account-purge loop. Idempotent and safe to run on a
     schedule even when nothing is due."""
     now = datetime.now(timezone.utc)
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await purge_due_accounts(session, now=now)

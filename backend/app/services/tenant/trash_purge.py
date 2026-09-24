@@ -1,8 +1,8 @@
 """Auto-purge background worker for trashed entities past their retention.
 
 Polled by ``background_tasks._loop_worker`` once an hour. Connects via
-``AdminSessionLocal`` (the ``app_admin`` login) and routes into each guild's
-schema as a guild admin (``current_guild_role='admin'``) — that admin leg clears
+``SystemSessionLocal`` (the ``app_admin`` login) and routes into each guild's
+schema on the system engine, whose login the policies' system leg names — it clears
 the ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE guard (and the
 initiative-member policies), since SET ROLE into ``guild_<id>`` drops the
 ``app_admin`` (BYPASSRLS drops on SET ROLE) and routes into each guild as a
@@ -28,7 +28,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SystemSessionLocal, set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
@@ -46,6 +46,8 @@ from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.services import audit as audit_service
+from app.services.storage import get_guild_storage
+from app.services.tenant.attachments import release_unclaimed_pasted_images
 from app.services.tenant.soft_delete import hard_purge_entity
 
 
@@ -142,7 +144,7 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
     Each guild's trashed rows live in its own schema, so the worker has to visit
     them all. Trash purge is system maintenance with full authority over the
     guild, so it routes into each guild's schema AS A GUILD ADMIN
-    (``current_guild_role='admin'``). That admin leg is what clears both the
+    (the system leg, keyed on the connection's own login). That leg clears both the
     initiative-member policies and the ``soft_delete_admin_purge`` RESTRICTIVE
     guard on the soft-delete tables — ``SET ROLE`` drops the system engine's
     BYPASSRLS, so the admin context is what lets the hard deletes through.
@@ -164,9 +166,15 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         await _run_purge_pass(session, now=now, guild_id=guild_id)
+        # Pictures pasted and never saved — the tab was closed rather than
+        # left — go once their grace period is over.
+        unclaimed = await release_unclaimed_pasted_images(session, now=now)
         await session.commit()
+        storage = get_guild_storage(guild_id)
+        for name in unclaimed:
+            storage.delete(name)
 
 
 async def process_trash_purges() -> None:
@@ -182,5 +190,5 @@ async def process_trash_purges() -> None:
        constraints. ``hard_purge_entity`` walks descendants explicitly.
     """
     now = datetime.now(timezone.utc)
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _purge_all_guilds(session, now=now)

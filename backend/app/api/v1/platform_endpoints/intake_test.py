@@ -132,7 +132,7 @@ async def test_setting_a_stream_up_from_its_blueprint(client, session, owner):
         IntakeStream.security, title="Refused sign-ins", body="Ten in fifteen minutes."
     )
     assert outcome is not None
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await set_rls_context(session, guild_id=owner["guild_id"])
     task = (await session.exec(select(Task).where(Task.id == outcome.task_id))).one()
     assert task.project_id == body["project_id"]
 
@@ -190,7 +190,7 @@ async def test_unbinding_keeps_the_project(client, session, owner):
     assert response.status_code == 204
     assert await intake_service.open_case(IntakeStream.feedback, title="Idea") is None
 
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await set_rls_context(session, guild_id=owner["guild_id"])
     assert (
         await session.exec(select(Project).where(Project.id == project_id))
     ).one_or_none() is not None
@@ -344,7 +344,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
     assert again.opened is True
     assert again.task_id != opened.task_id
 
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await set_rls_context(session, guild_id=owner["guild_id"])
     landed = (await session.exec(select(Task).where(Task.id == again.task_id))).one()
     assert landed.project_id == elsewhere_id
     assert first.json()["project_id"] != elsewhere_id
@@ -500,7 +500,7 @@ async def test_a_binding_says_when_its_project_has_been_archived(
     assert created.json()["project_archived"] is False
     project_id = created.json()["project_id"]
 
-    await set_rls_context(session, guild_id=owner["guild_id"], guild_role="admin")
+    await set_rls_context(session, guild_id=owner["guild_id"])
     project = (
         await session.exec(select(Project).where(Project.id == project_id))
     ).one()
@@ -517,3 +517,111 @@ async def test_a_binding_says_when_its_project_has_been_archived(
     # And nothing lands there while it is archived, rather than the database
     # refusing the write.
     assert await intake_service.open_case(IntakeStream.support, title="Help") is None
+
+
+# ── Who to contact ──────────────────────────────────────────────────────────
+
+
+async def test_contacts_start_empty(client, owner):
+    body = (
+        await client.get("/api/v1/settings/intake", headers=owner["actor"].headers)
+    ).json()
+    assert body["general_contact_email"] is None
+    assert body["contact_emails"] == {}
+
+
+async def test_the_general_and_a_stream_contact_are_set_and_cleared(client, owner):
+    headers = owner["actor"].headers
+    response = await client.put(
+        "/api/v1/settings/intake/contact",
+        headers=headers,
+        json={"email": "ops@example.com"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["general_contact_email"] == "ops@example.com"
+
+    response = await client.put(
+        "/api/v1/settings/intake/moderation/contact",
+        headers=headers,
+        json={"email": "trust@example.com"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["contact_emails"] == {"moderation": "trust@example.com"}
+
+    response = await client.put(
+        "/api/v1/settings/intake/moderation/contact",
+        headers=headers,
+        json={"email": None},
+    )
+    assert response.json()["contact_emails"] == {}
+    assert response.json()["general_contact_email"] == "ops@example.com"
+
+    response = await client.put(
+        "/api/v1/settings/intake/contact", headers=headers, json={"email": None}
+    )
+    assert response.json()["general_contact_email"] is None
+
+
+async def test_a_contact_must_be_an_address(client, owner):
+    response = await client.put(
+        "/api/v1/settings/intake/contact",
+        headers=owner["actor"].headers,
+        json={"email": "not an address"},
+    )
+    assert response.status_code == 422
+
+
+async def test_a_contact_for_an_unknown_stream_is_refused(client, owner):
+    response = await client.put(
+        "/api/v1/settings/intake/billing/contact",
+        headers=owner["actor"].headers,
+        json={"email": "ops@example.com"},
+    )
+    assert response.status_code == 404
+
+
+async def test_a_member_cannot_set_a_contact(client, acting_user):
+    member = await acting_user("member")
+    response = await client.put(
+        "/api/v1/settings/intake/contact",
+        headers=member.headers,
+        json={"email": "ops@example.com"},
+    )
+    assert response.status_code == 403
+
+
+async def test_a_stream_falls_back_to_the_general_contact_and_never_to_another(
+    client, session, owner
+):
+    headers = owner["actor"].headers
+    await set_rls_context(session)
+    assert await intake_service.contact_for(session, IntakeStream.moderation) is None
+
+    await client.put(
+        "/api/v1/settings/intake/support/contact",
+        headers=headers,
+        json={"email": "help@example.com"},
+    )
+    await set_rls_context(session)
+    session.expire_all()
+    assert await intake_service.contact_for(session, IntakeStream.moderation) is None
+    assert (
+        await intake_service.contact_for(session, IntakeStream.support)
+        == "help@example.com"
+    )
+
+    await client.put(
+        "/api/v1/settings/intake/contact",
+        headers=headers,
+        json={"email": "ops@example.com"},
+    )
+    await set_rls_context(session)
+    session.expire_all()
+    assert (
+        await intake_service.contact_for(session, IntakeStream.moderation)
+        == "ops@example.com"
+    )
+    assert (
+        await intake_service.contact_for(session, IntakeStream.support)
+        == "help@example.com"
+    )

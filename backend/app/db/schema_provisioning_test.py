@@ -12,13 +12,16 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 import app.db.schema_provisioning as schema_provisioning
+from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
     SUPPORT_WRITE_PROTECTED_TABLES,
-    apply_template_rls,
+    apply_guild_rls,
+    strip_template_registry_objects,
     backfill_guild_schemas,
     drop_guild_schema,
     guild_readonly_role_name,
     guild_role_name,
+    guild_superadmin_role_name,
     guild_schema_name,
     guild_query_role_name,
     guild_support_role_name,
@@ -41,6 +44,9 @@ _GID_REPROVISION = 990_109
 _GID_DROP_ABSENT = 990_110
 _GID_SUPPORT = 990_120
 _GID_READ_FLOOR = 990_121
+_GID_SEAT = 990_122
+_GID_RETIRED_A = 990_123
+_GID_RETIRED_B = 990_124
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -98,10 +104,10 @@ async def test_writes_route_to_guild_schema_not_public(engine):
             # 9-char alpha color also exercises the widened tags.color column.
             await conn.execute(
                 text(
-                    "INSERT INTO tags (guild_id, name, color, created_at, updated_at) "
-                    "VALUES (:g, :n, '#abcdef80', now(), now())"
+                    "INSERT INTO tags (name, color, created_at, updated_at) "
+                    "VALUES (:n, '#abcdef80', now(), now())"
                 ),
-                {"g": gid, "n": "iso-tag"},
+                {"n": "iso-tag"},
             )
             await conn.exec_driver_sql("SET search_path TO public")
 
@@ -119,10 +125,10 @@ async def test_writes_route_to_guild_schema_not_public(engine):
                 await conn.exec_driver_sql("SET search_path TO public")
                 await conn.execute(
                     text(
-                        "INSERT INTO tags (guild_id, name, color, created_at, "
-                        "updated_at) VALUES (:g, :n, '#abcdef80', now(), now())"
+                        "INSERT INTO tags (name, color, created_at, "
+                        "updated_at) VALUES (:n, '#abcdef80', now(), now())"
                     ),
-                    {"g": gid, "n": "unrouted-tag"},
+                    {"n": "unrouted-tag"},
                 )
     finally:
         async with engine.begin() as conn:
@@ -200,6 +206,7 @@ async def test_drop_guild_schema_removes_role(engine):
         guild_readonly_role_name(gid),
         guild_support_role_name(gid),
         guild_query_role_name(gid),
+        guild_superadmin_role_name(gid),
     )
     try:
         async with engine.begin() as conn:
@@ -224,6 +231,54 @@ async def test_drop_guild_schema_removes_role(engine):
         assert not any(after), "every role should be gone after drop"
     finally:
         # Defensive: ensure no leftover role/schema if an assertion failed early.
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
+    engine,
+):
+    """``guild_<id>_superadmin`` is what the four configuration routes assume.
+
+    Everything the community's own role reaches, and beside it the one shared
+    floor carrying its sign-in configuration — which the guild role itself no
+    longer writes.
+    """
+    gid = _GID_SEAT
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        schema = guild_schema_name(gid)
+        seat = guild_superadmin_role_name(gid)
+        role = guild_role_name(gid)
+        async with engine.connect() as conn:
+            for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                assert (
+                    await conn.scalar(
+                        text("SELECT has_table_privilege(:r, :t, :p)"),
+                        {"r": seat, "t": "public.guild_auth_policies", "p": verb},
+                    )
+                    is True
+                ), f"the seat role must hold {verb} on guild_auth_policies"
+                # The community's own role reaches its content as before, and
+                # the seat role inherits that reach.
+                assert (
+                    await conn.scalar(
+                        text("SELECT has_table_privilege(:r, :t, :p)"),
+                        {"r": seat, "t": f"{schema}.projects", "p": verb},
+                    )
+                    is True
+                ), f"the seat role must hold {verb} on the community's content"
+            # And the writes it adds are the ones the guild role gave up.
+            for verb in ("INSERT", "UPDATE", "DELETE"):
+                assert (
+                    await conn.scalar(
+                        text("SELECT has_table_privilege(:r, :t, :p)"),
+                        {"r": role, "t": "public.guild_auth_policies", "p": verb},
+                    )
+                    is False
+                ), f"the guild role must not hold {verb} on guild_auth_policies"
+    finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
 
@@ -270,9 +325,11 @@ async def test_the_read_roles_cannot_write_shared_tables(engine):
 
 
 async def test_support_role_write_capped_on_protected_tables(engine):
-    """The restricted ``support`` role reads everything and writes content, but
-    the structural / permission tables are SELECT-only — the DB-enforced
-    'no member/permission management' line, checked via has_table_privilege."""
+    """The restricted ``support`` role reads everything and writes content;
+    the permission tables are SELECT-only, checked via has_table_privilege.
+    The initiative's own structure is writable at the privilege level — the
+    ``managed_*`` policies decide those writes from the standing, and a settings
+    rung beside a read_write grant is among what they admit."""
     gid = _GID_SUPPORT
     schema = guild_schema_name(gid)
     support = guild_support_role_name(gid)
@@ -299,14 +356,20 @@ async def test_support_role_write_capped_on_protected_tables(engine):
             # DML until somebody remembers it, which has happened twice.
             for table in (
                 "resource_grants",
-                "initiative_members",
                 "guild_app_user_connections",
                 "guild_app_user_delegations",
             ):
                 assert table in SUPPORT_WRITE_PROTECTED_TABLES, table
 
-            # Content + guild settings: full DML (settings write is the carve-out).
-            for table in ("tasks", "guild_settings"):
+            # Content, guild settings and the initiative's structure: full DML
+            # at the privilege level; the policies decide the structure's writes.
+            for table in (
+                "tasks",
+                "guild_settings",
+                "initiative_members",
+                "initiative_roles",
+                "initiative_role_permissions",
+            ):
                 for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                     assert await priv(table, verb) is True, f"{table} {verb}"
     finally:
@@ -328,10 +391,10 @@ async def test_guild_role_can_write_in_its_own_schema(engine):
             await conn.exec_driver_sql(f'SET search_path TO "{schema}", public')
             await conn.execute(
                 text(
-                    "INSERT INTO tags (guild_id, name, color, created_at, updated_at) "
-                    "VALUES (:g, :n, '#112233', now(), now())"
+                    "INSERT INTO tags (name, color, created_at, updated_at) "
+                    "VALUES (:n, '#112233', now(), now())"
                 ),
-                {"g": gid, "n": "written-by-role"},
+                {"n": "written-by-role"},
             )
             written = await conn.scalar(text("SELECT count(*) FROM tags"))
             await conn.exec_driver_sql("SET search_path TO public")
@@ -402,10 +465,10 @@ async def test_reprovision_preserves_existing_rows(engine):
             await conn.exec_driver_sql(f'SET search_path TO "{schema}", public')
             await conn.execute(
                 text(
-                    "INSERT INTO tags (guild_id, name, color, created_at, updated_at) "
-                    "VALUES (:g, :n, '#445566', now(), now())"
+                    "INSERT INTO tags (name, color, created_at, updated_at) "
+                    "VALUES (:n, '#445566', now(), now())"
                 ),
-                {"g": gid, "n": "survivor"},
+                {"n": "survivor"},
             )
             await conn.exec_driver_sql("SET search_path TO public")
         async with engine.begin() as conn:
@@ -430,6 +493,8 @@ async def test_drop_guild_schema_is_safe_when_absent(engine):
 # --- drift guard: the provisioned guild schema must equal guild_template --------
 
 _GID_DRIFT = 990_120
+_GID_NO_GUILD_COLUMN = 990_122
+_GID_NO_CROSS_SCHEMA_FK = 990_123
 
 # The Alembic-maintained canonical guild schema (created by migration
 # 20260701_0126 by running guild_schema.sql + guild_rls.sql). Post-squash there
@@ -456,15 +521,15 @@ async def test_guild_schema_matches_guild_template(engine):
     """A provisioned guild schema must be a structurally faithful CLONE of the
     ``guild_template`` schema it was rendered from (``app.db.guild_ddl`` reflects
     the live template) — same columns/types/nullability/defaults, CHECK/PK/UNIQUE,
-    indexes (incl. opclasses), and intra-schema FK ON DELETE rules. Cross-schema
-    FKs are intentionally absent (soft refs). This catches any fidelity gap in the
-    live-reflection renderer."""
+    indexes (incl. opclasses), and FK ON DELETE rules. This catches any fidelity
+    gap in the live-reflection renderer.
+
+    Every key counts, not only the ones that stay inside the schema: since
+    20260922_0349 the template holds none that leave either, so the comparison
+    can be whole, and one that came back would read here as the drift it is."""
     schema = guild_schema_name(_GID_DRIFT)
-    # What a migration cannot render — RLS, capture, search — reaches the
-    # template from the registry at boot, and a test does not boot. Bring the
-    # canonical copy up to date first, or every registry-rendered object reads
-    # as drift in the schema that has one and the template that does not.
-    await apply_template_rls()
+    rendered = rendered_trigger_names()
+    rendered_cons = rendered_constraint_names()
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, _GID_DRIFT)
@@ -486,22 +551,26 @@ async def test_guild_schema_matches_guild_template(engine):
             async def cons(ns, t):  # CHECK/PK/UNIQUE
                 r = await conn.execute(
                     text(
-                        "SELECT pg_get_constraintdef(oid) d FROM pg_constraint "
+                        "SELECT conname n, pg_get_constraintdef(oid) d FROM pg_constraint "
                         "WHERE conrelid=(:ns||'.'||:t)::regclass AND contype IN ('c','p','u')"
                     ),
                     {"ns": ns, "t": t},
                 )
-                return sorted(_norm_constraint(x.d) for x in r)
+                # A constraint the registries render (the search index's
+                # entity-type CHECK) is not structure, for the same reason as
+                # the triggers below.
+                return sorted(
+                    _norm_constraint(x.d) for x in r if x.n not in rendered_cons
+                )
 
-            async def intra_fks(ns, t):  # (target, ON DELETE) for guild->guild FKs only
+            async def fks(ns, t):  # (target, ON DELETE) for every key on the table
                 r = await conn.execute(
                     text(
                         "SELECT tgt.relname g, con.confdeltype::text d FROM pg_constraint con "
                         "JOIN pg_class tgt ON tgt.oid=con.confrelid "
-                        "WHERE con.conrelid=(:ns||'.'||:t)::regclass AND con.contype='f' "
-                        "AND tgt.relname = ANY(:gs)"
+                        "WHERE con.conrelid=(:ns||'.'||:t)::regclass AND con.contype='f'"
                     ),
-                    {"ns": ns, "t": t, "gs": list(GUILD_SCOPED_TABLES)},
+                    {"ns": ns, "t": t},
                 )
                 return {(x.g, x.d) for x in r}
 
@@ -527,13 +596,10 @@ async def test_guild_schema_matches_guild_template(engine):
                 return sorted(
                     re.sub(r"\bON \w+\.", "ON ", x.d)  # strip table schema
                     for x in r
-                    # Change-capture and search-index triggers are rendered
-                    # from their registries at provisioning time, not owned by
-                    # Alembic — the same treatment RLS policies get here, and
-                    # for the same reason: comparing them would assert the
-                    # template carries a frozen snapshot of whatever the
-                    # registry said.
-                    if not x.n.startswith(("capture_", "search_"))
+                    # Triggers the registries render (freeze, capture, search)
+                    # are not structure: a provisioned schema has them and the
+                    # template does not, and neither side is wrong about it.
+                    if x.n not in rendered
                 )
 
             drift = []
@@ -542,7 +608,7 @@ async def test_guild_schema_matches_guild_template(engine):
                     drift.append(f"columns: {t}")
                 if await cons(_TEMPLATE_SCHEMA, t) != await cons(schema, t):
                     drift.append(f"constraints: {t}")
-                if await intra_fks(_TEMPLATE_SCHEMA, t) != await intra_fks(schema, t):
+                if await fks(_TEMPLATE_SCHEMA, t) != await fks(schema, t):
                     drift.append(f"foreign keys: {t}")
                 if await idx(_TEMPLATE_SCHEMA, t) != await idx(schema, t):
                     drift.append(f"indexes: {t}")
@@ -552,6 +618,105 @@ async def test_guild_schema_matches_guild_template(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_DRIFT)
+
+
+_CROSS_SCHEMA_FKS = text(
+    "SELECT cl.relname tbl, con.conname name, "
+    "       tgt.relnamespace::regnamespace::text || '.' || tgt.relname tgt "
+    "FROM pg_constraint con "
+    "JOIN pg_class cl ON cl.oid = con.conrelid "
+    "JOIN pg_class tgt ON tgt.oid = con.confrelid "
+    "WHERE con.contype = 'f' "
+    "  AND cl.relnamespace = CAST(:s AS regnamespace) "
+    "  AND tgt.relnamespace <> cl.relnamespace "
+    "ORDER BY 1, 2"
+)
+
+
+async def test_no_key_reaches_out_of_a_guild_schema(engine):
+    """A guild schema holds no foreign key to a table outside it.
+
+    Provisioning renders intra-schema keys only, so one written into a
+    migration reaches ``guild_template`` and no guild — a rule the database
+    states in the one place it is never enforced. 20260922_0349 removed the
+    twenty-three that had collected that way, and
+    ``migration_filters.strip_cross_schema_foreign_keys`` keeps autogenerate
+    from writing the next one; this is the catalog saying so.
+    """
+    schema = guild_schema_name(_GID_NO_CROSS_SCHEMA_FK)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_NO_CROSS_SCHEMA_FK)
+
+        async with engine.connect() as conn:
+            for ns in (_TEMPLATE_SCHEMA, schema):
+                found = [
+                    f"{ns}.{r.tbl}.{r.name} -> {r.tgt}"
+                    for r in await conn.execute(_CROSS_SCHEMA_FKS, {"s": ns})
+                ]
+                assert found == [], (
+                    "foreign keys point out of the guild schema, where no guild "
+                    f"would ever enforce them: {found}"
+                )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_NO_CROSS_SCHEMA_FK)
+
+
+async def test_the_template_strip_removes_only_what_a_render_put_there(engine):
+    """``guild_template`` carries structure. Boots before it became
+    structure-only rendered the registries into it; the boot back-fill now
+    strips those, and must leave the migrations' own triggers where they are."""
+    from app.db.authorization import GUILD_FUNCTION_SIGNATURES
+
+    async def counts(conn):
+        policies = await conn.scalar(
+            text("SELECT count(*) FROM pg_policies WHERE schemaname = :s"),
+            {"s": _TEMPLATE_SCHEMA},
+        )
+        names = [
+            r[0]
+            for r in await conn.execute(
+                text(
+                    "SELECT t.tgname FROM pg_trigger t JOIN pg_class c "
+                    "ON c.oid = t.tgrelid WHERE NOT t.tgisinternal "
+                    "AND c.relnamespace = CAST(:s AS regnamespace)"
+                ),
+                {"s": _TEMPLATE_SCHEMA},
+            )
+        ]
+        rendered = rendered_trigger_names()
+        functions = await conn.scalar(
+            text(
+                "SELECT count(*) FROM pg_proc WHERE proname = ANY(:n) "
+                "AND pronamespace = CAST(:s AS regnamespace)"
+            ),
+            {"n": list(GUILD_FUNCTION_SIGNATURES), "s": _TEMPLATE_SCHEMA},
+        )
+        return (
+            int(policies),
+            sum(n in rendered for n in names),
+            sum(n not in rendered for n in names),
+            int(functions),
+        )
+
+    # What an earlier boot did: render the registry into the template.
+    async with engine.begin() as conn:
+        await apply_guild_rls(conn, _TEMPLATE_SCHEMA)
+    async with engine.connect() as conn:
+        policies, rendered, own, functions = await counts(conn)
+    assert policies > 0 and rendered > 0 and functions == len(GUILD_FUNCTION_SIGNATURES)
+
+    async with engine.begin() as conn:
+        removed = await strip_template_registry_objects(conn)
+    async with engine.connect() as conn:
+        after = await counts(conn)
+    assert after == (0, 0, own, 0), after
+    assert removed == policies + rendered + functions
+
+    # And once clean, there is nothing to do.
+    async with engine.begin() as conn:
+        assert await strip_template_registry_objects(conn) == 0
 
 
 async def test_public_schema_has_no_tenant_tables(engine):
@@ -772,16 +937,12 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
 
     _original = sp._grant_statements
 
-    def _different_grants(
-        schema: str, role: str, ro_role: str, support_role: str, query_role: str
-    ) -> list[str]:
+    def _different_grants(*_args: str) -> list[str]:
         return ["GRANT USAGE ON SCHEMA x TO y"]
 
-    def _cosmetic_rewrite(
-        schema: str, role: str, ro_role: str, support_role: str, query_role: str
-    ) -> list[str]:
+    def _cosmetic_rewrite(*args: str) -> list[str]:
         # Different source text, byte-identical output.
-        return list(_original(schema, role, ro_role, support_role, query_role))
+        return list(_original(*args))
 
     try:
         with mock.patch.object(sp, "_grant_statements", _different_grants):
@@ -802,8 +963,7 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
 #
 # A system-engine login without BYPASSRLS reads shared tables as empty and
 # boot seeding dies on the guilds RLS policy. The boot check must pass a
-# healthy posture untouched, repair the attribute when the provisioning login
-# lawfully can, and stop boot with instructions when it can't.
+# healthy posture untouched and stop boot with instructions otherwise.
 
 
 async def _login_can_alter_bypassrls(engine) -> bool:
@@ -840,39 +1000,12 @@ async def _drop_login(engine, role: str) -> None:
 
 
 async def test_system_engine_check_passes_on_healthy_posture():
-    # The harness routes the admin engine to the real app_admin (BYPASSRLS)
+    # The harness routes the system engine to the real app_admin (BYPASSRLS)
     # against the test DB — the check must be a silent no-op.
     await schema_provisioning.ensure_system_engine_bypassrls()
 
 
-async def test_system_engine_check_heals_missing_bypassrls(engine, monkeypatch):
-    import app.db.session as db_session
-
-    if not await _login_can_alter_bypassrls(engine):
-        pytest.skip("test login may not alter BYPASSRLS roles")
-
-    role = f"{engine.url.database}_heal_role"
-    bound_engine = await _create_policy_bound_login(engine, role, "heal-pw")
-    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
-    # provisioning_engine is the (privileged) test engine via the harness.
-    try:
-        await schema_provisioning.ensure_system_engine_bypassrls()
-        async with engine.connect() as conn:
-            healed = (
-                await conn.execute(
-                    text("SELECT rolbypassrls FROM pg_roles WHERE rolname = :r"),
-                    {"r": role},
-                )
-            ).scalar()
-        assert healed, "the check must re-assert BYPASSRLS on the system engine"
-    finally:
-        await bound_engine.dispose()
-        await _drop_login(engine, role)
-
-
-async def test_system_engine_check_fails_closed_when_it_cannot_heal(
-    engine, monkeypatch
-):
+async def test_system_engine_check_stops_boot_without_bypassrls(engine, monkeypatch):
     import app.db.session as db_session
 
     if not await _login_can_alter_bypassrls(engine):
@@ -880,17 +1013,12 @@ async def test_system_engine_check_fails_closed_when_it_cannot_heal(
 
     role = f"{engine.url.database}_unheal_role"
     bound_engine = await _create_policy_bound_login(engine, role, "unheal-pw")
-    # Point BOTH engines at the policy-bound login: the provisioning side may
-    # not alter BYPASSRLS, so the check must stop boot with instructions.
-    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
-    monkeypatch.setattr(db_session, "provisioning_engine", bound_engine)
+    monkeypatch.setattr(db_session, "system_engine", bound_engine)
     try:
         with pytest.raises(SystemExit) as excinfo:
             await schema_provisioning.ensure_system_engine_bypassrls()
         assert "ALTER ROLE" in str(excinfo.value)
         assert role in str(excinfo.value)
-        # No repair was possible here, so the message must not claim one ran.
-        assert "already ran" not in str(excinfo.value)
         async with engine.connect() as conn:
             still_bound = (
                 await conn.execute(
@@ -898,27 +1026,10 @@ async def test_system_engine_check_fails_closed_when_it_cannot_heal(
                     {"r": role},
                 )
             ).scalar()
-        assert not still_bound, "an unprivileged check must not change the role"
+        assert not still_bound, "the check must not change the role"
     finally:
         await bound_engine.dispose()
         await _drop_login(engine, role)
-
-
-def test_bypassrls_exit_message_distinguishes_attempted_repair():
-    """The heal-attempted variant must say a repair already ran (so the
-    operator doesn't re-run an ALTER that silently changed nothing) and point
-    at role-resolution debugging; the plain variant must not claim one ran."""
-    plain = schema_provisioning._bypassrls_exit_message(
-        "app_admin", heal_attempted=False
-    )
-    attempted = schema_provisioning._bypassrls_exit_message(
-        "app_admin", heal_attempted=True
-    )
-    for message in (plain, attempted):
-        assert 'ALTER ROLE "app_admin" WITH BYPASSRLS;' in message
-    assert "already ran" not in plain
-    assert "already ran" in attempted
-    assert "current_user" in attempted  # the which-role-am-I diagnostic query
 
 
 # --- ensure_shared_table_grants (issue #835 follow-up) -----------------------
@@ -1098,11 +1209,11 @@ async def test_engine_identities_warn_on_shared_app_and_admin_login(
 ):
     import app.db.session as db_session
 
-    # Point the app engine at the (harness) admin engine: same login, same DB.
+    # Point the app engine at the (harness) system engine: same login, same DB.
     # Working-but-not-recommended wiring warns loudly and boots; it never
     # stops. Contrast reject_privileged_database_url, which does stop --- the
     # difference is a weakened backstop versus no boundary at all.
-    monkeypatch.setattr(db_session, "engine", db_session.admin_engine)
+    monkeypatch.setattr(db_session, "engine", db_session.system_engine)
     with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
         await schema_provisioning.verify_engine_identities()
     joined = "\n".join(r.getMessage() for r in caplog.records)
@@ -1119,9 +1230,9 @@ async def test_engine_identities_warn_on_privileged_app_login(
     # App engine as app_admin (BYPASSRLS) — a swapped-URLs deployment. A
     # DISTINCT engine from a distinct login must be the admin side so the
     # same-login warning doesn't fire instead.
-    swapped_app = create_async_engine(db_session.admin_engine.url, echo=False)
+    swapped_app = create_async_engine(db_session.system_engine.url, echo=False)
     monkeypatch.setattr(db_session, "engine", swapped_app)
-    monkeypatch.setattr(db_session, "admin_engine", engine)
+    monkeypatch.setattr(db_session, "system_engine", engine)
     try:
         with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
             await schema_provisioning.verify_engine_identities()
@@ -1185,7 +1296,7 @@ async def test_effective_grants_fail_closed_for_grantless_admin_login(
 
     role = f"{engine.url.database}_nogrant_role"
     bound_engine = await _create_policy_bound_login(engine, role, "nogrant-pw")
-    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
+    monkeypatch.setattr(db_session, "system_engine", bound_engine)
     monkeypatch.setattr(db_session, "engine", engine)  # app side passes (owner)
     try:
         with pytest.raises(SystemExit) as excinfo:
@@ -1277,8 +1388,141 @@ async def test_privileged_database_url_refuses_to_start(monkeypatch, attributes,
     assert named in message
     # The refusal carries the way out; without it, it is an outage with no
     # stated remedy.
-    assert "DATABASE_URL_BOOTSTRAP" in message
+    assert "remove DATABASE_URL_APP" in message
     assert "app_provisioner" in message
     # Both ways to make the roles, so neither the operator who wants the app to
     # do it nor the one who wants the SQL has to go looking for the other.
     assert "python -m app.db.bootstrap --print-sql" in message
+
+
+async def test_privileged_derived_provisioner_names_the_role_to_fix(monkeypatch):
+    """With DATABASE_URL as the owner the app made app_provisioner itself, so
+    the remedy is the role, not the connection settings."""
+    from app.core.config import settings
+
+    _fake_provisioning_engine(monkeypatch, rolsuper=True)
+    monkeypatch.setattr(settings, "_database_logins_derived", True)
+
+    with pytest.raises(SystemExit) as exit_info:
+        await schema_provisioning.reject_privileged_database_url()
+
+    message = str(exit_info.value)
+    assert "ALTER ROLE app_provisioner NOSUPERUSER NOBYPASSRLS" in message
+    assert "DATABASE_URL_APP" not in message
+
+
+@pytest.mark.database
+async def test_a_provisioned_schema_names_no_community(engine):
+    """A guild schema is what says which community it is, so no table in one
+    carries a ``guild_id`` column.
+
+    Read from the catalog rather than compared against a list, so it cannot
+    become a test of the exemptions that produced it: a table added later with
+    the column fails here without anyone remembering to add it anywhere.
+    """
+    schema = guild_schema_name(_GID_NO_GUILD_COLUMN)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_NO_GUILD_COLUMN)
+        async with engine.connect() as conn:
+            named = (
+                await conn.execute(
+                    text(
+                        "SELECT c.relname, a.attname FROM pg_attribute a "
+                        "JOIN pg_class c ON c.oid = a.attrelid "
+                        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+                        "WHERE n.nspname = :ns AND c.relkind = 'r' "
+                        "AND a.attnum > 0 AND NOT a.attisdropped "
+                        "AND a.attname = 'guild_id' ORDER BY c.relname"
+                    ),
+                    {"ns": schema},
+                )
+            ).all()
+        assert named == [], (
+            "these tables still name their community in a column: "
+            f"{[row[0] for row in named]}"
+        )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_NO_GUILD_COLUMN)
+
+
+async def test_retiring_a_function_leaves_the_shared_copy_to_the_boot_step(engine):
+    """A render retires only its own schema's copy of a retired function.
+
+    0.71 kept ``relationship_endpoint_access`` in ``public``, and every guild's
+    policies were bound to that one copy. The render drops retired functions
+    with the search path on ``<guild>, public``, so an unqualified drop in a
+    guild with no local copy reached the shared one and was refused — the
+    other guilds still depended on it — and the back-fill failed for every
+    guild in turn. Here guild B stands in for "every other guild".
+    """
+    from app.db.authorization import RETIRED_GUILD_FUNCTION_SIGNATURES
+    from app.db.guild_ddl import render_retired_functions_ddl
+
+    name, args = RETIRED_GUILD_FUNCTION_SIGNATURES[0]
+    schema_a = guild_schema_name(_GID_RETIRED_A)
+    schema_b = guild_schema_name(_GID_RETIRED_B)
+    shared = f"public.{name}{args}"
+    created_shared = False
+    try:
+        async with engine.begin() as conn:
+            if (
+                await conn.scalar(
+                    text("SELECT to_regprocedure(CAST(:s AS text))"), {"s": shared}
+                )
+                is None
+            ):
+                created_shared = True
+                await conn.exec_driver_sql(
+                    f"CREATE FUNCTION {shared} RETURNS boolean "
+                    "LANGUAGE sql STABLE AS 'SELECT true'"
+                )
+            for schema in (schema_a, schema_b):
+                await conn.exec_driver_sql(f'CREATE SCHEMA "{schema}"')
+                await conn.exec_driver_sql(
+                    f'CREATE TABLE "{schema}".t (kind text, id integer)'
+                )
+            # Guild B's policy is bound to the shared copy, as every guild's
+            # was before this release re-rendered it.
+            await conn.exec_driver_sql(
+                f'ALTER TABLE "{schema_b}".t ENABLE ROW LEVEL SECURITY'
+            )
+            await conn.exec_driver_sql(
+                f'CREATE POLICY p ON "{schema_b}".t USING '
+                f"(public.{name}(kind, id, false))"
+            )
+            # Guild A has a copy of its own, which is the one to retire.
+            await conn.exec_driver_sql(
+                f'CREATE FUNCTION "{schema_a}".{name}{args} RETURNS boolean '
+                "LANGUAGE sql STABLE AS 'SELECT true'"
+            )
+
+        async with engine.begin() as conn:
+            await conn.exec_driver_sql(f'SET search_path TO "{schema_a}", public')
+            await conn.exec_driver_sql(render_retired_functions_ddl())
+            await conn.exec_driver_sql("SET search_path TO public")
+
+        async with engine.connect() as conn:
+            local = await conn.scalar(
+                text("SELECT to_regprocedure(CAST(:s AS text))"),
+                {"s": f'"{schema_a}".{name}{args}'},
+            )
+            still_shared = await conn.scalar(
+                text("SELECT to_regprocedure(CAST(:s AS text))"), {"s": shared}
+            )
+        assert local is None, "the guild's own copy is retired"
+        assert still_shared is not None, "the shared copy is left for the boot step"
+
+        # And a render in a schema with no copy of its own is a no-op, rather
+        # than a drop that reaches the shared one.
+        async with engine.begin() as conn:
+            await conn.exec_driver_sql(f'SET search_path TO "{schema_a}", public')
+            await conn.exec_driver_sql(render_retired_functions_ddl())
+            await conn.exec_driver_sql("SET search_path TO public")
+    finally:
+        async with engine.begin() as conn:
+            for schema in (schema_a, schema_b):
+                await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+            if created_shared:
+                await conn.exec_driver_sql(f"DROP FUNCTION IF EXISTS {shared}")

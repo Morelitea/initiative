@@ -58,11 +58,10 @@ async def _make_role_the_owner(session: AsyncSession, calendar, *, role_id: int)
     await session.exec(
         text(
             "INSERT INTO resource_grants "
-            "(guild_id, initiative_id, resource_type, resource_id, user_id, "
+            "(initiative_id, resource_type, resource_id, user_id, "
             " role_id, level, created_at, all_initiative_members) "
-            "VALUES (:gid, :iid, 'calendar', :cid, NULL, :rid, 'owner', now(), false)"
+            "VALUES (:iid, 'calendar', :cid, NULL, :rid, 'owner', now(), false)"
         ).bindparams(
-            gid=calendar.guild_id,
             iid=calendar.initiative_id,
             cid=calendar.id,
             rid=role_id,

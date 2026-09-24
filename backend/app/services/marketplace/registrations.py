@@ -270,7 +270,7 @@ def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
     needs it. An empty object clears the set.
 
     Held to public asymmetric keys only. This column is served in full to the
-    admin surface, which is right for a public half and wrong for anything
+    owner's settings, which is right for a public half and wrong for anything
     else, so a key carrying private members or a shared symmetric value is
     refused rather than stored — the paste is a mistake worth naming at the
     moment it happens.
@@ -353,7 +353,7 @@ def normalize_grants(values: Optional[Iterable[str]]) -> list[str]:
     """Check operator-conferred powers against the closed vocabulary.
 
     A value outside it is refused rather than stored: a grant no code resolves
-    would read, in the admin UI, as a power this deployment had conferred.
+    would read, in the owner's settings, as a power this deployment had conferred.
     """
     normalized: list[str] = []
     for value in values or []:
@@ -423,7 +423,7 @@ async def sign_for_app(public_id: str, message: str) -> Optional[str]:
     without a secret — and the caller sends no address rather than an unsigned
     one.
     """
-    async with db_session.AdminSessionLocal() as session:
+    async with db_session.SystemSessionLocal() as session:
         row = await _by_public_id(session, public_id)
         if row is None or not row.secret_encrypted:
             return None

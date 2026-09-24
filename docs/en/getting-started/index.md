@@ -11,7 +11,7 @@ You don't need experience with project management software. You don't need to kn
 ## What you'll need
 
 - **A browser.** Computer, tablet, phone, whatever's nearest. There is nothing to install.
-- **Either a web address or an invite link** for your group's Initiative. Somebody in the group usually sends you one. If *you* are the one setting this up for everybody, you want the [administrator guide](../admin/index.md) instead, and our sympathies.
+- **Either a web address or an invite link** for your group's Initiative. Somebody in the group usually sends you one. If *you* are the one setting this up for everybody, you want the [server guide](../running-a-server/index.md) instead, and our sympathies.
 - **Optional: [the app](install-the-app.md)**, if you'd like an icon on your home screen, or notifications on your phone.
 
 !!! info "Nobody's set anything up yet?"

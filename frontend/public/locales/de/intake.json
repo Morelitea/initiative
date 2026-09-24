@@ -1,5 +1,16 @@
 {
   "ownerOnly": "Nur Plattform-Inhaber können festlegen, wo Betriebsvorgänge landen.",
+  "contacts": {
+    "title": "Ansprechpartner",
+    "description": "Die Adresse, die ein Hinweis nennt, wenn er jemanden bittet, sich zu melden – zum Beispiel jemanden, dessen Konto oder Community gesperrt ist. Eine Art von Arbeit ohne eigene Adresse nutzt den allgemeinen Kontakt; ist keiner gesetzt, verweist der Hinweis auf die Betreiber dieses Servers.",
+    "generalLabel": "Allgemeiner Kontakt",
+    "generalPlaceholder": "name@example.com",
+    "streamPlaceholder": "Nutzt den allgemeinen Kontakt",
+    "save": "Kontakte speichern",
+    "saving": "Wird gespeichert…",
+    "saved": "Kontakte gespeichert.",
+    "saveError": "Die Kontakte konnten nicht gespeichert werden."
+  },
   "guild": {
     "title": "Betriebs-Community",
     "description": "Die Community, die Sicherheits-, Moderations-, Support- und Feedback-Vorgänge dieser Installation erhält.",

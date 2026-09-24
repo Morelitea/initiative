@@ -21,14 +21,11 @@
     "title": "Paramètres de la communauté",
     "subtitle": "Gérez les membres de l'espace de travail et les détails de la communauté.",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
+    "viewOnly": "Vous consultez ces paramètres grâce à une autorisation d'accès. Pour les modifier, une autorisation en lecture-écriture est également requise.",
     "restricted": {
       "read_only": {
         "label": "Lecture seule",
         "message": "Cette communauté est en lecture seule. Contactez la personne qui gère ce serveur pour rétablir l'accès complet."
-      },
-      "suspended": {
-        "label": "Suspendu",
-        "message": "Cette communauté est suspendue et les membres n'y ont pas accès. Contactez la personne qui gère ce serveur."
       }
     },
     "tabs": {
@@ -103,21 +100,12 @@
     "removeConfirm": "Retirer"
   },
   "security": {
-    "devicesTitle": "Appareils connectés",
-    "devicesDescription": "Appareils mobiles actuellement connectés à votre compte. Révoquer l'accès déconnectera l'appareil.",
     "loadingDevices": "Chargement des appareils…",
     "devicesError": "Impossible de charger les appareils.",
-    "noDevices": "Aucun appareil connecté",
-    "noDevicesHint": "Lorsque vous vous connectez depuis un appareil mobile, il apparaîtra ici.",
     "unknownDevice": "Appareil inconnu",
     "loggedIn": "Connecté {{date}}",
-    "revoke": "Révoquer",
-    "revokeDialogTitle": "Révoquer l'accès de l'appareil ?",
-    "revokeDialogDescription": "Cela déconnectera <bold>{{deviceName}}</bold>. Il devra se reconnecter pour accéder à votre compte.",
     "revokeDialogCancel": "Annuler",
-    "revokeDialogConfirm": "Révoquer l'accès",
     "revoking": "Révocation en cours…",
-    "revokeSuccess": "Appareil déconnecté",
     "revokeError": "Impossible de révoquer l'accès de l'appareil",
     "newKeyTitle": "Nouvelle clé API",
     "newKeyDescription": "Copiez cette clé maintenant. Vous ne pourrez plus la voir.",
@@ -162,7 +150,24 @@
     "deleteButton": "Supprimer",
     "deleting": "Suppression en cours…",
     "deleteSuccess": "Clé API supprimée",
-    "deleteError": "Impossible de supprimer la clé API"
+    "deleteError": "Impossible de supprimer la clé API",
+    "signedInTitle": "Où vous êtes connecté",
+    "signedInDescription": "Les navigateurs et appareils actuellement connectés à votre compte. En déconnecter un met fin à cette session uniquement.",
+    "noSignedIn": "Nulle part ailleurs",
+    "noSignedInHint": "Dès que vous vous connectez depuis un autre navigateur ou appareil, il apparaîtra ici.",
+    "thisDevice": "Cet appareil",
+    "activeAt": "actif {{when}}",
+    "signOut": "Déconnecter",
+    "signOutDialogTitle": "Déconnecter cet appareil ?",
+    "signOutDialogDescription": "Cela met fin à la session sur <bold>{{deviceName}}</bold>. Il devra se reconnecter.",
+    "signOutConfirm": "Déconnecter",
+    "signedOutOne": "Déconnecté",
+    "signOutOthers": "Déconnecter partout ailleurs",
+    "signOutOthersDialogTitle": "Déconnecter partout ailleurs ?",
+    "signOutOthersDialogDescription_one": "Cela met fin à {{count}} autre session. Vous resterez connecté ici.",
+    "signOutOthersDialogDescription_other": "Cela met fin aux {{count}} autres sessions. Vous resterez connecté ici.",
+    "signOutOthersConfirm": "Déconnecter partout ailleurs",
+    "signedOutOthers": "Déconnecté partout ailleurs"
   },
   "ai": {
     "loading": "Chargement des paramètres d'IA…",
@@ -191,7 +196,7 @@
   "platformAI": {
     "title": "IA de la plateforme",
     "description": "Choisissez comment l'IA est configurée sur l'ensemble de la plateforme. Comme pour la connexion, l'IA est gérée soit par la plateforme, soit par chaque communauté, jamais les deux.",
-    "adminOnly": "Seuls les propriétaires de la plateforme peuvent gérer les paramètres d'IA de la plateforme.",
+    "platformOnly": "Seuls les propriétaires de la plateforme peuvent gérer les paramètres d'IA de la plateforme.",
     "modeLabel": "Mode de configuration de l'IA",
     "mode_disabled": "Désactivé",
     "mode_disabled_description": "Les fonctionnalités d'IA sont désactivées pour tout le monde.",
@@ -213,6 +218,15 @@
     "colorThemeDescription": "Choisissez un thème de couleur pour l'application.",
     "weekStartsOn": "La semaine commence le",
     "weekStartsOnDescription": "Choisissez quel jour afficher en premier sur les calendriers et sélecteurs de date.",
+    "timeFormat": {
+      "label": "Format de l'heure",
+      "description": "Affiche les heures sous la forme 1:30 PM ou 13:30. Le réglage par défaut du navigateur suit la langue du navigateur, que le réglage d'horloge de votre système d'exploitation ne modifie pas.",
+      "options": {
+        "system": "Par défaut du navigateur",
+        "12": "12 heures (1:30 PM)",
+        "24": "24 heures (13:30)"
+      }
+    },
     "recentTabsLimit": "Éléments récents dans la barre d'onglets",
     "recentTabsLimitDescription": "Nombre d'éléments récemment ouverts à conserver dans la barre d'onglets de l'en-tête (1–100).",
     "language": "Langue",
@@ -396,7 +410,7 @@
     "disconnectDescription": "Se déconnecter du compte et du serveur. Vous pouvez vous connecter à un autre serveur ensuite.",
     "disconnectButton": "Se déconnecter",
     "deactivateTitle": "Désactiver le compte",
-    "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte ultérieurement.",
+    "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. La personne qui gère ce serveur peut réactiver votre compte ultérieurement.",
     "permanentDeleteTitle": "Supprimer le compte",
     "permanentDeleteDescriptionText": "Votre compte disparaît immédiatement pour les autres. Rien n'est effacé dans l'immédiat : reconnectez-vous avant la fin du délai et la suppression est annulée, avec vos communautés et votre travail tels que vous les avez laissés. Ensuite, les projets sont transférés à d'autres, et les commentaires et documents restent mais affichent « [Utilisateur supprimé] ».",
     "cannotBeUndone": "Se reconnecter est ce qui l'arrête.",
@@ -433,14 +447,14 @@
     "deleteAccountButton": "Supprimer le compte",
     "checking": "Vérification…",
     "deactivateSuccess": "Compte désactivé avec succès",
-    "deactivateLabel": "Désactiver mon compte (les administrateurs pourront le réactiver plus tard)",
+    "deactivateLabel": "Désactiver mon compte (la personne qui gère ce serveur pourra le réactiver plus tard)",
     "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. La personne qui gère le serveur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
-    "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant qu'un administrateur ne l'aura pas réactivé. Vous serez retiré de toutes les communautés auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
+    "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant que la personne qui gère ce serveur ne l'aura pas réactivé. Vous serez retiré de toutes les communautés auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
     "softDeleteConfirmDescription": "Votre nom, e-mail et avatar seront supprimés. Vous ne pourrez pas vous connecter. Les commentaires, tâches et autres contenus dont vous êtes l'auteur resteront visibles sous \"Utilisateur supprimé\". Cette action est irréversible.",
     "softDeleteSuccess": "Votre compte a été anonymisé."
   },
   "branding": {
-    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'image de marque.",
+    "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'image de marque.",
     "colorsTitle": "Couleurs de marque",
     "colorsDescription": "Personnalisez les couleurs d'accent pour le mode clair et sombre.",
     "loadingInterface": "Chargement des paramètres d'interface…",
@@ -517,7 +531,7 @@
     }
   },
   "email": {
-    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres e-mail.",
+    "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres e-mail.",
     "title": "E-mail SMTP",
     "description": "Configurez le serveur SMTP utilisé pour les e-mails transactionnels.",
     "loading": "Chargement des paramètres e-mail…",
@@ -547,57 +561,70 @@
     "saveSuccess": "Paramètres e-mail enregistrés",
     "saveError": "Impossible d'enregistrer les paramètres e-mail"
   },
+  "push": {
+    "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres des notifications push.",
+    "loading": "Chargement des paramètres des notifications push…",
+    "loadError": "Impossible de charger les paramètres des notifications push.",
+    "title": "Firebase Cloud Messaging",
+    "description": "Le projet Firebase auprès duquel les applications mobiles s'enregistrent, et par lequel le serveur envoie les notifications push.",
+    "enabledLabel": "Envoyer des notifications push",
+    "enabledHelp": "Les applications mobiles le prennent en compte à leur prochaine ouverture. Aucun redémarrage nécessaire.",
+    "fields": {
+      "project_id": {
+        "label": "ID du projet",
+        "help": "Paramètres du projet → Général → ID du projet."
+      },
+      "application_id": {
+        "label": "ID de l'application",
+        "help": "Paramètres du projet → Général → Vos applications → ID de l'application."
+      },
+      "api_key": {
+        "label": "Clé API Web",
+        "help": "Paramètres du projet → Général → Clé API Web."
+      },
+      "sender_id": {
+        "label": "ID de l'expéditeur",
+        "help": "Paramètres du projet → Cloud Messaging → ID de l'expéditeur."
+      }
+    },
+    "serviceAccountLabel": "Clé du compte de service",
+    "serviceAccountSet": "Une clé est enregistrée. Collez-en une nouvelle pour la remplacer.",
+    "serviceAccountHelp": "Le fichier JSON complet de Paramètres du projet → Comptes de service → Générer une nouvelle clé privée. Laissez vide pour conserver la clé enregistrée.",
+    "serviceAccountInvalid": "Collez le fichier de clé complet : un objet JSON, accolades comprises.",
+    "save": "Enregistrer les paramètres push",
+    "saving": "Enregistrement…",
+    "saved": "Paramètres push enregistrés",
+    "error": "Impossible d'enregistrer les paramètres push"
+  },
+  "captcha": {
+    "title": "Captcha",
+    "description": "Une vérification que la personne qui s'inscrit, ou qui demande un code de connexion par e-mail, n'est pas un robot.",
+    "on": "Activé",
+    "off": "Désactivé",
+    "providerLabel": "Fournisseur",
+    "providers": {
+      "off": "Aucun",
+      "hcaptcha": "hCaptcha",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA v2"
+    },
+    "siteKeyLabel": "Clé du site",
+    "secretKeyLabel": "Clé secrète",
+    "secretKeySet": "••••••••",
+    "secretKeyHelp": "Laissez vide pour conserver la clé secrète enregistrée.",
+    "incomplete": "Le captcha s'active une fois le fournisseur, la clé du site et la clé secrète enregistrés.",
+    "save": "Enregistrer les paramètres du captcha",
+    "saving": "Enregistrement…",
+    "saved": "Paramètres du captcha enregistrés",
+    "error": "Impossible d'enregistrer les paramètres du captcha"
+  },
   "auth": {
-    "adminOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'authentification.",
+    "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres d'authentification.",
     "loading": "Chargement des paramètres d'authentification…",
     "loadError": "Impossible de charger les paramètres d'authentification.",
     "postLoginRedirect": "Redirection post-connexion :",
     "mobileCallback": "Callback de l'application mobile :",
-    "rulesTitle": "Règles de correspondance",
-    "rulesDescription": "Associez les valeurs de revendications OIDC aux appartenances aux communautés et initiatives.",
-    "addRule": "Ajouter une règle",
-    "noRules": "Aucune règle de correspondance configurée pour l'instant.",
-    "mappingClaimValue": "Valeur de revendication",
-    "mappingClaimValuePlaceholder": "ex. : equipe-ingenierie",
-    "mappingTargetType": "Type de cible",
-    "mappingTargetTypeGuild": "Communauté",
-    "mappingTargetTypeInitiative": "Initiative",
-    "mappingGuild": "Communauté",
-    "mappingGuildPlaceholder": "Sélectionner une communauté",
-    "mappingGuildRole": "Rôle dans la communauté",
-    "mappingInitiative": "Initiative",
-    "mappingInitiativePlaceholder": "Sélectionner une initiative",
-    "mappingInitiativeRole": "Rôle dans l'initiative",
-    "mappingInitiativeRolePlaceholder": "Sélectionner un rôle",
-    "mappingSaving": "Enregistrement…",
-    "mappingCancel": "Annuler",
-    "mappingEdit": "Modifier",
-    "mappingDelete": "Supprimer",
-    "mappingCreateSuccess": "Correspondance créée",
-    "mappingCreateError": "Impossible de créer la correspondance",
-    "mappingUpdateSuccess": "Correspondance mise à jour",
-    "mappingUpdateError": "Impossible de mettre à jour la correspondance",
-    "mappingDeleteSuccess": "Correspondance supprimée",
-    "mappingDeleteError": "Impossible de supprimer la correspondance",
-    "mappingColumnClaim": "Valeur de revendication",
-    "mappingColumnType": "Type",
-    "mappingColumnGuild": "Communauté",
-    "mappingColumnGuildRole": "Rôle dans la communauté",
-    "mappingColumnInitiative": "Initiative",
-    "mappingColumnInitiativeRole": "Rôle dans l'initiative",
-    "mappingColumnActions": "Actions",
-    "mappingUpdate": "Mettre à jour",
-    "mappingAdd": "Ajouter",
-    "mappingRoleMember": "Membre",
-    "mappingRoleAdmin": "Administrateur",
-    "mappingSelectGuildFirst": "Sélectionnez d'abord une communauté",
-    "mappingSelectInitiativeFirst": "Sélectionnez d'abord une initiative",
-    "loadingOidcMappings": "Chargement des correspondances OIDC…",
-    "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
     "deploymentTitle": "Cette installation",
-    "mappingProvider": "Fournisseur",
-    "mappingProviderPlaceholder": "Quel fournisseur déclare ce claim",
-    "mappingProviderHelp": "Une règle vaut pour un fournisseur. Se connecter par un autre ne la lit pas et ne défait pas ce qu'elle a fait.",
     "methods": {
       "title": "Moyens d'accès",
       "description": "Comment on peut se connecter à cette installation. Au moins un moyen de commencer une session reste actif.",
@@ -730,7 +757,7 @@
     "usernameChanged": "Nom d'utilisateur modifié.",
     "suspend": "Suspendre",
     "suspendTitle": "Suspendre {{handle}} ?",
-    "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune communauté tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
+    "suspendBody": "Ils conservent tout — adhésions, partages et tout ce qu’ils ont écrit — et n’accèdent à rien tant que la suspension n’est pas levée. Ils peuvent toujours se connecter et ne voient que leur suspension, votre motif et qui contacter.",
     "suspendReasonLabel": "Motif (qui lui sera montré)",
     "actionError": "L'opération n'a pas abouti. Réessayez.",
     "clearAgeBlock": "Réinitialiser la question d'âge",
@@ -750,7 +777,7 @@
       "avatarConfirmBody": "La photo de {{handle}} est retirée et la personne en est informée. Elle peut en téléverser une autre.",
       "access": "Accès",
       "suspendLabel": "Suspendu",
-      "suspendHelp": "Un compte suspendu peut toujours se connecter et lire le motif, mais n'atteint aucune de ses communautés.",
+      "suspendHelp": "Un compte suspendu peut se connecter et lire pourquoi, et n’accède à rien d’autre.",
       "role": "Rôle de plateforme",
       "roleLabel": "Rôle",
       "roleHelp": "Ce que ce compte peut faire sur l'ensemble du déploiement. Vous ne pouvez pas accorder au-delà de votre propre rôle."
@@ -762,7 +789,7 @@
     "restoreSuccess": "{{handle}} restauré.",
     "restoreError": "Impossible de restaurer le compte. Veuillez réessayer."
   },
-  "adminDeleteUser": {
+  "operatorDeleteUser": {
     "subtitle": "Supprimer {{email}}",
     "back": "Retour",
     "next": "Suivant",
@@ -777,17 +804,9 @@
     "hardDeleteDescription": "L'utilisateur sera définitivement supprimé. Ses projets doivent être transférés. Les commentaires afficheront « [Utilisateur supprimé] ».",
     "blockersTitle": "Blocages",
     "blockersDescription": "Les problèmes suivants doivent être résolus avant de pouvoir supprimer cet utilisateur :",
-    "guildBlockerTitle": "Dernier administrateur dans la communauté : {{guildName}}",
-    "guildBlockerDescription": "Promouvoir un autre membre en administrateur :",
-    "promoteToGuildAdmin": "Promouvoir en administrateur",
-    "promoteSuccess": "Rôle mis à jour",
-    "promoteError": "Impossible de mettre à jour le rôle",
-    "deleteGuild": "Supprimer la communauté",
-    "deleteGuildConfirm": "Supprimer la communauté « {{guildName}} » ? Cela supprimera définitivement toutes les données de la communauté.",
-    "deleteGuildSuccess": "Communauté supprimée",
-    "deleteGuildError": "Impossible de supprimer la communauté",
-    "transferSelectPlaceholder": "Sélectionner le nouveau propriétaire",
-    "noUsersAvailable": "Aucun utilisateur disponible",
+    "guildBlockerTitle": "Seul superadministrateur de la communauté : {{guildName}}",
+    "guildBlockerDescription": "Le titulaire du compte peut nommer un autre membre superadministrateur, ou vous pouvez prendre un accès d'urgence à la communauté et, depuis ses paramètres, en nommer un ou supprimer la communauté.",
+    "checkAgain": "Vérifier à nouveau",
     "confirmTitle": "Confirmer la suppression",
     "confirmDescription": "Cette action est irréversible.",
     "confirmHardDelete": "Supprimer définitivement {{email}}",
@@ -820,7 +839,7 @@
       "error": "Impossible d'activer l'accès d'urgence",
       "codeLabel": "Votre code d'authentification",
       "codePlaceholder": "123456, ou un code de récupération",
-      "codeHelp": "Une personne qui administre ce déploiement a activé l'authentification à deux facteurs : l'accès d'urgence vous demande donc de prouver votre identité. Un code d'authentification, un code de récupération ou l'une de vos clés d'accès convient.",
+      "codeHelp": "L'authentification à deux facteurs est activée sur ce serveur : l'accès d'urgence vous demande donc de prouver votre identité. Un code d'authentification, un code de récupération ou l'une de vos clés d'accès convient.",
       "codeNotEnrolled": "Ce compte n'a ni application d'authentification ni clé d'accès. Configurez-en une dans Sécurité, puis utilisez l'accès d'urgence.",
       "passkeySubmit": "Accès d'urgence avec une clé d'accès",
       "passkeyPresenting": "En attente de votre clé d'accès…"
@@ -874,11 +893,12 @@
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
-    "subtitle": "Connexion, sécurité, image de marque, e-mail, l'annuaire des communautés, intégrations, stockage et réception pour l'ensemble du déploiement.",
+    "subtitle": "Connexion, sécurité, image de marque, e-mail, notifications push, l'annuaire des communautés, intégrations, stockage et réception pour l'ensemble du déploiement.",
     "tabs": {
       "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
+      "push": "Notifications push",
       "community": "Communauté",
       "storage": "Stockage",
       "intake": "Réception",
@@ -887,7 +907,7 @@
     }
   },
   "appServices": {
-    "adminOnly": "Seuls les propriétaires de la plateforme peuvent gérer les services applicatifs.",
+    "platformOnly": "Seuls les propriétaires de la plateforme peuvent gérer les services applicatifs.",
     "loading": "Chargement des services applicatifs…",
     "loadError": "Impossible de charger les services applicatifs.",
     "title": "Services applicatifs",
@@ -988,18 +1008,89 @@
       "users": "Utilisateurs",
       "access": "Accès",
       "guilds": "Communautés",
+      "placement": "Affectation à la connexion",
       "announcements": "Annonces"
+    }
+  },
+  "providerPlacement": {
+    "title": "Affectation à la connexion",
+    "description": "Affectez les personnes qu'un fournisseur de connexion connecte — selon le groupe ou l'annuaire qu'il indique — à une communauté, et à une initiative de celle-ci si vous en nommez une.",
+    "loading": "Chargement des règles d'affectation…",
+    "loadError": "Impossible de charger les règles d'affectation. Veuillez réessayer.",
+    "platformOnly": "L'affectation à la connexion est gérée par les opérateurs et propriétaires de la plateforme.",
+    "everywhere": {
+      "label": "Appliquer les règles d'affectation à toutes les communautés",
+      "help": "Activé, une règle affecte les personnes à la communauté qu'elle nomme, que cette communauté ait accepté ou non. Chaque changement est enregistré.",
+      "ownerOnly": "C'est le propriétaire de la plateforme qui règle ce paramètre.",
+      "confirmTitle": "Appliquer les règles d'affectation à toutes les communautés ?",
+      "confirmDescription": "Chaque règle affecte alors les personnes à la communauté qu'elle nomme, y compris les communautés qui n'ont pas accepté les règles de son fournisseur. Le changement est consigné dans le journal d'audit.",
+      "confirm": "Appliquer partout",
+      "enabled": "Les règles d'affectation s'appliquent désormais à toutes les communautés",
+      "disabled": "Les règles d'affectation s'appliquent désormais là où une communauté les a acceptées",
+      "error": "Impossible de changer l'endroit où s'appliquent les règles d'affectation"
+    },
+    "noProviders": "Aucun fournisseur de connexion pour l'instant. Dès qu'un fournisseur est ajouté sur la page Authentification, ses règles d'affectation s'écrivent ici.",
+    "noGroups": "Ce fournisseur n'indique encore aucun groupe : une règle qui nomme un groupe ne s'applique à personne tant qu'un propriétaire n'a pas défini la revendication de groupes du fournisseur sur la page Authentification. Les règles qui ne nomment qu'un annuaire fonctionnent déjà.",
+    "empty": "Aucune règle pour ce fournisseur pour l'instant.",
+    "add": "Ajouter une règle",
+    "addFor": "Ajouter une règle pour {{provider}}",
+    "addTitle": "Ajouter une règle d'affectation",
+    "addDescription": "Indiquez à qui cette règle s'applique sur {{provider}}, et où ces personnes arrivent.",
+    "editTitle": "Modifier la règle d'affectation",
+    "editDescription": "Affecte des personnes de {{provider}} à {{community}}. Une règle garde son fournisseur et sa communauté ; pour d'autres, ajoutez une nouvelle règle.",
+    "editLabel": "Modifier la règle",
+    "match": {
+      "group": "Groupe {{group}}",
+      "groupInDirectory": "Groupe {{group}} dans {{claim}} = {{value}}",
+      "directory": "Tout le monde de {{claim}} = {{value}}"
+    },
+    "landsInCommunity": "Rejoint {{community}} comme {{role}}",
+    "landsInInitiative": "Rejoint {{community}} comme {{role}}, et {{initiative}} comme {{initiativeRole}}",
+    "notApplying": "Non appliquée",
+    "notApplyingHint": "La communauté n'a pas accepté les règles de ce fournisseur, et elles ne s'appliquent pas partout.",
+    "groupLabel": "Groupe",
+    "groupPlaceholder": "eng",
+    "groupHelp": "Exactement comme le fournisseur l'écrit. Laissez vide pour affecter tout le monde de l'annuaire ci-dessous.",
+    "directoryLabel": "Seulement les personnes d'un annuaire",
+    "directoryHelp": "Pour un fournisseur qui connecte des personnes de plusieurs annuaires : la revendication qui nomme l'annuaire, et la valeur de celui-ci.",
+    "directoryClaimLabel": "Revendication",
+    "directoryClaimPlaceholder": "idp",
+    "directoryValueLabel": "Valeur",
+    "directoryValuePlaceholder": "acme-adfs",
+    "needsMatch": "Nommez un groupe, un annuaire ou les deux.",
+    "communityLabel": "Communauté",
+    "communityPlaceholder": "Choisir une communauté",
+    "communitySearch": "Rechercher des communautés",
+    "communityEmpty": "Aucune communauté ne correspond",
+    "notAccepted": "Non acceptées",
+    "communityHelp": "Une communauté marquée « Non acceptées » reprend les règles de ce fournisseur dès qu'elle les accepte sur sa page Sécurité.",
+    "targetsUnavailable": "Les initiatives s'affichent dès que cette communauté reprend les règles de ce fournisseur.",
+    "save": "Enregistrer la règle",
+    "added": "Règle ajoutée",
+    "addError": "Impossible d'ajouter cette règle",
+    "saved": "Règle enregistrée",
+    "saveError": "Impossible d'enregistrer cette règle",
+    "remove": "Supprimer la règle",
+    "removeTitle": "Supprimer cette règle ?",
+    "removeDescription": "Les personnes qu'elle vise ne sont plus affectées à {{community}} par elle, et ce qu'elle leur a donné est retiré à leur prochaine connexion par ce fournisseur.",
+    "removed": "Règle supprimée",
+    "removeError": "Impossible de supprimer cette règle",
+    "requests": {
+      "title": "En attente de réponse",
+      "help": "Ces communautés ont indiqué un domaine ou un locataire comme le leur sur une connexion. Si vous acceptez, les personnes correspondantes les rejoignent à leur arrivée, si la communauté l'a demandé.",
+      "agreed": "Accepté pour {{community}}"
     }
   },
   "guilds": {
     "title": "Limites par communauté",
     "description": "Définissez des limites par communauté pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des communautés.",
+    "platformOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des communautés.",
     "loading": "Chargement des communautés…",
     "loadError": "Impossible de charger les communautés. Veuillez réessayer.",
     "filterByName": "Filtrer les communautés par nom",
     "unlimitedPlaceholder": "Illimité",
     "helpText": "Les limites de stockage sont en Go ; les limites d'utilisateurs correspondent à un nombre de membres. Les deux sont enregistrées automatiquement — laissez un champ vide pour illimité.",
+    "helpTextBilling": "La facturation fixe les limites, les fonctionnalités et le statut de chaque communauté. Vous pouvez suspendre une communauté ici ; lever la suspension la ramène au statut que la facturation a fixé en dernier.",
     "saved": "Limite de stockage mise à jour pour {{name}}.",
     "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
     "statusInputLabel": "Statut de {{name}}",
@@ -1009,12 +1100,18 @@
       "active": "Actif",
       "read_only": "Lecture seule",
       "suspended": "Suspendu",
+      "on_hold": "En attente",
       "deleted": "Supprimée"
     },
     "suspendConfirm": {
       "title": "Suspendre {{name}} ?",
-      "description": "Les membres perdent tout accès et la communauté disparaît de leur liste. Rien n'est supprimé et vous pouvez la réactiver à tout moment ; les opérateurs conservent l'accès via une autorisation break-glass.",
+      "description": "Tout le monde y perd l’accès, administrateurs compris, jusqu’à la levée de la suspension. Les membres ne la voient plus ; les administrateurs la voient fermée. Rien n’est supprimé, et les opérateurs gardent l’accès via une autorisation d’urgence.",
       "confirm": "Suspendre la communauté"
+    },
+    "holdConfirm": {
+      "title": "Mettre {{name}} en attente ?",
+      "description": "Tout le monde y perd l’accès, administrateurs compris, et elle disparaît de toutes les listes. Rien n’est supprimé. Ses superadministrateurs sont prévenus une fois, par e-mail et dans l’application, de qui contacter.",
+      "confirm": "Mettre en attente"
     },
     "columns": {
       "id": "ID",
@@ -1029,7 +1126,12 @@
       "openLabel": "Ouvrir la facturation de {{name}}",
       "openError": "Impossible d'ouvrir le portail de facturation.",
       "operatorLabel": "Opérations de facturation pour {{name}}",
-      "operations": "Opérations"
+      "operations": "Opérations",
+      "factor": {
+        "title": "Confirmez votre identité",
+        "description": "Ouvrir la facturation de {{name}} vous accorde un accès à la facturation. Saisissez un code de votre application d'authentification ou un code de récupération.",
+        "submit": "Ouvrir la facturation"
+      }
     },
     "sheet": {
       "open": "Gérer",
@@ -1043,7 +1145,7 @@
       "bannerHelp": "Leur permet d'envoyer une image de bannière. Sans cela elles choisissent une couleur, et une bannière déjà envoyée reste affichée.",
       "supportLabel": "Demandes d'aide",
       "supportHelp": "Permet à leurs membres d'envoyer une demande d'aide. Désactivé, le bouton Demander de l'aide ouvre la FAQ.",
-      "supportNeedsIntake": "Aucune destination pour une demande d’aide pour l’instant. Reliez le flux de support à un projet dans Administration › Réception, et ceci pourra être activé.",
+      "supportNeedsIntake": "Aucune destination pour une demande d’aide pour l’instant. Reliez le flux de support à un projet dans Paramètres de la plateforme › Réception, et ceci pourra être activé.",
       "authOption": {
         "restrictions": {
           "label": "Son propre standard de sécurité",
@@ -1067,7 +1169,9 @@
         "agree": "Accepter",
         "withdraw": "Retirer",
         "error": "Impossible d’enregistrer cette réponse."
-      }
+      },
+      "setInBilling": "La facturation fixe les limites et les fonctionnalités de cette communauté.",
+      "changeInBilling": "Modifier dans la facturation"
     },
     "unlimited": "Sans limite",
     "restore": {
@@ -1090,7 +1194,7 @@
     }
   },
   "storage": {
-    "adminOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
+    "platformOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
     "loading": "Chargement des paramètres de stockage…",
     "loadError": "Échec du chargement des paramètres de stockage.",
     "title": "Stockage d'objets",
@@ -1226,7 +1330,9 @@
       "makeItOurs": "En faire la nôtre",
       "claimNameLabel": "Nom de la revendication",
       "claimNamePlaceholder": "p. ex. org, realm",
-      "joinsOnceAgreed": "Les arrivées correspondantes rejoindront aussitôt dès que la personne qui gère ce serveur confirme que ces valeurs sont les vôtres. D’ici là, elles sont admises et l’adhésion se fait sur invitation."
+      "joinsOnceAgreed": "Les arrivées correspondantes rejoindront aussitôt dès que la personne qui gère ce serveur confirme que ces valeurs sont les vôtres. D’ici là, elles sont admises et l’adhésion se fait sur invitation.",
+      "acceptsPlacementLabel": "Laisser le déploiement affecter les personnes de ce fournisseur",
+      "acceptsPlacementHelp": "Les règles d'affectation du déploiement pour ce fournisseur peuvent ajouter des personnes ici, en plus de vos propres règles."
     },
     "rules": {
       "title": "Où arrivent vos membres",
@@ -1259,7 +1365,12 @@
       "removed": "Règle supprimée",
       "removeError": "Impossible de supprimer cette règle",
       "removeTitle": "Supprimer cette règle ?",
-      "removeDescription": "Les personnes portant {{group}} ne seront plus affectées ici, et celles qui sont ici grâce à cette règle perdront ce statut à leur prochaine connexion via ce fournisseur."
+      "removeDescription": "Les personnes portant {{group}} ne seront plus affectées ici, et celles qui sont ici grâce à cette règle perdront ce statut à leur prochaine connexion via ce fournisseur.",
+      "deployment": {
+        "title": "Définies par le déploiement",
+        "description": "Règles d'affectation que l'équipe qui gère ce déploiement a écrites pour ses fournisseurs et qui nomment cette communauté. Elles affectent des personnes ici en plus de vos propres règles, dès que vous acceptez les règles d'un fournisseur sur sa connexion.",
+        "everywhere": "Le déploiement applique ses règles d'affectation à toutes les communautés."
+      }
     },
     "sections": {
       "whoGetsIn": "Qui entre",
@@ -1346,7 +1457,7 @@
     "callbackLabel": "URL de rappel",
     "claimPathLabel": "Claim des groupes",
     "claimPathPlaceholder": "groups",
-    "claimPathHelp": "Où ce fournisseur place les groupes d'une personne dans le jeton. Keycloak les imbrique sous realm_access.roles ; la plupart utilisent groups ou roles. Les règles ci-dessous le lisent.",
+    "claimPathHelp": "Où ce fournisseur place les groupes d'une personne dans le jeton. Keycloak les imbrique sous realm_access.roles ; la plupart utilisent groups ou roles. Les règles de chaque communauté le lisent.",
     "test": "Tester",
     "testing": "Test en cours…",
     "verify": "Vérifier",
@@ -1443,7 +1554,8 @@
     "title": "Mon IA",
     "description": "Consultez toutes les connexions d'IA à votre disposition dans vos communautés. Ajoutez votre propre clé d'API là où c'est autorisé et choisissez celle que vous utilisez.",
     "noneAvailable": "Aucune connexion d'IA n'est encore à votre disposition.",
-    "managedByAdmin": "Gérée par votre administrateur — utilise une clé partagée.",
+    "sharedKeyGuild": "Utilise une clé partagée définie par l'administration de votre communauté.",
+    "sharedKeyPlatform": "Utilise une clé partagée définie par la personne qui gère ce serveur.",
     "selected": "Utilisée",
     "requiresKey": "Nécessite votre clé",
     "keySet": "Votre clé est définie",
@@ -1470,7 +1582,7 @@
     "enabledToast": "L'annuaire des communautés est activé.",
     "disabledToast": "L'annuaire des communautés est désactivé.",
     "saveError": "Impossible de modifier l'annuaire des communautés. Veuillez réessayer.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés.",
+    "platformOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés.",
     "ageGateLabel": "Demander aux membres de confirmer qu'ils ont 16 ans ou plus",
     "ageGateHelpText": "Tant que ceci est actif, toute personne qui rejoint une communauté référencée depuis l'annuaire doit confirmer son âge une fois, et la réponse reste attachée à son compte. Cela ne concerne que cette adhésion : les communautés sur invitation ne le demandent jamais. Ne le désactivez que là où vous savez déjà que chaque compte appartient à une personne adulte.",
     "ageGateOffTitle": "Ne plus demander l'âge des membres ?",
@@ -1486,6 +1598,18 @@
     "directMessagesOffConfirm": "Désactiver les messages privés",
     "directMessagesEnabledToast": "Les messages privés sont activés.",
     "directMessagesDisabledToast": "Les messages privés sont désactivés.",
+    "holdDeletion": {
+      "title": "Suppression des communautés en attente",
+      "description": "Une communauté en attente est fermée à tous ses membres. Si elle est toujours en attente à la fin de ce délai, elle est supprimée, et le délai ci-dessus décide ensuite combien de temps elle est conservée. Les personnes qui la gèrent reçoivent la date dès sa mise en attente.",
+      "label": "Supprimer après (jours en attente)",
+      "placeholder": "Ne jamais supprimer",
+      "hint": "Compté à partir du moment où chaque communauté a été mise en attente : modifier ce délai déplace donc aussi la date de celles déjà en attente.",
+      "neverHint": "Rien n'est supprimé à l'échéance d'un délai. Une communauté reste en attente jusqu'à ce que quelqu'un lève l'attente ou la supprime.",
+      "saved_one": "Les communautés en attente sont supprimées après {{count}} jour.",
+      "saved_other": "Les communautés en attente sont supprimées après {{count}} jours.",
+      "savedNever": "Les communautés en attente ne sont jamais supprimées automatiquement.",
+      "save": "Enregistrer la durée d'attente des communautés"
+    },
     "retention": {
       "title": "Conservation des communautés supprimées",
       "description": "Une communauté supprimée disparaît immédiatement pour tous ses membres, mais rien n'est détruit avant la fin de ce délai. D'ici là, un opérateur peut la restaurer.",
@@ -1692,6 +1816,51 @@
   },
   "platformSecurity": {
     "title": "Sécurité",
-    "description": "Combien de temps une personne peut rester connectée avant de devoir se reconnecter."
+    "description": "Combien de temps quelqu'un peut rester connecté, le captcha demandé aux nouveaux venus, et ce qu'une notification emporte en quittant l'application."
+  },
+  "notificationDelivery": {
+    "title": "Notifications qui quittent l'application",
+    "description": "Ces limites s'appliquent à toutes les communautés. Une communauté peut les resserrer pour elle-même ; aucune ne peut les élargir.",
+    "saved": "Paramètres de notification enregistrés",
+    "error": "Impossible d'enregistrer les paramètres de notification",
+    "push": {
+      "label": "Notifications mobiles",
+      "onHelp": "Les notifications atteignent les téléphones via Apple et Google.",
+      "offHelp": "Ce serveur n'envoie rien à un téléphone et ne conserve aucun enregistrement d'appareil."
+    },
+    "email": {
+      "label": "Notifications par e-mail",
+      "onHelp": "Les notifications atteignent les boîtes aux lettres au rythme que chacun a choisi.",
+      "offHelp": "Aucun e-mail de notification n'est envoyé. Les codes de connexion, les confirmations d'adresse, les réinitialisations de mot de passe et les avis de compte partent toujours."
+    },
+    "redact": {
+      "label": "Masquer les détails des notifications",
+      "onHelp": "Une notification qui quitte l'application indique le type d'événement — « Vous avez été mentionné dans un commentaire ». L'application montre le reste.",
+      "offHelp": "Une notification qui quitte l'application indique de quoi il s'agit : qui a agi, et sur quoi."
+    }
+  },
+  "guildNotifications": {
+    "title": "Notifications qui quittent l'application",
+    "description": "Ce que les notifications de cette communauté emportent en partant. Le serveur répond aux trois mêmes questions pour tout le monde, et la réponse la plus stricte s'applique.",
+    "saved": "Paramètres de notification enregistrés",
+    "error": "Impossible d'enregistrer les paramètres de notification",
+    "push": {
+      "label": "Notifications mobiles",
+      "onHelp": "Les notifications de cette communauté atteignent les téléphones des membres.",
+      "offHelp": "Rien de cette communauté n'est envoyé à un téléphone. Les membres gardent la cloche, et l'e-mail s'il est actif.",
+      "platformHelp": "Ce serveur n'envoie rien à un téléphone : il n'y a rien à décider ici."
+    },
+    "email": {
+      "label": "Notifications par e-mail",
+      "onHelp": "Les notifications de cette communauté atteignent les boîtes aux lettres des membres.",
+      "offHelp": "Aucun e-mail de notification n'est envoyé au sujet de cette communauté. Les codes de connexion et les réinitialisations de mot de passe appartiennent au compte et partent toujours.",
+      "platformHelp": "Ce serveur n'envoie pas d'e-mail de notification : il n'y a rien à décider ici."
+    },
+    "redact": {
+      "label": "Masquer les détails des notifications",
+      "onHelp": "Les notifications concernant cette communauté indiquent le type d'événement une fois sorties de l'application. Ici, les membres voient tout.",
+      "offHelp": "Les notifications concernant cette communauté indiquent de quoi il s'agit une fois sorties de l'application.",
+      "platformHelp": "Ce serveur masque les détails partout : cette communauté est déjà couverte."
+    }
   }
 }

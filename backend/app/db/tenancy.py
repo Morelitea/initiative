@@ -17,7 +17,7 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 **Level 2 — initiative access boundary (within a guild schema):**
 
 - **Initiative-scoped** tables carry the four ``initiative_member_*`` RLS
-  policies deferring to ``public.initiative_access(...)``. They are declared once
+  policies deferring to ``initiative_access(...)``. They are declared once
   in ``app.db.initiative_rls.INITIATIVE_PATHS`` (table -> initiative path);
   ``INITIATIVE_SCOPED_TABLES`` is the keys of that registry, and
   the RLS DDL is rendered from it at provisioning time (``app.db.guild_ddl``).
@@ -42,6 +42,7 @@ from app.db.initiative_rls import INITIATIVE_SCOPED_TABLES
 __all__ = [
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
+    "MANAGED_TABLES",
     "OWN_ROW_TABLES",
     "CREATED_BY_EXEMPT_TABLES",
     "INITIATIVE_SCOPED_TABLES",
@@ -158,6 +159,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "platform_provider_defaults",
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
+        "app_setting_secrets",  # the settings' stored credentials; app_admin-only
         # Deployment-wide notices and what each person has done with them. One
         # announcement is shown in every guild and read by an account, not by a
         # membership, so none of the three has a guild to live in.
@@ -183,12 +185,6 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "marketplace_media",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
-        # The secret one import job needs to read a foreign site, held from
-        # the connect request until the worker picks the job up and deleted
-        # the moment that job is over. Written before any guild schema is
-        # routed into and read on the system engine, so it cannot live in one
-        # — it names a guild without being that guild's content.
-        "import_credentials",
         "notifications",  # per-user inbox spanning guilds; carries its own place
         # Billing write boundary (external billing service, initiative_billing role)
         "billing_event_log",  # idempotency claim + append-only audit; weak guild ref
@@ -213,20 +209,22 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # at the endpoint (guild admin); what a member may do *inside* an app is
         # decided by that instance's own grants, not by this row.
         "guild_apps",
-        "guild_ai_connections",  # guild admin's AI connections (guild config mode);
-        # guild-wide config, no initiative scope. The api_key ciphertext is never
-        # returned by the API (reads expose only has_key).
-        "webhook_deliveries",  # per-subscription delivery ledger, no initiative of its own
+        "guild_ai_connections",  # the seat's AI connections (guild config mode);
+        # guild-wide config, no initiative scope, written by the seat (SEAT_TABLES
+        # below). The api_key ciphertext is never returned by the API (reads
+        # expose only has_key).
+        "webhook_deliveries",  # per-subscription delivery ledger, no initiative of
+        # its own; read through its subscription (LEDGER_TABLES below).
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         "uploads",  # guild blob store: no FK to any initiative entity (documents
         # reference blobs by file_url string, and a blob can be pinned by
         # documents across initiatives), so it can't use initiative_access;
         # blob *content* access is already gated at the document layer.
-        # Structural initiative tables — deliberately guild-scoped, not
-        # initiative-member-scoped (the membership table can't be gated by the
-        # membership check it backs without recursing; own-row scoping would
-        # break co-member rosters). See the rendered RLS DDL header.
-        "initiatives",  # purge-guarded (admin-only DELETE), not membership-gated
+        # Structural initiative tables — guild-scoped for reading (a roster is
+        # read by its co-members, and the standing statement reads it before
+        # any standing exists), written by the initiative's managers: see
+        # MANAGED_TABLES below and the rendered RLS DDL header.
+        "initiatives",  # purge-guarded (admin-only DELETE) as well
         "initiative_members",
         "initiative_roles",
         "initiative_role_permissions",
@@ -266,6 +264,24 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
     }
 )
 
+# --- Managed overlay on the structural initiative tables ----------------------
+# Guild-level tables whose rows are an initiative's own structure: table -> the
+# SQL expression a row's initiative is read from. Reading stays open within the
+# schema; writing is the initiative's managers', the community's admin's, a
+# settings rung's beside a read_write grant, or the system engine's — rendered
+# as ``managed_*`` policies by ``app.db.guild_ddl.render_guild_rls_ddl`` from
+# the standing (``app.manager_initiatives``), so the membership table is gated
+# by a value the seam computed rather than by a read of itself. Every entry
+# here MUST also be in ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
+MANAGED_TABLES: dict[str, str] = {
+    "initiatives": "id",
+    "initiative_members": "initiative_id",
+    "initiative_roles": "initiative_id",
+    "initiative_role_permissions": (
+        "(SELECT r.initiative_id FROM initiative_roles r WHERE r.id = initiative_role_id)"
+    ),
+}
+
 # --- Own-row overlay on guild-level tables -----------------------------------
 # Guild-level tables whose rows belong to ONE user: table -> owner FK column.
 # These get per-command ``own_row_*`` RLS policies (owner OR routed guild
@@ -280,6 +296,27 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_prefs": "user_id",
     "guild_app_user_connections": "user_id",
     "guild_app_user_delegations": "user_id",
+}
+
+# --- Seat overlay on guild-level tables ---------------------------------------
+# Guild-level configuration the community's seat holds. Read within the schema:
+# a member's AI request reads the connection it runs on. Written by the seat —
+# the membership row's superadmin, or a superadmin settings grant beside a
+# read_write content grant — or the system engine; the same answer the routes
+# in front of it ask for. Rendered as ``seat_*`` policies by
+# ``app.db.guild_ddl.render_guild_rls_ddl``. Every entry here MUST also be in
+# ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
+SEAT_TABLES: frozenset[str] = frozenset({"guild_ai_connections"})
+
+# --- Ledger overlay on guild-level tables -------------------------------------
+# Guild-level bookkeeping a system job keeps about a parent row: table ->
+# (parent table, FK column). Read through the parent, so a row is visible to
+# whoever the parent's own policy shows the parent to; written by the system
+# engine alone. Rendered as ``ledger_*`` policies by
+# ``app.db.guild_ddl.render_guild_rls_ddl``. Every entry here MUST also be in
+# ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
+LEDGER_TABLES: dict[str, tuple[str, str]] = {
+    "webhook_deliveries": ("webhook_subscriptions", "subscription_id"),
 }
 
 # --- Row-attribution overlay on guild-schema tables ---------------------------

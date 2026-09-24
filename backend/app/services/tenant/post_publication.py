@@ -41,8 +41,9 @@ from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
 from app.core.user_display import handle_of
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
 from app.models.tenant.post import Post
@@ -164,7 +165,9 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
             # The account is gone; the notice still goes up, silently.
             logger.warning("Post %s published with no author to attribute", post.id)
             continue
-        await announce_post(session, post, author=author, guild_id=post.guild_id)
+        await announce_post(
+            session, post, author=author, guild_id=routed_guild_id(session)
+        )
     return post_ids
 
 
@@ -190,7 +193,7 @@ async def _publish_all_guilds(session: AsyncSession, *, now: datetime) -> None:
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(session, guild_id=guild_id)
         await publish_due_posts(session, now=now)
         await session.commit()
 
@@ -202,5 +205,5 @@ async def process_post_publications() -> None:
     ``published_at IS NULL`` predicate on the UPDATE, so a pass that overlaps
     another (or retries after a crash) publishes each notice exactly once.
     """
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await _publish_all_guilds(session, now=datetime.now(timezone.utc))

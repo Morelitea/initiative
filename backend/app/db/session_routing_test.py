@@ -11,6 +11,7 @@ from app.db.schema_provisioning import (
     guild_readonly_role_name,
     guild_schema_name,
     guild_role_name,
+    guild_superadmin_role_name,
     guild_support_role_name,
 )
 from app.db.session import CONNECTION_RESET_SQL, _render_context_bind_params
@@ -22,11 +23,12 @@ def _params(**overrides):
     base = {
         "user_id": 7,
         "guild_id": None,
-        "guild_role": None,
+        "context": None,
         "pam_guild_id": None,
         "pam_read": False,
         "pam_write": False,
         "settings_guild_id": None,
+        "seat": False,
         "platform_role": None,
         "read_only": False,
     }
@@ -35,29 +37,23 @@ def _params(**overrides):
 
 
 def test_member_routes_to_full_guild_role():
-    bind = _render_context_bind_params(_params(guild_id=3, guild_role="member"))
+    bind = _render_context_bind_params(_params(guild_id=3))
     assert bind["role"] == guild_role_name(3)
     assert bind["gid"] == "3"
 
 
 def test_read_only_member_routes_to_ro_role_keeping_membership_gucs():
-    """A member of a read_only guild assumes the SELECT-only role while the
-    membership GUCs stay set — writes die in Postgres, reads (and the
-    member/admin RLS legs) behave normally."""
-    bind = _render_context_bind_params(
-        _params(guild_id=3, guild_role="member", read_only=True)
-    )
+    """A member of a read_only community assumes the SELECT-only role while the
+    community context stays set — writes die in Postgres, reads (and the
+    membership legs, once the standing is computed) behave normally."""
+    bind = _render_context_bind_params(_params(guild_id=3, read_only=True))
     assert bind["role"] == guild_readonly_role_name(3)
     assert bind["gid"] == "3"
-    assert bind["grole"] == "member"
 
 
 def test_read_only_admin_also_routes_to_ro_role():
-    bind = _render_context_bind_params(
-        _params(guild_id=3, guild_role="admin", read_only=True)
-    )
+    bind = _render_context_bind_params(_params(guild_id=3, read_only=True))
     assert bind["role"] == guild_readonly_role_name(3)
-    assert bind["grole"] == "admin"
 
 
 def test_pam_read_grant_still_routes_to_ro_role():
@@ -77,8 +73,9 @@ def test_pam_write_grant_routes_to_support_role():
 
 
 def test_settings_grant_routes_without_content_grant_flags():
+    """A settings rung on its own reads: the SELECT-only role, no content flags."""
     bind = _render_context_bind_params(_params(settings_guild_id=3))
-    assert bind["role"] == guild_support_role_name(3)
+    assert bind["role"] == guild_readonly_role_name(3)
     assert bind["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
     assert bind["gid"] == ""
     assert bind["pgid"] == ""
@@ -89,11 +86,11 @@ def test_settings_grant_routes_without_content_grant_flags():
 def test_member_and_break_glass_keep_full_role():
     """A real member / break-glass (guild_id set) keeps the full role — only a
     scoped grant (guild_id unset) is downgraded to _ro / _support."""
-    member = _render_context_bind_params(_params(guild_id=3, guild_role="member"))
+    member = _render_context_bind_params(_params(guild_id=3))
     assert member["role"] == guild_role_name(3)
-    # break-glass routes with guild_id set + guild_role admin
+    # break-glass routes with guild_id set beside its grant
     bg = _render_context_bind_params(
-        _params(guild_id=3, guild_role="admin", pam_guild_id=3, pam_write=True)
+        _params(guild_id=3, pam_guild_id=3, pam_write=True)
     )
     assert bg["role"] == guild_role_name(3)
 
@@ -105,7 +102,7 @@ class TestSearchPathNamesEverySchema:
     ``public``."""
 
     def test_guild_route_names_guild_schema_then_public(self):
-        out = _render_context_bind_params(_params(guild_id=3, guild_role="member"))
+        out = _render_context_bind_params(_params(guild_id=3))
         assert out["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
 
     def test_platform_route_names_public(self):
@@ -119,8 +116,8 @@ class TestSearchPathNamesEverySchema:
     @pytest.mark.parametrize(
         "overrides",
         [
-            {"guild_id": 3, "guild_role": "member"},
-            {"guild_id": 3, "guild_role": "admin", "read_only": True},
+            {"guild_id": 3},
+            {"guild_id": 3, "read_only": True},
             {"pam_guild_id": 4, "pam_read": True},
             {"pam_guild_id": 4, "pam_write": True},
             {"settings_guild_id": 4},
@@ -130,7 +127,7 @@ class TestSearchPathNamesEverySchema:
         ],
         ids=[
             "member",
-            "read-only-admin",
+            "read-only",
             "pam-read",
             "pam-write",
             "settings",
@@ -143,6 +140,44 @@ class TestSearchPathNamesEverySchema:
         """One helper renders them all, so no route can drift off the pattern."""
         out = _render_context_bind_params(_params(**overrides))
         assert out["sp"].endswith(", pg_temp")
+
+
+class TestTheSeatRoute:
+    """``guild_<id>_superadmin`` is assumed by asking for it, not by holding
+    the seat: an ordinary request routes the ordinary way."""
+
+    def test_a_seat_request_by_a_member_assumes_the_seat_role(self):
+        out = _render_context_bind_params(_params(guild_id=3, seat=True))
+        assert out["role"] == guild_superadmin_role_name(3)
+        assert out["gid"] == "3"
+
+    def test_a_seat_request_by_a_settings_grantee_assumes_it_too(self):
+        out = _render_context_bind_params(_params(settings_guild_id=4, seat=True))
+        assert out["role"] == guild_superadmin_role_name(4)
+        assert out["setgid"] == "4"
+
+    def test_an_ordinary_request_by_the_same_person_does_not(self):
+        out = _render_context_bind_params(_params(guild_id=3))
+        assert out["role"] == guild_role_name(3)
+
+    def test_a_settings_grant_beside_a_read_grant_still_reads_read_only(self):
+        """Break-glass is a pair. The settings half names the community on its
+        own axis; the content half is what picks the role."""
+        out = _render_context_bind_params(
+            _params(pam_guild_id=4, pam_read=True, settings_guild_id=4)
+        )
+        assert out["role"] == guild_readonly_role_name(4)
+        assert out["setgid"] == "4"
+
+    def test_a_settings_only_grant_reads(self):
+        """The rung alone is a view; a read_write grant beside it is what
+        picks the writable role."""
+        out = _render_context_bind_params(_params(settings_guild_id=4))
+        assert out["role"] == guild_readonly_role_name(4)
+        paired = _render_context_bind_params(
+            _params(pam_guild_id=4, pam_write=True, settings_guild_id=4)
+        )
+        assert paired["role"] == guild_support_role_name(4)
 
 
 class TestConnectionReset:

@@ -73,8 +73,8 @@ def public_relation(name: str) -> Table:
 
 async def _resolve_initiative(
     session: AsyncSession, target: SearchEntityType, target_id: int
-) -> Optional[tuple[int, int]]:
-    """``(guild_id, initiative_id)`` for a community target, or ``None``.
+) -> Optional[int]:
+    """The initiative a community target belongs to, or ``None``.
 
     The initiative is read with the expression
     ``app.db.initiative_rls.INITIATIVE_PATHS`` already declares for that table —
@@ -93,20 +93,19 @@ async def _resolve_initiative(
     table_name = target_table(target)
     path = INITIATIVE_PATHS.get(table_name)
     relation = SQLModel.metadata.tables.get(table_name)
-    if path is None or relation is None or "guild_id" not in relation.c:
+    if path is None or relation is None:
         return None
 
     row = (
         await session.exec(
-            sa_select(
-                relation.c["guild_id"],
-                text(path.initiative_expr(table_name)),
-            ).where(relation.c["id"] == target_id)
+            sa_select(text(path.initiative_expr(table_name)))
+            .select_from(relation)
+            .where(relation.c["id"] == target_id)
         )
     ).first()
-    if row is None or row[1] is None:
+    if row is None or row[0] is None:
         return None
-    return int(row[0]), int(row[1])
+    return int(row[0])
 
 
 async def file_report(
@@ -201,10 +200,10 @@ async def _place_in_initiative(
     Its own system session, routed as the guild admin: the row belongs to the
     initiative's moderators, and the reporter must not be able to read it back.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
-        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    async with SystemSessionLocal() as session:
+        await set_rls_context(session, guild_id=guild_id)
         # Two people reporting the same thing in the same instant both look for
         # an open row before either writes one. They queue here instead, so the
         # second joins the first rather than losing the unique index. Held for
@@ -228,7 +227,6 @@ async def _place_in_initiative(
 
         if existing is None:
             existing = ModerationReport(
-                guild_id=guild_id,
                 initiative_id=initiative_id,
                 target_type=target.value,
                 target_id=target_id,
@@ -293,7 +291,8 @@ async def _locate_as_reporter(
         await establish_guild_access(reporter_session, reporter, guild_id)
     except GuildAccessError:
         return None
-    return await _resolve_initiative(reporter_session, target, target_id)
+    initiative_id = await _resolve_initiative(reporter_session, target, target_id)
+    return None if initiative_id is None else (guild_id, initiative_id)
 
 
 async def _platform_target_visible(
@@ -555,7 +554,7 @@ async def target_previews(
     every reportable kind is covered here without a switch over kinds, and a
     kind added later arrives with one.
 
-    Narrowed by ``search_scope_clause``, the same ``public.resource_access``
+    Narrowed by ``search_scope_clause``, the same ``resource_access``
     call the table's own policies make. A moderator's standing already clears
     it for their initiative; a target they cannot reach comes back absent, and
     so does one that has since been deleted — the index drops with the row.

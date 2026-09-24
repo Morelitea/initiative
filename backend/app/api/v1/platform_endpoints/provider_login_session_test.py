@@ -252,8 +252,8 @@ async def test_step_up_revokes_racing_rotation_child(
     assert rotation.ok and rotation.issued is not None
     child_id = rotation.issued.session.id
 
-    async def _read_prior(admin_session, raw):
-        return await admin_session.get(AuthSession, prior_id)
+    async def _read_prior(system_session, raw):
+        return await system_session.get(AuthSession, prior_id)
 
     monkeypatch.setattr(
         auth_module.session_service, "get_live_session_by_refresh_token", _read_prior

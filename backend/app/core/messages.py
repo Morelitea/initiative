@@ -36,12 +36,12 @@ class AuthMessages:
     INCORRECT_CREDENTIALS = "INCORRECT_CREDENTIALS"
     REQUEST_ORIGIN_NOT_RECOGNIZED = "REQUEST_ORIGIN_NOT_RECOGNIZED"
     INACTIVE_USER = "INACTIVE_USER"
-    DEACTIVATED_USER = "DEACTIVATED_USER"
-    ANONYMIZED_USER = "ANONYMIZED_USER"
+    ACCOUNT_SUSPENDED = "ACCOUNT_SUSPENDED"
     CANNOT_REACTIVATE_ANONYMIZED = "CANNOT_REACTIVATE_ANONYMIZED"
-    HARD_DELETE_NOT_ALLOWED_HERE = "HARD_DELETE_NOT_ALLOWED_HERE"
     EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED"
     TOKEN_NOT_FOUND = "TOKEN_NOT_FOUND"
+    #: The session named is not one this account holds.
+    SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
     NOT_AUTHENTICATED = "NOT_AUTHENTICATED"
     INVALID_DEVICE_TOKEN = "INVALID_DEVICE_TOKEN"
     #: The action hands out authority, so it is taken while signed in rather
@@ -156,7 +156,6 @@ class GuildMessages:
     GUILD_NOT_FOUND = "GUILD_NOT_FOUND"
     GUILD_MEMBERSHIP_CREATE_FAILED = "GUILD_MEMBERSHIP_CREATE_FAILED"
     GUILD_PROVISION_FAILED = "GUILD_PROVISION_FAILED"
-    GUILD_DELETE_FAILED = "GUILD_DELETE_FAILED"
     #: Restore was asked for a guild that has not been deleted.
     GUILD_NOT_DELETED = "GUILD_NOT_DELETED"
     #: A guild cannot be restored *to* deleted.
@@ -167,6 +166,15 @@ class GuildMessages:
     #: ``deleted`` is reached by deleting a guild and left by restoring it,
     #: never by setting the status control to it.
     GUILD_STATUS_NOT_SETTABLE = "GUILD_STATUS_NOT_SETTABLE"
+    #: The deployment's billing service sets this community's caps and
+    #: entitlements; they are changed there.
+    GUILD_PLAN_SET_BY_BILLING = "GUILD_PLAN_SET_BY_BILLING"
+    #: Where billing sets plans, the operator moves a community into and out
+    #: of a suspension and no other way.
+    GUILD_STATUS_SET_BY_BILLING = "GUILD_STATUS_SET_BY_BILLING"
+    #: Where billing sets plans, a deleted community is restored at the status
+    #: billing last set or suspended.
+    GUILD_RESTORE_STATUS_SET_BY_BILLING = "GUILD_RESTORE_STATUS_SET_BY_BILLING"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
     # Asked to join a guild that is not listed in the community directory (or
@@ -297,7 +305,7 @@ class ProjectMessages:
     PIN_PERMISSION_REQUIRED = "PROJECT_PIN_PERMISSION_REQUIRED"
     # Configuring the project itself (pinning, default view, filter
     # presets) — a project manager, the project owner, or a guild admin.
-    ADMIN_REQUIRED = "PROJECT_ADMIN_REQUIRED"
+    CONFIGURE_REQUIRED = "PROJECT_CONFIGURE_REQUIRED"
     DOCUMENT_WRONG_INITIATIVE = "PROJECT_DOCUMENT_WRONG_INITIATIVE"
     OWNER_HAS_FULL_ACCESS = "PROJECT_OWNER_HAS_FULL_ACCESS"
     CANNOT_REMOVE_OWNER = "PROJECT_CANNOT_REMOVE_OWNER"
@@ -382,9 +390,6 @@ class AuthProviderMessages:
     CONNECTION_HALF_NARROWED = "AUTH_PROVIDER_CONNECTION_HALF_NARROWED"
     #: An enabled connection that does not say who on the provider counts.
     CONNECTION_NEEDS_NARROWING = "CONNECTION_NEEDS_NARROWING"
-    #: Somebody arrived through a provider a community connects to, but the
-    #: claim it narrows on did not name them.
-    CONNECTION_NOT_YOURS = "AUTH_PROVIDER_CONNECTION_NOT_YOURS"
     # Some account signs in only through it; the delete waits until those
     # accounts hold another credential.
     SOLE_CREDENTIAL = "AUTH_PROVIDER_SOLE_CREDENTIAL"
@@ -396,6 +401,15 @@ class AuthProviderMessages:
     #: One group lands in one place. A second rule for the same group and the
     #: same destination would be two answers to one question.
     RULE_EXISTS = "AUTH_PROVIDER_RULE_EXISTS"
+    #: A provider rule names a community that neither accepts the platform's
+    #: rules for that provider nor is covered by the deployment applying them
+    #: everywhere.
+    PLACEMENT_NOT_ACCEPTED = "AUTH_PROVIDER_PLACEMENT_NOT_ACCEPTED"
+    #: A provider rule names neither a group nor a directory to match.
+    RULE_NEEDS_A_MATCH = "AUTH_PROVIDER_RULE_NEEDS_A_MATCH"
+    #: A provider rule names a directory claim without a value, or a value
+    #: without the claim.
+    RULE_SCOPE_HALF_SET = "AUTH_PROVIDER_RULE_SCOPE_HALF_SET"
 
 
 class TagMessages:
@@ -536,11 +550,7 @@ class SettingsMessages:
     # carry the SMTP host, port, or server banner) is logged server-side only
     # and never returned to the client (pentest SEC-16).
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
-    MAPPING_NOT_FOUND = "SETTINGS_MAPPING_NOT_FOUND"
-    INVALID_TARGET_TYPE = "SETTINGS_INVALID_TARGET_TYPE"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
-    INITIATIVE_ID_REQUIRED = "SETTINGS_INITIATIVE_ID_REQUIRED"
-    INITIATIVE_ROLE_ID_REQUIRED = "SETTINGS_INITIATIVE_ROLE_ID_REQUIRED"
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
     INITIATIVE_FIELDS_REQUIRED = "SETTINGS_INITIATIVE_FIELDS_REQUIRED"
     # The permitted sign-in methods.
@@ -567,8 +577,6 @@ class SettingsMessages:
     FACTOR_REQUIREMENT_SELF_UNSATISFIED = "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
 
     # Object storage
-    STORAGE_S3_INCOMPLETE = "SETTINGS_STORAGE_S3_INCOMPLETE"
-    STORAGE_TEST_FAILED = "SETTINGS_STORAGE_TEST_FAILED"
     STORAGE_BACKFILL_RUNNING = "SETTINGS_STORAGE_BACKFILL_RUNNING"
     STORAGE_BACKFILL_NOT_CONFIGURED = "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED"
 
@@ -602,28 +610,23 @@ class IntakeMessages:
     UNKNOWN_STREAM = "INTAKE_UNKNOWN_STREAM"
 
 
-class AdminMessages:
-    CANNOT_RESET_INACTIVE = "ADMIN_CANNOT_RESET_INACTIVE"
-    USER_ALREADY_ACTIVE = "ADMIN_USER_ALREADY_ACTIVE"
+class OperatorMessages:
+    CANNOT_RESET_INACTIVE = "OPERATOR_CANNOT_RESET_INACTIVE"
+    USER_ALREADY_ACTIVE = "OPERATOR_USER_ALREADY_ACTIVE"
     #: Restore was asked for an account that has not been deleted.
-    USER_NOT_DELETED = "ADMIN_USER_NOT_DELETED"
-    CANNOT_SUSPEND_SELF = "ADMIN_CANNOT_SUSPEND_SELF"
-    CANNOT_SUSPEND_INACTIVE = "ADMIN_CANNOT_SUSPEND_INACTIVE"
-    ALREADY_ANONYMIZED = "ADMIN_ALREADY_ANONYMIZED"
-    CANNOT_CHANGE_ROLE_INACTIVE = "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
-    CANNOT_CHANGE_OWN_ROLE = "ADMIN_CANNOT_CHANGE_OWN_ROLE"
-    CANNOT_DEMOTE_LAST_OWNER = "ADMIN_CANNOT_DEMOTE_LAST_OWNER"
-    CANNOT_ASSIGN_HIGHER_ROLE = "ADMIN_CANNOT_ASSIGN_HIGHER_ROLE"
-    USE_SELF_DELETION = "ADMIN_USE_SELF_DELETION"
-    CANNOT_DELETE_LAST_OWNER = "ADMIN_CANNOT_DELETE_LAST_OWNER"
-    CANNOT_DELETE_SELF = "ADMIN_CANNOT_DELETE_SELF"
-    USER_CANNOT_BE_DELETED = "ADMIN_USER_CANNOT_BE_DELETED"
-    # Operator guild deletion is scoped to resolving a user-deletion blocker:
-    # the guild must be one the named user is the SOLE admin of. Any other guild
-    # is refused (operators reach a live guild only via a break-glass grant).
-    GUILD_NOT_A_DELETION_BLOCKER = "ADMIN_GUILD_NOT_A_DELETION_BLOCKER"
-    USER_NOT_IN_INITIATIVE = "ADMIN_USER_NOT_IN_INITIATIVE"
-    CANNOT_DEMOTE_LAST_PM = "ADMIN_CANNOT_DEMOTE_LAST_PM"
+    USER_NOT_DELETED = "OPERATOR_USER_NOT_DELETED"
+    CANNOT_SUSPEND_SELF = "OPERATOR_CANNOT_SUSPEND_SELF"
+    CANNOT_SUSPEND_INACTIVE = "OPERATOR_CANNOT_SUSPEND_INACTIVE"
+    CANNOT_SUSPEND_HIGHER_ROLE = "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE"
+    ALREADY_ANONYMIZED = "OPERATOR_ALREADY_ANONYMIZED"
+    CANNOT_CHANGE_ROLE_INACTIVE = "OPERATOR_CANNOT_CHANGE_ROLE_INACTIVE"
+    CANNOT_CHANGE_OWN_ROLE = "OPERATOR_CANNOT_CHANGE_OWN_ROLE"
+    CANNOT_DEMOTE_LAST_OWNER = "OPERATOR_CANNOT_DEMOTE_LAST_OWNER"
+    CANNOT_ASSIGN_HIGHER_ROLE = "OPERATOR_CANNOT_ASSIGN_HIGHER_ROLE"
+    USE_SELF_DELETION = "OPERATOR_USE_SELF_DELETION"
+    CANNOT_DELETE_LAST_OWNER = "OPERATOR_CANNOT_DELETE_LAST_OWNER"
+    CANNOT_DELETE_SELF = "OPERATOR_CANNOT_DELETE_SELF"
+    USER_CANNOT_BE_DELETED = "OPERATOR_USER_CANNOT_BE_DELETED"
 
 
 class AccessGrantMessages:
@@ -636,6 +639,9 @@ class AccessGrantMessages:
     NOT_ACTIVE = "ACCESS_GRANT_NOT_ACTIVE"
     CANNOT_APPROVE_OWN = "ACCESS_GRANT_CANNOT_APPROVE_OWN"
     CANNOT_CANCEL_OTHERS = "ACCESS_GRANT_CANNOT_CANCEL_OTHERS"
+    #: A settings rung reads; changing what it reaches takes a read_write
+    #: content grant beside it.
+    WRITE_GRANT_REQUIRED = "ACCESS_GRANT_WRITE_REQUIRED"
     # Break-glass (self-approved, data.bypass holders): a live grant for this
     # guild already exists, so there's nothing to self-issue.
     ALREADY_LIVE = "ACCESS_GRANT_ALREADY_LIVE"
@@ -657,8 +663,6 @@ class UserMessages:
     CANNOT_DELETE_LAST_OWNER = "USER_CANNOT_DELETE_LAST_OWNER"
     INVALID_PASSWORD = "USER_INVALID_PASSWORD"
     CONFIRMATION_MISMATCH = "USER_CONFIRMATION_MISMATCH"
-    CANNOT_DELETE = "USER_CANNOT_DELETE"
-    MISSING_PROJECT_TRANSFERS = "USER_MISSING_PROJECT_TRANSFERS"
     API_KEY_NOT_FOUND = "USER_API_KEY_NOT_FOUND"
     API_KEY_READ_ONLY = "USER_API_KEY_READ_ONLY"
     API_KEY_GUILD_FORBIDDEN = "USER_API_KEY_GUILD_FORBIDDEN"
@@ -678,12 +682,11 @@ class UserMessages:
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
     INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"
     INVALID_WEEK_START = "USER_INVALID_WEEK_START"
+    INVALID_TIME_FORMAT = "USER_INVALID_TIME_FORMAT"
     INVALID_REMINDER_MINUTES = "USER_INVALID_REMINDER_MINUTES"
     INVALID_TASK_COMPLETION_VISUAL_FEEDBACK = (
         "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK"
     )
-    PLATFORM_ROLE_WRONG_ENDPOINT = "USER_PLATFORM_ROLE_WRONG_ENDPOINT"
-    STATUS_WRONG_ENDPOINT = "USER_STATUS_WRONG_ENDPOINT"
     CANNOT_REMOVE_LAST_OWNER = "USER_CANNOT_REMOVE_LAST_OWNER"
     CANNOT_DELETE_SELF = "USER_CANNOT_DELETE_SELF"
     OWNER_MUST_BE_GUILD_ADMIN = "OWNER_MUST_BE_GUILD_ADMIN"
@@ -704,14 +707,6 @@ class UserMessages:
     DECORATION_ALREADY_GRANTED = "USER_DECORATION_ALREADY_GRANTED"
 
 
-class ImportMessages:
-    PROJECT_ARCHIVED = "IMPORT_PROJECT_ARCHIVED"
-    NO_PERMISSION = "IMPORT_NO_PERMISSION"
-    INSUFFICIENT_PERMISSION = "IMPORT_INSUFFICIENT_PERMISSION"
-    INVALID_STATUS_ID = "IMPORT_INVALID_STATUS_ID"
-    PARSE_FAILED = "IMPORT_PARSE_FAILED"
-
-
 class ProjectExportMessages:
     SCHEMA_VERSION_UNSUPPORTED = "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
     INVALID_PAYLOAD = "PROJECT_EXPORT_INVALID_PAYLOAD"
@@ -726,6 +721,7 @@ class ExportMessages:
     EXPORT_TOO_LARGE = "EXPORT_TOO_LARGE"
     EXPORT_JOB_LIMIT_REACHED = "EXPORT_JOB_LIMIT_REACHED"
     EXPORT_WRITE_REQUIRED = "EXPORT_WRITE_REQUIRED"
+    EXPORT_OWNER_REQUIRED = "EXPORT_OWNER_REQUIRED"
     EXPORT_JOB_NOT_FOUND = "EXPORT_JOB_NOT_FOUND"
     EXPORT_NOT_READY = "EXPORT_NOT_READY"
     EXPORT_SUPERADMIN_REQUIRED = "EXPORT_SUPERADMIN_REQUIRED"
@@ -755,21 +751,35 @@ class ImportEngineMessages:
     IMPORT_CREATOR_INACTIVE = "IMPORT_CREATOR_INACTIVE"
     IMPORT_PERMISSION_REQUIRED = "IMPORT_PERMISSION_REQUIRED"
     IMPORT_TOOL_DISABLED = "IMPORT_TOOL_DISABLED"
+    #: A zip that does not hold exactly one export at its top level.
+    IMPORT_ARCHIVE_NO_ENVELOPE = "IMPORT_ARCHIVE_NO_ENVELOPE"
+    #: An export of a different tool than the one it was imported from.
+    IMPORT_WRONG_TOOL = "IMPORT_WRONG_TOOL"
 
     # Reading a foreign source. These name what the SOURCE said or did, which
     # is a different thing from anything the envelope path can go wrong at:
     # the person has to fix something at the other end, not in this app.
     #: The site did not answer, or did not answer as a site of this kind.
     IMPORT_SOURCE_UNREACHABLE = "IMPORT_SOURCE_UNREACHABLE"
+    #: A file offered as one product's export that is not one.
+    IMPORT_UNKNOWN_SOURCE = "IMPORT_UNKNOWN_SOURCE"
+    #: A file that could not be read as the format it was offered as.
+    IMPORT_FILE_UNREADABLE = "IMPORT_FILE_UNREADABLE"
     #: The credential was refused, or it does not reach what was asked for.
     IMPORT_SOURCE_AUTH = "IMPORT_SOURCE_AUTH"
     #: The site asked us to slow down more than the job is willing to wait.
     IMPORT_SOURCE_RATE_LIMITED = "IMPORT_SOURCE_RATE_LIMITED"
+    #: The site was still being read when the fetch's time ran out.
+    IMPORT_SOURCE_TOO_SLOW = "IMPORT_SOURCE_TOO_SLOW"
     #: The address resolves inside a private network, which this client will
     #: not connect to — the same rule webhooks and the AI client follow.
     IMPORT_SOURCE_PRIVATE_HOST = "IMPORT_SOURCE_PRIVATE_HOST"
     #: The request named nothing to bring over.
     IMPORT_SOURCE_NOTHING_SELECTED = "IMPORT_SOURCE_NOTHING_SELECTED"
+    #: The connection a job was started with is not there to use: it aged out,
+    #: another job already spent it, or it was never this person's. One code
+    #: for all three, because the fix is the same — connect again.
+    IMPORT_CREDENTIAL_UNAVAILABLE = "IMPORT_CREDENTIAL_UNAVAILABLE"
 
 
 class QueryMessages:
@@ -839,13 +849,13 @@ class QueryMessages:
 
 class NotificationMessages:
     NOT_FOUND = "NOTIFICATION_NOT_FOUND"
+    #: This deployment does not send push notifications, so there is nothing
+    #: for a device to register against.
+    PUSH_DISABLED = "PUSH_NOTIFICATIONS_DISABLED"
 
 
 class AnnouncementMessages:
     NOT_FOUND = "ANNOUNCEMENT_NOT_FOUND"
-    # A notice compiled into the app is changed by shipping a release, not by
-    # editing it here.
-    BUILTIN_READ_ONLY = "ANNOUNCEMENT_BUILTIN_READ_ONLY"
     IMAGE_NOT_FOUND = "ANNOUNCEMENT_IMAGE_NOT_FOUND"
     IMAGE_TOO_LARGE = "ANNOUNCEMENT_IMAGE_TOO_LARGE"
     IMAGE_UNSUPPORTED_TYPE = "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE"
@@ -990,6 +1000,26 @@ class MarketplaceMessages:
     #: installed — there is no listing to re-pin it to.
     NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"
     ALREADY_LATEST_VERSION = "MARKETPLACE_ALREADY_LATEST_VERSION"
+    #: An install asked to start from the listing's example, and this listing
+    #: carries none: it installs only as itself.
+    LISTING_HAS_NO_EXAMPLE = "MARKETPLACE_LISTING_HAS_NO_EXAMPLE"
+    #: A share could not be made into a listing — the item has nothing a
+    #: listing can carry, or its export is not one this build reads back.
+    SHARE_INVALID = "MARKETPLACE_SHARE_INVALID"
+    #: The item is larger than a listing may be. Sharing less of it works.
+    SHARE_TOO_LARGE = "MARKETPLACE_SHARE_TOO_LARGE"
+    #: A new version of a shared listing has to be the same tool as the first.
+    SHARE_KIND_MISMATCH = "MARKETPLACE_SHARE_KIND_MISMATCH"
+    #: Only somebody who belongs to the community shares its content; a grant
+    #: into it does not reach the marketplace.
+    SHARE_NOT_PERMITTED = "MARKETPLACE_SHARE_NOT_PERMITTED"
+    #: A picture uploaded with a share that the marketplace will not keep:
+    #: not a PNG, JPEG, GIF or WebP, larger than a listing's pictures may be,
+    #: or one more than a listing takes.
+    SHARE_IMAGE_INVALID = "MARKETPLACE_SHARE_IMAGE_INVALID"
+    #: An uploaded listing file the catalogue would not publish. The response
+    #: carries the validator's reason beside this code.
+    LISTING_UPLOAD_INVALID = "MARKETPLACE_LISTING_UPLOAD_INVALID"
     MEDIA_NOT_FOUND = "MARKETPLACE_MEDIA_NOT_FOUND"
     #: A rescan was asked for on a deployment that publishes no catalog
     #: directory of its own — nothing to scan until one is configured.
@@ -1079,7 +1109,7 @@ class TrashMessages:
 
 class GuildAppMessages:
     NOT_FOUND = "GUILD_APP_NOT_FOUND"
-    ADMIN_REQUIRED = "GUILD_APP_ADMIN_REQUIRED"
+    SUPERADMIN_REQUIRED = "GUILD_APP_SUPERADMIN_REQUIRED"
     #: The listing named is not an app, or names an app kind this build cannot
     #: install.
     NOT_AN_APP = "GUILD_APP_LISTING_NOT_AN_APP"
@@ -1142,10 +1172,12 @@ class GuildAppMessages:
     SERVICE_NOT_REGISTERED = "GUILD_APP_SERVICE_NOT_REGISTERED"
     #: The pinned definition declares no surface under that id.
     SURFACE_NOT_FOUND = "GUILD_APP_SURFACE_NOT_FOUND"
-    #: The surface names an audience the caller is not in — declared for the
-    #: guild's admins, or for an initiative's managers where the caller manages
-    #: nothing.
+    #: The surface is declared for the guild's admins, or for an initiative's
+    #: managers and opened guild-wide, where only admins clear that rung.
     SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
+    #: The surface is declared for an initiative's managers, was opened in an
+    #: initiative, and the caller does not manage it.
+    SURFACE_MANAGER_ONLY = "GUILD_APP_SURFACE_MANAGER_ONLY"
     #: The placement sent is not a shape this build stores, or it names an
     #: initiative that is not one of this guild's.
     PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
@@ -1389,6 +1421,7 @@ class BillingMessages:
     SUPPORT_CANNOT_LOWER = "BILLING_SUPPORT_CANNOT_LOWER"
     OPERATOR_CANNOT_LOWER_CEILING = "BILLING_OPERATOR_CANNOT_LOWER_CEILING"
     ACTOR_REQUIRED = "BILLING_ACTOR_REQUIRED"
+    STATUS_NOT_SETTABLE = "BILLING_STATUS_NOT_SETTABLE"
     PORTAL_NOT_CONFIGURED = "BILLING_PORTAL_NOT_CONFIGURED"
     PORTAL_SIGNING_NOT_CONFIGURED = "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
     PORTAL_GRANT_UNAVAILABLE = "BILLING_PORTAL_GRANT_UNAVAILABLE"

@@ -351,3 +351,262 @@ def test_docx_degrades_unreadable_image_to_alt_text():
     )
     document = docx.Document(io.BytesIO(content))
     assert any("broken" in p.text for p in document.paragraphs)
+
+
+def _cell(text, colspan=1, rowspan=1, header=0):
+    return {
+        "type": "tablecell",
+        "colSpan": colspan,
+        "rowSpan": rowspan,
+        "headerState": header,
+        "children": [{"type": "paragraph", "children": [_text(text)]}],
+    }
+
+
+def _row(*cells):
+    return {"type": "tablerow", "children": list(cells)}
+
+
+MERGED = _state(
+    [
+        {
+            "type": "table",
+            "children": [
+                _row(_cell("Name", header=1), _cell("Detail", colspan=2, header=1)),
+                _row(_cell("Tall", rowspan=2), _cell("a"), _cell("b")),
+                _row(_cell("c"), _cell("d")),
+            ],
+        }
+    ]
+)
+
+
+def test_a_table_with_merged_cells_carries_its_spans_and_grid():
+    (table,) = blocks_from_editor_state(MERGED, guild_id=GUILD)[0]
+    assert table["width"] == 3
+    assert table["spans"] == [
+        [[1, 1], [2, 1]],
+        [[1, 2], [1, 1], [1, 1]],
+        [[1, 1], [1, 1]],
+    ]
+
+
+def test_a_table_without_merges_is_unchanged():
+    plain = _state([{"type": "table", "children": [_row(_cell("a"), _cell("b"))]}])
+    (table,) = blocks_from_editor_state(plain, guild_id=GUILD)[0]
+    assert "spans" not in table and "width" not in table
+
+
+def test_merged_cells_export_as_multimarkdown():
+    content, _ctype, _name = render_markdown(
+        {"title": "", "blocks": blocks_from_editor_state(MERGED, guild_id=GUILD)[0]},
+        lambda key: b"",
+    )
+    lines = content.decode().strip().splitlines()
+    assert lines == [
+        "| Name | Detail ||",
+        "| --- | --- | --- |",
+        "| Tall | a | b |",
+        "| ^^ | c | d |",
+    ]
+
+
+def test_merged_cells_are_merged_in_word():
+    import docx
+
+    out = render_docx(
+        {"title": "", "blocks": blocks_from_editor_state(MERGED, guild_id=GUILD)[0]},
+        lambda key: b"",
+    )
+    table = docx.Document(io.BytesIO(out)).tables[0]
+    # The merged header cell is one cell reached from both of its columns.
+    assert table.cell(0, 1)._tc is table.cell(0, 2)._tc
+    assert table.cell(1, 0)._tc is table.cell(2, 0)._tc
+    assert table.cell(2, 1).text == "c"
+
+
+CALLOUT = _state(
+    [
+        {
+            "type": "callout",
+            "variant": "warning",
+            "children": [
+                {"type": "paragraph", "children": [_text("Careful")]},
+                {
+                    "type": "list",
+                    "listType": "bullet",
+                    "children": [{"type": "listitem", "children": [_text("one")]}],
+                },
+                {
+                    "type": "image",
+                    "src": f"/uploads/{GUILD}/in-callout.png",
+                    "altText": "pic",
+                },
+            ],
+        },
+        {"type": "paragraph", "children": [_text("after")]},
+    ]
+)
+
+
+def test_a_callout_keeps_its_kind_and_blocks():
+    blocks, assets = blocks_from_editor_state(CALLOUT, guild_id=GUILD)
+    callout, after = blocks
+    assert callout["type"] == "callout" and callout["variant"] == "warning"
+    assert [b["type"] for b in callout["blocks"]] == ["paragraph", "list", "image"]
+    # An image inside a callout still travels with the document.
+    assert [a["key"] for a in assets] == ["in-callout.png"]
+    assert after["runs"][0]["text"] == "after"
+
+
+def test_a_callout_exports_as_obsidian_markdown():
+    blocks, _assets = blocks_from_editor_state(CALLOUT, guild_id=GUILD)
+    content, _ctype, _name = render_markdown(
+        {"title": "", "blocks": blocks[:1]}, lambda key: b""
+    )
+    lines = content.decode().strip().splitlines()
+    assert lines[:4] == ["> [!warning]", "> Careful", ">", "> - one"]
+
+
+def test_a_callout_in_word_is_its_label_then_its_blocks():
+    import docx
+
+    blocks, _assets = blocks_from_editor_state(CALLOUT, guild_id=GUILD)
+    out = render_docx({"title": "", "blocks": blocks}, lambda key: b"")
+    texts = [p.text for p in docx.Document(io.BytesIO(out)).paragraphs if p.text]
+    assert texts[:3] == ["Warning", "Careful", "one"]
+
+
+COLUMNS = _state(
+    [
+        {
+            "type": "layout-container",
+            "templateColumns": "1fr 3fr",
+            "children": [
+                {
+                    "type": "layout-item",
+                    "children": [{"type": "paragraph", "children": [_text("narrow")]}],
+                },
+                {
+                    "type": "layout-item",
+                    "children": [
+                        {"type": "paragraph", "children": [_text("wide")]},
+                        {"type": "paragraph", "children": [_text("more")]},
+                    ],
+                },
+            ],
+        }
+    ]
+)
+
+
+def test_columns_keep_their_widths_and_blocks():
+    (columns,) = blocks_from_editor_state(COLUMNS, guild_id=GUILD)[0]
+    assert columns["type"] == "columns"
+    assert columns["widths"] == [25, 75]
+    assert [[b["runs"][0]["text"] for b in col] for col in columns["columns"]] == [
+        ["narrow"],
+        ["wide", "more"],
+    ]
+
+
+def test_columns_export_as_pandoc_fenced_divs():
+    content, _ctype, _name = render_markdown(
+        {"title": "", "blocks": blocks_from_editor_state(COLUMNS, guild_id=GUILD)[0]},
+        lambda key: b"",
+    )
+    assert content.decode().strip().splitlines() == [
+        ":::: {.columns}",
+        '::: {.column width="25%"}',
+        "narrow",
+        ":::",
+        '::: {.column width="75%"}',
+        "wide",
+        "",
+        "more",
+        ":::",
+        "::::",
+    ]
+
+
+def test_columns_in_word_are_word_columns():
+    import docx
+    from docx.oxml.ns import qn
+
+    out = render_docx(
+        {"title": "", "blocks": blocks_from_editor_state(COLUMNS, guild_id=GUILD)[0]},
+        lambda key: b"",
+    )
+    document = docx.Document(io.BytesIO(out))
+    texts = [p.text for p in document.paragraphs if p.text]
+    assert texts == ["narrow", "wide", "more"]
+    # A section in two columns at the page's widths, then one column again.
+    layouts = []
+    for section in document.sections:
+        (cols,) = section._sectPr.findall(qn("w:cols"))
+        widths = [int(c.get(qn("w:w"))) for c in cols.findall(qn("w:col"))]
+        layouts.append((cols.get(qn("w:num")), widths))
+    two = [layout for layout in layouts if layout[0] == "2"]
+    assert len(two) == 1
+    narrow, wide = two[0][1]
+    assert 2.9 < wide / narrow < 3.1
+    assert layouts[-1][0] == "1"
+    # Each column ends where the next begins.
+    breaks = [
+        br
+        for p in document.paragraphs
+        for br in p._p.iter(qn("w:br"))
+        if br.get(qn("w:type")) == "column"
+    ]
+    assert len(breaks) == 1
+
+
+DRAWING_DATA = (
+    '{"elements":[{"id":"t","type":"text","text":"```"}],"appState":{},"files":{}}'
+)
+DRAWING = _state(
+    [
+        {
+            "type": "paragraph",
+            "children": [
+                _text("before "),
+                {"type": "excalidraw", "data": DRAWING_DATA, "width": 0},
+                _text(" after"),
+            ],
+        }
+    ]
+)
+
+
+def test_a_drawing_exports_to_markdown_as_its_fenced_scene():
+    blocks, _assets = blocks_from_editor_state(DRAWING, guild_id=GUILD)
+    assert [b["type"] for b in blocks] == ["paragraph", "drawing", "paragraph"]
+    content, _ctype, _name = render_markdown(
+        {"title": "", "blocks": blocks}, lambda k: b""
+    )
+    assert "````excalidraw\n" + DRAWING_DATA + "\n````" in content.decode()
+
+
+def test_a_drawing_is_left_out_of_word():
+    import docx
+
+    blocks, _assets = blocks_from_editor_state(DRAWING, guild_id=GUILD)
+    out = render_docx({"title": "", "blocks": blocks}, lambda key: b"")
+    texts = [p.text for p in docx.Document(io.BytesIO(out)).paragraphs if p.text]
+    assert [text.strip() for text in texts] == ["before", "after"]
+
+
+def test_a_status_exports_as_its_word_set_apart():
+    state = _state(
+        [
+            {
+                "type": "paragraph",
+                "children": [
+                    _text("State: "),
+                    {"type": "status", "text": "In progress", "color": "blue"},
+                ],
+            }
+        ]
+    )
+    (paragraph,) = blocks_from_editor_state(state, guild_id=GUILD)[0]
+    assert paragraph["runs"][-1] == {"text": "IN PROGRESS", "bold": True}

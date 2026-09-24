@@ -9,10 +9,14 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 """
 
 from datetime import datetime
-from typing import ClassVar, Optional
+from typing import TYPE_CHECKING, ClassVar, Optional
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, Integer, String, func, select
+from sqlalchemy.orm import column_property
 from sqlmodel import Field, SQLModel
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.core.tools import Tool
 
 
 class SoftDeleteMixin(SQLModel):
@@ -22,10 +26,9 @@ class SoftDeleteMixin(SQLModel):
     a bare list of mixed entity types (the recents tab bar, the trash can).
     It defaults to `name`; only models that call it something else override it.
 
-    The ``deleted_by`` FK uses ``foreign_key="users.id"`` for SQLModel
-    convenience; the ``ON DELETE SET NULL`` semantic is enforced in the
-    Alembic migration that adds the column, matching the existing
-    convention in this codebase.
+    ``deleted_by`` names the person who binned the row, and is the one
+    person-naming column here that declares no ``foreign_key`` at all — see
+    the note on it below.
     """
 
     deleted_at: Optional[datetime] = Field(
@@ -33,12 +36,10 @@ class SoftDeleteMixin(SQLModel):
         sa_type=DateTime(timezone=True),
         nullable=True,
     )
-    # NOTE: the FK constraint to users(id) ON DELETE SET NULL is created in
-    # the Alembic migration (20260426_0078). We deliberately don't declare
-    # foreign_key= here because SQLAlchemy would then see two FKs from this
-    # table to users (``created_by`` + this audit FK) and fail to
-    # auto-determine join conditions on relationships that join to users.
-    # Audit lookups go through the trash service, never through an ORM
+    # NOTE: no ``foreign_key=`` here, deliberately. SQLAlchemy would then see
+    # two references from this table to users (``created_by`` + this one) and
+    # fail to auto-determine join conditions on relationships that join to
+    # users. Audit lookups go through the trash service, never through an ORM
     # relationship, so SQLAlchemy doesn't need the metadata.
     deleted_by: Optional[int] = Field(default=None, nullable=True)
     purge_at: Optional[datetime] = Field(
@@ -118,12 +119,15 @@ class CreatedByMixin(SQLModel):
     ``SoftDeleteMixin.deleted_by`` above: both say who, neither carries an
     ``_id`` suffix.
 
-    ``foreign_key`` here is ORM metadata — it is what lets relationships like
-    ``Task.creator`` resolve their join — not a constraint in the guild
-    schemas. Guild content lives in a per-guild schema and ``users`` in
-    ``public``, and the guild DDL carries a cross-schema user FK on only a
-    handful of tables, so no delete rule is declared for a rule the database
-    would not hold.
+    ``foreign_key`` here is SQLAlchemy metadata, never a constraint: guild
+    content lives in a per-guild schema and ``users`` in ``public``, and a
+    guild schema holds no key out of it (20260922_0349). What it is for is
+    saying that this integer names a *person*, which is what gives a filter on
+    ``created_by`` a member picker instead of a number box
+    (``app.services.fields.derive``). Reading an author goes through
+    ``MemberProfile``, whose relationships spell out their own join because
+    the target is a view — so no delete rule is declared for a rule the
+    database would not hold.
 
     That makes ``created_by`` a **weak reference**, and deliberately so: it
     survives the erasure of the account it names, which is what keeps an old
@@ -131,12 +135,39 @@ class CreatedByMixin(SQLModel):
     it renders as a former member rather than merging into a shared
     placeholder.
 
+    Every other column in a guild schema that names a person reads the same
+    way, author or not. What becomes of those rows when an account closes is
+    ``app.services.platform.users.hard_delete_user``, which walks every guild
+    schema and deletes or nulls them itself; ``cross_schema_refs_test.py``
+    holds the line at no column here declaring a rule instead.
+
     ``created_by_test.py`` fails CI if a guild-schema table carries neither
     this mixin nor an entry in ``tenancy.CREATED_BY_EXEMPT_TABLES``.
     """
 
     created_by: Optional[int] = Field(
         default=None, foreign_key="users.id", nullable=True
+    )
+
+
+class ListingProvenanceMixin(SQLModel):
+    """Mixin that records which marketplace listing a tool item came from.
+
+    Installing a listing is importing a copy of it, and the copy keeps two
+    facts about where it came from: the listing's ``uid`` and the version it
+    was taken at. Both are NULL on anything made here, which is almost
+    everything. There is no link back and no update stream — the copy belongs
+    to whoever installed it — so these are a record, not a reference, and no
+    foreign key reaches the catalog.
+
+    Every tool has a marketplace, so every tool carries the pair.
+    ``tools_test.py`` fails CI if a ``Tool`` member's model lacks it. Declared
+    without ``sa_column`` so each table builds its own Column.
+    """
+
+    listing_uid: Optional[str] = Field(default=None, sa_type=String(14), nullable=True)
+    listing_version: Optional[str] = Field(
+        default=None, sa_type=String(32), nullable=True
     )
 
 
@@ -219,3 +250,33 @@ def tool_models() -> dict[str, type[SQLModel]]:
         if table and getattr(cls, "__table__", None) is not None:
             found[str(table)] = cls
     return found
+
+
+def attach_access_level(model: type[SQLModel], tool: "Tool") -> None:
+    """Map ``access_level`` on a shareable model: the rung of the sharing
+    ladder the request holds on the row, answered by the schema's own
+    ``resource_level`` in the same SELECT as the row.
+
+    Deferred, so a load that only needs the row pays nothing; a loader that
+    goes on to serialize the row asks for it with ``undefer``. Read through
+    :func:`app.services.permissions.level_of`.
+    """
+    reader = func.nullif(func.current_setting("app.current_user_id", True), "").cast(
+        Integer
+    )
+    # This statement's standing, as ``app.db.authorization.standing_arg`` spells
+    # it; this module sits below that one, so the sub-select is written here.
+    standing = select(func.current_standing()).scalar_subquery()
+    model.__mapper__.add_property(  # type: ignore[attr-defined]
+        "access_level",
+        column_property(
+            func.resource_level(
+                tool.value,
+                model.id,  # type: ignore[attr-defined]
+                reader,
+                model.initiative_id,  # type: ignore[attr-defined]
+                standing,
+            ),
+            deferred=True,
+        ),
+    )

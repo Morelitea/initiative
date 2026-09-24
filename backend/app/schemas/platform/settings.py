@@ -1,3 +1,4 @@
+import json
 from typing import Annotated, List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
@@ -12,8 +13,8 @@ from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
-class AuthProviderAdminRead(SanitizedBaseModel):
-    """One registry provider for the operator admin — never the secret."""
+class AuthProviderOwnerRead(SanitizedBaseModel):
+    """One registry provider as the owner's settings read it — never the secret."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -221,6 +222,8 @@ class GuildProviderConnectionRead(SanitizedBaseModel):
     #: to claim. ``auto_join`` waits for it; admitting people the community
     #: already has does not. Changing the values asks again.
     narrowing_approved: bool = False
+    #: Whether the platform's rules for this provider may place people here.
+    accepts_provider_placement: bool = False
     login_ready: bool = True
 
 
@@ -254,6 +257,8 @@ class GuildProviderConnectionCreate(SanitizedBaseModel):
     enabled: bool = True
     #: Whether somebody this connection counts as theirs joins on arrival.
     auto_join: bool = False
+    #: Whether the platform's rules for this provider may place people here.
+    accepts_provider_placement: bool = False
 
 
 class GuildProviderConnectionUpdate(SanitizedBaseModel):
@@ -267,6 +272,7 @@ class GuildProviderConnectionUpdate(SanitizedBaseModel):
     )
     enabled: Optional[bool] = None
     auto_join: Optional[bool] = None
+    accepts_provider_placement: Optional[bool] = None
 
 
 class PlatformProviderDefaultRead(SanitizedBaseModel):
@@ -352,6 +358,131 @@ class GuildClaimRulesResponse(SanitizedBaseModel):
     rules: List[GuildClaimRuleRead] = Field(default_factory=list)
     #: Provider ids this community connects to that report groups.
     reporting_provider_ids: List[int] = Field(default_factory=list)
+    #: The platform's rules that name this community, shown so a community
+    #: always sees who is placed in it. Read-only here.
+    provider_rules: List["ProviderPlacementRuleRead"] = Field(default_factory=list)
+    #: Whether the deployment applies its rules to every community they name.
+    placement_everywhere: bool = False
+
+
+class ProviderPlacementRuleRead(SanitizedBaseModel):
+    """One rule the platform wrote for a provider: which arrivals it matches,
+    and where they land."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    provider_id: int
+    provider_display_name: str
+    provider_icon: Optional[str] = None
+    #: The group it places. Null where it names a directory instead, and
+    #: places everybody arriving from it.
+    claim_value: Optional[str] = None
+    #: The verified claim and value naming which of the provider's directories
+    #: the rule is about. Both or neither.
+    scope_claim: Optional[str] = None
+    scope_value: Optional[str] = None
+    guild_id: int
+    guild_name: str
+    guild_role: str
+    initiative_id: Optional[int] = None
+    initiative_name: Optional[str] = None
+    initiative_role_id: Optional[int] = None
+    initiative_role_name: Optional[str] = None
+    #: Whether it places anybody now: the deployment applies provider rules
+    #: everywhere, or the community accepts them on its connection.
+    applies: bool
+
+
+class ProviderPlacementRuleCreate(SanitizedBaseModel):
+    """Place the people a provider asserts a group or a directory for.
+
+    Naming an initiative places them there as well as in the community.
+    """
+
+    provider_id: int
+    claim_value: Optional[str] = Field(default=None, max_length=500)
+    scope_claim: Optional[str] = Field(default=None, max_length=64)
+    scope_value: Optional[str] = Field(default=None, max_length=256)
+    guild_id: int
+    guild_role: str = "member"
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+
+
+class ProviderPlacementRuleUpdate(SanitizedBaseModel):
+    """Change what a rule matches or where it lands. Its provider and its
+    community are not editable: a rule pointed elsewhere is a different rule."""
+
+    claim_value: Optional[str] = Field(default=None, max_length=500)
+    scope_claim: Optional[str] = Field(default=None, max_length=64)
+    scope_value: Optional[str] = Field(default=None, max_length=256)
+    guild_role: Optional[str] = None
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+
+
+GuildClaimRulesResponse.model_rebuild()
+
+
+class PlacementProviderRead(SanitizedBaseModel):
+    """A provider rules can be written for, as the placement page lists it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    display_name: str
+    icon: Optional[str] = None
+    #: Whether the operator has said which claim carries its groups. Rules
+    #: naming a group match nothing until it has.
+    reports_groups: bool
+
+
+class ProviderPlacementResponse(SanitizedBaseModel):
+    """Everything the placement page shows."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    placement_everywhere: bool
+    providers: List[PlacementProviderRead] = Field(default_factory=list)
+    rules: List[ProviderPlacementRuleRead] = Field(default_factory=list)
+
+
+class PlacementEverywhereUpdate(SanitizedBaseModel):
+    """Apply the platform's rules to every community they name, or only to
+    the ones that accepted them."""
+
+    enabled: bool
+
+
+class PlacementCommunityRead(SanitizedBaseModel):
+    """A community a rule may name, and whether a rule naming it applies."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    #: The deployment applies rules everywhere, or this community accepts the
+    #: provider's rules on its connection.
+    placeable: bool
+
+
+class PlacementInitiativeRoleRead(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    is_manager: bool
+
+
+class PlacementInitiativeRead(SanitizedBaseModel):
+    """An initiative a rule may place people in, with the roles it offers."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    roles: List[PlacementInitiativeRoleRead] = Field(default_factory=list)
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):
@@ -525,6 +656,39 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     #: community and what it owes the person leaving are different questions.
     #: ``None`` means never, for a deployment required to keep accounts.
     deleted_account_retention_days: Optional[int] = None
+    #: How long a community stays on hold before it is deleted, in days,
+    #: counted from when it was put there. ``None`` means never: it waits for
+    #: somebody to lift the hold or delete it.
+    on_hold_community_deletion_days: Optional[int] = None
+
+
+class NotificationSettingsResponse(SanitizedBaseModel):
+    """What this deployment permits a notification to leave the app carrying.
+
+    Three answers, each also asked of every community; the stricter of the pair
+    applies, so a community may decline what this permits and never the other
+    way round.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Whether a notification may reach a phone. Off, nothing is sent, the
+    #: registration endpoint declines, and no device token is held.
+    push_notifications_enabled: bool
+    #: Whether a notification may reach a mailbox. The notification half of
+    #: email only — a sign-in code, an address to confirm, a password reset and
+    #: the notices an account gets about itself are unaffected.
+    email_notifications_enabled: bool
+    #: Whether a notification that leaves the app may name the thing it is
+    #: about. Set, it says the kind of thing that happened and the app is where
+    #: the rest of it is. The bell inside the app is unaffected.
+    redact_notification_content: bool
+
+
+class NotificationSettingsUpdate(SanitizedBaseModel):
+    push_notifications_enabled: bool
+    email_notifications_enabled: bool
+    redact_notification_content: bool
 
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
@@ -552,6 +716,13 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     #: The account window, read the same way: omit to leave it alone, send a
     #: number to set it, send ``null`` to stop erasing on a timer.
     deleted_account_retention_days: Optional[int] = Field(
+        default=None,
+        ge=MIN_GUILD_RETENTION_DAYS,
+        le=MAX_GUILD_RETENTION_DAYS,
+    )
+    #: The hold window, read the same way: omit to leave it alone, send a
+    #: number to set it, send ``null`` to stop deleting held communities.
+    on_hold_community_deletion_days: Optional[int] = Field(
         default=None,
         ge=MIN_GUILD_RETENTION_DAYS,
         le=MAX_GUILD_RETENTION_DAYS,
@@ -624,6 +795,71 @@ class StorageSettingsUpdate(SanitizedBaseModel):
     s3_local_fallback: bool = False
 
 
+class CaptchaSettingsResponse(SanitizedBaseModel):
+    """What the settings page shows for the registration captcha.
+
+    The secret is reported as stored or not, never returned — the same contract
+    as the storage and email pages above.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    provider: Optional[Literal["hcaptcha", "turnstile", "recaptcha"]] = None
+    site_key: Optional[str] = None
+    has_secret_key: bool = False
+    #: Whether enforcement is actually on — all three of provider, site key and
+    #: secret. Shown rather than inferred in the client, because the client
+    #: cannot see the third one.
+    enforcing: bool = False
+
+
+class CaptchaSettingsUpdate(SanitizedBaseModel):
+    provider: Optional[Literal["hcaptcha", "turnstile", "recaptcha"]] = None
+    site_key: Optional[str] = None
+    #: Omit to keep the stored secret; send null or "" to clear it. Raw text:
+    #: a provider secret is opaque and must not be sanitized.
+    secret_key: Optional[RawTextStr] = None
+
+
+class PushSettingsResponse(SanitizedBaseModel):
+    """What the settings page shows for push notifications (FCM)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    enabled: bool = False
+    project_id: Optional[str] = None
+    application_id: Optional[str] = None
+    api_key: Optional[str] = None
+    sender_id: Optional[str] = None
+    has_service_account: bool = False
+
+
+class PushSettingsUpdate(SanitizedBaseModel):
+    enabled: bool = False
+    project_id: Optional[str] = None
+    application_id: Optional[str] = None
+    api_key: Optional[str] = None
+    sender_id: Optional[str] = None
+    #: The service-account JSON. Omit to keep the stored one; send null or ""
+    #: to clear it. Raw text, and long: a Google service account is ~2.4 kB.
+    service_account_json: Optional[RawTextStr] = None
+
+    @field_validator("service_account_json")
+    @classmethod
+    def _service_account_is_a_json_object(cls, value: Optional[str]) -> Optional[str]:
+        """The key file Firebase issues is one JSON object; anything else is
+        refused here rather than stored and failed on at the first send."""
+        if value is None or not value.strip():
+            return value
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            raise ValueError("service_account_json must be JSON") from None
+        if not isinstance(parsed, dict):
+            raise ValueError("service_account_json must be a JSON object")
+        return value
+
+
 class StorageTestResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -643,87 +879,3 @@ class StorageBackfillStatusResponse(SanitizedBaseModel):
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     error: Optional[str] = None
-
-
-# --- OIDC Claim Mapping schemas ---
-
-
-class OIDCClaimMappingCreate(SanitizedBaseModel):
-    #: Whose claim this rule reads. Required: a claim value means nothing
-    #: until you know which provider asserted it.
-    provider_id: int
-    claim_value: str = Field(min_length=1, max_length=500)
-    target_type: str  # "guild" or "initiative"
-    guild_id: int
-    guild_role: str = "member"
-    initiative_id: Optional[int] = None
-    initiative_role_id: Optional[int] = None
-
-
-class OIDCClaimMappingUpdate(SanitizedBaseModel):
-    provider_id: Optional[int] = None
-    claim_value: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    target_type: Optional[str] = None
-    guild_id: Optional[int] = None
-    guild_role: Optional[str] = None
-    initiative_id: Optional[int] = None
-    initiative_role_id: Optional[int] = None
-
-
-class OIDCClaimMappingRead(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    id: int
-    provider_id: int
-    claim_value: str
-    target_type: str
-    guild_id: int
-    guild_role: str
-    initiative_id: Optional[int] = None
-    initiative_role_id: Optional[int] = None
-    provider_name: Optional[str] = None
-    guild_name: Optional[str] = None
-    initiative_name: Optional[str] = None
-    initiative_role_name: Optional[str] = None
-
-
-class OIDCMappingsResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    claim_path: Optional[str] = None
-    mappings: List[OIDCClaimMappingRead] = Field(default_factory=list)
-
-
-# The mapping form needs every guild, initiative, and initiative role to
-# populate its target selectors. Ids collide across guild schemas, so
-# initiatives and roles carry their ``guild_id`` for the client to disambiguate.
-class OIDCMappingOptionGuild(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    id: int
-    name: str
-
-
-class OIDCMappingOptionInitiative(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    id: int
-    name: str
-    guild_id: int
-
-
-class OIDCMappingOptionRole(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    id: int
-    name: str
-    initiative_id: int
-    guild_id: int
-
-
-class OIDCMappingOptionsResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    guilds: List[OIDCMappingOptionGuild] = Field(default_factory=list)
-    initiatives: List[OIDCMappingOptionInitiative] = Field(default_factory=list)
-    initiative_roles: List[OIDCMappingOptionRole] = Field(default_factory=list)

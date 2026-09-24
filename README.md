@@ -2,7 +2,7 @@
 
 [![User Guide](https://img.shields.io/badge/📖_User_Guide-Learn_how_to_use_Initiative-6f42c1?style=for-the-badge)](https://morelitea.github.io/initiative/)
 
-[![CI](https://github.com/Morelitea/initiative/actions/workflows/ci.yml/badge.svg)](https://github.com/Morelitea/initiative/actions/workflows/ci.yml)
+[![CI](https://github.com/Morelitea/initiative/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Morelitea/initiative/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
 [![Latest Release](https://img.shields.io/github/v/release/Morelitea/initiative?sort=semver)](https://github.com/Morelitea/initiative/releases)
 [![License](https://img.shields.io/github/license/Morelitea/initiative)](https://github.com/Morelitea/initiative/blob/main/LICENSE)
 [![Docker](https://img.shields.io/docker/v/morelitea/initiative?sort=semver\&label=Docker)](https://hub.docker.com/r/morelitea/initiative)
@@ -96,7 +96,7 @@ docker-compose up -d
 **First-time setup:**
 
 1. The first user to register becomes the platform owner
-2. Configure SMTP in the admin panel to enable email notifications
+2. Configure SMTP under **Settings → Platform → Email** to enable email notifications
 3. Create your first guild and start inviting people
 
 See [Key Environment Variables](#key-environment-variables) for full configuration options.
@@ -108,7 +108,7 @@ See [Key Environment Variables](#key-environment-variables) for full configurati
 
 ```bash
 docker pull morelitea/initiative:latest    # latest release
-docker pull morelitea/initiative:0.32      # specific minor
+docker pull morelitea/initiative:0.71      # specific minor
 ```
 
 Images support `linux/amd64` and `linux/arm64` architectures.
@@ -133,43 +133,37 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 
 | Variable | Description | Default |
 |---|---|---|
-| `DATABASE_URL` | Provisioning PostgreSQL connection (migrations, guild/role creation; not a superuser) | Required |
-| `DATABASE_URL_APP` | RLS-enforced connection (`app_user` role) | Required |
-| `DATABASE_URL_ADMIN` | Admin connection for background jobs (`app_admin` role) | Required |
+| `DATABASE_URL` | PostgreSQL connection as the database owner (see [Database connection](#database-connection)) | Required |
 | `SECRET_KEY` | JWT signing and encryption key | Required |
 | `APP_URL` | Public base URL (required for OIDC callbacks) | - |
-| `DISABLE_GUILD_CREATION` | Restrict guild creation to super admin | `false` |
+| `DISABLE_GUILD_CREATION` | Restrict guild creation to `guilds.manage` holders (operator and owner) | `false` |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without invite link | `true` |
 | `ENABLE_MCP` | Mount the in-app MCP server at `/api/v1/mcp/` for AI assistants (see [MCP Server](#mcp-server)) | `false` |
-| `MARKETPLACE_EXTRA_CATALOG_DIR` | Directory of your own marketplace listing files (see [Publishing your own listings](docs/en/admin/publishing-listings.md)) | - |
-| `CAPTCHA_PROVIDER` | Captcha vendor for registration: `hcaptcha`, `turnstile`, or `recaptcha` (v2 only). Unset / unrecognised disables the gate | - |
-| `CAPTCHA_SITE_KEY` | Public key sent to the SPA to render the widget | - |
-| `CAPTCHA_SECRET_KEY` | Server-side key for the provider's siteverify endpoint | - |
+| `MARKETPLACE_EXTRA_CATALOG_DIR` | Directory of your own marketplace listing files (see [Publishing your own listings](docs/en/running-a-server/publishing-listings.md)) | - |
+| `CAPTCHA_PROVIDER` / `CAPTCHA_SITE_KEY` / `CAPTCHA_SECRET_KEY` | Captcha on registration and emailed sign-in codes (`hcaptcha`, `turnstile`, or `recaptcha` v2). First boot only; then **Settings → Platform → Security** | - |
 | `BEHIND_PROXY` | Trust `X-Forwarded-For` headers | `false` |
 | `FORWARDED_ALLOW_IPS` | Trusted proxy IPs (when `BEHIND_PROXY=true`) | `*` |
 | `FIRST_OWNER_EMAIL` | Bootstrap owner email (legacy `FIRST_SUPERUSER_EMAIL` accepted) | - |
 | `FIRST_OWNER_PASSWORD` | Bootstrap owner password (legacy `FIRST_SUPERUSER_PASSWORD` accepted) | - |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP server configuration | - |
-| `SMTP_FROM_ADDRESS` | Email sender address | - |
-| `FCM_ENABLED` | Enable Firebase Cloud Messaging | `false` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP server configuration. First boot only; then **Settings → Platform → Email** | - |
+| `SMTP_FROM_ADDRESS` | Email sender address. First boot only | - |
+| `FCM_ENABLED` (+ `FCM_*`) | Firebase Cloud Messaging for mobile push. First boot only; then **Settings → Platform → Push notifications** | `false` |
 | `PUID` | UID the container runs as (for rootless/NAS setups) | `1000` |
 | `PGID` | GID the container runs as (for rootless/NAS setups) | `1000` |
 
-For FCM setup, see [docs/en/admin/push-notifications.md](docs/en/admin/push-notifications.md). For a complete list of options, see `backend/.env.example`.
+For FCM setup, see [docs/en/running-a-server/push-notifications.md](docs/en/running-a-server/push-notifications.md). For a complete list of options, see `backend/.env.example`.
 
-### Database connections
+### Database connection
 
-Initiative runs on **three** PostgreSQL roles, one database. The container will not start without all three connection strings (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN` have no defaults — a missing one aborts startup with a config validation error). They work as a set:
+Set **`DATABASE_URL`** to the database, connecting as its **owner**. At startup the app uses it to create three least-privilege logins, hand them the schema and install the guild-search match operator, then closes it and serves everything on those logins:
 
-- **`DATABASE_URL`** — the **provisioning role** (`app_provisioner`): runs migrations and creates/removes guild schemas. Deliberately *not* a superuser.
-- **`DATABASE_URL_APP`** — connects as `app_user`, the role every request runs on.
-- **`DATABASE_URL_ADMIN`** — connects as `app_admin`, the system role for background jobs and startup seeding.
+- **`app_provisioner`** runs migrations and creates/removes guild schemas. Deliberately *not* a superuser.
+- **`app_user`** is the role every request runs on.
+- **`app_admin`** is the system role for background jobs and startup seeding.
 
-A fourth is what creates them:
+Their passwords are derived from `SECRET_KEY` and re-applied on every start, so rotating `SECRET_KEY` rotates them too. The [example compose file](docker-compose.example.yml) points `DATABASE_URL` at the `POSTGRES_USER` it creates, so `docker compose up` works as-is.
 
-- **`DATABASE_URL_BOOTSTRAP`** — the **database owner**. At startup the app uses it to create the three roles above (with the passwords you put in their URLs), take ownership of the schema, and install the guild-search match operator; then it closes that connection and serves everything on the three roles. It re-applies on every start, so changing a role's password in its URL is enough to rotate it.
-
-The [example compose file](docker-compose.example.yml) wires all four together, so `docker compose up` works as-is with no SQL to run by hand. Once the stack is up you can remove `DATABASE_URL_BOOTSTRAP`: the app then checks those prerequisites instead of applying them, and tells you what is missing if any are. A deployment that provisions its database elsewhere — managed Postgres, a Kubernetes operator, your DBA — never sets it; `python -m app.db.bootstrap --print-sql` prints exactly what to apply.
+**Naming the logins yourself** (a pooler with its own user list, managed Postgres, a DBA): set `DATABASE_URL` to `app_provisioner` and add `DATABASE_URL_APP` (`app_user`) and `DATABASE_URL_ADMIN` (`app_admin`). Add `DATABASE_URL_BOOTSTRAP` as the owner and the app creates those logins with the passwords in their URLs; leave it out and the app only checks they exist. `python -m app.db.bootstrap --print-sql` prints exactly what to apply by hand.
 
 ### Running as a non-root user (PUID/PGID)
 
@@ -208,7 +202,7 @@ The server is then served at **`/api/v1/mcp/`** (note the trailing slash) on you
 
 ### What it can access
 
-The surface is curated and **default-deny** — only the following are exposed. Everything else (tags, properties, members and admin, auth, settings, uploads and downloads, deletes, archiving, bulk operations, sharing/grants, and AI generation) is **not**.
+The surface is curated and **default-deny** — only the following are exposed. Everything else (tags, properties, membership and roles, operator endpoints, auth, settings, uploads and downloads, deletes, archiving, bulk operations, sharing/grants, and AI generation) is **not**.
 
 **Reads** (any API key) — initiatives and every tool they hold:
 

@@ -1,8 +1,10 @@
+import uuid
 from datetime import datetime
 from typing import List, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
+from app.core.user_agents import ClientKind
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
@@ -112,6 +114,31 @@ class DeviceTokenInfo(SanitizedBaseModel):
     id: int
     device_name: Optional[str]
     created_at: datetime
+
+
+class SignedInSessionInfo(SanitizedBaseModel):
+    """One browser session, as the account's own "where you're signed in" list
+    shows it.
+
+    Beside it in that list sit the account's native devices, which are
+    :class:`DeviceTokenInfo` and a different credential — this is the rotating
+    kind a browser holds. ``started_at`` is the sign-in, not the last renewal,
+    so a browser left open for a month reads as a month old.
+
+    ``label`` is derived from the user agent (``core.user_agents``), because
+    only a native sign-in is handed a name to go by. ``is_current`` marks the
+    session doing the asking, which the list shows rather than offers to end.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: uuid.UUID
+    label: Optional[str]
+    kind: ClientKind
+    ip: Optional[str]
+    started_at: datetime
+    last_used_at: Optional[datetime]
+    is_current: bool
 
 
 class UploadTokenResponse(SanitizedBaseModel):

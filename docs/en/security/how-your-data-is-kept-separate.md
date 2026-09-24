@@ -4,7 +4,7 @@ icon: lucide/lock
 
 # How your data is kept separate
 
-This page is the **technical explanation** of Initiative's multi-tenancy and access control — written for project managers, administrators, IT teams, and anyone evaluating Initiative for a group that cares about data isolation. It avoids code, but it doesn't shy away from detail.
+This page is the **technical explanation** of Initiative's multi-tenancy and access control — written for project managers, people who run servers, IT teams, and anyone evaluating Initiative for a group that cares about data isolation. It avoids code, but it doesn't shy away from detail.
 
 If you just want the everyday version, read [Security & privacy](index.md) instead.
 
@@ -69,7 +69,7 @@ Two deliberate overrides sit above the four gates:
 
 ## Encryption
 
-- **In transit:** you should always run Initiative behind HTTPS, so traffic between browser and server is encrypted. (Administrators: see [Configuration](../admin/configuration.md).)
+- **In transit:** you should always run Initiative behind HTTPS, so traffic between browser and server is encrypted. (Running the server? See [Configuration](../running-a-server/configuration.md).)
 - **At rest:** the most sensitive stored fields — saved AI provider keys, single-sign-on secrets, email server passwords, and email addresses — are **encrypted** in the database using a key derived from the server's secret, so they aren't readable from the raw data alone.
 
 ## What this means in practice

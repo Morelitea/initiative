@@ -7,12 +7,19 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
+from app.core.encryption import (
+    SALT_CAPTCHA_SECRET_KEY,
+    SALT_FCM_SERVICE_ACCOUNT,
+    SALT_SMTP_PASSWORD,
+    decrypt_field,
+)
 from app.core.login_methods import DEFAULT_LOGIN_METHODS
 from app.models.platform.app_setting import AppSetting
 from app.services.platform.app_settings import (
     GLOBAL_SETTINGS_ID,
     _build_default_app_settings,
     ensure_settings_row,
+    get_app_setting_secrets,
     get_app_settings,
     get_or_create_guild_settings,
     seed_app_settings,
@@ -87,7 +94,6 @@ async def test_guild_settings_gap_fill_joins_the_transaction(session: AsyncSessi
 
     started = (await session.exec(text("SELECT txid_current()"))).one()
     row = await get_or_create_guild_settings(session, guild.id)
-    assert row.guild_id == guild.id
     assert row.id is not None
     assert (await session.exec(text("SELECT txid_current()"))).one() == started
 
@@ -157,3 +163,29 @@ async def test_env_seeds_the_row_once(session: AsyncSession, monkeypatch):
     _seed_env(monkeypatch, ["password"])
     assert (await seed_app_settings(session)).login_methods == ["passkey", "sso"]
     assert (await get_app_settings(session)).login_methods == ["passkey", "sso"]
+
+
+async def test_first_boot_stores_every_env_credential(
+    session: AsyncSession, monkeypatch
+):
+    """A fresh row keeps each secret the environment named, not only some."""
+    monkeypatch.setattr(app_config, "SMTP_PASSWORD", "smtp-pass")
+    monkeypatch.setattr(app_config, "CAPTCHA_SECRET_KEY", "captcha-secret")
+    monkeypatch.setattr(app_config, "FCM_SERVICE_ACCOUNT_JSON", '{"type": "sa"}')
+
+    await seed_app_settings(session)
+    stored = await get_app_setting_secrets(session)
+
+    assert (
+        decrypt_field(stored.smtp_password_encrypted, SALT_SMTP_PASSWORD) == "smtp-pass"
+    )
+    assert (
+        decrypt_field(stored.captcha_secret_key_encrypted, SALT_CAPTCHA_SECRET_KEY)
+        == "captcha-secret"
+    )
+    assert (
+        decrypt_field(
+            stored.fcm_service_account_json_encrypted, SALT_FCM_SERVICE_ACCOUNT
+        )
+        == '{"type": "sa"}'
+    )

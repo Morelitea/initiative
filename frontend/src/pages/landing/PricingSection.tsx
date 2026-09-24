@@ -77,7 +77,9 @@ const TierAction = ({
     );
   }
   const href =
-    tier.cta.kind === "external" ? docsUrl("admin/installation/") : portalPricingUrl(portalUrl);
+    tier.cta.kind === "external"
+      ? docsUrl("running-a-server/installation/")
+      : portalPricingUrl(portalUrl);
   return (
     <Button variant={variant} className="w-full" asChild>
       <a href={href} target="_blank" rel="noopener noreferrer">

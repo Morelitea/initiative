@@ -41,6 +41,8 @@ const DONE = {
   category: "done" as const,
   position: 3,
   is_default: false,
+  color: "#34D399",
+  icon: "circle-check",
 };
 
 /** The filter the section asked for, once it has asked at all. */

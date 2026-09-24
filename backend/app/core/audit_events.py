@@ -45,6 +45,11 @@ class AuditEventType(str, Enum):
     AUTH_SIGNED_IN = "auth.signed_in"
     AUTH_SIGN_IN_FAILED = "auth.sign_in_failed"
     AUTH_SIGNED_OUT = "auth.signed_out"
+    #: The account ended a session other than the one it was asking from —
+    #: a row in its own "where you're signed in" list, or all of them at
+    #: once. Apart from a sign-out because the session that ends is not the
+    #: session that asked, which is the whole point of recording it.
+    AUTH_SESSION_REVOKED = "auth.session_revoked"
     AUTH_PASSWORD_CHANGED = "auth.password_changed"
     #: The account gave its password up and signs in by another way from
     #: now on. Recorded apart from a change, because what the account holds
@@ -78,9 +83,9 @@ class AuditEventType(str, Enum):
     #: apart from ``issued``, because nothing was issued — this is the one
     #: that reads as movement onto the session path.
     AUTH_DEVICE_TOKEN_EXCHANGED = "auth.device_token_exchanged"
-    #: Who holds a guild's sign-in configuration changed. An operator seats
-    #: the first one; from then on the seat is passed on by whoever holds it,
-    #: and both paths record this.
+    #: Who holds a guild's sign-in configuration changed. The seat is passed
+    #: on by whoever holds it — by membership, or through a superadmin
+    #: settings grant — from the guild's own role route.
     GUILD_SUPERADMIN_CHANGED = "guild.superadmin_changed"
     #: A privileged-access grant was asked for, decided, or self-issued. The
     #: ``access_grants`` row is the record of what was granted; these say when
@@ -155,11 +160,14 @@ class AuditEventType(str, Enum):
     #: own.
     AUTH_PROVIDER_DEFAULT_SET = "auth_provider.default_set"
     AUTH_PROVIDER_DEFAULT_CLEARED = "auth_provider.default_cleared"
-    #: A claim rule places arriving accounts; written by an operator for a
-    #: community or by the community itself, and recorded the same way.
+    #: A claim rule places arriving accounts; written by the community's
+    #: superadmin for that community.
     CLAIM_RULE_CREATED = "claim_rule.created"
     CLAIM_RULE_UPDATED = "claim_rule.updated"
     CLAIM_RULE_DELETED = "claim_rule.deleted"
+    PROVIDER_PLACEMENT_EVERYWHERE_CHANGED = (
+        "platform.provider_placement_everywhere_changed"
+    )
     GUILD_PROVIDER_CONNECTED = "guild.provider_connected"
     GUILD_PROVIDER_CONNECTION_UPDATED = "guild.provider_connection_updated"
     GUILD_PROVIDER_DISCONNECTED = "guild.provider_disconnected"
@@ -178,6 +186,16 @@ class AuditEventType(str, Enum):
     #: An operator re-read the catalogue sources; carries what was published
     #: and withdrawn.
     MARKETPLACE_CATALOG_REFRESHED = "marketplace.catalog_refreshed"
+    #: A member shared an item from a community to this deployment's
+    #: marketplace; carries the listing, its version, and whether it waits for
+    #: review.
+    MARKETPLACE_LISTING_SHARED = "marketplace.listing_shared"
+    #: The owner approved or refused a shared version.
+    MARKETPLACE_LISTING_REVIEWED = "marketplace.listing_reviewed"
+    #: The owner uploaded a listing file.
+    MARKETPLACE_LISTING_UPLOADED = "marketplace.listing_uploaded"
+    #: A member took down a listing they shared.
+    MARKETPLACE_LISTING_WITHDRAWN = "marketplace.listing_withdrawn"
     #: An installed app's own settings or configuration.
     APP_UPDATED = "app.updated"
 
@@ -288,6 +306,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=False
     ),
     AuditEventType.AUTH_SIGNED_OUT: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_SESSION_REVOKED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_PASSWORD_CHANGED: AuditEventMeta(
@@ -438,6 +459,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.CLAIM_RULE_DELETED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
+    AuditEventType.PROVIDER_PLACEMENT_EVERYWHERE_CHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
     AuditEventType.GUILD_PROVIDER_CONNECTED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
@@ -475,6 +499,18 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.MARKETPLACE_CATALOG_REFRESHED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.MARKETPLACE_LISTING_SHARED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.MARKETPLACE_LISTING_REVIEWED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.MARKETPLACE_LISTING_UPLOADED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.MARKETPLACE_LISTING_WITHDRAWN: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.APP_UPDATED: AuditEventMeta(

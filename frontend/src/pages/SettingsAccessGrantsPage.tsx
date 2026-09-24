@@ -5,7 +5,6 @@ import type {
   AccessGrantRead,
   AccessGrantStatus,
   BreakGlassCreate,
-  UserRole,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   flattenGrants,
+  useAccessGrantLimits,
   useAccessGrantQueue,
   useApproveAccessGrant,
   useBreakGlass,
@@ -71,22 +71,18 @@ const activityRank = (grant: AccessGrantRead): number => {
   return 2;
 };
 
-// Least-privilege grant-duration caps per requester role. MUST match the
-// backend PAM_*_MAX_MINUTES defaults — the backend enforces; this only
-// decides which presets to offer. (member can't request.)
-const ROLE_MAX_MINUTES: Partial<Record<UserRole, number>> = {
-  support: 240, // 4h
-  moderator: 480, // 8h
-  operator: 1440, // 24h
-  owner: 1440,
-};
-
-// All whole-hour presets, ascending.
+// All whole-hour presets for a request, ascending.
 const DURATION_PRESETS_MINUTES = [60, 240, 480, 1440];
 
-const allowedDurations = (role: UserRole | undefined): number[] => {
-  const max = (role && ROLE_MAX_MINUTES[role]) ?? 240;
-  return DURATION_PRESETS_MINUTES.filter((m) => m <= max);
+/**
+ * The presets up to the server's ceiling for this caller, and the ceiling
+ * itself where it is not one of them. The server enforces the ceiling; this
+ * only decides which windows to offer.
+ */
+const durationsUpTo = (presets: number[], max: number | undefined): number[] => {
+  if (max === undefined) return [];
+  const offered = presets.filter((minutes) => minutes <= max);
+  return offered.includes(max) ? offered : [...offered, max];
 };
 
 export const SettingsAccessGrantsPage = () => {
@@ -142,8 +138,9 @@ const StatusBadge = ({ grant }: { grant: AccessGrantRead }) => {
   );
 };
 
-// Break-glass duration presets (whole hours), capped at the backend's
-// PAM_BREAK_GLASS_MAX_MINUTES (4h) — a self-approved grant is deliberately short.
+// Break-glass duration presets (whole hours), offered up to the window the
+// server says the caller may break glass for — a self-approved grant is
+// deliberately short.
 const BREAK_GLASS_DURATIONS_MINUTES = [60, 120, 240];
 
 // Self-serve emergency access for data.bypass holders (operator/owner). Unlike a
@@ -165,7 +162,8 @@ const BreakGlassSection = () => {
   const { t } = useTranslation(["settings", "common", "auth"]);
   const { refreshGuilds } = useGuilds();
   const [guildId, setGuildId] = useState("");
-  const [duration, setDuration] = useState("60");
+  // Null until chosen: the offered windows arrive with the requirements below.
+  const [chosenDuration, setDuration] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [code, setCode] = useState("");
 
@@ -187,6 +185,11 @@ const BreakGlassSection = () => {
   const hasKey = requirements.data?.passkey_enrolled ?? false;
   const knownUnenrolled = requirements.data !== undefined && !hasCode && !hasKey;
   const [presenting, setPresenting] = useState(false);
+  const breakGlassDurations = durationsUpTo(
+    BREAK_GLASS_DURATIONS_MINUTES,
+    requirements.data?.max_duration_minutes
+  );
+  const duration = chosenDuration ?? String(breakGlassDurations[0] ?? "");
 
   const breakGlass = useBreakGlass({
     onSuccess: () => {
@@ -196,7 +199,7 @@ const BreakGlassSection = () => {
       setCode("");
       setFactorRefused(false);
       setPresenting(false);
-      setDuration("60");
+      setDuration(null);
       // A break-glass grant is live immediately. The guild switcher and the
       // /c/{id} route guard read from the GuildProvider's context list (not
       // React Query), so refresh it here — otherwise the newly-reachable guild
@@ -215,7 +218,7 @@ const BreakGlassSection = () => {
   /** The request itself, with whatever answered the factor attached. */
   const issue = (answer: Partial<BreakGlassCreate>) => {
     const gid = Number.parseInt(guildId, 10);
-    if (!gid || !reason.trim()) return;
+    if (!gid || !reason.trim() || !duration) return;
     // No level to choose: breaking glass issues write access to the content
     // and a settings grant at superadmin. Somebody who wants less asks below.
     breakGlass.mutate({
@@ -274,7 +277,7 @@ const BreakGlassSection = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {BREAK_GLASS_DURATIONS_MINUTES.map((minutes) => (
+                {breakGlassDurations.map((minutes) => (
                   <SelectItem key={minutes} value={String(minutes)}>
                     {t("accessGrants.durationHours", { count: minutes / 60 })}
                   </SelectItem>
@@ -342,21 +345,26 @@ const BreakGlassSection = () => {
 
 const RequestSection = () => {
   const { t } = useTranslation(["settings", "common"]);
-  const { user } = useAuth();
   const myGrants = useMyAccessGrants();
+  const limits = useAccessGrantLimits();
   const sortedGrants = useMemo(
     () => flattenGrants(myGrants.data?.pages).sort((a, b) => activityRank(a) - activityRank(b)),
     [myGrants.data]
   );
-  const durationOptions = allowedDurations(user?.role);
-  const defaultDuration = String(durationOptions.includes(240) ? 240 : (durationOptions[0] ?? 240));
+  const durationOptions = durationsUpTo(
+    DURATION_PRESETS_MINUTES,
+    limits.data?.max_duration_minutes
+  );
+  const defaultDuration = String(durationOptions.includes(240) ? 240 : (durationOptions[0] ?? ""));
   const [guildId, setGuildId] = useState("");
   // Two axes, asked for independently. "none" is how you say you do not want
   // one — clearing up after an incident wants both; having a look wants only
   // the first.
   const [level, setLevel] = useState("read");
   const [settingsLevel, setSettingsLevel] = useState("none");
-  const [duration, setDuration] = useState(defaultDuration);
+  // Null until chosen: the offered windows arrive with the limits above.
+  const [chosenDuration, setDuration] = useState<string | null>(null);
+  const duration = chosenDuration ?? defaultDuration;
   const [reason, setReason] = useState("");
 
   const createRequest = useCreateAccessRequest({
@@ -364,7 +372,7 @@ const RequestSection = () => {
       toast.success(t("accessGrants.requestSubmitted"));
       setGuildId("");
       setReason("");
-      setDuration(defaultDuration);
+      setDuration(null);
     },
     onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.requestError")),
   });
@@ -378,7 +386,7 @@ const RequestSection = () => {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const gid = Number.parseInt(guildId, 10);
-    if (!gid || !reason.trim() || !asksForSomething) return;
+    if (!gid || !reason.trim() || !asksForSomething || !duration) return;
     createRequest.mutate({
       guild_id: gid,
       ...(level === "none" ? {} : { access_level: level as "read" | "read_write" }),

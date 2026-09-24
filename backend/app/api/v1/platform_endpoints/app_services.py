@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import require_capability
 from app.core.capabilities import Capability
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.user import User
 from app.schemas.platform.app_service import (
@@ -32,7 +32,7 @@ from app.services.marketplace import registrations as registrations_service
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 #: Wiring app services is deployment configuration — owner tier, like the rest
 #: of the platform settings wall.
 AppsManageDep = Annotated[User, Depends(require_capability(Capability.APPS_MANAGE))]
@@ -64,8 +64,8 @@ def _to_read(row: AppServiceRegistration) -> AppServiceRegistrationRead:
 
 @router.get("/", response_model=List[AppServiceRegistrationRead])
 async def list_app_services(
-    session: AdminSessionDep,
-    _admin: AppsManageDep,
+    session: SystemSessionDep,
+    _owner: AppsManageDep,
 ) -> List[AppServiceRegistrationRead]:
     """Every app service this deployment has wired up (``apps.manage``)."""
     rows = await registrations_service.list_registrations(session)
@@ -79,8 +79,8 @@ async def list_app_services(
 )
 async def create_app_service(
     payload: AppServiceRegistrationCreate,
-    session: AdminSessionDep,
-    admin: AppsManageDep,
+    session: SystemSessionDep,
+    owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Register an app service, running the handshake on the way in.
 
@@ -99,7 +99,7 @@ async def create_app_service(
         delegation_jwks=payload.delegation_jwks,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _to_read(row)
 
@@ -107,8 +107,8 @@ async def create_app_service(
 @router.get("/{registration_id}", response_model=AppServiceRegistrationRead)
 async def read_app_service(
     registration_id: int,
-    session: AdminSessionDep,
-    _admin: AppsManageDep,
+    session: SystemSessionDep,
+    _owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     row = await registrations_service.get_registration(session, registration_id)
     return _to_read(row)
@@ -118,8 +118,8 @@ async def read_app_service(
 async def update_app_service(
     registration_id: int,
     payload: AppServiceRegistrationUpdate,
-    session: AdminSessionDep,
-    admin: AppsManageDep,
+    session: SystemSessionDep,
+    owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Enable/disable, rotate the secret, repoint either address, or change the
     powers conferred. Rotating the secret or repointing ``base_url`` clears the
@@ -135,7 +135,7 @@ async def update_app_service(
         delegation_jwks=payload.delegation_jwks,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _to_read(row)
 
@@ -143,20 +143,20 @@ async def update_app_service(
 @router.delete("/{registration_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_app_service(
     registration_id: int,
-    session: AdminSessionDep,
-    admin: AppsManageDep,
+    session: SystemSessionDep,
+    owner: AppsManageDep,
 ) -> None:
     """Remove the registration. Every channel it backed stops with the row."""
     await registrations_service.delete_registration(
-        session, registration_id, actor_user_id=admin.id
+        session, registration_id, actor_user_id=owner.id
     )
 
 
 @router.post("/{registration_id}/verify", response_model=AppServiceRegistrationRead)
 async def verify_app_service(
     registration_id: int,
-    session: AdminSessionDep,
-    admin: AppsManageDep,
+    session: SystemSessionDep,
+    owner: AppsManageDep,
     payload: AppServiceVerifyRequest | None = None,
 ) -> AppServiceRegistrationRead:
     """Re-run the handshake and record the outcome on the row."""
@@ -164,6 +164,6 @@ async def verify_app_service(
         session,
         registration_id,
         accept_manifest_change=bool(payload and payload.accept_manifest_change),
-        actor_user_id=admin.id,
+        actor_user_id=owner.id,
     )
     return _to_read(row)

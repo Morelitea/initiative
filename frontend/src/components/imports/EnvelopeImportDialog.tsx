@@ -5,6 +5,7 @@ import {
   useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
   useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
   useImportEnvelopeApiV1GGuildIdImportsEnvelopePost,
+  useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost,
 } from "@/api/generated/imports/imports";
 import type { ImportJobRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
@@ -41,6 +42,12 @@ import { toolEnvelopeType, toolForEnvelopeType } from "@/lib/tools";
 // the server limit and must stay well below any plausible value of it.
 const DEGRADED_PARSE_BUDGET_BYTES = 10 * 1024 * 1024;
 
+/** Whether a picked file is a zipped export rather than a bare envelope. */
+const isZip = (file: File): boolean =>
+  file.type === "application/zip" ||
+  file.type === "application/x-zip-compressed" ||
+  file.name.toLowerCase().endsWith(".zip");
+
 interface ParsedEnvelope {
   type?: string;
   kind?: string;
@@ -68,6 +75,11 @@ export interface EnvelopeImportDialogProps {
  * to /imports/envelope. Generalizes the old ProjectImportDialog for every
  * importable tool.
  *
+ * An export that travels with its files — a gallery and its pictures — is a
+ * zip. That is sent as it is to /imports/envelope/archive, which reads it and
+ * says whether it belongs to this tool; there is nothing to preview in the
+ * browser without unpacking it.
+ *
  * Usually one step. The second appears only when the server stages the job
  * instead of applying it, which it does when the file quotes somebody nobody
  * here can be sure of: then this asks who those people are and confirms with
@@ -88,6 +100,8 @@ export function EnvelopeImportDialog({
   const { filterVisible, permissionsFor } = useInitiativeAccess();
 
   const [envelope, setEnvelope] = useState<ParsedEnvelope | null>(null);
+  // A zipped export, sent as it is rather than read here.
+  const [archive, setArchive] = useState<File | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [initiativeId, setInitiativeId] = useState<string | null>(
     fixedInitiativeId != null ? String(fixedInitiativeId) : null
@@ -104,6 +118,7 @@ export function EnvelopeImportDialog({
   const readGeneration = useRef(0);
 
   const importMutation = useImportEnvelopeApiV1GGuildIdImportsEnvelopePost();
+  const archiveMutation = useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost();
   const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
   const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
 
@@ -132,6 +147,7 @@ export function EnvelopeImportDialog({
       );
     } else {
       setEnvelope(null);
+      setArchive(null);
       setParseError(null);
       setFileName("");
       setStagedJob(null);
@@ -159,9 +175,16 @@ export function EnvelopeImportDialog({
     const isStale = () => generation !== readGeneration.current;
     setParseError(null);
     setEnvelope(null);
+    setArchive(null);
     const file = e.target.files?.[0];
     if (!file) {
       setFileName("");
+      return;
+    }
+    if (isZip(file)) {
+      // The server holds the size limit for zips and reads them itself.
+      setFileName(file.name);
+      setArchive(file);
       return;
     }
     // Guard the fully client-side file.text()/JSON.parse below. The server's
@@ -213,17 +236,28 @@ export function EnvelopeImportDialog({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!envelope || !initiativeId) {
+    if ((!envelope && !archive) || !initiativeId) {
       return;
     }
     try {
-      const response = (await importMutation.mutateAsync({
-        guildId,
-        data: {
-          envelope: envelope as unknown as Record<string, unknown>,
-          initiative_id: Number(initiativeId),
-        },
-      })) as { result: { entity_title: string; unmatched_handles: string[] } } | ImportJobRead;
+      const response = (
+        archive
+          ? await archiveMutation.mutateAsync({
+              guildId,
+              data: {
+                file: archive,
+                initiative_id: Number(initiativeId),
+                envelope_type: toolEnvelopeType(tool),
+              },
+            })
+          : await importMutation.mutateAsync({
+              guildId,
+              data: {
+                envelope: envelope as unknown as Record<string, unknown>,
+                initiative_id: Number(initiativeId),
+              },
+            })
+      ) as { result: { entity_title: string; unmatched_handles: string[] } } | ImportJobRead;
       // `id` rather than `result`, which a job row also carries (its report):
       // only a job has an id, so that is what tells the two apart.
       if (!("id" in response)) {
@@ -293,8 +327,8 @@ export function EnvelopeImportDialog({
     onOpenChange(false);
   };
 
-  const isSubmitting = importMutation.isPending;
-  const canSubmit = !!envelope && !!initiativeId && !isSubmitting;
+  const isSubmitting = importMutation.isPending || archiveMutation.isPending;
+  const canSubmit = (!!envelope || !!archive) && !!initiativeId && !isSubmitting;
   // Every tool's envelope names its entity `name`; document exports taken
   // before the rename spelled it `title`, which the server still accepts.
   const envelopeTitle = envelope?.name ?? envelope?.title ?? "";
@@ -348,7 +382,7 @@ export function EnvelopeImportDialog({
             <input
               id="envelope-import-file"
               type="file"
-              accept=".json,application/json"
+              accept=".json,.zip,application/json,application/zip"
               onChange={handleFileChange}
               className="block w-full text-sm"
             />
@@ -364,6 +398,10 @@ export function EnvelopeImportDialog({
                 title: envelopeTitle,
                 type: toolEnvelopeType(tool),
               })}
+            </div>
+          ) : archive ? (
+            <div className="rounded-md bg-muted p-3 text-sm">
+              {t("imports:envelope.archivePreview")}
             </div>
           ) : null}
 

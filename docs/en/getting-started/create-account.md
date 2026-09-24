@@ -43,17 +43,17 @@ There may also be an **"I'm not a robot"** box. Prove yourself. We believe in yo
 What happens next depends on how your group set things up:
 
 - **"Check your inbox to verify your email."** Click the link, then sign in. Nothing after a few minutes? It's in the spam folder. It's always in the spam folder.
-- **"Pending approval from an administrator."** Your group checks new sign-ups by hand. Nothing for you to do but wait for a human to click a button.
+- **"Pending approval from whoever runs this server."** Your group checks new sign-ups by hand. Nothing for you to do but wait for a human to click a button.
 - **You're just let straight in.** Some groups auto-approve anyone with a matching email address — everyone at `@yourteam.com`, say.
 
 ??? techspec "For the technically minded — how sign-up is gated"
-    Three independent settings, combined however an administrator likes:
+    Three independent settings, combined however whoever runs the server likes:
 
     - **Public registration** can be switched off entirely, making invite links the only way in.
     - **An allow-list of email domains** auto-approves sign-ups from trusted domains; everyone else waits for manual approval.
     - **Email verification** confirms the address belongs to whoever typed it.
 
-    The first person to register on a brand-new server becomes the platform **owner**. See [Platform roles](../admin/platform-roles.md).
+    The first person to register on a brand-new server becomes the platform **owner**. See [Platform roles](../running-a-server/platform-roles.md).
 
 ## Next
 

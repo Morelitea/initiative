@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-09-24
+
+### Added
+
+- **Import from Jira and Confluence** — **Community settings → Data** reads a Jira or Confluence site directly with an API token, or a Confluence space from its HTML export. Projects, issues, sprints, comments, attachments and page trees come across, and the links between issues and pages still work after the move. The token is deleted once it has been read.
+- **More in the editor** — callouts, status pills, merged table cells, drawings and Mermaid diagrams, all from the `/` menu.
+- **Your sessions, in one place** — **My Settings → Security** lists every browser and phone signed in to your account. You can sign any one of them out, or all of them except the one you're on.
+- **Control what notifications carry** — platform and community **Security** settings choose whether notifications may go to phones and email, and whether they may name what they're about. Where the two disagree, the stricter one wins.
+- **Mentions in task descriptions** — type `@` to name a member of the initiative or `#` to link anything in it, the same way comments do. The people it names are notified once, when they are first added, and the things it links show under **Linked from**.
+- **Pictures in task descriptions and comments** — paste or drag one in, or use the picture button, which offers the camera on the app. A picture you take back out, or never save, is deleted, and so is every picture on something that's deleted for good. Images from other websites in comments still show as links.
+- **Smaller additions** — a 12- or 24-hour clock under **My Settings → Interface**, a **Fields** menu that picks what kanban cards show, a file upload in **Add link**, a colour for each priority, and MCP assistants can now tick checklist items.
+- **For operators** — `/api/v1/metrics` serves Prometheus metrics when `METRICS_TOKEN` is set. Communities can be put **On hold**; one left on hold for 30 days is deleted, and its superadmins are emailed that date when the hold starts. Change the window under **Settings → Platform → Community**. **Settings → Intake** takes contact addresses, which notices use when they tell people who to contact. Sign-in placement rules on an identity provider add people to communities by group.
+
+### Changed
+
+- **Exporting a tool belongs to whoever can delete it** — export moved to each tool's **Settings → Advanced**, for its owner, community admins and roles with full access. Every tool can be exported there. Galleries download as a zip with their pictures, and wikis as PDF, Markdown, Word or an importable zip that brings their filed documents along; both zips import back.
+- **Suspension means no access** — a suspended community or account reaches nothing, settings included, until the suspension is lifted, and sees a notice saying who to contact. Nothing is deleted.
+- **Imports live with the community** — Todoist, TickTick and Vikunja imports moved from **My Settings** to **Community settings → Data**. They now bring due dates, tags, assignees and comments along.
+- **Sign-in group rules are set per community** — they moved from platform settings to **Community settings → Security**. Rules that were already saved keep working.
+- **Signing out affects only the device you're on.** Changing your password still signs out everywhere.
+- **Names and titles are capped at 255 characters.**
+- **One database URL** — set `DATABASE_URL` to the database owner and Initiative creates its own database logins, with passwords derived from `SECRET_KEY`. Existing setups that set `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` work unchanged. To switch, point `DATABASE_URL` at the owner, remove `DATABASE_URL_APP`, `DATABASE_URL_ADMIN` and `DATABASE_URL_BOOTSTRAP`, and restart.
+- **Breaking API and configuration changes**
+  - `/api/v1/admin/*` is now `/api/v1/operator/*`, and `/api/v1/announcements/admin/*` is now `/api/v1/announcements/operator/*`. The matching `Admin*` schemas are renamed `Operator*`.
+  - `/api/v1/settings/oidc-mappings` and the operator routes for initiative and community members were removed. Use `PATCH /api/v1/guilds/{guild_id}/members/{user_id}` and `/api/v1/guilds/{guild_id}/auth/rules` instead.
+  - The access-grant approval queue is now `GET /api/v1/access-grants/queue`.
+  - `CAPTCHA_*` and `FCM_*` are read on first boot only. After that, set the captcha in **Settings → Platform → Security** and push notifications in **Settings → Platform → Push notifications**, with no restart.
+  - The `PAM_*_MINUTES` variables are no longer read. Access grants now last up to 4 hours for support, 8 for moderators, 24 for operators and owners, and 4 for break-glass.
+  - `GET /exports/{project,document,queue,counter-group,dashboard,calendar}` answer `403 EXPORT_OWNER_REQUIRED` unless the caller holds the owner rung on every selected item. `/exports/calendar` without ids includes only calendars the caller may export. `GET /exports/post`, `/exports/wiki` and `/exports/gallery` are new; `/exports/gallery` returns a zip, and `/exports/wiki` takes `pdf`, `md` and `docx` and always returns a zip with the wiki's filed documents. `POST /imports/envelope/archive` imports an export zipped with its files.
+
+### Fixed
+
+- Initiative members who aren't community admins can upload documents again.
+- Emailed sign-in codes work on servers that use a captcha.
+- Support and break-glass grants now open the settings they were granted for. Settings you can only view are shown as view-only.
+- An edit made just before you leave a document now shows up in exports, search and wikis. Columns survive the Markdown view and exports.
+- Every kind of document opens properly inside a wiki.
+- Sign-in group rules place only people the community's own connection recognises.
+- On servers that keep files in S3, backup restores and large imports finish instead of failing when they are applied.
+- A restored backup, or a single exported project, document, post or wiki, now links its mentions, `#` references, `[[ ]]` links and smart chips to the right people and things. A reference to something the backup didn't carry keeps pointing at the original in the community it came from, and is its name anywhere else.
+- `#` references to wiki pages, counter groups and other two-word tools in comments now count in **Linked from**.
+- A deleted account is now emptied completely. Its trophies, installed decoration packs, custom status, passkeys, notifications and queued email go, along with its direct-message devices, contacts, favourites and ignores. Operators can now permanently remove an account that once set a community's icon or banner.
+- Deleting or anonymizing an account no longer fails when it was mentioned in archived work or in a comment in the trash.
+- Making a missing tool from `[[` in a comment now puts the link where you typed it, and works in replies too.
+- Other fixes: task table columns no longer jump while scrolling, tags shorten to fit the space they have, export formats show their names, broken and missing pages get a proper error page, restored backups keep comment replies in their threads, imports ask about everyone they mention, and access-request notifications open the right page.
+
 ## [0.71.3] - 2026-09-21
 
 ### Added

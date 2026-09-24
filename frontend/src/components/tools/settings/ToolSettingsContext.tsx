@@ -10,6 +10,7 @@
 import { createContext, type ReactNode, useContext } from "react";
 
 import type { ResourceGrantSchema, TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { ExportFormatOption } from "@/components/exports/ExportButton";
 
 /**
  * The slice of a tool's read schema its settings need. Every tool — queues,
@@ -42,6 +43,16 @@ export interface ToolSettingsEntity {
   reactions_enabled?: boolean;
 }
 
+/**
+ * What a tool's export card offers when the tool's registry formats are not
+ * the whole answer — a document's formats follow its type, and a whiteboard
+ * adds pictures only the browser can draw.
+ */
+export interface ToolExportOptions {
+  formats?: ExportFormatOption[];
+  extraActions?: { labelKey: string; onSelect: () => void }[];
+}
+
 /** Per-call callbacks so the sections — not each wrapper — own toasts and routing. */
 export type ToolSettingsMutateOptions = { onSuccess?: () => void };
 
@@ -68,8 +79,10 @@ export interface ToolSettingsContextValue {
   remove: ToolMutation<number>;
   /** Extra cards for the Details section, e.g. a project's dates or a calendar's color. */
   detailsExtra?: ReactNode;
-  /** Extra cards for the Advanced section, e.g. duplicate, archive, or export. */
+  /** Extra cards for the Advanced section, e.g. duplicate or archive. */
   advancedExtra?: ReactNode;
+  /** Overrides for the Advanced section's export card. */
+  exportOptions?: ToolExportOptions;
 }
 
 const ToolSettingsContext = createContext<ToolSettingsContextValue | null>(null);

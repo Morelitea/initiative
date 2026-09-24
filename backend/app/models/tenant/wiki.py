@@ -18,10 +18,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -58,7 +61,12 @@ class WikiReadingWidth(str, Enum):
 
 
 class Wiki(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     """A body of linked pages in an initiative.
 
@@ -84,7 +92,6 @@ class Wiki(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(
         sa_column=Column(
             Integer,
@@ -258,7 +265,6 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
     _display_field: ClassVar[str] = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     wiki_id: int = Field(
         sa_column=Column(
             Integer,
@@ -326,3 +332,6 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
+
+
+attach_access_level(Wiki, Tool.wiki)

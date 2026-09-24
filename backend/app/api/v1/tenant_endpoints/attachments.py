@@ -18,12 +18,14 @@ from app.models.platform.user import User
 from app.schemas.tenant.attachment import AttachmentUploadResponse
 from app.services.tenant.attachments import (
     FileTooLargeError,
+    PASTED_IMAGE_PREFIX,
     StorageQuotaExceededError,
     compute_content_hash,
     enforce_storage_quota,
     read_upload_bounded,
 )
 from app.services import storage_config
+from app.services.tenant import attachments as attachments_service
 from app.services.storage import get_guild_storage
 
 router = APIRouter()
@@ -112,15 +114,20 @@ def _detect_content_type(contents: bytes) -> str | None:
     return None
 
 
-@router.post(
-    "/", response_model=AttachmentUploadResponse, status_code=status.HTTP_201_CREATED
-)
-async def upload_attachment(
-    current_user: ImageUploadUser,
+async def _store_image(
+    *,
+    current_user: User,
     session: RLSSessionDep,
-    guild_context: GuildContextDep,
-    file: UploadFile = File(...),
+    guild_id: int,
+    file: UploadFile,
+    prefix: str = "",
 ) -> AttachmentUploadResponse:
+    """Check, store and record one pasted or chosen image.
+
+    ``prefix`` leads the stored name, which the server alone chooses — so it
+    can say what the image was uploaded for, and nothing a client sends can
+    make an image claim to be one.
+    """
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -149,11 +156,11 @@ async def upload_attachment(
 
     # The stored name carries the detected format, so the suffix the serve path
     # reads and the type recorded on the row describe the same bytes.
-    filename = f"{uuid4().hex}{_SUFFIXES[content_type]}"
+    filename = f"{prefix}{uuid4().hex}{_SUFFIXES[content_type]}"
 
     try:
         await enforce_storage_quota(
-            session, guild_id=guild_context.guild_id, incoming_bytes=len(contents)
+            session, guild_id=guild_id, incoming_bytes=len(contents)
         )
     except StorageQuotaExceededError:
         raise HTTPException(
@@ -164,13 +171,10 @@ async def upload_attachment(
     # Pick up a backend/credential change saved in another worker before writing,
     # so the blob lands in the configured store (TTL-gated; usually a no-op).
     await storage_config.ensure_storage_config_fresh(session)
-    get_guild_storage(guild_context.guild_id).write(
-        filename, contents, content_type=content_type
-    )
+    get_guild_storage(guild_id).write(filename, contents, content_type=content_type)
 
     upload = Upload(
         filename=filename,
-        guild_id=guild_context.guild_id,
         created_by=current_user.id,
         size_bytes=len(contents),
         content_type=content_type,
@@ -182,7 +186,70 @@ async def upload_attachment(
     return AttachmentUploadResponse(
         filename=file.filename or filename,
         # Guild in the path so the served media self-describes its guild.
-        url=f"/uploads/{guild_context.guild_id}/{filename}",
+        url=f"/uploads/{guild_id}/{filename}",
         content_type=content_type,
         size=len(contents),
     )
+
+
+@router.post(
+    "/", response_model=AttachmentUploadResponse, status_code=status.HTTP_201_CREATED
+)
+async def upload_attachment(
+    current_user: ImageUploadUser,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+) -> AttachmentUploadResponse:
+    return await _store_image(
+        current_user=current_user,
+        session=session,
+        guild_id=guild_context.guild_id,
+        file=file,
+    )
+
+
+@router.post(
+    "/pasted",
+    response_model=AttachmentUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_pasted_image(
+    current_user: ImageUploadUser,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+) -> AttachmentUploadResponse:
+    """Store a picture pasted into markdown — a task's description, a comment.
+
+    The picture belongs to the text it is written into: taking it back out, or
+    purging what it is in, deletes it once nothing else shows it.
+    """
+    return await _store_image(
+        current_user=current_user,
+        session=session,
+        guild_id=guild_context.guild_id,
+        file=file,
+        prefix=PASTED_IMAGE_PREFIX,
+    )
+
+
+@router.delete("/pasted/{filename}", status_code=status.HTTP_204_NO_CONTENT)
+async def discard_pasted_image(
+    filename: str,
+    current_user: ImageUploadUser,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+) -> None:
+    """Discard a picture that was pasted and never saved.
+
+    Asked by the page that pasted it, as it is left. A picture something saved
+    shows, or that somebody else uploaded, stays — and says so no differently,
+    so the answer is the same whatever the name.
+    """
+    discarded = await attachments_service.discard_pasted_image(
+        session, filename, user_id=current_user.id
+    )
+    await session.commit()
+    if discarded is not None:
+        get_guild_storage(guild_context.guild_id).delete(discarded)

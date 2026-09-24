@@ -10,6 +10,8 @@ from app.core.audit_events import AuditEventType
 from app.db.session import set_rls_context
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services import audit as audit_service
+from app.services.auth import guild_provider_connections as guild_connections
+from app.services.platform import provider_placement
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
@@ -19,6 +21,7 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
 )
 from app.models.platform.oidc_claim_mapping import (
+    ClaimRuleAuthor,
     OIDCClaimMapping,
     OIDCMappingTargetType,
 )
@@ -108,12 +111,39 @@ def extract_claim_values(
     return set()
 
 
+async def placement_claims(session: AsyncSession, *, provider_id: int) -> set[str]:
+    """The verified claims this provider's rules are decided by: the narrowing
+    each community that wrote a rule has for the provider, and the directory a
+    provider rule names. What :func:`sync_oidc_assignments` reads from
+    ``claims`` besides the groups."""
+    rules = (
+        await session.exec(
+            select(OIDCClaimMapping).where(OIDCClaimMapping.provider_id == provider_id)
+        )
+    ).all()
+    names = {
+        rule.scope_claim
+        for rule in rules
+        if rule.author == ClaimRuleAuthor.provider
+        and rule.scope_claim
+        and rule.scope_value
+    }
+    return names | await guild_connections.narrowing_claims(
+        session,
+        provider_id=provider_id,
+        guild_ids={
+            rule.guild_id for rule in rules if rule.author == ClaimRuleAuthor.community
+        },
+    )
+
+
 async def sync_oidc_assignments(
     session: AsyncSession,
     *,
     user_id: int,
     provider_id: int,
     claim_values: set[str],
+    claims: dict,
 ) -> OIDCSyncResult:
     """Reconcile guild/initiative memberships against one provider's claims.
 
@@ -123,17 +153,43 @@ async def sync_oidc_assignments(
     Another provider's rules and another provider's memberships are not this
     sign-in's business.
 
-    Must be called with an admin session (bypasses RLS).
+    ``claim_values`` are the groups the provider asserted; ``claims`` is the
+    whole verified set, which says whose tenant the arrival belongs to. A rule
+    applies only where its community counts the arrival as one of its own.
+
+    Must be called with a system session.
     """
     result = OIDCSyncResult()
 
     # This provider's rules. Two providers spell their groups their own way, so
-    # a claim value means nothing until you know who asserted it. A guild's own
-    # provider reads all of its own rules: every provider is the operator's, and
-    # the rules are platform-level configuration naming whichever guild each
-    # one grants.
+    # a claim value means nothing until you know who asserted it. Each rule
+    # names the guild it grants in and is written by that guild's superadmin,
+    # so it speaks for the arrivals that guild's connection admits.
     stmt = select(OIDCClaimMapping).where(OIDCClaimMapping.provider_id == provider_id)
-    mappings = (await session.exec(stmt)).all()
+    rules = (await session.exec(stmt)).all()
+    community_rules = [r for r in rules if r.author == ClaimRuleAuthor.community]
+    provider_rules = [r for r in rules if r.author == ClaimRuleAuthor.provider]
+    admitted = await guild_connections.communities_admitting(
+        session,
+        provider_id=provider_id,
+        claims=claims,
+        guild_ids={rule.guild_id for rule in community_rules},
+    )
+    # The platform's rules for this provider place people where the community
+    # accepts them, or everywhere where the deployment says so, and only
+    # arrivals from the directory a rule names, if it names one. A community's
+    # own narrowing governs the rules it wrote, not these: who a provider rule
+    # places is the operator's to say.
+    placeable = await provider_placement.placeable_communities(
+        session,
+        provider_id=provider_id,
+        guild_ids={rule.guild_id for rule in provider_rules},
+    )
+    mappings = [rule for rule in community_rules if rule.guild_id in admitted] + [
+        rule
+        for rule in provider_rules
+        if rule.guild_id in placeable and provider_placement.in_scope(rule, claims)
+    ]
     # No early return on an empty set. A provider whose last rule was deleted
     # grants nothing, which is not the same as having nothing to take back —
     # the sweeps below are what hand those memberships over.
@@ -144,7 +200,8 @@ async def sync_oidc_assignments(
     matched_initiative_ids: set[int] = set()
 
     for mapping in mappings:
-        if mapping.claim_value.lower() in claim_values:
+        # A rule naming no group places everybody its directory matched.
+        if mapping.claim_value is None or mapping.claim_value.lower() in claim_values:
             matched.append(mapping)
             if mapping.target_type == OIDCMappingTargetType.guild:
                 matched_guild_ids.add(mapping.guild_id)
@@ -187,7 +244,7 @@ async def sync_oidc_assignments(
     # guild-scoped (per-guild schemas). Every guild-scoped read/write below is
     # therefore routed into the relevant guild's schema as its guild role.
 
-    # --- Guild memberships (shared table — public/admin context) ---
+    # --- Guild memberships (shared table — public/system context) ---
     # Apply matched guild roles, and ensure a membership exists for every guild
     # that has a matched initiative so the initiative member can be added below.
     ensure_member_guilds = set(guild_roles) | set(initiative_guild.values())
@@ -205,9 +262,8 @@ async def sync_oidc_assignments(
         if membership:
             # Only a row this provider manages. One somebody joined by
             # hand, or another provider's, is not this sync's to move — and
-            # neither is a superadmin: that seat is passed on by an
-            # operator or by somebody already holding it, never by a rule
-            # matching a claim value.
+            # neither is a superadmin: that seat is passed on by somebody
+            # holding it, never by a rule matching a claim value.
             if (
                 desired is not None
                 and membership.oidc_provider_id == provider_id
@@ -281,7 +337,7 @@ async def sync_oidc_assignments(
 
     for gid in relevant_guilds:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await set_rls_context(session, guild_id=gid)
 
         guild_inits = {iid for iid, g in initiative_guild.items() if g == gid}
         # Drop references to initiatives that no longer exist in this schema
@@ -430,7 +486,7 @@ async def sync_oidc_assignments(
         if stale_gid in matched_guild_ids:
             continue
         session.expunge_all()
-        await set_rls_context(session, guild_id=stale_gid, guild_role="admin")
+        await set_rls_context(session, guild_id=stale_gid)
         await remove_user_from_guild_initiatives(
             session, guild_id=stale_gid, user_id=user_id
         )
@@ -534,7 +590,6 @@ async def _create_initiative_membership(
     im = InitiativeMember(
         initiative_id=initiative_id,
         user_id=user_id,
-        guild_id=guild_id,
         role_id=role_id,
         oidc_provider_id=provider_id,
     )

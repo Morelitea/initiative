@@ -111,7 +111,7 @@ def builtin_announcement_key(slug: str) -> str:
 class Announcement(SQLModel, table=True):
     __tablename__ = "announcements"
     __table_args__ = (
-        # Every read is "what is live now, newest first"; the admin list is the
+        # Every read is "what is live now, newest first"; the operator list is the
         # same query with the published filter dropped.
         Index("ix_announcements_published_at", "published_at"),
     )
@@ -170,10 +170,6 @@ class Announcement(SQLModel, table=True):
     #: what the SPA's routes are.
     trigger_route: Optional[str] = Field(
         default=None, sa_column=Column(String(200), nullable=True)
-    )
-    created_by: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("users.id", ondelete="SET NULL")),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -243,10 +239,6 @@ class AnnouncementImage(SQLModel, table=True):
     width: int = Field(sa_column=Column(Integer, nullable=False))
     height: int = Field(sa_column=Column(Integer, nullable=False))
     data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
-    created_by: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("users.id", ondelete="SET NULL")),
-    )
     #: When these bytes were last put here. Uploading the same picture twice
     #: keeps one row and moves this, because it is what the orphan sweep reads
     #: to decide whether nobody wants it — and a re-upload is somebody

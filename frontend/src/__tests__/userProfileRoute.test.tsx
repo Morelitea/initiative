@@ -17,7 +17,7 @@ import { getUrlHandle } from "@/lib/userDisplay";
 import { routeTree } from "@/routeTree.gen";
 
 import { buildUserProfile } from "./factories";
-import { renderPage } from "./helpers/render";
+import { buildRouterContext, renderPage } from "./helpers/render";
 
 const PROFILE_ROUTE_ID = "/_serverRequired/_authenticated/u/$handle";
 
@@ -61,7 +61,7 @@ const community = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const router = createRouter({ routeTree });
+const router = createRouter({ routeTree, context: buildRouterContext() });
 
 const profilePage = async () => {
   const route = router.routesById[PROFILE_ROUTE_ID];
@@ -100,10 +100,7 @@ beforeEach(() => {
 
 describe("a member's profile", () => {
   it("is an address the shipped route tree serves, keyed by handle", () => {
-    const matches = router.matchRoutes(
-      { pathname: "/u/tinker0042", search: {} },
-      { preload: true }
-    );
+    const matches = router.matchRoutes("/u/tinker0042", {});
     expect(String(matches.at(-1)?.routeId)).toBe(PROFILE_ROUTE_ID);
   });
 
@@ -228,7 +225,17 @@ describe("a member's profile", () => {
   });
 
   it("leaves the rail closed for someone in no communities at all", async () => {
-    answerWith(buildUserProfile({ profile_decorations: { trophies: ["ttrpg.d20"] } }));
+    answerWith(
+      buildUserProfile({
+        profile_decorations: {
+          banner: null,
+          frame: null,
+          frame_tint: [],
+          trophies: ["ttrpg.d20"],
+          grad_year: null,
+        },
+      })
+    );
     await renderProfile();
 
     await screen.findByRole("list", { name: "Trophies" });
@@ -241,7 +248,9 @@ describe("a member's profile", () => {
         profile_decorations: {
           banner: "core.aurora",
           frame: "spooky.web",
+          frame_tint: [],
           trophies: ["ttrpg.d20", "thirdparty.unknown"],
+          grad_year: null,
         },
       })
     );

@@ -19,9 +19,10 @@ from dataclasses import dataclass
 from typing import Annotated, Any, Callable, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
+from app.db.session import require_guild_context
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
@@ -33,7 +34,6 @@ from app.core.tools import RECENTABLE_TOOLS, Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.recent_view import RecentView
 from app.models.platform.user import User
@@ -109,9 +109,10 @@ async def _enrich_recent_rows(
     """Resolve one guild's recent_views rows into render-only tab items.
 
     Must run inside that guild's routed context — relationships and ids are
-    per-schema, and ``require_access`` reads the role established for that
-    guild, so a row reaches the same verdict here as on its detail page.
+    per-schema, and the standing the seam computed for that community is what
+    decides, so a row reaches the same verdict here as on its detail page.
     """
+    context = require_guild_context(session)
     ids_by_type = recent_views_service.group_ids_by_type(rows)
 
     # One eager-load per tool that actually appears in this batch. Every
@@ -128,7 +129,8 @@ async def _enrich_recent_rows(
             .where(model.id.in_(ids))
             .options(
                 selectinload(model.grants).selectinload(ResourceGrant.role),
-                selectinload(model.initiative).selectinload(Initiative.memberships),
+                selectinload(model.initiative),
+                undefer(model.access_level),
             )
         )
         result = await session.exec(stmt)
@@ -141,13 +143,13 @@ async def _enrich_recent_rows(
             continue
         tool, spec = entry
         entity = loaded.get(row.entity_type, {}).get(row.entity_id)
-        if entity is None or entity.guild_id is None:
+        if entity is None:
             continue
         try:
             permissions_service.require_access(
                 permissions_service.DAC_RESOURCES[tool],
                 entity,
-                current_user,
+                context=context,
                 access="read",
             )
         except HTTPException:
@@ -165,7 +167,7 @@ async def _enrich_recent_rows(
                 # what the serializer is later handed.
                 entity_type=RecentEntityType(tool.value),
                 entity_id=entity.id,
-                guild_id=entity.guild_id,
+                guild_id=context.guild_id,
                 initiative_id=getattr(entity, "initiative_id", None),
                 name=getattr(entity, spec.name_attr),
                 last_viewed_at=row.last_viewed_at,

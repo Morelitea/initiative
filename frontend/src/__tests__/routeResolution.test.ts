@@ -12,7 +12,9 @@ import { describe, expect, it } from "vitest";
 
 import { routeTree } from "@/routeTree.gen";
 
-const router = createRouter({ routeTree });
+import { buildRouterContext } from "./helpers/render";
+
+const router = createRouter({ routeTree, context: buildRouterContext() });
 
 /**
  * The id of the innermost route a pathname resolves to.
@@ -22,7 +24,7 @@ const router = createRouter({ routeTree });
  * to null — that is what the deleted-route cases below assert.
  */
 function resolvedRouteId(pathname: string): string {
-  const matches = router.matchRoutes({ pathname, search: {} }, { preload: true });
+  const matches = router.matchRoutes(pathname, {});
   return String(matches.at(-1)?.routeId ?? "__none__");
 }
 

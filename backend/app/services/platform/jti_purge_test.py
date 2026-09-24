@@ -118,5 +118,5 @@ async def test_worker_noop_when_nothing_configured(monkeypatch):
         raise AssertionError("worker opened a session with nothing configured")
 
     _configure(monkeypatch, billing=False, delegation=False)
-    monkeypatch.setattr(session_module, "AdminSessionLocal", _explode)
+    monkeypatch.setattr(session_module, "SystemSessionLocal", _explode)
     await process_jti_blocklist_purges()

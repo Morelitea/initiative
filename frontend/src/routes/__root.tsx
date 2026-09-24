@@ -11,6 +11,7 @@ import { useConsentSync } from "@/hooks/useConsentSync";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { useSafeArea } from "@/hooks/useSafeArea";
+import { useTimeFormatSync } from "@/hooks/useTimeFormat";
 import type { RouterContext } from "@/router";
 
 /**
@@ -32,6 +33,7 @@ const RootComponent = () => {
   useConsentSync();
   useSafeArea();
   useDeepLinks();
+  useTimeFormatSync();
 
   return (
     <>

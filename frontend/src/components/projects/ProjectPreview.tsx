@@ -3,7 +3,11 @@ import { GripVertical } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type InitiativeRead, type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type InitiativeSummary,
+  type ProjectRead,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -11,8 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
-import { useGuilds } from "@/hooks/useGuilds";
-import { managesInitiative } from "@/hooks/useInitiativeAccess";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
@@ -36,11 +38,7 @@ interface ProjectLinkProps {
  * Check if the user can pin/unpin a project.
  * Only guild admins and initiative managers can pin projects.
  */
-export const canPinProject = (
-  project: ProjectRead,
-  userId?: number,
-  isGuildAdmin?: boolean
-): boolean => {
+export const canPinProject = (project: ProjectRead, userId?: number): boolean => {
   if (!userId) return false;
 
   // An archived project takes no edits at all, pinning included — the server
@@ -48,12 +46,9 @@ export const canPinProject = (
   // the read-only indicator.
   if (project.archived_at !== null) return false;
 
-  // Guild admins can always pin. Which roles count is the server's answer,
-  // carried on the guild.
-  if (isGuildAdmin) return true;
-
-  // Manager standing in this project's initiative, by the one rule.
-  return managesInitiative(project.initiative?.members, userId);
+  // Whether the reader may configure the project is the server's answer: the
+  // same one the pinning route asks.
+  return project.can_configure;
 };
 
 export const ProjectCardLink = ({
@@ -63,13 +58,12 @@ export const ProjectCardLink = ({
   actions,
   showInitiative = true,
 }: ProjectLinkProps) => {
-  const { activeGuild } = useGuilds();
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId, activeGuild?.is_admin);
+  const canPin = canPinProject(project, userId);
 
   return (
     <div className="relative">
@@ -161,14 +155,13 @@ export const ProjectRowLink = ({
   actions,
   showInitiative = true,
 }: ProjectLinkProps) => {
-  const { activeGuild } = useGuilds();
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
     : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId, activeGuild?.is_admin);
+  const canPin = canPinProject(project, userId);
   return (
     <div className="relative">
       {dragHandleProps ? (
@@ -281,7 +274,7 @@ export const InitiativeLabel = ({
   initiative,
   nested = false,
 }: {
-  initiative?: InitiativeRead | null;
+  initiative?: InitiativeSummary | null;
   /** Set when rendered inside a wrapping link (card-as-anchor): navigates
    * programmatically instead of nesting an `<a>` in an `<a>`, and stops the
    * click from also triggering the outer link. */

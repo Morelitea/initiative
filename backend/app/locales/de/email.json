@@ -50,7 +50,8 @@
     "assignedBy": "zugewiesen von <strong>{{name}}</strong>",
     "inProject": "in <strong>{{projectName}}</strong>",
     "footer": "Besuche Initiative, um die Aufgaben zu prüfen.",
-    "textBody": "Hier ist deine stündliche Übersicht der dir zugewiesenen Aufgaben:"
+    "textBody": "Hier ist deine stündliche Übersicht der dir zugewiesenen Aufgaben:",
+    "redactedItem": "Dir wurde eine Aufgabe zugewiesen"
   },
   "mention": {
     "document": {
@@ -67,6 +68,11 @@
       "subject": "Deine Aufgabe wurde erwähnt",
       "title": "Deine Aufgabe wurde erwähnt",
       "body": "<strong>{{actor}}</strong> hat <strong>{{task}}</strong> in <strong>{{context}}</strong> erwähnt"
+    },
+    "taskDescription": {
+      "subject": "Du wurdest in {{task}} erwähnt",
+      "title": "Du wurdest erwähnt",
+      "body": "<strong>{{actor}}</strong> hat dich in der Beschreibung von <strong>{{task}}</strong> erwähnt"
     },
     "greeting": "Hallo <strong>{{name}}</strong>,",
     "buttonLabel": "Ansehen"
@@ -142,7 +148,8 @@
     "taskDetail": "Projekt: <strong>{{projectName}}</strong>, fällig am <strong>{{dueDate}}</strong>",
     "footer": "Besuche Initiative, um wieder auf Kurs zu kommen.",
     "textBody_one": "Du hast {{count}} überfällige Aufgabe:",
-    "textBody_other": "Du hast {{count}} überfällige Aufgaben:"
+    "textBody_other": "Du hast {{count}} überfällige Aufgaben:",
+    "redactedItem": "Eine Aufgabe ist überfällig"
   },
   "accessGrant": {
     "buttonLabel": "Zugriffs-Dashboard öffnen",
@@ -209,7 +216,8 @@
     "body": "Hier ist deine Übersicht der Reaktionen auf deine Beiträge:",
     "line": "von <strong>{{name}}</strong> auf",
     "footer": "Öffne Initiative, um die Unterhaltung zu sehen.",
-    "textBody": "Hier ist deine Übersicht der Reaktionen auf deine Beiträge:"
+    "textBody": "Hier ist deine Übersicht der Reaktionen auf deine Beiträge:",
+    "redactedItem": "Jemand hat auf einen deiner Beiträge reagiert"
   },
   "quietHours": {
     "summary": {
@@ -360,5 +368,18 @@
     "recoverable": "Es wurde noch nichts zerstört. Bis <strong>{{date}}</strong> kann die Serverbetreuung sie genau so wiederherstellen, wie sie war — frag dort nach, falls das nicht beabsichtigt war.",
     "recoverableNoDate": "Es wurde nichts zerstört. Die Serverbetreuung kann sie genau so wiederherstellen, wie sie war — frag dort nach, falls das nicht beabsichtigt war.",
     "textBody": "Die Community {{community}} wurde gelöscht. Ihre Mitglieder sehen sie nicht mehr. Es wurde noch nichts zerstört, und die Serverbetreuung kann sie wiederherstellen."
+  },
+  "communityOnHold": {
+    "subject": "{{community}} ist pausiert",
+    "title": "{{community}} ist pausiert",
+    "greeting": "Hallo,",
+    "body": "<strong>{{community}}</strong> ist pausiert, deshalb kann sie vorerst niemand öffnen – weder ihre Mitglieder noch ihre Administratoren. Nichts darin wurde geändert oder entfernt.",
+    "deletion": "Ist sie am <strong>{{date}}</strong> noch pausiert, wird sie gelöscht.",
+    "contact": "Wende dich an <strong>{{contact}}</strong>, um das zu klären.",
+    "contactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "textBody": "{{community}} ist pausiert, deshalb kann sie vorerst niemand öffnen. Nichts darin wurde geändert oder entfernt.",
+    "textDeletion": "Ist sie am {{date}} noch pausiert, wird sie gelöscht.",
+    "textContact": "Wende dich an {{contact}}, um das zu klären.",
+    "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären."
   }
 }

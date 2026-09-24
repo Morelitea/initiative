@@ -12,10 +12,12 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.guild import GuildRole
 from app.models.platform.notification import NotificationType
 from app.services.platform import user_notifications
 from app.testing.factories import (
     create_guild,
+    create_task,
     create_user,
     get_auth_headers,
     set_notification_prefs,
@@ -259,3 +261,42 @@ async def test_cannot_read_other_users_notification(
         headers=get_auth_headers(other),
     )
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_the_bell_reads_the_title_back_from_the_community(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A line stores the reference; the title comes from the task, when read.
+
+    Renaming the task changes what the bell says, which is the whole reason the
+    title is not kept on the line.
+    """
+    actor = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    task = await create_task(session, actor.project)
+    await user_notifications.create_notification(
+        session,
+        user_id=actor.user.id,
+        notification_type=NotificationType.task_assignment,
+        data={
+            "task_id": task.id,
+            "guild_id": actor.guild.id,
+            "initiative_id": actor.initiative.id,
+        },
+    )
+    await session.commit()
+
+    async def _line() -> dict:
+        response = await client.get("/api/v1/notifications/", headers=actor.headers)
+        assert response.status_code == 200
+        return response.json()["notifications"][0]
+
+    assert (await _line())["data"]["task_title"] == task.title
+
+    task.title = "Renamed after the fact"
+    session.add(task)
+    await session.commit()
+
+    assert (await _line())["data"]["task_title"] == "Renamed after the fact"

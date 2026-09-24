@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
@@ -20,6 +19,7 @@ from app.services.tenant.dashboard_definition import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.dashboard import Dashboard
 
 
@@ -279,7 +279,7 @@ def build_widget_catalog() -> WidgetCatalog:
 
 
 def serialize_dashboard_summary(
-    dashboard: "Dashboard", *, user_id: Optional[int] = None
+    dashboard: "Dashboard", *, context: GuildContext, user_id: Optional[int] = None
 ) -> DashboardSummary:
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import client_access, serialize_grants
@@ -289,14 +289,14 @@ def serialize_dashboard_summary(
         name=dashboard.name,
         description=dashboard.description,
         initiative_id=dashboard.initiative_id,
-        guild_id=dashboard.guild_id,
+        guild_id=context.guild_id,
         created_by=dashboard.created_by,
         created_at=dashboard.created_at,
         updated_at=dashboard.updated_at,
         listing_uid=dashboard.listing_uid,
         listing_version=dashboard.listing_version,
         archived_at=dashboard.archived_at,
-        **client_access(Tool.dashboard, dashboard, user_id),
+        **client_access(dashboard, user_id, context=context),
         comments_enabled=dashboard.comments_enabled,
         tags=annotated_tags(dashboard),
         grants=serialize_grants(dashboard),
@@ -304,9 +304,9 @@ def serialize_dashboard_summary(
 
 
 def serialize_dashboard(
-    dashboard: "Dashboard", *, user_id: Optional[int] = None
+    dashboard: "Dashboard", *, context: GuildContext, user_id: Optional[int] = None
 ) -> DashboardRead:
-    summary = serialize_dashboard_summary(dashboard, user_id=user_id)
+    summary = serialize_dashboard_summary(dashboard, context=context, user_id=user_id)
     return DashboardRead(
         **summary.model_dump(),
         definition=dashboard.definition or {},

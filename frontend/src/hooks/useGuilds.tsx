@@ -49,6 +49,11 @@ export type GuildEntry = GuildRead & {
   /** The separate settings rung held for this community. It never confers
    * content access and must not be represented as a roster role. */
   grantSettingsLevel?: "admin" | "superadmin" | null;
+  /** Whether this entry reaches the community's work at all. A settings-only
+   * grant does not — the server refuses every content route for one — so the
+   * surfaces built on content are not offered with it. Absent means yes,
+   * which is what a membership is. */
+  reachesContent?: boolean;
 };
 
 interface GuildContextValue {
@@ -106,10 +111,15 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   // Nobody is "here" in a guild reached only by a grant until its own payload
   // arrives and says so.
   online_count: 0,
-  role: "member",
-  // A placeholder until the guild's own payload arrives and says what this
-  // grant reaches; the server settles it there.
-  is_admin: false,
+  // The rung this grant lends, as the server recorded it on the grant — the
+  // community's own ladder, borrowed. A guild's own payload carries the same
+  // field, so a screen asks one question whichever way it was reached.
+  role: settingsGrantLevel(settingsGrant) ?? "member",
+  // A settings grant carries no content access; a content grant is what does.
+  reachesContent: grant.purpose === "content",
+  // Answered by the community's own entry (`GET /guilds/{id}`) for a settings
+  // grant; until then, and for a content grant, nothing here is changed.
+  can_write_settings: false,
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
   max_storage_bytes: null,
@@ -122,6 +132,8 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   // PAM/break-glass overrides the lifecycle status — a grantee's writability
   // comes from the grant level, never from the guild being frozen.
   content_read_only: false,
+  // Only a closed community names who to contact, and a grant is never closed.
+  contact_email: null,
   // Admin-only entitlements; a grantee acts as a member here, so they're absent.
   auth_options: null,
   // Likewise: these settings are not inferred into a synthetic entry. An
@@ -146,6 +158,34 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   grantAccessLevel: grant.purpose === "content" ? grant.access_level : null,
   grantSettingsLevel: settingsGrantLevel(settingsGrant),
 });
+
+/**
+ * A settings grant's entry, with the community's own answer laid over it: the
+ * rung, what may be changed, and the administration fields the grant does not
+ * carry. What the grant says about itself stays. Best-effort — without an
+ * answer the entry changes nothing.
+ */
+const withSettingsEntry = async (entry: GuildEntry): Promise<GuildEntry> => {
+  if (!entry.grantSettingsLevel) return entry;
+  try {
+    const response = await apiClient.get<GuildRead>(`/guilds/${entry.id}`);
+    return {
+      ...response.data,
+      icon_url: entry.icon_url,
+      banner: entry.banner,
+      position: entry.position,
+      content_read_only: entry.content_read_only,
+      reachesContent: entry.reachesContent,
+      accessType: entry.accessType,
+      grantExpiresAt: entry.grantExpiresAt,
+      grantAccessLevel: entry.grantAccessLevel,
+      grantSettingsLevel: entry.grantSettingsLevel,
+    };
+  } catch (err) {
+    console.error("Failed to load the settings entry for a granted community", err);
+    return entry;
+  }
+};
 
 export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const { user, refreshUser } = useAuth();
@@ -174,7 +214,9 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   // Key guild loading on the user's *id*, not the user object: `refreshUser()`
   // always returns a fresh object, so an object-identity dep would refetch the
   // guild list and access grants on every profile refresh.
-  const userId = user?.id ?? null;
+  // A suspended account is in time out and reaches no community, so it has no
+  // list to fetch: it is treated as nobody here.
+  const userId = user && user.status !== "suspended" ? user.id : null;
   // Mirrored synchronously so a reply that was asked for on behalf of somebody
   // else can be recognised as such when it lands. Reads outlive the person they
   // were made for: signing out, or switching account, does not cancel a request
@@ -263,9 +305,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         { content?: AccessGrantRead; settings?: AccessGrantRead }
       >();
       try {
-        const grants = await apiClient.get<AccessGrantRead[]>("/access-grants/", {
-          params: { mine: true },
-        });
+        const grants = await apiClient.get<AccessGrantRead[]>("/access-grants/");
         for (const grant of grants.data) {
           if (!grant.is_live || (grant.purpose !== "content" && grant.purpose !== "settings")) {
             continue;
@@ -285,6 +325,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
             return settings ? [grantEntry(settings, settings)] : [];
           }
         );
+        grantGuilds = await Promise.all(grantGuilds.map(withSettingsEntry));
       } catch (grantErr) {
         grantsKnown = false;
         console.error("Failed to load access grants for guild switcher", grantErr);
@@ -530,7 +571,8 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       const next = prev.map((existing) => {
         if (existing.id === guild.id) {
           replaced = true;
-          return guild;
+          // What the entry says about how it was reached is not in the reply.
+          return { ...existing, ...guild };
         }
         return existing;
       });

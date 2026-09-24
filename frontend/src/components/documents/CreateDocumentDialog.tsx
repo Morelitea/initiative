@@ -31,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ImagePicker } from "@/components/ui/image-picker";
+import { FileDropArea } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,13 +48,14 @@ import { useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildPickerSuggestions } from "@/hooks/useSearch";
 import { toast } from "@/lib/chesterToast";
-import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  formatBytes,
+  getFileTypeLabel,
+  nameWithoutExtension,
+} from "@/lib/fileUtils";
 import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLinkProviders";
 import type { DialogProps } from "@/types/dialog";
-
-/** What an uploaded document may be. */
-const UPLOAD_ACCEPT =
-  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown";
 
 type CreateDocumentDialogProps = DialogProps & {
   /** If provided, the initiative is locked and cannot be changed */
@@ -67,6 +68,8 @@ type CreateDocumentDialogProps = DialogProps & {
   onSuccess?: (document: DocumentRead) => void;
   /** List of initiatives user can create documents in (required if initiativeId not provided) */
   initiatives?: InitiativeRead[];
+  /** A file dropped on the page to open this; the dialog opens on Upload holding it. */
+  initialFile?: File | null;
 };
 
 export const CreateDocumentDialog = ({
@@ -77,6 +80,7 @@ export const CreateDocumentDialog = ({
   projectId,
   onSuccess,
   initiatives = [],
+  initialFile = null,
 }: CreateDocumentDialogProps) => {
   const { t } = useTranslation(["documents", "common"]);
   const { maxUploadBytes } = useAppConfig();
@@ -146,6 +150,12 @@ export const CreateDocumentDialog = ({
       if (defaultInitiativeId) {
         setSelectedInitiativeId(String(defaultInitiativeId));
       }
+      // Opened by a drop: the file is the whole of what was asked for.
+      if (initialFile) {
+        setCreateDialogTab("upload");
+        setSelectedFile(initialFile);
+        setNewTitle(nameWithoutExtension(initialFile.name));
+      }
     } else {
       // When dialog closes, reset the form
       setNewTitle("");
@@ -158,7 +168,7 @@ export const CreateDocumentDialog = ({
       setCreateDialogTab("new");
       setGrants([...DEFAULT_GRANTS]);
     }
-  }, [open, defaultInitiativeId, clearTemplate]);
+  }, [open, defaultInitiativeId, initialFile, clearTemplate]);
 
   // Clear template when "save as template" is toggled on
   useEffect(() => {
@@ -196,8 +206,7 @@ export const CreateDocumentDialog = ({
     }
     setSelectedFile(file);
     if (!newTitle.trim()) {
-      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
-      setNewTitle(nameWithoutExt);
+      setNewTitle(nameWithoutExtension(file.name));
     }
   };
 
@@ -391,15 +400,11 @@ export const CreateDocumentDialog = ({
                   </Button>
                 </div>
               ) : (
-                <ImagePicker
-                  variant="button"
-                  className="w-full"
-                  accept={UPLOAD_ACCEPT}
-                  onSelect={handleFileSelect}
-                >
-                  <Upload className="h-4 w-4" />
-                  {t("create.chooseFile")}
-                </ImagePicker>
+                <FileDropArea
+                  accept={DOCUMENT_UPLOAD_ACCEPT}
+                  onFile={handleFileSelect}
+                  prompt={t("create.dropPrompt")}
+                />
               )}
               <p className="whitespace-pre-line text-muted-foreground text-xs">
                 {t("create.fileHelp")}

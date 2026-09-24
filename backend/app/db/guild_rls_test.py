@@ -16,6 +16,13 @@ honest:
 import pytest
 from sqlalchemy import text
 
+from app.core.reactions import ReactionTarget
+from app.db.initiative_rls import (
+    COMMENT_PARENTS,
+    RECENT_ENTITY_TABLES,
+    entity_tables,
+    render_entity_access_fn,
+)
 from app.db.schema_provisioning import (
     drop_guild_schema,
     guild_schema_name,
@@ -23,9 +30,12 @@ from app.db.schema_provisioning import (
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.db.tenancy import (
+    MANAGED_TABLES,
     GUILD_LEVEL_TABLES,
     INITIATIVE_SCOPED_TABLES,
+    LEDGER_TABLES,
     OWN_ROW_TABLES,
+    SEAT_TABLES,
 )
 
 _EXPECTED_POLICIES = {
@@ -45,6 +55,7 @@ _OWN_ROW_POLICIES = {
 _GID_POLICIES = 990_201
 _GID_PURGE = 990_202
 _GID_OWN_ROW = 990_203
+_GID_FUNCTIONS = 990_204
 
 # EVERY soft-delete table carries the RESTRICTIVE admin-only purge guard. They split
 # by how RLS reaches the table: initiative-scoped ones already have RLS (for the
@@ -52,31 +63,73 @@ _GID_OWN_ROW = 990_203
 # to host the guard, with a permissive allow-all (guild_level_open) — isolation is
 # the schema boundary, initiative is the gate, so this is not a membership scope.
 _PURGE_GUARD_TABLES = frozenset(SOFT_DELETE_TABLES)
-_GUILD_LEVEL_PURGE = frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES
+_GUILD_LEVEL_PURGE = (
+    frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES - set(MANAGED_TABLES)
+)
+_MANAGED_POLICIES = frozenset(
+    {"managed_select", "managed_insert", "managed_update", "managed_delete"}
+)
 
 
 @pytest.mark.database
-async def test_initiative_access_is_the_only_access_function(engine):
-    """One source of truth: the legacy ``is_initiative_member`` access rule must
-    be gone (dropped in migration 0111), and ``initiative_access`` must exist."""
-    async with engine.connect() as conn:
-        legacy = (
-            await conn.execute(
-                text(
-                    "SELECT count(*) FROM pg_proc WHERE proname = 'is_initiative_member'"
+async def test_a_provisioned_schema_holds_its_own_authorization_functions(engine):
+    """The functions a schema's policies call live in that schema, and no
+    policy in it binds a function anywhere else. The legacy
+    ``is_initiative_member`` rule stays gone (dropped in migration 0111)."""
+    from app.db.authorization import GUILD_FUNCTION_SIGNATURES
+
+    schema = guild_schema_name(_GID_FUNCTIONS)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_FUNCTIONS)
+        async with engine.connect() as conn:
+            local = {
+                r[0]
+                for r in await conn.execute(
+                    text(
+                        "SELECT proname FROM pg_proc "
+                        "WHERE pronamespace = CAST(:s AS regnamespace)"
+                    ),
+                    {"s": schema},
                 )
+            }
+            outside = (
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT DISTINCT n.nspname || '.' || f.proname "
+                            "FROM pg_policy p "
+                            "JOIN pg_class c ON c.oid = p.polrelid "
+                            "JOIN pg_depend d ON d.classid = 'pg_policy'::regclass "
+                            "AND d.objid = p.oid "
+                            "JOIN pg_proc f ON d.refclassid = 'pg_proc'::regclass "
+                            "AND f.oid = d.refobjid "
+                            "JOIN pg_namespace n ON n.oid = f.pronamespace "
+                            "WHERE c.relnamespace = CAST(:s AS regnamespace) "
+                            "AND n.nspname <> CAST(:name AS text) ORDER BY 1"
+                        ),
+                        {"s": schema, "name": schema},
+                    )
+                )
+                .scalars()
+                .all()
             )
-        ).scalar()
-        current = (
-            await conn.execute(
-                text("SELECT count(*) FROM pg_proc WHERE proname = 'initiative_access'")
-            )
-        ).scalar()
-    assert legacy == 0, (
-        "public.is_initiative_member still exists — initiative_access is meant to "
-        "be the single initiative access rule (see migration 0111)."
+            legacy = (
+                await conn.execute(
+                    text(
+                        "SELECT count(*) FROM pg_proc WHERE proname = 'is_initiative_member'"
+                    )
+                )
+            ).scalar()
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_FUNCTIONS)
+    assert local == set(GUILD_FUNCTION_SIGNATURES), (
+        f"{schema} holds {sorted(local)}; expected exactly "
+        f"{sorted(GUILD_FUNCTION_SIGNATURES)}"
     )
-    assert current >= 1, "public.initiative_access is missing."
+    assert outside == [], f"policies in {schema} bind functions outside it: {outside}"
+    assert legacy == 0, "is_initiative_member still exists (see migration 0111)"
 
 
 @pytest.mark.database
@@ -134,6 +187,50 @@ async def test_every_initiative_scoped_table_has_policies(engine):
 
 
 @pytest.mark.database
+async def test_managed_tables_are_written_by_their_managers(engine):
+    """Every ``MANAGED_TABLES`` table gets FORCE RLS, an open read and the
+    three ``managed_*`` write policies in a freshly provisioned schema; the
+    soft-deletable one keeps its purge guard beside them."""
+    gid = 990_031
+    schema = guild_schema_name(gid)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT tablename, policyname, cmd FROM pg_policies "
+                    "WHERE schemaname = :s"
+                ),
+                {"s": schema},
+            )
+            policies: dict[str, dict[str, str]] = {}
+            for tbl, pol, cmd in rows:
+                policies.setdefault(tbl, {})[pol] = cmd
+            rls_rows = await conn.execute(
+                text(
+                    "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity "
+                    "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    "WHERE n.nspname = :s AND c.relkind = 'r'"
+                ),
+                {"s": schema},
+            )
+            rls = {row[0]: (row[1], row[2]) for row in rls_rows}
+        for tbl in sorted(MANAGED_TABLES):
+            assert rls.get(tbl) == (True, True), f"{tbl} must be ENABLED+FORCED"
+            have = policies.get(tbl, {})
+            assert _MANAGED_POLICIES <= set(have), (
+                f"{tbl} is managed but has {sorted(have)}"
+            )
+            assert "guild_level_open" not in have, f"{tbl} still carries the allow-all"
+            if tbl in SOFT_DELETE_TABLES:
+                assert have.get("soft_delete_admin_purge") == "DELETE", tbl
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+@pytest.mark.database
 async def test_own_row_tables_have_policies(engine):
     """Every ``OWN_ROW_TABLES`` table gets FORCE RLS + the four ``own_row_*``
     policies in a freshly provisioned schema — the row gate that keeps one
@@ -185,6 +282,50 @@ async def test_own_row_tables_have_policies(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_OWN_ROW)
+
+
+@pytest.mark.database
+async def test_seat_and_ledger_tables_have_policies(engine):
+    """Every ``SEAT_TABLES`` table gets FORCE RLS + the four ``seat_*``
+    policies, and every ``LEDGER_TABLES`` table the four ``ledger_*``, in a
+    freshly provisioned schema."""
+    gid = 990_032
+    schema = guild_schema_name(gid)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT tablename, policyname FROM pg_policies "
+                    "WHERE schemaname = :s"
+                ),
+                {"s": schema},
+            )
+            policies: dict[str, set[str]] = {}
+            for tbl, pol in rows:
+                policies.setdefault(tbl, set()).add(pol)
+            rls_rows = await conn.execute(
+                text(
+                    "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity "
+                    "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    "WHERE n.nspname = :s AND c.relkind = 'r'"
+                ),
+                {"s": schema},
+            )
+            rls = {row[0]: (row[1], row[2]) for row in rls_rows}
+        expected = {t: "seat" for t in SEAT_TABLES} | {
+            t: "ledger" for t in LEDGER_TABLES
+        }
+        for tbl, prefix in sorted(expected.items()):
+            assert rls.get(tbl) == (True, True), f"{tbl} must be ENABLED+FORCED"
+            want = {f"{prefix}_{c}" for c in ("select", "insert", "update", "delete")}
+            assert policies.get(tbl, set()) == want, (
+                f"{tbl} has {sorted(policies.get(tbl, set()))}, expected {sorted(want)}"
+            )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
 
 
 @pytest.mark.database
@@ -277,7 +418,7 @@ _NO_SINGLE_PARENT = {
     # One tool, two parents: a link must clear the gate on BOTH documents, so
     # there is no single row to authorize against.
     # Two parents of any kind: an edge clears the gate on each end through
-    # relationship_endpoint_access, which asks each end's own entry here.
+    # entity_access, which asks each end's own entry here.
     "relationships": "source and target must both clear it, whatever they are",
     # No sharing leg at all — see the registry for each.
     "event_outbox": "the change log is no tool's own table",
@@ -300,15 +441,27 @@ def test_the_app_reads_the_same_governing_tool_the_policy_asks_about():
     entry to build the policy. A table where those two answered differently
     would be one where an endpoint authorized against one resource while the
     database gated on another.
+
+    Read off a **write** command. A child's read leg is the walk to its parent
+    and nothing else — the parent's own policy is what asks about sharing
+    there — so the tool is named on the commands that restate it.
     """
     import re
 
-    from app.db.initiative_rls import INITIATIVE_PATHS, governing_path
+    from app.db.initiative_rls import (
+        INITIATIVE_PATHS,
+        dac_asks_at_write,
+        governing_path,
+    )
 
     mismatches = []
     for table, path in sorted(INITIATIVE_PATHS.items()):
         derived = governing_path(table)
-        leg = path.dac.predicate(table, "SELECT", False) if path.dac else None
+        leg = (
+            path.dac.predicate(table, "UPDATE", dac_asks_at_write(table, "UPDATE"))
+            if path.dac
+            else None
+        )
         asked = set(re.findall(r"resource_access\('([a-z_]+)'", leg or ""))
         if derived is None:
             if table not in _NO_SINGLE_PARENT:
@@ -448,3 +601,34 @@ async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engin
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_QUERY_TRASH)
+
+
+# ---------------------------------------------------------------------------
+# entity_access: the kinds it answers for
+# ---------------------------------------------------------------------------
+
+
+def test_every_comment_parent_is_a_kind_the_entity_function_answers_for():
+    """A comment's policy names its parent as a ``(kind, id)`` pair and asks
+    ``entity_access`` about it, so every parent column has to resolve to one of
+    the function's arms — at the table the parent actually lives in."""
+    tables = entity_tables()
+    for parent in COMMENT_PARENTS.values():
+        assert parent.kind in tables, parent.column
+        assert tables[parent.kind] == parent.table, parent.column
+
+
+def test_every_reaction_target_and_recentable_kind_is_an_arm():
+    tables = entity_tables()
+    for target in ReactionTarget:
+        assert tables[target.value] == target.table
+    for kind, table in RECENT_ENTITY_TABLES.items():
+        assert tables[kind] == table
+
+
+def test_the_entity_function_carries_one_arm_per_kind():
+    fn = render_entity_access_fn()
+    for kind, table in entity_tables().items():
+        assert f"WHEN '{kind}' THEN" in fn, kind
+        assert f"FROM {table} re WHERE re.id = p_entity_id" in fn, kind
+    assert fn.count("WHEN '") == len(entity_tables())

@@ -4,7 +4,6 @@ import {
   GalleryHorizontal,
   HelpCircle,
   LayoutGrid,
-  Loader2,
   type LucideIcon,
   Plus,
   Rows3,
@@ -13,13 +12,13 @@ import {
 import { lazy, type ReactNode, Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  EndpointRef,
-  RelationshipRead,
-  SearchSuggestion,
+import {
+  type EndpointRef,
+  type RelationshipRead,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
+import { AddLinkDialog } from "@/components/entities/AddLinkDialog";
 import { EntityCard } from "@/components/entities/EntityCard";
-import { EntityPicker } from "@/components/entities/EntityPicker";
 import { Button } from "@/components/ui/button";
 import {
   Carousel,
@@ -30,52 +29,38 @@ import {
 } from "@/components/ui/carousel";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DropOverlay } from "@/components/ui/file-drop";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAppConfig } from "@/hooks/useAppConfig";
+import { useFileDrop } from "@/hooks/useFileDrop";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { useRelatedStates } from "@/hooks/useRelatedStates";
 import {
   type ToolRef,
-  useRelate,
   useRelationshipsFor,
   useRelationsNeighbourhood,
   useUnrelate,
 } from "@/hooks/useRelationships";
 import { toast } from "@/lib/chesterToast";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { docsUrl } from "@/lib/links";
 import {
-  canAssert,
-  defaultGroupFor,
-  edgeFor,
   groupEdges,
   groupOf,
-  groupOrderFor,
   RELATION_GROUP_ORDER,
   RELATION_GROUPS,
   type RelationGroup,
   type RelationGroupKey,
 } from "@/lib/relationships";
 import { getItem, setItem } from "@/lib/storage";
+import { cn } from "@/lib/utils";
 
 /**
  * The grid every group draws into. `min(…, 100%)` keeps a card from overflowing
@@ -190,44 +175,24 @@ export const RelationsSection = ({
     return isLayout(saved) ? saved : defaultLayout;
   });
   const [adding, setAdding] = useState(false);
-  /** Set only once somebody overrides what was proposed for what they picked. */
-  const [groupKey, setGroupKey] = useState<RelationGroupKey | null>(null);
-  const [picked, setPicked] = useState<SearchSuggestion | null>(null);
+  /** A file dropped on the section, which the dialog opens already holding. */
+  const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [hops, setHops] = useState(1);
   const [showTags, setShowTags] = useState(false);
 
   const shown = useMemo<RelationGroup[]>(() => groups.map((key) => RELATION_GROUPS[key]), [groups]);
   const assertable = useMemo(() => shown.filter((group) => group.assertable), [shown]);
 
-  /**
-   * The links that can actually be made to what was picked.
-   *
-   * Reversing groups — "Blocking", "Made up of" — assert their edge from the
-   * far end, which the server will only accept from somebody who may change it.
-   * Offering them for a thing you can only read is offering a refusal.
-   *
-   * Ordered for the pair once something is picked: the list is the same list,
-   * but what two things of one kind usually say to each other comes first.
-   */
-  const offered = useMemo(() => {
-    const allowed = assertable.filter((group) => canAssert(group, picked?.can_write !== false));
-    return picked ? groupOrderFor(entity.type, picked.entity_type, allowed) : allowed;
-  }, [assertable, picked, entity.type]);
-
-  /**
-   * What the sentence currently says.
-   *
-   * An explicit choice wins. Otherwise the pair proposes one — never a
-   * dependency; see `defaultGroupFor`. Nothing is proposed before something is
-   * picked, because there is no pair to propose for and the question has not
-   * been asked yet.
-   */
-  const proposed = picked ? defaultGroupFor(entity.type, picked.entity_type) : null;
-  const chosenGroup =
-    (groupKey && offered.some((group) => group.key === groupKey) ? groupKey : null) ??
-    (proposed && offered.some((group) => group.key === proposed) ? proposed : null) ??
-    offered[0]?.key ??
-    null;
+  // Uploading makes a document in this initiative, so it is offered only to
+  // somebody who has documents there and may make one — and only where a link
+  // may be made at all. Unknown until the initiative loads, which reads as no.
+  const canAdd = canEdit && assertable.length > 0;
+  const { maxUploadBytes } = useAppConfig();
+  const { permissionsFor } = useInitiativeAccess();
+  const initiativesQuery = useInitiatives({ enabled: canAdd && initiativeId != null });
+  const initiative = initiativesQuery.data?.find((item) => item.id === initiativeId);
+  const documentAccess = initiative ? permissionsFor(initiative)[Tool.document] : null;
+  const canUpload = canAdd && Boolean(documentAccess?.view && documentAccess.create);
 
   const { data: rows = [], isLoading, isError } = useRelationshipsFor(entity);
   // Only walked while the picture is the thing on screen: a second hop is a
@@ -238,31 +203,28 @@ export const RelationsSection = ({
   });
   const grouped = useMemo(() => groupEdges(rows, shown), [rows, shown]);
 
-  /**
-   * Picking a different KIND of thing re-asks what the link says.
-   *
-   * The proposal is made for the pair, so a pair that changed should get its
-   * own — but swapping one task for another after deliberately choosing
-   * "blocked by" is correcting the thing, not the claim, and that choice is
-   * kept.
-   */
-  const pick = (next: SearchSuggestion | null) => {
-    if (next?.entity_type !== picked?.entity_type) setGroupKey(null);
-    setPicked(next);
+  const openDialog = (file: File | null = null) => {
+    setDroppedFile(file);
+    setAdding(true);
   };
 
   const closeDialog = () => {
     setAdding(false);
-    setGroupKey(null);
-    setPicked(null);
+    setDroppedFile(null);
   };
 
-  const relate = useRelate(anchorTool, {
-    onSuccess: () => {
-      toast.success(t("added"));
-      closeDialog();
+  // The whole section takes a file, not just a box inside the dialog: a file
+  // dragged in from the desktop lands wherever the cursor is. Off while the
+  // dialog is up — it has a drop target of its own.
+  const drop = useFileDrop(
+    canUpload && !adding,
+    (files) => {
+      const [first] = files;
+      if (first) openDialog(first);
     },
-  });
+    { accept: DOCUMENT_UPLOAD_ACCEPT, maxBytes: maxUploadBytes }
+  );
+
   const unrelate = useUnrelate(anchorTool, {
     onSuccess: () => toast.success(t("removed")),
   });
@@ -275,16 +237,6 @@ export const RelationsSection = ({
   const setCollapsedState = (next: boolean) => {
     setCollapsed(next);
     if (collapseKey) setItem(collapseKey, next.toString());
-  };
-
-  const submit = () => {
-    if (!chosenGroup || !picked) return;
-    relate.mutate(
-      edgeFor(RELATION_GROUPS[chosenGroup], entity, {
-        type: picked.entity_type,
-        id: picked.entity_id,
-      })
-    );
   };
 
   /**
@@ -325,17 +277,15 @@ export const RelationsSection = ({
   const kind = entity.type;
   const sectionTitle = title ?? t("title", { context: kind });
   const emptyLine = t("empty", { context: kind });
-  // How the sentence in the dialog names this end: "This task is blocked by…".
-  const anchorName = t(`anchor.${kind}` as "anchor.generic", {
-    defaultValue: t("anchor.generic"),
-  });
 
   return (
     <Collapsible
       open={!collapsed}
       onOpenChange={(open) => setCollapsedState(!open)}
-      className={className ?? "space-y-4 rounded-2xl border bg-card p-5 shadow-sm"}
+      className={cn("relative", className ?? "space-y-4 rounded-2xl border bg-card p-5 shadow-sm")}
+      {...drop.handlers}
     >
+      {drop.dragging ? <DropOverlay label={t("dropzone")} className="rounded-2xl" /> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="inline-flex items-center gap-2">
@@ -423,8 +373,8 @@ export const RelationsSection = ({
             </DropdownMenu>
           ) : null}
           {headerActions}
-          {canEdit && assertable.length > 0 ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => setAdding(true)}>
+          {canAdd ? (
+            <Button type="button" size="sm" variant="outline" onClick={() => openDialog()}>
               <Plus className="h-4 w-4" />
               {t("add")}
             </Button>
@@ -556,78 +506,17 @@ export const RelationsSection = ({
         )}
       </CollapsibleContent>
 
-      <Dialog open={adding} onOpenChange={(open) => (open ? setAdding(true) : closeDialog())}>
-        <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t("dialog.title")}</DialogTitle>
-            <DialogDescription>{t("dialog.description")}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {/* The thing first. Nobody opens this thinking "part_of" — they
-                think of the document they mean, and the picker offers what they
-                looked at recently before they have typed anything. What the
-                link SAYS is asked below, once there are two real names to say
-                it about. */}
-            <div className="space-y-2">
-              <Label>{t("dialog.entity")}</Label>
-              <EntityPicker
-                subject={entity}
-                initiativeId={initiativeId}
-                value={picked}
-                onChange={pick}
-              />
-            </div>
-
-            {picked ? (
-              <div className="space-y-2">
-                <Label htmlFor="relation-kind">{t("dialog.sentenceLabel")}</Label>
-                {/* Read as one sentence, with both ends named: "This task is
-                    blocked by Ship the API". Seeing the claim written out is
-                    what tells somebody it is the wrong one — and the verb in
-                    the middle of it is visibly the part they can change. */}
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
-                  <span className="font-medium text-sm">{anchorName}</span>
-                  <Select
-                    value={chosenGroup ?? undefined}
-                    onValueChange={(value) => setGroupKey(value as RelationGroupKey)}
-                  >
-                    <SelectTrigger id="relation-kind" className="w-auto min-w-44 bg-background">
-                      <SelectValue placeholder={t("dialog.relationship")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {offered.map((group) => (
-                        <SelectItem key={group.key} value={group.key}>
-                          {t(`groups.${group.key}.option`)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="min-w-0 truncate font-medium text-sm">{picked.title}</span>
-                </div>
-                {offered.length < assertable.length ? (
-                  <p className="text-muted-foreground text-xs">{t("dialog.readOnlyTarget")}</p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={submit}
-              disabled={relate.isPending || !chosenGroup || !picked}
-            >
-              {relate.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("dialog.submitting")}
-                </>
-              ) : (
-                t("dialog.submit")
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {adding ? (
+        <AddLinkDialog
+          entity={entity}
+          initiativeId={initiativeId}
+          anchorTool={anchorTool}
+          assertable={assertable}
+          canUpload={canUpload}
+          initialFile={droppedFile}
+          onClose={closeDialog}
+        />
+      ) : null}
     </Collapsible>
   );
 };

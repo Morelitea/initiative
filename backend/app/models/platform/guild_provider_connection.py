@@ -100,6 +100,13 @@ class GuildProviderConnection(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
 
+    #: Whether the platform's rules for this provider may place people in this
+    #: community, beside the rules the community writes itself.
+    accepts_provider_placement: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+
     #: When somebody outside the community agreed that these values are its
     #: to claim, and who. A community names its own ``claim_values`` and
     #: nothing here can tell whether it holds the domain or tenant they
@@ -146,10 +153,23 @@ class GuildProviderConnection(SQLModel, table=True):
         Mirrors ``public.guild_connection_admits``; the two are one rule and
         a change to either belongs in both.
         """
-        if not self.claim or not self.claim_values:
-            return False
-        # Imported here: the sync service imports models, not the other way.
-        from app.services.oidc_sync import extract_claim_values
+        return narrowing_admits(self.claim, self.claim_values, claims)
 
-        found = extract_claim_values(claims, None, self.claim)
-        return any(value.strip().lower() in found for value in self.claim_values)
+
+def narrowing_admits(
+    claim: str | None, claim_values: list[str] | None, claims: dict
+) -> bool:
+    """Whether a narrowing — a claim and the values that count — admits a set
+    of verified claims.
+
+    The rule behind ``GuildProviderConnection.admits``, stated once so the
+    deployment's default for a provider, which narrows the same way, is read
+    by it too. A narrowing that names no claim or no values admits nobody.
+    """
+    if not claim or not claim_values:
+        return False
+    # Imported here: the sync service imports models, not the other way.
+    from app.services.oidc_sync import extract_claim_values
+
+    found = extract_claim_values(claims, None, claim)
+    return any(value.strip().lower() in found for value in claim_values)

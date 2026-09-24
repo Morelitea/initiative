@@ -102,6 +102,13 @@ class GuildAdministration(SQLModel, table=True):
     plan_is_free: Optional[bool] = Field(
         default=None, sa_column=Column(Boolean, nullable=True)
     )
+    #: The status billing last wrote, whether or not it landed on the guild.
+    #: A suspended guild takes no status from billing; lifting the suspension
+    #: on a billing-managed deployment returns it here (``active`` when
+    #: billing never wrote one).
+    billing_status: Optional[str] = Field(
+        default=None, sa_column=Column(String(16), nullable=True)
+    )
 
     guild: Optional["Guild"] = Relationship(
         back_populates="administration",

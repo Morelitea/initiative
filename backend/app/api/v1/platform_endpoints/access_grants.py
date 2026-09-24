@@ -4,9 +4,12 @@ Self-service, time-bound, per-guild access grants: a lower-privilege platform
 user requests temporary access to a guild, an approver grants/denies it, and it
 auto-expires. See ``app.services.access_grants``.
 
-All routes use the admin (RLS-bypassing) session because access_grants is a
-platform-scoped table managed cross-guild — authorization is enforced here via
-capabilities + ownership, mirroring the ``/admin/*`` endpoints.
+The reads run on the caller's platform tier (``UserSessionDep``): a grantee
+reads their own grants, and an ``access.approve`` holder reads the queue, each
+through its own policy on ``access_grants``. Every write — requesting, breaking
+glass, deciding, revoking, withdrawing — runs on the system engine, which alone
+writes the table; authorization for those is enforced here via capabilities +
+ownership, mirroring the ``/operator/*`` endpoints.
 """
 
 from typing import Annotated, List, Optional
@@ -14,11 +17,11 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from webauthn.helpers import bytes_to_base64url
 
-from app.api.deps import get_current_active_user, require_capability
+from app.api.deps import UserSessionDep, get_current_active_user, require_capability
 from app.core.capabilities import Capability, user_has_capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
-from app.db.session import get_admin_session
+from app.db.session import get_system_session
 from app.models.platform.user import User
 from app.models.platform.access_grant import (
     AccessGrantPurpose,
@@ -28,8 +31,10 @@ from app.models.platform.access_grant import (
 from app.schemas.platform.access_grant import (
     AccessGrantApprove,
     AccessGrantCreate,
+    AccessGrantLimits,
     AccessGrantRead,
     BreakGlassCreate,
+    SecondFactorAnswer,
     BreakGlassRequirements,
 )
 from app.schemas.platform.passkey import PasskeyAuthenticationOptions
@@ -43,7 +48,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 
-AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 AccessRequestDep = Annotated[
     User, Depends(require_capability(Capability.ACCESS_REQUEST))
 ]
@@ -51,7 +56,7 @@ AccessApproveDep = Annotated[
     User, Depends(require_capability(Capability.ACCESS_APPROVE))
 ]
 # Break-glass is gated on data.bypass — the repurposed capability that lets an
-# admin/owner self-issue an audited, time-bound grant instead of holding a
+# operator/owner self-issue an audited, time-bound grant instead of holding a
 # standing all-guild bypass.
 BreakGlassDep = Annotated[User, Depends(require_capability(Capability.DATA_BYPASS))]
 
@@ -88,15 +93,15 @@ def _raise(error: service.AccessGrantError) -> None:
     )
 
 
-async def _one(session: AsyncSession, grant) -> AccessGrantRead:
-    reads = await service.to_read(session, [grant])
+async def _one(grant, *, system_session: AsyncSession | None = None) -> AccessGrantRead:
+    reads = await service.to_read([grant], system_session=system_session)
     return reads[0]
 
 
 @router.post("/", response_model=AccessGrantRead, status_code=status.HTTP_201_CREATED)
 async def create_access_request(
     payload: AccessGrantCreate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: AccessRequestDep,
 ) -> AccessGrantRead:
     """Request time-bound access to a guild (requires ``access.request``).
@@ -128,7 +133,7 @@ async def create_access_request(
                 "level": requested.access_level,
             },
         )
-    read = await _one(session, grant)
+    read = await _one(grant, system_session=session)
     await session.commit()
     return read
 
@@ -159,10 +164,12 @@ async def _answers_with_a_passkey(
     return True
 
 
-async def _check_second_factor(
-    session: AsyncSession, *, actor: User, payload: BreakGlassCreate
+async def check_second_factor(
+    session: AsyncSession, *, actor: User, answer: SecondFactorAnswer, during: str
 ) -> None:
-    """Take the account's own factor before the glass breaks.
+    """Take the account's own factor before a grant is self-issued.
+
+    ``during`` names the errand in the audit line a refused answer writes.
 
     Asked for the way turning the factor off asks: against the request rather
     than against what the session remembers, so what answers is presented at
@@ -188,19 +195,19 @@ async def _check_second_factor(
             detail=AccessGrantMessages.SECOND_FACTOR_ENROLMENT_REQUIRED,
         )
 
-    if payload.passkey is not None:
+    if answer.passkey is not None:
         accepted = await _answers_with_a_passkey(
-            session, actor=actor, credential=payload.passkey
+            session, actor=actor, credential=answer.passkey
         )
         method, refusal = "passkey", AccessGrantMessages.PASSKEY_INVALID
-    elif payload.recovery_code:
+    elif answer.recovery_code:
         accepted = await totp_service.consume_recovery_code(
-            session, user_id=actor_id, code=payload.recovery_code
+            session, user_id=actor_id, code=answer.recovery_code
         )
         method, refusal = "recovery_code", AuthMessages.RECOVERY_CODE_INVALID
-    elif payload.code:
+    elif answer.code:
         accepted = await totp_service.verify_code(
-            session, user_id=actor_id, code=payload.code
+            session, user_id=actor_id, code=answer.code
         )
         method, refusal = "totp", AuthMessages.TOTP_INVALID
     else:
@@ -214,7 +221,7 @@ async def _check_second_factor(
             session,
             event_type=AuditEventType.AUTH_SECOND_FACTOR_FAILED,
             actor_user_id=actor_id,
-            detail={"method": method, "during": "break_glass"},
+            detail={"method": method, "during": during},
         )
         await session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
@@ -222,17 +229,18 @@ async def _check_second_factor(
 
 @router.get("/break-glass", response_model=BreakGlassRequirements)
 async def break_glass_requirements(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: BreakGlassDep,
 ) -> BreakGlassRequirements:
     """What a break-glass request will be asked for.
 
-    The form reads this to know whether to offer a code field, and whether the
-    caller has a factor to answer with.
+    The form reads this to know whether to offer a code field, whether the
+    caller has a factor to answer with, and the longest window it may ask for.
     """
     required = await service.demands_second_factor(session)
     return BreakGlassRequirements(
         second_factor_required=required,
+        max_duration_minutes=service.break_glass_max_minutes(current_user.role),
         totp_enrolled=await totp_service.is_enrolled(session, user_id=current_user.id),
         passkey_enrolled=bool(
             await passkey_service.count_for_user(session, user_id=current_user.id)
@@ -242,7 +250,7 @@ async def break_glass_requirements(
 
 @router.post("/break-glass/passkey", response_model=PasskeyAuthenticationOptions)
 async def begin_break_glass_passkey(
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: BreakGlassDep,
 ) -> PasskeyAuthenticationOptions:
     """Options for answering a break-glass request with one of this account's
@@ -275,7 +283,7 @@ async def begin_break_glass_passkey(
 )
 async def break_glass_access(
     payload: BreakGlassCreate,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: BreakGlassDep,
 ) -> AccessGrantRead:
     """Self-issue a time-bound break-glass grant to a guild (requires
@@ -293,7 +301,9 @@ async def break_glass_access(
     content grant is returned, being the one the caller routes in under; both
     are in the list.
     """
-    await _check_second_factor(session, actor=current_user, payload=payload)
+    await check_second_factor(
+        session, actor=current_user, answer=payload, during="break_glass"
+    )
     try:
         replaced = await service.reconcile_break_glass_pair(
             session, actor=current_user, payload=payload
@@ -344,16 +354,15 @@ async def break_glass_access(
             )
     except service.AccessGrantError as exc:
         _raise(exc)
-    read = await _one(session, grant)
+    read = await _one(grant, system_session=session)
     await session.commit()
     return read
 
 
 @router.get("/", response_model=List[AccessGrantRead])
 async def list_access_grants(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    mine: bool = Query(True, description="List only your own requests."),
     grant_status: Optional[str] = Query(None, alias="status"),
     live: bool = Query(False, description="Keep only grants that haven't expired yet."),
     limit: Optional[int] = Query(
@@ -364,41 +373,66 @@ async def list_access_grants(
     ),
     offset: int = Query(0, ge=0, description="Number of grants to skip (for paging)."),
 ) -> List[AccessGrantRead]:
-    """List access grants.
+    """List your own access grants.
 
-    Defaults to your own requests. ``mine=false`` returns the full queue and
-    requires ``access.read`` (approvers). Grants are ordered newest-first;
-    ``limit``/``offset`` page the result so it can't grow unbounded, and
-    ``live=true`` narrows to grants that are still within their window.
+    Ordered newest-first; ``limit``/``offset`` page the result so it can't grow
+    unbounded, and ``live=true`` narrows to grants that are still within their
+    window. The full queue is ``GET /access-grants/queue``.
     """
-    if mine:
-        grants = await service.list_grants(
-            session,
-            user_id=current_user.id,
-            statuses=[grant_status] if grant_status else None,
-            live_only=live,
-            limit=limit,
-            offset=offset,
-        )
-    else:
-        if not user_has_capability(current_user, Capability.ACCESS_READ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="INSUFFICIENT_PRIVILEGES"
-            )
-        grants = await service.list_grants(
-            session,
-            statuses=[grant_status] if grant_status else None,
-            live_only=live,
-            limit=limit,
-            offset=offset,
-        )
-    return await service.to_read(session, grants)
+    grants = await service.list_grants(
+        session,
+        user_id=current_user.id,
+        statuses=[grant_status] if grant_status else None,
+        live_only=live,
+        limit=limit,
+        offset=offset,
+    )
+    return await service.to_read(grants)
+
+
+@router.get("/queue", response_model=List[AccessGrantRead])
+async def list_access_grant_queue(
+    session: UserSessionDep,
+    _approver: AccessApproveDep,
+    grant_status: Optional[str] = Query(None, alias="status"),
+    live: bool = Query(False, description="Keep only grants that haven't expired yet."),
+    limit: Optional[int] = Query(
+        None,
+        ge=1,
+        le=200,
+        description="Page size — the number of most-recent grants returned.",
+    ),
+    offset: int = Query(0, ge=0, description="Number of grants to skip (for paging)."),
+) -> List[AccessGrantRead]:
+    """Every grant on the platform, for approvers (``access.approve``).
+
+    Newest-first and paged like the caller's own list; ``live=true`` keeps only
+    grants still within their window.
+    """
+    grants = await service.list_grants(
+        session,
+        statuses=[grant_status] if grant_status else None,
+        live_only=live,
+        limit=limit,
+        offset=offset,
+    )
+    return await service.to_read(grants)
+
+
+@router.get("/limits", response_model=AccessGrantLimits)
+async def read_access_grant_limits(
+    current_user: AccessRequestDep,
+) -> AccessGrantLimits:
+    """The longest grant the caller may ask for, as this deployment sets it."""
+    return AccessGrantLimits(
+        max_duration_minutes=service.max_minutes_for_role(current_user.role),
+    )
 
 
 @router.get("/{grant_id}", response_model=AccessGrantRead)
 async def get_access_grant(
     grant_id: int,
-    session: AdminSessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
@@ -408,19 +442,20 @@ async def get_access_grant(
         )
     # Owners of the request, or approvers, may view it.
     if grant.user_id != current_user.id and not user_has_capability(
-        current_user, Capability.ACCESS_READ
+        current_user, Capability.ACCESS_APPROVE
     ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="INSUFFICIENT_PRIVILEGES"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
         )
-    return await _one(session, grant)
+    return await _one(grant)
 
 
 @router.post("/{grant_id}/approve", response_model=AccessGrantRead)
 async def approve_access_grant(
     grant_id: int,
     payload: AccessGrantApprove,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: AccessApproveDep,
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
@@ -450,7 +485,7 @@ async def approve_access_grant(
             "decision": "approved",
         },
     )
-    read = await _one(session, grant)
+    read = await _one(grant, system_session=session)
     await session.commit()
     return read
 
@@ -458,7 +493,7 @@ async def approve_access_grant(
 @router.post("/{grant_id}/deny", response_model=AccessGrantRead)
 async def deny_access_grant(
     grant_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: AccessApproveDep,
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
@@ -483,7 +518,7 @@ async def deny_access_grant(
             "decision": "denied",
         },
     )
-    read = await _one(session, grant)
+    read = await _one(grant, system_session=session)
     await session.commit()
     return read
 
@@ -491,7 +526,7 @@ async def deny_access_grant(
 @router.post("/{grant_id}/revoke", response_model=AccessGrantRead)
 async def revoke_access_grant(
     grant_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: AccessApproveDep,
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
@@ -516,7 +551,7 @@ async def revoke_access_grant(
             "decision": "revoked",
         },
     )
-    read = await _one(session, grant)
+    read = await _one(grant, system_session=session)
     await session.commit()
     # PAM access revoked — drop the grantee's live content streams in that guild
     # immediately, don't wait for the bounded re-auth tick.
@@ -529,7 +564,7 @@ async def revoke_access_grant(
 )
 async def cancel_access_request(
     grant_id: int,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     """Withdraw your own still-pending request."""

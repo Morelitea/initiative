@@ -16,11 +16,13 @@ from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
 from typing import Any, cast
 
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
+from app.db import session as db_session
+from app.db.guild_standing import GuildContext
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time, is_published_clause, pin_is_live
@@ -33,10 +35,12 @@ from app.services.tenant import tags as tags_service
 
 def list_loader_options() -> list:
     """Eager-load what a post *list* row needs: its sharing, its initiative's
-    memberships (the DAC engine reads them), and its tags."""
+    memberships (the audience is drawn from them), the level the request holds
+    on it, and its tags."""
     return [
         selectinload(Post.grants).selectinload(ResourceGrant.role),
         selectinload(Post.initiative).selectinload(Initiative.memberships),
+        undefer(Post.access_level),
         # Who wrote it. A notice is signed — the board shows the person above
         # the headline the way a comment shows its author — so the profile
         # comes with the row rather than costing a query per card.
@@ -90,7 +94,10 @@ def board_order(*, anchored: bool = False) -> list:
 
 
 def visibility_clause(
-    user_id: int, *, guild_id: int | None, initiative_id: int | None = None
+    user_id: int,
+    *,
+    context: GuildContext | None,
+    initiative_id: int | None = None,
 ) -> Any:
     """The WHERE leg hiding notices that have not gone up yet.
 
@@ -114,7 +121,7 @@ def visibility_clause(
             Tool.post,
             Post.id,
             user_id,
-            guild_id=guild_id,
+            context=context,
             initiative_id=initiative_id,
         ),
     )
@@ -291,7 +298,7 @@ async def load_member_profiles(
 
 
 async def mark_read(
-    session: AsyncSession, post_ids: Sequence[int], *, user_id: int, guild_id: int
+    session: AsyncSession, post_ids: Sequence[int], *, user_id: int
 ) -> int:
     """Record that this reader has seen these notices. Returns how many were new.
 
@@ -324,7 +331,7 @@ async def mark_read(
             select(Post.id).where(
                 Post.id.in_(tuple(post_ids)),
                 Post.created_by != user_id,
-                visibility_clause(user_id, guild_id=guild_id),
+                visibility_clause(user_id, context=db_session.guild_context(session)),
             )
         )
     ).all()
@@ -403,10 +410,12 @@ async def get_post_for_export(
     guild_id: int,
     *,
     post_id: int,
+    access: str = "owner",
 ) -> Post:
     """The post-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read."""
+    rule holds on the worker's render-time replay too. It takes the owner rung,
+    or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``)."""
     from fastapi import HTTPException, status as http_status
 
     post = await get_post(session, post_id)
@@ -420,20 +429,21 @@ async def get_post_for_export(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=Tool.post.feature_disabled_code,
         )
-    permissions_service.require_access(
-        permissions_service.DAC_RESOURCES[Tool.post],
-        post,
-        current_user,
-        access="read",
-    )
+    context = db_session.guild_context(session)
+    resource = permissions_service.DAC_RESOURCES[Tool.post]
+    permissions_service.require_access(resource, post, context=context, access="read")
     # A notice that has not gone up is in no export either — the same gate the
     # read path applies, asked here because this seam resolves a caller-chosen
-    # id rather than going through ``load_authorized``.
-    if permissions_service.hidden_from_reader(Tool.post, post, current_user.id):
+    # id rather than going through ``load_authorized``. Asked before the export
+    # rung, so a notice that is not up yet reads as absent, as it does elsewhere.
+    if permissions_service.hidden_from_reader(Tool.post, post):
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=Tool.post.not_found_code,
         )
+    permissions_service.require_export_access(
+        resource, post, context=context, access=access
+    )
     await tags_service.annotate_tags(session, [post])
     return post
 

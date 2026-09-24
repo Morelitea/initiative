@@ -91,12 +91,12 @@ async def _load_icon(guild_id: int) -> tuple[str, bytes] | None:
     under is granted the icon's digest and not its bytes. Scoped to the one
     guild the export is already for.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
     try:
-        async with AdminSessionLocal() as admin_session:
+        async with SystemSessionLocal() as system_session:
             row = (
-                await admin_session.exec(
+                await system_session.exec(
                     select(GuildImage.content_type, GuildImage.data).where(
                         GuildImage.guild_id == guild_id,
                         GuildImage.variant == GuildImageVariant.icon.value,

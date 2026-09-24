@@ -42,6 +42,11 @@ export interface UseCollaborationOptions {
   enabled?: boolean;
   onSynced?: () => void;
   onError?: (error: Error) => void;
+  /** The editor's rendering of the document as the page leaves, or
+   *  ``undefined`` for none. Handed to the room just before the socket
+   *  closes, so the room's last save carries it: a page's own unmount
+   *  cleanup runs after this hook's, when the socket is already gone. */
+  finalContent?: () => unknown;
 }
 
 export interface UseCollaborationResult {
@@ -84,6 +89,7 @@ export function useCollaboration({
   enabled = true,
   onSynced,
   onError,
+  finalContent,
 }: UseCollaborationOptions): UseCollaborationResult {
   const { token, user } = useAuth();
   const { activeGuildId } = useGuilds();
@@ -106,10 +112,12 @@ export function useCollaboration({
   // has already left.
   const onSyncedRef = useRef<UseCollaborationOptions["onSynced"]>(onSynced);
   const onErrorRef = useRef<UseCollaborationOptions["onError"]>(onError);
+  const finalContentRef = useRef<UseCollaborationOptions["finalContent"]>(finalContent);
   useEffect(() => {
     onSyncedRef.current = onSynced;
     onErrorRef.current = onError;
-  }, [onSynced, onError]);
+    finalContentRef.current = finalContent;
+  }, [onSynced, onError, finalContent]);
 
   // Check if we have all required values
   const isReady = Boolean(enabled && user && activeGuildId && socketPath);
@@ -331,6 +339,9 @@ export function useCollaboration({
   // The Strict-Mode cost is just one extra WS setup in dev — acceptable.
   useEffect(() => {
     return () => {
+      // The last rendering goes to the room while the socket is still open.
+      const last = finalContentRef.current?.();
+      if (last !== undefined) providerRef.current?.sendContent(last);
       providerRef.current?.destroy();
       providerRef.current = null;
       currentWsUrlRef.current = null;

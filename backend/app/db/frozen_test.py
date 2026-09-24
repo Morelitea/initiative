@@ -16,7 +16,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.errors import dbapi_sqlstate
 from app.db.frozen import FROZEN_SQLSTATE, mark_restructuring
-from app.db.session import set_rls_context
 from app.services.tenant import archive as archive_service
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.models.platform.guild import GuildRole
@@ -30,6 +29,7 @@ from app.testing import (
     create_task,
     create_task_status,
     create_user,
+    route_as,
 )
 
 pytestmark = pytest.mark.database
@@ -54,9 +54,7 @@ async def routed(role_session, workspace):
     """The member's own session, routed into the guild — the request path."""
     user, guild, *_ = workspace
     s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.member.value
-    )
+    await route_as(s, user_id=user.id, guild_id=guild.id)
     yield s
     # Every read here opens a transaction, and an open one holds locks the
     # per-test schema teardown then waits on.
@@ -64,18 +62,23 @@ async def routed(role_session, workspace):
 
 
 @pytest.fixture
-async def admin_routed(role_session, workspace):
+async def admin_routed(session, role_session, workspace):
     """The same guild, entered as its admin.
 
     Hard delete is purge, and ``soft_delete_admin_purge`` already admits only a
-    routed guild admin — so a member's DELETE never reaches the freeze at all.
-    The delete half of the rule is only observable from here.
+    community's administrator — so a member's DELETE never reaches the freeze
+    at all. The delete half of the rule is only observable from here. The
+    standing says who administers, read from the membership row, so the row is
+    what this sets up.
     """
-    user, guild, *_ = workspace
-    s = await role_session("app_user")
-    await set_rls_context(
-        s, user_id=user.id, guild_id=guild.id, guild_role=GuildRole.admin.value
+    _user, guild, initiative, *_ = workspace
+    admin = await create_user(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
     )
+    await create_initiative_member(session, initiative=initiative, user=admin)
+    s = await role_session("app_user")
+    await route_as(s, user_id=admin.id, guild_id=guild.id)
     yield s
     await s.rollback()
 
@@ -85,7 +88,7 @@ async def _frozen(
 ) -> bool:
     return (
         await s.exec(
-            text("SELECT public.resource_frozen(:kind, :rid, :trashed_ok)").bindparams(
+            text("SELECT resource_frozen(:kind, :rid, :trashed_ok)").bindparams(
                 kind=kind, rid=rid, trashed_ok=trashed_ok
             )
         )
@@ -160,9 +163,7 @@ class TestResourceFrozen:
     async def test_an_unknown_kind_and_a_null_id_are_not_frozen(self, routed):
         assert await _frozen(routed, "nothing_like_this", 1) is False
         assert (
-            await routed.exec(
-                text("SELECT public.resource_frozen('tasks', NULL::bigint)")
-            )
+            await routed.exec(text("SELECT resource_frozen('tasks', NULL::bigint)"))
         ).scalar() is False
 
 
@@ -222,12 +223,10 @@ class TestAncestorFreeze:
             await routed.exec(
                 text(
                     "INSERT INTO resource_grants "
-                    "(resource_type, resource_id, user_id, level, guild_id, "
+                    "(resource_type, resource_id, user_id, level, "
                     " initiative_id, created_at) "
-                    "VALUES ('project', :pid, :uid, 'viewer', :gid, :iid, now())"
-                ).bindparams(
-                    pid=project.id, uid=user.id, gid=guild.id, iid=initiative.id
-                )
+                    "VALUES ('project', :pid, :uid, 'viewer', :iid, now())"
+                ).bindparams(pid=project.id, uid=user.id, iid=initiative.id)
             )
         assert "frozen_ancestor_insert" in str(excinfo.value)
 
@@ -251,10 +250,10 @@ class TestAncestorFreeze:
         await routed.exec(
             text(
                 "INSERT INTO resource_grants "
-                "(resource_type, resource_id, user_id, level, guild_id, "
+                "(resource_type, resource_id, user_id, level, "
                 " initiative_id, created_at) "
-                "VALUES ('project', :pid, :uid, 'owner', :gid, :iid, now())"
-            ).bindparams(pid=project.id, uid=user.id, gid=guild.id, iid=initiative.id)
+                "VALUES ('project', :pid, :uid, 'owner', :iid, now())"
+            ).bindparams(pid=project.id, uid=user.id, iid=initiative.id)
         )
 
     async def test_a_trashed_project_takes_no_new_sharing(
@@ -278,12 +277,7 @@ class TestAncestorFreeze:
         await session.commit()
 
         s = await role_session("app_user")
-        await set_rls_context(
-            s,
-            user_id=bystander.id,
-            guild_id=guild.id,
-            guild_role=GuildRole.member.value,
-        )
+        await route_as(s, user_id=bystander.id, guild_id=guild.id)
         try:
             hidden = await s.exec(
                 text("SELECT count(*) FROM projects WHERE id = :id").bindparams(
@@ -296,13 +290,12 @@ class TestAncestorFreeze:
                 await s.exec(
                     text(
                         "INSERT INTO resource_grants "
-                        "(resource_type, resource_id, user_id, level, guild_id, "
+                        "(resource_type, resource_id, user_id, level, "
                         " initiative_id, created_at) "
-                        "VALUES ('project', :pid, :uid, 'viewer', :gid, :iid, now())"
+                        "VALUES ('project', :pid, :uid, 'viewer', :iid, now())"
                     ).bindparams(
                         pid=project.id,
                         uid=bystander.id,
-                        gid=guild.id,
                         iid=initiative.id,
                     )
                 )
@@ -589,11 +582,20 @@ class TestTrashedRowsAreOutOfSight:
         await create_initiative_member(session, initiative=initiative, user=user)
         return user
 
-    async def _routed_as(self, role_session, user, guild, guild_role):
-        s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=user.id, guild_id=guild.id, guild_role=guild_role
+    @pytest.fixture
+    async def other_admin(self, session, workspace):
+        """A second member who administers the community, and deleted nothing."""
+        _u, guild, initiative, _p, _t = workspace
+        user = await create_user(session)
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.admin
         )
+        await create_initiative_member(session, initiative=initiative, user=user)
+        return user
+
+    async def _routed_as(self, role_session, user, guild):
+        s = await role_session("app_user")
+        await route_as(s, user_id=user.id, guild_id=guild.id)
         return s
 
     async def test_a_member_does_not_see_what_somebody_else_deleted(
@@ -605,9 +607,7 @@ class TestTrashedRowsAreOutOfSight:
         session.add(task)
         await session.commit()
 
-        s = await self._routed_as(
-            role_session, other_member, guild, GuildRole.member.value
-        )
+        s = await self._routed_as(role_session, other_member, guild)
         rows = (
             await s.exec(
                 text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
@@ -625,7 +625,7 @@ class TestTrashedRowsAreOutOfSight:
         session.add(task)
         await session.commit()
 
-        s = await self._routed_as(role_session, user, guild, GuildRole.member.value)
+        s = await self._routed_as(role_session, user, guild)
         rows = (
             await s.exec(
                 text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
@@ -635,7 +635,7 @@ class TestTrashedRowsAreOutOfSight:
         assert len(rows) == 1
 
     async def test_the_guild_admin_sees_everything_in_the_trash(
-        self, session, role_session, workspace, other_member
+        self, session, role_session, workspace, other_admin
     ):
         user, guild, _i, _p, task = workspace
         task.deleted_at = datetime.now(timezone.utc)
@@ -643,9 +643,7 @@ class TestTrashedRowsAreOutOfSight:
         session.add(task)
         await session.commit()
 
-        s = await self._routed_as(
-            role_session, other_member, guild, GuildRole.admin.value
-        )
+        s = await self._routed_as(role_session, other_admin, guild)
         rows = (
             await s.exec(
                 text("SELECT id FROM tasks WHERE id = :id").bindparams(id=task.id)
@@ -666,9 +664,7 @@ class TestTrashedRowsAreOutOfSight:
         session.add(task)
         await session.commit()
 
-        s = await self._routed_as(
-            role_session, other_member, guild, GuildRole.member.value
-        )
+        s = await self._routed_as(role_session, other_member, guild)
         frozen = await _frozen(s, "tasks", task.id)
         await s.rollback()
         assert frozen is True

@@ -21,7 +21,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import { routeTree } from "@/routeTree.gen";
 
-import { renderPage } from "./helpers/render";
+import { buildRouterContext, renderPage } from "./helpers/render";
 
 const MESSAGES_ROUTE_ID = "/_serverRequired/_authenticated/messages";
 
@@ -123,7 +123,7 @@ vi.mock("@/hooks/useUsers", async (importOriginal) => ({
   useUserProfile: (handle: string | null | undefined) => mocks.userProfile(handle),
 }));
 
-const router = createRouter({ routeTree });
+const router = createRouter({ routeTree, context: buildRouterContext() });
 
 // The page refuses outright where there are no web workers, because the ratchet
 // cannot run there. jsdom has none, so one stands in — nothing here calls it,

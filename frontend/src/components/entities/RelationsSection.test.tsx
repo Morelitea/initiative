@@ -6,12 +6,18 @@
  * headings, that a heading with nothing under it is not drawn at all, and that a
  * link nobody asserted is not offered as one to take back.
  */
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildSearchSuggestion } from "@/__tests__/factories";
+import {
+  buildInitiative,
+  buildInitiativeMember,
+  buildSearchSuggestion,
+  buildUser,
+  buildUserPublic,
+} from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -51,6 +57,17 @@ vi.mock("@sigma/node-image", () => ({
 }));
 vi.mock("sigma/utils", () => ({ animateNodes: () => () => {} }));
 vi.mock("sigma/rendering", () => ({ drawDiscNodeLabel: () => {} }));
+
+/**
+ * The upload itself, stubbed where the app calls it: jsdom's multipart bodies
+ * are not something MSW can read back, and what is under test is what the
+ * panel does with the document that comes back.
+ */
+const uploadDocumentFile = vi.hoisted(() => vi.fn());
+vi.mock("@/api/generated/documents/documents", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/generated/documents/documents")>()),
+  uploadDocumentFileApiV1GGuildIdDocumentsUploadPost: uploadDocumentFile,
+}));
 
 import { RelationsSection } from "./RelationsSection";
 
@@ -129,6 +146,52 @@ const renderSection = (
   server.use(guildHttp.get("/relationships/", () => HttpResponse.json(rows)));
   return mount(canEdit, defaultLayout);
 };
+
+/**
+ * The section for somebody who may make documents in its initiative, so the
+ * dialog may offer an upload. Records what was uploaded and linked.
+ */
+const mountUploader = ({ canCreateDocuments = true, canViewDocuments = true } = {}) => {
+  const user = buildUser();
+  const writes: { links: unknown[] } = { links: [] };
+  uploadDocumentFile.mockReset();
+  uploadDocumentFile.mockResolvedValue({ id: 77, name: "Floor plan" });
+  server.use(
+    guildHttp.get("/relationships/", () => HttpResponse.json([])),
+    guildHttp.get("/initiatives/", () =>
+      HttpResponse.json([
+        buildInitiative({
+          id: 3,
+          members: [
+            buildInitiativeMember({
+              user: buildUserPublic({ id: user.id }),
+              can_create_documents: canCreateDocuments,
+              can_view_documents: canViewDocuments,
+            }),
+          ],
+        }),
+      ])
+    ),
+    guildHttp.put("/documents/:id/grants", () => HttpResponse.json({})),
+    guildHttp.post("/relationships/", async ({ request }) => {
+      const body = await request.json();
+      writes.links.push(body);
+      return HttpResponse.json({
+        ...row("attached", "outbound", "Floor plan"),
+        other: { ...farEnd, type: SearchEntityType.document, id: 77, title: "Floor plan" },
+      });
+    })
+  );
+  renderPage(
+    () => (
+      <RelationsSection entity={{ type: SearchEntityType.task, id: 1 }} initiativeId={3} canEdit />
+    ),
+    { initialRoute: "/c/1", auth: { user } }
+  );
+  return writes;
+};
+
+const aFile = (name = "floor-plan.pdf") => new File(["%PDF"], name, { type: "application/pdf" });
 
 /** The block a heading names, so a link can be asserted to be filed under it. */
 const sectionNamed = async (name: string) =>
@@ -425,5 +488,118 @@ describe("RelationsSection", () => {
     const verb = within(dialog).getByRole("combobox", { name: "How the two relate" });
     // Never a dependency on somebody's behalf — that claim is theirs to make.
     expect(verb).not.toHaveTextContent("is blocked by");
+  });
+
+  describe("uploading a file to link", () => {
+    it("makes the file a document and links it, in one step", async () => {
+      const user = userEvent.setup();
+      const writes = mountUploader();
+
+      await user.click(await screen.findByRole("button", { name: "Add link" }));
+      const dialog = await screen.findByRole("dialog");
+      await within(dialog).findByRole("button", { name: "Choose a file" });
+      const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+      await user.upload(input, aFile());
+
+      // Named after the file until somebody names it, and said as a sentence
+      // like any other far end — attached, never a dependency.
+      expect(within(dialog).getByLabelText("Name")).toHaveValue("floor-plan");
+      expect(within(dialog).getByText("floor-plan.pdf")).toBeInTheDocument();
+      const verb = within(dialog).getByRole("combobox", { name: "How the two relate" });
+      expect(verb).toHaveTextContent("is attached to");
+
+      await user.click(within(dialog).getByRole("button", { name: "Upload and link" }));
+
+      await waitFor(() => expect(writes.links).toHaveLength(1));
+      expect(uploadDocumentFile).toHaveBeenCalledTimes(1);
+      expect(uploadDocumentFile.mock.calls[0]?.[1]).toMatchObject({
+        name: "floor-plan",
+        initiative_id: 3,
+      });
+      expect(writes.links[0]).toMatchObject({
+        source: { type: "task", id: 1 },
+        relationship_type: "attached",
+        target: { type: "document", id: 77 },
+      });
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
+
+    it("goes back to the picker when the file is put down", async () => {
+      const user = userEvent.setup();
+      mountUploader();
+
+      await user.click(await screen.findByRole("button", { name: "Add link" }));
+      const dialog = await screen.findByRole("dialog");
+      await within(dialog).findByRole("button", { name: "Choose a file" });
+      await user.upload(dialog.querySelector('input[type="file"]') as HTMLInputElement, aFile());
+      await user.click(within(dialog).getByRole("button", { name: "Pick something else instead" }));
+
+      expect(within(dialog).getByRole("combobox", { name: "Thing" })).toBeInTheDocument();
+      expect(within(dialog).queryByText("floor-plan.pdf")).not.toBeInTheDocument();
+    });
+
+    it("opens the dialog holding a file dropped on the section", async () => {
+      mountUploader();
+
+      const heading = await screen.findByRole("heading", { name: "Connections" });
+      const section = heading.closest("[data-state]") as HTMLElement;
+      // The create flag arrives with the initiative list; until then there is
+      // nowhere to drop.
+      await waitFor(() => {
+        fireEvent.dragEnter(section, { dataTransfer: { types: ["Files"], files: [] } });
+        expect(screen.getByText("Drop to upload and link")).toBeInTheDocument();
+      });
+      fireEvent.drop(section, { dataTransfer: { types: ["Files"], files: [aFile()] } });
+
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText("floor-plan.pdf")).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Upload and link" })).toBeEnabled();
+    });
+
+    it.each([
+      ["may not make documents here", { canCreateDocuments: false }],
+      ["does not have documents here", { canViewDocuments: false }],
+    ])("does not offer an upload to somebody who %s", async (_label, access) => {
+      const user = userEvent.setup();
+      mountUploader(access);
+
+      await user.click(await screen.findByRole("button", { name: "Add link" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByRole("combobox", { name: "Thing" })).toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole("button", { name: "Choose a file" })
+      ).not.toBeInTheDocument();
+    });
+
+    it("links the document it already uploaded when the link is tried again", async () => {
+      // The upload landed and the link did not. Trying again must not leave a
+      // second copy of the file behind.
+      const user = userEvent.setup();
+      const writes = mountUploader();
+      let refused = false;
+      server.use(
+        guildHttp.post("/relationships/", async ({ request }) => {
+          if (!refused) {
+            refused = true;
+            return HttpResponse.json({ detail: "nope" }, { status: 500 });
+          }
+          writes.links.push(await request.json());
+          return HttpResponse.json(row("attached", "outbound", "Floor plan"));
+        })
+      );
+
+      await user.click(await screen.findByRole("button", { name: "Add link" }));
+      const dialog = await screen.findByRole("dialog");
+      await within(dialog).findByRole("button", { name: "Choose a file" });
+      await user.upload(dialog.querySelector('input[type="file"]') as HTMLInputElement, aFile());
+      const submit = within(dialog).getByRole("button", { name: "Upload and link" });
+      await user.click(submit);
+      await waitFor(() => expect(refused).toBe(true));
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      await waitFor(() => expect(writes.links).toHaveLength(1));
+      expect(uploadDocumentFile).toHaveBeenCalledTimes(1);
+    });
   });
 });

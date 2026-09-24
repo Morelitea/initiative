@@ -24,7 +24,6 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
     _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     calendar_id: int = Field(foreign_key="calendars.id", nullable=False, index=True)
     title: str = Field(nullable=False, max_length=255)
     description: Optional[str] = Field(
@@ -92,7 +91,6 @@ class CalendarEventAttendee(SQLModel, table=True):
         ),
     )
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
     rsvp_status: RSVPStatus = Field(
         default=RSVPStatus.pending,
         sa_column=Column(

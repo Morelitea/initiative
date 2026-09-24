@@ -65,11 +65,10 @@ from sqlalchemy import text as sa_text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import API_V1_STR, settings
+from app.core.config import settings
 from app.core.messages import MarketplaceRegistryMessages as Codes
 from app.models.platform.marketplace import MarketplaceListing
 from app.models.platform.marketplace_registry import (
-    MarketplaceMedia,
     MarketplaceRegistryState,
 )
 from app.services.marketplace.catalog import (
@@ -78,6 +77,7 @@ from app.services.marketplace.catalog import (
     upsert_listing,
     withdraw_listing,
 )
+from app.services.marketplace import media
 from app.services.marketplace.definitions import (
     ListingDefinitionError,
     normalize_listing_definition,
@@ -130,6 +130,10 @@ MAX_IMAGE_BYTES = 1024 * 1024
 MAX_LISTINGS = 500
 MAX_IMAGES_PER_LISTING = 8
 
+#: How old a signed index may be before it is refused. The publish pipeline
+#: re-signs on a schedule well inside this.
+MAX_INDEX_AGE_SECONDS = 7 * 86400
+
 #: Per-request budget for one fetch.
 FETCH_TIMEOUT_SECONDS = 15.0
 
@@ -140,21 +144,8 @@ CLOCK_SKEW_SECONDS = 300
 #: The index format this client understands.
 SUPPORTED_SCHEMA_VERSION = 1
 
-#: Where mirrored artwork is served from. Same-origin by construction, and
-#: addressed by the digest of the bytes, so the URL is stable and cacheable.
-MEDIA_URL_PREFIX = f"{API_V1_STR}/marketplace/media/"
-
-#: Image types a listing may carry, each with the leading bytes a file of that
-#: type starts with. Raster formats only — the artwork renders in a plain
-#: ``<img>`` and carries no document of its own.
-_IMAGE_MAGIC: dict[str, tuple[bytes, ...]] = {
-    "image/png": (b"\x89PNG\r\n\x1a\n",),
-    "image/jpeg": (b"\xff\xd8\xff",),
-    "image/gif": (b"GIF87a", b"GIF89a"),
-    # WebP is a RIFF container; the format tag sits at offset 8 and is checked
-    # separately below.
-    "image/webp": (b"RIFF",),
-}
+#: Where mirrored artwork is served from (``media``).
+MEDIA_URL_PREFIX = media.MEDIA_URL_PREFIX
 
 _HEX_DIGITS = frozenset("0123456789abcdef")
 _DIGEST_LENGTH = 64
@@ -296,7 +287,7 @@ def registry_configured() -> bool:
 
 def media_path(digest: str) -> str:
     """The same-origin path a mirrored image is served from."""
-    return f"{MEDIA_URL_PREFIX}{digest}"
+    return media.media_path(digest)
 
 
 # --- fetching ---------------------------------------------------------------
@@ -564,7 +555,7 @@ def _check_freshness(index: _Index, now: datetime) -> None:
     part that stops a correctly signed copy from being served forever after the
     publisher moved on.
     """
-    max_age = timedelta(seconds=settings.MARKETPLACE_REGISTRY_MAX_AGE_SECONDS)
+    max_age = timedelta(seconds=MAX_INDEX_AGE_SECONDS)
     age = now - index.generated_at
     if age > max_age:
         raise RegistryError(
@@ -610,14 +601,12 @@ def _check_serial(
 
 def _check_image_bytes(data: bytes, content_type: Any) -> str:
     """Confirm the bytes are an image of the type the signed index declares."""
-    if not isinstance(content_type, str) or content_type not in _IMAGE_MAGIC:
+    if not isinstance(content_type, str) or content_type not in media.IMAGE_TYPES:
         raise RegistryError(
             Codes.ARTIFACT_INVALID, f"unsupported image type {content_type!r}"
         )
-    if not any(data.startswith(prefix) for prefix in _IMAGE_MAGIC[content_type]):
+    if not media.is_image_of_type(data, content_type):
         raise RegistryError(Codes.ARTIFACT_INVALID, f"the bytes are not {content_type}")
-    if content_type == "image/webp" and data[8:12] != b"WEBP":
-        raise RegistryError(Codes.ARTIFACT_INVALID, "the bytes are not image/webp")
     return content_type
 
 
@@ -640,24 +629,10 @@ async def _mirror_image(
     digest = _check_digest(data, spec, what=f"image {url}")
     content_type = _check_image_bytes(data, spec.get("content_type"))
 
-    existing = (
-        await session.exec(
-            select(MarketplaceMedia).where(MarketplaceMedia.sha256 == digest)
-        )
-    ).first()
-    if existing is None:
-        session.add(
-            MarketplaceMedia(
-                sha256=digest,
-                content_type=content_type,
-                byte_size=len(data),
-                data=data,
-                source_url=url[:2000],
-                created_at=now,
-            )
-        )
-        await session.flush()
-    return media_path(digest)
+    del digest  # checked against the index; the store keys on the same digest
+    return await media.store_media(
+        session, data, content_type=content_type, source_url=url, now=now
+    )
 
 
 # --- one listing ------------------------------------------------------------
@@ -718,6 +693,12 @@ async def _ingest_listing(
             f"{public_id}: the manifest names a different listing",
         )
 
+    # A pack's decoration art, like every other picture, comes from the index.
+    # Whatever the manifest names is dropped before the body is checked.
+    is_pack = manifest.get("kind") == "profile_pack"
+    if is_pack:
+        _drop_decoration_images(manifest)
+
     # Validate the body before anything is downloaded for it: a listing the
     # validator will not take is not worth fetching artwork for.
     try:
@@ -765,10 +746,77 @@ async def _ingest_listing(
         )
     manifest["images"] = mirrored
 
+    if is_pack:
+        await _copy_decoration_art(
+            session,
+            manifest=manifest,
+            specs=entry.get("decoration_art"),
+            index_url=index_url,
+            public_id=public_id,
+            now=now,
+        )
+
     try:
         await upsert_listing(session, manifest, source=SOURCE)
     except CatalogError as exc:
         raise RegistryError(Codes.LISTING_REJECTED, str(exc)) from exc
+
+
+def _pack_decorations(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
+    definition = manifest.get("definition")
+    if not isinstance(definition, dict):
+        return []
+    entries = definition.get("decorations")
+    if not isinstance(entries, list):
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def _drop_decoration_images(manifest: Mapping[str, Any]) -> None:
+    for decoration in _pack_decorations(manifest):
+        decoration.pop("image", None)
+
+
+async def _copy_decoration_art(
+    session: AsyncSession,
+    *,
+    manifest: Mapping[str, Any],
+    specs: Any,
+    index_url: str,
+    public_id: str,
+    now: datetime,
+) -> None:
+    """Give each of a pack's decorations the picture the index names for it.
+
+    ``decoration_art`` in the index entry maps a decoration id to an image spec
+    — the same ``{url, sha256, content_type}`` an avatar has — and each one is
+    fetched, checked against its digest, and kept in the marketplace's media.
+    A decoration the index names no art for keeps none, and is drawn only by a
+    client that ships art for its id.
+    """
+    if specs is None:
+        return
+    if not isinstance(specs, Mapping):
+        raise RegistryError(
+            Codes.INDEX_MALFORMED, f"{public_id}: decoration_art must be an object"
+        )
+    decorations = {str(entry.get("id")): entry for entry in _pack_decorations(manifest)}
+    for decoration_id, spec in specs.items():
+        decoration = decorations.get(str(decoration_id))
+        if decoration is None:
+            raise RegistryError(
+                Codes.INDEX_MALFORMED,
+                f"{public_id}: decoration_art names {decoration_id!r}, "
+                "which the pack does not grant",
+            )
+        if not isinstance(spec, Mapping):
+            raise RegistryError(
+                Codes.INDEX_MALFORMED,
+                f"{public_id}: art for {decoration_id!r} is not an object",
+            )
+        decoration["image"] = await _mirror_image(
+            session, index_url=index_url, spec=spec, now=now
+        )
 
 
 # --- state ------------------------------------------------------------------
@@ -1049,9 +1097,9 @@ async def process_registry_refresh() -> None:
     """
     if not registry_configured():
         return
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         result = await refresh_registry(session)
     if result.ok and not result.unchanged:
         logger.info(

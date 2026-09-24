@@ -378,3 +378,492 @@ def test_what_the_mapping_produces_is_a_real_envelope():
     assert parsed.tasks[0].priority is TaskPriority.urgent
     assert parsed.tasks[0].external_ref == "jira:ACME-1"
     assert parsed.task_statuses[0].name == "To Do"
+
+
+# --- links and parents -------------------------------------------------------
+
+
+def _blocks(*, inward=None, outward=None, link_id="10"):
+    link = {
+        "id": link_id,
+        "type": {"name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
+    }
+    if inward:
+        link["inwardIssue"] = {"key": inward}
+    if outward:
+        link["outwardIssue"] = {"key": outward}
+    return link
+
+
+def _relates(*, inward=None, outward=None, link_id="20", name="Relates"):
+    link = {
+        "id": link_id,
+        "type": {"name": name, "inward": "relates to", "outward": "relates to"},
+    }
+    if inward:
+        link["inwardIssue"] = {"key": inward}
+    if outward:
+        link["outwardIssue"] = {"key": outward}
+    return link
+
+
+def test_the_blocked_issue_depends_on_its_blocker():
+    """Jira shows a Blocks link on both issues. The blocked one — which sees
+    its blocker as "is blocked by" — says it; the blocker says nothing, or
+    the edge would be written twice."""
+    blocked = _map(_issue("ACME-2", "Hang it", issuelinks=[_blocks(inward="ACME-1")]))
+    blocker = _map(_issue("ACME-1", "Fit it", issuelinks=[_blocks(outward="ACME-2")]))
+    assert blocked["links"] == [
+        {"type": "depends_on", "target_external_ref": "jira:ACME-1"}
+    ]
+    assert blocker["links"] == []
+
+
+def test_a_renamed_blocking_type_still_blocks():
+    """A site can rename the type; the verb is what says it blocks."""
+    link = _blocks(inward="ACME-1")
+    link["type"]["name"] = "Prerequisite"
+    task = _map(_issue("ACME-2", "Hang it", issuelinks=[link]))
+    assert task["links"] == [
+        {"type": "depends_on", "target_external_ref": "jira:ACME-1"}
+    ]
+
+
+@pytest.mark.parametrize("name", ["Relates", "Duplicate", "Cloners", "Causes"])
+def test_every_other_link_is_related_and_said_once(name):
+    """The finer words have no home here, so each is a plain relation — from
+    the outward side only, since the inward side reports the same link."""
+    outward_side = _map(
+        _issue("ACME-1", "One", issuelinks=[_relates(outward="ACME-2", name=name)])
+    )
+    inward_side = _map(
+        _issue("ACME-2", "Two", issuelinks=[_relates(inward="ACME-1", name=name)])
+    )
+    assert outward_side["links"] == [
+        {"type": "related_to", "target_external_ref": "jira:ACME-2"}
+    ]
+    assert inward_side["links"] == []
+
+
+def test_a_sub_task_or_story_is_part_of_its_parent():
+    """A sub-task's parent and a story's epic arrive the same way: only the
+    child names its parent."""
+    task = _map(_issue("ACME-3", "A step", parent={"key": "ACME-1"}))
+    assert task["links"] == [{"type": "part_of", "target_external_ref": "jira:ACME-1"}]
+
+
+def test_the_same_link_twice_is_one_link():
+    task = _map(
+        _issue(
+            "ACME-2",
+            "Hang it",
+            issuelinks=[
+                _blocks(inward="ACME-1", link_id="10"),
+                _blocks(inward="ACME-1", link_id="11"),
+            ],
+        )
+    )
+    assert len(task["links"]) == 1
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [None, "nope", [None], [{"type": None}], [{"type": {"name": "Blocks"}}]],
+)
+def test_links_that_name_nothing_are_ignored(bad):
+    task = _map(_issue("ACME-2", "Hang it", issuelinks=bad, parent="ACME-1"))
+    assert task["links"] == []
+
+
+def test_link_ends_name_each_link_once_by_id():
+    """For counting: both sides report a link, and the id is what makes them
+    one. The parent is keyed by its child, since only the child names it."""
+    issue = _issue(
+        "ACME-2",
+        "Hang it",
+        parent={"key": "ACME-1"},
+        issuelinks=[_blocks(inward="ACME-1", link_id="10"), _relates(outward="OPS-9")],
+    )
+    assert jm.link_far_ends(issue) == [
+        ("parent:ACME-2", "ACME-1"),
+        ("link:10", "ACME-1"),
+        ("link:20", "OPS-9"),
+    ]
+
+
+def test_links_survive_into_a_real_envelope():
+    """The link shape has to validate as the envelope's own, or the apply
+    refuses the whole project."""
+    from app.schemas.tenant.project_export import ProjectExportEnvelope
+
+    envelope = _envelope(
+        issues=[
+            _issue("ACME-1", "Fit it"),
+            _issue(
+                "ACME-2",
+                "Hang it",
+                parent={"key": "ACME-1"},
+                issuelinks=[_blocks(inward="ACME-1")],
+            ),
+        ]
+    )
+    parsed = ProjectExportEnvelope.model_validate(envelope)
+    assert [
+        (link.type.value, link.target_external_ref) for link in parsed.tasks[1].links
+    ] == [
+        ("part_of", "jira:ACME-1"),
+        ("depends_on", "jira:ACME-1"),
+    ]
+
+
+# --- comments ------------------------------------------------------------------
+
+
+def _adf_text(text):
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
+    }
+
+
+def _jira_comment(author, text, created, **extra):
+    return {
+        "author": {"displayName": author, "emailAddress": "hidden@example.com"},
+        "body": _adf_text(text),
+        "created": created,
+        **extra,
+    }
+
+
+def test_comments_arrive_oldest_first_with_their_author_and_date():
+    mapped = jm.map_comments(
+        {
+            "comment": {
+                "comments": [
+                    _jira_comment("Sam", "Second", "2024-03-05T09:00:00.000+0000"),
+                    _jira_comment("Robin", "First", "2024-03-04T09:00:00.000+0000"),
+                ]
+            }
+        }
+    )
+    assert [c["body"] for c in mapped.comments] == ["First", "Second"]
+    first = mapped.comments[0]
+    assert first["author_handle"] == "Robin" and first["author_name"] == "Robin"
+    assert first["created_at"].startswith("2024-03-04")
+    # A display name, never an address.
+    assert "hidden@example.com" not in str(mapped.comments)
+
+
+def _mention(name, account="acc-1"):
+    return {"type": "mention", "attrs": {"id": account, "text": f"@{name}"}}
+
+
+def test_a_reply_names_the_comment_it_answers():
+    """Jira's threaded replies carry ``parentId``; the reply arrives under
+    its comment rather than beside it."""
+    mapped = jm.map_comments(
+        {
+            "comment": {
+                "comments": [
+                    _jira_comment(
+                        "Robin", "Question", "2024-03-04T09:00:00.000+0000", id="10"
+                    ),
+                    _jira_comment(
+                        "Sam",
+                        "Answer",
+                        "2024-03-05T09:00:00.000+0000",
+                        id="11",
+                        parentId=10,
+                    ),
+                    _jira_comment(
+                        "Sam", "Aside", "2024-03-06T09:00:00.000+0000", parentId="x"
+                    ),
+                ]
+            }
+        }
+    )
+    question, answer, aside = mapped.comments
+    assert question["external_ref"] == "jira-comment:10"
+    assert "reply_to_ref" not in question
+    assert answer["reply_to_ref"] == "jira-comment:10"
+    # An id that is not one is no thread.
+    assert "external_ref" not in aside and "reply_to_ref" not in aside
+
+
+def test_a_mention_is_rendered_as_the_name_and_listed():
+    """Who a mention is here is the people step's answer, so the fetch
+    writes the name and lists it for the apply to link."""
+    body = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    _mention("Jordan Janzen"),
+                    {"type": "text", "text": " thoughts? cc "},
+                    _mention("Mel", "acc-2"),
+                    {"type": "text", "text": " and "},
+                    _mention("Jordan Janzen"),
+                ],
+            }
+        ],
+    }
+    mapped = jm.map_comments(
+        {
+            "comment": {
+                "comments": [
+                    {
+                        "author": {"displayName": "Robin"},
+                        "body": body,
+                        "created": "2024-03-04T09:00:00.000+0000",
+                    }
+                ]
+            }
+        }
+    )
+    (comment,) = mapped.comments
+    assert comment["body"] == "@Jordan Janzen thoughts? cc @Mel and @Jordan Janzen"
+    assert comment["mention_handles"] == ["Jordan Janzen", "Mel"]
+
+    issue = _issue(
+        "ACME-1",
+        "One",
+        description={
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Ask "}, _mention("Mel")],
+                }
+            ],
+        },
+    )
+    task = _map(issue)
+    assert task["description"] == "Ask @Mel"
+    assert task["mention_handles"] == ["Mel"]
+
+
+def test_a_restricted_comment_stays_behind_and_is_counted():
+    """Visible to one role at the source; bringing it over would show it to
+    everybody in the initiative."""
+    fields = {
+        "comment": {
+            "comments": [
+                _jira_comment("Robin", "Open", "2024-03-04T09:00:00.000+0000"),
+                _jira_comment(
+                    "Sam",
+                    "Admins only",
+                    "2024-03-05T09:00:00.000+0000",
+                    visibility={"type": "role", "value": "Administrators"},
+                ),
+            ]
+        }
+    }
+    mapped = jm.map_comments(fields)
+    assert [c["body"] for c in mapped.comments] == ["Open"]
+    assert mapped.restricted == 1
+    assert jm.restricted_comment_count(fields) == 1
+
+
+def test_an_empty_comment_is_skipped_and_plain_text_is_kept():
+    mapped = jm.map_comments(
+        {
+            "comment": {
+                "comments": [
+                    {"author": {"displayName": "A"}, "body": _adf_text("   ")},
+                    {"author": {"displayName": "B"}, "body": "plain words"},
+                    "nonsense",
+                ]
+            }
+        }
+    )
+    assert [c["body"] for c in mapped.comments] == ["plain words"]
+
+
+def test_comments_ride_on_the_task_only_when_asked_for():
+    issue = _issue(
+        "ACME-1",
+        "One",
+        comment={
+            "comments": [_jira_comment("Robin", "Hi", "2024-03-04T09:00:00.000+0000")]
+        },
+    )
+    assert _map(issue)["comments"] == []
+    with_comments = jm.map_issue(
+        issue,
+        position=1.0,
+        status_names={"To Do"},
+        default_status_name="To Do",
+        include_comments=True,
+    )
+    assert with_comments is not None
+    assert [c["body"] for c in with_comments[0]["comments"]] == ["Hi"]
+
+
+def test_comments_survive_into_a_real_envelope():
+    from app.schemas.tenant.project_export import ProjectExportEnvelope
+
+    envelope = jm.build_project_envelope(
+        project={"key": "ACME", "name": "Acme"},
+        issue_type_statuses=[{"statuses": [_status("To Do", "new")]}],
+        issues=[
+            _issue(
+                "ACME-1",
+                "One",
+                comment={
+                    "comments": [
+                        _jira_comment("Robin", "Hi", "2024-03-04T09:00:00.000+0000")
+                    ]
+                },
+            )
+        ],
+        app_version="0.0.0-test",
+        include_comments=True,
+    ).envelope
+    parsed = ProjectExportEnvelope.model_validate(envelope)
+    assert parsed.tasks[0].comments[0].author_handle == "Robin"
+
+
+# --- images --------------------------------------------------------------------
+
+
+def _media_doc(filename, text="See"):
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": text}]},
+            {
+                "type": "mediaSingle",
+                "content": [
+                    {
+                        "type": "media",
+                        "attrs": {"id": "media-uuid", "type": "file", "alt": filename},
+                    }
+                ],
+            },
+        ],
+    }
+
+
+def _stored(filename, key):
+    from app.services.import_engine.jira_attachments import StoredImage
+
+    return StoredImage(filename, key, "image/png", 0)
+
+
+def test_an_embedded_image_renders_from_its_upload_where_it_sat():
+    """Found by the filename Jira puts on the media node's alt — its id is a
+    Media Services id with no way back to the attachment."""
+    mapped = jm.map_issue(
+        _issue("ACME-1", "One", description=_media_doc("door.png")),
+        position=1.0,
+        status_names={"To Do"},
+        default_status_name="To Do",
+        images=[_stored("door.png", "k1.png")],
+        guild_id=5,
+    )
+    assert mapped is not None
+    description = mapped[0]["description"]
+    assert "![door.png](/uploads/5/k1.png)" in description
+    # Placed where it was embedded, and not listed again at the foot.
+    assert "Attachments" not in description
+
+
+def test_an_image_nobody_embedded_is_listed_at_the_foot():
+    mapped = jm.map_issue(
+        _issue("ACME-1", "One", description=_adf_text("Body")),
+        position=1.0,
+        status_names={"To Do"},
+        default_status_name="To Do",
+        images=[_stored("hinge.png", "k2.png")],
+        guild_id=5,
+    )
+    assert mapped is not None
+    description = mapped[0]["description"]
+    assert description.startswith("Body")
+    assert description.endswith("![hinge.png](/uploads/5/k2.png)")
+
+
+def test_an_image_embedded_in_a_comment_renders_there_too():
+    mapped = jm.map_issue(
+        _issue(
+            "ACME-1",
+            "One",
+            comment={
+                "comments": [
+                    {
+                        "author": {"displayName": "Robin"},
+                        "body": _media_doc("proof.png", text="Done"),
+                        "created": "2024-03-04T09:00:00.000+0000",
+                    }
+                ]
+            },
+        ),
+        position=1.0,
+        status_names={"To Do"},
+        default_status_name="To Do",
+        include_comments=True,
+        images=[_stored("proof.png", "k3.png")],
+        guild_id=5,
+    )
+    assert mapped is not None
+    task = mapped[0]
+    assert "![proof.png](/uploads/5/k3.png)" in task["comments"][0]["body"]
+    # Embedded in a comment counts as placed: not repeated in the description.
+    assert not task["description"]
+
+
+def test_without_images_a_media_node_is_its_filename():
+    task = _map(_issue("ACME-1", "One", description=_media_doc("door.png")))
+    assert "door.png" in task["description"] and "/uploads/" not in task["description"]
+
+
+def test_a_project_mapped_a_page_at_a_time_is_the_project_mapped_whole():
+    """The fetch maps each page of issues as it arrives. The envelope has to
+    come out the same as mapping every issue at once: positions keep
+    counting across pages, and the property definitions still cover what any
+    page filled in."""
+    catalog = [
+        {
+            "id": "customfield_1",
+            "name": "Team",
+            "custom": True,
+            "schema": {"type": "option", "custom": "select"},
+        }
+    ]
+    issues = [
+        _issue("ACME-1", "One", priority={"name": "High"}, labels=["ui"]),
+        _issue("ACME-2", "Two", customfield_1={"value": "Core"}),
+        {"key": "", "fields": "not an issue"},
+        _issue("ACME-3", "Three", customfield_1={"value": "Web"}, labels=["api"]),
+        _issue("ACME-4", "Four", priority={"name": "Lowest"}),
+    ]
+    files = {"ACME-3": [_stored("spec.pdf", "k-spec.pdf")]}
+    shared = dict(
+        project={"key": "ACME", "name": "Acme Board"},
+        issue_type_statuses=[
+            {"statuses": [_status("To Do", "new"), _status("Done", "done")]}
+        ],
+        app_version="0.0.0-test",
+        field_catalog=catalog,
+    )
+
+    whole = jm.build_project_envelope(issues=issues, files_by_issue=files, **shared)
+    mapper = jm.ProjectMapper(**shared)
+    mapper.add(issues[:2])
+    mapper.add(issues[2:4], files_by_issue=files)
+    mapper.add(issues[4:])
+    paged = mapper.finish()
+
+    whole.envelope.pop("exported_at", None)
+    paged.envelope.pop("exported_at", None)
+    assert paged.envelope == whole.envelope
+    assert (paged.skipped_rows, paged.properties) == (
+        whole.skipped_rows,
+        whole.properties,
+    )
+    assert "Team" in paged.properties

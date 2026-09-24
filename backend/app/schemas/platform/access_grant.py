@@ -60,7 +60,23 @@ class AccessGrantCreate(SanitizedBaseModel):
         return asked
 
 
-class BreakGlassCreate(SanitizedBaseModel):
+class SecondFactorAnswer(SanitizedBaseModel):
+    """The account's own second factor, presented with a self-issued grant.
+
+    Asked for once any ``data.bypass`` holder has one. Any of the three
+    answers is accepted: a code from the authenticator, one of the recovery
+    codes, or an assertion from one of the account's passkeys — begun at
+    ``POST /access-grants/break-glass/passkey`` so the challenge it answers
+    belongs to this request.
+    """
+
+    code: Optional[str] = Field(default=None, max_length=64)
+    recovery_code: Optional[str] = Field(default=None, max_length=64)
+    #: ``AuthenticationResponseJSON`` — the assertion as the browser returned it.
+    passkey: Optional[dict[str, Any]] = None
+
+
+class BreakGlassCreate(SecondFactorAnswer):
     """A self-approved, time-bound break-glass grant to one guild.
 
     Issued by a ``data.bypass`` holder who needs emergency access without
@@ -68,8 +84,7 @@ class BreakGlassCreate(SanitizedBaseModel):
     issues write access to the community's content **and** a settings grant at
     ``superadmin``, because that is what an emergency is for. Somebody who
     wants less asks for less through the ordinary request flow. The window is
-    short and capped server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue
-    to extend.
+    short and capped server-side — re-issue to extend.
     """
 
     guild_id: int
@@ -77,15 +92,6 @@ class BreakGlassCreate(SanitizedBaseModel):
     # break-glass maximum regardless of what's requested.
     requested_duration_minutes: Optional[int] = Field(default=None, gt=0)
     reason: str = Field(min_length=1, max_length=2000)
-    # The account's own second factor, asked for once any ``data.bypass``
-    # holder has one. Any of the three answers is accepted: a code from the
-    # authenticator, one of the recovery codes, or an assertion from one of
-    # the account's passkeys — begun at ``POST /access-grants/break-glass/
-    # passkey`` so the challenge it answers belongs to this request.
-    code: Optional[str] = Field(default=None, max_length=64)
-    recovery_code: Optional[str] = Field(default=None, max_length=64)
-    #: ``AuthenticationResponseJSON`` — the assertion as the browser returned it.
-    passkey: Optional[dict[str, Any]] = None
 
 
 class AccessGrantApprove(SanitizedBaseModel):
@@ -164,7 +170,18 @@ class BreakGlassRequirements(SanitizedBaseModel):
     """
 
     second_factor_required: bool
+    #: The longest window, in minutes, the caller may break glass for.
+    max_duration_minutes: int
     #: Whether the caller holds a confirmed authenticator to answer with.
     totp_enrolled: bool
     #: And whether they hold a passkey, which answers it just as well.
     passkey_enrolled: bool
+
+
+class AccessGrantLimits(SanitizedBaseModel):
+    """What the caller may ask for through the request flow, as this
+    deployment configures it — read by the request form to offer its
+    durations."""
+
+    #: The longest window, in minutes, the caller may request.
+    max_duration_minutes: int

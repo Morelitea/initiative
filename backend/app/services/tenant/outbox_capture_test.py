@@ -15,14 +15,14 @@ from sqlmodel import select
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.event_outbox import EventOutbox
-from app.testing import create_task, create_tag
+from app.testing import create_task, create_tag, route_as
 
 
 pytestmark = pytest.mark.integration
 
 
 async def _outbox(session, guild_id: int) -> list[EventOutbox]:
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
     return list(await session.exec(select(EventOutbox).order_by(EventOutbox.id.asc())))
 
 
@@ -119,7 +119,6 @@ async def test_a_task_status_is_reported_against_its_project(session, acting_use
     before = len(await _outbox(session, a.guild.id))
     session.add(
         TaskStatus(
-            guild_id=a.guild.id,
             project_id=a.project.id,
             name="Blocked",
             position=99,
@@ -151,7 +150,6 @@ async def test_a_grant_is_reported_against_the_resource_it_shares(session, actin
     before = len(await _outbox(session, a.guild.id))
     session.add(
         ResourceGrant(
-            guild_id=a.guild.id,
             initiative_id=a.initiative.id,
             resource_type="project",
             resource_id=a.project.id,
@@ -204,9 +202,7 @@ async def test_adding_a_member_reports_against_the_initiative(session, acting_us
     # platform row, and this session is pointed at a guild by the actor above.
     await set_rls_context(session)
     joiner = await create_user(session)
-    await set_rls_context(
-        session, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"
-    )
+    await route_as(session, user_id=a.user.id, guild_id=a.guild.id)
     await create_initiative_member(session, a.initiative, joiner)
     await session.commit()
 
@@ -330,7 +326,7 @@ async def test_a_hard_delete_on_a_trash_table_never_surfaces(session, acting_use
     ]
     assert len(deletes_after_soft) == 1, "the soft delete should announce once"
 
-    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=a.guild.id)
     await hard_purge_entity(session, task)
     await session.commit()
 
@@ -358,7 +354,7 @@ async def test_a_hard_delete_that_was_never_trashed_still_announces(
     await session.commit()
 
     before = len(await _outbox(session, a.guild.id))
-    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=a.guild.id)
     await session.delete(membership)
     await session.commit()
 
@@ -377,7 +373,7 @@ async def test_a_trash_row_removed_outright_is_still_silent(session, acting_user
     task = await create_task(session, a.project)
 
     before = len(await _outbox(session, a.guild.id))
-    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=a.guild.id)
     await session.delete(task)
     await session.commit()
 
@@ -402,12 +398,7 @@ async def test_a_member_removing_themselves_is_captured(
     before = len(await _outbox(session, a.guild.id))
 
     s = await role_session("app_user")
-    await set_rls_context(
-        s,
-        user_id=a.user.id,
-        guild_id=a.guild.id,
-        guild_role=GuildRole.member.value,
-    )
+    await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
     await s.exec(
         text(
             "DELETE FROM initiative_members WHERE initiative_id = :i AND user_id = :u"
@@ -435,12 +426,7 @@ async def test_the_log_is_written_only_by_the_trigger(
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     s = await role_session("app_user")
-    await set_rls_context(
-        s,
-        user_id=a.user.id,
-        guild_id=a.guild.id,
-        guild_role=GuildRole.member.value,
-    )
+    await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
     with pytest.raises(ProgrammingError, match="row-level security"):
         await s.exec(
             text(

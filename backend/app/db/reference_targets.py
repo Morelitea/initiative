@@ -32,6 +32,7 @@ from app.core.tools import Tool
 from app.db.blocking import open_expr
 from app.db.initiative_rls import INITIATIVE_PATHS
 from app.db.search_index import SEARCH_SOURCES
+from app.db.authorization import standing_arg
 
 
 def _table_for(entity_type: SearchEntityType) -> str:
@@ -162,7 +163,7 @@ def visible_ids(
     """Ids of this kind that ``user_id`` may open, or may edit.
 
     Joins the row to the resource that governs it — its own, or its parent's —
-    and asks ``public.resource_access``, the same function the tables' own RLS
+    and asks ``resource_access``, the same function the tables' own RLS
     policies call. A kind with no sharing of its own (the guild's tags) is
     reachable by anyone who reached the schema, which is the whole gate for it.
 
@@ -193,6 +194,7 @@ def visible_ids(
                 user_id,
                 table.c["initiative_id"],
                 need_write,
+                standing_arg(),
             )
         )
 
@@ -206,6 +208,7 @@ def visible_ids(
             user_id,
             resource.c["initiative_id"],
             need_write,
+            standing_arg(),
         )
     )
 
@@ -236,7 +239,7 @@ async def unfrozen_ids(
     """Which of these are still taking writes — not archived or trashed, and
     not sitting under something that is.
 
-    Asked through ``public.resource_frozen``, the same declaration the freeze
+    Asked through ``resource_frozen``, the same declaration the freeze
     policies are rendered from, so a caller checking before it writes and the
     database deciding afterwards are reading one answer.
     """

@@ -1,6 +1,6 @@
-"""Naming each request, and recording the privileged ones.
+"""Naming each request, measuring it, and recording the privileged ones.
 
-Two jobs, both at the outermost seam so they see every request and its whole
+Three jobs, all at the outermost seam so they see every request and its whole
 life:
 
 * **Every request gets an id.** It goes on the response as ``X-Request-Id``
@@ -9,6 +9,9 @@ life:
   beside each other. Behind a proxy an id that arrived with the request is
   kept, so the name is the same all the way along. A socket is named the same
   way and keeps that name for as long as it is open.
+* **Every request is timed and counted** for ``/api/v1/metrics``, by the
+  route it matched (the template, not the path typed) and the status it got;
+  every open socket is counted while it is open. See :mod:`app.core.metrics`.
 * **A request served through a grant is written down.** The guild-access gate
   records the grant on the request's context; when the response is finished
   this writes one ``pam.request`` line saying which grant, which route, and
@@ -26,11 +29,12 @@ this way it costs no extra task and streams pass straight through.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Awaitable, Callable
 
 from starlette.datastructures import MutableHeaders
 
-from app.core import audit_context
+from app.core import audit_context, metrics
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.services import audit as audit_service
@@ -79,11 +83,11 @@ def _reached_ids(scope: Scope) -> dict[str, int]:
     return reached
 
 
-def _route(scope: Scope) -> str:
-    """The route as it is written, rather than as it was typed."""
-    route = scope.get("route")
-    path = getattr(route, "path", None)
-    return path if isinstance(path, str) else scope.get("path", "")
+def _route_template(scope: Scope) -> str | None:
+    """The route as it is written, rather than as it was typed; ``None``
+    when no route answered."""
+    path = getattr(scope.get("route"), "path", None)
+    return path if isinstance(path, str) else None
 
 
 class RequestAuditMiddleware:
@@ -108,13 +112,19 @@ class RequestAuditMiddleware:
             # Named and carrying its grant for as long as it is open; what it
             # does with that is recorded by the socket itself, since there is
             # no response here to hang a line on.
+            metrics.websocket_connections.inc()
             try:
                 await self.app(scope, receive, send)
             finally:
+                metrics.websocket_connections.dec()
                 audit_context.end(token)
             return
 
         answered: dict[str, int] = {}
+        method = metrics.method_label(scope.get("method"))
+        in_progress = metrics.http_requests_in_progress.labels(method=method)
+        in_progress.inc()
+        began = time.perf_counter()
 
         async def named_send(message: dict[str, Any]) -> None:
             if message["type"] == "http.response.start":
@@ -127,6 +137,15 @@ class RequestAuditMiddleware:
         try:
             await self.app(scope, receive, named_send)
         finally:
+            elapsed = time.perf_counter() - began
+            in_progress.dec()
+            route = _route_template(scope)
+            label = route or metrics.UNMATCHED_ROUTE
+            # No response started means the request ended in an exception,
+            # which the server answers with a 500.
+            status = str(answered.get("status", 500))
+            metrics.http_requests.labels(method, label, status).inc()
+            metrics.http_request_duration.labels(method, label).observe(elapsed)
             if context.is_privileged:
                 audit_service.emit(
                     event_type=AuditEventType.PAM_REQUEST,
@@ -134,7 +153,7 @@ class RequestAuditMiddleware:
                     guild_id=context.guild_id,
                     detail={
                         "method": scope.get("method"),
-                        "route": _route(scope),
+                        "route": route or scope.get("path", ""),
                         "status": answered.get("status"),
                         "reached": _reached_ids(scope),
                     },

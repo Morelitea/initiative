@@ -4,7 +4,7 @@ import type { InitiativeRead, Tool, UserRead } from "@/api/generated/initiativeA
 import { useAuth } from "@/hooks/useAuth";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useInitiatives, useInitiativesForGuild } from "@/hooks/useInitiatives";
-import { Capability, hasCapability } from "@/lib/permissions";
+import { administersGuildContent, Capability, hasCapability } from "@/lib/permissions";
 import {
   DEFAULT_ENABLED_TOOLS,
   isToolEnabled,
@@ -51,7 +51,7 @@ export function deriveGuildAccess(
   guild: GuildEntry | null | undefined,
   user: Pick<UserRead, "capabilities"> | null | undefined
 ): GuildAccessContext {
-  const isGuildAdmin = guild?.is_admin ?? false;
+  const isGuildAdmin = administersGuildContent(guild);
   const isGrantGuild = guild?.accessType === "grant";
   const grantReadWrite = isGrantGuild && guild?.grantAccessLevel === "read_write";
   const isBreakGlass = grantReadWrite && hasCapability(user, Capability.dataBypass);
@@ -161,9 +161,9 @@ export function guildMayWriteContent(
  * derived from the tool registry — a new tool gets its access flags without
  * touching this hook.
  *
- * `data.bypass` (platform admin/owner) is deliberately NOT a standing access
+ * `data.bypass` (platform operator/owner) is deliberately NOT a standing access
  * shortcut here: the backend no longer grants ambient cross-guild reach for it
- * (it's the right to break-glass). A platform admin reaches a guild only via a
+ * (it's the right to break-glass). An operator reaches a guild only via a
  * real membership or an active grant — the latter surfaces as
  * `activeGuild.accessType === "grant"` below — so the UI must reflect that and
  * not show create/edit affordances the backend would reject.

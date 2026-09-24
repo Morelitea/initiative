@@ -18,7 +18,7 @@ import { CommandCenter } from "@/components/CommandCenter";
 import { routeTree } from "@/routeTree.gen";
 
 import { buildSearchHit, buildSearchResults, buildSearchSuggestion } from "./factories";
-import { renderPage } from "./helpers/render";
+import { buildRouterContext, renderPage } from "./helpers/render";
 
 const SEARCH_ROUTE_ID = "/_serverRequired/_authenticated/c/$guildId/search";
 
@@ -80,10 +80,10 @@ const withStaleAnswer = () => {
   });
 };
 
-const router = createRouter({ routeTree });
+const router = createRouter({ routeTree, context: buildRouterContext() });
 
 const resolvedRouteId = (pathname: string): string => {
-  const matches = router.matchRoutes({ pathname, search: {} }, { preload: true });
+  const matches = router.matchRoutes(pathname, {});
   return String(matches.at(-1)?.routeId ?? "__none__");
 };
 

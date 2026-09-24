@@ -20,6 +20,11 @@ No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whethe
 | **Smart link** | An embedded view of something that lives somewhere else — a video, a shared file. |
 | **Upload** | An actual file: PDF, Word, Excel, PowerPoint, images, and more. |
 
+Got the file on your desktop already? Drag it anywhere onto the documents
+page — any view — and **Create Document** opens on the **Upload** tab with it
+ready to go. Or drop it on the box in that tab instead of hunting for it in a
+file picker.
+
 !!! info "50 MB per uploaded file"
     Plenty for almost anything that isn't video. For the things that are, use a **Smart link** to point at wherever it already lives instead.
 
@@ -35,7 +40,7 @@ No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whethe
 
 ## Writing a text document
 
-The editor has what you'd expect: **bold, italic, underline**, headings, quotes, code blocks, bulleted and numbered lists, checklists, alignment, images, tables, dividers, embedded video, and undo for when you change your mind.
+The editor has what you'd expect: **bold, italic, underline**, headings, quotes, code blocks, bulleted and numbered lists, checklists, alignment, images, tables, columns, dividers, embedded video, and undo for when you change your mind.
 
 Everything **autosaves**. There is no save button — which means there is no save button to forget to press at 11pm, and no version of this evening where you lose forty minutes of work to a browser tab.
 
@@ -44,9 +49,24 @@ Four keys do more than they look like they do:
 - `@` mentions a person.
 - `#` links to anything in the initiative. See [Mentions & links](mentions-and-links.md).
 - `[[` links to another document — and offers to make one if the name is new.
-- `/` opens the insert menu: images, tables, embeds, and [smart chips](#smart-chips).
+- `/` opens the insert menu: images, tables, callouts, statuses, drawings, diagrams, embeds, and [smart chips](#smart-chips).
 
 ![The document editor](../images/documents/editor.png)
+
+A few pieces are worth knowing by name:
+
+| | |
+|---|---|
+| **Callouts** | A coloured panel for the thing nobody should miss — **Info**, **Note**, **Tip**, **Success**, **Warning** or **Error**. Unlike a quote it holds anything: lists, code, a table. The little menu in its corner changes the kind or takes the panel away and keeps the words. |
+| **Statuses** | A word in a coloured pill — *Done*, *Blocked*, *Waiting on legal* — set by hand. Click one to change the word or the colour. For a status that keeps *itself* up to date, use a [smart chip](#smart-chips). |
+| **Merged cells** | Drag across cells in a table and **Merge cells** from the table menu joins them into one; **Unmerge cells** splits it back. For the header that sits over three columns, and the row label that runs down two. |
+| **Drawings** | A small whiteboard inside the page. Draw it, save it, and it sits there as a picture. **Edit drawing** opens it again. |
+| **Diagrams** | Flowcharts, sequence diagrams and friends, written as text in [Mermaid](https://mermaid.js.org/) and drawn as you type. **Diagram** in the `/` menu starts one; any code block set to Mermaid is drawn the same way. Someone reading the page sees the picture, and the code stays out of their way. |
+
+The **Markdown** button at the bottom of the editor shows the whole document as markdown and back. Callouts are written the way Obsidian writes them (`> [!warning]`), merged cells the way MultiMarkdown does (`||` and `^^`), columns as Pandoc's fenced divs (`:::: {.columns}`), and a drawing as its scene in an `excalidraw` code block, so all of it survives the round trip — and a file from those tools pastes in and comes out right.
+
+!!! note "Drawings in exports"
+    A Markdown export keeps each drawing the same way. Word and PDF leave drawings out: a drawing is redrawn by the browser every time it's shown, and a printed page has no browser in it.
 
 ## Smart chips
 
@@ -95,7 +115,7 @@ A blank canvas for the thinking that flatly refuses to become a paragraph. A flo
 - **Draw anything** — shapes, arrows, freehand lines, text, images.
 - **Work on it together** — everyone's pointer shows up live with their name on it, so you can point at the same thing at the same time from different houses.
 - **Go fullscreen** when the canvas wants the whole window.
-- **Export as a picture** — PNG or SVG, for a slide deck, an email, or a printout.
+- **Export as a picture** — PNG or SVG, for a slide deck, an email, or a printout. It's in the whiteboard's **Settings → Advanced**, with its other exports.
 
 Whiteboards autosave like everything else, and are shared, tagged and commented on exactly like any other document.
 
@@ -113,6 +133,8 @@ Whiteboards autosave like everything else, and are shared, tagged and commented 
 Open a document's **Comments** to talk about it without touching the actual content. Reply to build a thread; edit or delete your own.
 
 To pull somebody in, type `@`. To point at a *thing* rather than a person, type `#` and pick any project, task, document, queue, counter, calendar event, dashboard or post in the initiative. See [Mentions & links](mentions-and-links.md).
+
+A screenshot says it faster than three paragraphs. Paste or drag one into a comment, or tap the picture button — on the app it offers your camera. Take it back out and it's gone from storage too. A picture linked from some other website shows up as a link you click, not an image that loads itself.
 
 ### Reactions
 

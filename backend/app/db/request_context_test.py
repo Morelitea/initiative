@@ -21,7 +21,6 @@ from app.db.request_context import (
     Unattributed,
     classify,
 )
-from app.models.platform.guild import GuildRole
 
 pytestmark = pytest.mark.unit
 
@@ -37,13 +36,14 @@ def test_a_user_without_a_guild_is_the_platform_path():
 
 
 def test_a_guild_carries_its_own_modifiers():
+    standing = object()
     shape = classify(
-        user_id=7, guild_id=3, guild_role="admin", read_only=True, query=True
+        user_id=7, guild_id=3, context=standing, read_only=True, query=True
     )
     assert isinstance(shape, GuildScoped)
-    assert (shape.guild_id, shape.role, shape.read_only, shape.query) == (
+    assert (shape.guild_id, shape.standing, shape.read_only, shape.query) == (
         3,
-        "admin",
+        standing,
         True,
         True,
     )
@@ -68,7 +68,7 @@ def test_a_grant_must_name_the_guild_it_reaches():
 
 
 def test_guild_modifiers_need_something_to_be_about():
-    for kwargs in ({"guild_role": "admin"}, {"read_only": True}, {"query": True}):
+    for kwargs in ({"read_only": True}, {"query": True}):
         with pytest.raises(ContextShapeError):
             classify(user_id=7, **kwargs)
 
@@ -90,9 +90,8 @@ def test_a_grant_narrows_the_way_a_member_does():
 
 
 def test_a_grant_still_does_not_say_how_a_guild_is_routed():
-    for kwargs in ({"guild_role": "admin"}, {"read_only": True}):
-        with pytest.raises(ContextShapeError):
-            classify(user_id=7, pam_guild_id=3, pam_read=True, **kwargs)
+    with pytest.raises(ContextShapeError):
+        classify(user_id=7, pam_guild_id=3, pam_read=True, read_only=True)
 
 
 def test_a_settings_grant_is_its_own_guild_route():
@@ -103,28 +102,35 @@ def test_a_settings_grant_is_its_own_guild_route():
 
 def test_a_settings_grant_cannot_carry_content_authority():
     for kwargs in (
-        {"guild_id": 3, "guild_role": "admin"},
-        {"pam_guild_id": 3, "pam_read": True},
+        {"guild_id": 3},
         {"scope_initiative_id": 11},
     ):
         with pytest.raises(ContextShapeError):
             classify(user_id=7, settings_guild_id=3, **kwargs)
 
 
-def test_a_stored_role_does_not_reach_the_guc():
-    """``superadmin`` is a membership row, not a content role. It arrives
-    as ``admin`` through ``content_role``; anything else is a caller that
-    skipped that step."""
+def test_the_two_grants_of_a_pair_name_one_community():
+    """Break-glass is a content grant and a settings grant issued together.
+    Each names the community on its own axis, and it is the same one."""
+    shape = classify(user_id=7, settings_guild_id=3, pam_guild_id=3, pam_read=True)
+    assert isinstance(shape, PamGrantee)
+    assert (shape.pam_guild_id, shape.settings_guild_id) == (3, 3)
+
     with pytest.raises(ContextShapeError):
-        classify(guild_id=3, guild_role=GuildRole.superadmin.value)
+        classify(user_id=7, settings_guild_id=4, pam_guild_id=3, pam_read=True)
+
+
+def test_a_person_needs_the_standing_the_seam_computes():
+    """A routing that names both a reader and a community without one would
+    run every membership leg against an empty standing. Refused at the call."""
     with pytest.raises(ContextShapeError):
-        classify(guild_id=3, guild_role=GuildRole.support.value)
+        classify(user_id=7, guild_id=3)
 
 
 def test_spelling_out_an_absent_argument_reads_as_absent():
     """The grant path names ``guild_id=None`` to say the guild is not part of
     this context. That is the same as leaving it out."""
-    shape = classify(user_id=7, guild_id=None, guild_role=None, pam_guild_id=3)
+    shape = classify(user_id=7, guild_id=None, context=None, pam_guild_id=3)
     assert isinstance(shape, PamGrantee)
 
 
@@ -176,11 +182,10 @@ def _call_sites() -> list[tuple[str, int, dict]]:
 
 #: Stand-ins for arguments whose value the source does not spell out. The
 #: classifier decides on which arguments are present, so any value of the right
-#: shape will do — except the role, which it also checks.
+#: shape will do.
 _STAND_IN = {
-    "guild_role": "admin",
     "satisfied_providers": None,
-    "override_initiatives": (),
+    "context": object(),
 }
 
 
@@ -197,19 +202,15 @@ def test_every_call_in_the_tree_forms_a_shape():
 
 
 def test_a_routed_guild_with_nobody_behind_it_is_system_work():
-    """The shape says what the database cannot: that nobody is asking.
-
-    A sweep and a guild owner both arrive as ``current_guild_role = 'admin'``,
-    so the context is the only place the difference can be stated.
-    """
-    shape = classify(guild_id=7, guild_role="admin")
+    """The shape says what the database cannot: that nobody is asking."""
+    shape = classify(guild_id=7)
     assert isinstance(shape, SystemGuild)
     assert shape.guild_id == 7
     assert shape.user_id is None
 
 
 def test_a_person_in_a_guild_is_not_system_work():
-    shape = classify(guild_id=7, user_id=3, guild_role="admin")
+    shape = classify(guild_id=7, user_id=3, context=object())
     assert isinstance(shape, GuildScoped)
     assert not isinstance(shape, SystemGuild)
 
@@ -220,6 +221,6 @@ def test_system_work_is_still_a_guild_context():
     Everything that already asks "is this routed into a guild?" keeps its
     answer; naming the unattended case adds a distinction without removing one.
     """
-    shape = classify(guild_id=7, guild_role="admin")
+    shape = classify(guild_id=7)
     assert isinstance(shape, GuildScoped)
-    assert shape.role == "admin"
+    assert shape.standing is None

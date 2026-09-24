@@ -2,6 +2,8 @@ import { useMemo } from "react";
 
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
+import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { hour12Option } from "@/lib/timeFormat";
 
 type RelativeTimeProps = {
   /** Timestamp to describe relative to now. */
@@ -33,6 +35,8 @@ export const RelativeTime = ({
 }: RelativeTimeProps) => {
   const locale = useDateLocale();
   const text = useRelativeTime(date, { addSuffix, locale });
+  // Read so the memoized tooltip is rebuilt when the account changes clocks.
+  const timeFormat = useTimeFormat();
 
   const title = useMemo(() => {
     if (!showTitle || date == null) {
@@ -48,8 +52,9 @@ export const RelativeTime = ({
           day: "numeric",
           hour: "numeric",
           minute: "2-digit",
+          hour12: hour12Option(),
         });
-  }, [showTitle, date, locale]);
+  }, [showTitle, date, locale, timeFormat]);
 
   if (text == null) {
     return <>{fallback}</>;

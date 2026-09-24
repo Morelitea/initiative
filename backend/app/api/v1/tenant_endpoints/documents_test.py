@@ -21,6 +21,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
+    guild_of,
     create_document,
     create_initiative,
     create_user,
@@ -49,38 +50,26 @@ async def _create_file_document(
     owner,
     filename: str,
 ) -> Document:
-    """Create a file-type Document with a dummy file on disk and owner permission."""
+    """A file-type document with a dummy file on disk, made the way every
+    test document is made: through the factory, which routes by the
+    initiative and writes the owner grant."""
     # Stage the blob via the real resolver so it lands where the serve path reads
     # it (UPLOADS_DIR/guild_<id>/), and use the canonical guild-scoped URL.
     from app.services.storage import get_guild_storage
 
-    get_guild_storage(initiative.guild_id).write(filename, b"%PDF-1.4 test")
+    get_guild_storage(guild_of(initiative)).write(filename, b"%PDF-1.4 test")
 
-    doc = Document(
+    return await create_document(
+        session,
+        initiative,
+        owner,
         name="Test File Doc",
-        initiative_id=initiative.id,
-        guild_id=initiative.guild_id,
-        created_by=owner.id,
         document_type=DocumentType.file,
-        file_url=f"/uploads/{initiative.guild_id}/{filename}",
+        file_url=f"/uploads/{guild_of(initiative)}/{filename}",
         original_filename=filename,
         file_content_type="application/pdf",
         file_size=13,
     )
-    session.add(doc)
-    await session.flush()
-
-    perm = ResourceGrant(
-        resource_type="document",
-        resource_id=doc.id,
-        user_id=owner.id,
-        level=ResourceAccessLevel.owner,
-        guild_id=initiative.guild_id,
-        initiative_id=doc.initiative_id,
-    )
-    session.add(perm)
-    await session.commit()
-    return doc
 
 
 @pytest.mark.integration
@@ -311,7 +300,6 @@ async def test_copy_template_with_read_only_access(
         initiative=template_owner.initiative,
         initiative_role="project_manager",
     )
-    guild = template_owner.guild
     initiative = template_owner.initiative
 
     template = await _make_native_doc(
@@ -328,7 +316,6 @@ async def test_copy_template_with_read_only_access(
             resource_id=template.id,
             user_id=reader.user.id,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=template.initiative_id,
         )
     )
@@ -370,7 +357,6 @@ async def test_copy_non_template_still_requires_write_access(
         initiative=owner.initiative,
         initiative_role="project_manager",
     )
-    guild = owner.guild
     initiative = owner.initiative
 
     doc = await _make_native_doc(
@@ -386,7 +372,6 @@ async def test_copy_non_template_still_requires_write_access(
             resource_id=doc.id,
             user_id=reader.user.id,
             level=ResourceAccessLevel.read,
-            guild_id=guild.id,
             initiative_id=doc.initiative_id,
         )
     )
@@ -543,7 +528,6 @@ async def test_download_read_permission_grants_access(
         initiative=owner.initiative,
         initiative_role="member",
     )
-    guild = owner.guild
 
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename="dl_reader.pdf"
@@ -553,7 +537,6 @@ async def test_download_read_permission_grants_access(
         resource_id=doc.id,
         user_id=reader.user.id,
         level=ResourceAccessLevel.read,
-        guild_id=guild.id,
         initiative_id=doc.initiative_id,
     )
     session.add(read_perm)
@@ -1299,7 +1282,6 @@ async def test_a_delegated_version_download_reads_the_same_guild(
     )
     version = DocumentFileVersion(
         document_id=doc.id,
-        guild_id=a.guild.id,
         version_number=1,
         file_url=doc.file_url,
         original_filename=doc.original_filename,

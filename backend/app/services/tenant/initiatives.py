@@ -11,6 +11,7 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.messages import InitiativeMessages
 from app.db.session import rls_context_params
@@ -125,7 +126,7 @@ async def resolve_membership_role(
     is the caller's error to report.
     """
     if await is_guild_admin_member(
-        session, guild_id=initiative.guild_id, user_id=user_id
+        session, guild_id=routed_guild_id(session), user_id=user_id
     ):
         if requested is not None and requested.is_manager:
             return requested
@@ -180,7 +181,6 @@ async def align_guild_admin_membership_roles(
             select(InitiativeMember)
             .options(selectinload(InitiativeMember.role_ref))
             .where(
-                InitiativeMember.guild_id == guild_id,
                 InitiativeMember.user_id == user_id,
             )
         )
@@ -293,6 +293,23 @@ async def get_initiative_membership(
     return result.one_or_none()
 
 
+async def initiative_roster(
+    session: AsyncSession, initiative_id: int, *, with_users: bool = False
+) -> list[InitiativeMember]:
+    """The initiative's members, for a caller whose question is the roster
+    itself: who to notify, whose access to copy, whom to offer in a picker.
+
+    A read of a resource does not carry it; what a reader may do with a row is
+    the database's answer, and the roster is read here, where it is the point.
+    """
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == initiative_id
+    )
+    if with_users:
+        stmt = stmt.options(selectinload(InitiativeMember.user))
+    return list((await session.exec(stmt)).all())
+
+
 async def get_initiative_membership_with_role(
     session: AsyncSession,
     *,
@@ -395,9 +412,7 @@ async def remove_user_from_guild_initiatives(
     initiative_ids_result = await session.exec(
         select(InitiativeMember.initiative_id).where(
             InitiativeMember.user_id == user_id,
-            InitiativeMember.initiative_id.in_(
-                select(Initiative.id).where(Initiative.guild_id == guild_id)
-            ),
+            InitiativeMember.initiative_id.in_(select(Initiative.id)),
         )
     )
     initiative_ids = list(initiative_ids_result.all())
@@ -438,9 +453,7 @@ async def remove_user_from_guild_initiatives(
     # Remove initiative memberships
     stmt = delete(InitiativeMember).where(
         InitiativeMember.user_id == user_id,
-        InitiativeMember.initiative_id.in_(
-            select(Initiative.id).where(Initiative.guild_id == guild_id)
-        ),
+        InitiativeMember.initiative_id.in_(select(Initiative.id)),
     )
     await session.exec(stmt)
 
@@ -685,7 +698,6 @@ async def list_directory_entries(
             pending_queue_size,
         )
         .where(
-            Initiative.guild_id == guild_id,
             or_(Initiative.join_policy.in_(LISTED_JOIN_POLICIES), is_member),
             Initiative.archived_at.is_(None),
             Initiative.deleted_at.is_(None),
@@ -779,7 +791,6 @@ async def self_join(
         initiative_id=initiative.id,
         user_id=user_id,
         role_id=role.id,
-        guild_id=initiative.guild_id,
         oidc_provider_id=None,
     )
     # Two overlapping joins both clear the lookup above, and the composite
@@ -804,7 +815,7 @@ async def self_join(
             actor_user_id if actor_user_id is not None else _acting_user_id(session)
         ),
         target_user_id=user_id,
-        guild_id=initiative.guild_id,
+        guild_id=routed_guild_id(session),
         target_type="initiative",
         target_id=initiative.id,
         detail={"role_id": role.id, "role": role.name, "via": via},
@@ -830,7 +841,6 @@ async def list_auto_join_initiatives(
     result = await session.exec(
         select(Initiative)
         .where(
-            Initiative.guild_id == guild_id,
             Initiative.auto_join.is_(True),
             Initiative.archived_at.is_(None),
             Initiative.deleted_at.is_(None),
@@ -1169,19 +1179,11 @@ async def create_imported_initiative(
     from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS
     from app.services.import_engine.common import unique_name
 
-    existing = {
-        row
-        for row in (
-            await session.exec(
-                select(Initiative.name).where(Initiative.guild_id == guild_id)
-            )
-        ).all()
-    }
+    existing = {row for row in (await session.exec(select(Initiative.name))).all()}
     initiative = Initiative(
         name=unique_name(existing, name),
         description=description,
         color=color,
-        guild_id=guild_id,
         **{
             # A manifest that says nothing about a tool falls back to that
             # tool's own default rather than to off: a backup written before
@@ -1206,7 +1208,6 @@ async def create_imported_initiative(
                     session, guild_id=guild_id, user_id=manager_id, roles=roles
                 )
             ).id,
-            guild_id=guild_id,
         )
     )
     await session.flush()

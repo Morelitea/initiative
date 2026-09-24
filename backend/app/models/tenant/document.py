@@ -17,10 +17,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship
 
+from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    attach_access_level,
     CommentsToggleMixin,
     CreatedByMixin,
+    ListingProvenanceMixin,
     SoftDeleteMixin,
 )
 
@@ -41,7 +44,12 @@ class DocumentType(str, Enum):
 
 
 class Document(
-    CommentsToggleMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True
+    CommentsToggleMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    ListingProvenanceMixin,
+    SoftDeleteMixin,
+    table=True,
 ):
     __tablename__ = "documents"
     # A tool row is written before anything has been shared, so it is read
@@ -50,9 +58,6 @@ class Document(
     __table_args__ = {"implicit_returning": False}
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False)
     name: str = Field(nullable=False, index=True, max_length=255)
     content: dict = Field(
@@ -162,9 +167,6 @@ class DocumentFileVersion(CreatedByMixin, table=True):
             index=True,
         )
     )
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     version_number: int = Field(nullable=False)
     file_url: str = Field(sa_column=Column(String(length=512), nullable=False))
     file_content_type: Optional[str] = Field(
@@ -186,3 +188,6 @@ class DocumentFileVersion(CreatedByMixin, table=True):
     )
 
     document: Optional["Document"] = Relationship(back_populates="file_versions")
+
+
+attach_access_level(Document, Tool.document)

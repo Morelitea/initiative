@@ -38,7 +38,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s3
 from app.db import session as db_session
-from app.db.session import AdminSessionLocal
+from app.db.session import SystemSessionLocal
 from app.db.system_grants import SHARED_TABLE_SYSTEM_GRANTS, grant_sql
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ async def _ensure_table() -> None:
             # The schema's default privileges hand every new relation in
             # ``public`` full DML to the two request-path floors, and this
             # table is the system engine's alone. A migration adding an
-            # admin-only shared table says the same thing on its own line
+            # app_admin-only shared table says the same thing on its own line
             # (0132, 0133, 0134); this one is created at runtime, so it says
             # it here.
             await conn.execute(
@@ -276,9 +276,9 @@ async def _finalize(
 
 
 async def _run() -> None:
-    """Detached task: run the backfill with its own admin session and persist
+    """Detached task: run the backfill with its own system session and persist
     progress + the final outcome to the shared row."""
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
 
         async def _on_progress(summary: BackfillSummary) -> None:
             await _persist(session, status="running", summary=summary)

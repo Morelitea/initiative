@@ -17,7 +17,7 @@ from fastapi import (
 from fastapi.responses import Response
 from sqlalchemy import delete as sa_delete, func, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -47,7 +47,7 @@ from app.core.messages import (
     InitiativeMessages,
 )
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session
+from app.db.session import require_guild_context
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
@@ -56,13 +56,10 @@ from app.models.tenant.document import (
 from app.models.tenant.upload import Upload
 from app.models.tenant.initiative import (
     Initiative,
-    InitiativeMember,
-    InitiativeRoleModel,
     PermissionKey,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
-from app.models.platform.guild import GuildRole
 from app.schemas.tenant.document import (
     DocumentCopyRequest,
     DocumentCountsResponse,
@@ -141,7 +138,6 @@ async def get_initiative_or_404(
 ) -> Initiative:
     stmt = select(Initiative).where(
         Initiative.id == initiative_id,
-        Initiative.guild_id == guild_id,
     )
     result = await session.exec(stmt)
     initiative = result.one_or_none()
@@ -188,7 +184,7 @@ async def _require_initiative_access(
     *,
     initiative_id: int,
     user: User,
-    guild_role: GuildRole,
+    guild_context: GuildContext,
     require_manager: bool = False,
     permission_key: PermissionKey | None = None,
 ) -> None:
@@ -198,11 +194,11 @@ async def _require_initiative_access(
         session: Database session
         initiative_id: Initiative to check access for
         user: User to check
-        guild_role: User's guild role (admins bypass checks)
+        guild_context: the reader's standing (an admin passes)
         require_manager: If True, require manager-level role (legacy, use permission_key instead)
         permission_key: Specific permission to check (e.g., PermissionKey.create_documents)
     """
-    if rls_service.is_guild_admin(guild_role):
+    if guild_context.is_admin:
         return
     membership = await initiatives_service.get_initiative_membership(
         session,
@@ -235,7 +231,6 @@ async def _require_initiative_access(
         is_manager = await rls_service.is_initiative_manager(
             session,
             initiative_id=initiative_id,
-            user=user,
         )
         if not is_manager:
             raise HTTPException(
@@ -294,7 +289,7 @@ def _file_download_response(
 
 
 def visible_document_conditions(
-    guild_id: int,
+    context: GuildContext,
     user_id: int,
     *,
     initiative_id: Optional[int] = None,
@@ -318,7 +313,7 @@ def visible_document_conditions(
         Document,
         Initiative.documents_enabled,
         user_id,
-        guild_id=guild_id,
+        context=context,
         initiative_id=initiative_id,
         search=search,
         tag_ids=tag_ids,
@@ -360,9 +355,11 @@ async def serialize_document_page(
     await tags_service.annotate_tags(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
     attached = await attached_projects(session, documents)
+    context = require_guild_context(session)
     return [
         serialize_document_summary(
             document,
+            context=context,
             user_id=user.id,
             projects=attached.get(document.id, []),
         )
@@ -399,7 +396,7 @@ async def get_document_counts(
         )
 
     conditions = visible_document_conditions(
-        guild_context.guild_id,
+        guild_context,
         current_user.id,
         initiative_id=initiative_id,
         search=search,
@@ -485,7 +482,7 @@ async def create_document(
         session,
         initiative_id=initiative.id,
         user=current_user,
-        guild_role=guild_context.role,
+        guild_context=guild_context,
         permission_key=PermissionKey.create_documents,
     )
     name = document_in.name.strip()
@@ -513,7 +510,6 @@ async def create_document(
     document = Document(
         name=name,
         initiative_id=initiative.id,
-        guild_id=guild_context.guild_id,
         document_type=requested_type,
         content=normalized_content,
         created_by=current_user.id,
@@ -530,7 +526,6 @@ async def create_document(
         user_id=current_user.id,
         role_id=None,
         level=ResourceAccessLevel.owner,
-        guild_id=guild_context.guild_id,
         initiative_id=document.initiative_id,
     )
     session.add(owner_permission)
@@ -567,6 +562,7 @@ async def create_document(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -592,7 +588,7 @@ async def upload_document_file(
         session,
         initiative_id=initiative.id,
         user=current_user,
-        guild_role=guild_context.role,
+        guild_context=guild_context,
         permission_key=PermissionKey.create_documents,
     )
     name = name.strip()
@@ -649,7 +645,6 @@ async def upload_document_file(
     # Track the upload in the uploads table for guild-scoped access control
     upload_record = Upload(
         filename=file_url.split("/")[-1],
-        guild_id=guild_context.guild_id,
         created_by=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
@@ -657,11 +652,12 @@ async def upload_document_file(
     )
     session.add(upload_record)
 
-    # Create document record
+    # Create document record. A picture is its own featured image, set here so
+    # it is written with the row: the uploader's owner grant is only added
+    # below, so a later UPDATE in this transaction is not theirs to make yet.
     document = Document(
         name=name,
         initiative_id=initiative.id,
-        guild_id=guild_context.guild_id,
         content={},  # File documents have empty content
         created_by=current_user.id,
         document_type=DocumentType.file,
@@ -669,38 +665,24 @@ async def upload_document_file(
         file_content_type=mime_type,
         file_size=len(contents),
         original_filename=file.filename,
+        featured_image_url=(
+            file_url if mime_type and mime_type.startswith("image/") else None
+        ),
     )
     session.add(document)
     await session.flush()
 
     # Add owner permission for the creator
-    owner_permission = ResourceGrant(
-        resource_type="document",
-        resource_id=document.id,
-        user_id=current_user.id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
-        guild_id=guild_context.guild_id,
-        initiative_id=document.initiative_id,
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=document.id,
+            user_id=current_user.id,
+            role_id=None,
+            level=ResourceAccessLevel.owner,
+            initiative_id=document.initiative_id,
+        )
     )
-    # Record the initial version (v1). The documents row mirrors this version's
-    # file fields; subsequent uploads add higher-numbered versions.
-    initial_version = DocumentFileVersion(
-        document_id=document.id,
-        guild_id=guild_context.guild_id,
-        version_number=1,
-        file_url=file_url,
-        file_content_type=mime_type,
-        file_size=len(contents),
-        original_filename=file.filename,
-        created_by=current_user.id,
-    )
-    # Auto-set featured image for image uploads (before commit so we avoid expired attrs)
-    if mime_type and mime_type.startswith("image/"):
-        document.featured_image_url = file_url
-
-    session.add(owner_permission)
-    session.add(initial_version)
     # File uploads default to Viewer for all members, like native docs.
     session.add(
         ResourceGrant(
@@ -710,8 +692,25 @@ async def upload_document_file(
             role_id=None,
             all_initiative_members=True,
             level=ResourceAccessLevel.read,
-            guild_id=guild_context.guild_id,
             initiative_id=document.initiative_id,
+        )
+    )
+    # The grants land before the version row: writing a version is the
+    # document owner's to do, and the uploader is its owner only once the
+    # grant exists.
+    await session.flush()
+
+    # Record the initial version (v1). The documents row mirrors this version's
+    # file fields; subsequent uploads add higher-numbered versions.
+    session.add(
+        DocumentFileVersion(
+            document_id=document.id,
+            version_number=1,
+            file_url=file_url,
+            file_content_type=mime_type,
+            file_size=len(contents),
+            original_filename=file.filename,
+            created_by=current_user.id,
         )
     )
     await session.commit()
@@ -725,6 +724,7 @@ async def upload_document_file(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -819,7 +819,6 @@ async def upload_document_version(
     # Track the new blob in the uploads table for guild-scoped access control.
     upload_record = Upload(
         filename=file_url.split("/")[-1],
-        guild_id=guild_context.guild_id,
         created_by=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
@@ -836,7 +835,6 @@ async def upload_document_version(
 
     version = DocumentFileVersion(
         document_id=document_id,
-        guild_id=guild_context.guild_id,
         version_number=next_version,
         file_url=file_url,
         file_content_type=mime_type,
@@ -1028,6 +1026,7 @@ async def read_document(
         document,
         user_id=current_user.id,
         include_content=include_content,
+        context=guild_context,
     )
 
 
@@ -1155,6 +1154,7 @@ async def update_document(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1210,6 +1210,7 @@ async def duplicate_document(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1242,7 +1243,7 @@ async def copy_document(
             document,
             current_user,
             access="write",
-            guild_role=guild_context.role,
+            context=guild_context,
         )
     target_initiative = await get_initiative_or_404(
         session,
@@ -1255,7 +1256,7 @@ async def copy_document(
         session,
         initiative_id=target_initiative.id,
         user=current_user,
-        guild_role=guild_context.role,
+        guild_context=guild_context,
         permission_key=PermissionKey.create_documents,
     )
     name = (payload.name or document.name).strip()
@@ -1288,6 +1289,7 @@ async def copy_document(
     return serialize_document(
         hydrated,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1348,14 +1350,9 @@ async def notify_mentions(
         access="write",
         hydrated=True,
     )
-    initiative = document.initiative
-    if not initiative:
-        initiative = await get_initiative_or_404(
-            session,
-            initiative_id=document.initiative_id,
-            guild_id=guild_context.guild_id,
-        )
-    memberships = getattr(initiative, "memberships", []) or []
+    memberships = await initiatives_service.initiative_roster(
+        session, document.initiative_id
+    )
     member_ids = {
         membership.user_id for membership in memberships if membership.user_id
     }
@@ -1503,6 +1500,7 @@ async def set_document_properties(
     return serialize_document(
         refreshed,
         user_id=current_user.id,
+        context=guild_context,
     )
 
 
@@ -1523,20 +1521,14 @@ async def read_after_write(
         guild_id=guild_context.guild_id,
         user_id=user.id,
     )
-    return serialize_document(hydrated, user_id=user.id)
+    return serialize_document(hydrated, user_id=user.id, context=guild_context)
 
 
 def _download_document_options():
     """Eager loads the download's access check reads off the document."""
     return (
-        selectinload(Document.initiative)
-        .selectinload(Initiative.memberships)
-        .options(
-            selectinload(InitiativeMember.user),
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            ),
-        ),
+        selectinload(Document.initiative),
+        undefer(Document.access_level),
         selectinload(Document.grants).selectinload(ResourceGrant.role),
     )
 
@@ -1553,16 +1545,17 @@ async def _load_download_document(
     Leaves the session routed into the guild so a follow-up version query runs
     in the same schema.
 
-    Returns ``(document, guild_role)`` — role ``None`` for PAM grantees — or
-    ``(None, None)`` when there's no access, no schema, or no such document in
-    the addressed guild. All of those are an indistinguishable 404 to the
-    caller, so existence is never confirmed across guilds.
+    Returns ``(document, context)`` — the standing the seam computed for this
+    reader in that community — or ``(None, None)`` when there's no access, no
+    schema, or no such document in the addressed guild. All of those are an
+    indistinguishable 404 to the caller, so existence is never confirmed across
+    guilds.
     """
     from app.db.schema_provisioning import guild_schema_name
 
     # Guard the SET ROLE sink: if the guild schema/role isn't provisioned,
-    # establish_guild_access would fault rather than 404. (The session is the
-    # system admin engine (BYPASSRLS), so this lookup runs regardless of context.)
+    # establish_guild_access would fault rather than 404. The catalog answers
+    # this for any login.
     schema_exists = (
         await session.exec(
             text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
@@ -1574,9 +1567,8 @@ async def _load_download_document(
 
     # Route into the guild through the single entry point — same resolution and
     # applied context (membership / live PAM / break-glass, then SET ROLE +
-    # active_role/grant, no ambient bypass) as REST and the realtime
-    # sockets. Fine-grained read permission is then enforced by
-    # require_document_access against the context this established.
+    # standing) as REST and the realtime sockets, on the request login, so the
+    # row arrives with the level this reader holds on it.
     try:
         ctx = await establish_guild_access(session, current_user, int(guild_id))
     except GuildAccessError:
@@ -1585,16 +1577,11 @@ async def _load_download_document(
     doc = (
         await session.exec(
             select(Document)
-            .where(Document.id == document_id, Document.guild_id == guild_id)
+            .where(Document.id == document_id)
             .options(*_download_document_options())
         )
     ).one_or_none()
-    # A real member threads their guild role into the access check's guild-admin
-    # leg; a PAM/break-glass grantee gets ``None`` here — their reach is the
-    # scoped grant / admin role already in the established context, not a guild
-    # role on the row.
-    guild_role = None if ctx.is_pam else ctx.role
-    return doc, guild_role
+    return doc, ctx
 
 
 @router.get("/{document_id}/download", include_in_schema=False)
@@ -1604,17 +1591,16 @@ async def download_document_file(
     guild_id: int,
     document_id: int,
     current_user: UploadUserDep,
-    # AdminSessionDep (not RLSSessionDep) because the loader routes the
-    # session into the path-addressed guild's schema itself after validating
-    # access.
-    session: Annotated[AsyncSession, Depends(get_admin_session)],
+    # SessionDep (not RLSSessionDep) because the loader routes the session
+    # into the path-addressed guild's schema itself after validating access.
+    session: SessionDep,
     inline: bool = False,
 ) -> Response:
     """Download a file-type document — requires read permission on the document."""
     # These two routes resolve the guild themselves rather than through
     # ``get_guild_membership``, so they ask the same question it does.
     guild_id = addressed_guild_id(request, guild_id)
-    document, guild_role = await _load_download_document(
+    document, context = await _load_download_document(
         session, current_user, guild_id, document_id
     )
     if document is None:
@@ -1631,10 +1617,8 @@ async def download_document_file(
             status_code=status.HTTP_404_NOT_FOUND, detail=Tool.document.not_found_code
         )
 
-    # ``guild_role`` feeds the initiative-scope gate's guild-admin leg — the
-    # routed session has no request role context of its own here.
     resource_access.authorize(
-        Tool.document, document, current_user, access="read", guild_role=guild_role
+        Tool.document, document, current_user, access="read", context=context
     )
 
     logger.info(
@@ -1661,13 +1645,13 @@ async def download_document_file_version(
     version_id: int,
     current_user: UploadUserDep,
     # Same rationale as download_document_file: the loader validates access
-    # and routes the admin session into the path-addressed guild's schema.
-    session: Annotated[AsyncSession, Depends(get_admin_session)],
+    # and routes the session into the path-addressed guild's schema.
+    session: SessionDep,
     inline: bool = False,
 ) -> Response:
     """Download a specific stored version of a file document — read permission."""
     guild_id = addressed_guild_id(request, guild_id)
-    document, guild_role = await _load_download_document(
+    document, context = await _load_download_document(
         session, current_user, guild_id, document_id
     )
     if document is None:
@@ -1685,7 +1669,7 @@ async def download_document_file_version(
         )
 
     resource_access.authorize(
-        Tool.document, document, current_user, access="read", guild_role=guild_role
+        Tool.document, document, current_user, access="read", context=context
     )
 
     version_result = await session.exec(

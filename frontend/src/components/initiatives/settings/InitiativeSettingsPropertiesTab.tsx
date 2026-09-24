@@ -163,7 +163,7 @@ const OptionListEditor = ({ options, onChange, disabled }: OptionListEditorProps
 };
 
 /**
- * Initiative-admin surface for listing and managing custom property
+ * Initiative-manager surface for listing and managing custom property
  * definitions. The panel behind the Properties tab of an initiative's
  * settings, which is its own route (``/settings/properties``). Pairs with
  * ``PropertyFilter``/``PropertyList``/``PropertyInput`` which render

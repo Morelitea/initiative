@@ -83,7 +83,7 @@ async def _filed_report_id(client: AsyncClient, session, scene: dict, **body) ->
     filed = await _report_comment(client, scene, **body)
     assert filed.status_code == 202, filed.text
 
-    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=scene["guild"].id)
     report_id = (await session.exec(select(ModerationReport))).one().id
     await set_rls_context(session)
     return report_id
@@ -114,7 +114,6 @@ async def scene(session, acting_user):
     # report is only ever about a thing the reporter could reach.
     session.add(
         ResourceGrant(
-            guild_id=owner.guild.id,
             # The service sets this on every grant it writes; a hand-made one
             # without it is a grant no initiative-scoped read would find.
             initiative_id=owner.initiative.id,
@@ -159,7 +158,7 @@ async def operations(session):
     session.add(row)
     await session.commit()
 
-    await set_rls_context(session, guild_id=ops_guild.id, guild_role="admin")
+    await set_rls_context(session, guild_id=ops_guild.id)
     session.add(
         IntakeBinding(stream=IntakeStream.moderation, project_id=ops_project.id)
     )
@@ -177,7 +176,7 @@ async def test_reporting_community_content_lands_in_its_initiative(
     assert response.status_code == 202, response.text
     assert response.json()["venue"] == ReportVenue.initiative.value
 
-    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=scene["guild"].id)
     report = (await session.exec(select(ModerationReport))).one()
     assert report.initiative_id == scene["initiative"].id
     assert report.target_type == "comment"
@@ -199,7 +198,7 @@ async def test_reporting_identity_goes_to_the_platform(
     assert response.json()["venue"] == ReportVenue.platform.value
 
     # It landed as an ordinary intake case in the operations community.
-    await set_rls_context(session, guild_id=operations["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=operations["guild"].id)
     task = (
         await session.exec(
             select(Task).where(Task.project_id == operations["project"].id)
@@ -261,7 +260,7 @@ async def test_a_deleted_target_leaves_the_report_without_one(client, session, s
     """The report stands; there is just nothing left to show or link to."""
     await _report_comment(client, scene, reason="harassment")
 
-    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=scene["guild"].id)
     comment = await session.get(Comment, scene["comment"].id)
     await session.delete(comment)
     await session.commit()
@@ -358,7 +357,7 @@ async def test_a_community_a_reporter_is_not_in_places_nothing_there(
     assert response.status_code == 202
     assert response.json()["venue"] == ReportVenue.platform.value
 
-    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=scene["guild"].id)
     assert (await session.exec(select(ModerationReport))).all() == []
 
 
@@ -407,7 +406,7 @@ async def test_reporters_are_recorded_even_though_they_are_not_shown(
     """Held for dedupe and for an escalation to carry, not for display."""
     await _report_comment(client, scene)
 
-    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=scene["guild"].id)
     rows = (await session.exec(select(ModerationReportReporter))).all()
     assert [row.reporter_id for row in rows] == [scene["member"].user.id]
 
@@ -462,7 +461,7 @@ async def test_escalating_with_nowhere_to_send_leaves_the_report_open(
     assert response.status_code == 503
     assert response.json()["detail"] == "MODERATION_NOWHERE_TO_SEND"
 
-    await set_rls_context(session, guild_id=scene["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=scene["guild"].id)
     still = (
         await session.exec(
             select(ModerationReport).where(ModerationReport.id == report_id)
@@ -485,7 +484,7 @@ async def test_escalating_opens_a_platform_case(client, session, scene, operatio
     assert response.status_code == 200
     assert response.json()["outcome"] == "escalated"
 
-    await set_rls_context(session, guild_id=operations["guild"].id, guild_role="admin")
+    await set_rls_context(session, guild_id=operations["guild"].id)
     task = (
         await session.exec(
             select(Task).where(Task.project_id == operations["project"].id)

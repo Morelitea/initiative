@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.schema_provisioning import guild_schema_name
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.project import Project
@@ -46,7 +47,6 @@ async def _create_task(
     ).first()
     if status is None:
         status = TaskStatus(
-            guild_id=project.guild_id,
             project_id=project.id,
             name="Todo",
             category=TaskStatusCategory.todo,
@@ -57,7 +57,6 @@ async def _create_task(
         await session.commit()
         await session.refresh(status)
     task = Task(
-        guild_id=project.guild_id,
         project_id=project.id,
         task_status_id=status.id,
         title=title,
@@ -202,11 +201,12 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
 ):
     """Every soft-delete-capable table carries a RESTRICTIVE FOR DELETE policy
     (``soft_delete_admin_purge``) that admits only a routed guild admin
-    (``app.current_guild_role = 'admin'``); a hard delete is a purge. Post-squash
+    (``app.guild_admin = 'true'``); a hard delete is a purge. Post-squash
     these tables (and thus their policies) live in the per-guild schemas, not
-    ``public`` — the canonical copy is the Alembic-maintained ``guild_template``
-    schema (created by migration 20260701_0126). The admin fixture can't
-    exercise the policy at runtime, so we inspect ``pg_policies`` in the template."""
+    ``public``, rendered from the registry when a guild is provisioned. The
+    admin fixture can't exercise the policy at runtime, so we inspect
+    ``pg_policies`` in a freshly provisioned guild schema."""
+    guild = await create_guild(session)
     expected = {
         "projects",
         "tasks",
@@ -223,9 +223,9 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
         text(
             "SELECT tablename, policyname, cmd, permissive "
             "FROM pg_policies "
-            "WHERE schemaname = 'guild_template' "
+            "WHERE schemaname = :schema "
             "AND policyname = 'soft_delete_admin_purge'"
-        )
+        ).bindparams(schema=guild_schema_name(guild.id))
     )
     rows = result.all()
     found_tables = {row[0] for row in rows}
@@ -252,7 +252,6 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
 
     upload = Upload(
         filename="abc123.png",
-        guild_id=guild.id,
         created_by=user.id,
         size_bytes=1234,
     )
@@ -260,7 +259,6 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
     await session.commit()
 
     doc = Document(
-        guild_id=guild.id,
         initiative_id=initiative.id,
         name="With image",
         document_type=DocumentType.native,
@@ -305,7 +303,6 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
 
     upload = Upload(
         filename="file_v2.png",
-        guild_id=guild.id,
         created_by=user.id,
         size_bytes=1234,
     )
@@ -315,7 +312,6 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     # The doomed doc references /uploads/file_v2.png — pinned via
     # featured_image_url so extract_upload_urls picks it up cleanly.
     doomed = Document(
-        guild_id=guild.id,
         initiative_id=initiative.id,
         name="Doomed",
         document_type=DocumentType.native,
@@ -328,7 +324,6 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     # decoy's content (since '_' is "any single char"), and the doomed
     # doc's URL appears pinned by an unrelated document.
     decoy = Document(
-        guild_id=guild.id,
         initiative_id=initiative.id,
         name="Decoy",
         document_type=DocumentType.native,
@@ -379,7 +374,6 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     task = await _create_task(session, project, title="Task with comments")
 
     parent = Comment(
-        guild_id=guild.id,
         task_id=task.id,
         created_by=user.id,
         content="Top-level",
@@ -389,7 +383,6 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     await session.refresh(parent)
 
     reply = Comment(
-        guild_id=guild.id,
         task_id=task.id,
         created_by=user.id,
         content="Reply",
@@ -435,13 +428,11 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
         session.add(
             Upload(
                 filename=name,
-                guild_id=guild.id,
                 created_by=user.id,
                 size_bytes=10,
             )
         )
     doomed = Document(
-        guild_id=guild.id,
         initiative_id=initiative.id,
         name="Doomed file",
         document_type=DocumentType.file,
@@ -458,7 +449,6 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
         [
             DocumentFileVersion(
                 document_id=doomed.id,
-                guild_id=guild.id,
                 version_number=1,
                 file_url=f"/uploads/{old_name}",
                 file_content_type="application/pdf",
@@ -468,7 +458,6 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
             ),
             DocumentFileVersion(
                 document_id=doomed.id,
-                guild_id=guild.id,
                 version_number=2,
                 file_url=f"/uploads/{current_name}",
                 file_content_type="application/pdf",

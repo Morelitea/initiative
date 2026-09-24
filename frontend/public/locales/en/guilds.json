@@ -182,7 +182,7 @@
     "noActiveInvites": "No active invites.",
     "unableToLoadInvites": "Unable to load invites.",
     "unableToCreateInvite": "Unable to create invite.",
-    "inviteSeatsFull": "All {{max}} seats are in use. Remove a member, or ask a platform admin to raise the limit, before creating another invite.",
+    "inviteSeatsFull": "All {{max}} seats are in use. Remove a member, or ask whoever runs this server to raise the limit, before creating another invite.",
     "inviteSeatsFullPlan_one": "The {{plan}} plan includes a single seat, and it's taken. Upgrade to invite people into this community.",
     "inviteSeatsFullPlan_other": "All {{count}} seats on the {{plan}} plan are in use. Upgrade to invite more people.",
     "inviteSeatsFullUpgrade_one": "Your plan includes a single seat, and it's taken. Upgrade to invite people into this community.",
@@ -216,6 +216,22 @@
     "description": "You’re not a member of this community. Ask a community admin for an invite link to join.",
     "backToHome": "← Back to home"
   },
+  "closed": {
+    "title": "This community is suspended",
+    "description": "Nobody can open it until the suspension is lifted.",
+    "contact": "Contact {{email}}.",
+    "contactNobody": "Contact whoever runs this server."
+  },
+  "statusNotice": {
+    "title": "Something is wrong",
+    "description": "Contact your platform operator.",
+    "readOnly": "Until it’s resolved, members can read everything here but can’t change anything.",
+    "paymentTitle": "The payment for {{name}} was declined",
+    "paymentDescription": "Update your card to restore the community.",
+    "updatePayment": "Update payment method",
+    "notNow": "Not now",
+    "contactSupport": "Contact support"
+  },
   "noGuild": {
     "title": "No community membership",
     "description": "You are not a member of any community yet. Ask a community admin for an invite link, or create a new community to get started.",
@@ -245,6 +261,7 @@
     "userPendingApproval": "{{email}} is awaiting approval.",
     "mentionComment": "{{mentionedBy}} mentioned you in a comment on {{contextTitle}}.",
     "mentionDocument": "{{mentionedBy}} mentioned you in {{documentTitle}}.",
+    "mentionTaskDescription": "{{mentionedBy}} mentioned you in {{taskTitle}}.",
     "commentOnTask": "{{commenterName}} commented on {{taskTitle}}.",
     "commentOnResource": "{{commenterName}} commented on {{entityName}}.",
     "postPublished": "{{authorName}} posted {{postName}}.",
@@ -281,6 +298,8 @@
     "accountSuspended": "Your account has been suspended.",
     "accountSuspendedWithReason": "Your account has been suspended: {{reason}}",
     "accountUnsuspended": "Your account is no longer suspended.",
+    "guildOnHold": "{{community}} is on hold. Contact whoever runs this server to sort it out.",
+    "guildOnHoldWithContact": "{{community}} is on hold. Contact {{contact}} to sort it out.",
     "defaultNotification": "You have a new notification.",
     "push": {
       "enableTitle": "Enable Push Notifications",
@@ -314,7 +333,20 @@
         "personal": "Mentions"
       }
     },
-    "ariaLabelCount": "Notifications — {{count}} unread"
+    "ariaLabelCount": "Notifications — {{count}} unread",
+    "plain": {
+      "document": "a document",
+      "event": "an event",
+      "initiative": "initiative",
+      "initiativeIn": "an initiative",
+      "item": "an item",
+      "post": "a post",
+      "project": "A project",
+      "projectIn": "a project",
+      "task": "A task",
+      "taskObject": "your task",
+      "user": "A user"
+    }
   },
   "version": {
     "versionInformation": "Version Information",
@@ -341,7 +373,8 @@
     "readOnly": "You have temporary read-only access to {{guild}}.",
     "readWrite": "You have temporary access to {{guild}}.",
     "guildReadOnly": "This community is read-only",
-    "guildSuspended": "This community is suspended"
+    "guildSuspended": "This community is suspended",
+    "guildOnHold": "This community is on hold"
   },
   "readOnlyBanner": {
     "message": "{{guild}} is currently read-only. You can browse everything, but changes are disabled."

@@ -34,7 +34,7 @@
  *    guild, and never a non-guild key. This is the tenancy boundary: a mutation
  *    in one guild can't touch another guild's (or a personal) cached data.
  *  - PERSONAL / platform keys are everything else (`/api/v1/me/*`, `/settings`,
- *    `/users`, `/guilds`, `/admin`, `/notifications`, `/version`, `/recents`).
+ *    `/users`, `/guilds`, `/operator`, `/notifications`, `/version`, `/recents`).
  *    `personalExact` and `personalPrefix` reach these and ONLY these.
  *
  * A few resources genuinely span both (a guild list plus its cross-guild `/me`
@@ -400,6 +400,16 @@ const guildNarrowings = (guildId: number): Spec => ({
 
 const storageSettings = (): Spec => ({ personalExact: ["/api/v1/settings/storage"] });
 
+/** The registration captcha: provider, site key, and whether a secret is stored. */
+const captchaSettings = (): Spec => ({ personalExact: ["/api/v1/settings/captcha"] });
+
+/** The Firebase connection push notifications are sent through. */
+const pushSettings = (): Spec => ({ personalExact: ["/api/v1/settings/push"] });
+
+// The public half of the Firebase connection, which the app reads to register
+// for push. An owner's write to the push settings changes what it answers.
+const fcmConfig = (): Spec => ({ personalExact: ["/api/v1/settings/fcm-config"] });
+
 // The community-directory switch is written under /settings but read from the
 // SPA's boot config, so an owner's write has to reach the config key rather
 // than a settings one.
@@ -414,6 +424,16 @@ const platformAuthSettings = (): Spec => ({
   personalExact: ["/api/v1/settings/auth/platform"],
 });
 
+/** What this deployment permits a notification to leave the app carrying. */
+const notificationSettings = (): Spec => ({
+  personalExact: ["/api/v1/settings/notifications"],
+});
+
+/** The same three answers for one community. */
+const guildNotificationPolicy = (guildId: number): Spec => ({
+  personalExact: [`/api/v1/guilds/${guildId}/notification-policy`],
+});
+
 /** Where each stream of operations work lands, and what it could land in. */
 const intakeSettings = (): Spec => ({ personalExact: ["/api/v1/settings/intake"] });
 
@@ -424,8 +444,6 @@ const intakeOptions = (): Spec => ({ personalExact: ["/api/v1/settings/intake/op
 const moderationReports = (initiativeId: number): Spec => ({
   guildPrefix: [`/api/v1/initiatives/${initiativeId}/reports`],
 });
-
-const oidcMappings = (): Spec => ({ personalPrefix: ["/api/v1/settings/oidc-mappings"] });
 
 // The platform Guilds tab reads/writes only shared public tables (owner-only),
 // so its list lives in the personal/platform family, not under any /g/ key.
@@ -480,13 +498,13 @@ const resolvedAISettings = (): Spec => ({ guildExact: ["/api/v1/settings/ai/reso
 // list across every guild the user belongs to) — personal, never guild-scoped.
 const myAI = (): Spec => ({ personalExact: ["/api/v1/me/ai"] });
 
-// ── Users / Admin (personal / platform) ──────────────────────────────────────
+// ── Users / Operator (personal / platform) ──────────────────────────────────────
 
 const currentUser = (): Spec => ({ personalExact: ["/api/v1/users/me"] });
 
 const userStats = (): Spec => ({ personalPrefix: ["/api/v1/me/stats"] });
 
-const adminUsers = (): Spec => ({ personalPrefix: ["/api/v1/admin"] });
+const operatorUsers = (): Spec => ({ personalPrefix: ["/api/v1/operator"] });
 
 // ── Guild Members (guild) ────────────────────────────────────────────────────
 // The member roster is guild-scoped (`/api/v1/g/{id}/users/`), even though the
@@ -650,7 +668,6 @@ const guildContent = (): Spec =>
 
 /** Every description, by name. The only export a call site needs beside `invalidate`. */
 export const q = {
-  adminUsers,
   allAISettings,
   allCalendarEntries,
   allCalendarEvents,
@@ -679,9 +696,12 @@ export const q = {
   guildNarrowings,
   authSettings,
   calendar,
+  captchaSettings,
   calendarEvent,
   commentsOnResource,
   communitySettings,
+  guildNotificationPolicy,
+  notificationSettings,
   platformAuthSettings,
   intakeOptions,
   intakeSettings,
@@ -698,6 +718,7 @@ export const q = {
   documentVersions,
   emailSettings,
   favoriteProjects,
+  fcmConfig,
   guildAIConnections,
   guildContent,
   guildInvites,
@@ -713,7 +734,7 @@ export const q = {
   myAI,
   myPermissions,
   notifications,
-  oidcMappings,
+  operatorUsers,
   platformAIConnections,
   platformAIMode,
   platformGuilds,
@@ -725,6 +746,7 @@ export const q = {
   projectActivity,
   projectFilterPresets,
   projectTaskStatuses,
+  pushSettings,
   queue,
   recentComments,
   recents,

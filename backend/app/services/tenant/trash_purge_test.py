@@ -75,13 +75,13 @@ async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     # is broken we'd hit "Instance is not persisted" on the second
     # hard_purge_entity call against the cascaded project. Drive the inner
     # loop with the test session so the DELETEs land on the test DB
-    # (process_trash_purges() opens its own AdminSessionLocal pointed at
+    # (process_trash_purges() opens its own SystemSessionLocal pointed at
     # the dev DB).
     await _run_purge_pass(session, now=datetime.now(timezone.utc))
     await session.commit()
 
     # Verify against the DB directly — process_trash_purges runs on its
-    # own AdminSessionLocal, so the test session's identity map is stale
+    # own SystemSessionLocal, so the test session's identity map is stale
     # for these rows.
     initiative_count = (
         await session.exec(
@@ -107,7 +107,7 @@ async def test_auto_purge_sweeps_every_guild_schema(
     Stage expired trash in two guilds and assert _purge_all_guilds clears both.
 
     Driven on a real ``app_admin`` connection like production
-    (``process_trash_purges`` opens ``AdminSessionLocal``), so the purge runs
+    (``process_trash_purges`` opens ``SystemSessionLocal``), so the purge runs
     under the same privilege boundary that has to clear the admin-only purge
     guard."""
     from app.db.session import set_rls_context
@@ -137,12 +137,12 @@ async def test_auto_purge_sweeps_every_guild_schema(
         await session.commit()
         targets.append((guild.id, initiative.id))
 
-    # Production runs the worker on AdminSessionLocal (app_admin, policy-bound).
+    # Production runs the worker on SystemSessionLocal (app_admin).
     admin = await role_session("app_admin")
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
 
     for guild_id, initiative_id in targets:
-        await set_rls_context(admin, guild_id=guild_id, guild_role="admin")
+        await set_rls_context(admin, guild_id=guild_id)
         count = (
             await admin.exec(
                 text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -229,7 +229,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
 
     from app.db.session import set_rls_context
 
-    await set_rls_context(admin, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(admin, guild_id=guild.id)
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -244,7 +244,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     await session.commit()
 
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
-    await set_rls_context(admin, guild_id=guild.id, guild_role="admin")
+    await set_rls_context(admin, guild_id=guild.id)
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),

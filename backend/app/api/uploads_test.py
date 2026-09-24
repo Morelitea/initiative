@@ -6,6 +6,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing.schema_harness import route_session_to_guild
 from app.core.config import settings
 from app.core.security import create_upload_token
 from app.testing.factories import (
@@ -63,10 +64,10 @@ async def test_upload_accessible_with_auth_header(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     _stage_upload(guild.id, "test_auth_header.txt")
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="test_auth_header.txt",
-            guild_id=guild.id,
             created_by=user.id,
             size_bytes=5,
         )
@@ -97,10 +98,10 @@ async def test_a_served_upload_is_cacheable_but_not_indefinitely(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     _stage_upload(guild.id, "test_cache_header.txt")
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="test_cache_header.txt",
-            guild_id=guild.id,
             created_by=user.id,
             size_bytes=5,
         )
@@ -155,10 +156,10 @@ async def test_upload_accessible_with_scoped_upload_token(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     _stage_upload(guild.id, "test_query_upload_token.txt")
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="test_query_upload_token.txt",
-            guild_id=guild.id,
             created_by=user.id,
             size_bytes=5,
         )
@@ -196,10 +197,10 @@ async def test_issue_upload_token_endpoint(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     _stage_upload(guild.id, "test_minted_token.txt")
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="test_minted_token.txt",
-            guild_id=guild.id,
             created_by=user.id,
             size_bytes=5,
         )
@@ -263,9 +264,9 @@ async def test_upload_guild_member_can_access_file(
     await create_guild_membership(session, user=user, guild=guild)
     _stage_upload(guild.id, "test_guild_access.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
 
+    await route_session_to_guild(session, guild.id)
     upload = Upload(
         filename="test_guild_access.png",
-        guild_id=guild.id,
         created_by=user.id,
         size_bytes=16,
     )
@@ -294,9 +295,9 @@ async def test_upload_non_member_cannot_access_file(
         guild = await create_guild(session, creator=owner)
         await create_guild_membership(session, user=owner, guild=guild)
 
+        await route_session_to_guild(session, guild.id)
         upload = Upload(
             filename="test_guild_forbidden.png",
-            guild_id=guild.id,
             created_by=owner.id,
             size_bytes=16,
         )
@@ -360,7 +361,7 @@ async def test_upload_row_in_guild_schema_is_served(
 ) -> None:
     """Regression: under schema-per-guild, Upload rows written through a guild
     request live in guild_<id>.uploads — NOT public.uploads. The serve route
-    runs on the admin session (search_path=public) and must still find the row
+    runs on the system session (search_path=public) and must still find the row
     by routing into the requester's ACTIVE guild schema (server-held context),
     otherwise every newly uploaded image 404s (fail-closed SEC-6 turned the
     old silent fail-open into a visible regression)."""
@@ -378,10 +379,10 @@ async def test_upload_row_in_guild_schema_is_served(
     await session.exec(
         text(
             f'INSERT INTO "{schema}".uploads'
-            " (filename, guild_id, created_by, size_bytes, created_at)"
-            " VALUES (:fn, :gid, :uid, 5, now())"
+            " (filename, created_by, size_bytes, created_at)"
+            " VALUES (:fn, :uid, 5, now())"
         ),
-        params={"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
+        params={"fn": "test_guild_schema_row.txt", "uid": user.id},
     )
     await session.commit()
     # Prove the row can't live in public: under schema-per-guild there is no
@@ -429,10 +430,10 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="grant_probe.jpg",
-            guild_id=guild.id,
             created_by=user.id,
             size_bytes=1,
         )
@@ -477,10 +478,10 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     _stage_upload(guild.id, "suspended_guild.txt")
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="suspended_guild.txt",
-            guild_id=guild.id,
             created_by=user.id,
             size_bytes=5,
         )
@@ -536,10 +537,10 @@ async def test_a_served_upload_is_typed_from_its_row(
         "recorded_as_svg.png",
         b'<svg xmlns="http://www.w3.org/2000/svg"></svg>',
     )
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="recorded_as_svg.png",
-            guild_id=guild.id,
             created_by=user.id,
             size_bytes=44,
             content_type="image/svg+xml",
@@ -569,10 +570,10 @@ async def test_a_served_raster_stays_inline(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     _stage_upload(guild.id, "picture.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+    await route_session_to_guild(session, guild.id)
     session.add(
         Upload(
             filename="picture.png",
-            guild_id=guild.id,
             created_by=user.id,
             size_bytes=16,
             content_type="image/png",
@@ -602,10 +603,10 @@ async def test_a_row_without_a_recorded_type_falls_back_to_its_name(
     await create_guild_membership(session, user=user, guild=guild)
     for name in ("legacy.png", "legacy.svg"):
         _stage_upload(guild.id, name, b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+        await route_session_to_guild(session, guild.id)
         session.add(
             Upload(
                 filename=name,
-                guild_id=guild.id,
                 created_by=user.id,
                 size_bytes=16,
             )

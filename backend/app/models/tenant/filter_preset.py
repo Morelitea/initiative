@@ -41,9 +41,6 @@ class ProjectFilterPreset(CreatedByMixin, table=True):
     __tablename__ = "project_filter_presets"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
     project_id: int = Field(foreign_key="projects.id", nullable=False, index=True)
     # Immutable after creation: the slug is what a shared link carries, so a
     # rename must not break every link already pasted into a chat.

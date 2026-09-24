@@ -102,14 +102,14 @@ const PERSIST_ALLOWLIST = [
 
 /**
  * Paths that are never written, whatever the allowlist above says. Settings and
- * administration are configuration rather than content; search and trash are
+ * the operator surfaces are configuration rather than content; search and trash are
  * derived surfaces; none of them is "what I was reading".
  */
 const PERSIST_DENYLIST = [
   "/api/v1/auth/",
   "/api/v1/config",
   "/api/v1/settings",
-  "/api/v1/admin",
+  "/api/v1/operator",
   "/api/v1/access-grants",
   "/api/v1/ai-settings",
   "/api/v1/webhooks",

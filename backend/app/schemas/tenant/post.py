@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
-from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.platform.user import ProfileDecorations
@@ -16,6 +15,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
     from app.models.tenant.post import Post
 
 
@@ -342,7 +342,7 @@ def post_excerpt(body: Any, *, limit: int = EXCERPT_CHARS) -> str:
 
 
 def serialize_post_summary(
-    post: "Post", *, user_id: Optional[int] = None
+    post: "Post", *, context: GuildContext, user_id: Optional[int] = None
 ) -> PostSummary:
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import client_access, serialize_grants
@@ -354,7 +354,7 @@ def serialize_post_summary(
         id=post.id,
         name=post.name,
         initiative_id=post.initiative_id,
-        guild_id=post.guild_id,
+        guild_id=context.guild_id,
         created_by=post.created_by,
         author=(
             CommentAuthor.model_validate(post.creator)
@@ -374,7 +374,7 @@ def serialize_post_summary(
         is_read=bool(getattr(post, "is_read", False)),
         read_count=int(getattr(post, "read_count", 0)),
         archived_at=post.archived_at,
-        **client_access(Tool.post, post, user_id),
+        **client_access(post, user_id, context=context),
         comments_enabled=post.comments_enabled,
         reactions_enabled=post.reactions_enabled,
         comment_count=getattr(post, "comment_count", 0),
@@ -388,8 +388,10 @@ def serialize_post_summary(
     )
 
 
-def serialize_post(post: "Post", *, user_id: Optional[int] = None) -> PostRead:
-    summary = serialize_post_summary(post, user_id=user_id)
+def serialize_post(
+    post: "Post", *, context: GuildContext, user_id: Optional[int] = None
+) -> PostRead:
+    summary = serialize_post_summary(post, context=context, user_id=user_id)
     poll = getattr(post, "poll", None)
     return PostRead(
         **summary.model_dump(),

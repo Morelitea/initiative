@@ -30,7 +30,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Query, Request
 
 from app.api.v1.app_service_endpoints.deps import (
-    AdminSessionDep,
+    SystemSessionDep,
     CallerDep,
     parse_body,
     to_http,
@@ -62,7 +62,7 @@ router = APIRouter(prefix="/installs")
 
 @router.get("", response_model=AppInstallsResponse)
 async def list_installs(
-    session: AdminSessionDep, caller: CallerDep
+    session: SystemSessionDep, caller: CallerDep
 ) -> AppInstallsResponse:
     """Every guild that has this app installed, and at which pinned version.
 
@@ -79,7 +79,7 @@ async def list_installs(
 
 @router.get("/{guild_ref}/config", response_model=AppInstallConfigRead)
 async def read_install_config(
-    guild_ref: str, session: AdminSessionDep, caller: CallerDep
+    guild_ref: str, session: SystemSessionDep, caller: CallerDep
 ) -> AppInstallConfigRead:
     """The decrypted configuration for one install.
 
@@ -105,7 +105,7 @@ async def read_install_config(
 
 @router.get("/{guild_ref}/connections", response_model=AppConnectionsResponse)
 async def list_install_connections(
-    guild_ref: str, session: AdminSessionDep, caller: CallerDep
+    guild_ref: str, session: SystemSessionDep, caller: CallerDep
 ) -> AppConnectionsResponse:
     """The app's per-member connections for one guild.
 
@@ -182,7 +182,7 @@ async def resolve_delegated_connection(
     guild_ref: str,
     delegate: DelegateParam,
     subject: SubjectParam,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     caller: CallerDep,
     connection: ConnectionParam = None,
 ) -> AppConnectionRead:
@@ -229,7 +229,7 @@ async def write_install_connection(
     guild_ref: str,
     connection_ref: str,
     request: Request,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     caller: CallerDep,
 ) -> AppConnectionRead:
     """Store what a vendor flow produced for one member's connection.
@@ -270,7 +270,7 @@ async def write_install_connection(
 async def report_install_status(
     guild_ref: str,
     request: Request,
-    session: AdminSessionDep,
+    session: SystemSessionDep,
     caller: CallerDep,
 ) -> AppStatusRead:
     """Record whether the configuration this guild supplied actually works.

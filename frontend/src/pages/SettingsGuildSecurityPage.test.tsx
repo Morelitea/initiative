@@ -3,15 +3,17 @@ import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import { buildGuild, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/client";
+import type { GuildAuthOption, GuildRole } from "@/api/generated/initiativeAPI.schemas";
+import type { GuildEntry } from "@/hooks/useGuilds";
 
 // What the server says about this community and this member. Flipped per test.
-let guildRole = "superadmin";
+let guildRole: GuildRole = "superadmin";
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let guildId = 4;
-let authOptions: string[] | null = ["restrictions", "providers"];
+let authOptions: GuildAuthOption[] | null = ["restrictions", "providers"];
 let allowApiKeys: boolean | null = true;
 let sessionLimit: boolean | null = false;
 let grantedAuthSettings = {
@@ -28,6 +30,7 @@ const connection = (id: number, providerId: number, slug: string, name: string) 
   claim: null,
   claim_values: [],
   enabled: true,
+  accepts_provider_placement: false,
   login_ready: true,
 });
 let connections = [
@@ -61,24 +64,40 @@ const saveSessionLimit = vi.fn();
 const saveSecondFactor = vi.fn();
 let requireSecondFactor: boolean | null = false;
 let secondFactorAvailable = true;
-const refreshGuilds = vi.fn(() => Promise.resolve());
+const refreshGuilds = vi.fn(() => Promise.resolve<GuildEntry[]>([]));
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useGuilds: () => ({
-    activeGuild: {
-      id: guildId,
-      name: "Test Community",
-      role: guildRole,
+  useGuilds: () => {
+    const activeGuild: GuildEntry = {
+      ...buildGuild({
+        id: guildId,
+        name: "Test Community",
+        role: guildRole,
+        auth_options: authOptions,
+        allow_api_keys: allowApiKeys,
+        enforce_compliance_session: sessionLimit,
+        require_second_factor: requireSecondFactor,
+      }),
       grantSettingsLevel,
-      auth_options: authOptions,
-      allow_api_keys: allowApiKeys,
-      enforce_compliance_session: sessionLimit,
-      require_second_factor: requireSecondFactor,
-    },
-    refreshGuilds,
-  }),
+    };
+    return {
+      guilds: [activeGuild],
+      activeGuild,
+      activeGuildId: guildId,
+      activeGuildReadOnly: false,
+      loading: false,
+      error: null,
+      refreshGuilds,
+      switchGuild: vi.fn(),
+      syncGuildFromUrl: vi.fn(),
+      createGuild: vi.fn(),
+      updateGuildInState: vi.fn(),
+      reorderGuilds: vi.fn(),
+      canCreateGuilds: false,
+    };
+  },
 }));
 
 vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => guildId }));
@@ -90,6 +109,18 @@ vi.mock("@/hooks/useAppConfig", () => ({
 // ``useServer`` is left real: the render helper provides its context, and
 // mocking the module would take ``ServerContext`` with it.
 
+// What this community answers about notifications, and the deployment's own
+// answer above it. Read by the section the page renders at the bottom.
+const notificationPolicy = {
+  allow_push_notifications: true,
+  allow_email_notifications: true,
+  redact_notification_content: false,
+  push_allowed_by_platform: true,
+  email_allowed_by_platform: true,
+  redacted_by_platform: false,
+};
+const saveNotificationPolicy = vi.fn();
+
 vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildAuthPolicy: () => ({ data: policy, isLoading: false }),
   useGuildAuthSettings: () => ({ data: grantedAuthSettings, refetch: vi.fn() }),
@@ -97,6 +128,8 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
   useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
   useUpdateGuildSecondFactor: () => ({ mutate: saveSecondFactor, isPending: false }),
+  useGuildNotificationPolicy: () => ({ data: notificationPolicy, isLoading: false }),
+  useUpdateGuildNotificationPolicy: () => ({ mutate: saveNotificationPolicy, isPending: false }),
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
   useConnectableProviders: () => ({ data: connectable, isLoading: false }),
   useGuildLoginProviders: () => ({ data: { providers: [] } }),
@@ -104,7 +137,12 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useUpdateProviderConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useDisconnectProvider: () => ({ mutate: vi.fn(), isPending: false }),
   useGuildClaimRules: () => ({
-    data: { rules: [], reporting_provider_ids: [] },
+    data: {
+      rules: [],
+      reporting_provider_ids: [],
+      provider_rules: [],
+      placement_everywhere: false,
+    },
     isLoading: false,
   }),
   useCreateClaimRule: () => ({ mutate: vi.fn(), isPending: false }),
@@ -314,7 +352,7 @@ describe("SettingsGuildSecurityPage", () => {
   });
 
   describe("who may reach it", () => {
-    it.each(["admin", "member"])("shows %s nothing at all", (role) => {
+    it.each<GuildRole>(["admin", "member"])("shows %s nothing at all", (role) => {
       // The whole page is the seat's, so there is nothing here to render
       // read-only. The tab is hidden the same way; this is the direct-URL half.
       guildRole = role;
@@ -329,7 +367,7 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     it("gives a superadmin settings grantee the current controls", () => {
-      guildRole = "member";
+      guildRole = "superadmin";
       grantSettingsLevel = "superadmin";
       authOptions = null;
       allowApiKeys = null;
@@ -501,9 +539,10 @@ describe("SettingsGuildSecurityPage", () => {
     /** A thing on the page, however it is named there. */
     const find = (q: { label: RegExp } | { text: string | RegExp }) =>
       "label" in q ? screen.queryByLabelText(q.label) : screen.queryByText(q.text);
+    type Probe = Parameters<typeof find>[0];
 
     // Each grant is one half of the page, and neither brings the other with it.
-    it.each([
+    it.each<[string, GuildAuthOption[], Probe[], Probe[]]>([
       ["neither, so nothing at all", [], [], [API_KEYS, SESSION, REQUIREMENT, SIGN_IN_LINK]],
       ["only the terms half", ["restrictions"], [API_KEYS, SESSION], [WHO_GETS_IN, REQUIREMENT]],
       [

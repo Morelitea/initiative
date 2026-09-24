@@ -172,9 +172,15 @@ describe("relatedTarget", () => {
       updated_at: null,
       tool: Tool.project,
       tool_id: 11,
-      image_url: null,
+      tool_title: null,
+      image_urls: [],
       icon: null,
       color: null,
+      document_type: null,
+      mime_type: null,
+      original_filename: null,
+      smart_link_url: null,
+      is_open: null,
     };
     expect(relatedTarget(end)).toEqual({
       entity_type: SearchEntityType.task,

@@ -2,8 +2,9 @@
 
 import pytest
 from httpx import AsyncClient
+from prometheus_client import REGISTRY
 
-from app.core import audit_context
+from app.core import audit_context, metrics
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.request_audit import (
@@ -137,6 +138,62 @@ async def test_a_socket_is_named_for_as_long_as_it_is_open():
     assert audit_context.clean_request_id(seen["request_id"])
     assert seen["source_ip"] == "203.0.113.7"
     assert audit_context.current() is None
+
+
+def _requests_counted(route: str, status: str) -> float:
+    return (
+        REGISTRY.get_sample_value(
+            "initiative_http_requests_total",
+            {"method": "GET", "route": route, "status": status},
+        )
+        or 0.0
+    )
+
+
+async def test_a_request_is_counted_by_the_route_it_matched(client: AsyncClient):
+    """The label is the route as written, so every community's list is one
+    series rather than one per community."""
+    route = "/api/v1/g/{guild_id}/initiatives/"
+    before = _requests_counted(route, "401")
+
+    answered = await client.get("/api/v1/g/424242/initiatives/")
+
+    assert answered.status_code == 401
+    assert _requests_counted(route, "401") == before + 1
+    assert (
+        REGISTRY.get_sample_value(
+            "initiative_http_request_duration_seconds_count",
+            {"method": "GET", "route": route},
+        )
+        or 0
+    ) >= 1
+    assert (
+        REGISTRY.get_sample_value(
+            "initiative_http_requests_in_progress", {"method": "GET"}
+        )
+        == 0
+    )
+
+
+@pytest.mark.unit
+async def test_an_open_socket_is_counted_until_it_closes():
+    seen = {}
+
+    def inside():
+        seen["open"] = REGISTRY.get_sample_value("initiative_websocket_connections")
+
+    before = REGISTRY.get_sample_value("initiative_websocket_connections")
+    await _drive_socket(_ws_scope(), inside)
+
+    assert seen["open"] == before + 1
+    assert REGISTRY.get_sample_value("initiative_websocket_connections") == before
+
+
+@pytest.mark.unit
+def test_an_unknown_method_is_labelled_other():
+    assert metrics.method_label("GET") == "GET"
+    assert metrics.method_label("BREW") == "other"
+    assert metrics.method_label(None) == "other"
 
 
 @pytest.mark.unit

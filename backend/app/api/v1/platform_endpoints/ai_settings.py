@@ -10,7 +10,7 @@ connections and the member surface live in ``tenant_endpoints/ai_settings.py``.
 from fastapi import APIRouter, status
 
 from app.api.deps import UserSessionDep
-from app.api.v1.platform_endpoints.admin import ConfigManageDep
+from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.schemas.ai_settings import (
     AIConnectionCreate,
     AIConnectionResponse,
@@ -29,7 +29,7 @@ platform_router = APIRouter()
 @platform_router.get("/ai/platform/mode", response_model=PlatformAIModeResponse)
 async def get_platform_ai_mode(
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> PlatformAIModeResponse:
     """Get the global AI config mode (``config.manage`` — owner only)."""
     return await ai_settings_service.get_platform_ai_mode(session)
@@ -39,11 +39,11 @@ async def get_platform_ai_mode(
 async def update_platform_ai_mode(
     payload: PlatformAIModeUpdate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> PlatformAIModeResponse:
     """Set the global AI config mode (``config.manage`` — owner only)."""
     return await ai_settings_service.update_platform_ai_mode(
-        session, payload, actor_user_id=admin.id
+        session, payload, actor_user_id=owner.id
     )
 
 
@@ -53,7 +53,7 @@ async def update_platform_ai_mode(
 )
 async def list_platform_connections(
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> list[AIConnectionResponse]:
     return await ai_settings_service.list_platform_connections(session)
 
@@ -62,10 +62,10 @@ async def list_platform_connections(
 async def create_platform_connection(
     payload: AIConnectionCreate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> AIConnectionResponse:
     return await ai_settings_service.create_platform_connection(
-        session, payload, actor_user_id=admin.id
+        session, payload, actor_user_id=owner.id
     )
 
 
@@ -76,10 +76,10 @@ async def update_platform_connection(
     connection_id: int,
     payload: AIConnectionUpdate,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> AIConnectionResponse:
     return await ai_settings_service.update_platform_connection(
-        session, connection_id, payload, actor_user_id=admin.id
+        session, connection_id, payload, actor_user_id=owner.id
     )
 
 
@@ -90,10 +90,10 @@ async def update_platform_connection(
 async def delete_platform_connection(
     connection_id: int,
     session: UserSessionDep,
-    admin: ConfigManageDep,
+    owner: ConfigManageDep,
 ) -> None:
     await ai_settings_service.delete_platform_connection(
-        session, connection_id, actor_user_id=admin.id
+        session, connection_id, actor_user_id=owner.id
     )
 
 
@@ -104,7 +104,7 @@ async def delete_platform_connection(
 async def test_platform_connection(
     connection_id: int,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> AIConnectionTestResponse:
     """Test a stored operator connection (uses its stored key + destination —
     never a request body destination)."""
@@ -118,7 +118,7 @@ async def test_platform_connection(
 async def fetch_platform_connection_models(
     connection_id: int,
     session: UserSessionDep,
-    _admin: ConfigManageDep,
+    _owner: ConfigManageDep,
 ) -> AIModelsResponse:
     return await ai_settings_service.fetch_platform_connection_models(
         session, connection_id

@@ -10,13 +10,14 @@ it is served from, which is what keeps a card and the page it opens in
 agreement.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
-from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.marketplace.definitions import LISTING_KINDS, LISTING_SOURCES
 
 if TYPE_CHECKING:
@@ -93,6 +94,139 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: page renders. Installing does not send this back; the server re-reads the
     #: catalog, so nothing a client holds decides what gets stored.
     definition: Optional[Dict[str, Any]] = None
+    #: What the preview's Example toggle shows. For a tool made of content,
+    #: the same envelope filled in, when the listing carries one, and what
+    #: "start from the example" installs. For a dashboard, sample answers by
+    #: widget id (``{columns, rows, truncated, relations}``, the query
+    #: surface's shape): generated from its queries unless the publisher
+    #: supplied their own, always present, and never installable. Display
+    #: data, like the definition above.
+    example: Optional[Dict[str, Any]] = None
+
+
+class ListingStartFrom(str, Enum):
+    """What an install copies: the listing itself, or its example."""
+
+    blank = "blank"
+    example = "example"
+
+
+class MarketplaceInstallRequest(SanitizedBaseModel):
+    """Install a tool listing: import a copy of it into an initiative."""
+
+    initiative_id: int
+    start_from: ListingStartFrom = ListingStartFrom.blank
+    #: Where the listing's dates land: its earliest one falls on this day, and
+    #: the rest keep their distance from it. Today when omitted.
+    starts_on: Optional[date] = None
+
+
+class MarketplaceInstallResult(SanitizedBaseModel):
+    """What installing a tool listing created."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    kind: ListingKind  # type: ignore[valid-type]
+    listing_uid: str
+    listing_version: str
+    #: The import's own report: what was created, under which id and name.
+    result: EnvelopeImportResult
+
+
+class MarketplaceShareRequest(SanitizedBaseModel):
+    """Share an item from this community to the deployment's marketplace.
+
+    The item is exported and stripped to what belongs to the work: nobody it
+    names, nothing it links to outside itself, no uploads. ``listing_uid``
+    publishes it as a new version of a listing the member shared before, which
+    keeps that listing's name and description.
+    """
+
+    kind: ListingKind  # type: ignore[valid-type]
+    entity_id: int
+    #: The same tool's item, filled in, shown beside the listing as its example.
+    example_entity_id: Optional[int] = None
+    name: TitleStr = Field(..., min_length=1, max_length=200)
+    description: str = Field(..., min_length=1, max_length=500)
+    long_description: Optional[str] = Field(default=None, max_length=10_000)
+    release_notes: Optional[str] = Field(default=None, max_length=2_000)
+    listing_uid: Optional[str] = Field(default=None, max_length=14)
+
+
+class MarketplaceShareResult(SanitizedBaseModel):
+    """What a share published, and whether it waits for the owner's review."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    uid: str
+    public_id: str
+    version: str
+    awaiting_review: bool
+
+
+class MarketplaceSharedListingRead(MarketplaceListingSummary):
+    """A listing the signed-in member shared, with anything still waiting."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Versions submitted and not yet approved, oldest first.
+    pending_versions: List[str] = []
+
+
+class MarketplacePendingVersionRead(SanitizedBaseModel):
+    """A shared version waiting for the owner's review, with what it would
+    publish."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    uid: str
+    public_id: str
+    kind: ListingKind  # type: ignore[valid-type]
+    name: str
+    publisher: str
+    description: str
+    version: str
+    release_notes: Optional[str] = None
+    submitted_at: datetime
+    #: Whether this is the listing's first version, or a new one of a listing
+    #: already on the shelf.
+    is_new_listing: bool
+    definition: Dict[str, Any]
+    example: Optional[Dict[str, Any]] = None
+
+
+class ListingUploadRequest(SanitizedBaseModel):
+    """A listing file the owner uploads: the manifest a catalog directory or a
+    registry carries, published as a ``local`` listing."""
+
+    manifest: Dict[str, Any]
+
+
+class ListingMediaRead(SanitizedBaseModel):
+    """A picture uploaded to the marketplace's media."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Where it is served from, for a manifest to name.
+    path: str
+
+
+class ListingUploadResult(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    uid: str
+    public_id: str
+    version: str
+
+
+class MarketplaceLocalSettings(SanitizedBaseModel):
+    """How this deployment takes its members' shares."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Whether a share goes on the shelf straight away. Off, each one waits for
+    #: the owner to approve it.
+    members_publish_directly: bool
 
 
 class MarketplaceListingPage(SanitizedBaseModel):

@@ -1,4 +1,4 @@
-"""Tests for import parse endpoints — error response shape."""
+"""Tests for the import engine: envelopes, foreign files, Jira, backups."""
 
 import io
 import json
@@ -7,7 +7,6 @@ import zipfile
 import pytest
 from httpx import AsyncClient
 
-from app.core.config import settings
 from app.models.platform.guild import GuildRole
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.import_engine import worker as import_worker
@@ -21,48 +20,7 @@ from app.testing.factories import (
     create_queue,
     create_task,
 )
-
-
-@pytest.mark.integration
-async def test_todoist_parse_bad_csv_opaque_error(client: AsyncClient, acting_user):
-    """Todoist CSV with a non-numeric INDENT triggers ValueError, returns the opaque constant."""
-    a = await acting_user(guild_role=GuildRole.member)
-    response = await client.post(
-        a.g("/imports/todoist/parse"),
-        headers={**a.headers, "Content-Type": "text/plain"},
-        content=b"TYPE,CONTENT,INDENT\ntask,My Task,not-a-number",
-    )
-    assert response.status_code == 400
-    detail = response.json()["detail"]
-    assert detail == "IMPORT_PARSE_FAILED"
-    assert "Traceback" not in detail
-    assert "Error" not in detail
-
-
-@pytest.mark.integration
-async def test_vikunja_parse_bad_json_opaque_error(client: AsyncClient, acting_user):
-    """Malformed Vikunja JSON returns the constant, not a raw exception."""
-    a = await acting_user(guild_role=GuildRole.member)
-    response = await client.post(
-        a.g("/imports/vikunja/parse"),
-        headers={**a.headers, "Content-Type": "text/plain"},
-        content=b"this is not json }{{{",
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "IMPORT_PARSE_FAILED"
-
-
-@pytest.mark.integration
-async def test_ticktick_parse_bad_csv_opaque_error(client: AsyncClient, acting_user):
-    """Malformed TickTick CSV returns the constant, not a raw exception."""
-    a = await acting_user(guild_role=GuildRole.member)
-    response = await client.post(
-        a.g("/imports/ticktick/parse"),
-        headers={**a.headers, "Content-Type": "text/plain"},
-        content=b"\x00\x01\x02\x03binary garbage",
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "IMPORT_PARSE_FAILED"
+from app.services.import_engine import limits as import_limits
 
 
 # ---------------------------------------------------------------------------
@@ -107,9 +65,7 @@ async def test_envelope_import_roundtrips_queue(client, acting_user, session):
     from app.models.tenant.queue import QueueItem as QI
 
     for i, label in enumerate(["Aria", "Brock"]):
-        session.add(
-            QI(queue_id=queue.id, guild_id=a.guild.id, label=label, position=float(i))
-        )
+        session.add(QI(queue_id=queue.id, label=label, position=float(i)))
     await session.commit()
 
     envelope = await _export_json(client, a, "/exports/queue", {"queue_id": queue.id})
@@ -158,7 +114,6 @@ async def test_envelope_import_roundtrips_counter_group(client, acting_user, ses
     session.add(
         C(
             counter_group_id=group.id,
-            guild_id=a.guild.id,
             name="GP",
             count=Decimal("42.5"),
             step=Decimal("1"),
@@ -407,7 +362,7 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     from app.models.platform.notification import Notification, NotificationType
     from app.models.tenant.queue import Queue
 
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "type": "initiative-queue",
@@ -469,7 +424,7 @@ async def test_worker_fails_closed_on_revoked_permission(
     from app.models.tenant.initiative import InitiativeMember
     from app.models.tenant.queue import Queue
 
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "type": "initiative-queue",
@@ -510,14 +465,13 @@ async def test_stale_running_import_fails_closed_not_reapplied(
     (an interrupted apply may have committed rows already)."""
     from datetime import datetime, timedelta, timezone
 
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     from app.testing import route_session_to_guild
 
     await route_session_to_guild(session, a.guild.id)
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
     job = ImportJob(
-        guild_id=a.guild.id,
         created_by=a.user.id,
         source="initiative-queue",
         params={"initiative_id": a.initiative.id},
@@ -540,8 +494,8 @@ async def test_stale_running_import_fails_closed_not_reapplied(
 
 
 async def test_import_job_cap_and_cancel(client, acting_user, session, monkeypatch):
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
-    monkeypatch.setattr(settings, "IMPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "type": "initiative-queue",
@@ -574,7 +528,7 @@ async def test_import_jobs_are_own_row_isolated(
 ):
     """Another member sees neither the job nor its row (RLS, 404); a guild
     admin sees it via the admin leg."""
-    monkeypatch.setattr(settings, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "type": "initiative-queue",
@@ -602,7 +556,7 @@ async def test_envelope_byte_bound_enforced_before_body_is_read(
     Content-Length is refused before any body is read, and a chunked
     (length-less) stream is cut off as soon as it exceeds the limit — the
     server never buffers more than the cap."""
-    monkeypatch.setattr(settings, "IMPORT_MAX_ENVELOPE_BYTES", 1024)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ENVELOPE_BYTES", 1024)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
     big_body = json.dumps(
@@ -906,7 +860,7 @@ async def test_backup_rejects_invalid_and_bomb_zips(
     assert escaped.status_code == 400
     assert escaped.json()["detail"] == "IMPORT_ZIP_INVALID"
 
-    monkeypatch.setattr(settings, "IMPORT_MAX_ZIP_MEMBERS", 1)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ZIP_MEMBERS", 1)
     entry, envelope = _queue_entry()
     bomb = _make_backup_zip(
         _minimal_manifest(entries=[entry]),
@@ -916,7 +870,7 @@ async def test_backup_rejects_invalid_and_bomb_zips(
     assert too_many.status_code == 400
     assert too_many.json()["detail"] == "IMPORT_TOO_LARGE"
 
-    monkeypatch.setattr(settings, "IMPORT_MAX_ZIP_MEMBERS", 20_000)
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ZIP_MEMBERS", 20_000)
     future = _make_backup_zip({**_minimal_manifest(), "schema_version": 99})
     unsupported = await _upload_backup(client, a, future)
     assert unsupported.status_code == 400
@@ -974,9 +928,7 @@ async def test_backup_rejects_asset_key_with_path_components(
     blob = get_guild_storage(a.guild.id).open_readable("keep.pdf")
     assert blob is not None and blob.path.read_bytes() == original
     await route_session_to_guild(session, a.guild.id)
-    rows = (
-        await session.exec(select(Upload).where(Upload.guild_id == a.guild.id))
-    ).all()
+    rows = (await session.exec(select(Upload))).all()
     assert [u.filename for u in rows] == ["keep.pdf"]
 
 
@@ -1629,7 +1581,8 @@ async def test_envelope_link_out_of_the_file_is_counted(client, acting_user, ses
 async def test_backup_attach_to_files_a_document_in_its_wiki(
     client, acting_user, session, monkeypatch, role_session
 ):
-    """A file document that sat in a wiki still sits in it after a restore.
+    """A file document that sat in a wiki still sits in it after a restore,
+    under the page it was filed under.
 
     The edge names two rows whose ids the archive cannot carry, so it crosses
     as ``attach_to`` on the document's entry, pointing at the wiki's entry
@@ -1668,7 +1621,7 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
         "type": "initiative-wiki",
         "schema_version": 1,
         "name": "Handbook",
-        "pages": [],
+        "pages": [{"title": "Rules", "slug": "rules", "content": {}}],
     }
     wiki_entry = {
         "path": wiki_path,
@@ -1693,7 +1646,7 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
         "tags": [],
         "properties": [],
         "asset": "assets/field-notes.pdf",
-        "attach_to": {"kind": "wiki", "ref": wiki_path},
+        "attach_to": {"kind": "wiki", "ref": wiki_path, "page": "rules"},
     }
     manifest = _minimal_manifest(entries=[file_entry, wiki_entry])
     manifest["initiatives"][0]["tools"]["wiki"] = "included"
@@ -1738,6 +1691,14 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
         relationship_type=RelationshipType.part_of,
         other_kind=SearchEntityType.wiki,
     ) == [wiki.id]
+    # And under the page it was filed under.
+    from app.models.tenant.wiki import WikiPage
+    from app.services.tenant.wikis import document_parent
+
+    rules = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+    ).one()
+    assert document_parent(wiki, document.id) == rules.id
 
 
 async def test_backup_applies_into_an_existing_initiative(
@@ -1844,7 +1805,6 @@ async def test_a_stale_fetch_is_re_claimed_not_failed(
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     long_ago = datetime.now(timezone.utc) - timedelta(hours=3)
     job = ImportJob(
-        guild_id=a.guild.id,
         created_by=a.user.id,
         source="atlassian",
         params={"initiative_id": a.initiative.id},
@@ -1870,8 +1830,8 @@ async def test_a_stale_fetch_is_re_claimed_not_failed(
     # It left ``fetching`` and its half-written payload is gone, so the fetch
     # can start clean. It is NOT the apply path's fail-closed outcome, which
     # is the distinction this rule exists to make. (The same pass then picks
-    # the queued row up and stops, because no fetcher exists yet — that is
-    # P1, and it is why the status lands on failed rather than done.)
+    # the queued row up and starts the fetch over, which fails on the spot:
+    # this row was never given a credential to read the site with.)
     assert reclaimed.status is not ImportJobStatus.fetching
     assert reclaimed.error != "IMPORT_INTERRUPTED"
     assert reclaimed.payload_ref != "imports/half-written.json"
@@ -1960,6 +1920,71 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
     assert comment.imported_author_name == "Alice Chen"
 
 
+async def test_mentions_link_to_whoever_the_people_step_names(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Somebody only mentioned is still asked about, and once they are
+    placed their ``@name`` links to them — in the description and in a reply,
+    which arrives under the comment it answers. A name nobody placed stays a
+    name."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    envelope = _project_envelope_with_comment("Robin", "Robin")
+    task = envelope["tasks"][0]
+    task["description"] = "Ask @Alice Chen first"
+    task["mention_handles"] = ["Alice Chen"]
+    task["comments"][0]["external_ref"] = "jira-comment:1"
+    task["comments"].append(
+        {
+            "author_handle": "Robin",
+            "author_name": "Robin",
+            "body": "@Alice Chen agreed, and @Alice too",
+            "created_at": "2024-03-05T09:30:00+00:00",
+            "reply_to_ref": "jira-comment:1",
+            "mention_handles": ["Alice Chen", "Alice"],
+        }
+    )
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert {p["handle"] for p in job["plan"]["people"]} == {
+        "Robin",
+        "Alice Chen",
+        "Alice",
+    }
+
+    confirm = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Alice Chen": b.user.id}},
+    )
+    assert confirm.status_code == 200, confirm.text
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    await import_worker.process_import_jobs()
+
+    imported = (
+        await session.exec(select(Task).where(Task.title == "Fit the door"))
+    ).one()
+    assert imported.description == f"Ask @[Alice Chen]({b.user.id}) first"
+    comments = {
+        c.content: c
+        for c in (
+            await session.exec(select(Comment).where(Comment.task_id == imported.id))
+        ).all()
+    }
+    parent = comments["The frame is out of true"]
+    reply = comments[f"@[Alice Chen]({b.user.id}) agreed, and @Alice too"]
+    assert reply.parent_comment_id == parent.id
+    assert parent.parent_comment_id is None
+
+
 async def test_an_envelope_quoting_a_stranger_asks_before_it_applies(
     client, acting_user, session
 ):
@@ -1988,6 +2013,166 @@ async def test_an_envelope_quoting_a_stranger_asks_before_it_applies(
     assert not (
         await session.exec(select(Project).where(Project.name == "Imported Board"))
     ).all()
+
+
+async def test_an_envelope_naming_strangers_only_as_assignees_still_asks(
+    client, acting_user, session
+):
+    """Assignees go through the people step's answer too, so an envelope
+    whose only people are assignees is a question like any other. It used to
+    apply on the spot and report them afterwards as unmatched — which is what
+    every Todoist, TickTick and Vikunja export did, since those name people
+    only as the person responsible for a task."""
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["comments"] = []
+    envelope["tasks"][0]["assignee_handles"] = ["Jordan", "Mel"]
+    envelope["tasks"].append(
+        {**envelope["tasks"][0], "title": "Hang it", "assignee_handles": ["Mel"]}
+    )
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == "staged"
+    assert job["plan"]["people"] == [
+        {
+            "handle": handle,
+            "name": None,
+            "comment_count": 0,
+            "suggested_user_id": None,
+        }
+        for handle in ("Jordan", "Mel")
+    ]
+    assert not (
+        await session.exec(select(Project).where(Project.name == "Imported Board"))
+    ).all()
+
+
+async def test_the_people_step_decides_who_an_imported_task_is_assigned_to(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The answer to the step is what lands: a handle nobody here goes by,
+    mapped to a member of the initiative, is that member's task."""
+    from sqlmodel import select
+
+    from app.models.tenant.task import Task, TaskAssignee
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["comments"] = []
+    envelope["tasks"][0]["assignee_handles"] = ["Jordan"]
+
+    job = (await _import_envelope(client, a, envelope, a.initiative.id)).json()
+    assert job["status"] == "staged"
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Jordan": a.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    done = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert done["status"] == "done", done.get("error")
+    assert done["result"]["unmatched_handles"] == []
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
+    assignees = (
+        await session.exec(select(TaskAssignee).where(TaskAssignee.task_id == task.id))
+    ).all()
+    assert [row.user_id for row in assignees] == [a.user.id]
+
+
+async def test_a_user_property_is_placed_by_the_people_step(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A user-type property — a Reporter — names a person the way an assignee
+    does, so it is asked about the same way, and the answer is what lands."""
+    from sqlmodel import select
+
+    from app.models.tenant.property import TaskPropertyValue
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["comments"] = []
+    envelope["property_definitions"] = [
+        {"name": "Reporter", "type": "user_reference", "position": 0}
+    ]
+    envelope["tasks"][0]["property_values"] = [
+        {
+            "property_name": "Reporter",
+            "property_type": "user_reference",
+            "value_handle": "Robin",
+        }
+    ]
+
+    job = (await _import_envelope(client, a, envelope, a.initiative.id)).json()
+    assert job["status"] == "staged", job
+    assert [p["handle"] for p in job["plan"]["people"]] == ["Robin"]
+
+    await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin": a.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert done["status"] == "done", done.get("error")
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
+    values = (
+        await session.exec(
+            select(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
+        )
+    ).all()
+    assert [v.value_user_id for v in values] == [a.user.id]
+
+
+async def test_a_document_naming_somebody_in_a_property_asks_first(
+    client, acting_user, session
+):
+    """Documents used to be an envelope that names nobody. A user-type
+    property on one names somebody, so it stops to ask."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    envelope = {
+        "type": "initiative-document",
+        "schema_version": 1,
+        "document_type": "smart_link",
+        "name": "Spec",
+        "content": {"url": "https://example.com"},
+        "tags": [],
+        "properties": [
+            {
+                "property_name": "Owner",
+                "property_type": "user_reference",
+                "value_handle": "Robin",
+            }
+        ],
+    }
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == "staged"
+    assert job["plan"]["people"] == [
+        {
+            "handle": "Robin",
+            "name": None,
+            "comment_count": 0,
+            "suggested_user_id": None,
+        }
+    ]
 
 
 async def test_an_envelope_whose_people_all_match_is_not_a_second_step(
@@ -2206,6 +2391,800 @@ async def test_the_confirmed_mapping_decides_who_a_comment_belongs_to(
     ).one()
     assert comment.created_by == b.user.id
     assert comment.imported_author_name is None
+
+
+def _mention_node(name: str, user_id: int | None) -> dict:
+    return {
+        "type": "mention",
+        "version": 1,
+        "mentionName": name,
+        "mentionUserId": user_id,
+        "text": name,
+    }
+
+
+def _editor_state(*inline: dict) -> dict:
+    return {
+        "root": {
+            "type": "root",
+            "children": [{"type": "paragraph", "children": list(inline)}],
+        }
+    }
+
+
+def _mentions_in(content: dict) -> list[dict]:
+    return [
+        node
+        for node in content["root"]["children"][0]["children"]
+        if node.get("type") == "mention"
+    ]
+
+
+async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A mention names an account by id, and an id means nothing where a
+    backup is restored. So the backup names the person by handle — in a task's
+    description, a comment, a document, a post and a wiki page — lists them for
+    the people step, and the restore links each mention to whoever that step
+    says the handle is here: another account entirely, in this test, which is
+    what a restore into a community where the id is somebody else looks like.
+    """
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import (
+        _all_tools_enabled,
+        _export,
+        _rendered_zip,
+    )
+    from app.core.user_display import handle_of
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.document import Document
+    from app.models.tenant.post import Post
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.testing.factories import (
+        create_comment,
+        create_post,
+        create_wiki,
+        create_wiki_page,
+    )
+
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    c = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    await _all_tools_enabled(session, a.initiative)
+    handle = handle_of(b.user)
+    said = _editor_state(
+        {"type": "text", "text": "Ask "}, _mention_node("Bea", b.user.id)
+    )
+
+    task = await create_task(
+        session,
+        a.project,
+        title="Hang the door",
+        description=f"Ask @[Bea]({b.user.id})",
+    )
+    await create_comment(
+        session, a.user, task=task, content=f"@[Bea]({b.user.id}) agreed"
+    )
+    await create_document(session, a.initiative, a.user, name="Plan", content=said)
+    await create_post(session, a.initiative, a.user, name="Notice", body=said)
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    await create_wiki_page(session, wiki, a.user, title="Start", content=said)
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    assert handle in [person["handle"] for person in manifest["people"]]
+    for name in archive.namelist():
+        if name.endswith(".json") and name != "manifest.json":
+            text = archive.read(name).decode()
+            # Nothing in the archive names the account by its id any more.
+            assert f"]({b.user.id})" not in text, name
+            assert f'"mentionUserId": {b.user.id}' not in text, name
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as rezipped:
+        for name in archive.namelist():
+            rezipped.writestr(name, archive.read(name))
+    upload = await _upload_backup(client, a, buffer.getvalue())
+    assert upload.status_code == 201, upload.text
+    job_id = upload.json()["id"]
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {handle: c.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    restored = job["result"]["initiatives"][0]["initiative_id"]
+
+    project = (
+        await session.exec(select(Project).where(Project.initiative_id == restored))
+    ).one()
+    restored_task = (
+        await session.exec(select(Task).where(Task.project_id == project.id))
+    ).one()
+    assert restored_task.description == f"Ask @[{handle}]({c.user.id})"
+    comment = (
+        await session.exec(select(Comment).where(Comment.task_id == restored_task.id))
+    ).one()
+    assert comment.content == f"@[{handle}]({c.user.id}) agreed"
+
+    document = (
+        await session.exec(select(Document).where(Document.initiative_id == restored))
+    ).one()
+    post = (
+        await session.exec(select(Post).where(Post.initiative_id == restored))
+    ).one()
+    restored_wiki = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == restored))
+    ).one()
+    page = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == restored_wiki.id))
+    ).one()
+    for content in (document.content, post.body, page.content):
+        [mention] = _mentions_in(content)
+        assert mention["mentionUserId"] == c.user.id
+        assert mention["mentionName"] == "Bea"
+        assert "mentionHandle" not in mention
+
+
+async def test_a_documents_own_export_names_its_mentions_by_handle(
+    client, acting_user, session
+):
+    """The single-document export writes the same handle a backup does, and
+    importing it links the mention to the member who answers to that handle —
+    with no question asked, because the match is exact. The exported
+    document itself is left as it was."""
+    from sqlmodel import select
+
+    from app.core.user_display import handle_of
+    from app.models.tenant.document import Document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    target = await _second_initiative(session, a)
+    said = _editor_state(_mention_node("Me", a.user.id))
+    source = await create_document(
+        session, a.initiative, a.user, name="Notes", content=said
+    )
+
+    envelope = await _export_json(
+        client, a, "/exports/document", {"document_id": source.id}
+    )
+    assert envelope["mention_handles"] == [handle_of(a.user)]
+    [exported] = _mentions_in(envelope["content"])
+    assert exported["mentionUserId"] is None
+    assert exported["mentionHandle"] == handle_of(a.user)
+
+    resp = await _import_envelope(client, a, envelope, target.id)
+    assert resp.status_code == 201, resp.text
+
+    imported = (
+        await session.exec(select(Document).where(Document.initiative_id == target.id))
+    ).one()
+    [mention] = _mentions_in(imported.content)
+    assert mention["mentionUserId"] == a.user.id
+    assert "mentionHandle" not in mention
+    await session.refresh(source)
+    assert source.content == said
+
+
+async def test_a_mention_nobody_places_is_restored_as_a_name(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A document naming somebody the restore cannot place keeps their name
+    and links to nobody — never to whoever holds the id it had at the source."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    target = await _second_initiative(session, a, documents_enabled=True)
+    envelope = {
+        "type": "initiative-document",
+        "schema_version": 1,
+        "document_type": "native",
+        "name": "Minutes",
+        "content": _editor_state(
+            {**_mention_node("Bea", None), "mentionHandle": "stranger#4321"}
+        ),
+        "mention_handles": ["stranger#4321"],
+    }
+
+    resp = await _import_envelope(client, a, envelope, target.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    # Somebody only mentioned is still somebody the step asks about.
+    assert [p["handle"] for p in job["plan"]["people"]] == ["stranger#4321"]
+
+    confirm = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"), headers=a.headers, json={}
+    )
+    assert confirm.status_code == 200, confirm.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    document = (
+        await session.exec(select(Document).where(Document.initiative_id == target.id))
+    ).one()
+    [mention] = _mentions_in(document.content)
+    assert mention["mentionUserId"] is None
+    assert mention["mentionName"] == "Bea"
+    assert "mentionHandle" not in mention
+
+
+def _reference_node(entity_type: str, entity_id: int, text: str) -> dict:
+    return {
+        "type": "entity-mention",
+        "version": 1,
+        "entityType": entity_type,
+        "entityId": entity_id,
+        "text": text,
+    }
+
+
+def _chip_node(chip_kind: str, entity_id: int, text: str) -> dict:
+    return {
+        "type": "smart-chip",
+        "version": 1,
+        "chipKind": chip_kind,
+        "entityId": entity_id,
+        "text": text,
+    }
+
+
+def _wikilink_node(document_id: int, title: str) -> dict:
+    return {
+        "type": "wikilink",
+        "version": 1,
+        "documentId": document_id,
+        "documentTitle": title,
+        "text": title,
+    }
+
+
+async def _referencing_initiative(session, a) -> dict:
+    """An initiative whose bodies name each other: a task naming a task, a
+    document and a document in another initiative; a comment naming a wiki
+    page; a document naming a task, its status, a counter's value and another
+    document; a post naming the project; a page naming the post."""
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+    from app.testing.factories import (
+        create_comment,
+        create_counter,
+        create_post,
+        create_wiki,
+        create_wiki_page,
+    )
+
+    await _all_tools_enabled(session, a.initiative)
+    elsewhere = await _second_initiative(session, a)
+    outside = await create_document(session, elsewhere, a.user, name="Elsewhere")
+
+    fix = await create_task(session, a.project, title="Fix the bug")
+    spec = await create_document(session, a.initiative, a.user, name="Spec")
+    group = await create_counter_group(session, a.initiative, a.user, name="Tally")
+    counter = await create_counter(session, group, name="Wins")
+    post = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Notice",
+        body=_editor_state(_reference_node("project", a.project.id, "Roadmap")),
+    )
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    start = await create_wiki_page(
+        session,
+        wiki,
+        a.user,
+        title="Start",
+        content=_editor_state(_reference_node("post", post.id, "Notice")),
+    )
+    await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="Plan",
+        content=_editor_state(
+            _reference_node("task", fix.id, "Fix the bug"),
+            _chip_node("task:status", fix.id, "To do"),
+            _chip_node("counter:value", counter.id, "3"),
+            _wikilink_node(spec.id, "Spec"),
+        ),
+    )
+    ship = await create_task(
+        session,
+        a.project,
+        title="Ship it",
+        description=(
+            f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id}) "
+            f"and #document[Elsewhere]({outside.id})"
+        ),
+    )
+    await create_comment(
+        session,
+        a.user,
+        task=ship,
+        content=f"Written up in #wiki-page[Start]({start.id})",
+    )
+    return {"outside": outside}
+
+
+async def _restore_referencing_backup(
+    client, a, monkeypatch, role_session, *, elsewhere: bool
+) -> int:
+    """Back the initiative up and restore it into the same community — or, with
+    ``elsewhere``, as a backup taken from another community. Returns the
+    restored initiative's id."""
+    from app.api.v1.tenant_endpoints.exports_test import _export, _rendered_zip
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as rezipped:
+        for name in archive.namelist():
+            data = archive.read(name)
+            if name == "manifest.json" and elsewhere:
+                manifest = json.loads(data)
+                manifest["guild"]["id"] = a.guild.id + 1000
+                data = json.dumps(manifest).encode()
+            rezipped.writestr(name, data)
+    job = await _apply_backup(client, a, buffer.getvalue(), monkeypatch, role_session)
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    return job["result"]["initiatives"][0]["initiative_id"]
+
+
+async def _restored(session, initiative_id: int) -> dict:
+    """The restored rows the referencing initiative's bodies name, by name."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.counter import Counter, CounterGroup
+    from app.models.tenant.document import Document
+    from app.models.tenant.post import Post
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.models.tenant.wiki import Wiki, WikiPage
+
+    project = (
+        await session.exec(
+            select(Project).where(Project.initiative_id == initiative_id)
+        )
+    ).one()
+    tasks = {
+        task.title: task
+        for task in (
+            await session.exec(select(Task).where(Task.project_id == project.id))
+        ).all()
+    }
+    documents = {
+        document.name: document
+        for document in (
+            await session.exec(
+                select(Document).where(Document.initiative_id == initiative_id)
+            )
+        ).all()
+    }
+    wiki = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == initiative_id))
+    ).one()
+    counter = (
+        await session.exec(
+            select(Counter)
+            .join(CounterGroup, CounterGroup.id == Counter.counter_group_id)
+            .where(CounterGroup.initiative_id == initiative_id)
+        )
+    ).one()
+    return {
+        "project": project,
+        "tasks": tasks,
+        "documents": documents,
+        "counter": counter,
+        "post": (
+            await session.exec(select(Post).where(Post.initiative_id == initiative_id))
+        ).one(),
+        "page": (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+        ).one(),
+        "comment": (
+            await session.exec(
+                select(Comment).where(Comment.task_id == tasks["Ship it"].id)
+            )
+        ).one(),
+    }
+
+
+def _nodes(content: dict) -> list[dict]:
+    return content["root"]["children"][0]["children"]
+
+
+async def test_a_restored_reference_points_at_the_restored_copy(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A reference names what it points at by id, and a restore makes new
+    rows — so the backup carries each reference by the ref it had, and the
+    restore points it at the copy that ref became: in a task's description, a
+    comment, a document (a mention, a live chip, a ``[[ ]]`` link), a post and
+    a wiki page. Restored into the community it came from, a reference to
+    something the backup did not carry still names what it named there. The
+    restored bodies' references are edges from the start, as a save's are."""
+    from sqlmodel import select
+
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.api.v1.tenant_endpoints.exports_test import _export, _rendered_zip
+    from app.models.tenant.relationship import EntityRelationship
+    from app.services.import_engine.references import SOURCE_REF
+    from app.services.tenant.relationships import Endpoint
+
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    scene = await _referencing_initiative(session, a)
+    outside = scene["outside"]
+
+    resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    [project_entry] = [
+        name for name in archive.namelist() if name.endswith(".initiative-project.json")
+    ]
+    exported = json.loads(archive.read(project_entry))
+    [ship_env] = [t for t in exported["tasks"] if t["title"] == "Ship it"]
+    # The archive names what it points at by ref, never by a bare id.
+    assert f"#document[Elsewhere](document:{outside.id})" in ship_env["description"]
+    assert exported["source_guild_id"] == a.guild.id
+
+    restored_id = await _restore_referencing_backup(
+        client, a, monkeypatch, role_session, elsewhere=False
+    )
+    r = await _restored(session, restored_id)
+    fix, ship = r["tasks"]["Fix the bug"], r["tasks"]["Ship it"]
+    spec, plan = r["documents"]["Spec"], r["documents"]["Plan"]
+
+    assert ship.description == (
+        f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id}) "
+        f"and #document[Elsewhere]({outside.id})"
+    )
+    assert r["comment"].content == f"Written up in #wiki-page[Start]({r['page'].id})"
+    mention, status, value, wikilink = _nodes(plan.content)
+    assert mention["entityId"] == fix.id
+    assert status["entityId"] == fix.id
+    assert value["entityId"] == r["counter"].id
+    assert wikilink["documentId"] == spec.id
+    [project_mention] = _nodes(r["post"].body)
+    assert project_mention["entityId"] == r["project"].id
+    [post_mention] = _nodes(r["page"].content)
+    assert post_mention["entityId"] == r["post"].id
+    for body in (plan.content, r["post"].body, r["page"].content):
+        assert SOURCE_REF not in json.dumps(body)
+
+    async def references(endpoint: Endpoint) -> set[tuple[str, int]]:
+        rows = await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.source_node == endpoint.node,
+                EntityRelationship.relationship_type
+                == RelationshipType.references.value,
+                EntityRelationship.removed_at.is_(None),
+            )
+        )
+        return {(row.target_type, row.target_id) for row in rows.all()}
+
+    # A chip is a reading rather than a link, so the document's edges are its
+    # mention and its ``[[ ]]`` link; a task's come from its description and
+    # from what is said on it.
+    assert await references(Endpoint(SearchEntityType.document, plan.id)) == {
+        ("task", fix.id),
+        ("document", spec.id),
+    }
+    assert await references(Endpoint(SearchEntityType.task, ship.id)) == {
+        ("task", fix.id),
+        ("document", spec.id),
+        ("document", outside.id),
+        ("wiki_page", r["page"].id),
+    }
+    assert await references(Endpoint(SearchEntityType.wiki_page, r["page"].id)) == {
+        ("post", r["post"].id)
+    }
+
+
+async def test_a_reference_restored_elsewhere_to_something_left_behind_is_its_title(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Restored anywhere but the community it came from, a reference to
+    something the backup did not carry has nothing here to point at, and its
+    id names something else or nothing — so it is its title again. What the
+    backup did carry still resolves."""
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    await _referencing_initiative(session, a)
+
+    restored_id = await _restore_referencing_backup(
+        client, a, monkeypatch, role_session, elsewhere=True
+    )
+    r = await _restored(session, restored_id)
+    fix, ship = r["tasks"]["Fix the bug"], r["tasks"]["Ship it"]
+
+    assert ship.description == (
+        f"After #task[Fix the bug]({fix.id}), "
+        f"per #doc[Spec]({r['documents']['Spec'].id}) and Elsewhere"
+    )
+
+
+async def _import_archive(client, actor, zip_bytes, initiative_id, envelope_type=None):
+    data = {"initiative_id": str(initiative_id)}
+    if envelope_type is not None:
+        data["envelope_type"] = envelope_type
+    return await client.post(
+        actor.g("/imports/envelope/archive"),
+        headers=actor.headers,
+        files={"file": ("gallery.zip", zip_bytes, "application/zip")},
+        data=data,
+    )
+
+
+async def test_a_gallery_zip_imports_with_its_pictures_into_another_community(
+    client, acting_user, session, monkeypatch, tmp_path
+):
+    """A gallery exported on its own is a zip of its envelope and its pictures,
+    and importing that zip somewhere the pictures have never been stored brings
+    them along: each lands in the community's storage under its key, and the
+    gallery shows it."""
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+    from app.core.config import settings
+    from app.models.tenant.gallery import Gallery, GalleryImage
+    from app.testing import route_session_to_guild
+    from app.testing.factories import create_gallery, create_gallery_image
+
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+    gallery = await create_gallery(session, a.initiative, a.user, name="Barovia maps")
+    picture = await create_gallery_image(session, gallery, a.user, title="Village")
+    key = picture.file_url.rsplit("/", 1)[-1]
+
+    exported = await client.get(
+        a.g("/exports/gallery"),
+        headers=a.headers,
+        params={"gallery_id": gallery.id, "format": "json"},
+    )
+    assert exported.status_code == 200, exported.text
+
+    b = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await _all_tools_enabled(session, b.initiative)
+    assert get_guild_storage(b.guild.id).exists(key) is False
+    resp = await _import_archive(
+        client, b, exported.content, b.initiative.id, "initiative-gallery"
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["result"]["created"]["images"] == 1
+
+    assert get_guild_storage(b.guild.id).exists(key)
+    await route_session_to_guild(session, b.guild.id)
+    restored = (
+        await session.exec(
+            select(Gallery).where(Gallery.initiative_id == b.initiative.id)
+        )
+    ).one()
+    [image] = (
+        await session.exec(
+            select(GalleryImage).where(GalleryImage.gallery_id == restored.id)
+        )
+    ).all()
+    assert image.file_url == f"/uploads/{b.guild.id}/{key}"
+    assert image.file_content_type == "image/png"
+
+
+async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, session):
+    """A wiki's importable export is a zip, like every wiki download; importing
+    it restores the wiki and its pages."""
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.testing.factories import create_wiki, create_wiki_page
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+    target = await _second_initiative(session, a, wikis_enabled=True)
+    wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
+    await create_wiki_page(session, wiki, a.user, title="Start")
+
+    exported = await client.get(
+        a.g("/exports/wiki"),
+        headers=a.headers,
+        params={"wiki_id": wiki.id, "format": "json"},
+    )
+    assert exported.status_code == 200, exported.text
+    assert exported.headers["content-type"] == "application/zip"
+
+    resp = await _import_archive(
+        client, a, exported.content, target.id, "initiative-wiki"
+    )
+    assert resp.status_code == 201, resp.text
+    restored = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == target.id))
+    ).one()
+    pages = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == restored.id))
+    ).all()
+    assert [page.title for page in pages] == ["Start"]
+
+
+async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
+    client, acting_user, session
+):
+    """Imported somewhere none of it exists, a wiki's zip files every document
+    it carried again: the text document and the spreadsheet recreated from the
+    envelope, the upload over the bytes the zip brought, each joined to the
+    wiki and under the page it sat under."""
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import (
+        _all_tools_enabled,
+        _wiki_with_filed_documents,
+    )
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.tenant.wikis import document_parent, linked_documents
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    wiki = await _wiki_with_filed_documents(session, a, acting_user)
+    exported = await client.get(
+        a.g("/exports/wiki"),
+        headers=a.headers,
+        params={"wiki_id": wiki.id, "format": "json"},
+    )
+    assert exported.status_code == 200, exported.text
+
+    b = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await _all_tools_enabled(session, b.initiative)
+    resp = await _import_archive(
+        client, b, exported.content, b.initiative.id, "initiative-wiki"
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["result"]["created"]["documents"] == 3
+
+    await route_session_to_guild(session, b.guild.id)
+    restored = (
+        await session.exec(select(Wiki).where(Wiki.initiative_id == b.initiative.id))
+    ).one()
+    filed = {
+        document.name: document
+        for document in await linked_documents(session, restored.id)
+    }
+    assert set(filed) == {"Session notes", "Loot", "Handout"}
+    assert filed["Loot"].document_type == DocumentType.spreadsheet
+    handout = filed["Handout"]
+    assert handout.document_type == DocumentType.file
+    assert handout.file_url == f"/uploads/{b.guild.id}/handout-key.pdf"
+    assert get_guild_storage(b.guild.id).exists("handout-key.pdf")
+    rules = (
+        await session.exec(
+            select(WikiPage).where(
+                WikiPage.wiki_id == restored.id, WikiPage.title == "Rules"
+            )
+        )
+    ).one()
+    assert document_parent(restored, handout.id) == rules.id
+    assert (
+        await session.exec(
+            select(Document).where(Document.initiative_id == b.initiative.id)
+        )
+    ).all()
+
+
+async def test_a_gallery_zip_leaves_out_what_is_not_a_picture(
+    client, acting_user, session
+):
+    """The zip says what its files are; the bytes decide. A file that is not a
+    picture a gallery can show is not stored, and the import says so."""
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+    envelope = {
+        "type": "initiative-gallery",
+        "schema_version": 1,
+        "name": "Handouts",
+        "images": [
+            {"storage_key": "note.png", "content_type": "image/png", "title": "Note"}
+        ],
+    }
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("handouts.initiative-gallery.json", json.dumps(envelope))
+        archive.writestr("assets/note.png", b"<svg onload='x'></svg>")
+
+    resp = await _import_archive(client, a, buffer.getvalue(), a.initiative.id)
+    assert resp.status_code == 201, resp.text
+    result = resp.json()["result"]
+    assert "not_a_picture:note.png" in result["warnings"]
+    assert result["created"]["images"] == 0
+    assert get_guild_storage(a.guild.id).exists("note.png") is False
+
+
+async def test_a_zip_is_refused_from_the_wrong_tool_or_without_an_export(
+    client, acting_user, session
+):
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+
+    def zipped(**members: str) -> bytes:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            for name, content in members.items():
+                archive.writestr(name, content)
+        return buffer.getvalue()
+
+    queue = json.dumps({"type": "initiative-queue", "schema_version": 1, "name": "Q"})
+    wrong = await _import_archive(
+        client, a, zipped(**{"q.json": queue}), a.initiative.id, "initiative-gallery"
+    )
+    assert wrong.status_code == 400
+    assert wrong.json()["detail"] == "IMPORT_WRONG_TOOL"
+
+    empty = await _import_archive(
+        client, a, zipped(**{"readme.txt": "hi"}), a.initiative.id
+    )
+    assert empty.status_code == 400
+    assert empty.json()["detail"] == "IMPORT_ARCHIVE_NO_ENVELOPE"
+
+
+async def test_a_lone_envelope_resolves_what_it_carries(client, acting_user, session):
+    """A project exported on its own points a task's reference at a sibling's
+    new copy. A reference to something outside it keeps naming the original
+    when imported into the community it came from, and is its title anywhere
+    else."""
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    target = await _second_initiative(session, a)
+    spec = await create_document(session, a.initiative, a.user, name="Spec")
+    fix = await create_task(session, a.project, title="Fix the bug")
+    await create_task(
+        session,
+        a.project,
+        title="Ship it",
+        description=f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id})",
+    )
+
+    envelope = await _export_json(
+        client, a, "/exports/project", {"project_id": a.project.id}
+    )
+    elsewhere = {**envelope, "source_guild_id": a.guild.id + 1000}
+
+    descriptions = []
+    for sent in (envelope, elsewhere):
+        resp = await _import_envelope(client, a, sent, target.id)
+        assert resp.status_code == 201, resp.text
+        project_id = resp.json()["result"]["entity_id"]
+        tasks = {
+            task.title: task
+            for task in (
+                await session.exec(select(Task).where(Task.project_id == project_id))
+            ).all()
+        }
+        assert (await session.get(Project, project_id)).initiative_id == target.id
+        descriptions.append((tasks["Fix the bug"].id, tasks["Ship it"].description))
+
+    (here_fix, here), (there_fix, there) = descriptions
+    assert here == f"After #task[Fix the bug]({here_fix}), per #doc[Spec]({spec.id})"
+    assert there == f"After #task[Fix the bug]({there_fix}), per Spec"
 
 
 async def test_a_mapping_naming_a_non_member_is_dropped(
@@ -2526,9 +3505,7 @@ async def _connect(client, actor, **overrides):
 async def test_connect_proves_the_token_and_says_what_is_there(
     client, acting_user, session, monkeypatch
 ):
-    """One request answers both of the connect step's questions, and hands
-    back the credential id a later confirm quotes."""
-    from app.models.platform.import_credential import ImportCredential
+    """One request answers both of the connect step's questions."""
     from app.services.import_engine import atlassian as atlassian_service
 
     monkeypatch.setattr(atlassian_service, "request_public_target", _atlassian_site())
@@ -2547,21 +3524,16 @@ async def test_connect_proves_the_token_and_says_what_is_there(
         ("DOCS", 4)
     ]
 
-    # The token is stored, encrypted, and never comes back out.
+    # The connect keeps nothing and hands nothing back to quote: the token
+    # comes again with the request that starts an import.
     assert "shhh" not in resp.text
-    row = await session.get(ImportCredential, body["credential_id"])
-    assert row is not None
-    assert row.guild_id == a.guild.id and row.created_by == a.user.id
-    assert "shhh" not in row.secret_encrypted
+    assert "credential_id" not in body
 
 
-async def test_a_rejected_token_stores_nothing(
+async def test_a_rejected_token_is_an_error_not_a_connection(
     client, acting_user, session, monkeypatch
 ):
-    """A credential the site will not take is not worth a row."""
-    from sqlmodel import select
-
-    from app.models.platform.import_credential import ImportCredential
+    """A token the site will not take fails the connect."""
     from app.services.import_engine import atlassian as atlassian_service
 
     monkeypatch.setattr(
@@ -2574,7 +3546,6 @@ async def test_a_rejected_token_stores_nothing(
     resp = await _connect(client, a)
     assert resp.status_code == 400
     assert resp.json()["detail"] == "IMPORT_SOURCE_AUTH"
-    assert not (await session.exec(select(ImportCredential))).all()
 
 
 async def test_connect_refuses_an_address_it_would_have_to_downgrade_for(
@@ -2593,3 +3564,2006 @@ async def test_connect_refuses_an_address_it_would_have_to_downgrade_for(
     resp = await _connect(client, a, site_url="http://acme.atlassian.net")
     assert resp.status_code == 400
     assert resp.json()["detail"] == "IMPORT_SOURCE_UNREACHABLE"
+
+
+# ---------------------------------------------------------------------------
+# A Jira import as a job: start → fetch → review → apply
+# ---------------------------------------------------------------------------
+
+
+_JIRA_STATUSES = [
+    {
+        "name": "Story",
+        "statuses": [
+            {"id": "1", "name": "To Do", "statusCategory": {"key": "new"}},
+            {"id": "2", "name": "Done", "statusCategory": {"key": "done"}},
+        ],
+    }
+]
+
+
+def _jira_site(
+    *, issues=None, locked=(), on_request=None, catalog=None, boards=None, files=None
+):
+    """Stub a site that answers both a connect and a fetch.
+
+    ``locked`` names projects the token cannot read; ``on_request`` sees every
+    URL before it is answered, which is how a test reaches into the middle of
+    a fetch. ``catalog`` is the site's field list and ``boards`` maps a board
+    id to its name.
+    """
+    import httpx
+
+    probe = _atlassian_site()
+    requested: list[str] = []
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        requested.append(url)
+        if on_request is not None:
+            await on_request(url)
+        if any(f"/rest/api/3/project/{key}" in url for key in locked):
+            return httpx.Response(403, json={})
+        if "/rest/api/3/project/search" in url:
+            return await probe(method, url, headers=headers, json=json)
+        if url.endswith("/statuses"):
+            return httpx.Response(200, json=_JIRA_STATUSES)
+        if "/rest/api/3/project/" in url:
+            key = url.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"key": key, "name": f"{key} Board"})
+        if "/rest/api/3/search/jql" in url:
+            return httpx.Response(200, json={"issues": issues or []})
+        if "/rest/agile/1.0/board?" in url:
+            return httpx.Response(404, json={})
+        if "/attachment/content/" in url and files:
+            attachment_id = url.split("/attachment/content/")[1].split("?")[0]
+            if attachment_id in files:
+                return httpx.Response(200, content=files[attachment_id])
+        if url.endswith("/rest/api/3/field") and catalog is not None:
+            return httpx.Response(200, json=catalog)
+        if "/rest/agile/1.0/board/" in url and boards:
+            board_id = int(url.rsplit("/", 1)[-1])
+            if board_id in boards:
+                return httpx.Response(
+                    200, json={"id": board_id, "name": boards[board_id]}
+                )
+        return await probe(method, url, headers=headers, json=json)
+
+    fake_request.requested = requested  # type: ignore[attr-defined]
+    return fake_request
+
+
+def _jira_issue(key, summary, status="To Do", assignee=None):
+    fields = {"summary": summary, "status": {"name": status}}
+    if assignee:
+        fields["assignee"] = {"displayName": assignee}
+    return {"key": key, "fields": fields}
+
+
+async def _start_jira(client, actor, *, initiative_id, keys=("ACME",), **overrides):
+    body = {
+        "site_url": "https://acme.atlassian.net",
+        "email": "someone@example.com",
+        "api_token": "shhh",
+        "initiative_id": initiative_id,
+        "project_keys": list(keys),
+        **overrides,
+    }
+    return await client.post(
+        actor.g("/imports/atlassian/import"), headers=actor.headers, json=body
+    )
+
+
+async def _job_secret(session, guild_id, job_id):
+    """The secret still on a job row, read as the system engine."""
+    from app.db.session import set_rls_context
+
+    session.expunge_all()
+    await set_rls_context(session, guild_id=guild_id)
+    job = await session.get(ImportJob, job_id)
+    return None if job is None else job.secret_encrypted
+
+
+async def test_a_jira_import_fetches_then_waits_for_review_then_applies(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The whole path, once: the fetch reads the site into a bundle and parks
+    it for review with nothing written, the review names the people and the
+    counts, and the confirm files the project into the chosen initiative.
+
+    The credential is gone the moment the bundle is staged — the review can
+    wait for hours, and it has no need of a live secret to do it.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    site = _jira_site(
+        issues=[
+            _jira_issue("ACME-1", "Wire the thing", assignee="Pat Smith"),
+            _jira_issue("ACME-2", "Ship the thing", status="Done"),
+        ]
+    )
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    resp = await _start_jira(client, a, initiative_id=a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == ImportJobStatus.queued.value
+    assert job["source"] == "atlassian"
+    assert job["params"]["jira_projects"] == ["ACME"]
+    assert job["params"]["site_url"] == "https://acme.atlassian.net"
+    assert "shhh" not in resp.text
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    plan = staged["plan"]
+    assert plan["atlassian"]["projects"] == 1
+    assert plan["atlassian"]["tasks"] == 2
+    assert plan["atlassian"]["unreadable_projects"] == []
+    assert plan["initiatives"][0]["target_initiative_id"] == a.initiative.id
+    assert [p["handle"] for p in plan["people"]] == ["Pat Smith"]
+
+    # Fetched, not applied: no project yet, and the token is already gone.
+    assert (
+        await session.exec(select(Project).where(Project.name == "ACME Board"))
+    ).one_or_none() is None
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"), headers=a.headers, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+
+    done = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["initiatives"][0]["initiative_id"] == a.initiative.id
+
+    session.expunge_all()
+    project = (
+        await session.exec(select(Project).where(Project.name == "ACME Board"))
+    ).one()
+    assert project.initiative_id == a.initiative.id
+    titles = {
+        t.title
+        for t in (
+            await session.exec(select(Task).where(Task.project_id == project.id))
+        ).all()
+    }
+    assert titles == {"Wire the thing", "Ship the thing"}
+
+
+async def test_a_jira_import_brings_its_links_across(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """What Jira connected arrives connected: the blocked issue depends on its
+    blocker, the sub-task is part of its parent, and a link to an issue that
+    was not brought over is counted in the plan before anybody confirms and
+    in the report after."""
+    from sqlmodel import select
+
+    from app.models.tenant.relationship import EntityRelationship
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    blocker = _jira_issue("ACME-1", "Fit the frame")
+    blocker["fields"]["issuelinks"] = [
+        {
+            "id": "10",
+            "type": {"name": "Blocks", "outward": "blocks"},
+            "outwardIssue": {"key": "ACME-2"},
+        }
+    ]
+    blocked = _jira_issue("ACME-2", "Hang the door")
+    blocked["fields"]["issuelinks"] = [
+        {
+            "id": "10",
+            "type": {"name": "Blocks", "outward": "blocks"},
+            "inwardIssue": {"key": "ACME-1"},
+        },
+        {
+            "id": "11",
+            "type": {"name": "Relates", "outward": "relates to"},
+            "outwardIssue": {"key": "OPS-9"},
+        },
+    ]
+    step = _jira_issue("ACME-3", "Oil the hinges")
+    step["fields"]["parent"] = {"key": "ACME-2"}
+
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(issues=[blocker, blocked, step]),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    assert staged["plan"]["atlassian"]["links"] == 2
+    assert staged["plan"]["atlassian"]["links_outside_selection"] == 1
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["links_created"] == 2
+    assert done["result"]["links_unresolved"] == 1
+
+    session.expunge_all()
+    ids = {
+        t.title: t.id
+        for t in (await session.exec(select(Task))).all()
+        if t.title in {"Fit the frame", "Hang the door", "Oil the hinges"}
+    }
+    edges = {
+        (row.source_id, row.relationship_type, row.target_id)
+        for row in (
+            await session.exec(
+                select(EntityRelationship).where(
+                    EntityRelationship.source_type == "task",
+                    EntityRelationship.target_type == "task",
+                )
+            )
+        ).all()
+    }
+    assert (ids["Hang the door"], "depends_on", ids["Fit the frame"]) in edges
+    assert (ids["Oil the hinges"], "part_of", ids["Hang the door"]) in edges
+    assert len(edges) == 2
+
+
+async def test_a_jira_import_brings_its_fields_as_properties(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """What issues filled in arrives as properties, and a person field — the
+    Reporter — is asked about in the people step and lands on whoever it was
+    mapped to."""
+    from sqlmodel import select
+
+    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["priority"] = {"name": "Highest"}
+    issue["fields"]["reporter"] = {"displayName": "Robin"}
+    monkeypatch.setattr(
+        atlassian_service, "request_public_target", _jira_site(issues=[issue])
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    listed = {p["name"]: p for p in staged["plan"]["atlassian"]["properties"]}
+    assert listed["Priority"] == {
+        "name": "Priority",
+        "type": "select",
+        "issue_count": 1,
+    }
+    assert listed["Reporter"]["type"] == "user_reference"
+    assert "Robin" in [p["handle"] for p in staged["plan"]["people"]]
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin": a.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
+    rows = (
+        await session.exec(
+            select(TaskPropertyValue, PropertyDefinition)
+            .join(
+                PropertyDefinition,
+                PropertyDefinition.id == TaskPropertyValue.property_id,
+            )
+            .where(TaskPropertyValue.task_id == task.id)
+        )
+    ).all()
+    by_name = {definition.name: value for value, definition in rows}
+    assert by_name["Priority"].value_text == "Highest"
+    assert by_name["Jira key"].value_text == "ACME-1"
+    assert by_name["Reporter"].value_user_id == a.user.id
+
+
+_SPRINT_CATALOG = [
+    {
+        "id": "customfield_10020",
+        "name": "Sprint",
+        "custom": True,
+        "schema": {
+            "type": "array",
+            "items": "json",
+            "custom": "com.pyxis.greenhopper.jira:gh-sprint",
+        },
+    }
+]
+
+
+def _in_sprint(issue, sprint_id=7, name="Sprint 7"):
+    issue["fields"]["customfield_10020"] = [
+        {
+            "id": sprint_id,
+            "name": name,
+            "state": "closed",
+            "boardId": 3,
+            "goal": "Ship the door",
+            "startDate": "2024-03-04T09:00:00.000Z",
+            "endDate": "2024-03-18T09:00:00.000Z",
+            "completeDate": "2024-03-18T10:00:00.000Z",
+        }
+    ]
+    return issue
+
+
+async def test_a_jira_sprint_becomes_an_event_its_tasks_are_related_to(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A sprint lands once, as an event on a calendar named after its board,
+    and each task that was in it is related to it — its dates live on the
+    event, not copied onto every task (D11)."""
+    from sqlmodel import select
+
+    from app.core.tools import Tool
+    from app.models.tenant.calendar import Calendar
+    from app.models.tenant.calendar_event import CalendarEvent
+    from app.models.tenant.relationship import EntityRelationship
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(
+            issues=[
+                _in_sprint(_jira_issue("ACME-1", "Fit the frame")),
+                _in_sprint(_jira_issue("ACME-2", "Hang the door")),
+            ],
+            catalog=_SPRINT_CATALOG,
+            boards={3: "Door team"},
+        ),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    setattr(a.initiative, Tool.calendar.view_permission, True)
+    session.add(a.initiative)
+    await session.commit()
+
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["sprints"], summary["sprint_calendars"]) == (1, 1)
+    assert summary["sprints_skipped"] is None
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    calendar = (
+        await session.exec(select(Calendar).where(Calendar.name == "Door team"))
+    ).one()
+    event = (
+        await session.exec(
+            select(CalendarEvent).where(CalendarEvent.calendar_id == calendar.id)
+        )
+    ).one()
+    assert event.title == "Sprint 7"
+    assert "Ship the door" in (event.description or "")
+    task_ids = {
+        t.id
+        for t in (await session.exec(select(Task))).all()
+        if t.title in {"Fit the frame", "Hang the door"}
+    }
+    # related_to is symmetric and stored once, in node order, so the event can
+    # be either end; whichever it is, the other end is the task.
+    rows = (
+        await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.relationship_type == "related_to"
+            )
+        )
+    ).all()
+    related = {
+        row.target_id if row.source_type == "calendar_event" else row.source_id
+        for row in rows
+        if (row.source_type, row.source_id) == ("calendar_event", event.id)
+        or (row.target_type, row.target_id) == ("calendar_event", event.id)
+    }
+    assert related == task_ids
+
+
+async def test_sprints_are_left_behind_and_said_so_when_calendars_are_off(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """An initiative without calendars cannot hold a sprint. The projects
+    still come over, and the plan says why the sprints do not — rather than
+    the apply refusing everything over a tool the projects never needed."""
+    from sqlmodel import select
+
+    from app.core.tools import Tool
+    from app.models.tenant.calendar import Calendar
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(
+            issues=[_in_sprint(_jira_issue("ACME-1", "Fit the frame"))],
+            catalog=_SPRINT_CATALOG,
+            boards={3: "Door team"},
+        ),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    setattr(a.initiative, Tool.calendar.view_permission, False)
+    session.add(a.initiative)
+    await session.commit()
+
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    summary = staged["plan"]["atlassian"]
+    assert summary["sprints"] == 1
+    assert summary["sprint_calendars"] == 0
+    assert summary["sprints_skipped"] == "IMPORT_TOOL_DISABLED"
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["links_unresolved"] == 0
+
+    session.expunge_all()
+    assert not (await session.exec(select(Calendar))).all()
+
+
+async def test_a_jira_import_brings_its_comments_to_whoever_wrote_them(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Comments land on their task, oldest first; the one somebody mapped in
+    the people step is that member's, one nobody mapped keeps its writer's
+    name, and one restricted to a role at the source stays behind."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    def body(text):
+        return {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": text}]}
+            ],
+        }
+
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["comment"] = {
+        "total": 3,
+        "comments": [
+            {
+                "author": {"displayName": "Robin"},
+                "body": body("Measured twice"),
+                "created": "2024-03-04T09:00:00.000+0000",
+            },
+            {
+                "author": {"displayName": "Sam"},
+                "body": body("Cut once"),
+                "created": "2024-03-05T09:00:00.000+0000",
+            },
+            {
+                "author": {"displayName": "Ash"},
+                "body": body("Admins only"),
+                "created": "2024-03-06T09:00:00.000+0000",
+                "visibility": {"type": "role", "value": "Administrators"},
+            },
+        ],
+    }
+    monkeypatch.setattr(
+        atlassian_service, "request_public_target", _jira_site(issues=[issue])
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["comments"], summary["comments_restricted"]) == (2, 1)
+    people = {p["handle"]: p["comment_count"] for p in staged["plan"]["people"]}
+    assert people == {"Robin": 1, "Sam": 1}
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin": a.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
+    comments = (
+        await session.exec(
+            select(Comment)
+            .where(Comment.task_id == task.id)
+            .order_by(Comment.created_at)
+        )
+    ).all()
+    assert [c.content for c in comments] == ["Measured twice", "Cut once"]
+    assert comments[0].created_by == a.user.id
+    assert comments[0].imported_author_name is None
+    assert comments[1].imported_author_name == "Sam"
+
+
+async def test_a_jira_import_brings_its_images_as_uploads(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """An attached image lands in the community's storage as an ordinary
+    upload, and the task shows it; a PDF beside it becomes a file document of
+    its own, and the task is attached to it."""
+    from sqlmodel import select
+
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.task import Task
+    from app.models.tenant.upload import Upload
+    from app.services.import_engine import atlassian as atlassian_service
+    from app.services.storage import get_guild_storage
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant.relationships import Endpoint
+
+    png = b"\x89PNG\r\n\x1a\nfake-image"
+    pdf = b"%PDF-spec"
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["attachment"] = [
+        {
+            "id": "10",
+            "filename": "frame.png",
+            "mimeType": "image/png",
+            "size": len(png),
+        },
+        {
+            "id": "11",
+            "filename": "spec.pdf",
+            "mimeType": "application/pdf",
+            "size": len(pdf),
+        },
+    ]
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(issues=[issue], files={"10": png, "11": pdf}),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["images"], summary["files"], summary["other_attachments"]) == (
+        1,
+        1,
+        0,
+    )
+    assert summary["image_bytes"] == len(png)
+    assert summary["file_bytes"] == len(pdf)
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["assets_restored"] == 2
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
+    upload = (
+        await session.exec(select(Upload).where(Upload.content_type == "image/png"))
+    ).one()
+    assert f"/uploads/{a.guild.id}/{upload.filename}" in (task.description or "")
+    blob = get_guild_storage(a.guild.id).open_readable(upload.filename)
+    assert blob is not None
+
+    document = (
+        await session.exec(
+            select(Document).where(Document.document_type == DocumentType.file)
+        )
+    ).one()
+    assert document.original_filename == "spec.pdf"
+    assert await relationships_service.related_ids(
+        session,
+        Endpoint(kind=SearchEntityType.task, id=task.id),
+        relationship_type=RelationshipType.attached,
+        other_kind=SearchEntityType.document,
+    ) == [document.id]
+
+
+async def test_a_jira_file_stays_behind_when_the_initiative_has_no_documents(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The pictures still come; the file is counted rather than taking the
+    whole import down with it."""
+    from app.services.import_engine import atlassian as atlassian_service
+
+    png = b"\x89PNG\r\n\x1a\nfake-image"
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["attachment"] = [
+        {
+            "id": "10",
+            "filename": "frame.png",
+            "mimeType": "image/png",
+            "size": len(png),
+        },
+        {"id": "11", "filename": "spec.pdf", "mimeType": "application/pdf", "size": 9},
+    ]
+    monkeypatch.setattr(
+        atlassian_service,
+        "request_public_target",
+        _jira_site(issues=[issue], files={"10": png, "11": b"%PDF-spec"}),
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a.initiative.documents_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["images"], summary["files"], summary["other_attachments"]) == (
+        1,
+        0,
+        1,
+    )
+
+
+async def test_a_property_unticked_on_the_review_is_not_created(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The review lists every property the import would add to the
+    initiative; one unticked there is not created, and no task carries a
+    value for it. The rest arrive as usual."""
+    from sqlmodel import select
+
+    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.task import Task
+    from app.services.import_engine import atlassian as atlassian_service
+
+    issue = _jira_issue("ACME-1", "Fit the frame")
+    issue["fields"]["priority"] = {"name": "Highest"}
+    issue["fields"]["issuetype"] = {"name": "Story"}
+    monkeypatch.setattr(
+        atlassian_service, "request_public_target", _jira_site(issues=[issue])
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"exclude_properties": ["Priority"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["params"]["exclude_properties"] == ["Priority"]
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    names = {
+        d.name
+        for d in (
+            await session.exec(
+                select(PropertyDefinition).where(
+                    PropertyDefinition.initiative_id == a.initiative.id
+                )
+            )
+        ).all()
+    }
+    assert "Priority" not in names
+    assert {"Issue type", "Jira key"} <= names
+
+    task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
+    values = (
+        await session.exec(
+            select(TaskPropertyValue, PropertyDefinition)
+            .join(
+                PropertyDefinition,
+                PropertyDefinition.id == TaskPropertyValue.property_id,
+            )
+            .where(TaskPropertyValue.task_id == task.id)
+        )
+    ).all()
+    assert {definition.name for _value, definition in values} == {
+        "Issue type",
+        "Jira key",
+    }
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["Priority", [1, 2], [""], ["x" * 256], ["p"] * 501],
+)
+async def test_confirm_refuses_a_malformed_list_of_unticked_properties(
+    client, acting_user, session, bad
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job = ImportJob(
+        created_by=a.user.id,
+        source="atlassian",
+        params={},
+        status=ImportJobStatus.staged,
+        payload_ref="imports/x.zip",
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+
+    resp = await client.post(
+        a.g(f"/imports/jobs/{job.id}/confirm"),
+        headers=a.headers,
+        json={"exclude_properties": bad},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_INVALID_PARAMS"
+
+
+async def test_starting_a_jira_import_refuses_what_it_can_up_front(
+    client, acting_user, session, monkeypatch
+):
+    """Everything that can be refused before the site is read is refused
+    before the site is read, so the answer arrives in the wizard rather than
+    as a failed job minutes later."""
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(atlassian_service, "request_public_target", _jira_site())
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    nothing = await _start_jira(client, a, initiative_id=a.initiative.id, keys=())
+    assert nothing.status_code == 400
+    assert nothing.json()["detail"] == "IMPORT_SOURCE_NOTHING_SELECTED"
+
+    # A key travels into a URL path and a JQL clause at the other end, so one
+    # that is not shaped like a Jira key never gets that far.
+    malformed = await _start_jira(
+        client,
+        a,
+        initiative_id=a.initiative.id,
+        keys=('ACME" OR project = "X',),
+    )
+    assert malformed.status_code == 422
+
+    target = await _second_initiative(session, a, projects_enabled=False)
+    disabled = await _start_jira(client, a, initiative_id=target.id)
+    assert disabled.status_code == 400
+    assert disabled.json()["detail"] == "IMPORT_TOOL_DISABLED"
+
+    first = await _start_jira(client, a, initiative_id=a.initiative.id)
+    assert first.status_code == 202, first.text
+    # Each job carries its own secret, so a second import of the same site is
+    # an ordinary second job rather than a contested connection.
+    second = await _start_jira(client, a, initiative_id=a.initiative.id)
+    assert second.status_code == 202, second.text
+    assert second.json()["id"] != first.json()["id"]
+
+
+async def test_a_site_that_refuses_every_project_fails_the_job_and_drops_the_token(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A failed fetch is a failed job with a code, a notification, and no
+    credential left behind."""
+    from sqlmodel import select
+
+    from app.models.platform.notification import Notification, NotificationType
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(
+        atlassian_service, "request_public_target", _jira_site(locked=("ACME",))
+    )
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.failed.value
+    assert job["error"] == "IMPORT_SOURCE_UNREACHABLE"
+    failed = [
+        n
+        for n in (
+            await session.exec(
+                select(Notification).where(Notification.user_id == a.user.id)
+            )
+        ).all()
+        if n.type == NotificationType.import_failed
+    ]
+    assert [n.data["import_job_id"] for n in failed] == [job_id]
+
+    # Last, because it reads the row as the system rather than as anybody.
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
+
+
+async def test_cancelling_a_fetch_stops_it_at_the_next_project(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A fetch has written nothing but its own payload, so stopping one is
+    safe — and it should actually stop, not read the rest of the site first
+    and throw it away."""
+    from app.services.import_engine import atlassian as atlassian_service
+
+    state: dict = {}
+
+    async def cancel_mid_read(url):
+        # The first project's issues are being read: cancel the job, as the
+        # wizard's Cancel button would, before the second is reached.
+        if "search/jql" in url and not state.get("cancelled"):
+            state["cancelled"] = True
+            resp = await client.delete(
+                state["actor"].g(f"/imports/jobs/{state['job_id']}"),
+                headers=state["actor"].headers,
+            )
+            assert resp.status_code == 200, resp.text
+
+    site = _jira_site(issues=[_jira_issue("ACME-1", "One")], on_request=cancel_mid_read)
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job_id = (
+        await _start_jira(
+            client,
+            a,
+            initiative_id=a.initiative.id,
+            keys=("ACME", "BETA"),
+        )
+    ).json()["id"]
+    state.update(actor=a, job_id=job_id)
+
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.cancelled.value
+    assert not any("/project/BETA" in url for url in site.requested)
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
+
+
+# ---------------------------------------------------------------------------
+# Imports from another product's export file
+# ---------------------------------------------------------------------------
+
+TODOIST_CSV = (
+    "TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,"
+    "DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,meta,DEADLINE,DEADLINE_LANG\n"
+    "section,Doing,,,,,,,,,,,,,\n"
+    "task,Ship it,With detail,1,1,,,,,,,,,2026-03-09,\n"
+    "task,A step,,4,2,,,,,,,,,,\n"
+    "note,Said something,,,,Dana (42),,,,,,,,,\n"
+)
+
+
+async def _preview_foreign(client, actor, source, content):
+    return await client.post(
+        actor.g(f"/imports/foreign/{source}/preview"),
+        headers={**actor.headers, "Content-Type": "text/plain"},
+        content=content.encode(),
+    )
+
+
+async def test_preview_says_what_a_todoist_export_holds(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await _preview_foreign(client, a, "todoist", TODOIST_CSV)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["source"] == "todoist"
+    # A Todoist CSV names one project and does not say which, so the step that
+    # follows collects a name rather than offering a choice.
+    assert body["picks_one"] is False
+    assert body["options"][0]["task_count"] == 1
+
+
+async def test_preview_of_an_unknown_product_is_refused(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await _preview_foreign(client, a, "trello", "anything")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_UNKNOWN_SOURCE"
+
+
+async def test_preview_of_a_file_that_is_not_that_export_is_refused(
+    client, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await _preview_foreign(client, a, "vikunja", "this is not json }{{{")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_FILE_UNREADABLE"
+
+
+async def test_a_todoist_export_becomes_a_project(client, acting_user, session):
+    """The whole point: a foreign file lands as a project carrying what it
+    said — statuses from its sections, a checklist, a comment, a deadline —
+    through the same apply path an exported project takes."""
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await client.post(
+        a.g("/imports/foreign/todoist"),
+        headers=a.headers,
+        json={
+            "initiative_id": a.initiative.id,
+            "selection": "From Todoist",
+            "content": TODOIST_CSV,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["result"]["created"]["tasks"] == 1
+
+    project = (
+        await session.exec(select(Project).where(Project.name == "From Todoist"))
+    ).first()
+    assert project is not None
+    task = (await session.exec(select(Task).where(Task.project_id == project.id))).one()
+    assert task.title == "Ship it"
+    assert [item["text"] for item in task.checklist] == ["A step"]
+    assert task.due_date is not None
+
+
+async def test_a_real_sized_export_arrives_whole(
+    client, acting_user, session, monkeypatch
+):
+    """An export is not a short string. A file past the plain-text field
+    ceiling — which every real export is — used to be refused with a 422
+    before the handler ran, and markup in a task's text was stripped on the
+    way in. The file is the file: every row lands, and so does what it said.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.models.tenant.task import Task
+    from app.schemas.base import MAX_PLAIN_TEXT_LENGTH
+
+    header, *rows = TODOIST_CSV.splitlines()
+    padding = [
+        f"task,Filler task number {i} with a longish title,,4,1,,,,,,,,,,"
+        for i in range(400)
+    ]
+    content = "\n".join(
+        [header, rows[0], "task,Compare a < b & <b>c</b>,,1,1,,,,,,,,,,", *padding]
+    )
+    assert len(content) > MAX_PLAIN_TEXT_LENGTH
+    # Applied in the request, so what landed can be read straight back.
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 10_000)
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await client.post(
+        a.g("/imports/foreign/todoist"),
+        headers=a.headers,
+        json={
+            "initiative_id": a.initiative.id,
+            "selection": "Big Todoist",
+            "content": content,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+
+    project = (
+        await session.exec(select(Project).where(Project.name == "Big Todoist"))
+    ).one()
+    titles = {
+        t.title
+        for t in (
+            await session.exec(select(Task).where(Task.project_id == project.id))
+        ).all()
+    }
+    assert len(titles) == 401
+    # The characters survive; the markup is stripped by the task title's own
+    # rule, the same one a title typed in the app goes through.
+    assert "Compare a < b & c" in titles
+
+
+async def test_importing_from_a_product_needs_the_create_permission(
+    client, acting_user, session
+):
+    """Nothing about arriving from another product widens who may create a
+    project here — it is the same gate the envelope route applies."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    other = await _second_initiative(session, a)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=other,
+        initiative_role="member",
+    )
+    resp = await client.post(
+        b.g("/imports/foreign/todoist"),
+        headers=b.headers,
+        json={
+            "initiative_id": other.id,
+            "selection": "Nope",
+            "content": TODOIST_CSV,
+        },
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "IMPORT_PERMISSION_REQUIRED"
+
+
+async def test_importing_into_an_initiative_you_cannot_reach_is_a_404(
+    client, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await client.post(
+        a.g("/imports/foreign/todoist"),
+        headers=a.headers,
+        json={
+            "initiative_id": 9_999_999,
+            "selection": "Nope",
+            "content": TODOIST_CSV,
+        },
+    )
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Confluence: a space becomes a wiki
+# ---------------------------------------------------------------------------
+
+
+def _confluence_site(
+    *, pages, users=None, labels=None, attachments=None, files=None, comments=None
+):
+    """Stub a Confluence site answering a connect and a fetch of one space."""
+    import httpx
+
+    probe = _atlassian_site()
+    names: dict[str, str] = users or {}
+    page_labels: dict[str, list[str]] = labels or {}
+    page_attachments: dict[str, list[dict]] = attachments or {}
+    blobs: dict[str, bytes] = files or {}
+    threads: dict[str, list[dict]] = comments or {}
+
+    async def fake_request(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if "-comments" in url:
+            path = url.split("/wiki/api/v2/")[1].split("?")[0]
+            return httpx.Response(200, json={"results": threads.get(path, [])})
+        if "/attachments?" in url:
+            page_id = url.split("/pages/")[1].split("/")[0]
+            return httpx.Response(
+                200, json={"results": page_attachments.get(page_id, [])}
+            )
+        if "/child/attachment/" in url:
+            att_id = url.split("/child/attachment/")[1].split("/")[0]
+            return httpx.Response(
+                302, headers={"location": f"https://media.example.com/{att_id}"}
+            )
+        if url.startswith("https://media.example.com/"):
+            return httpx.Response(200, content=blobs[url.rsplit("/", 1)[1]])
+        if "/wiki/api/v2/spaces?keys=" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {"id": "9", "key": "DOCS", "name": "Docs", "homepageId": "1"}
+                    ]
+                },
+            )
+        if "/wiki/api/v2/spaces/9/pages" in url:
+            return httpx.Response(200, json={"results": pages})
+        if "/labels" in url:
+            page_id = url.split("/pages/")[1].split("/")[0]
+            return httpx.Response(
+                200,
+                json={"results": [{"name": n} for n in page_labels.get(page_id, [])]},
+            )
+        if url.endswith("/wiki/api/v2/users-bulk"):
+            wanted = (json or {}).get("accountIds") or []
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {"accountId": a, "displayName": names[a]}
+                        for a in wanted
+                        if a in names
+                    ]
+                },
+            )
+        return await probe(method, url, headers=headers, json=json)
+
+    return fake_request
+
+
+def _confluence_page(page_id, title, body, parent=None, author="acc-1"):
+    return {
+        "id": str(page_id),
+        "title": title,
+        "parentId": str(parent) if parent else None,
+        "parentType": "page" if parent else None,
+        "position": page_id,
+        "authorId": author,
+        "createdAt": "2024-03-04T09:00:00.000Z",
+        "version": {"createdAt": "2024-05-01T10:00:00.000Z"},
+        "body": {"storage": {"value": body}},
+    }
+
+
+async def _start_confluence(client, actor, *, initiative_id, keys=("DOCS",)):
+    return await client.post(
+        actor.g("/imports/atlassian/import"),
+        headers=actor.headers,
+        json={
+            "site_url": "https://acme.atlassian.net",
+            "email": "someone@example.com",
+            "api_token": "shhh",
+            "initiative_id": initiative_id,
+            "space_keys": list(keys),
+        },
+    )
+
+
+async def test_a_confluence_space_becomes_a_wiki_with_its_tree_and_its_people(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Fetch, review, confirm, apply: the space arrives as one wiki in the
+    chosen initiative, its pages under their parents, a link between two of
+    them pointing at the imported page, and the people the review placed —
+    the author and somebody mentioned — named on the pages they are on."""
+    from sqlmodel import select
+
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    site = _confluence_site(
+        pages=[
+            _confluence_page(1, "Home", "<p>Welcome</p>"),
+            _confluence_page(
+                2,
+                "Guide",
+                '<p>Read <ac:link><ri:page ri:content-title="Home"/></ac:link> and '
+                'ask <ac:link><ri:user ri:account-id="acc-2"/></ac:link></p>',
+                parent=1,
+            ),
+        ],
+        users={"acc-1": "Robin Ade", "acc-2": "Sam Bee"},
+        labels={"2": ["howto"]},
+    )
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+
+    resp = await _start_confluence(client, a, initiative_id=a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["params"]["confluence_spaces"] == ["DOCS"]
+    assert "shhh" not in resp.text
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["spaces"], summary["pages"], summary["labels"]) == (1, 2, 1)
+    assert {p["handle"] for p in staged["plan"]["people"]} == {"Robin Ade", "Sam Bee"}
+    assert await _job_secret(session, a.guild.id, job["id"]) is None
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job['id']}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin Ade": a.user.id, "Sam Bee": b.user.id}},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    done = (
+        await client.get(a.g(f"/imports/jobs/{job['id']}"), headers=a.headers)
+    ).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Docs"))).one()
+    assert wiki.initiative_id == a.initiative.id
+    pages = {
+        p.title: p
+        for p in (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+        ).all()
+    }
+    home, guide = pages["Home"], pages["Guide"]
+    assert wiki.home_page_id == home.id
+    assert guide.parent_page_id == home.id
+    assert guide.created_by == a.user.id
+
+    (paragraph,) = guide.content["root"]["children"]
+    by_type = {n["type"]: n for n in paragraph["children"]}
+    assert by_type["entity-mention"]["entityId"] == home.id
+    assert "importSlug" not in by_type["entity-mention"]
+    assert by_type["mention"]["mentionUserId"] == b.user.id
+
+
+_PNG, _PDF = b"\x89PNG\r\n\x1a\nchart", b"%PDF-spec"
+
+
+def _attachment_site():
+    """One page showing a picture, linking a PDF, and holding a picture it
+    never shows."""
+    png, pdf = _PNG, _PDF
+    return _confluence_site(
+        pages=[
+            _confluence_page(
+                1,
+                "Home",
+                '<p><ac:image><ri:attachment ri:filename="chart.png"/></ac:image>'
+                '<ac:link><ri:attachment ri:filename="spec.pdf"/>'
+                "<ac:plain-text-link-body><![CDATA[the spec]]>"
+                "</ac:plain-text-link-body></ac:link></p>",
+            )
+        ],
+        users={"acc-1": "Robin Ade"},
+        attachments={
+            "1": [
+                {
+                    "id": "att1",
+                    "title": "chart.png",
+                    "mediaType": "image/png",
+                    "fileSize": len(png),
+                },
+                {
+                    "id": "att2",
+                    "title": "spec.pdf",
+                    "mediaType": "application/pdf",
+                    "fileSize": len(pdf),
+                },
+                {
+                    "id": "att3",
+                    "title": "hidden.png",
+                    "mediaType": "image/png",
+                    "fileSize": len(png),
+                },
+            ]
+        },
+        files={"att1": png, "att2": pdf, "att3": png},
+    )
+
+
+async def test_a_confluence_pages_attachments_arrive_as_uploads_and_documents(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A picture the page shows is an upload it renders from; a file it links
+    to is a document filed in the wiki, and the link is a mention of it; a
+    picture nobody shows is a document too, rather than lost."""
+    from sqlmodel import select
+
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+    from app.services.tenant import relationships as relationships_service
+    from app.services.tenant.relationships import Endpoint
+
+    png, pdf = _PNG, _PDF
+    site = _attachment_site()
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
+        "id"
+    ]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["page_images"], summary["page_files"]) == (1, 2)
+    assert summary["page_attachment_bytes"] == 2 * len(png) + len(pdf)
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    assert done["result"]["assets_restored"] == 3
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Docs"))).one()
+    home = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+    ).one()
+    documents = {
+        d.original_filename: d
+        for d in (
+            await session.exec(
+                select(Document).where(
+                    Document.initiative_id == a.initiative.id,
+                    Document.document_type == DocumentType.file,
+                )
+            )
+        ).all()
+    }
+    assert set(documents) == {"spec.pdf", "hidden.png"}
+    assert sorted(
+        await relationships_service.related_ids(
+            session,
+            Endpoint(kind=SearchEntityType.wiki, id=wiki.id),
+            relationship_type=RelationshipType.part_of,
+            other_kind=SearchEntityType.document,
+        )
+    ) == sorted(d.id for d in documents.values())
+
+    # Filed in the wiki under the page they were attached to.
+    await session.refresh(wiki)
+    from app.services.tenant.wikis import document_parent
+
+    assert {document_parent(wiki, d.id) for d in documents.values()} == {home.id}
+
+    (paragraph,) = home.content["root"]["children"]
+    image, mention = paragraph["children"]
+    assert image["src"].startswith(f"/uploads/{a.guild.id}/")
+    assert mention["entityType"] == "document"
+    assert mention["entityId"] == documents["spec.pdf"].id
+    assert mention["text"] == "the spec" and "importRef" not in mention
+
+
+async def test_an_initiative_without_documents_takes_only_the_pictures(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Files would be documents, which this initiative has switched off: the
+    pictures the page shows still come, the rest are counted as left behind,
+    and the import is not refused over them."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document
+    from app.services.import_engine import atlassian as atlassian_service
+
+    monkeypatch.setattr(atlassian_service, "request_public_target", _attachment_site())
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a.initiative.documents_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+
+    job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
+        "id"
+    ]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["page_images"], summary["page_files"]) == (1, 0)
+    assert summary["page_files_blocked"] == 2
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+    session.expunge_all()
+    assert (await session.exec(select(Document))).all() == []
+
+
+async def test_a_confluence_pages_comments_arrive_on_its_wiki_page(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Footer and inline comments land in the page's thread, replies under what
+    they answer, each under whoever the people step said wrote it — and a
+    comment's link to another page points at the page it became."""
+    from sqlmodel import select
+
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+
+    def said(comment_id, body, author):
+        return {
+            "id": str(comment_id),
+            "version": {"authorId": author, "createdAt": "2024-05-01T10:00:00.000Z"},
+            "body": {"storage": {"value": body}},
+        }
+
+    site = _confluence_site(
+        pages=[
+            _confluence_page(1, "Home", "<p>Welcome</p>"),
+            _confluence_page(2, "Guide", "<p>How to</p>", parent=1),
+        ],
+        users={"acc-1": "Robin Ade", "acc-2": "Sam Bee"},
+        comments={
+            "pages/1/footer-comments": [
+                said(
+                    10,
+                    '<p>Read <ac:link><ri:page ri:content-title="Guide"/></ac:link> '
+                    '<ac:link><ri:user ri:account-id="acc-2"/></ac:link></p>',
+                    "acc-1",
+                )
+            ],
+            "footer-comments/10/children": [said(11, "<p>Done</p>", "acc-2")],
+            "pages/1/inline-comments": [
+                {
+                    **said(20, "<p>Typo</p>", "acc-2"),
+                    "properties": {"inlineOriginalSelection": "Welcom"},
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
+        "id"
+    ]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    assert staged["plan"]["atlassian"]["page_comments"] == 3
+
+    # Robin is placed; Sam is left as a name.
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin Ade": b.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Docs"))).one()
+    pages = {
+        p.title: p
+        for p in (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+        ).all()
+    }
+    thread = (
+        await session.exec(
+            select(Comment)
+            .where(Comment.wiki_page_id == pages["Home"].id)
+            .order_by(Comment.id)
+        )
+    ).all()
+    first, reply, inline = thread
+    assert first.created_by == b.user.id and first.imported_author_name is None
+    assert first.content == (f"Read #wiki_page[Guide]({pages['Guide'].id}) @Sam Bee")
+    assert reply.parent_comment_id == first.id
+    assert reply.created_by == a.user.id and reply.imported_author_name == "Sam Bee"
+    assert inline.content == "> Welcom\n\nTypo"
+
+
+async def _upload_export(client, actor, zip_bytes, *, initiative_id, **form):
+    return await client.post(
+        actor.g("/imports/atlassian/export"),
+        headers=actor.headers,
+        data={"initiative_id": str(initiative_id), **form},
+        files={"file": ("export.zip", zip_bytes, "application/zip")},
+    )
+
+
+async def test_a_confluence_html_export_becomes_a_wiki(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Upload the zip Confluence's space export writes: the worker converts
+    it, the review shows it like a fetched space, and confirming files the
+    wiki, its tree and its files into the chosen initiative — no site, no
+    token."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine.confluence_export_test import export_bytes
+    from app.services.tenant.wikis import document_parent
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    resp = await _upload_export(
+        client, a, export_bytes(), initiative_id=a.initiative.id
+    )
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["spaces"], summary["pages"]) == (1, 4)
+    assert (summary["page_images"], summary["page_files"]) == (1, 1)
+    assert {p["handle"] for p in staged["plan"]["people"]} == {"Robin Ade", "Sam Bee"}
+
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": {"Robin Ade": b.user.id}},
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Team Docs"))).one()
+    assert wiki.initiative_id == a.initiative.id
+    pages = {
+        p.title: p
+        for p in (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+        ).all()
+    }
+    assert wiki.home_page_id == pages["Home"].id
+    assert pages["Guide"].parent_page_id == pages["Home"].id
+    assert pages["Home"].created_by == b.user.id
+    document = (
+        await session.exec(
+            select(Document).where(Document.document_type == DocumentType.file)
+        )
+    ).one()
+    assert document.original_filename == "spec.pdf"
+    assert document_parent(wiki, document.id) == pages["Home"].id
+
+
+async def test_an_upload_that_is_not_an_export_is_refused_up_front(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    not_zip = await _upload_export(
+        client, a, b"not a zip", initiative_id=a.initiative.id
+    )
+    assert not_zip.status_code == 400
+    assert not_zip.json()["detail"] == "IMPORT_ZIP_INVALID"
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("notes.txt", "hello")
+    no_pages = await _upload_export(
+        client, a, buffer.getvalue(), initiative_id=a.initiative.id
+    )
+    assert no_pages.status_code == 400
+    assert no_pages.json()["detail"] == "IMPORT_ZIP_INVALID"
+
+
+async def test_starting_a_confluence_import_refuses_what_it_can_up_front(
+    client, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    nothing = await _start_confluence(client, a, initiative_id=a.initiative.id, keys=())
+    assert nothing.status_code == 400
+    assert nothing.json()["detail"] == "IMPORT_SOURCE_NOTHING_SELECTED"
+
+    bad_key = await _start_confluence(
+        client, a, initiative_id=a.initiative.id, keys=("DOCS/../x",)
+    )
+    assert bad_key.status_code == 422
+
+
+async def test_a_confluence_page_points_its_jira_issues_at_the_tasks_they_became(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """An issue the Jira import already brought over is found by the key it
+    recorded: the page's Jira macro becomes that task and its live status,
+    and a plain link to it a mention of it. One that never came over keeps
+    its link to Jira, and a status lozenge is a status in its colour."""
+    from sqlmodel import select
+
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+    from app.testing import (
+        create_property_definition,
+        create_task,
+        create_task_property_value,
+    )
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    key_property = await create_property_definition(
+        session, a.initiative, name="Jira key"
+    )
+    task = await create_task(session, a.project, title="Task 1")
+    await create_task_property_value(session, task, key_property, value_text="SCRUM-1")
+
+    site = _confluence_site(
+        pages=[
+            _confluence_page(
+                1,
+                "Roadmap",
+                "<table><tr><td>"
+                '<ac:structured-macro ac:name="jira">'
+                '<ac:parameter ac:name="key">SCRUM-1</ac:parameter>'
+                "</ac:structured-macro></td><td>"
+                '<ac:structured-macro ac:name="jira">'
+                '<ac:parameter ac:name="key">SCRUM-9</ac:parameter>'
+                "</ac:structured-macro></td><td>"
+                '<a href="https://acme.atlassian.net/browse/SCRUM-1">see SCRUM-1</a>'
+                '</td><td><ac:structured-macro ac:name="status">'
+                '<ac:parameter ac:name="colour">Green</ac:parameter>'
+                '<ac:parameter ac:name="title">DONE</ac:parameter>'
+                "</ac:structured-macro></td></tr></table>",
+            )
+        ],
+        users={"acc-1": "Robin Ade"},
+    )
+    monkeypatch.setattr(atlassian_service, "request_public_target", site)
+
+    resp = await _start_confluence(client, a, initiative_id=a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    wiki = (await session.exec(select(Wiki).where(Wiki.name == "Docs"))).one()
+    page = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == wiki.id))
+    ).one()
+    (table,) = page.content["root"]["children"]
+    cells = [
+        cell["children"][0]["children"] for cell in table["children"][0]["children"]
+    ]
+    found, missing, linked, lozenge = cells
+
+    mention, _space, chip = found
+    assert (mention["type"], mention["entityType"], mention["entityId"]) == (
+        "entity-mention",
+        "task",
+        task.id,
+    )
+    assert (chip["type"], chip["chipKind"], chip["entityId"]) == (
+        "smart-chip",
+        "task:status",
+        task.id,
+    )
+    assert missing[0]["type"] == "link"
+    assert missing[0]["url"] == "https://acme.atlassian.net/browse/SCRUM-9"
+    assert all(node["type"] != "smart-chip" for node in missing)
+    assert linked == [
+        {
+            "type": "entity-mention",
+            "version": 1,
+            "entityType": "task",
+            "entityId": task.id,
+            "text": "see SCRUM-1",
+        }
+    ]
+    assert lozenge == [
+        {"type": "status", "version": 1, "text": "DONE", "color": "green"}
+    ]
+    assert "importJiraKey" not in str(page.content)
+
+
+async def test_one_atlassian_import_joins_its_issues_and_pages_both_ways(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Projects and spaces read together are joined whichever way they point:
+    the page's Jira macro is the task and its live status, the issue's link
+    to the page is a mention of the wiki page, and the page the issue lists
+    under "Confluence pages" is related to its task. Found through the job
+    itself — the Jira key property is unticked here, and it still joins."""
+    import httpx
+    from sqlmodel import select
+
+    from app.models.tenant.relationship import EntityRelationship
+    from app.models.tenant.task import Task
+    from app.models.tenant.wiki import WikiPage
+    from app.services.import_engine import atlassian as atlassian_service
+
+    page_url = "https://acme.atlassian.net/wiki/spaces/DOCS/pages/2/Guide"
+    issue = _jira_issue("ACME-1", "Wire the thing")
+    issue["fields"]["description"] = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "Read "},
+                    {
+                        "type": "text",
+                        "text": "the guide",
+                        "marks": [{"type": "link", "attrs": {"href": page_url}}],
+                    },
+                ],
+            }
+        ],
+    }
+    jira = _jira_site(issues=[issue])
+    confluence = _confluence_site(
+        pages=[
+            _confluence_page(
+                2,
+                "Guide",
+                '<p>Tracked in <ac:structured-macro ac:name="jira">'
+                '<ac:parameter ac:name="key">ACME-1</ac:parameter>'
+                "</ac:structured-macro></p>",
+            )
+        ],
+        users={"acc-1": "Robin Ade"},
+    )
+
+    async def both(method, url, *, headers=None, json=None, timeout=None, **kw):
+        if url.endswith("/remotelink"):
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "application": {"type": "com.atlassian.confluence"},
+                        "object": {
+                            "url": "https://acme.atlassian.net/wiki/pages/"
+                            "viewpage.action?pageId=2",
+                            "title": "Guide",
+                        },
+                    }
+                ],
+            )
+        site = confluence if "/wiki/" in url else jira
+        return await site(method, url, headers=headers, json=json, timeout=timeout)
+
+    monkeypatch.setattr(atlassian_service, "request_public_target", both)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    resp = await client.post(
+        a.g("/imports/atlassian/import"),
+        headers=a.headers,
+        json={
+            "site_url": "https://acme.atlassian.net",
+            "email": "someone@example.com",
+            "api_token": "shhh",
+            "initiative_id": a.initiative.id,
+            "project_keys": ["ACME"],
+            "space_keys": ["DOCS"],
+        },
+    )
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    await _run_import_worker(monkeypatch, role_session)
+    staged = (
+        await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    ).json()
+    assert staged["status"] == ImportJobStatus.staged.value, staged.get("error")
+    summary = staged["plan"]["atlassian"]
+    assert (summary["projects"], summary["tasks"]) == (1, 1)
+    assert (summary["spaces"], summary["pages"]) == (1, 1)
+    # The macro, the description's link and the "Confluence pages" entry.
+    assert summary["cross_links"] == 3
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"exclude_properties": ["Jira key"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    await _run_import_worker(monkeypatch, role_session)
+    done = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert done["status"] == ImportJobStatus.done.value, done.get("error")
+
+    session.expunge_all()
+    task = (
+        await session.exec(select(Task).where(Task.title == "Wire the thing"))
+    ).one()
+    page = (await session.exec(select(WikiPage).where(WikiPage.title == "Guide"))).one()
+
+    assert f"#wiki_page[the guide]({page.id})" in (task.description or "")
+    (paragraph,) = page.content["root"]["children"]
+    by_type = {node["type"]: node for node in paragraph["children"]}
+    assert by_type["entity-mention"]["entityId"] == task.id
+    assert by_type["smart-chip"]["entityId"] == task.id
+    edges = (await session.exec(select(EntityRelationship))).all()
+    ends = {
+        frozenset({(e.source_type, e.source_id), (e.target_type, e.target_id)})
+        for e in edges
+        if e.relationship_type == "related_to"
+    }
+    assert frozenset({("task", task.id), ("wiki_page", page.id)}) in ends
+
+
+async def test_an_apply_touches_its_row_as_it_goes(
+    client, acting_user, monkeypatch, role_session
+):
+    """Each entry applied refreshes the job's row, so a long apply is never
+    taken for a crashed one by the stale sweep."""
+    from app.services.import_engine import atlassian
+
+    monkeypatch.setattr(atlassian, "HEARTBEAT_SECONDS", 0)
+    beats: list[int] = []
+    real_throttled = import_worker.throttled
+
+    def counting(beat):
+        async def counted():
+            beats.append(1)
+            await beat()
+
+        return real_throttled(counted)
+
+    monkeypatch.setattr(import_worker, "throttled", counting)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    entry, envelope = _queue_entry()
+    zip_bytes = _make_backup_zip(
+        _minimal_manifest(entries=[entry]),
+        {entry["path"]: json.dumps(envelope).encode()},
+    )
+
+    job = await _apply_backup(client, a, zip_bytes, monkeypatch, role_session)
+
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert beats
+
+
+# --- running imports side by side -------------------------------------------
+
+
+_QUEUE_ENVELOPE = {
+    "type": "initiative-queue",
+    "schema_version": 1,
+    "name": "Side by side",
+    "items": [{"label": "Aria", "position": 1.0}],
+}
+
+
+async def _queued(client, actor) -> int:
+    response = await _import_envelope(
+        client, actor, _QUEUE_ENVELOPE, actor.initiative.id
+    )
+    assert response.status_code == 202, response.text
+    return response.json()["id"]
+
+
+async def _status(client, actor, job_id) -> str:
+    job = (
+        await client.get(actor.g(f"/imports/jobs/{job_id}"), headers=actor.headers)
+    ).json()
+    return job["status"]
+
+
+async def _user_sessions(monkeypatch, role_session, count):
+    sessions = iter([await role_session("app_user") for _ in range(count)])
+    monkeypatch.setattr(import_worker, "_open_user_session", lambda: next(sessions))
+
+
+async def test_two_communities_import_side_by_side(
+    client, acting_user, monkeypatch, role_session
+):
+    """One pass starts a job in each community, and neither waits for the
+    other to finish."""
+    import asyncio
+
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    first, second = await _queued(client, a), await _queued(client, b)
+    await _user_sessions(monkeypatch, role_session, 2)
+
+    started = await import_worker.dispatch_import_jobs()
+
+    assert len(started) == 2
+    await asyncio.gather(*started)
+    assert await _status(client, a, first) == ImportJobStatus.done.value
+    assert await _status(client, b, second) == ImportJobStatus.done.value
+
+
+async def test_a_community_runs_one_import_at_a_time(
+    client, acting_user, monkeypatch, role_session
+):
+    import asyncio
+
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    first, second = await _queued(client, a), await _queued(client, a)
+    await _user_sessions(monkeypatch, role_session, 2)
+
+    started = await import_worker.dispatch_import_jobs()
+
+    assert len(started) == 1
+    await asyncio.gather(*started)
+    assert await _status(client, a, first) == ImportJobStatus.done.value
+    assert await _status(client, a, second) == ImportJobStatus.queued.value
+
+    await import_worker.process_import_jobs()
+    assert await _status(client, a, second) == ImportJobStatus.done.value
+
+
+async def test_a_process_starts_no_more_than_its_slots(
+    client, acting_user, monkeypatch, role_session
+):
+    import asyncio
+
+    monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
+    monkeypatch.setattr(import_limits, "IMPORT_APPLY_SLOTS", 1)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _queued(client, a)
+    await _queued(client, b)
+    await _user_sessions(monkeypatch, role_session, 2)
+
+    started = await import_worker.dispatch_import_jobs()
+
+    assert len(started) == 1
+    await asyncio.gather(*started)
+    await import_worker.process_import_jobs()
+
+
+async def test_the_sweep_leaves_a_job_this_process_is_running(
+    acting_user, session, monkeypatch
+):
+    """A row that looks stale but belongs to a job this process is running is
+    not failed out from under it."""
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await route_session_to_guild(session, a.guild.id)
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
+    job = ImportJob(
+        created_by=a.user.id,
+        source="initiative-queue",
+        params={"initiative_id": a.initiative.id},
+        payload_ref="imports/elsewhere.json",
+        status=ImportJobStatus.running,
+        created_at=stale_time,
+        updated_at=stale_time,
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+
+    alive = asyncio.create_task(asyncio.sleep(3600))
+    monkeypatch.setitem(import_worker._running, (a.guild.id, job.id), ("apply", alive))
+    try:
+        await import_worker.dispatch_import_jobs()
+    finally:
+        alive.cancel()
+
+    await session.refresh(job)
+    assert job.status == ImportJobStatus.running

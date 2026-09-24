@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { WidgetBinding } from "@/hooks/useWidgetData";
 import type { DefinitionWidget } from "@/lib/widgets/definition";
 
 const renderWidget = vi.hoisted(() => vi.fn());
@@ -102,11 +103,11 @@ beforeEach(() => {
   serve();
 });
 
-const widget = (binding: Record<string, unknown>): DefinitionWidget => ({
+const widget = (binding: WidgetBinding): DefinitionWidget => ({
   id: "w1",
   type: "stat",
   grid: { x: 0, y: 0, w: 6, h: 4 },
-  binding: binding as DefinitionWidget["binding"],
+  binding,
 });
 
 const mount = (which: DefinitionWidget) =>

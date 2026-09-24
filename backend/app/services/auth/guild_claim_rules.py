@@ -6,10 +6,10 @@ the community, and in an initiative if the community says so. Both are one
 sentence a community says in one breath: *our people come in through this, and
 these of them belong here.*
 
-The rows are the same ``oidc_claim_mappings`` an operator writes, named by
-``guild_id``. A community reads and writes only the ones naming it, which is
-what makes this a community surface rather than a second engine: the sign-in
-that evaluates rules does not care who typed them.
+The rows are ``oidc_claim_mappings``, named by ``guild_id``. A community reads
+and writes only the ones naming it, and this surface is the only one that
+writes them; the sign-in that evaluates them reads every rule for the provider
+it came through.
 
 Which claim carries groups stays the operator's, per provider
 (``auth_providers.role_claim_path``) — it is a fact about the provider, not a
@@ -27,20 +27,25 @@ from app.core.audit_events import AuditEventType
 from app.core.messages import AuthProviderMessages, SettingsMessages
 from app.db.session import set_rls_context
 from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.guild import GUILD_ASSIGNABLE_ROLES
+from app.models.platform.guild import GUILD_ASSIGNABLE_ROLES, Guild
 from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.models.platform.oidc_claim_mapping import (
+    ClaimRuleAuthor,
     OIDCClaimMapping,
     OIDCMappingTargetType,
 )
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.schemas.platform.settings import (
+    PlacementInitiativeRead,
+    PlacementInitiativeRoleRead,
+    ProviderPlacementRuleRead,
     GuildClaimRuleCreate,
     GuildClaimRuleRead,
     GuildClaimRulesResponse,
     GuildClaimRuleUpdate,
 )
 from app.services import audit as audit_service
+from app.services.platform import provider_placement
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +66,12 @@ AUDITED_FIELDS: tuple[str, ...] = (
 )
 
 
-async def reset_to_admin_baseline(session: AsyncSession) -> None:
-    """Return the admin session to its neutral public / login-role baseline.
+async def reset_to_system_baseline(session: AsyncSession) -> None:
+    """Return the system session to its neutral public / login-role baseline.
 
     After routing into a guild schema the session has assumed that guild's
     role, which has no write access to shared ``public`` config tables. Reset
-    to the admin login role before writing a rule back to ``public``.
+    to the system login role before writing a rule back to ``public``.
     """
     await set_rls_context(session)
 
@@ -79,9 +84,8 @@ async def lookup_guild_initiative(
 ) -> tuple[Initiative | None, InitiativeRoleModel | None]:
     """Look up an initiative (and optional role) inside a guild's schema.
 
-    Routes the session into ``guild_<id>`` for the read, then resets it. Shared
-    with the operator's own rule editor so both resolve a rule's destination
-    the same way. ``populate_existing`` keeps a colliding id from another guild
+    Routes the session into ``guild_<id>`` for the read, then resets it.
+    ``populate_existing`` keeps a colliding id from another guild
     already in the identity map from being returned stale — ids are unique only
     within a schema.
     """
@@ -105,7 +109,7 @@ async def lookup_guild_initiative(
             ).one_or_none()
         return initiative, role
     finally:
-        await reset_to_admin_baseline(session)
+        await reset_to_system_baseline(session)
 
 
 async def _connected_provider(
@@ -147,6 +151,7 @@ async def _editable_rule(
             select(OIDCClaimMapping).where(
                 OIDCClaimMapping.id == rule_id,
                 OIDCClaimMapping.guild_id == guild_id,
+                OIDCClaimMapping.author == ClaimRuleAuthor.community,
             )
         )
     ).one_or_none()
@@ -206,6 +211,7 @@ async def _require_unique(
     excluding: int | None = None,
 ) -> None:
     stmt = select(OIDCClaimMapping.id).where(
+        OIDCClaimMapping.author == ClaimRuleAuthor.community,
         OIDCClaimMapping.guild_id == guild_id,
         OIDCClaimMapping.provider_id == provider_id,
         OIDCClaimMapping.claim_value == claim_value,
@@ -242,7 +248,7 @@ async def _rule_read(
         provider_id=row.provider_id,
         provider_display_name=provider.display_name if provider else "",
         provider_icon=provider.icon if provider else None,
-        claim_value=row.claim_value,
+        claim_value=row.claim_value or "",
         guild_role=row.guild_role,
         initiative_id=row.initiative_id,
         initiative_name=initiative_name,
@@ -273,12 +279,66 @@ async def list_rules(
             .order_by(OIDCClaimMapping.id)
         )
     ).all()
+    own = [row for row in rows if row.author == ClaimRuleAuthor.community]
     return GuildClaimRulesResponse(
-        rules=[await _rule_read(session, row, providers=providers) for row in rows],
+        rules=[await _rule_read(session, row, providers=providers) for row in own],
         reporting_provider_ids=sorted(
             pid for pid, row in providers.items() if row.role_claim_path
         ),
+        provider_rules=await _provider_rules_here(
+            session,
+            guild_id=guild_id,
+            rows=[row for row in rows if row.author == ClaimRuleAuthor.provider],
+        ),
+        placement_everywhere=await provider_placement.placement_everywhere(session),
     )
+
+
+async def _provider_rules_here(
+    session: AsyncSession, *, guild_id: int, rows: list[OIDCClaimMapping]
+) -> list[ProviderPlacementRuleRead]:
+    """The platform's rules naming this community, as it sees them: which
+    provider, what they match, where they land, and whether they apply."""
+    if not rows:
+        return []
+    guild = await session.get(Guild, guild_id)
+    reads: list[ProviderPlacementRuleRead] = []
+    for row in rows:
+        provider = await session.get(AuthProvider, row.provider_id)
+        applies = guild_id in await provider_placement.placeable_communities(
+            session, provider_id=row.provider_id, guild_ids={guild_id}
+        )
+        initiatives: list[PlacementInitiativeRead] = []
+        if row.initiative_id is not None:
+            initiative, role = await lookup_guild_initiative(
+                session, guild_id, row.initiative_id, row.initiative_role_id
+            )
+            if initiative is not None and initiative.id is not None:
+                initiatives = [
+                    PlacementInitiativeRead(
+                        id=initiative.id,
+                        name=initiative.name,
+                        roles=[
+                            PlacementInitiativeRoleRead(
+                                id=role.id,
+                                name=role.display_name,
+                                is_manager=role.is_manager,
+                            )
+                        ]
+                        if role is not None and role.id is not None
+                        else [],
+                    )
+                ]
+        reads.append(
+            provider_placement.rule_read(
+                row,
+                provider=provider,
+                guild_name=guild.name if guild else "",
+                applies=applies,
+                initiatives=initiatives,
+            )
+        )
+    return reads
 
 
 async def create_rule(

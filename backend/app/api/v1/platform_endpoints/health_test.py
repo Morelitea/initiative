@@ -6,6 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.api.v1.platform_endpoints import health
+from app.core.config import settings
 
 
 @pytest.fixture(autouse=True)
@@ -124,3 +125,51 @@ async def test_probes_stay_out_of_the_api_schema(client: AsyncClient):
     paths = resp.json()["paths"]
     assert "/api/v1/healthz" not in paths
     assert "/api/v1/readyz" not in paths
+
+
+METRICS = "/api/v1/metrics"
+
+
+@pytest.mark.integration
+async def test_metrics_is_not_there_until_a_token_is_set(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "METRICS_TOKEN", None)
+    resp = await client.get(METRICS, headers={"Authorization": "Bearer anything"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "authorization", [None, "Bearer wrong", "Basic c2NyYXBlOnM=", "s3cret-token"]
+)
+async def test_metrics_wants_the_token_as_a_bearer(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, authorization: str | None
+):
+    monkeypatch.setattr(settings, "METRICS_TOKEN", "s3cret-token")
+    headers = {"Authorization": authorization} if authorization else {}
+    resp = await client.get(METRICS, headers=headers)
+    assert resp.status_code == 401
+    assert resp.headers["www-authenticate"] == "Bearer"
+
+
+@pytest.mark.integration
+async def test_metrics_answers_a_scrape_presenting_the_token(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "METRICS_TOKEN", "s3cret-token")
+    await client.get("/api/v1/version")
+
+    resp = await client.get(METRICS, headers={"Authorization": "Bearer s3cret-token"})
+
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("text/plain")
+    body = resp.text
+    assert (
+        'initiative_http_requests_total{method="GET",route="/api/v1/version",status="200"}'
+        in body
+    )
+    assert "initiative_build_info{version=" in body
+    assert 'initiative_db_pool_connections{engine="request",state="idle"}' in body
+    assert "initiative_sessions_active " in body
+    assert "process_cpu_seconds_total" in body or "python_gc_objects" in body

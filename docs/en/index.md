@@ -90,11 +90,11 @@ Same software either way. We're not keeping the good bits back for the paying cu
 
     [:octicons-arrow-right-24: Security & privacy](security/index.md)
 
--   :material-cog-outline: __For administrators__
+-   :material-cog-outline: __Running a server__
 
     Installing, configuring, and looking after your own server.
 
-    [:octicons-arrow-right-24: Admin guide](admin/index.md)
+    [:octicons-arrow-right-24: Server guide](running-a-server/index.md)
 
 -   :material-help-circle-outline: __FAQ__
 
@@ -122,7 +122,7 @@ We're self-hosters. We got here the way most people do: by slowly going off the 
 
 What tipped it was watching creative work get hoovered into training data by companies that never thought to ask. To be clear, we like AI. We use it. But being useful doesn't entitle anyone to take what somebody made and feed it to a machine — and once that's happened to something of yours, "we promise not to" stops sounding like much of a promise.
 
-So we treated it as an architecture problem rather than a policy one, because a policy lasts exactly as long as the person who wrote it stays in charge. Nobody holds standing admin access to a community's data. Reaching into another community takes a time-limited grant that leaves a record. Direct messages are encrypted well enough that no key to them exists outside the two phones talking. We locked ourselves out on purpose, and we'd do it again.
+So we treated it as an architecture problem rather than a policy one, because a policy lasts exactly as long as the person who wrote it stays in charge. Nobody running the server holds standing access to a community's data. Reaching into another community takes a time-limited grant that leaves a record. Direct messages are encrypted well enough that no key to them exists outside the two phones talking. We locked ourselves out on purpose, and we'd do it again.
 
 Which means **we can't feed your work to a model, because there's no pipe to put it in.** The AI features that do exist are ones you point at your own stuff deliberately, and they send only what you asked — under that provider's terms, which we'll tell you to go and read rather than pretend we control. See [AI features](account/ai-features.md).
 
@@ -136,7 +136,7 @@ Initiative takes two perfectly ordinary words and gives them specific jobs. Sorr
 And yes, the app is also called Initiative. We know. The [glossary](reference/glossary.md) covers the other words we've bent to our own purposes.
 
 ??? techspec "For the technically minded — what this actually is"
-    Initiative is a web application you can run yourself. A single-page web app talking to a Python service backed by PostgreSQL. Each community gets its **own database schema**, so a request in one community cannot address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by application code. There's a companion mobile app for iOS and Android. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
+    Initiative is a web application you can run yourself. A single-page web app talking to a Python service backed by PostgreSQL. Each community gets its **own database schema**, so a request in one community cannot address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by application code. There's a companion mobile app for iOS and Android. More in [Security & privacy](security/index.md) and the [server guide](running-a-server/index.md).
 
 ## Built in the open
 

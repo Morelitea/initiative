@@ -1,10 +1,18 @@
+"""Single-use and device tokens (``user_tokens``).
+
+The table is read and written on the system engine alone, like
+``auth_sessions`` and ``user_api_keys``: every function here takes a session on
+``app_admin``, and the request-path authenticators reach it through
+:func:`authenticate_device_token`, which opens one of its own.
+"""
+
 import logging
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import secrets
-from typing import Optional, List, Sequence
+from typing import Collection, Optional, List, Sequence
 
-from sqlmodel import select, delete, update as sql_update
+from sqlmodel import col, select, delete, update as sql_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
@@ -143,9 +151,9 @@ async def purge_expired_tokens(session: AsyncSession) -> None:
     await session.commit()
 
 
-# ``user_tokens`` and ``auth_challenges`` are shared/public tables the system
-# engine holds DELETE on (see app/db/system_grants.py), so the sweep runs on
-# AdminSessionLocal with no guild routing.
+# ``user_tokens`` and ``auth_challenges`` are read and written on the system
+# engine alone (see app/db/system_grants.py), so the sweep runs on
+# SystemSessionLocal with no guild routing.
 TOKEN_PURGE_POLL_SECONDS = 3600
 
 
@@ -157,9 +165,9 @@ async def process_expired_token_purge() -> None:
     — and the part-way sign-ins in ``auth_challenges``, which end the same way.
     Without it, those rows accumulate forever.
     """
-    from app.db.session import AdminSessionLocal
+    from app.db.session import SystemSessionLocal
 
-    async with AdminSessionLocal() as session:
+    async with SystemSessionLocal() as session:
         await purge_expired_tokens(session)
         await challenge_service.purge_expired(session)
         await session.commit()
@@ -313,6 +321,20 @@ async def get_device_token(
     return record
 
 
+async def authenticate_device_token(token: str) -> Optional[UserToken]:
+    """Resolve a presented device token on the system engine, sliding its window.
+
+    What the request-path authenticators call (``deps.get_current_user`` and
+    the WebSocket handshake): the lookup is a match by hash before anybody is
+    known, so it opens a system-engine session of its own, as a personal API
+    key's lookup does. The row comes back detached, with its columns loaded.
+    """
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        return await get_device_token(system_session, token=token)
+
+
 async def _record_device_token_use(*, user_id: int) -> None:
     """Note that a device token was presented, at the throttle above.
 
@@ -328,13 +350,13 @@ async def _record_device_token_use(*, user_id: int) -> None:
     from app.services import audit as audit_service
 
     try:
-        async with db_session.AdminSessionLocal() as admin_session:
+        async with db_session.SystemSessionLocal() as system_session:
             await audit_service.record(
-                admin_session,
+                system_session,
                 event_type=AuditEventType.AUTH_DEVICE_TOKEN_USED,
                 actor_user_id=user_id,
             )
-            await admin_session.commit()
+            await system_session.commit()
     except Exception:
         logger.exception("Could not record device-token use for user %s", user_id)
 
@@ -358,6 +380,31 @@ async def get_user_device_tokens(
     )
     result = await session.exec(stmt)
     return list(result.all())
+
+
+async def live_device_token_ids(
+    session: AsyncSession,
+    *,
+    token_ids: Collection[int],
+) -> set[int]:
+    """Which of these device tokens can still be used: not consumed, not
+    expired. One statement for any number of ids.
+
+    A plain read, unlike :func:`get_device_token`: asking whether a token is
+    still good is not presenting it, so the window does not slide.
+    """
+    if not token_ids:
+        return set()
+    now = datetime.now(timezone.utc)
+    result = await session.exec(
+        select(UserToken.id).where(
+            col(UserToken.id).in_(list(token_ids)),
+            UserToken.purpose == UserTokenPurpose.device_auth,
+            UserToken.consumed_at.is_(None),
+            UserToken.expires_at > now,
+        )
+    )
+    return set(result.all())
 
 
 async def revoke_device_token(
@@ -404,28 +451,35 @@ async def revoke_active_device_tokens(
     )
 
 
-async def revoke_device_tokens_first(
+async def revoke_other_device_tokens(
     session: AsyncSession,
     *,
     user_id: int,
-) -> None:
-    """Revoke the account's device tokens and commit them, ahead of the rest.
+    keep_token_id: Optional[int] = None,
+) -> int:
+    """Consume every active device token for a user bar one. Returns the count.
 
-    They live on a table the system engine holds no UPDATE on, so the two
-    halves of a credential change cannot share a transaction. This half goes
-    first, which is the order that fails safely: everything after it is staged,
-    so a failure there leaves the account signed out on its phones with the
-    password where it was.
+    The counterpart to :func:`revoke_active_device_tokens` for the account's
+    own "sign out everywhere else": ``keep_token_id`` is the device asking, so
+    it is not signed out by its own button. Left unset, nothing is spared.
+
+    Does not commit — the caller owns the surrounding transaction.
     """
-    await revoke_active_device_tokens(session, user_id=user_id)
-    await session.commit()
+    stmt = sql_update(UserToken).where(
+        UserToken.user_id == user_id,
+        UserToken.purpose == UserTokenPurpose.device_auth,
+        UserToken.consumed_at.is_(None),
+    )
+    if keep_token_id is not None:
+        stmt = stmt.where(UserToken.id != keep_token_id)
+    result = await session.exec(stmt.values(consumed_at=datetime.now(timezone.utc)))
+    return result.rowcount
 
 
 async def revoke_user_sessions(
-    session: AsyncSession,
+    system_session: AsyncSession,
     *,
     user: User,
-    admin_session: AsyncSession,
     commit: bool = True,
 ) -> None:
     """Invalidate every outstanding session for ``user`` after a credential
@@ -437,29 +491,27 @@ async def revoke_user_sessions(
     not survive a compromise response), and revokes their rotating **refresh
     sessions** — without which a captured refresh token would keep minting valid
     access tokens *at the new ``token_version``* right past the reset. Shared by
-    the self-service password change, the forgot-password reset, and the admin
+    the self-service password change, the forgot-password reset, and the operator
     password reset so the three paths can't drift.
 
-    Two sessions by design: the caller's ``session`` carries the request-path
-    writes (``token_version``, device tokens) and the caller commits it;
-    ``admin_session`` is the system engine, the only role that may touch the
-    ``app_admin``-only tables — ``auth_sessions`` and ``user_api_keys``. The
-    API-key deactivation and refresh-session revocation are committed here by
-    default so they can't be forgotten by a caller — revoking ahead of a
-    password write that later fails just logs the user out, which is the
-    fail-safe direction.
+    Every table this writes is the system engine's, so the revocations share
+    ``system_session``'s transaction. ``token_version`` is bumped on ``user``
+    wherever it is bound, and whoever holds that session commits it. The
+    revocations are committed here by default so they can't be forgotten by a
+    caller — revoking ahead of a password write that later fails just logs the
+    user out, which is the fail-safe direction.
 
-    ``commit=False`` leaves them staged, for the one caller that opens a
+    ``commit=False`` leaves them staged, for the callers that open a
     replacement session immediately afterwards: staged together, the
     revocations and their replacement land in one transaction, so a failure to
     open the replacement leaves the account holding everything it had.
     """
     user.token_version += 1
-    await revoke_active_device_tokens(session, user_id=user.id)
-    await api_keys_service.deactivate_user_api_keys(admin_session, user_id=user.id)
-    await session_service.revoke_all_for_user(admin_session, user_id=user.id)
+    await revoke_active_device_tokens(system_session, user_id=user.id)
+    await api_keys_service.deactivate_user_api_keys(system_session, user_id=user.id)
+    await session_service.revoke_all_for_user(system_session, user_id=user.id)
     # A sign-in part-way through rests on the password it proved, so it goes
     # with the rest rather than standing until it expires.
-    await challenge_service.revoke_for_user(admin_session, user_id=user.id)
+    await challenge_service.revoke_for_user(system_session, user_id=user.id)
     if commit:
-        await admin_session.commit()
+        await system_session.commit()

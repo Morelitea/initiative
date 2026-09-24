@@ -1,0 +1,189 @@
+"""An initiative's structure is written by whoever manages it.
+
+Each test writes on the real request login, routed through the seam, with no
+guard of its own: what the database accepts is what the managed policies allow.
+"""
+
+from __future__ import annotations
+
+import pytest
+from sqlalchemy.exc import DBAPIError
+from sqlmodel import select
+
+from app.models.platform.guild import GuildRole
+from app.models.platform.user import UserRole
+from app.models.tenant.initiative import InitiativeMember
+from app.services.tenant import initiatives as initiatives_service
+from app.testing import (
+    create_access_grant,
+    create_guild_membership,
+    create_initiative,
+    create_user,
+    route_as,
+)
+from app.testing.schema_harness import route_session_to_guild
+
+pytestmark = pytest.mark.integration
+
+
+async def _writing_as(role_session, *, user_id: int, guild_id: int):
+    s = await role_session("app_user")
+    await route_as(s, user_id=user_id, guild_id=guild_id)
+    return s
+
+
+async def _member_role_id(session, initiative, guild_id: int) -> int:
+    await route_session_to_guild(session, guild_id)
+    role = await initiatives_service.get_member_role(
+        session, initiative_id=initiative.id
+    )
+    assert role is not None and role.id is not None
+    return role.id
+
+
+async def _is_member(session, initiative, guild_id: int, user_id: int) -> bool:
+    await route_session_to_guild(session, guild_id)
+    row = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == initiative.id,
+                InitiativeMember.user_id == user_id,
+            )
+        )
+    ).first()
+    return row is not None
+
+
+async def _add(s, initiative, user_id: int, role_id: int) -> None:
+    s.add(
+        InitiativeMember(initiative_id=initiative.id, user_id=user_id, role_id=role_id)
+    )
+    await s.commit()
+
+
+async def test_a_manager_adds_a_member(session, acting_user, role_session):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    manager = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="project_manager",
+    )
+    newcomer = await create_user(session)
+    await create_guild_membership(session, user=newcomer, guild=a.guild)
+    role_id = await _member_role_id(session, a.initiative, a.guild.id)
+    s = await _writing_as(role_session, user_id=manager.user.id, guild_id=a.guild.id)
+    await _add(s, a.initiative, newcomer.id, role_id)
+    assert await _is_member(session, a.initiative, a.guild.id, newcomer.id)
+
+
+async def test_a_member_does_not_add_a_member(session, acting_user, role_session):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    newcomer = await create_user(session)
+    await create_guild_membership(session, user=newcomer, guild=a.guild)
+    role_id = await _member_role_id(session, a.initiative, a.guild.id)
+    s = await _writing_as(role_session, user_id=member.user.id, guild_id=a.guild.id)
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await _add(s, a.initiative, newcomer.id, role_id)
+    await s.rollback()
+    assert not await _is_member(session, a.initiative, a.guild.id, newcomer.id)
+
+
+async def test_a_member_joins_an_open_initiative_and_not_a_private_one(
+    session, acting_user, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin)
+    open_one = await create_initiative(session, a.guild, a.user, join_policy="open")
+    private_one = await create_initiative(session, a.guild, a.user)
+    member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    open_role = await _member_role_id(session, open_one, a.guild.id)
+    private_role = await _member_role_id(session, private_one, a.guild.id)
+
+    s = await _writing_as(role_session, user_id=member.user.id, guild_id=a.guild.id)
+    await _add(s, open_one, member.user.id, open_role)
+    assert await _is_member(session, open_one, a.guild.id, member.user.id)
+
+    s = await _writing_as(role_session, user_id=member.user.id, guild_id=a.guild.id)
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await _add(s, private_one, member.user.id, private_role)
+    await s.rollback()
+    assert not await _is_member(session, private_one, a.guild.id, member.user.id)
+
+
+async def test_a_content_grant_manages_no_roster(session, acting_user, role_session):
+    """Editing existing content is not membership management."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    support = await create_user(session, role=UserRole.support)
+    await create_access_grant(
+        session, user=support, guild=a.guild, access_level="read_write"
+    )
+    newcomer = await create_user(session)
+    await create_guild_membership(session, user=newcomer, guild=a.guild)
+    role_id = await _member_role_id(session, a.initiative, a.guild.id)
+    s = await _writing_as(role_session, user_id=support.id, guild_id=a.guild.id)
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await _add(s, a.initiative, newcomer.id, role_id)
+    await s.rollback()
+    assert not await _is_member(session, a.initiative, a.guild.id, newcomer.id)
+
+
+@pytest.mark.parametrize("rung", ["admin", "superadmin"])
+async def test_a_settings_rung_beside_read_write_manages_the_roster(
+    session, acting_user, role_session, rung
+):
+    """The two asks together: the rung names the surface, the read_write grant
+    lets it be changed — the roster included, at either rung."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    support = await create_user(session, role=UserRole.support)
+    await create_access_grant(
+        session, user=support, guild=a.guild, access_level=rung, purpose="settings"
+    )
+    await create_access_grant(
+        session, user=support, guild=a.guild, access_level="read_write"
+    )
+    newcomer = await create_user(session)
+    await create_guild_membership(session, user=newcomer, guild=a.guild)
+    role_id = await _member_role_id(session, a.initiative, a.guild.id)
+    s = await _writing_as(role_session, user_id=support.id, guild_id=a.guild.id)
+    await _add(s, a.initiative, newcomer.id, role_id)
+    assert await _is_member(session, a.initiative, a.guild.id, newcomer.id)
+
+
+async def test_a_settings_rung_alone_reads_the_roster_and_does_not_write_it(
+    session, acting_user, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    support = await create_user(session, role=UserRole.support)
+    await create_access_grant(
+        session, user=support, guild=a.guild, access_level="admin", purpose="settings"
+    )
+    newcomer = await create_user(session)
+    await create_guild_membership(session, user=newcomer, guild=a.guild)
+    role_id = await _member_role_id(session, a.initiative, a.guild.id)
+    s = await role_session("app_user")
+    await route_as(s, user_id=support.id, guild_id=a.guild.id, settings=True)
+    assert list(await s.exec(select(InitiativeMember.user_id))) == [a.user.id]
+    with pytest.raises(DBAPIError, match="permission denied|row-level security"):
+        await _add(s, a.initiative, newcomer.id, role_id)
+    await s.rollback()
+    assert not await _is_member(session, a.initiative, a.guild.id, newcomer.id)
+
+
+async def test_the_administrator_adds_a_member_anywhere(
+    session, acting_user, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(session, a.guild, a.user)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    newcomer = await create_user(session)
+    await create_guild_membership(session, user=newcomer, guild=a.guild)
+    role_id = await _member_role_id(session, initiative, a.guild.id)
+    s = await _writing_as(role_session, user_id=admin.user.id, guild_id=a.guild.id)
+    await _add(s, initiative, newcomer.id, role_id)
+    assert await _is_member(session, initiative, a.guild.id, newcomer.id)

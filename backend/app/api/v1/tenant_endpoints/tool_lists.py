@@ -334,7 +334,7 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
             spec.model,
             spec.enabled_column,
             req.user.id,
-            guild_id=req.guild_id,
+            context=req.guild_context,
             initiative_id=values.get("initiative_id"),
             search=values.get("search"),
             tag_ids=values.get("tag_ids"),
@@ -349,7 +349,10 @@ def _summaries(serializer: Callable[..., Any]) -> Callable[..., Awaitable[list]]
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
-        return [serializer(row, user_id=req.user.id) for row in rows]
+        return [
+            serializer(row, context=req.guild_context, user_id=req.user.id)
+            for row in rows
+        ]
 
     return serialize
 
@@ -375,7 +378,7 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
     return projects_endpoints.visible_project_conditions(
         req.user.id,
-        guild_id=req.guild_id,
+        context=req.guild_context,
         archived=values.get("archived"),
         template=values.get("template"),
         search=values.get("search"),
@@ -423,7 +426,7 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
             detail=DocumentMessages.TOO_MANY_IDS,
         )
     conditions = documents_endpoints.visible_document_conditions(
-        req.guild_id,
+        req.guild_context,
         req.user.id,
         initiative_id=values.get("initiative_id"),
         ids=ids,
@@ -498,7 +501,7 @@ async def _post_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
     conditions = posts_endpoints.board_conditions(
         req.user.id,
-        guild_id=req.guild_id,
+        context=req.guild_context,
         initiative_id=values.get("initiative_id"),
         search=values.get("search"),
         tag_ids=values.get("tag_ids"),
@@ -526,7 +529,10 @@ async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> 
     await posts_service.annotate_read_state(session, rows, user_id=req.user.id)
     await posts_service.annotate_read_counts(session, rows)
     await post_polls_service.annotate_poll_state(session, rows, user_id=req.user.id)
-    return [serialize_post(post, user_id=req.user.id) for post in rows]
+    return [
+        serialize_post(post, context=req.guild_context, user_id=req.user.id)
+        for post in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -538,12 +544,18 @@ async def _serialize_galleries(
     spec: ToolListSpec, req: ListRequest, rows: list
 ) -> list:
     await galleries_endpoints.annotate_gallery_rows(req.session, rows)
-    return [serialize_gallery_summary(row, user_id=req.user.id) for row in rows]
+    return [
+        serialize_gallery_summary(row, context=req.guild_context, user_id=req.user.id)
+        for row in rows
+    ]
 
 
 async def _serialize_wikis(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     await wikis_endpoints.annotate_wiki_rows(req.session, rows)
-    return [serialize_wiki_summary(row, user_id=req.user.id) for row in rows]
+    return [
+        serialize_wiki_summary(row, context=req.guild_context, user_id=req.user.id)
+        for row in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -901,7 +913,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         # A scheduled notice is on the board only for the people who could edit
         # it, and that holds for the badge beside it too.
         counts_conditions=lambda user, guild_context: [
-            posts_service.visibility_clause(user.id, guild_id=guild_context.guild_id)
+            posts_service.visibility_clause(user.id, context=guild_context)
         ],
         params=(
             _initiative_id(),
@@ -1146,8 +1158,8 @@ def _mount_counts(spec: ToolListSpec) -> None:
             spec.model,
             spec.enabled_column,
             user_id=current_user.id,
-            guild_id=guild_context.guild_id,
             extra_conditions=extra,
+            context=guild_context,
         )
         return InitiativeGroupedCountsResponse(counts=counts)
 

@@ -14,11 +14,17 @@ All three accept the same form-encoded POST shape (``secret``,
 ``response``, optional ``remoteip``) and return JSON with
 ``success: bool``. The helper is provider-agnostic above that.
 
-Silent disable: when ``CAPTCHA_PROVIDER`` / ``CAPTCHA_SECRET_KEY``
-isn't configured, ``verify_or_raise`` is a no-op so registration
-works exactly as before. The register endpoint also short-circuits
-on the bootstrap-first-user path so a fresh deployment isn't blocked
-by a captcha it hasn't been told to require.
+Silent disable: with no provider or no secret configured,
+``verify_or_raise`` is a no-op so registration works exactly as
+before. The register endpoint also short-circuits on the
+bootstrap-first-user path so a fresh deployment isn't blocked by a
+captcha it hasn't been told to require.
+
+Where the configuration comes from: ``app.services.captcha_config``,
+which resolves the settings row and the stored secret and falls back
+to the ``CAPTCHA_*`` env values before the first database load. The
+env vars are a first-boot seed now, not the configuration itself --
+an owner changes any of this in Settings without a redeploy.
 """
 
 from __future__ import annotations
@@ -28,8 +34,9 @@ import logging
 import httpx
 from fastapi import HTTPException, status
 
-from app.core.config import settings
 from app.core.messages import AuthMessages
+from app.services import captcha_config
+from app.services.captcha_config import ResolvedCaptchaConfig
 
 logger = logging.getLogger(__name__)
 
@@ -44,18 +51,35 @@ _VERIFY_URLS: dict[str, str] = {
 }
 
 
-def is_configured() -> bool:
+def is_configured(cfg: ResolvedCaptchaConfig | None = None) -> bool:
     """Captcha enforcement is on iff a known provider AND a secret are
     set. Site key is also required for the SPA to render a widget, but
     the server can verify without it — we still gate on it so the
-    config-endpoint half can't drift from the verifier half."""
-    provider = settings.CAPTCHA_PROVIDER
+    config-endpoint half can't drift from the verifier half.
+
+    ``cfg`` defaults to the cached snapshot, for a synchronous caller.
+    An async one passes the freshly resolved config it already holds."""
+    resolved = cfg or captcha_config.current_captcha_config()
     return bool(
-        provider
-        and provider in _VERIFY_URLS
-        and settings.CAPTCHA_SECRET_KEY
-        and settings.CAPTCHA_SITE_KEY
+        resolved.provider
+        and resolved.provider in _VERIFY_URLS
+        and resolved.secret_key
+        and resolved.site_key
     )
+
+
+async def public_config() -> tuple[str, str] | None:
+    """``(provider, site_key)`` for the SPA, or None when captcha is off.
+
+    The one place the "is this deployment running a captcha" question is
+    answered for a client. It used to be answered twice — here and inline
+    in the config endpoint — which is the drift :func:`is_configured`
+    warns about, written into the code.
+    """
+    cfg = await captcha_config.ensure_captcha_config_fresh()
+    if not is_configured(cfg) or not cfg.provider or not cfg.site_key:
+        return None
+    return cfg.provider, cfg.site_key
 
 
 async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
@@ -67,7 +91,8 @@ async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
     network error prevents verification — fail-closed, since silently
     accepting on outbound provider failure would defeat the point).
     """
-    if not is_configured():
+    cfg = await captcha_config.ensure_captcha_config_fresh()
+    if not is_configured(cfg):
         return
 
     cleaned = (token or "").strip()
@@ -77,7 +102,7 @@ async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
             detail=AuthMessages.CAPTCHA_REQUIRED,
         )
 
-    provider = settings.CAPTCHA_PROVIDER
+    provider = cfg.provider
     # ``is_configured`` already checked this, but ``assert`` would be
     # stripped under ``python -O`` (some production images run that
     # way). Re-check explicitly so a config that drifts between the
@@ -87,7 +112,7 @@ async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
     verify_url = _VERIFY_URLS[provider]
 
     payload: dict[str, str] = {
-        "secret": settings.CAPTCHA_SECRET_KEY or "",
+        "secret": cfg.secret_key or "",
         "response": cleaned,
     }
     if remote_ip:

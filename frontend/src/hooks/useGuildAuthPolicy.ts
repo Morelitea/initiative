@@ -22,10 +22,13 @@ import {
 import {
   getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey,
   getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey,
+  getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryKey,
   getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet,
   getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet,
+  getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet,
   setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
   setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
+  setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut,
   setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut,
   setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut,
 } from "@/api/generated/guilds/guilds";
@@ -37,6 +40,8 @@ import type {
   GuildAuthSettingsRead,
   GuildClaimRuleCreate,
   GuildClaimRulesResponse,
+  GuildNotificationPolicyRead,
+  GuildNotificationPolicyUpdate,
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
@@ -135,6 +140,30 @@ export const useUpdateGuildSessionLimit = (guildId: number) => {
   });
 };
 
+/**
+ * What this community's notifications may leave the app carrying, beside what
+ * the deployment already asks of every community.
+ */
+export const useGuildNotificationPolicy = (
+  guildId: number,
+  options?: QueryOpts<GuildNotificationPolicyRead>
+) => {
+  return useQuery<GuildNotificationPolicyRead>({
+    queryKey: getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryKey(guildId),
+    queryFn: () => getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet(guildId),
+    enabled: guildId > 0,
+    ...options,
+  });
+};
+
+/** Set the three answers; the page refetches to pick up the deployment's. */
+export const useUpdateGuildNotificationPolicy = (guildId: number) => {
+  return useMutation({
+    mutationFn: (data: GuildNotificationPolicyUpdate) =>
+      setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut(guildId, data),
+  });
+};
+
 /** Whether reaching this community asks for a second factor. */
 export const useUpdateGuildSecondFactor = (guildId: number) => {
   return useMutation({
@@ -176,8 +205,13 @@ const useInvalidateConnections = (guildId: number) => {
   // connected is still offered, so it has to know), and the public login
   // listing — which feeds the policy page's "sign in with it first" prompt
   // and the step-up dialog. Without the last one a freshly connected provider
-  // cannot be required until the cache expires.
+  // cannot be required until the cache expires. The rules list reads it too:
+  // whether the deployment's rules for a provider apply here follows the
+  // connection's acceptance.
   return () => {
+    void queryClient.invalidateQueries({
+      queryKey: getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey(guildId),
+    });
     void queryClient.invalidateQueries({
       queryKey:
         getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey(guildId),

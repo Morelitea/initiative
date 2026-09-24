@@ -50,7 +50,8 @@
     "assignedBy": "asignado por <strong>{{name}}</strong>",
     "inProject": "en <strong>{{projectName}}</strong>",
     "footer": "Visita Initiative para revisar las tareas.",
-    "textBody": "Aquí está tu resumen por hora de tareas asignadas a ti:"
+    "textBody": "Aquí está tu resumen por hora de tareas asignadas a ti:",
+    "redactedItem": "Se te asignó una tarea"
   },
   "mention": {
     "document": {
@@ -67,6 +68,11 @@
       "subject": "Tu tarea fue mencionada",
       "title": "Tu tarea fue mencionada",
       "body": "<strong>{{actor}}</strong> mencionó <strong>{{task}}</strong> en <strong>{{context}}</strong>"
+    },
+    "taskDescription": {
+      "subject": "Te mencionaron en {{task}}",
+      "title": "Te mencionaron",
+      "body": "<strong>{{actor}}</strong> te mencionó en la descripción de <strong>{{task}}</strong>"
     },
     "greeting": "Hola <strong>{{name}}</strong>,",
     "buttonLabel": "Ver"
@@ -142,7 +148,8 @@
     "taskDetail": "proyecto: <strong>{{projectName}}</strong>, vencida el <strong>{{dueDate}}</strong>",
     "footer": "Visita Initiative para ponerte al día.",
     "textBody_one": "Tienes {{count}} tarea vencida:",
-    "textBody_other": "Tienes {{count}} tareas vencidas:"
+    "textBody_other": "Tienes {{count}} tareas vencidas:",
+    "redactedItem": "Una tarea está vencida"
   },
   "accessGrant": {
     "buttonLabel": "Abrir panel de accesos",
@@ -209,7 +216,8 @@
     "body": "Este es tu resumen de reacciones a lo que has publicado:",
     "line": "de <strong>{{name}}</strong> en",
     "footer": "Entra en Initiative para ver la conversación.",
-    "textBody": "Este es tu resumen de reacciones a lo que has publicado:"
+    "textBody": "Este es tu resumen de reacciones a lo que has publicado:",
+    "redactedItem": "Alguien reaccionó a algo que publicaste"
   },
   "quietHours": {
     "summary": {
@@ -360,5 +368,18 @@
     "recoverable": "Todavía no se ha destruido nada. Hasta el <strong>{{date}}</strong>, quien administre este servidor puede restaurarla tal como estaba: pídeselo si esto no debía ocurrir.",
     "recoverableNoDate": "No se ha destruido nada. Quien administre este servidor puede restaurarla tal como estaba: pídeselo si esto no debía ocurrir.",
     "textBody": "La comunidad {{community}} ha sido eliminada. Sus miembros ya no la ven. Todavía no se ha destruido nada y quien administre este servidor puede restaurarla."
+  },
+  "communityOnHold": {
+    "subject": "{{community}} está en pausa",
+    "title": "{{community}} está en pausa",
+    "greeting": "Hola:",
+    "body": "<strong>{{community}}</strong> está en pausa, así que por ahora nadie puede abrirla, ni sus miembros ni sus administradores. No se ha cambiado ni eliminado nada.",
+    "deletion": "Si sigue en pausa el <strong>{{date}}</strong>, se eliminará.",
+    "contact": "Ponte en contacto con <strong>{{contact}}</strong> para resolverlo.",
+    "contactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
+    "textBody": "{{community}} está en pausa, así que por ahora nadie puede abrirla. No se ha cambiado ni eliminado nada.",
+    "textDeletion": "Si sigue en pausa el {{date}}, se eliminará.",
+    "textContact": "Ponte en contacto con {{contact}} para resolverlo.",
+    "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo."
   }
 }

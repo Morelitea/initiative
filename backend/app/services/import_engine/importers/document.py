@@ -10,7 +10,9 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import routed_guild_id
 from app.core.messages import ImportEngineMessages
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
@@ -27,8 +29,11 @@ from app.services.import_engine.contract import (
     ImportEngineError,
 )
 from app.services.import_engine.context import ImportContext
+from app.services.import_engine.mentions import place_mentions
+from app.services.import_engine.references import note_or_settle
+from app.services.import_engine.people import PeopleMap
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInPassing,
     grant_ownership,
     parse_envelope,
     resolve_property_values,
@@ -43,7 +48,7 @@ _IMPORTABLE_TYPES = {
 }
 
 
-class DocumentImporter(QuotesNobody):
+class DocumentImporter(NamesPeopleInPassing):
     envelope_type = "initiative-document"
     permission = PermissionKey.create_documents
 
@@ -70,10 +75,20 @@ class DocumentImporter(QuotesNobody):
         context: ImportContext | None = None,
     ) -> EnvelopeImportResult:
         env: DocumentEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
-        guild_id = target_initiative.guild_id
+        guild_id = routed_guild_id(session)
         warnings: list[str] = []
 
         content = _decode_content(env, warnings, guild_id)
+        member_handles = await load_initiative_member_handles(
+            session, initiative_id=target_initiative.id
+        )
+        if env.document_type == DocumentType.native.value:
+            content = place_mentions(
+                content,
+                env.mention_handles,
+                people=context.people if context is not None else PeopleMap(),
+                member_handles=member_handles,
+            )
 
         existing_names = {
             row
@@ -92,11 +107,14 @@ class DocumentImporter(QuotesNobody):
             document_type=DocumentType(env.document_type),
             content=content,
             initiative_id=target_initiative.id,
-            guild_id=guild_id,
             created_by=importer.id,
         )
         session.add(document)
         await session.flush()
+        # What its references name is placed once the rest of the job exists.
+        document.content = note_or_settle(
+            context, SearchEntityType.document, document.id, document.content
+        )
 
         await grant_ownership(
             session,
@@ -109,9 +127,7 @@ class DocumentImporter(QuotesNobody):
         tags_created = 0
         tags_matched = 0
         for tag_name in env.tags:
-            resolved = await ensure_tag(
-                session, guild_id=guild_id, name=tag_name, color="#6b7280"
-            )
+            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
             if resolved.created:
                 tags_created += 1
             else:
@@ -124,14 +140,12 @@ class DocumentImporter(QuotesNobody):
                 )
             )
 
-        member_handles = await load_initiative_member_handles(
-            session, initiative_id=target_initiative.id
-        )
         attached = await resolve_property_values(
             session,
             initiative_id=target_initiative.id,
             values=env.properties,
             member_handles=member_handles,
+            people=context.people if context is not None else None,
         )
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(

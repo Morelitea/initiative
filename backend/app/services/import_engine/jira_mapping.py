@@ -23,10 +23,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
+from app.core.relationships import RelationshipType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.services.import_engine.adf import adf_to_markdown
+from app.services.import_engine.jira_attachments import (
+    StoredImage,
+    media_urls,
+    unreferenced_section,
+)
+from app.services.import_engine.jira_fields import FieldMapper
+from app.services.import_engine.mapping import (
+    DEFAULT_TAG_COLOR,
+    POSITION_STEP,
+    MappedProject,
+    build_envelope,
+    fallback_statuses,
+)
 
 #: Jira's five priorities to this app's four. Two of Jira's collapse into
 #: ``low`` — the field has to land somewhere, and the property mapping keeps
@@ -46,34 +60,6 @@ CATEGORY_BY_JIRA_KEY: dict[str, TaskStatusCategory] = {
     "indeterminate": TaskStatusCategory.in_progress,
     "done": TaskStatusCategory.done,
 }
-
-#: What an imported label is coloured. Jira labels carry no colour at all, so
-#: this is the app's own default rather than a translation of anything — a
-#: tag that already exists here keeps whatever colour it was given, because
-#: ``ensure_tag`` matches by name and never repaints.
-DEFAULT_TAG_COLOR = "#6366F1"
-
-#: The gap between adjacent task positions. Matches what the app's own
-#: reordering leaves room for, so a hand move after the import does not have
-#: to renumber the board.
-POSITION_STEP = 1000.0
-
-
-@dataclass
-class MappedProject:
-    """A project envelope and what mapping it cost.
-
-    The counts ride beside the envelope rather than inside it — the envelope
-    has to validate as the same document a project export writes, and a
-    casualty count is not part of that. They are what the plan shows somebody
-    before they commit to the import.
-    """
-
-    envelope: dict[str, Any]
-    #: ADF nodes no rule could render, summed over every description.
-    dropped_nodes: int = 0
-    #: Rows the search returned that were not usable as tasks.
-    skipped_issues: int = 0
 
 
 def map_priority(field: Any) -> TaskPriority:
@@ -216,6 +202,9 @@ def map_issue(
     position: float,
     status_names: set[str],
     default_status_name: str,
+    include_comments: bool = False,
+    images: Optional[list[StoredImage]] = None,
+    guild_id: Optional[int] = None,
 ) -> Optional[tuple[dict[str, Any], int]]:
     """One Jira issue as a task in the envelope.
 
@@ -246,7 +235,25 @@ def map_issue(
     if status_name not in status_names:
         status_name = default_status_name
 
-    rendered = adf_to_markdown(fields.get("description"), lift_tasks=True)
+    # An image embedded in the description or a comment renders from its
+    # upload here, found by the filename Jira puts on the media node.
+    urls = media_urls(images or [], guild_id=guild_id) if guild_id is not None else {}
+    referenced: set[str] = set()
+
+    def media(identifier: str, alt: Optional[str]) -> Optional[str]:
+        for name in (alt, identifier):
+            if name and name in urls:
+                referenced.add(name)
+                return urls[name]
+        return None
+
+    mentioned: list[str] = []
+    rendered = adf_to_markdown(
+        fields.get("description"),
+        lift_tasks=True,
+        media=media if urls else None,
+        mention=_collect_mention(mentioned),
+    )
 
     task: dict[str, Any] = {
         "title": summary,
@@ -262,10 +269,28 @@ def map_issue(
             {"text": line.text, "done": line.done} for line in rendered.checklist
         ],
         "property_values": [],
-        "links": [],
+        "links": map_links(fields),
         "comments": [],
         "external_ref": _external_ref(issue),
+        "mention_handles": mentioned,
     }
+
+    lost = rendered.dropped_nodes
+    if include_comments:
+        mapped_comments = map_comments(fields, media=media if urls else None)
+        task["comments"] = mapped_comments.comments
+        lost += mapped_comments.dropped_nodes
+
+    if images and guild_id is not None:
+        # Attached but never embedded: still on the task, at the foot of its
+        # description, rather than silently in storage.
+        section = unreferenced_section(images, referenced, guild_id=guild_id)
+        if section:
+            task["description"] = (
+                f"{task['description']}\n\n{section}"
+                if task["description"]
+                else section
+            )
 
     assignee = _display_name(fields.get("assignee"))
     if assignee:
@@ -283,7 +308,213 @@ def map_issue(
     updated = _timestamp(fields.get("updated"))
     if updated:
         task["updated_at"] = updated
-    return task, rendered.dropped_nodes
+    return task, lost
+
+
+def comment_ref(comment_id: str) -> str:
+    """The name a comment answers to in its task's thread."""
+    return f"jira-comment:{comment_id}"
+
+
+def _comment_id(value: Any) -> Optional[str]:
+    """A comment id as Jira sends it — digits, as a string or a number."""
+    if isinstance(value, bool):
+        return None
+    text = str(value).strip() if isinstance(value, (int, str)) else ""
+    return text if text.isdigit() else None
+
+
+def _collect_mention(into: list[str]) -> Callable[[str, str], Optional[str]]:
+    """A mention resolver that notes each name and links none of them.
+
+    Who a name is here is the people step's answer, which comes after the
+    fetch, so the name is rendered as ``@<name>`` and listed; the apply links
+    the ones that were placed (``project_import``).
+    """
+
+    def note(_account: str, name: str) -> Optional[str]:
+        name = name.strip()
+        if name and name != "unknown" and name not in into:
+            into.append(name)
+        return None
+
+    return note
+
+
+@dataclass
+class MappedComments:
+    """An issue's comments, and what reading them cost."""
+
+    comments: list[dict[str, Any]]
+    #: Comments visible only to a role or group at the source. The token can
+    #: read them, but bringing them over would show them to the whole
+    #: initiative, so they stay behind and are counted.
+    restricted: int = 0
+    #: ADF nodes no rule could render, summed over every body.
+    dropped_nodes: int = 0
+
+
+def restricted_comment_count(fields: Any) -> int:
+    """How many of an issue's comments are visible only to a role or group."""
+    field = fields.get("comment") if isinstance(fields, dict) else None
+    raw = field.get("comments") if isinstance(field, dict) else None
+    if not isinstance(raw, list):
+        return 0
+    return sum(1 for c in raw if isinstance(c, dict) and c.get("visibility"))
+
+
+def map_comments(fields: dict, *, media: Any = None) -> MappedComments:
+    """The comments on one issue, as envelope comments, oldest first.
+
+    A comment's author travels as a display name: who that is *here* is the
+    people step's to answer, and one nobody maps keeps their name on the
+    comment rather than landing on a stranger (see ``project_import``). So
+    does everybody its body mentions. A reply names the comment it answers
+    by ``parentId``, and arrives under it. A checkbox in a comment stays a
+    checkbox in its text — only a description's become the task's checklist.
+    """
+    field = fields.get("comment")
+    raw = field.get("comments") if isinstance(field, dict) else None
+    result = MappedComments(comments=[])
+    if not isinstance(raw, list):
+        return result
+    for comment in raw:
+        if not isinstance(comment, dict):
+            continue
+        if comment.get("visibility"):
+            result.restricted += 1
+            continue
+        mentioned: list[str] = []
+        rendered = adf_to_markdown(
+            comment.get("body"), media=media, mention=_collect_mention(mentioned)
+        )
+        result.dropped_nodes += rendered.dropped_nodes
+        body = rendered.markdown.strip()
+        if not body and isinstance(comment.get("body"), str):
+            # A site that answers in plain text rather than ADF.
+            body = comment["body"].strip()
+        if not body:
+            continue
+        author = _display_name(comment.get("author")) or None
+        entry: dict[str, Any] = {
+            "author_handle": author,
+            "author_name": author,
+            "body": body,
+            "mention_handles": mentioned,
+        }
+        comment_id = _comment_id(comment.get("id"))
+        if comment_id:
+            entry["external_ref"] = comment_ref(comment_id)
+        parent_id = _comment_id(comment.get("parentId"))
+        if parent_id:
+            entry["reply_to_ref"] = comment_ref(parent_id)
+        created = _timestamp(comment.get("created"))
+        if created:
+            entry["created_at"] = created
+        result.comments.append(entry)
+    result.comments.sort(key=lambda c: c.get("created_at") or "")
+    return result
+
+
+def _is_blocking(link_type: Any) -> bool:
+    """Whether a Jira link type says one issue cannot proceed without the
+    other.
+
+    Known by name or by its outward verb, because a site can rename the type
+    but a blocking link still reads "blocks". Everything else — relates,
+    duplicates, clones, a site's own types — has no rule attached to it here.
+    """
+    if not isinstance(link_type, dict):
+        return False
+    name = str(link_type.get("name") or "").strip().lower()
+    outward = str(link_type.get("outward") or "").strip().lower()
+    return name == "blocks" or outward == "blocks"
+
+
+def _issue_key(value: Any) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return str(value.get("key") or "").strip()
+
+
+def map_links(fields: dict) -> list[dict[str, Any]]:
+    """The edges this issue asserts, as envelope links.
+
+    Jira shows every issue link on **both** of its issues — as an
+    ``outwardIssue`` on one and an ``inwardIssue`` on the other — so each is
+    emitted from exactly one side, or it would be written twice:
+
+    * **Blocks** becomes ``depends_on``, from the blocked issue to its
+      blocker. That is the side that sees its blocker as ``inwardIssue``
+      ("is blocked by"); the blocker's own copy is skipped.
+    * **Every other type** becomes ``related_to``, emitted from the outward
+      side. The finer words — duplicates, clones, causes — have no home: a
+      relationship's subtype ships empty (§6.3).
+    * **The parent** — a sub-task's parent, a story's epic — makes this issue
+      ``part_of`` it. Only the child names its parent, so there is nothing to
+      deduplicate.
+
+    A far end outside the import is still emitted; the deferred pass counts
+    it as unresolved when nothing answers to the ref.
+    """
+    links: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(relationship_type: RelationshipType, key: str) -> None:
+        if not key:
+            return
+        target = f"jira:{key}"
+        marker = (relationship_type.value, target)
+        if marker in seen:
+            return
+        seen.add(marker)
+        links.append({"type": relationship_type.value, "target_external_ref": target})
+
+    parent_key = _issue_key(fields.get("parent"))
+    if parent_key:
+        add(RelationshipType.part_of, parent_key)
+
+    for link in fields.get("issuelinks") or []:
+        if not isinstance(link, dict):
+            continue
+        inward = _issue_key(link.get("inwardIssue"))
+        outward = _issue_key(link.get("outwardIssue"))
+        if _is_blocking(link.get("type")):
+            if inward:
+                add(RelationshipType.depends_on, inward)
+        elif outward:
+            add(RelationshipType.related_to, outward)
+    return links
+
+
+def link_far_ends(issue: Any) -> list[tuple[str, str]]:
+    """Every link this issue takes part in, as ``(link id, far issue key)``.
+
+    For counting rather than for writing: both sides of a Jira link report
+    it, so the id is what lets the caller count one link once — and the far
+    key is what says whether its other end was brought over at all. The
+    parent counts too, keyed by the child, since only the child names it.
+    """
+    if not isinstance(issue, dict):
+        return []
+    fields = issue.get("fields")
+    if not isinstance(fields, dict):
+        return []
+    ends: list[tuple[str, str]] = []
+    parent_key = _issue_key(fields.get("parent"))
+    own_key = str(issue.get("key") or "").strip()
+    if parent_key:
+        ends.append((f"parent:{own_key}", parent_key))
+    for link in fields.get("issuelinks") or []:
+        if not isinstance(link, dict):
+            continue
+        far = _issue_key(link.get("inwardIssue")) or _issue_key(
+            link.get("outwardIssue")
+        )
+        link_id = str(link.get("id") or "").strip()
+        if far and link_id:
+            ends.append((f"link:{link_id}", far))
+    return ends
 
 
 def _labels(fields: dict) -> list[str]:
@@ -344,6 +575,137 @@ def _timestamp(value: Any) -> Optional[str]:
         return None
 
 
+class ProjectMapper:
+    """:func:`build_project_envelope` a page of issues at a time.
+
+    Each page is mapped to tasks as it arrives, so the site's issue JSON is
+    held one page at a time rather than for the whole project. The property
+    definitions depend on every issue, so each task's values are attached in
+    :meth:`finish`.
+    """
+
+    def __init__(
+        self,
+        *,
+        project: Any,
+        issue_type_statuses: Iterable[Any],
+        board_column_order: Optional[list[str]] = None,
+        app_version: str,
+        site_url: str | None = None,
+        field_catalog: Any = None,
+        include_comments: bool = False,
+        guild_id: Optional[int] = None,
+    ) -> None:
+        statuses = collect_statuses(
+            issue_type_statuses, board_column_order=board_column_order
+        )
+        if not statuses:
+            # An envelope with no statuses cannot be applied (the importer
+            # refuses it), and a project with no workflow is not a thing Jira
+            # has — but the fetch must not produce something unapplyable, so
+            # one honest column stands in.
+            statuses = fallback_statuses()
+        self._statuses = statuses
+        self._status_names = {status["name"] for status in statuses}
+        self._default_status_name = next(
+            (status["name"] for status in statuses if status["is_default"]),
+            statuses[0]["name"],
+        )
+        self._project = project
+        self._app_version = app_version
+        self._site_url = site_url
+        self._include_comments = include_comments
+        self._guild_id = guild_id
+        self._fields = FieldMapper(field_catalog)
+        self._tasks: list[dict[str, Any]] = []
+        self._position = 0
+        self._dropped_nodes = 0
+        self._skipped_issues = 0
+
+    def add(
+        self,
+        issues: Iterable[Any],
+        *,
+        images_by_issue: Optional[dict[str, list[StoredImage]]] = None,
+        files_by_issue: Optional[dict[str, list[StoredImage]]] = None,
+    ) -> None:
+        """Map the next issues in Rank order.
+
+        ``files_by_issue`` are the attached files that are not pictures, each
+        coming over as a document the task is attached to.
+        """
+        issues = list(issues)
+        self._fields.add(issues)
+        for issue in issues:
+            self._position += 1
+            mapped = map_issue(
+                issue,
+                position=self._position * POSITION_STEP,
+                status_names=self._status_names,
+                default_status_name=self._default_status_name,
+                include_comments=self._include_comments,
+                images=(images_by_issue or {}).get(
+                    str(issue.get("key") or "") if isinstance(issue, dict) else ""
+                ),
+                guild_id=self._guild_id,
+            )
+            if mapped is None:
+                self._skipped_issues += 1
+                continue
+            task, lost = mapped
+            key = task["external_ref"].removeprefix("jira:")
+            # Each file the issue had attached is a document of its own, and
+            # the task is attached to it once both exist. Named by its
+            # manifest entry, which is its asset's path.
+            task["links"].extend(
+                {
+                    "type": "attached",
+                    "target_external_ref": f"entry:assets/{f.storage_key}",
+                }
+                for f in (files_by_issue or {}).get(key, [])
+            )
+            self._tasks.append(task)
+            self._dropped_nodes += lost
+
+    def finish(self) -> MappedProject:
+        """The envelope, once every issue has been added."""
+        fields = self._fields.finish()
+        for task in self._tasks:
+            key = task["external_ref"].removeprefix("jira:")
+            task["property_values"] = fields.values_by_issue.get(key, [])
+            if key in fields.start_dates:
+                task["start_date"] = fields.start_dates[key]
+
+        project_fields = self._project if isinstance(self._project, dict) else {}
+        description = adf_to_markdown(project_fields.get("description")).markdown
+        if not description and isinstance(project_fields.get("description"), str):
+            # A project description comes back as plain text on some sites and
+            # as ADF on others.
+            description = str(project_fields["description"]).strip()
+
+        return MappedProject(
+            envelope=build_envelope(
+                name=str(project_fields.get("name") or "Imported project"),
+                description=description or None,
+                statuses=self._statuses,
+                tasks=self._tasks,
+                app_version=self._app_version,
+                source_url=self._site_url,
+                property_definitions=fields.definitions,
+            ),
+            dropped_nodes=self._dropped_nodes,
+            skipped_rows=self._skipped_issues,
+            properties={
+                definition["name"]: (
+                    definition["type"],
+                    fields.issue_counts.get(definition["name"], 0),
+                )
+                for definition in fields.definitions
+            },
+            dropped_fields=fields.dropped_fields,
+        )
+
+
 def build_project_envelope(
     *,
     project: Any,
@@ -352,6 +714,11 @@ def build_project_envelope(
     board_column_order: Optional[list[str]] = None,
     app_version: str,
     site_url: str | None = None,
+    field_catalog: Any = None,
+    include_comments: bool = False,
+    images_by_issue: Optional[dict[str, list[StoredImage]]] = None,
+    files_by_issue: Optional[dict[str, list[StoredImage]]] = None,
+    guild_id: Optional[int] = None,
 ) -> MappedProject:
     """A whole Jira project as the envelope an ordinary import applies.
 
@@ -359,80 +726,19 @@ def build_project_envelope(
     and keep it: position is assigned by sequence here rather than read from
     a field, because Jira's rank is an opaque LexoRank string that means
     nothing outside Jira.
+
+    ``files_by_issue`` are the attached files that are not pictures, each
+    coming over as a document the task is attached to.
     """
-    statuses = collect_statuses(
-        issue_type_statuses, board_column_order=board_column_order
+    mapper = ProjectMapper(
+        project=project,
+        issue_type_statuses=issue_type_statuses,
+        board_column_order=board_column_order,
+        app_version=app_version,
+        site_url=site_url,
+        field_catalog=field_catalog,
+        include_comments=include_comments,
+        guild_id=guild_id,
     )
-    if not statuses:
-        # An envelope with no statuses cannot be applied (the importer
-        # refuses it), and a project with no workflow is not a thing Jira
-        # has — but the fetch must not produce something unapplyable, so one
-        # honest column stands in.
-        statuses = [
-            {
-                "name": "To Do",
-                "category": TaskStatusCategory.todo.value,
-                "position": 0,
-                "is_default": True,
-            }
-        ]
-    status_names = {status["name"] for status in statuses}
-    default_status_name = next(
-        (status["name"] for status in statuses if status["is_default"]),
-        statuses[0]["name"],
-    )
-
-    tasks: list[dict[str, Any]] = []
-    dropped_nodes = 0
-    skipped_issues = 0
-    for index, issue in enumerate(issues):
-        mapped = map_issue(
-            issue,
-            position=(index + 1) * POSITION_STEP,
-            status_names=status_names,
-            default_status_name=default_status_name,
-        )
-        if mapped is None:
-            skipped_issues += 1
-            continue
-        task, lost = mapped
-        tasks.append(task)
-        dropped_nodes += lost
-
-    project_fields = project if isinstance(project, dict) else {}
-    description = adf_to_markdown(project_fields.get("description")).markdown
-    if not description and isinstance(project_fields.get("description"), str):
-        # A project description comes back as plain text on some sites and as
-        # ADF on others.
-        description = str(project_fields["description"]).strip()
-
-    # Every tag any task carries, so the project declares them once.
-    tag_names: list[str] = []
-    seen_tags: set[str] = set()
-    for task in tasks:
-        for tag in task["tags"]:
-            key = tag["name"].lower()
-            if key not in seen_tags:
-                seen_tags.add(key)
-                tag_names.append(tag["name"])
-
-    envelope = {
-        "type": "initiative-project",
-        "schema_version": 1,
-        "app_version": app_version,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "source_instance_url": site_url,
-        "project": {
-            "name": str(project_fields.get("name") or "Imported project").strip(),
-            "description": description or None,
-        },
-        "tags": [{"name": name, "color": DEFAULT_TAG_COLOR} for name in tag_names],
-        "task_statuses": statuses,
-        "property_definitions": [],
-        "tasks": tasks,
-    }
-    return MappedProject(
-        envelope=envelope,
-        dropped_nodes=dropped_nodes,
-        skipped_issues=skipped_issues,
-    )
+    mapper.add(issues, images_by_issue=images_by_issue, files_by_issue=files_by_issue)
+    return mapper.finish()

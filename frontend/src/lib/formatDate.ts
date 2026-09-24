@@ -1,3 +1,5 @@
+import { hour12Option } from "@/lib/timeFormat";
+
 // A bare calendar date (no time, no zone) — how the API sends DATE columns.
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -17,7 +19,7 @@ const format = (value: unknown, withTime: boolean): string => {
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
-    ...(withTime ? { timeStyle: "short" } : {}),
+    ...(withTime ? { timeStyle: "short", hour12: hour12Option() } : {}),
   }).format(date);
 };
 

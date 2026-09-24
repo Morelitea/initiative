@@ -59,6 +59,14 @@ describe("notificationText — account notices", () => {
     );
   });
 
+  it("names who to contact about a hold when there is somebody", () => {
+    const named = notice("guild_on_hold", { community: "Acme", contact: "help@example.com" });
+    const nobody = notice("guild_on_hold", { community: "Acme", contact: null });
+    expect(notificationText(named, t)).toContain("notifications.guildOnHoldWithContact");
+    expect(notificationText(nobody, t)).toContain("notifications.guildOnHold");
+    expect(notificationText(nobody, t)).not.toContain("WithContact");
+  });
+
   it("covers the rest of the account notices", () => {
     expect(notificationText(notice("avatar_removed", {}), t)).toBe("notifications.avatarRemoved");
     expect(notificationText(notice("account_unsuspended", {}), t)).toBe(
@@ -93,5 +101,26 @@ describe("notificationLink — a target_path without a guild", () => {
 
   it("still leads nowhere when the payload names nowhere", () => {
     expect(notificationLink(notice("username_changed", {}))).toBeNull();
+  });
+});
+
+describe("notificationText — mentions", () => {
+  it("names the task whose description mentioned you", () => {
+    const line = notificationText(
+      notice("mention", { task_id: 7, task_title: "Ship it", mentioned_by_name: "ada" }),
+      t
+    );
+
+    expect(line).toContain("notifications.mentionTaskDescription");
+    expect(line).toContain("Ship it");
+  });
+
+  it("still reads a mention in a comment on a task as a comment mention", () => {
+    const line = notificationText(
+      notice("mention", { task_id: 7, comment_id: 3, context_title: "Ship it" }),
+      t
+    );
+
+    expect(line).toContain("notifications.mentionComment");
   });
 });

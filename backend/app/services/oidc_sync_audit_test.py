@@ -24,7 +24,10 @@ from app.services.oidc_sync import sync_oidc_assignments
 from app.services.tenant.initiatives import get_pm_role
 from app.testing import emitted, route_session_to_guild
 from app.testing.factories import (
+    NARROWED_CLAIM,
+    NARROWED_VALUE,
     create_auth_provider,
+    create_guild_provider_connection,
     create_guild,
     create_initiative,
     create_user,
@@ -49,7 +52,11 @@ def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:
 async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims):
     await set_rls_context(session)
     result = await sync_oidc_assignments(
-        session, user_id=user_id, provider_id=provider_id, claim_values=claims
+        session,
+        user_id=user_id,
+        provider_id=provider_id,
+        claim_values=claims,
+        claims={NARROWED_CLAIM: NARROWED_VALUE},
     )
     await session.commit()
     return result
@@ -63,6 +70,7 @@ async def test_a_first_arrival_records_the_guild_and_the_initiative(
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner)
     guild_id = guild.id
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     initiative = await create_initiative(session, guild, owner, name="Ops")
     initiative_id = initiative.id
     pm_role = await get_pm_role(session, initiative_id=initiative_id)
@@ -130,6 +138,7 @@ async def test_a_moved_role_and_a_withdrawn_claim_are_both_recorded(
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner)
     guild_id = guild.id
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     initiative = await create_initiative(session, guild, owner, name="Moving")
     initiative_id = initiative.id
     pm_role = await get_pm_role(session, initiative_id=initiative_id)

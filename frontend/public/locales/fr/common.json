@@ -105,6 +105,11 @@
       "archived": "« {{name}} » archivé",
       "unarchived": "« {{name}} » est de retour"
     },
+    "export": {
+      "title": "Exporter",
+      "description": "Téléchargez une copie : un fichier à importer ici ou sur un autre serveur, ou un rapport à lire. Seule la personne qui peut supprimer ceci peut l’exporter.",
+      "button": "Exporter"
+    },
     "title": "Paramètres",
     "description": "Gérez les détails, l'accès et les options avancées.",
     "tabDetails": "Détails",
@@ -189,6 +194,11 @@
     "unavailable": "Cet appareil n'a pas d'appareil photo pour prendre une photo.",
     "failed": "Cette photo n'a pas pu être lue. Réessayez."
   },
+  "fileDrop": {
+    "release": "Dépose-le ici",
+    "unsupported": "Ce type de fichier ne peut pas être envoyé ici.",
+    "tooLarge": "Ce fichier dépasse la taille acceptée par ce serveur."
+  },
   "archiveError": "Impossible d'archiver cet élément. Veuillez réessayer.",
   "unarchiveError": "Impossible de désarchiver cet élément. Veuillez réessayer.",
   "markdownEditor": {
@@ -206,6 +216,23 @@
     "bulletedList": "Liste à puces",
     "numberedList": "Liste numérotée",
     "taskList": "Liste de tâches",
-    "more": "Plus de mise en forme"
+    "more": "Plus de mise en forme",
+    "image": "Image",
+    "uploadingImage": "Envoi de {{name}}…",
+    "imageUploadFailed": "Impossible d'ajouter cette image."
+  },
+  "errorPage": {
+    "title": "Un problème est survenu",
+    "description": "Cette page a rencontré une erreur et n’a pas pu s’afficher. Réessayez ou accédez à vos tâches.",
+    "appDescription": "Initiative a rencontré une erreur et ne peut pas continuer. Recharger la relance.",
+    "details": "Détails de l’erreur",
+    "toMyTasks": "Aller à {{myTasks}}",
+    "reload": "Recharger",
+    "updatedTitle": "Initiative a été mis à jour",
+    "updatedDescription": "Une version plus récente est disponible. Rechargez pour ouvrir cette page dans celle-ci."
+  },
+  "notFoundPage": {
+    "title": "Page introuvable",
+    "description": "Il n’y a rien à cette adresse. Le lien est peut-être mal saisi, ou la page a été déplacée."
   }
 }

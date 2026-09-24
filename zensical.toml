@@ -5,7 +5,7 @@
 # Build static:    zensical build     (output in ./site)
 #
 # Content lives under docs/en/ so that other languages (e.g. docs/es/) can be
-# added later without restructuring. See docs/en/admin/maintaining-these-docs.md.
+# added later without restructuring. See docs/en/running-a-server/maintaining-these-docs.md.
 # ============================================================================
 
 [project]
@@ -97,19 +97,19 @@ nav = [
     "en/account/two-factor-authentication.md",
     "en/account/passkeys.md",
   ] },
-  { "For administrators" = [
-    "en/admin/index.md",
-    "en/admin/installation.md",
-    "en/admin/configuration.md",
-    "en/admin/single-sign-on.md",
-    "en/admin/email.md",
-    "en/admin/push-notifications.md",
-    "en/admin/object-storage.md",
-    "en/admin/publishing-listings.md",
-    "en/admin/platform-roles.md",
-    "en/admin/announcements.md",
-    "en/admin/backups-and-updates.md",
-    "en/admin/maintaining-these-docs.md",
+  { "Running a server" = [
+    "en/running-a-server/index.md",
+    "en/running-a-server/installation.md",
+    "en/running-a-server/configuration.md",
+    "en/running-a-server/single-sign-on.md",
+    "en/running-a-server/email.md",
+    "en/running-a-server/push-notifications.md",
+    "en/running-a-server/object-storage.md",
+    "en/running-a-server/publishing-listings.md",
+    "en/running-a-server/platform-roles.md",
+    "en/running-a-server/announcements.md",
+    "en/running-a-server/backups-and-updates.md",
+    "en/running-a-server/maintaining-these-docs.md",
   ] },
   { "Help & reference" = [
     "en/reference/index.md",

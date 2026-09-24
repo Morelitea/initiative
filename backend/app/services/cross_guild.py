@@ -13,29 +13,27 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import auth_context
-from app.core.role_context import (
-    set_active_role,
-    set_content_read_only_guild,
-    set_override_sharing_initiatives,
-)
+from app.db.guild_standing import GuildContext
 from app.db.session import set_rls_context
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
     Guild,
     GuildMembership,
-    GuildStatus,
-    content_role,
 )
 from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
 
-#: Where this session remembers each (user, guild)'s "Full access" initiative
-#: ids. On ``session.info``, so its lifetime is the session's — i.e. the
-#: request's. Keyed by user as well as guild because this function takes the
-#: user as an argument: one session may legitimately gather for more than one
-#: of them, and a guild-only key would hand the second the first's overrides.
-_OVERRIDES_CACHE_KEY = "cross_guild_sharing_overrides"
+#: Where this session remembers each (user, guild)'s standing. On
+#: ``session.info``, so its lifetime is the session's — i.e. the request's.
+#: Keyed by user as well as guild because this function takes the user as an
+#: argument: one session may legitimately gather for more than one of them, and
+#: a guild-only key would hand the second the first's standing. The surface
+#: (content or settings) is part of the key, since each establishes its own. A cached
+#: context is never written on its own — it is re-applied through the same
+#: routing-and-standing pair a first visit goes through, which is what keeps
+#: the session and its standing naming one community.
+_CONTEXT_CACHE_KEY = "cross_guild_contexts"
 
 
 async def member_guild_ids(
@@ -89,143 +87,91 @@ async def gather_across_guilds(
     guild_ids: Sequence[int],
     fetch: Callable[[AsyncSession, int], Awaitable[list[T]]],
     satisfied_providers: Sequence[int] | str | None = None,
+    *,
+    for_settings: bool = False,
 ) -> list[T]:
     """Route into each guild's schema, call ``fetch(session, guild_id)``, and
     concatenate the results. The identity map is expunged between guilds because
     ids are unique only within a schema, not across them.
 
-    Each guild is routed with the user's actual membership ROLE, so a guild admin
-    clears ``initiative_access``'s admin leg and gets default access to ALL of
-    that guild's content — exactly like a ``/g/{guild_id}`` request. Without the
-    role the admin leg never fires and these cross-guild views would hide content
-    in initiatives the user isn't a *member* of (e.g. a task assigned to an admin
-    who was never added to its initiative).
+    Each community is entered through the **same seam** a ``/g/{guild_id}``
+    request goes through, so what these views show is what that request would
+    show: the same lookup, the same refusals, and the same standing computed in
+    the community's own schema. A community this caller cannot reach right now
+    contributes nothing rather than raising.
 
     ``satisfied_providers`` defaults to the ambient ``auth_context`` — the
     session's ``sat`` on a request path — so a policy-gated guild contributes
-    exactly when the caller's session satisfies its policy (the guild's own
-    RLS enforces that via ``guild_auth_satisfied()``; unsatisfied guilds just
-    yield nothing here). User-attributed system jobs pass ``SYSTEM_SATISFIED``
-    explicitly."""
+    exactly when the caller's session satisfies its policy. User-attributed
+    system jobs pass ``SYSTEM_SATISFIED`` explicitly.
+
+    ``for_settings`` enters each community on its configuration surface, as
+    ``/g/{guild_id}`` settings routes do (``establish_guild_access``'s
+    ``for_settings``), for a read of what its administrator configures."""
     if not guild_ids:
         return []
+    from app.api.deps import (
+        GuildAccessError,
+        apply_guild_session_context,
+        establish_guild_access,
+    )
+
     if satisfied_providers is None:
         ambient = auth_context.satisfied_providers()
         satisfied_providers = ambient if isinstance(ambient, str) else sorted(ambient)
-    # One shared-table read for every guild's role (own rows), the guild's
-    # lifecycle status AND the caller's own, under the user-only context,
-    # before we start routing into schemas.
+    # One shared-table read for the caller's own account, under the user-only
+    # context, before we start routing into schemas.
     await set_rls_context(session, user_id=user_id)
-    role_rows = (
-        await session.exec(
-            select(
-                GuildMembership.guild_id,
-                GuildMembership.role,
-                Guild.status,
-                Guild.show_member_names,
-                Guild.allow_api_keys,
-                # Last, so the caller's own status stays the final element the
-                # suspension check below reads off the end of each row.
-                User.status,
-            )
-            .join(Guild, Guild.id == GuildMembership.guild_id)
-            .join(User, User.id == GuildMembership.user_id)
-            .where(
-                GuildMembership.user_id == user_id,
-                GuildMembership.guild_id.in_(tuple(guild_ids)),
-            )
-        )
-    ).all()
-
-    # The caller's own state, checked here rather than only in
-    # ``member_guild_ids``, because a caller may assemble its own guild list
-    # and reach this directly — ``/recents`` does. A suspended account reaches
-    # no guild, so there is nothing across them to gather.
-    if any(caller_status == UserStatus.suspended for *_, caller_status in role_rows):
+    user = (await session.exec(select(User).where(User.id == user_id))).one_or_none()
+    # A suspended account reaches no community, so there is nothing across them
+    # to gather. Checked here rather than only in ``member_guild_ids`` because a
+    # caller may assemble its own guild list and reach this directly.
+    if user is None or user.status == UserStatus.suspended:
         return []
 
-    roles: dict[int, tuple] = {
-        gid: (role, status, shows_names, allows_keys)
-        for gid, role, status, shows_names, allows_keys, _caller in role_rows
-    }
-
-    # Keyed by (user, guild) within this session, which is this request. A
-    # second pass over the same guild reuses the answer rather than asking again.
-    overrides_cache: dict[tuple[int, int], frozenset[int]] = session.info.setdefault(
-        _OVERRIDES_CACHE_KEY, {}
+    contexts: dict[tuple[int, int, bool], GuildContext] = session.info.setdefault(
+        _CONTEXT_CACHE_KEY, {}
     )
 
     results: list[T] = []
-    try:
-        for guild_id in guild_ids:
-            # Expunge BEFORE each guild: a cached object with this schema's id (from
-            # a prior guild, or anything already on the session) would otherwise be
-            # returned by the identity map instead of this guild's row.
-            session.expunge_all()
-            # A guild with no row here is one this caller is not a member of,
-            # so the API-key default is the refusing one.
-            role, guild_status, shows_names, allows_keys = roles.get(
-                guild_id, (None, None, False, False)
-            )
-            # Defense in depth for callers that assemble their own guild list
-            # (member_guild_ids already filters): membership grants NO content
-            # access to a guild that is not live, admins included.
-            if guild_status not in LIVE_STATUS_VALUES:
-                continue
-            # And the same for a guild that declines personal API keys when the
-            # request is carrying one.
-            if not allows_keys and auth_context.api_key_credential():
-                continue
-            role_value = content_role(role) if role is not None else None
-            content_read_only = guild_status == GuildStatus.read_only.value
-            await set_rls_context(
-                session,
-                user_id=user_id,
-                guild_id=guild_id,
-                guild_role=role_value,
-                # Mirror the request path: a read_only guild is visited through
-                # the SELECT-only guild_<id>_ro role, so an aggregate loop can
-                # never write into a frozen guild.
-                read_only=content_read_only,
-                # Feeds guild_auth_satisfied(): the caller's session sat
-                # (resolved from auth_context above when not passed) or a
-                # job's system sentinel. An unsatisfied policy-gated guild
-                # contributes nothing here.
-                satisfied_providers=satisfied_providers,
-                satisfied_claims=auth_context.satisfied_claims(),
-                session_amr=auth_context.session_amr(),
-            )
-            # ... and the app-layer DAC engine agrees: my_permission_level and
-            # write filters serialized from this guild's fetch report read.
-            set_content_read_only_guild(guild_id if content_read_only else None)
-            # Mirror the guild dependency: the DB GUC drives RLS (initiative_access
-            # admin leg), and the request role_context drives the *app-layer*
-            # guild-admin short-circuit in permissions.py (so my_permission_level /
-            # require_*_access see the admin as owner when fetch() serializes here).
-            set_active_role(guild_id, role_value)
-            # And the per-initiative "Full access" override for this guild, so a
-            # full-access PM's restricted content surfaces in cross-guild views too.
-            # Remembered for the session: one request can visit the same guild
-            # more than once (a list that orders across guilds and then loads
-            # only the page's rows does), and the answer — this user's
-            # full-access roles in this schema — cannot change in between.
-            cache_key = (user_id, guild_id)
-            override_ids = overrides_cache.get(cache_key)
-            if override_ids is None:
-                from app.services import rls as rls_service
-
-                override_ids = frozenset(
-                    await rls_service.override_sharing_initiative_ids(
-                        session, user_id=user_id
-                    )
+    for guild_id in guild_ids:
+        # Expunge BEFORE each guild: a cached object with this schema's id (from
+        # a prior guild, or anything already on the session) would otherwise be
+        # returned by the identity map instead of this guild's row.
+        session.expunge_all()
+        # The caller's own account is a ``public`` row and collides with
+        # nothing per schema, so it goes straight back — every step below
+        # reads it.
+        session.add(user)
+        key = (user_id, guild_id, for_settings)
+        cached = contexts.get(key)
+        try:
+            if cached is None:
+                context = await establish_guild_access(
+                    session,
+                    user,
+                    guild_id,
+                    satisfied_providers=satisfied_providers,
+                    for_settings=for_settings,
                 )
-                overrides_cache[cache_key] = override_ids
-            set_override_sharing_initiatives(override_ids)
-            results.extend(await fetch(session, guild_id))
-    finally:
-        # Don't let the last guild's role/override/read-only set linger in the
-        # request contextvars.
-        set_active_role(None, None)
-        set_override_sharing_initiatives(None)
-        set_content_read_only_guild(None)
+                contexts[key] = context
+            else:
+                # The lookup's answer is the same one it gave a moment ago in
+                # this request; what has to happen again is the routing and the
+                # standing, which is the pair this applies.
+                await apply_guild_session_context(
+                    session,
+                    user,
+                    cached,
+                    satisfied=(
+                        satisfied_providers
+                        if isinstance(satisfied_providers, str)
+                        else frozenset(satisfied_providers or ())
+                    ),
+                )
+        except GuildAccessError:
+            # A community this caller cannot reach right now contributes
+            # nothing, exactly as its own ``/g/{guild_id}`` requests would.
+            continue
+        results.extend(await fetch(session, guild_id))
     return results

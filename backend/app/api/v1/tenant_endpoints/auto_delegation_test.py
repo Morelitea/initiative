@@ -24,6 +24,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing import guild_of
 from app.core import config as config_module
 from app.models.platform.user import UserStatus
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -150,7 +151,7 @@ async def test_delegation_reaches_the_guild_its_token_names_whatever_the_path_sa
     names = {row["name"] for row in response.json()}
     assert "In the token" in names
     assert "In the path" not in names
-    assert named.guild_id == delegate_guild.id
+    assert guild_of(named) == delegate_guild.id
 
 
 @pytest.mark.integration

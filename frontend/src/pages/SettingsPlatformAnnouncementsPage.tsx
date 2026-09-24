@@ -2,21 +2,21 @@ import { Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AnnouncementAdminRead } from "@/api/generated/initiativeAPI.schemas";
+import type { AnnouncementOperatorRead } from "@/api/generated/initiativeAPI.schemas";
 import { AnnouncementEditorDialog } from "@/components/announcements/AnnouncementEditorDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDeleteAnnouncement, usePlatformAnnouncements } from "@/hooks/useAnnouncementsAdmin";
+import { useDeleteAnnouncement, usePlatformAnnouncements } from "@/hooks/usePlatformAnnouncements";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
 
 type Status = "draft" | "scheduled" | "live" | "expired";
 
-const statusOf = (announcement: AnnouncementAdminRead, now: number): Status => {
+const statusOf = (announcement: AnnouncementOperatorRead, now: number): Status => {
   if (!announcement.published_at) return "draft";
   if (new Date(announcement.published_at).getTime() > now) return "scheduled";
   if (announcement.expires_at && new Date(announcement.expires_at).getTime() <= now) {
@@ -43,9 +43,9 @@ export const SettingsPlatformAnnouncementsPage = () => {
   const { data, isLoading } = usePlatformAnnouncements();
   const remove = useDeleteAnnouncement();
 
-  const [editing, setEditing] = useState<AnnouncementAdminRead | null>(null);
+  const [editing, setEditing] = useState<AnnouncementOperatorRead | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<AnnouncementAdminRead | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AnnouncementOperatorRead | null>(null);
 
   const items = data?.items ?? [];
   const now = Date.now();
@@ -54,9 +54,9 @@ export const SettingsPlatformAnnouncementsPage = () => {
     if (!pendingDelete?.id) return;
     try {
       await remove.mutateAsync(pendingDelete.id);
-      toast.success(t("admin.deleted"));
+      toast.success(t("operator.deleted"));
     } catch (error) {
-      toast.error(getErrorMessage(error, "announcements:admin.deleteFailed"));
+      toast.error(getErrorMessage(error, "announcements:operator.deleteFailed"));
     } finally {
       setPendingDelete(null);
     }
@@ -67,8 +67,8 @@ export const SettingsPlatformAnnouncementsPage = () => {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>{t("admin.title")}</CardTitle>
-            <CardDescription>{t("admin.subtitle")}</CardDescription>
+            <CardTitle>{t("operator.title")}</CardTitle>
+            <CardDescription>{t("operator.subtitle")}</CardDescription>
           </div>
           <Button
             onClick={() => {
@@ -77,7 +77,7 @@ export const SettingsPlatformAnnouncementsPage = () => {
             }}
           >
             <Plus className="mr-1 h-4 w-4" />
-            {t("admin.new")}
+            {t("operator.new")}
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -87,7 +87,7 @@ export const SettingsPlatformAnnouncementsPage = () => {
               <Skeleton className="h-16 w-full" />
             </>
           ) : items.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t("admin.empty")}</p>
+            <p className="text-muted-foreground text-sm">{t("operator.empty")}</p>
           ) : (
             items.map((announcement) => {
               const status = statusOf(announcement, now);
@@ -99,29 +99,31 @@ export const SettingsPlatformAnnouncementsPage = () => {
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{announcement.title}</span>
-                      <Badge variant={STATUS_VARIANT[status]}>{t(`admin.status.${status}`)}</Badge>
+                      <Badge variant={STATUS_VARIANT[status]}>
+                        {t(`operator.status.${status}`)}
+                      </Badge>
                       <Badge variant="secondary">{t(`category.${announcement.category}`)}</Badge>
                       {announcement.is_builtin ? (
                         <Badge variant="outline" className="gap-1">
                           <Lock className="h-3 w-3" />
-                          {t("admin.builtin")}
+                          {t("operator.builtin")}
                         </Badge>
                       ) : null}
                     </div>
                     <p className="text-muted-foreground text-xs">
                       {announcement.published_at
-                        ? t("admin.publishedOn", {
+                        ? t("operator.publishedOn", {
                             date: formatDateTime(announcement.published_at),
                           })
-                        : t("admin.notPublished")}
+                        : t("operator.notPublished")}
                       {" · "}
-                      {t("admin.audience", {
-                        role: t(`admin.roles.${announcement.min_platform_role ?? "member"}`),
+                      {t("operator.audience", {
+                        role: t(`operator.roles.${announcement.min_platform_role ?? "member"}`),
                       })}
-                      {announcement.guild_admins_only ? ` · ${t("admin.guildAdminsOnly")}` : ""}
+                      {announcement.guild_admins_only ? ` · ${t("operator.guildAdminsOnly")}` : ""}
                       {announcement.audience_accounts &&
                       announcement.audience_accounts !== "everyone"
-                        ? ` · ${t(`admin.accounts.${announcement.audience_accounts}`)}`
+                        ? ` · ${t(`operator.accounts.${announcement.audience_accounts}`)}`
                         : ""}
                     </p>
                   </div>
@@ -166,8 +168,8 @@ export const SettingsPlatformAnnouncementsPage = () => {
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null);
         }}
-        title={t("admin.deleteTitle")}
-        description={t("admin.deleteDescription", { title: pendingDelete?.title ?? "" })}
+        title={t("operator.deleteTitle")}
+        description={t("operator.deleteDescription", { title: pendingDelete?.title ?? "" })}
         confirmLabel={t("common:delete")}
         onConfirm={() => void handleDelete()}
       />

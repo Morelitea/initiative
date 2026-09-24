@@ -216,11 +216,11 @@ async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSess
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_api_key_works_for_non_admin_users(
+async def test_api_key_works_for_platform_members(
     client: AsyncClient, session: AsyncSession
 ):
-    """Test that non-admin users can create and use API keys."""
-    # Create a regular member user (not admin)
+    """A platform member with no staff role can create and use API keys."""
+    # Create a regular member user (no staff role)
     from app.models.platform.user import UserRole
 
     user = await create_user(

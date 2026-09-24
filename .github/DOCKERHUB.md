@@ -32,22 +32,20 @@ nano docker-compose.yml
 # 3. Start
 docker compose up -d
 
-# 4. Open http://localhost:8173 — the first user to register becomes the platform admin
+# 4. Open http://localhost:8173 — the first user to register becomes the platform owner
 ```
 
 The example compose file ships Postgres 17 and all required settings pre-wired, so it works as-is once you set `SECRET_KEY`.
 
-## Database connections (required)
+## Database connection (required)
 
-Initiative needs **three** PostgreSQL connection strings, and the container will not start without all of them (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN` have no defaults):
+One URL, connecting as the database **owner**:
 
-| Variable | Role | Purpose |
-|---|---|---|
-| `DATABASE_URL` | superuser | Runs migrations and **auto-creates** the two roles below at startup |
-| `DATABASE_URL_APP` | `app_user` | RLS-enforced connection for normal request traffic |
-| `DATABASE_URL_ADMIN` | `app_admin` (`BYPASSRLS`) | Migrations and background jobs |
+```
+DATABASE_URL=postgresql+asyncpg://<owner>:<password>@db:5432/<database>
+```
 
-The superuser URL bootstraps the roles; the password in each `APP`/`ADMIN` URL is the password that role is created with. If you write your own compose file or use `docker run`, set all three.
+At startup Initiative uses it to create its own least-privilege logins (`app_provisioner`, `app_user`, `app_admin`), with passwords derived from `SECRET_KEY`, and serves every request on those. To name the logins yourself instead, for a pooler or a database provisioned elsewhere, see [Database connection](https://github.com/Morelitea/initiative#database-connection).
 
 ## Running as a non-root user (PUID/PGID)
 
@@ -68,7 +66,7 @@ A trimmed set — see the [full list](https://github.com/Morelitea/initiative#ke
 |---|---|---|
 | `SECRET_KEY` | JWT signing and encryption key | Required |
 | `APP_URL` | Public base URL (required for OIDC callbacks) | — |
-| `DISABLE_GUILD_CREATION` | Restrict guild creation to super admin | `false` |
+| `DISABLE_GUILD_CREATION` | Restrict guild creation to `guilds.manage` holders (operator and owner) | `false` |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without an invite | `true` |
 | `BEHIND_PROXY` | Trust `X-Forwarded-For` headers | `false` |
 | `PUID` / `PGID` | UID/GID the app runs as | `1000` / `1000` |

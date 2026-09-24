@@ -12,7 +12,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.platform_provider_default import PlatformProviderDefault
 from app.models.platform.oidc_claim_mapping import (
+    ClaimRuleAuthor,
     OIDCClaimMapping,
     OIDCMappingTargetType,
 )
@@ -20,6 +22,8 @@ from app.models.tenant.initiative import InitiativeMember
 from app.services.oidc_sync import sync_oidc_assignments
 from app.services.tenant.initiatives import get_pm_role
 from app.testing.factories import (
+    NARROWED_CLAIM,
+    NARROWED_VALUE,
     create_guild_provider_connection,
     create_auth_provider,
     create_guild,
@@ -28,11 +32,15 @@ from app.testing.factories import (
 )
 
 
+#: What an arrival from the tenant the factory's connections narrow to carries.
+_ADMITTED = {NARROWED_CLAIM: NARROWED_VALUE}
+
+
 async def _membership(
     session: AsyncSession, *, guild_id: int, initiative_id: int, user_id: int
 ) -> InitiativeMember | None:
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await set_rls_context(session, guild_id=guild_id)
     return (
         await session.exec(
             select(InitiativeMember).where(
@@ -59,6 +67,7 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
         session, guild, owner, name="Onboarding", join_policy="open", auto_join=True
     )
     pm_role = await get_pm_role(session, initiative_id=initiative.id)
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     newcomer = await create_user(session)
     session.add(
@@ -80,6 +89,7 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
         user_id=newcomer.id,
         provider_id=provider.id,
         claim_values={"engineering"},
+        claims=_ADMITTED,
     )
     await session.commit()
 
@@ -92,54 +102,143 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
     assert membership.oidc_provider_id == provider.id
 
 
-@pytest.mark.integration
-async def test_a_providers_rules_grant_wherever_they_name(session: AsyncSession):
-    """Group rules are the operator's, and so is every provider, so a sign-in
-    reads all of that provider's rules and grants each the community it names.
-
-    This changed with connections. A provider used to belong to one community
-    and its rules were filtered to that community; now the operator writes both
-    the provider and the rules, so a rule naming a second community is the
-    operator saying so rather than one community reaching into another."""
-    owner = await create_user(session)
-    home = await create_guild(session, creator=owner)
-    elsewhere = await create_guild(session, creator=owner)
-    provider = await create_auth_provider(session, slug="tenant")
-    await create_guild_provider_connection(session, guild=home, provider=provider)
-
-    newcomer = await create_user(session)
-    for guild_id in (home.id, elsewhere.id):
-        session.add(
-            OIDCClaimMapping(
-                provider_id=provider.id,
-                claim_value="staff",
-                target_type=OIDCMappingTargetType.guild,
-                guild_id=guild_id,
-                guild_role=GuildRole.admin.value,
-            )
+async def _guild_rule(session: AsyncSession, *, provider_id: int, guild_id: int):
+    session.add(
+        OIDCClaimMapping(
+            provider_id=provider_id,
+            claim_value="staff",
+            target_type=OIDCMappingTargetType.guild,
+            guild_id=guild_id,
+            guild_role=GuildRole.member.value,
         )
-    await session.commit()
-
-    await set_rls_context(session)
-    result = await sync_oidc_assignments(
-        session,
-        user_id=newcomer.id,
-        provider_id=provider.id,
-        claim_values={"staff"},
     )
-    await session.commit()
 
-    assert sorted(result.guilds_added) == sorted([home.id, elsewhere.id])
-    joined = set(
+
+async def _joined(session: AsyncSession, user_id: int) -> set[int]:
+    session.expunge_all()
+    await set_rls_context(session)
+    return set(
         (
             await session.exec(
                 select(GuildMembership.guild_id).where(
-                    GuildMembership.user_id == newcomer.id
+                    GuildMembership.user_id == user_id
                 )
             )
         ).all()
     )
-    assert joined == {home.id, elsewhere.id}
+
+
+async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims):
+    await set_rls_context(session)
+    result = await sync_oidc_assignments(
+        session,
+        user_id=user_id,
+        provider_id=provider_id,
+        claim_values={"staff"},
+        claims=claims,
+    )
+    await session.commit()
+    return result
+
+
+@pytest.mark.integration
+async def test_a_rule_lands_where_its_community_counts_the_arrival_as_its_own(
+    session: AsyncSession,
+):
+    """A rule speaks for the arrivals its community's connection admits.
+
+    Three communities hold a rule for the same group on one provider: one whose
+    connection admits this tenant, one whose connection names another tenant,
+    and one with no connection at all. Only the first places the person."""
+    owner = await create_user(session)
+    home = await create_guild(session, creator=owner)
+    other_tenant = await create_guild(session, creator=owner)
+    unconnected = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="tenant")
+    await create_guild_provider_connection(session, guild=home, provider=provider)
+    await create_guild_provider_connection(
+        session,
+        guild=other_tenant,
+        provider=provider,
+        claim_values=["elsewhere.example"],
+    )
+
+    newcomer = await create_user(session)
+    for guild_id in (home.id, other_tenant.id, unconnected.id):
+        await _guild_rule(session, provider_id=provider.id, guild_id=guild_id)
+    await session.commit()
+
+    result = await _sync(
+        session, user_id=newcomer.id, provider_id=provider.id, claims=_ADMITTED
+    )
+
+    assert result.guilds_added == [home.id]
+    assert await _joined(session, newcomer.id) == {home.id}
+
+
+@pytest.mark.integration
+async def test_a_community_that_has_not_connected_follows_the_deployment_default(
+    session: AsyncSession,
+):
+    """The provider's default answers for a community with no connection of
+    its own, and a community's own disabled connection declines it."""
+    owner = await create_user(session)
+    inheriting = await create_guild(session, creator=owner)
+    declining = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="org")
+    session.add(
+        PlatformProviderDefault(
+            provider_id=provider.id,
+            claim=NARROWED_CLAIM,
+            claim_values=[NARROWED_VALUE],
+            enabled=True,
+        )
+    )
+    await create_guild_provider_connection(
+        session,
+        guild=declining,
+        provider=provider,
+        claim=None,
+        claim_values=None,
+        enabled=False,
+    )
+
+    newcomer = await create_user(session)
+    for guild_id in (inheriting.id, declining.id):
+        await _guild_rule(session, provider_id=provider.id, guild_id=guild_id)
+    await session.commit()
+
+    await _sync(session, user_id=newcomer.id, provider_id=provider.id, claims=_ADMITTED)
+
+    assert await _joined(session, newcomer.id) == {inheriting.id}
+
+
+@pytest.mark.integration
+async def test_leaving_the_tenant_hands_back_what_its_rules_granted(
+    session: AsyncSession,
+):
+    """The same group asserted for somebody the connection no longer admits
+    releases the membership that provider's rules gave them."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
+    person = await create_user(session)
+    await _guild_rule(session, provider_id=provider.id, guild_id=guild.id)
+    await session.commit()
+
+    await _sync(session, user_id=person.id, provider_id=provider.id, claims=_ADMITTED)
+    assert await _joined(session, person.id) == {guild.id}
+
+    result = await _sync(
+        session,
+        user_id=person.id,
+        provider_id=provider.id,
+        claims={NARROWED_CLAIM: "elsewhere.example"},
+    )
+
+    assert result.guilds_removed == [guild.id]
+    assert await _joined(session, person.id) == set()
 
 
 @pytest.mark.integration
@@ -153,6 +252,7 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
         session, guild, owner, name="Welcome", join_policy="open", auto_join=True
     )
     mapped_pm = await get_pm_role(session, initiative_id=mapped.id)
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     newcomer = await create_user(session)
     session.add(
@@ -174,6 +274,7 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
         user_id=newcomer.id,
         provider_id=provider.id,
         claim_values={"engineering"},
+        claims=_ADMITTED,
     )
     await session.commit()
 
@@ -209,6 +310,10 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     owner = await create_user(session)
     corp_guild = await create_guild(session, creator=owner, name="Corp")
     partner_guild = await create_guild(session, creator=owner, name="Partner")
+    await create_guild_provider_connection(session, guild=corp_guild, provider=corp)
+    await create_guild_provider_connection(
+        session, guild=partner_guild, provider=partner
+    )
 
     person = await create_user(session)
     session.add(
@@ -245,7 +350,11 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
 
     await set_rls_context(session)
     await sync_oidc_assignments(
-        session, user_id=person.id, provider_id=corp.id, claim_values={"staff"}
+        session,
+        user_id=person.id,
+        provider_id=corp.id,
+        claim_values={"staff"},
+        claims=_ADMITTED,
     )
     await session.commit()
     assert await _guild_ids() == {corp_guild.id}
@@ -253,7 +362,11 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     # The partner's claims admit them to the partner guild...
     await set_rls_context(session)
     await sync_oidc_assignments(
-        session, user_id=person.id, provider_id=partner.id, claim_values={"vendors"}
+        session,
+        user_id=person.id,
+        provider_id=partner.id,
+        claim_values={"vendors"},
+        claims=_ADMITTED,
     )
     await session.commit()
     assert await _guild_ids() == {corp_guild.id, partner_guild.id}
@@ -263,7 +376,11 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     # mention it, which is not the same as saying the person does not belong.
     await set_rls_context(session)
     await sync_oidc_assignments(
-        session, user_id=person.id, provider_id=corp.id, claim_values={"staff"}
+        session,
+        user_id=person.id,
+        provider_id=corp.id,
+        claim_values={"staff"},
+        claims=_ADMITTED,
     )
     await session.commit()
     assert await _guild_ids() == {corp_guild.id, partner_guild.id}
@@ -281,6 +398,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner, name="Corp")
     person = await create_user(session)
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     rule = OIDCClaimMapping(
         provider_id=provider.id,
@@ -294,7 +412,11 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
 
     await set_rls_context(session)
     await sync_oidc_assignments(
-        session, user_id=person.id, provider_id=provider.id, claim_values={"staff"}
+        session,
+        user_id=person.id,
+        provider_id=provider.id,
+        claim_values={"staff"},
+        claims=_ADMITTED,
     )
     await session.commit()
 
@@ -312,7 +434,11 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
 
     await set_rls_context(session)
     await sync_oidc_assignments(
-        session, user_id=person.id, provider_id=provider.id, claim_values={"staff"}
+        session,
+        user_id=person.id,
+        provider_id=provider.id,
+        claim_values={"staff"},
+        claims=_ADMITTED,
     )
     await session.commit()
 
@@ -333,6 +459,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner, name="Corp")
     person = await create_user(session)
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
     rule = OIDCClaimMapping(
         provider_id=provider.id,
         claim_value="staff",
@@ -345,7 +472,11 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
 
     await set_rls_context(session)
     await sync_oidc_assignments(
-        session, user_id=person.id, provider_id=provider.id, claim_values={"staff"}
+        session,
+        user_id=person.id,
+        provider_id=provider.id,
+        claim_values={"staff"},
+        claims=_ADMITTED,
     )
     await session.commit()
 
@@ -366,7 +497,11 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
 
     await set_rls_context(session)
     result = await sync_oidc_assignments(
-        session, user_id=person.id, provider_id=provider.id, claim_values={"staff"}
+        session,
+        user_id=person.id,
+        provider_id=provider.id,
+        claim_values={"staff"},
+        claims=_ADMITTED,
     )
 
     session.expunge_all()
@@ -418,6 +553,7 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
         guild.categories = ["other"]
         guild.has_adult_content = False
         session.add(guild)
+    await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     # The two are the two answers to one question, and ck_users_age_answer
     # holds them apart — so saying one is said is unsaying the other.
@@ -441,6 +577,7 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
         user_id=newcomer.id,
         provider_id=provider.id,
         claim_values={"engineering"},
+        claims=_ADMITTED,
     )
 
     session.expunge_all()
@@ -454,3 +591,141 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
         )
     ).one_or_none()
     assert (membership is not None) is admitted
+
+
+async def _provider_rule(
+    session: AsyncSession, *, provider_id: int, guild_id: int, **kw
+):
+    session.add(
+        OIDCClaimMapping(
+            author=ClaimRuleAuthor.provider,
+            provider_id=provider_id,
+            target_type=OIDCMappingTargetType.guild,
+            guild_id=guild_id,
+            guild_role=GuildRole.member.value,
+            **{"claim_value": "staff", **kw},
+        )
+    )
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_places_where_the_community_accepts_it(
+    session: AsyncSession,
+):
+    """The platform's rule reaches a community whose connection accepts the
+    provider's rules, and none that has not."""
+    owner = await create_user(session)
+    accepting = await create_guild(session, creator=owner)
+    declining = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="org")
+    await create_guild_provider_connection(
+        session, guild=accepting, provider=provider, accepts_provider_placement=True
+    )
+    await create_guild_provider_connection(session, guild=declining, provider=provider)
+    newcomer = await create_user(session)
+    for guild_id in (accepting.id, declining.id):
+        await _provider_rule(session, provider_id=provider.id, guild_id=guild_id)
+    await session.commit()
+
+    await _sync(session, user_id=newcomer.id, provider_id=provider.id, claims={})
+
+    assert await _joined(session, newcomer.id) == {accepting.id}
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_places_everywhere_when_the_deployment_says_so(
+    session: AsyncSession,
+):
+    from app.services.platform import app_settings as app_settings_service
+
+    settings_row = await app_settings_service.get_app_settings(session)
+    settings_row.provider_placement_everywhere = True
+    session.add(settings_row)
+    owner = await create_user(session)
+    unconnected = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="org")
+    newcomer = await create_user(session)
+    await _provider_rule(session, provider_id=provider.id, guild_id=unconnected.id)
+    await session.commit()
+
+    await _sync(session, user_id=newcomer.id, provider_id=provider.id, claims={})
+
+    assert await _joined(session, newcomer.id) == {unconnected.id}
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_naming_a_directory_places_only_its_arrivals(
+    session: AsyncSession,
+):
+    """Behind a bridge, one provider signs in several directories. A rule
+    naming one places the people from it — by group, or everybody from it
+    where the rule names no group."""
+    owner = await create_user(session)
+    acme = await create_guild(session, creator=owner)
+    everyone = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="bridge")
+    for guild in (acme, everyone):
+        await create_guild_provider_connection(
+            session, guild=guild, provider=provider, accepts_provider_placement=True
+        )
+    await _provider_rule(
+        session,
+        provider_id=provider.id,
+        guild_id=acme.id,
+        scope_claim="idp",
+        scope_value="acme-adfs",
+    )
+    await _provider_rule(
+        session,
+        provider_id=provider.id,
+        guild_id=everyone.id,
+        claim_value=None,
+        scope_claim="idp",
+        scope_value="acme-adfs",
+    )
+    from_acme = await create_user(session)
+    from_elsewhere = await create_user(session)
+    await session.commit()
+
+    await _sync(
+        session,
+        user_id=from_acme.id,
+        provider_id=provider.id,
+        claims={"idp": "acme-adfs"},
+    )
+    await _sync(
+        session,
+        user_id=from_elsewhere.id,
+        provider_id=provider.id,
+        claims={"idp": "globex-okta"},
+    )
+
+    assert await _joined(session, from_acme.id) == {acme.id, everyone.id}
+    assert await _joined(session, from_elsewhere.id) == set()
+
+
+@pytest.mark.integration
+async def test_a_provider_rule_places_whatever_the_communitys_own_narrowing_says(
+    session: AsyncSession,
+):
+    """A community that narrows a shared provider for its own rules still takes
+    the arrivals a provider rule places, in its tenant or not: who a provider
+    rule places is the operator's to say."""
+    owner = await create_user(session)
+    accepting = await create_guild(session, creator=owner)
+    provider = await create_auth_provider(session, slug="shared")
+    await create_guild_provider_connection(
+        session, guild=accepting, provider=provider, accepts_provider_placement=True
+    )
+    await _provider_rule(session, provider_id=provider.id, guild_id=accepting.id)
+    out_of_tenant = await create_user(session)
+    await session.commit()
+
+    await _sync(
+        session,
+        user_id=out_of_tenant.id,
+        provider_id=provider.id,
+        claims={NARROWED_CLAIM: "elsewhere.example"},
+    )
+
+    assert await _joined(session, out_of_tenant.id) == {accepting.id}

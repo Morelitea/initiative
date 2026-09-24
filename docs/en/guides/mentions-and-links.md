@@ -14,7 +14,7 @@ Three characters handle all of that:
 | `#` | A link to anything that already exists |
 | `[[ ]]` | A link to a tool — and it'll create one that doesn't exist yet |
 
-All three work in every **comment**, on every tool, and inside any **text document**.
+All three work in every **comment**, on every tool, in a task's **description**, and inside any **text document**.
 
 ## `@` — mentioning a person
 
@@ -23,6 +23,8 @@ Type `@` and a few letters of somebody's name, pick them from the list, and they
 You're only offered people who are in the same initiative, because a mention that summons somebody to a page they can't open helps precisely nobody and mildly annoys everybody.
 
 Names match loosely, so a spelling you're not confident about will still find the right person.
+
+In a task's description, a person hears about it once — when their name goes in. Rewording the sentence around them later doesn't ping them again, which they will appreciate more than they'll ever say.
 
 ## `#` — linking to a thing
 
@@ -85,6 +87,11 @@ sentence with both names in it:
 Find the thing first. The wording is a dropdown in the middle, and you can
 change it after — so you never have to know the vocabulary before you start
 typing.
+
+If the thing isn't in the app yet — a PDF, a photo of the whiteboard — upload
+it right there instead. Choose a file, or drag one onto the panel, and it
+becomes a document in the same initiative, already linked. You need to be
+allowed to make documents in that initiative to see the option.
 
 | Heading | What it means |
 |---|---|

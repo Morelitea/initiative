@@ -11,12 +11,12 @@
  * order, so it offers no reorder action.
  */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { buildGuild } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import type { GuildEntry } from "@/hooks/useGuilds";
+import type { GuildEntry, useGuilds } from "@/hooks/useGuilds";
 
 import { GuildSidebar } from "./GuildSidebar";
 
@@ -170,7 +170,7 @@ describe("GuildSidebar settings grants", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Switch to Loaner" }));
 
     expect(switchGuild).toHaveBeenCalledWith(8);
-    await waitFor(() => expect(router.state.location.pathname).toBe("/c/8/settings/security"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c/8/settings"));
   });
 });
 
@@ -181,8 +181,10 @@ describe("GuildSidebar settings grants", () => {
  * creator straight to the portal to see that plan and add payment details.
  * With no portal configured (the self-hosted default) creation just finishes.
  */
+type CreateGuild = ReturnType<typeof useGuilds>["createGuild"];
+
 describe("GuildSidebar community creation", () => {
-  const createNamedGuild = async (createGuild: ReturnType<typeof vi.fn>) => {
+  const createNamedGuild = async (createGuild: Mock<CreateGuild>) => {
     const { router } = renderPage(
       () => (
         <SidebarProvider>
@@ -207,7 +209,9 @@ describe("GuildSidebar community creation", () => {
   it("sends the creator to the portal with the minted token in the fragment", async () => {
     state.billing = { url: "https://billing.example.com" };
     mintMock.mockResolvedValue({ handoff_token: "TOK", expires_in_seconds: 60 });
-    const createGuild = vi.fn().mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
+    const createGuild = vi
+      .fn<CreateGuild>()
+      .mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
     const tab = { location: { href: "" }, opener: {} as unknown, close: vi.fn() };
     const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
 
@@ -223,7 +227,9 @@ describe("GuildSidebar community creation", () => {
   });
 
   it("opens nothing when the deployment has no billing portal", async () => {
-    const createGuild = vi.fn().mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
+    const createGuild = vi
+      .fn<CreateGuild>()
+      .mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
     const openSpy = vi.spyOn(window, "open");
 
     await createNamedGuild(createGuild);
@@ -235,7 +241,9 @@ describe("GuildSidebar community creation", () => {
   });
 
   it("lands the creator in the community they just made", async () => {
-    const createGuild = vi.fn().mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
+    const createGuild = vi
+      .fn<CreateGuild>()
+      .mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
 
     const router = await createNamedGuild(createGuild);
 
@@ -248,7 +256,7 @@ describe("GuildSidebar community creation", () => {
   });
 
   it("keeps a failed create on its error instead of navigating away", async () => {
-    const createGuild = vi.fn().mockRejectedValue(new Error("nope"));
+    const createGuild = vi.fn<CreateGuild>().mockRejectedValue(new Error("nope"));
 
     const router = await createNamedGuild(createGuild);
 
@@ -260,7 +268,7 @@ describe("GuildSidebar community creation", () => {
 
   it("closes the reserved tab when creation fails", async () => {
     state.billing = { url: "https://billing.example.com" };
-    const createGuild = vi.fn().mockRejectedValue(new Error("nope"));
+    const createGuild = vi.fn<CreateGuild>().mockRejectedValue(new Error("nope"));
     const tab = { location: { href: "" }, opener: {} as unknown, close: vi.fn() };
     const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
 

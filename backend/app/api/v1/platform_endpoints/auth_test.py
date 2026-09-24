@@ -39,6 +39,7 @@ from app.models.platform.federated_identity_secret import FederatedIdentitySecre
 from app.models.platform.user import User, UserStatus
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
+from app.testing.captcha import captcha_switched_on
 from app.testing.factories import (
     create_auth_provider,
     create_federated_identity,
@@ -267,22 +268,18 @@ async def test_register_requires_captcha_token_when_configured(
     user must include a token — bot signups can't slip through by just
     omitting the field. The bootstrap user already exists in this test
     so the first-user skip doesn't apply."""
-    from app.core.config import settings as app_settings
-
     await create_user(session)  # exhaust the bootstrap-first-user skip
-    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
 
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "needs-captcha@example.com",
-            "username": "needs-captcha",
-            "full_name": "Needs Captcha",
-            "password": "password1234",
-        },
-    )
+    with captcha_switched_on():
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "needs-captcha@example.com",
+                "username": "needs-captcha",
+                "full_name": "Needs Captcha",
+                "password": "password1234",
+            },
+        )
     assert response.status_code == 400
     assert response.json()["detail"] == "CAPTCHA_REQUIRED"
 
@@ -295,21 +292,16 @@ async def test_register_skips_captcha_for_bootstrap_first_user(
     """Fresh deployments shouldn't be locked out by a captcha config
     the operator may not have wired up yet — the first user always
     bypasses the check."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
-
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "bootstrap@example.com",
-            "username": "bootstrap",
-            "full_name": "Bootstrap",
-            "password": "password1234",
-        },
-    )
+    with captcha_switched_on():
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "bootstrap@example.com",
+                "username": "bootstrap",
+                "full_name": "Bootstrap",
+                "password": "password1234",
+            },
+        )
     assert response.status_code == 201
 
 
@@ -347,29 +339,26 @@ async def test_register_with_valid_captcha_token_succeeds(
     """Happy path: valid token from the provider → registration completes.
     The provider call is stubbed at the verifier-service layer so this
     test doesn't need network access."""
-    from app.core.config import settings as app_settings
     from app.services import captcha as captcha_service
 
     await create_user(session)  # second-user path
-    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
-    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
 
     async def _ok(*_args, **_kwargs):
         return None
 
     monkeypatch.setattr(captcha_service, "verify_or_raise", _ok)
 
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "good-token@example.com",
-            "username": "good-token",
-            "full_name": "Good Token",
-            "password": "password1234",
-            "captcha_token": "stub-valid-token",
-        },
-    )
+    with captcha_switched_on():
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "good-token@example.com",
+                "username": "good-token",
+                "full_name": "Good Token",
+                "password": "password1234",
+                "captcha_token": "stub-valid-token",
+            },
+        )
     assert response.status_code == 201
 
 
@@ -799,57 +788,143 @@ async def test_upload_token_copies_session_satisfied_providers(
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_logout_persists_token_version_bump(
+async def test_logout_leaves_the_account_signed_in_elsewhere(
     client: AsyncClient, session: AsyncSession
 ):
-    """The logout endpoint must actually persist the token_version bump
-    to the database. Previously the endpoint used AdminSessionDep while
-    get_current_user_optional used SessionDep, so the user object came
-    from a detached session and session.commit() silently dropped the
-    change in production. (The conftest fixture aliases both deps to the
-    same session, so this test asserts on the raw row state rather than
-    relying on a subsequent request to observe the failure.)"""
+    """Signing out is per device.
+
+    ``token_version`` is the account-wide switch, so a sign-out must not touch
+    it — bumping it rejected the access token every other device was holding,
+    which is how signing out on a phone signed out the laptop.
+    """
     user = await create_user(session)
     initial_version = user.token_version
+    another_device = get_auth_token(user)
 
     response = await client.post("/api/v1/auth/logout", headers=get_auth_headers(user))
     assert response.status_code == 204
 
-    # Re-read from the database to prove the bump was persisted.
     await session.refresh(user)
-    assert user.token_version == initial_version + 1
+    assert user.token_version == initial_version
+
+    elsewhere = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {another_device}"},
+    )
+    assert elsewhere.status_code == 200
 
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_logout_invalidates_existing_jwt(
+async def test_logout_revokes_only_the_signing_out_session(
     client: AsyncClient, session: AsyncSession
 ):
-    """Logging out must invalidate any previously-issued JWT by bumping
-    the user's token_version. Otherwise a browser that still has a
-    cached JWT (or cookie) can keep making authenticated requests,
-    which is how users reported "I logged out but My Tasks still
-    loads when I type the URL"."""
-    user = await create_user(session)
-    # Baseline: the token works before logout.
-    headers = get_auth_headers(user)
-    before = await client.get("/api/v1/users/me", headers=headers)
-    assert before.status_code == 200
+    """Two sign-ins on one account, one of them signs out: the other still
+    rotates, and the one that asked cannot."""
+    _, password = await _make_login_user(session, "twodevices@example.com")
+    first = await _login(client, "twodevices@example.com", password)
+    elsewhere = first.cookies.get("refresh_token")
 
-    # Capture the same token so we can replay it after logout.
-    replay_token = get_auth_token(user)
-    logout_response = await client.post(
+    client.cookies.clear()
+    second = await _login(client, "twodevices@example.com", password)
+    signing_out = second.cookies.get("refresh_token")
+
+    logout = await client.post("/api/v1/auth/logout")
+    assert logout.status_code == 204
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", elsewhere, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 200
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", signing_out, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_revokes_the_refresh_token_presented_in_the_body(
+    client: AsyncClient, session: AsyncSession
+):
+    """A native client keeps its refresh token in secure storage and has no
+    cookie to send, so it names the session it is ending in the body.
+
+    The credential here carries a ``sid`` that names no row, so the revocation
+    can only have come from the body.
+    """
+    user, password = await _make_login_user(session, "native-logout@example.com")
+    login = await _login(client, "native-logout@example.com", password)
+    presented = login.cookies.get("refresh_token")
+    client.cookies.clear()
+
+    logout = await client.post(
         "/api/v1/auth/logout",
-        headers={"Authorization": f"Bearer {replay_token}"},
+        headers=get_auth_headers(user),
+        json={"refresh_token": presented},
     )
-    assert logout_response.status_code == 204
+    assert logout.status_code == 204
 
-    # Any subsequent request using the old token must be rejected.
-    after = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"Bearer {replay_token}"},
+    client.cookies.set("refresh_token", presented, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_consumes_only_the_device_token_it_came_in_on(
+    client: AsyncClient, session: AsyncSession
+):
+    """A device token names one installed client, so signing out on a phone
+    leaves the tablet's token working."""
+    from app.services.platform import user_tokens
+
+    user = await create_user(session, email="two-phones@example.com")
+    signing_out = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Phone"
     )
-    assert after.status_code == 401
+    elsewhere = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Tablet"
+    )
+
+    logout = await client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"DeviceToken {signing_out}"},
+    )
+    assert logout.status_code == 204
+
+    spent = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"DeviceToken {signing_out}"},
+    )
+    assert spent.status_code == 401
+
+    still_live = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"DeviceToken {elsewhere}"},
+    )
+    assert still_live.status_code == 200
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_ignores_a_refresh_token_belonging_to_someone_else(
+    client: AsyncClient, session: AsyncSession
+):
+    """The body names the caller's own session or nothing at all."""
+    _, password = await _make_login_user(session, "bystander@example.com")
+    login = await _login(client, "bystander@example.com", password)
+    bystander = login.cookies.get("refresh_token")
+    client.cookies.clear()
+
+    other = await create_user(session)
+    logout = await client.post(
+        "/api/v1/auth/logout",
+        headers=get_auth_headers(other),
+        json={"refresh_token": bystander},
+    )
+    assert logout.status_code == 204
+
+    client.cookies.set("refresh_token", bystander, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 200
 
 
 @pytest.mark.integration
@@ -885,7 +960,7 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
     """
     import app.api.v1.platform_endpoints.auth as auth_module
 
-    async def _builder(admin_session, row):
+    async def _builder(system_session, row):
         return OidcProvider(
             OidcClientConfig(
                 issuer=row.issuer,
@@ -2362,6 +2437,58 @@ async def test_logout_revokes_refresh_session(
     client.cookies.set("refresh_token", captured, path="/api/v1/auth")
     resp = await client.post("/api/v1/auth/refresh")
     assert resp.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_with_an_expired_access_token_still_ends_the_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """A client whose access token has run out signs out with the refresh
+    token it holds, and that session stops renewing."""
+    user, password = await _make_login_user(session, "expired-logout@example.com")
+    login = await _login(client, "expired-logout@example.com", password)
+    captured = login.cookies.get("refresh_token")
+    expired = get_auth_token(user, expires_in=timedelta(seconds=-1))
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", captured, path="/api/v1/auth")
+    logout = await client.post(
+        "/api/v1/auth/logout", headers={"Authorization": f"Bearer {expired}"}
+    )
+    assert logout.status_code == 204
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", captured, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_with_no_access_token_ends_only_the_presented_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """Signing out without an access token ends the session the refresh token
+    names and leaves the account's other sign-ins renewing."""
+    _, password = await _make_login_user(session, "bare-logout@example.com")
+    first = await _login(client, "bare-logout@example.com", password)
+    elsewhere = first.cookies.get("refresh_token")
+    client.cookies.clear()
+    second = await _login(client, "bare-logout@example.com", password)
+    signing_out = second.cookies.get("refresh_token")
+
+    client.cookies.clear()
+    logout = await client.post(
+        "/api/v1/auth/logout", json={"refresh_token": signing_out}
+    )
+    assert logout.status_code == 204
+
+    client.cookies.set("refresh_token", signing_out, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 401
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", elsewhere, path="/api/v1/auth")
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 200
 
 
 @pytest.mark.integration

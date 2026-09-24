@@ -24,7 +24,6 @@ import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
-import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
 import {
   DocumentOutlinePanel,
   DocumentOutlineScope,
@@ -105,7 +104,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { uploadAttachment } from "@/lib/attachmentUtils";
@@ -135,7 +133,6 @@ export const DocumentDetailPage = () => {
   const setDocumentCache = useSetDocumentCache();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
-  const { permissionsFor } = useInitiativeAccess();
   const guildId = Number(guildIdParam);
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
@@ -197,6 +194,15 @@ export const DocumentDetailPage = () => {
   const collaboratingRef = useRef(false);
   const sendContentRef = useRef<((content: unknown) => void) | null>(null);
   const syncContentBeaconRef = useRef<(() => void) | null>(null);
+  const parsedIdRef = useRef(parsedId);
+  parsedIdRef.current = parsedId;
+  // What this tab last rendered, for the room to save as the page leaves.
+  const finalCollabContent = useCallback(() => {
+    const stored = contentStateRef.current;
+    return collaboratingRef.current && stored?.documentId === parsedIdRef.current
+      ? stored.content
+      : undefined;
+  }, []);
 
   // Wikilink dialog state
   const [wikilinkDialogOpen, setWikilinkDialogOpen] = useState(false);
@@ -223,6 +229,7 @@ export const DocumentDetailPage = () => {
   // bootstrap and leaves Lexical stuck on "Syncing document…".
   const collaboration = useCollaboration({
     socketPath: Number.isFinite(parsedId) ? `documents/${parsedId}/collaborate` : null,
+    finalContent: finalCollabContent,
     enabled:
       collaborationEnabled && Number.isFinite(parsedId) && documentTypeFromQuery !== "smart_link",
     onError: (error) => {
@@ -422,16 +429,6 @@ export const DocumentDetailPage = () => {
     return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
 
-  // Whether the user can create documents in this document's initiative —
-  // via the shared access helper, so guild admins and PAM grantees are
-  // included regardless of any membership row.
-  const _canCreateDocuments = useMemo(() => {
-    if (!document?.initiative) {
-      return false;
-    }
-    return permissionsFor(document.initiative)[Tool.document].create;
-  }, [document?.initiative, permissionsFor]);
-
   // Wikilink navigation handler
   const handleWikilinkNavigate = useCallback(
     (targetDocumentId: number) => {
@@ -628,12 +625,15 @@ export const DocumentDetailPage = () => {
     // When collaborating, sync content periodically to keep the content
     // column updated for non-collab readers. Native Lexical docs use 10s
     // (users type many characters per second, a shorter window would
-    // hammer the backend). Whiteboards use the same 2s debounce as
-    // non-collab mode — a single drawing action fits in 10s, so a longer
+    // hammer the backend). Whiteboards and spreadsheets use the same 2s
+    // debounce as non-collab mode — a single drawing action or cell edit fits in 10s, so a longer
     // window leaves document.content stale for external REST readers
     // and increases the yjs_state/content desync window.
     if (collaboration.isCollaborating) {
-      const collabDebounceMs = document?.document_type === "whiteboard" ? 2000 : 10000;
+      const collabDebounceMs =
+        document?.document_type === "whiteboard" || document?.document_type === "spreadsheet"
+          ? 2000
+          : 10000;
       const timer = setTimeout(() => {
         // The room is the writer of this document's content column while it
         // is live: it saves the JSON and the Yjs state from one snapshot, so
@@ -1079,16 +1079,6 @@ export const DocumentDetailPage = () => {
           trail={[{ label: document.name }]}
         />
         <div className="flex items-center gap-2">
-          <DocumentExportMenu
-            documentId={document.id}
-            documentType={document.document_type}
-            title={document.name}
-            whiteboardScene={
-              document.document_type === "whiteboard" && whiteboardSceneReady
-                ? whiteboardScene
-                : undefined
-            }
-          />
           {canEditDocument && (
             <Button asChild variant="outline" size="sm">
               <Link

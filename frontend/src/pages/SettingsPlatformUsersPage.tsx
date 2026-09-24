@@ -2,13 +2,13 @@ import { CalendarClock, Download, Mail, Trash2, UserCheck } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AdminUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import type { OperatorUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
+import { OperatorDeleteUserDialog } from "@/components/platform/OperatorDeleteUserDialog";
 import {
   canManageUser,
   UserOperatorSettingsSheet,
-} from "@/components/admin/UserOperatorSettingsSheet";
+} from "@/components/platform/UserOperatorSettingsSheet";
 import { SortIcon } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { UserHandle } from "@/components/UserHandle";
@@ -19,15 +19,15 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import {
-  useAdminClearAgeBlock,
-  useAdminReactivateUser,
-  useAdminRestoreUser,
-  useAdminTriggerPasswordReset,
-  useExportPlatformUsersCsv,
-  usePlatformUsers,
-} from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  useExportPlatformUsersCsv,
+  useOperatorClearAgeBlock,
+  useOperatorReactivateUser,
+  useOperatorRestoreUser,
+  useOperatorTriggerPasswordReset,
+  usePlatformUsers,
+} from "@/hooks/useOperatorUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -41,7 +41,7 @@ import { getUserHandle } from "@/lib/userDisplay";
  */
 const sortableHeader =
   (label: string) =>
-  ({ column }: { column: AppColumn<AdminUserRead> }) => {
+  ({ column }: { column: AppColumn<OperatorUserRead> }) => {
     const isSorted = column.getIsSorted();
     return (
       <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export const SettingsPlatformUsersPage = () => {
     userId: number;
     handle: string;
   } | null>(null);
-  const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUserRead | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<OperatorUserRead | null>(null);
   const [managingId, setManagingId] = useState<number | null>(null);
 
   // Viewing the roster needs ``users.read`` (support+). Everything that writes
@@ -102,7 +102,7 @@ export const SettingsPlatformUsersPage = () => {
   // what was actually persisted.
   const managing = usersQuery.data?.find((row) => row.id === managingId) ?? null;
 
-  const resetPassword = useAdminTriggerPasswordReset({
+  const resetPassword = useOperatorTriggerPasswordReset({
     onSuccess: (_data, userId) => {
       const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.resetSuccess", { handle }));
@@ -114,12 +114,12 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const clearAgeBlock = useAdminClearAgeBlock({
+  const clearAgeBlock = useOperatorClearAgeBlock({
     onSuccess: () => toast.success(t("settings:platformUsers.ageBlockCleared")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
-  const reactivateUser = useAdminReactivateUser({
+  const reactivateUser = useOperatorReactivateUser({
     onSuccess: (_data, userId) => {
       const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.reactivateSuccess", { handle }));
@@ -129,7 +129,7 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const restoreUser = useAdminRestoreUser({
+  const restoreUser = useOperatorRestoreUser({
     onSuccess: (_data, userId) => {
       const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.restoreSuccess", { handle }));
@@ -157,7 +157,7 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const exportUserCsv = (platformUser: AdminUserRead) => {
+  const exportUserCsv = (platformUser: OperatorUserRead) => {
     // Named by handle. The address never arrives here in full any more, and a
     // filename outlives the download — in a directory listing, in whatever it
     // gets mailed on to.
@@ -192,7 +192,7 @@ export const SettingsPlatformUsersPage = () => {
     return <p className="text-destructive text-sm">{t("platformUsers.loadError")}</p>;
   }
 
-  const userColumns: AppColumnDef<AdminUserRead>[] = [
+  const userColumns: AppColumnDef<OperatorUserRead>[] = [
     {
       accessorKey: "id",
       header: sortableHeader(t("platformUsers.columnId")),
@@ -295,7 +295,7 @@ export const SettingsPlatformUsersPage = () => {
         const isResetting = resettingUserId === platformUser.id;
         const isSelf = platformUser.id === user?.id;
         // Reset password is a no-op on non-active accounts (the backend
-        // rejects it with ADMIN_CANNOT_RESET_INACTIVE), so hide it here too.
+        // rejects it with OPERATOR_CANNOT_RESET_INACTIVE), so hide it here too.
 
         return (
           <RowActionsMenu subject={getUserHandle(platformUser)}>
@@ -417,11 +417,11 @@ export const SettingsPlatformUsersPage = () => {
       />
 
       {deleteUserTarget && (
-        <AdminDeleteUserDialog
+        <OperatorDeleteUserDialog
           open={deleteUserTarget !== null}
           onOpenChange={(open) => !open && setDeleteUserTarget(null)}
           onSuccess={() => {
-            void invalidate(q.adminUsers());
+            void invalidate(q.operatorUsers());
           }}
           targetUser={deleteUserTarget}
         />

@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
-import { createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost } from "@/api/generated/settings/settings";
-import { GuildOperatorSettingsSheet } from "@/components/admin/GuildOperatorSettingsSheet";
+import { BillingConsoleButton } from "@/components/platform/BillingConsoleButton";
+import { GuildOperatorSettingsSheet } from "@/components/platform/GuildOperatorSettingsSheet";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePlatformGuilds, useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { OPERATOR_SETTABLE_STATUSES } from "@/lib/guildStatus";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 
@@ -31,70 +30,42 @@ import type { AppColumnDef } from "@/lib/table";
 // with `formatBytes` (which is also 1024-based). The editor for them, and for
 // every other operator setting, lives in GuildOperatorSettingsSheet.
 const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
-  const { t, i18n } = useTranslation("settings");
-  const { billing } = useAppConfig();
-  const [opening, setOpening] = useState(false);
-
-  // Which console a link opens is decided by the key that signs the handoff,
-  // so the console is named on the way out and never asserted by the browser.
-  const open = async (console: "support" | "operator") => {
-    if (!billing) return;
-    setOpening(true);
-    const tab = window.open("about:blank", "_blank");
-    if (tab) tab.opener = null;
-    try {
-      const { handoff_token } =
-        await createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost(
-          guild.id,
-          { console }
-        );
-      const lang = i18n.resolvedLanguage ?? i18n.language;
-      // The token rides in the fragment, which never leaves the browser. The
-      // console reads the guild off the exchanged session, so the URL does not
-      // name one — only the language carries over.
-      const url = `${billing.url}/${console}?lang=${encodeURIComponent(
-        lang
-      )}#${console}_handoff=${encodeURIComponent(handoff_token)}`;
-      if (tab) tab.location.href = url;
-      else window.open(url, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      tab?.close();
-      toast.error(getErrorMessage(err, "settings:guilds.billing.openError"));
-    } finally {
-      setOpening(false);
-    }
-  };
-
+  const { t } = useTranslation("settings");
   return (
     <div className="flex items-center gap-1">
-      <Button
+      <BillingConsoleButton
+        guild={guild}
+        console="support"
         size="sm"
         variant="outline"
-        onClick={() => open("support")}
-        disabled={opening}
         aria-label={t("guilds.billing.openLabel", { name: guild.name })}
       >
         {guild.tier_name ?? t("guilds.billing.noPlan")}
-      </Button>
-      <Button
+      </BillingConsoleButton>
+      <BillingConsoleButton
+        guild={guild}
+        console="operator"
         size="sm"
         variant="ghost"
-        onClick={() => open("operator")}
-        disabled={opening}
         aria-label={t("guilds.billing.operatorLabel", { name: guild.name })}
       >
         {t("guilds.billing.operations")}
-      </Button>
+      </BillingConsoleButton>
     </div>
   );
 };
 
 /**
- * Lifecycle-status control for one guild. Changing to `suspended` (members
- * lose all access) is gated behind a confirm dialog; the lighter transitions
- * apply immediately. The change saves via the same platform-guilds mutation
+ * Lifecycle-status control for one guild. Changing to `suspended` or
+ * `on_hold` (everyone in it loses all access) is gated behind a confirm
+ * dialog; the lighter transitions apply immediately. The change saves via the same platform-guilds mutation
  * and the list invalidates on success, so the Select reflects the persisted
  * status.
+ *
+ * The choices are the row's own `status_choices`, which the server works out:
+ * every settable status on a deployment that sets plans by hand, and only a
+ * suspension (and lifting it, back to the status billing last set) where
+ * billing sets them.
  *
  * A deleted community has no control at all — it shows a tag instead. Deleted
  * is not a status you set: it is reached by deleting the community and left by
@@ -103,7 +74,9 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
  */
 const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   const { t } = useTranslation(["settings", "common"]);
-  const [pendingSuspend, setPendingSuspend] = useState(false);
+  // Suspending and putting on hold both take everyone out of the community,
+  // so each is confirmed before it is applied.
+  const [pending, setPending] = useState<GuildStatus | null>(null);
 
   const update = useUpdateGuildStorage({
     onSuccess: (row) => {
@@ -114,7 +87,7 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
     },
     // Close the confirm dialog only once the mutation settles, so its in-flight
     // state is actually observable (the dialog shows "please wait" while saving).
-    onSettled: () => setPendingSuspend(false),
+    onSettled: () => setPending(null),
   });
 
   const apply = (status: GuildStatus) => {
@@ -124,8 +97,8 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   const handleChange = (value: string) => {
     const next = value as GuildStatus;
     if (next === guild.status) return;
-    if (next === GuildStatus.suspended) {
-      setPendingSuspend(true); // confirm the soft delete first
+    if (next === GuildStatus.suspended || next === GuildStatus.on_hold) {
+      setPending(next);
       return;
     }
     apply(next);
@@ -145,7 +118,7 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {OPERATOR_SETTABLE_STATUSES.map((status) => (
+          {guild.status_choices.map((status) => (
             <SelectItem key={status} value={status}>
               {t(`guilds.status.${status}`)}
             </SelectItem>
@@ -153,15 +126,27 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
         </SelectContent>
       </Select>
       <ConfirmDialog
-        open={pendingSuspend}
-        onOpenChange={setPendingSuspend}
-        title={t("guilds.suspendConfirm.title", { name: guild.name })}
-        description={t("guilds.suspendConfirm.description")}
-        confirmLabel={t("guilds.suspendConfirm.confirm")}
+        open={pending !== null}
+        onOpenChange={(open) => !open && setPending(null)}
+        title={
+          pending === GuildStatus.on_hold
+            ? t("guilds.holdConfirm.title", { name: guild.name })
+            : t("guilds.suspendConfirm.title", { name: guild.name })
+        }
+        description={
+          pending === GuildStatus.on_hold
+            ? t("guilds.holdConfirm.description")
+            : t("guilds.suspendConfirm.description")
+        }
+        confirmLabel={
+          pending === GuildStatus.on_hold
+            ? t("guilds.holdConfirm.confirm")
+            : t("guilds.suspendConfirm.confirm")
+        }
         cancelLabel={t("common:cancel")}
         destructive
         isLoading={update.isPending}
-        onConfirm={() => apply(GuildStatus.suspended)}
+        onConfirm={() => pending && apply(pending)}
       />
     </>
   );
@@ -257,7 +242,7 @@ export const OperatorDashboardGuildsPage = () => {
   ];
 
   if (!canManageGuilds) {
-    return <p className="text-muted-foreground text-sm">{t("guilds.adminOnly")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("guilds.platformOnly")}</p>;
   }
 
   if (guildsQuery.isLoading) {
@@ -289,7 +274,9 @@ export const OperatorDashboardGuildsPage = () => {
           enableResetSorting
           enablePagination
         />
-        <p className="text-muted-foreground text-xs">{t("guilds.helpText")}</p>
+        <p className="text-muted-foreground text-xs">
+          {billing?.manages_plans ? t("guilds.helpTextBilling") : t("guilds.helpText")}
+        </p>
       </CardContent>
       <GuildOperatorSettingsSheet
         guild={managing}

@@ -19,28 +19,34 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import re
 
-from app.core.config import settings
+from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.models.platform.user import User
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale, localize_now
 from app.services.export.markdown import blocks_from_markdown
 from app.core.user_display import display_name
+from app.services.export import limits as export_limits
 
-# Comment mentions are stored as ``@[Display Name](id)`` / ``#type[Text](id)``;
-# a printed report shows ``@Display Name`` / the display text, not the
-# reference markup. The type list mirrors CommentContent.tsx's patterns
-# EXACTLY (user/task/doc/project — mention_parser.py parses a subset): an
-# unrecognized type renders as literal text in the app, so the PDF matching
-# that is correct. A new mention type must be added in both places.
-_MENTION_RE = re.compile(
-    r"@\[([^\]]+)\]\(\d+\)|#(?:task|doc|project)\[([^\]]+)\]\(\d+\)"
-)
+# Mentions are stored as ``@[Display Name](id)`` / ``#kind[Text](id)`` — in a
+# comment and in a task's description alike. A printed report shows
+# ``@Display Name`` / the display text, not the reference markup. The ``#``
+# half reads through the reference vocabulary the app writes with, so every
+# kind that can be mentioned flattens; a ``#`` word naming no kind stays
+# literal, as it does on screen.
+_USER_MENTION_RE = re.compile(r"@\[([^\]]+)\]\(\d+\)")
+
+#: A picture in a comment — a pasted screenshot — prints as its alt text,
+#: the way the description's Markdown blocks print one.
+_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
 
 
 def _flatten_mentions(content: str) -> str:
-    return _MENTION_RE.sub(
-        lambda m: f"@{m.group(1)}" if m.group(1) else m.group(2), content
+    content = _IMAGE_RE.sub(lambda m: m.group(1) or "[image]", content)
+    content = _USER_MENTION_RE.sub(lambda m: f"@{m.group(1)}", content)
+    return TEXT_REFERENCE.sub(
+        lambda m: m.group(2) if kind_for_trigger(m.group(1)) else m.group(0),
+        content,
     )
 
 
@@ -109,7 +115,7 @@ class TasksTableAdapter:
             user,
             guild_id,
             **_selector(params),
-            max_rows=settings.EXPORT_MAX_ROWS,
+            max_rows=export_limits.EXPORT_MAX_ROWS,
         )
         loc = export_locale(user)
         local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))
@@ -156,7 +162,7 @@ class TasksTableAdapter:
             user,
             guild_id,
             **_selector(params),
-            max_rows=settings.EXPORT_MAX_ROWS,
+            max_rows=export_limits.EXPORT_MAX_ROWS,
         )
         loc = export_locale(user)
         local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))
@@ -246,8 +252,11 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
         "assignees": [display_name(a) for a in (task.assignees or [])],
         "tags": sorted(tag.name for tag in task.tags or []),
         # Descriptions are Markdown (the app renders them with react-markdown)
-        # — parse into blocks so **bold** renders bold, not literally.
-        "description_blocks": blocks_from_markdown(task.description),
+        # — parse into blocks so **bold** renders bold, not literally. Mention
+        # markup flattens to its display text first, as a comment's does.
+        "description_blocks": blocks_from_markdown(
+            _flatten_mentions(task.description or "")
+        ),
         "checklist": [
             {"text": item.get("text", ""), "done": bool(item.get("done"))}
             for item in (task.checklist or [])

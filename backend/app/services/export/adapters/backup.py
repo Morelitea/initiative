@@ -57,6 +57,7 @@ from app.services.export.engine import ExportError
 from app.services.export import delivery
 from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
+from app.services.export import limits as export_limits
 
 # Tool keys as they appear in the selector's include/formats maps. Derived:
 # a backup covers what the engine can export, so a ninth tool is carried by
@@ -103,7 +104,7 @@ class InitiativeExportAdapter:
 
     @property
     def max_rows(self) -> int:
-        return settings.EXPORT_MAX_BACKUP_ROWS
+        return export_limits.EXPORT_MAX_BACKUP_ROWS
 
     async def count(self, session, *, user, guild_id, params, format) -> int:
         scope = await _resolve_scope(
@@ -159,7 +160,6 @@ async def _resolve_scope(
         statement = (
             select(Initiative)
             .where(
-                Initiative.guild_id == guild_id,
                 initiative_scope_clause(user.id, Initiative.id),
             )
             .order_by(Initiative.id.asc())
@@ -173,7 +173,6 @@ async def _resolve_scope(
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
     statement = select(Initiative).where(
         Initiative.id == initiative_id,
-        Initiative.guild_id == guild_id,
         initiative_scope_clause(user.id, Initiative.id),
     )
     initiative = (await session.exec(statement)).one_or_none()
@@ -328,7 +327,7 @@ async def _count_scope(
             upload_bytes = await get_guild_storage_usage(session)
         else:
             upload_bytes = await _known_upload_bytes(session, ids["document"])
-        if upload_bytes > settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
+        if upload_bytes > export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         total += upload_bytes // _MIB
     return total
@@ -560,7 +559,7 @@ class _ScopeBuilder:
             path_stem = f"{folder}/projects/{_slug(project_id, envelope.project.name)}"
             if fmt == "json":
                 path = f"{path_stem}.initiative-project.json"
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=path,
                     tool="project",
@@ -593,7 +592,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             document = await get_document_for_export(
-                self.session, self.user, self.guild_id, document_id=document_id
+                self.session,
+                self.user,
+                self.guild_id,
+                document_id=document_id,
+                access="read",  # the aggregate-export relaxation
             )
             doc_type = (
                 document.document_type.value
@@ -633,7 +636,7 @@ class _ScopeBuilder:
             if fmt == "json":
                 path = f"{path_stem}.json"
                 await self._collect_embedded_assets(document, doc_type, path)
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=path,
                     tool="document",
@@ -691,13 +694,17 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             queue = await get_queue_for_export(
-                self.session, self.user, self.guild_id, queue_id=queue_id
+                self.session,
+                self.user,
+                self.guild_id,
+                queue_id=queue_id,
+                access="read",  # the aggregate-export relaxation
             )
             attachments = await queue_attachments_for(self.session, queue.items)
             item = build_queue_item(queue, fmt, self.user, self.now, attachments)
             path_stem = f"{folder}/queues/{_slug(queue.id, queue.name)}"
             if fmt == "json":
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=f"{path_stem}.initiative-queue.json",
                     tool="queue",
@@ -725,12 +732,16 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             group = await get_counter_group_for_export(
-                self.session, self.user, self.guild_id, group_id=group_id
+                self.session,
+                self.user,
+                self.guild_id,
+                group_id=group_id,
+                access="read",  # the aggregate-export relaxation
             )
             item = build_counter_group_item(group, fmt, self.user, self.now)
             path_stem = f"{folder}/counter-groups/{_slug(group.id, group.name)}"
             if fmt == "json":
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=f"{path_stem}.initiative-counter-group.json",
                     tool="counter_group",
@@ -769,11 +780,15 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             post = await get_post_for_export(
-                self.session, self.user, self.guild_id, post_id=post_id
+                self.session,
+                self.user,
+                self.guild_id,
+                post_id=post_id,
+                access="read",  # the aggregate-export relaxation
             )
             item = build_post_item(post, "json", self.now)
             path_stem = f"{folder}/posts/{_slug(post.id, post.name)}"
-            self._append_backup(
+            await self._append_backup(
                 item,
                 path=f"{path_stem}.initiative-post.json",
                 tool="post",
@@ -809,11 +824,15 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             wiki, pages = await get_wiki_for_export(
-                self.session, self.user, self.guild_id, wiki_id=wiki_id
+                self.session,
+                self.user,
+                self.guild_id,
+                wiki_id=wiki_id,
+                access="read",  # the aggregate-export relaxation
             )
             item = build_wiki_item(wiki, pages, self.now)
             path_stem = f"{folder}/wikis/{_slug(wiki.id, wiki.name)}"
-            self._append_backup(
+            await self._append_backup(
                 item,
                 path=f"{path_stem}.initiative-wiki.json",
                 tool="wiki",
@@ -825,11 +844,14 @@ class _ScopeBuilder:
             )
 
     def _record_people(self, envelope) -> None:
-        """Note everyone quoted in a project envelope, and how often.
+        """Note everyone a project envelope names, and how often they are
+        quoted.
 
         Counted per handle across the whole archive rather than per project:
         the importer answers "who is this" once, and one answer covers every
-        comment that name is on.
+        comment and every assignment that name is on. An assignee who wrote
+        nothing is listed with a count of none — the restore still has to be
+        told who they are, or their tasks arrive unassigned.
         """
         for task in envelope.tasks:
             for comment in task.comments:
@@ -838,6 +860,37 @@ class _ScopeBuilder:
                     continue
                 name, count = self._people.get(handle, (None, 0))
                 self._people[handle] = (name or comment.author_name, count + 1)
+            for raw in task.assignee_handles:
+                handle = (raw or "").strip()
+                if handle and handle not in self._people:
+                    self._people[handle] = (None, 0)
+
+    def _record_property_people(self, *payloads) -> None:
+        """Note everyone a user-type property value names, in any entry.
+
+        Every tool's properties pass through here — a task's, a document's,
+        an event's, a file document's — because a restore places those values
+        through the people step's answer, and the step only asks about the
+        people the manifest lists. Counted as quoting nothing, like an
+        assignee: the number is for comments.
+        """
+        from app.services.import_engine.people import user_reference_handles
+
+        for payload in payloads:
+            for handle in user_reference_handles(payload):
+                if handle not in self._people:
+                    self._people[handle] = (None, 0)
+
+    def _record_mentioned_people(self, payload) -> None:
+        """Note everyone an entry's text mentions — a description, a comment,
+        a document, a page. A restore links a mention through the people
+        step's answer, so the step has to ask about them; counted as quoting
+        nothing, because the number is for comments."""
+        from app.services.import_engine.mentions import mention_handles_in
+
+        for handle in mention_handles_in(payload):
+            if handle not in self._people:
+                self._people[handle] = (None, 0)
 
     def people(self) -> list:
         """The archive's people, most-quoted first — which is the order the
@@ -866,7 +919,8 @@ class _ScopeBuilder:
         documents are added before wikis and a path cannot be named before it
         exists. A document in more than one wiki keeps the first: one entry
         carries one placement, and a second copy of the file is not what the
-        edge said.
+        edge said. The page it is filed under in that wiki travels with it, by
+        the page's slug.
         """
         if self.mode != "backup":
             return
@@ -913,12 +967,38 @@ class _ScopeBuilder:
                 )
             )
         ).all()
+        # The page each document is filed under, by the slug its page is
+        # written with in the wiki's envelope.
+        from app.models.tenant.wiki import Wiki, WikiPage
+        from app.services.tenant.wikis import document_parent
+
+        wikis = {
+            wiki.id: wiki
+            for wiki in (
+                await self.session.exec(
+                    select(Wiki).where(Wiki.id.in_(list(wiki_paths)))
+                )
+            ).all()
+        }
+        page_slugs = dict(
+            (
+                await self.session.exec(
+                    select(WikiPage.id, WikiPage.slug).where(
+                        WikiPage.wiki_id.in_(list(wiki_paths))
+                    )
+                )
+            ).all()
+        )
         for edge in edges:
             entry = file_entries.get(edge.source_id)
             path = wiki_paths.get(edge.target_id)
             if entry is None or path is None or entry.attach_to is not None:
                 continue
-            entry.attach_to = ManifestAttachTo(kind="wiki", ref=path)
+            wiki = wikis.get(edge.target_id)
+            parent = document_parent(wiki, edge.source_id) if wiki else None
+            entry.attach_to = ManifestAttachTo(
+                kind="wiki", ref=path, page=page_slugs.get(parent) if parent else None
+            )
 
     async def _add_galleries(self, initiative, folder: str) -> None:
         """Every gallery in this initiative: one envelope each, and its
@@ -950,7 +1030,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             gallery, images = await get_gallery_for_export(
-                self.session, self.user, self.guild_id, gallery_id=gallery_id
+                self.session,
+                self.user,
+                self.guild_id,
+                gallery_id=gallery_id,
+                access="read",  # the aggregate-export relaxation
             )
             if not _include_uploads(self.params):
                 self.skipped.append(
@@ -979,7 +1063,7 @@ class _ScopeBuilder:
                     size_bytes=int(image.file_size or 0),
                     referenced_by=path,
                 )
-            self._append_backup(
+            await self._append_backup(
                 item,
                 path=path,
                 tool="gallery",
@@ -1008,7 +1092,11 @@ class _ScopeBuilder:
         ):
             await self._refresh_access()
             calendar = await get_calendar_for_export(
-                self.session, self.user, self.guild_id, calendar_id=calendar_id
+                self.session,
+                self.user,
+                self.guild_id,
+                calendar_id=calendar_id,
+                access="read",  # the aggregate-export relaxation
             )
             documents_by_event = await documents_for_events(
                 self.session, list(calendar.events)
@@ -1016,7 +1104,7 @@ class _ScopeBuilder:
             item = build_calendar_item(calendar, fmt, date, documents_by_event)
             path_stem = f"{folder}/calendars/{_slug(calendar.id, calendar.name)}"
             if fmt == "json":
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=f"{path_stem}.initiative-calendar.json",
                     tool="calendar",
@@ -1077,14 +1165,18 @@ class _ScopeBuilder:
         for dashboard_id in exportable:
             await self._refresh_access()
             dashboard = await get_dashboard_for_export(
-                self.session, self.user, self.guild_id, dashboard_id=dashboard_id
+                self.session,
+                self.user,
+                self.guild_id,
+                dashboard_id=dashboard_id,
+                access="read",  # the aggregate-export relaxation
             )
             item = build_dashboard_item(dashboard, self.now.strftime("%Y-%m-%d"))
             path = (
                 f"{folder}/dashboards/"
                 f"{_slug(dashboard_id, dashboard.name)}.initiative-dashboard.json"
             )
-            self._append_backup(
+            await self._append_backup(
                 item,
                 path=path,
                 tool="dashboard",
@@ -1219,7 +1311,7 @@ class _ScopeBuilder:
             ],
         }
         path = f"{folder}/structure.json"
-        self._append_backup(
+        await self._append_backup(
             RenderItem(key=path, data=payload, filename=path, format="json"),
             path=path,
             tool=_STRUCTURAL_TOOL,
@@ -1270,7 +1362,7 @@ class _ScopeBuilder:
             ],
         }
         path = f"{folder}/properties.json"
-        self._append_backup(
+        await self._append_backup(
             RenderItem(key=path, data=payload, filename=path, format="json"),
             path=path,
             tool=_STRUCTURAL_TOOL,
@@ -1350,7 +1442,16 @@ class _ScopeBuilder:
                 referenced_by=None,
             )
 
-    def _append_backup(self, item: RenderItem, *, path: str, **entry_kwargs) -> None:
+    async def _append_backup(
+        self, item: RenderItem, *, path: str, **entry_kwargs
+    ) -> None:
+        from app.services.import_engine.mentions import detach_envelope_mentions
+        from app.services.import_engine.references import detach_envelope_references
+
+        await detach_envelope_mentions(self.session, item.data)
+        detach_envelope_references(item.data, guild_id=self.guild_id)
+        self._record_property_people(item.data, entry_kwargs.get("properties"))
+        self._record_mentioned_people(item.data)
         self.items.append(replace(item, filename=path, format="json"))
         if self.mode == "backup":
             from app.schemas.tenant.backup_export import ManifestEntry
@@ -1434,7 +1535,7 @@ class _ScopeBuilder:
                 existing.referenced_by.append(referenced_by)
             return path
         self._asset_bytes += size_bytes
-        if self._asset_bytes > settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
+        if self._asset_bytes > export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         record = ManifestAsset(
             path=path,
@@ -1551,8 +1652,8 @@ async def estimate_backup(
         uploads_bytes=uploads_bytes,
         uploads_approximate=True,
         estimated_rows=estimated_rows,
-        max_rows=settings.EXPORT_MAX_BACKUP_ROWS,
-        max_upload_bytes=settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES,
+        max_rows=export_limits.EXPORT_MAX_BACKUP_ROWS,
+        max_upload_bytes=export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES,
         max_download_bytes=settings.EXPORT_MAX_DOWNLOAD_BYTES,
         delivery_available=delivery.is_configured(),
     )

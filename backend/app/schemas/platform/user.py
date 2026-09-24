@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import (
     ConfigDict,
@@ -12,7 +12,7 @@ from pydantic import (
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 
-from app.core.capabilities import Capability, capabilities_for
+from app.core.capabilities import Capability, standing_capabilities
 from app.core.cookie_categories import CookieCategory
 from app.core.email_masking import mask_email
 from app.core.emoji import validate_emoji
@@ -48,7 +48,7 @@ from app.core.config import settings
 #   guild-scoped shape — roster, picker and member management alike — and kept
 #   in full only on ``UserRead``, which is served for your own account.
 # * An address is read back in full only by its owner. Staff reads use
-#   ``AdminUserRead``, which is ``UserRead`` with the address
+#   ``OperatorUserRead``, which is ``UserRead`` with the address
 #   shortened (``app.core.email_masking``) — enough to recognise one you
 #   already have.
 # * A real name is shown only where a guild has asked for it.
@@ -74,9 +74,9 @@ class UserCreate(SanitizedBaseModel):
     # self-registration (``/auth/register``) and guild-admin user creation
     # (``POST /users/``), and neither caller is authorized to grant a
     # platform role from the request body. Registration computes the role
-    # itself (first user = owner, everyone else = member) and the admin
+    # itself (first user = owner, everyone else = member) and the guild-admin
     # endpoint forces ``member``; standing platform roles change only via
-    # ``/admin/users/{id}/platform-role`` (capability-gated, bounded
+    # ``/operator/users/{id}/platform-role`` (capability-gated, bounded
     # delegation). See SEC-1.
     email: EmailStr
     # The name part of the handle. The number behind it is drawn server-side —
@@ -164,10 +164,10 @@ class UserGuildMember(UserGuildRead):
     """
 
     full_name: Optional[str] = None
-    guild_role: Optional[str] = None  # Set by the endpoint
-    #: Whether this member administers the guild — admin or above. The role is
-    #: here to be shown; this is here to be asked.
-    is_guild_admin: bool = False
+    #: The rung this member holds in the guild, set by the endpoint. Shown as
+    #: it stands, and asked of the ladder where a surface needs to know
+    #: whether it administers the place.
+    guild_role: Optional[str] = None
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
 
 
@@ -191,13 +191,10 @@ class UserSummary(UserIdentity):
 
     full_name: Optional[str] = None
     profile_decorations: Optional["ProfileDecorations"] = None
-    #: ``admin`` or ``member`` in the guild this was read under. Absent where
-    #: the caller asked outside a guild, which is why it is optional rather
-    #: than defaulted to the quieter of the two.
+    #: The rung this member holds in the guild this was read under. Absent
+    #: where the caller asked outside a guild, which is why it is optional
+    #: rather than defaulted to the quietest of them.
     guild_role: Optional[str] = None
-    #: Whether this member administers the guild being read — admin or above.
-    #: The role is here to be shown; this is here to be asked.
-    is_guild_admin: bool = False
 
 
 class UserSummaryListResponse(SanitizedBaseModel):
@@ -388,6 +385,19 @@ class OwnedDecoration(SanitizedBaseModel):
     #: The listing uid of the pack that granted it, or ``None`` for the set
     #: that ships with the app.
     source: Optional[str] = None
+    #: The picture its pack carries for it, served by the marketplace. Absent
+    #: where the client ships the art for the id itself.
+    image_url: Optional[str] = None
+
+
+class DecorationArtResponse(SanitizedBaseModel):
+    """Pictures for decorations whose art is carried by their pack rather than
+    shipped with the client, by decoration id. An id the client draws itself,
+    or one no pack on this deployment names, is absent."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    art: Dict[str, str] = {}
 
 
 class DecorationPack(SanitizedBaseModel):
@@ -512,6 +522,18 @@ class CookieConsentUpdate(SanitizedBaseModel):
     version: int
 
 
+class AccountTimeOutRead(SanitizedBaseModel):
+    """What a suspended account is told on its time-out screen."""
+
+    #: Who to contact about it: the deployment's moderation contact, else its
+    #: general one, else ``None``.
+    contact_email: Optional[str] = None
+    #: When the suspension began, where it was recorded.
+    since: Optional[datetime] = None
+    #: The reason the moderator gave, where one was given.
+    reason: Optional[str] = None
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -560,6 +582,8 @@ class UserRead(UserBase):
     presence: Presence = Presence.online
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     week_starts_on: int = 0
+    #: "system" (follow the browser locale), "12", or "24".
+    time_format: str = "system"
     recent_tabs_limit: int = 20
     timezone: str = "UTC"
     event_reminder_minutes_before: Optional[int] = 15
@@ -585,23 +609,28 @@ class UserRead(UserBase):
     @computed_field(return_type=bool)  # type: ignore[misc]
     @property
     def can_create_guilds(self) -> bool:
+        if self.status == UserStatus.suspended:
+            return False
         if not settings.DISABLE_GUILD_CREATION:
             return True
         # When disabled, only platform roles that manage guilds can create them.
-        return Capability.GUILDS_MANAGE in capabilities_for(self.role)
+        return Capability.GUILDS_MANAGE in standing_capabilities(self.role, self.status)
 
-    @computed_field(return_type=List[str])  # type: ignore[misc]
+    @computed_field(return_type=List[Capability])  # type: ignore[misc]
     @property
-    def capabilities(self) -> List[str]:
-        """Platform capabilities granted by this user's standing role.
+    def capabilities(self) -> List[Capability]:
+        """Platform capabilities granted by this user's standing role — none
+        while the account is suspended.
 
-        The frontend gates UI on these strings (single source of truth);
-        see ``app.core.capabilities``.
+        The frontend gates UI on these values (single source of truth);
+        see ``app.core.capabilities``. Sorted by value.
         """
-        return sorted(c.value for c in capabilities_for(self.role))
+        return sorted(
+            standing_capabilities(self.role, self.status), key=lambda c: c.value
+        )
 
 
-class AdminUserRead(UserRead):
+class OperatorUserRead(UserRead):
     """A staff view of somebody else's account: the address masked.
 
     Everything staff do to an account — reset its password, rename
@@ -610,9 +639,9 @@ class AdminUserRead(UserRead):
     itself. What the mask leaves is enough to match a row against an address
     somebody has quoted at you, which is what the column is read for.
 
-    Masking lives on the shape rather than in each admin route: subclassing
+    Masking lives on the shape rather than in each operator route: subclassing
     keeps ``/users/me`` — where the reader is the address's owner — on plain
-    ``UserRead``, while every admin route that returns an account gets the
+    ``UserRead``, while every operator route that returns an account gets the
     masked form without opting in.
     """
 
@@ -691,6 +720,7 @@ class UserSelfUpdate(SanitizedBaseModel):
     # look, and a partial write would have no way to say "take the frame off".
     profile_decorations: Optional[ProfileDecorations] = None
     week_starts_on: Optional[int] = None
+    time_format: Optional[str] = None
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
     event_reminder_minutes_before: Optional[int] = None
@@ -705,7 +735,7 @@ class AccountDeletionRequest(SanitizedBaseModel):
     """Request from a user to deactivate or anonymize (soft-delete) their own account.
 
     `hard_delete` is intentionally not allowed from this self-service endpoint;
-    only an operator can purge a row, and they do so via the admin endpoint.
+    only an operator can purge a row, and they do so via the operator endpoint.
     """
 
     action: Literal["deactivate", "soft_delete"]

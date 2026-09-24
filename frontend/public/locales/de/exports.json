@@ -7,6 +7,7 @@
     "failed": "Der Export ist fehlgeschlagen. Versuche es erneut oder grenze den Filter ein.",
     "error": "Export fehlgeschlagen. Versuche es erneut.",
     "selected": "Auswahl exportieren",
+    "ownerRequired": "Exportieren kann nur, wer all diese Einträge auch löschen darf.",
     "headingBackup": "Sicherung",
     "headingReport": "Bericht",
     "formatPdf": "PDF-Dokument",
@@ -15,7 +16,12 @@
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Markdown-Tabelle",
     "formatMdChecklist": "Markdown-Aufgabenliste",
-    "formatJson": "JSON",
+    "formatJson": "Importierbare Datei (.json)",
+    "formatJsonWithPictures": "Importierbare Datei mit Bildern (.zip)",
+    "formatWikiPdf": "PDF (.zip)",
+    "formatWikiMarkdown": "Markdown (.zip)",
+    "formatWikiDocx": "Word (.zip)",
+    "formatWikiJson": "Importierbare Datei (.zip)",
     "formatOriginal": "Originaldatei",
     "formatMarkdown": "Markdown",
     "formatPng": "PNG-Bild",
@@ -47,8 +53,8 @@
       "estimateFailed": "Die Größenschätzung konnte nicht geladen werden.",
       "overRowLimit": "Dieser Export überschreitet das Größenlimit — schließe einige Werkzeuge aus, um fortzufahren.",
       "overUploadLimit": "Hochgeladene Dateien überschreiten das Limit von {{limit}} — schließe Uploads aus, um fortzufahren.",
-      "willBeDelivered": "Dieser Export ist größer als {{limit}} und wird daher in den Exportordner des Servers geschrieben statt heruntergeladen. Deine Serveradministration kann dir die Datei geben.",
-      "noDestination": "Dieser Export ist größer als {{limit}} und auf diesem Server ist kein Exportordner eingerichtet, daher kann er nicht heruntergeladen werden. Bitte deine Serveradministration, einen einzurichten."
+      "willBeDelivered": "Dieser Export ist größer als {{limit}} und wird daher in den Exportordner des Servers geschrieben statt heruntergeladen. Die Person, die diesen Server betreibt, kann dir die Datei geben.",
+      "noDestination": "Dieser Export ist größer als {{limit}} und auf diesem Server ist kein Exportordner eingerichtet, daher kann er nicht heruntergeladen werden. Bitte die Person, die diesen Server betreibt, einen einzurichten."
     },
     "report": {
       "documentNative": "Textdokumente",
@@ -90,7 +96,7 @@
     "startedByUnknown": "Gestartet von einem ehemaligen Mitglied",
     "preparing": "Wird noch vorbereitet — du erhältst eine Benachrichtigung, sobald er fertig ist.",
     "expires": "Download läuft ab",
-    "delivered": "In den Exportordner des Servers geschrieben — bitte deine Serveradministration um die Datei.",
+    "delivered": "In den Exportordner des Servers geschrieben — frag die Person, die diesen Server betreibt, nach der Datei.",
     "expiredNote": "Das Archiv wurde inzwischen gelöscht.",
     "failedNote": "Es wurde nichts exportiert.",
     "nextAvailable": "Nächster Export möglich"

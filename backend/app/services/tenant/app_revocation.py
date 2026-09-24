@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional
+from app.db.session import routed_guild_id
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ def queue_revocations_for_rows(
         queue_revocation(
             session,
             RevocationIntent(
-                guild_id=row.guild_id,
+                guild_id=routed_guild_id(session),
                 app_id=row.app_id,
                 listing_uid=listing_uid,
                 connection_id=row.connection_id,

@@ -14,6 +14,7 @@ importer reads what it needs and ignores the rest; most ignore both.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from app.services.import_engine.links import LinkCollector
 from app.services.import_engine.people import PeopleMap
@@ -30,3 +31,49 @@ class ImportContext:
 
     links: LinkCollector = field(default_factory=LinkCollector)
     people: PeopleMap = field(default_factory=PeopleMap)
+    #: Property names somebody unticked on the review. Their definitions are
+    #: not created, and every value naming one falls away with it — the
+    #: review lists what an import would add to an initiative somebody else
+    #: runs, and this is the answer to that list.
+    excluded_properties: frozenset[str] = frozenset()
+    #: The site the bundle was read from — an Atlassian site, for a fetch. A
+    #: link in a task to a page there becomes a mention of the page, once the
+    #: page has been written in the same job.
+    source_url: str | None = None
+    #: Documents to file under a page of a wiki once both exist, as
+    #: ``(document ref, wiki ref, page slug)``: the wiki's own importer knows
+    #: its pages by slug, and the document is applied before the wiki is.
+    placements: list[tuple[str, str, str]] = field(default_factory=list)
+    #: Whether what is being imported was exported from this community on this
+    #: server. A reference to something the export did not carry still names
+    #: the thing it named then, so it keeps pointing at it rather than being
+    #: reduced to its title.
+    same_community: bool = False
+
+
+def exported_from_here(
+    source_instance_url: Any, source_guild_id: Any, *, guild_id: int | None
+) -> bool:
+    """Whether an export names this server and this community as where it was
+    taken. Both have to match: a community id is only unique on its own
+    server, and an export that says nothing about either is from elsewhere."""
+    from app.core.config import settings
+
+    if not isinstance(source_guild_id, int) or source_guild_id != guild_id:
+        return False
+    if not isinstance(source_instance_url, str) or not source_instance_url.strip():
+        return False
+    return source_instance_url.strip().rstrip("/") == settings.APP_URL.strip().rstrip(
+        "/"
+    )
+
+
+def excluded_property_names(raw: Any) -> frozenset[str]:
+    """What a confirm recorded as unticked, read back defensively.
+
+    It round-tripped through a request into the job's params, so anything
+    that is not a list of non-empty strings is treated as nothing unticked.
+    """
+    if not isinstance(raw, list):
+        return frozenset()
+    return frozenset(name for name in raw if isinstance(name, str) and name)

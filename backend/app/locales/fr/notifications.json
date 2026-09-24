@@ -47,6 +47,10 @@
     "task": {
       "title": "Votre tâche a été mentionnée",
       "body": "{{actor}} a mentionné {{task}} dans {{context}}"
+    },
+    "taskDescription": {
+      "title": "Vous avez été mentionné(e)",
+      "body": "{{actor}} vous a mentionné(e) dans la description de {{task}}"
     }
   },
   "comment": {
@@ -149,6 +153,68 @@
     "messageAccepted": {
       "title": "Demande de message acceptée",
       "body": "{{actor}} a accepté ta demande de message"
+    }
+  },
+  "redacted": {
+    "mentions": {
+      "title": "Vous avez été mentionné",
+      "body": "Ouvrez Initiative pour voir où."
+    },
+    "replies": {
+      "title": "Vous avez une réponse",
+      "body": "Ouvrez Initiative pour la lire."
+    },
+    "comments": {
+      "title": "Nouveau commentaire",
+      "body": "Ouvrez Initiative pour le lire."
+    },
+    "reactions": {
+      "title": "Nouvelle réaction",
+      "body": "Ouvrez Initiative pour la voir."
+    },
+    "assignments": {
+      "title": "Nouvelle tâche attribuée",
+      "body": "Ouvrez Initiative pour la voir."
+    },
+    "due_dates": {
+      "title": "Tâches en retard",
+      "body": "Ouvrez Initiative pour les voir."
+    },
+    "membership": {
+      "title": "Votre adhésion a changé",
+      "body": "Ouvrez Initiative pour voir ce qui a changé."
+    },
+    "approvals": {
+      "title": "Quelque chose vous attend",
+      "body": "Ouvrez Initiative pour l'examiner."
+    },
+    "posts": {
+      "title": "Nouvelle publication",
+      "body": "Ouvrez Initiative pour la lire."
+    },
+    "events": {
+      "title": "Un événement a changé",
+      "body": "Ouvrez Initiative pour le voir."
+    },
+    "event_reminders": {
+      "title": "Événement à venir",
+      "body": "Ouvrez Initiative pour le voir."
+    },
+    "direct_messages": {
+      "title": "Nouveau message",
+      "body": "Ouvrez Initiative pour le lire."
+    },
+    "connections": {
+      "title": "Nouveautés sur vos contacts",
+      "body": "Ouvrez Initiative pour les voir."
+    },
+    "jobs": {
+      "title": "Un traitement que vous avez lancé est terminé",
+      "body": "Ouvrez Initiative pour le voir."
+    },
+    "account": {
+      "title": "Un avis concernant votre compte",
+      "body": "Ouvrez Initiative pour le lire."
     }
   },
   "quietHours": {

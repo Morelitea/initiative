@@ -33,8 +33,8 @@ describe("splitIntoPages", () => {
 
 describe("matchesTriggerRoute", () => {
   it("matches an exact path", () => {
-    expect(matchesTriggerRoute("/settings/admin", "/settings/admin")).toBe(true);
-    expect(matchesTriggerRoute("/settings/admin", "/settings")).toBe(false);
+    expect(matchesTriggerRoute("/settings/platform", "/settings/platform")).toBe(true);
+    expect(matchesTriggerRoute("/settings/platform", "/settings")).toBe(false);
   });
 
   it("ignores a trailing slash on either side", () => {
@@ -67,7 +67,7 @@ describe("validateTriggerRoute", () => {
   });
 
   it("accepts the patterns the matcher understands", () => {
-    expect(validateTriggerRoute("/settings/admin")).toBeNull();
+    expect(validateTriggerRoute("/settings/platform")).toBeNull();
     expect(validateTriggerRoute("/c/*/settings")).toBeNull();
     expect(validateTriggerRoute("/c/*/i/*/projects/**")).toBeNull();
   });

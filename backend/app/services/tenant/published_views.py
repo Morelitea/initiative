@@ -9,7 +9,7 @@ sees a smaller number is not a status board.
 A **published view** is how a dashboard says "these rows, for everybody who can
 open me". It is a grant rather than an impersonation: a ``resource_grants`` row
 whose grantee is the dashboard says the resource is readable *through* it, and
-``public.resource_access`` answers on that row only while
+``resource_access`` answers on that row only while
 ``app.via_dashboard_id`` names that dashboard — which the fetch path sets after
 the dashboard's own four gates have admitted the reader.
 
@@ -28,33 +28,28 @@ initiative: it relaxes the discretionary layer *inside* one initiative, and a
 reader still has to be in it.
 
 **Standing in somebody else's shoes.** Deciding what the *author* reaches, in
-the middle of a request belonging to a *reader*, means neither of two things
-may leak into the answer: the reader's own request-scoped state, and the
-system engine's authority. :func:`_as_author` handles the first — the author's
-role and their own "Full access" initiatives, and no grant of anybody's. The
-second is why the row is loaded on a session of its own: it is routed into the
-guild, so the guild's policies decide, and the answer is then taken from the
-same DAC function every endpoint asks.
+the middle of a request belonging to a *reader*, means the answer is built
+from neither of two things: the reader's own standing, and the system engine's
+authority. Both are handled the same way — a session of its own, taken into
+the guild through the establishment seam **as the author**, so the standing
+the guild's policies read is theirs and the answer is then taken from the same
+DAC function every endpoint asks. A live grant of the author's is taken back
+off it: a published view rests on their own place in the community, and a
+time-bound grant is not that.
 """
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.pam_context import active_grant, set_active_grant
-from app.core.role_context import (
-    override_sharing_initiatives,
-    set_override_sharing_initiatives,
-)
 from app.core.tools import Tool
 from app.db import session as db_session
-from app.db.session import set_rls_context
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.db.guild_standing import GuildContext
+from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
@@ -91,61 +86,43 @@ def read_grant(
     )
 
 
-@asynccontextmanager
-async def _as_author(
-    author_id: int, guild_id: int, override_ids: frozenset[int]
-) -> AsyncIterator[None]:
-    """Decide as *author* rather than as whoever is asking.
-
-    The two pieces of request-scoped standing that a sync DAC check reads
-    without being handed them: the "Full access" initiatives, which become the
-    author's, and any live PAM grant, which becomes none — a published view
-    rests on standing access, and a time-bound grant is not that.
-
-    The role is not here because it travels explicitly, as an argument.
-    """
-    held_override = override_sharing_initiatives()
-    held_grant = active_grant()
-    set_override_sharing_initiatives(override_ids)
-    set_active_grant(None, None)
-    try:
-        yield
-    finally:
-        set_override_sharing_initiatives(held_override or None)
-        set_active_grant(*(held_grant or (None, None)))
-
-
 async def _standing(
     session: AsyncSession, author_id: int, guild_id: int
-) -> Optional[tuple[User, str]]:
-    """The author, and the role they hold in this guild. ``None`` where they
-    have no standing at all.
+) -> Optional[tuple[User, GuildContext]]:
+    """The author, and the standing they hold in this guild. ``None`` where
+    they have no standing at all.
 
-    A suspended account and one that has left the guild are the same answer
-    here: nothing they published still stands.
+    A suspended account, one that has left the guild, and one whose only way in
+    is a time-bound grant are the same answer here: nothing they published
+    still stands.
 
-    Read before the session is routed into the guild. Identity lives in
-    ``public``, and inside a guild schema a person is read through that guild's
-    own projection — which is not what this needs.
+    The account is read before the session is routed into the guild. Identity
+    lives in ``public``, and inside a guild schema a person is read through
+    that guild's own projection — which is not what this needs. The routing
+    then goes through the establishment seam, so what decides below is the
+    standing the database computed for them.
     """
+    from app.api.deps import GuildAccessError, establish_guild_access
+
     await set_rls_context(session)
     author = await session.get(User, author_id)
     # Suspension takes every guild away, which is exactly what a published view
     # rests on. Anything but an active account publishes nothing.
     if author is None or author.status != UserStatus.active:
         return None
-    membership = (
-        await session.exec(
-            select(GuildMembership).where(
-                GuildMembership.user_id == author_id,
-                GuildMembership.guild_id == guild_id,
-            )
+    # Into the guild as the author, so the guild's own policies decide what is
+    # there to be read and the standing below is theirs.
+    session.expunge_all()
+    session.add(author)
+    try:
+        context = await establish_guild_access(
+            session, author, guild_id, satisfied_providers=SYSTEM_SATISFIED
         )
-    ).first()
-    if membership is None:
+    except GuildAccessError:
         return None
-    role = membership.role
-    return author, (role.value if isinstance(role, GuildRole) else str(role))
+    if context.membership is None:
+        return None
+    return author, context.membership_only()
 
 
 async def author_still_reaches(grants: Sequence[ResourceGrant], guild_id: int) -> bool:
@@ -155,46 +132,37 @@ async def author_still_reaches(grants: Sequence[ResourceGrant], guild_id: int) -
     published view serves on somebody's standing say-so, and an author who has
     lost the access, left, or been suspended is no longer saying it.
 
-    Read on a session of its own, routed into the guild, so the request's own
-    session keeps the context it was serving with.
+    Read on the request login, one session per author routed into the guild as
+    them: the level the row carries is the one that author holds on it, and
+    the request's own session keeps the context it was serving with. A session
+    each because a session carries one standing at a time.
     """
     if not grants:
         return False
     from app.api import resource_access
-    from app.services import rls as rls_service
 
-    # Looked up on the module rather than bound at import: which database the
-    # system engine points at is decided after this module is read.
-    async with db_session.AdminSessionLocal() as session:
-        for grant in grants:
-            author_id = grant.created_by
-            if author_id is None:
-                return False
+    for grant in grants:
+        author_id = grant.created_by
+        if author_id is None:
+            return False
+        # Looked up on the module rather than bound at import: which database
+        # the request login points at is decided after this module is read.
+        async with db_session.AsyncSessionLocal() as session:
             standing = await _standing(session, author_id, guild_id)
             if standing is None:
                 return False
-            author, role = standing
-            # Now into the guild, where the resource lives and its own policies
-            # decide what is there to be read.
-            session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+            author, context = standing
             kind, resource_id = target(grant)
             cfg = resource_access.RESOURCE_ACCESS[kind]
             row = await cfg.loader(session, resource_id)
             if row is None:
                 return False
-            override_ids = frozenset(
-                await rls_service.override_sharing_initiative_ids(
-                    session, user_id=author_id
+            try:
+                resource_access.authorize(
+                    kind, row, author, context=context, access="read"
                 )
-            )
-            async with _as_author(author_id, guild_id, override_ids):
-                try:
-                    resource_access.authorize(
-                        kind, row, author, access="read", guild_role=role
-                    )
-                except HTTPException:
-                    return False
+            except HTTPException:
+                return False
     return True
 
 

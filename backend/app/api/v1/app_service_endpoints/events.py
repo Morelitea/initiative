@@ -22,7 +22,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.api.v1.app_service_endpoints.deps import (
-    AdminSessionDep,
+    SystemSessionDep,
     CallerDep,
     parse_body,
     raw_body,
@@ -52,7 +52,7 @@ MAX_EVENT_REQUEST_BYTES = MAX_EVENT_PAYLOAD_BYTES + 8 * 1024
 
 @router.post("/events", status_code=status.HTTP_202_ACCEPTED)
 async def ingest_event(
-    request: Request, session: AdminSessionDep, caller: CallerDep
+    request: Request, session: SystemSessionDep, caller: CallerDep
 ) -> dict[str, str]:
     """Re-emit one third-party event into a guild the calling app is installed in.
 

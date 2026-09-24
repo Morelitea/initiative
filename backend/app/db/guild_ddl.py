@@ -31,11 +31,22 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.schema import CheckConstraint, CreateTable
 
 from app.db.initiative_rls import (
+    ANSWERED,
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
-    render_endpoint_access_fn,
+    render_entity_access_fn,
     InitiativePath,
+)
+from app.db.authorization import (
+    GUILD_ADMIN,
+    GUILD_SEAT,
+    RETIRED_GUILD_FUNCTION_SIGNATURES,
+    SETTINGS_ADMIN,
+    STANDING_IS_THIS_GUILD,
+    SYSTEM_SESSION,
+    render_guild_authorization_functions,
+    standing_ids,
 )
 from app.db.frozen import (
     FROZEN_TABLES,
@@ -49,7 +60,14 @@ from app.db.frozen import (
     render_resource_frozen_for_grant_fn,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.db.tenancy import GUILD_SCOPED_TABLES, OWN_ROW_TABLES
+from app.db.tenancy import (
+    GUILD_SCOPED_TABLES,
+    LEDGER_TABLES,
+    MANAGED_TABLES,
+    OWN_ROW_TABLES,
+    SEAT_TABLES,
+)
+from app.models.tenant.initiative import InitiativeJoinPolicy
 
 
 # Hard delete = purge, and only a guild admin may purge (the interactive endpoint
@@ -73,13 +91,11 @@ _GUILD_LEVEL_PURGE_TABLES: frozenset[str] = (
     frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES
 )
 
-# Admit only a routed guild admin (the GUC ``set_rls_context`` writes from the
-# request's validated membership role; a break-glass full-admin is routed as a
-# synthetic guild admin and also sets it). Matches the guild-admin leg of
-# public.initiative_access exactly.
-_PURGE_GUARD_PREDICATE = (
-    "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
-)
+# Admit only a community's administrator, or trusted system maintenance.
+# Matches the same two legs of initiative_access exactly: the admin fact the
+# standing statement computed from the membership row, and the connection's own
+# login for a sweep.
+_PURGE_GUARD_PREDICATE = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
 
 # Who may READ a row that is in the trash. Deleting something takes it out of
 # sight, so the ordinary answer is nobody: the trash is a place to recover from,
@@ -132,7 +148,7 @@ _HEADER = """\
 -- Initiative-member-level RLS for the per-guild CONTENT tables. Schema-relative
 -- (run with search_path = <guild_schema>, public). Idempotent.
 --
--- The access RULE lives in ONE place, public.initiative_access (initiative member
+-- The access RULE lives in ONE place, initiative_access (initiative member
 -- OR guild admin OR PAM, read from the request GUCs); each policy below is just the
 -- join that resolves a table's initiative id and defers to it. The per-table paths
 -- are the single source of truth in app/db/initiative_rls.py (INITIATIVE_PATHS).
@@ -140,11 +156,13 @@ _HEADER = """\
 -- SCOPE: only INITIATIVE-scoped CONTENT tables are here, exactly
 -- app.db.initiative_rls.INITIATIVE_SCOPED_TABLES. The STRUCTURAL initiative tables
 -- (initiatives, initiative_members, initiative_roles, initiative_role_permissions)
--- and guild-level / own-row tables (app.db.tenancy.GUILD_LEVEL_TABLES) are NOT
--- initiative-member-scoped: they are guild-scoped by the schema boundary (the
--- membership table can't be gated by the membership check it backs without
--- recursing; own-row scoping would break co-member rosters). The app layer still
--- does finer filtering (e.g. the initiatives list shows member-only for non-admins).
+-- are read within the schema boundary (co-members read their roster, and the
+-- standing statement reads the membership table before any standing exists) and
+-- written by their managers — the managed_* policies further down, from
+-- app.db.tenancy.MANAGED_TABLES. Guild-level / own-row tables
+-- (app.db.tenancy.GUILD_LEVEL_TABLES) are guild-scoped by the schema boundary.
+-- The app layer still does finer filtering (e.g. the initiatives list shows
+-- member-only for non-admins).
 --
 -- To add a new initiative-scoped table: add a path to INITIATIVE_PATHS in
 -- app/db/initiative_rls.py — provisioning and the boot back-fill apply the
@@ -156,10 +174,10 @@ _HEADER = """\
 -- rather than re-deciding the writer's access — see _TRIGGER_WRITTEN_INSERT.
 --
 -- Soft-delete tables additionally carry a RESTRICTIVE FOR DELETE policy
--- (soft_delete_admin_purge): hard delete = purge, and only a routed guild admin
--- may. It is RESTRICTIVE, so it AND-combines with the PERMISSIVE delete policy
--- above — a write-member clears the latter but not this one. app_admin (the
--- auto-purge worker) bypasses RLS entirely. Source of truth for the table set is
+-- (soft_delete_admin_purge): hard delete = purge, and only a community's
+-- administrator may. It is RESTRICTIVE, so it AND-combines with the PERMISSIVE
+-- delete policy above — a write-member clears the latter but not this one. The
+-- purge sweep is admitted by the connection's own login. Source of truth for the table set is
 -- app.db.soft_delete_filter.SOFT_DELETE_TABLES (the SoftDeleteMixin subclasses).
 -- The guild-level soft-delete tables (initiatives, tags) are RLS-free, so they get
 -- the guard via the dedicated section at the bottom of this file.
@@ -167,7 +185,7 @@ _HEADER = """\
 -- Write commands additionally carry the LIFECYCLE freeze (app.db.frozen):
 -- archived and trashed content is read-only, and so is everything under it.
 -- INSERT carries a RESTRICTIVE policy deferring to one function,
--- public.resource_frozen(kind, id, trashed_ok), which walks the same join chains
+-- resource_frozen(kind, id, trashed_ok), which walks the same join chains
 -- the sharing legs are rendered from. UPDATE and DELETE are triggers, at the
 -- bottom of this file — telling an edit from an unarchive needs the old row and
 -- the new row together, which a policy never has. SELECT carries neither.
@@ -192,19 +210,107 @@ _OWN_ROW_SECTION = """\
 -- Own-row guild-level tables (app.db.tenancy.OWN_ROW_TABLES): rows belong to
 -- ONE user. Unlike guild_level_open, this IS a row gate — a member must not
 -- see another member's rows (an export_jobs row leaks the selector and gates
--- the artifact download). Owner OR routed guild admin; the admin leg matches
--- initiative_access / the purge guard exactly, so a break-glass full-admin
--- (routed as a synthetic guild admin) is covered. A read-only PAM grantee is
--- routed to guild_<id>_ro with neither leg set: no rows, by design.
+-- the artifact download). Owner OR the community's administrator OR trusted
+-- system maintenance; the last two legs match initiative_access and the purge
+-- guard exactly. A settings rung reads them, and writes them only beside a
+-- read_write grant. A read-only PAM grantee is routed to guild_<id>_ro with
+-- none of them set: no rows, by design.
 -- ==========================================================================="""
 
 # Own-row predicate: the owner column is compared against the request GUC.
 # NULLIF-guard the cast — an unset context leaves the value empty, and a bare
 # ''::int raises and faults the whole query for every PERMISSIVE policy on the
 # table (same rule as the public shared-table policies; see CLAUDE.md §5).
-_OWN_ROW_PREDICATE = (
-    "({col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
-    " OR current_setting('app.current_guild_role'::text, true) = 'admin'::text)"
+_MANAGED_SECTION = """\
+-- ===========================================================================
+-- The structural initiative tables (app.db.tenancy.MANAGED_TABLES): read within
+-- the schema, written by the initiative's managers. Reading stays open — a
+-- roster is read by its co-members, and the standing statement reads
+-- initiative_members before any standing exists. Writing asks the standing:
+-- a manager of that initiative (app.manager_initiatives, a value the seam
+-- computed, so the membership table is not gated by a read of itself), the
+-- community's admin, a settings rung beside a read_write grant, or the system
+-- engine. A member's own row into an initiative whose join policy is open is
+-- the one further way in. initiatives keeps its purge guard and trash reads.
+-- ==========================================================================="""
+
+_PAM_WRITE = "current_setting('app.pam_write'::text, true) = 'true'::text"
+
+
+def _managed_write_predicate(initiative_expr: str) -> str:
+    """Who changes an initiative's structure: its managers by the standing, the
+    community's admin, a settings rung writing beside a read_write grant, or
+    the system engine."""
+    return (
+        f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR ({SETTINGS_ADMIN} AND {_PAM_WRITE})"
+        f" OR ({STANDING_IS_THIS_GUILD}"
+        f" AND ({initiative_expr}) = ANY ({standing_ids('app.manager_initiatives')})))"
+    )
+
+
+#: A member's own row into an initiative that is open to join — the self-join
+#: route. Names the community's members (``app.current_guild_id`` is set for a
+#: membership routing and for nothing else) and the initiative's policy.
+_SELF_JOIN_LEG = (
+    "(user_id = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
+    " AND NULLIF(current_setting('app.current_guild_id'::text, true), '') IS NOT NULL"
+    " AND EXISTS (SELECT 1 FROM initiatives i WHERE i.id = initiative_id"
+    f" AND i.join_policy = '{InitiativeJoinPolicy.open.value}' AND i.deleted_at IS NULL))"
+)
+
+
+def _managed_block(table: str, initiative_expr: str) -> str:
+    """RLS for a structural initiative table: reading open within the schema,
+    writing by the managed-write predicate. ``initiatives`` keeps its admin-only
+    purge guard and trash-read policies beside these."""
+    pred = _managed_write_predicate(initiative_expr)
+    insert_pred = (
+        f"({pred} OR {_SELF_JOIN_LEG})" if table == "initiative_members" else pred
+    )
+    lines = [
+        f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+        f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+        # The shape before this one: an allow-all for every command.
+        f"DROP POLICY IF EXISTS guild_level_open ON {table};",
+        f"DROP POLICY IF EXISTS managed_select ON {table};",
+        f"CREATE POLICY managed_select ON {table} AS PERMISSIVE FOR SELECT",
+        "  USING (true);",
+        f"DROP POLICY IF EXISTS managed_insert ON {table};",
+        f"CREATE POLICY managed_insert ON {table} AS PERMISSIVE FOR INSERT",
+        f"  WITH CHECK ({insert_pred});",
+        f"DROP POLICY IF EXISTS managed_update ON {table};",
+        f"CREATE POLICY managed_update ON {table} AS PERMISSIVE FOR UPDATE",
+        f"  USING ({pred}) WITH CHECK ({pred});",
+        f"DROP POLICY IF EXISTS managed_delete ON {table};",
+        f"CREATE POLICY managed_delete ON {table} AS PERMISSIVE FOR DELETE",
+        f"  USING ({pred});",
+    ]
+    if table in _GUILD_LEVEL_PURGE_TABLES:
+        lines += [
+            f"DROP POLICY IF EXISTS soft_delete_admin_purge ON {table};",
+            f"CREATE POLICY soft_delete_admin_purge ON {table} AS RESTRICTIVE FOR DELETE",
+            f"  USING ({_PURGE_GUARD_PREDICATE});",
+            *_trash_read_policy(table),
+            *_query_trash_policy(table),
+        ]
+    return "\n".join(lines)
+
+
+_OWN_ROW_OWNER = (
+    "{col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
+)
+
+#: Who reads an own-row table's rows: the owner, the community's admin, a
+#: settings rung, or the system engine.
+_OWN_ROW_READ_PREDICATE = (
+    f"({_OWN_ROW_OWNER} OR {SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
+)
+
+#: Who writes them: the same, with a settings rung writing only beside a
+#: read_write grant.
+_OWN_ROW_WRITE_PREDICATE = (
+    f"({_OWN_ROW_OWNER} OR {SYSTEM_SESSION} OR {GUILD_ADMIN}"
+    f" OR ({SETTINGS_ADMIN} AND {_PAM_WRITE}))"
 )
 
 _COMMANDS = (
@@ -227,10 +333,7 @@ _TRIGGER_WRITTEN_INSERT: dict[str, str] = {
     # The search index is derived: rows arrive from the refresh trigger as a
     # consequence of a content write that already cleared its own table's gate.
     # The reindex sweep routes as the guild admin, which is the second leg.
-    "search_entries": (
-        "pg_trigger_depth() > 0 OR "
-        "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
-    ),
+    "search_entries": f"pg_trigger_depth() > 0 OR {SYSTEM_SESSION} OR {GUILD_ADMIN}",
 }
 
 
@@ -252,7 +355,7 @@ def _table_block(table: str, path: InitiativePath) -> str:
             # the resource carries no leg on INSERT — creating one answers to
             # the initiative-role gate instead. A child table keeps it: adding a
             # task means reaching the project it goes in.
-            if sharing is not None:
+            if sharing is not None and sharing != ANSWERED:
                 pred = f"{pred} AND {sharing}"
         if command == "INSERT" and table in _TRIGGER_WRITTEN_INSERT:
             pred = _TRIGGER_WRITTEN_INSERT[table]
@@ -308,15 +411,41 @@ def _freeze_policies(table: str) -> list[str]:
 
 def _own_row_block(table: str, owner_col: str) -> str:
     """RLS for an own-row guild-level table: per-command policies admitting the
-    row's owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the same
-    predicate, so a member can't author rows owned by someone else either."""
-    pred = _OWN_ROW_PREDICATE.format(col=owner_col)
-    lines = [
-        f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
-        f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
-    ]
-    for suffix, command, clause, _write in _COMMANDS:
-        name = f"own_row_{suffix}"
+    row's owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the
+    write predicate, so a member can't author rows owned by someone else
+    either."""
+    read = _OWN_ROW_READ_PREDICATE.format(col=owner_col)
+    write = _OWN_ROW_WRITE_PREDICATE.format(col=owner_col)
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            *_policies(table, "own_row", read, write),
+        ]
+    )
+
+
+_SEAT_SECTION = """\
+-- ===========================================================================
+-- Seat-held guild-level tables (app.db.tenancy.SEAT_TABLES): configuration the
+-- community's seat holds. Read within the schema — a member's AI request reads
+-- the connection it runs on. Written by the seat (app.guild_seat, from the
+-- standing), which a lent seat holds beside a read_write content grant, or by
+-- the system engine.
+-- ==========================================================================="""
+
+_SEAT_WRITE_PREDICATE = (
+    f"({SYSTEM_SESSION} OR ({GUILD_SEAT} AND ({GUILD_ADMIN} OR {_PAM_WRITE})))"
+)
+
+
+def _policies(table: str, prefix: str, read: str, write: str) -> list[str]:
+    """One PERMISSIVE policy per command: ``read`` for SELECT, ``write`` for
+    the other three."""
+    lines: list[str] = []
+    for suffix, command, clause, is_write in _COMMANDS:
+        pred = write if is_write else read
+        name = f"{prefix}_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
         lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")
         if clause == "USING-CHECK":
@@ -325,7 +454,44 @@ def _own_row_block(table: str, owner_col: str) -> str:
             lines.append(f"  WITH CHECK ({pred});")
         else:  # USING
             lines.append(f"  USING ({pred});")
-    return "\n".join(lines)
+    return lines
+
+
+def _seat_block(table: str) -> str:
+    """RLS for a seat-held guild-level table: reading open within the schema,
+    writing by the seat or the system engine."""
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            *_policies(table, "seat", "true", _SEAT_WRITE_PREDICATE),
+        ]
+    )
+
+
+_LEDGER_SECTION = """\
+-- ===========================================================================
+-- Ledger guild-level tables (app.db.tenancy.LEDGER_TABLES): bookkeeping a
+-- system job keeps about a parent row. Read through the parent — the sub-select
+-- runs the parent's own SELECT policy, so a row is visible to whoever sees its
+-- parent. Written by the system engine alone.
+-- ==========================================================================="""
+
+
+def _ledger_block(table: str, parent: str, fk: str) -> str:
+    """RLS for a ledger table: read through its parent, written by the system
+    engine."""
+    read = (
+        f"({SYSTEM_SESSION} OR EXISTS (SELECT 1 FROM {parent}"
+        f" WHERE {parent}.id = {table}.{fk}))"
+    )
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            *_policies(table, "ledger", read, SYSTEM_SESSION),
+        ]
+    )
 
 
 def _guild_level_guard_block(table: str) -> str:
@@ -374,6 +540,30 @@ _FREEZE_SECTION = """\
 -- ==========================================================================="""
 
 
+def render_retired_functions_ddl() -> str:
+    """Drop the functions an earlier render put in the schema and this one no
+    longer calls. Last in the script, after every policy that named one has
+    been re-created without it.
+
+    Only the copy in the schema being rendered. The script runs with the
+    search path set to ``<schema>, public``, so an unqualified name with no
+    local copy resolves to ``public`` — and a release that kept the function
+    there (0.71 did) has every other guild's policies still bound to that
+    copy. Dropping it from one guild's render fails that guild, and then the
+    next, so no guild is ever re-rendered. The shared copy is retired once, at
+    boot, after every guild has stopped using it
+    (``ensure_public_copies_dropped``).
+    """
+    drops = " ".join(
+        f"IF to_regprocedure(format('%I.{name}{args}', current_schema())) "
+        "IS NOT NULL THEN "
+        f"EXECUTE format('DROP FUNCTION %I.{name}{args}', current_schema()); "
+        "END IF;"
+        for name, args in RETIRED_GUILD_FUNCTION_SIGNATURES
+    )
+    return f"DO $retire$ BEGIN {drops} END $retire$;"
+
+
 def render_guild_rls_ddl() -> str:
     blocks = [_table_block(t, INITIATIVE_PATHS[t]) for t in sorted(INITIATIVE_PATHS)]
     # Shared, and written before the policies that call it. Re-rendered on every
@@ -382,7 +572,9 @@ def render_guild_rls_ddl() -> str:
     out = (
         _HEADER
         + "\n"
-        + render_endpoint_access_fn()
+        + render_guild_authorization_functions()
+        + "\n"
+        + render_entity_access_fn()
         + "\n"
         + render_resource_frozen_fn()
         + "\n"
@@ -396,12 +588,21 @@ def render_guild_rls_ddl() -> str:
         + "\n"
         + "\n\n".join(blocks)
     )
-    guards = [_guild_level_guard_block(t) for t in sorted(_GUILD_LEVEL_PURGE_TABLES)]
+    guards = [
+        _guild_level_guard_block(t)
+        for t in sorted(_GUILD_LEVEL_PURGE_TABLES - set(MANAGED_TABLES))
+    ]
     if guards:
         out += "\n\n" + _GUILD_LEVEL_SECTION + "\n\n" + "\n\n".join(guards)
+    managed = [_managed_block(t, e) for t, e in sorted(MANAGED_TABLES.items())]
+    out += "\n\n" + _MANAGED_SECTION + "\n\n" + "\n\n".join(managed)
     own_rows = [_own_row_block(t, c) for t, c in sorted(OWN_ROW_TABLES.items())]
     if own_rows:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
+    seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
+    out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
+    ledgers = [_ledger_block(t, p, fk) for t, (p, fk) in sorted(LEDGER_TABLES.items())]
+    out += "\n\n" + _LEDGER_SECTION + "\n\n" + "\n\n".join(ledgers)
     guards = [f"{frozen_guard_trigger(t)};" for t in sorted(FROZEN_TABLES)]
     guards += [
         f"{trigger};"
@@ -409,7 +610,7 @@ def render_guild_rls_ddl() -> str:
         for trigger in frozen_write_triggers(table)
     ]
     out += "\n\n" + _FREEZE_SECTION + "\n" + "\n".join(guards)
-    return out + "\n"
+    return out + "\n\n" + render_retired_functions_ddl() + "\n"
 
 
 # ============================================================================
@@ -509,13 +710,15 @@ def _schema_relative_index(indexdef: str) -> str:
     return indexdef + ";"
 
 
-# The guild_id denormalization triggers. The trigger FUNCTIONS are shared (in
-# public, no pinned search_path) and read the parent table unqualified, so under
-# search_path=<guild_schema>,public they populate guild_id from the guild's own
-# rows. They must live in each guild schema or NOT NULL guild_id inserts fail.
+# The migration-owned triggers (``tr_<t>_set_created_by``, migration 0188). The
+# trigger FUNCTIONS are shared in public with no pinned search_path, so under
+# search_path=<guild_schema>,public they act on the guild's own rows. Triggers
+# the registries render (freeze, capture, search) are not structure and are
+# left out by name below — see ``rendered_trigger_names`` — so a template that
+# still carries them from an earlier boot contributes nothing of theirs here.
 _TRIGGER_SQL = text(  # noqa: S608 — interpolates only the _SRC_SCHEMA literal
     f"""
-    SELECT cl.relname AS tbl, pg_get_triggerdef(tg.oid) AS triggerdef
+    SELECT cl.relname AS tbl, tg.tgname AS name, pg_get_triggerdef(tg.oid) AS triggerdef
     FROM pg_trigger tg
     JOIN pg_class cl ON cl.oid = tg.tgrelid
     JOIN pg_namespace n ON n.oid = cl.relnamespace AND n.nspname = '{_SRC_SCHEMA}'
@@ -531,6 +734,46 @@ def _schema_relative_trigger(triggerdef: str) -> str:
     triggerdef = triggerdef.replace("CREATE TRIGGER ", "CREATE OR REPLACE TRIGGER ")
     triggerdef = triggerdef.replace(f" ON {_SRC_SCHEMA}.", " ON ")
     return triggerdef + ";"
+
+
+_TRIGGER_NAME_RE = re.compile(r"CREATE (?:OR REPLACE )?TRIGGER (\w+)")
+_CONSTRAINT_NAME_RE = re.compile(r"ADD CONSTRAINT (\w+)")
+
+
+def _registry_ddl() -> str:
+    """Everything the registries render into a guild schema, as one text."""
+    from app.db.event_capture import render_guild_capture_ddl
+    from app.db.search_index import render_guild_search_ddl
+
+    return "\n".join(
+        (
+            render_guild_rls_ddl(),
+            render_guild_capture_ddl(),
+            render_guild_search_ddl(None),
+        )
+    )
+
+
+def rendered_trigger_names() -> frozenset[str]:
+    """Every trigger name the registries render into a guild schema.
+
+    Read off the rendered DDL itself — the freeze triggers in the RLS render,
+    the change-capture triggers, the search-index triggers — so the set is
+    whatever the renderers currently produce, with no list to keep in step.
+    The structure reflection and the clone-fidelity test both use it to tell a
+    migration-owned object from a rendered one.
+    """
+    return frozenset(_TRIGGER_NAME_RE.findall(_registry_ddl()))
+
+
+def rendered_constraint_names() -> frozenset[str]:
+    """Every constraint name the registries render into a guild schema.
+
+    Today that is the search index's entity-type CHECK, which names the
+    indexed set and is re-asserted per guild so a source added to the registry
+    is admitted everywhere. Read off the rendered DDL, like the triggers.
+    """
+    return frozenset(_CONSTRAINT_NAME_RE.findall(_registry_ddl()))
 
 
 def _guard(conname: str, body: str) -> str:
@@ -562,11 +805,17 @@ async def render_guild_schema_ddl(engine: AsyncEngine) -> str:
             await conn.execute(_TRIGGER_SQL, {"t": sorted(GUILD_SCOPED_TABLES)})
         ).fetchall()
 
+    rendered = rendered_trigger_names()
+    rendered_constraints = rendered_constraint_names()
     indexes = [_schema_relative_index(r.indexdef) for r in index_rows]
-    triggers = [_schema_relative_trigger(r.triggerdef) for r in trigger_rows]
+    triggers = [
+        _schema_relative_trigger(r.triggerdef)
+        for r in trigger_rows
+        if r.name not in rendered
+    ]
     checks, fks = [], []
     for r in rows:
-        if r.contype == "c":
+        if r.contype == "c" and r.conname not in rendered_constraints:
             checks.append(
                 _guard(
                     r.conname,
@@ -594,7 +843,7 @@ async def render_guild_schema_ddl(engine: AsyncEngine) -> str:
         + "\n".join(checks)
         + "\n\n-- intra-schema FOREIGN KEYs\n"
         + "\n".join(fks)
-        + "\n\n-- guild_id denormalization triggers (functions are shared in public)\n"
+        + "\n\n-- migration-owned triggers (functions are shared in public)\n"
         + "\n".join(triggers)
         + "\n"
     )

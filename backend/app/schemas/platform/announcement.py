@@ -3,8 +3,8 @@
 One output shape, :class:`AnnouncementRead`, serves both the notices an
 operator wrote and the ones compiled into the app — the client renders them
 identically and only ever needs the ``key`` to say "I have read this". The
-admin surface adds the fields a reader has no business with (draft state,
-audience, authorship) in :class:`AnnouncementAdminRead`.
+operator surface adds the fields a reader has no business with (draft state,
+audience, authorship) in :class:`AnnouncementOperatorRead`.
 """
 
 from __future__ import annotations
@@ -110,7 +110,7 @@ class AnnouncementRead(SanitizedBaseModel):
     sections: list[AnnouncementSection] = Field(default_factory=list)
     published_at: Optional[datetime] = None
     #: True for notices shipped in the app's own source rather than authored
-    #: in the admin surface; they cannot be edited from the UI.
+    #: in the operator surface; they cannot be edited from the UI.
     is_builtin: bool = False
     #: When this reader last acknowledged it, if they have.
     dismissed_at: Optional[datetime] = None
@@ -127,7 +127,7 @@ class AnnouncementListResponse(SanitizedBaseModel):
     items: list[AnnouncementRead] = Field(default_factory=list)
 
 
-class AnnouncementAdminRead(AnnouncementRead):
+class AnnouncementOperatorRead(AnnouncementRead):
     """Everything about an announcement, for the people who write them."""
 
     id: Optional[int] = None
@@ -137,13 +137,12 @@ class AnnouncementAdminRead(AnnouncementRead):
         AnnouncementAudienceAccounts.everyone
     )
     expires_at: Optional[datetime] = None
-    created_by: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
 
-class AnnouncementAdminListResponse(SanitizedBaseModel):
-    items: list[AnnouncementAdminRead] = Field(default_factory=list)
+class AnnouncementOperatorListResponse(SanitizedBaseModel):
+    items: list[AnnouncementOperatorRead] = Field(default_factory=list)
 
 
 class AnnouncementWrite(SanitizedBaseModel):

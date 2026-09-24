@@ -9,7 +9,7 @@
   "noMatchingProjects": "Aucun projet ne correspond à vos filtres.",
   "onlyPinnedMatch": "Seuls les projets épinglés correspondent à vos filtres.",
   "accessRestricted": "Accès restreint",
-  "accessRestrictedDescription": "Vous n'avez pas la permission de voir les projets dans cette initiative. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
+  "accessRestrictedDescription": "Vous n'avez pas la permission de voir les projets dans cette initiative. Demandez à l'administration de la communauté ou à un gestionnaire d'initiative si vous pensez qu'il s'agit d'une erreur.",
   "view": {
     "grid": "Grille",
     "list": "Liste"
@@ -337,7 +337,24 @@
     "taskCount_one": "{{count}} tâche",
     "taskCount_other": "{{count}} tâches",
     "collapse": "Réduire {{name}}",
-    "expand": "Développer {{name}}"
+    "expand": "Développer {{name}}",
+    "fields": {
+      "label": "Champs",
+      "menuTitle": "Champs sur les cartes",
+      "showAll": "Afficher tous les champs",
+      "hiddenCount_one": "{{count}} masqué",
+      "hiddenCount_other": "{{count}} masqués",
+      "description": "Description",
+      "assignees": "Assignés",
+      "startDate": "Date de début",
+      "dueDate": "Date d'échéance",
+      "recurrence": "Récurrence",
+      "checklist": "Liste de contrôle",
+      "priority": "Priorité",
+      "comments": "Commentaires",
+      "blockers": "Bloqueurs",
+      "tags": "Étiquettes"
+    }
   },
   "recurrence": {
     "repeat": "Répéter",
@@ -422,15 +439,6 @@
     "noComments": "Aucun commentaire pour l'instant.",
     "commentedOn": "a commenté sur",
     "loadMore": "Charger plus"
-  },
-  "export": {
-    "title": "Exporter le projet",
-    "description": "Téléchargez ce projet sous forme de sauvegarde JSON portable ou de rapport mis en forme (PDF, CSV ou Excel).",
-    "detail": "La sauvegarde JSON peut être réimportée sur cette instance ou toute autre installation d'Initiative — les références utilisent des noms et des e-mails afin qu'aucun ID de cette base ne fuite. Les formats de rapport couvrent les tâches non archivées du projet.",
-    "exportButton": "Exporter",
-    "noWriteAccess": "Vous devez avoir un accès en écriture sur ce projet pour l'exporter.",
-    "success": "Projet exporté",
-    "error": "Impossible d'exporter le projet. Veuillez réessayer."
   },
   "status": {
     "label": "Afficher",

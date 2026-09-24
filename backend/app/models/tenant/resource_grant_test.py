@@ -22,7 +22,6 @@ async def test_grants_polymorphic_relationship_loads(session: AsyncSession):
     # Add a same-id, different-resource_type decoy that must also be excluded.
     session.add(
         ResourceGrant(
-            guild_id=guild.id,
             initiative_id=initiative.id,
             resource_type="document",
             resource_id=project.id,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
@@ -11,6 +11,9 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import GuildContext
 
 
 class WikiBase(SanitizedBaseModel):
@@ -209,9 +212,8 @@ class WikiPageSummary(SanitizedBaseModel):
     #: Which of the two things this row is. A document keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
-    #: What this row is filed under. A document borrowed into a wiki is always
-    #: at the top of it: where it is filed would be a fact about a document
-    #: that belongs to other places too.
+    #: What this row is filed under: a page, or ``None`` for the top. A
+    #: document is filed like a page is, but never holds anything itself.
     parent_page_id: Optional[int] = None
     position: int = 0
     #: A document placed in a wiki is never a draft: it is not this wiki's to
@@ -226,6 +228,13 @@ class WikiPageSummary(SanitizedBaseModel):
     #: opening it.
     headings: List[WikiPageHeading] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
+    #: A document row's kind of document and the facts its icon is drawn
+    #: from — a PDF, a spreadsheet and a link to a design tool each look like
+    #: what they are. ``None`` on a page.
+    document_type: Optional[str] = None
+    file_content_type: Optional[str] = None
+    original_filename: Optional[str] = None
+    smart_link_url: Optional[str] = None
 
 
 class WikiPageRead(WikiPageSummary):
@@ -289,10 +298,9 @@ class WikiPageLinks(SanitizedBaseModel):
 
 
 def serialize_wiki_summary(
-    wiki: "Any", *, user_id: Optional[int] = None
+    wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
 ) -> WikiSummary:
     # Local import avoids a schema -> service import cycle.
-    from app.core.tools import Tool
     from app.schemas.tenant.tag import annotated_tags
     from app.services.permissions import client_access, serialize_grants
 
@@ -301,7 +309,7 @@ def serialize_wiki_summary(
         name=wiki.name,
         description=wiki.description,
         initiative_id=wiki.initiative_id,
-        guild_id=wiki.guild_id,
+        guild_id=context.guild_id,
         created_by=wiki.created_by,
         created_at=wiki.created_at,
         updated_at=wiki.updated_at,
@@ -315,7 +323,7 @@ def serialize_wiki_summary(
         accent_color=wiki.accent_color,
         template_page_id=wiki.template_page_id,
         archived_at=wiki.archived_at,
-        **client_access(Tool.wiki, wiki, user_id),
+        **client_access(wiki, user_id, context=context),
         comments_enabled=wiki.comments_enabled,
         comment_count=getattr(wiki, "comment_count", 0),
         tags=annotated_tags(wiki),
@@ -323,18 +331,24 @@ def serialize_wiki_summary(
     )
 
 
-def serialize_wiki(wiki: "Any", *, user_id: Optional[int] = None) -> WikiRead:
-    return WikiRead(**serialize_wiki_summary(wiki, user_id=user_id).model_dump())
+def serialize_wiki(
+    wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
+) -> WikiRead:
+    return WikiRead(
+        **serialize_wiki_summary(wiki, context=context, user_id=user_id).model_dump()
+    )
 
 
-def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
+def serialize_wiki_page_summary(
+    page: "Any", *, context: GuildContext
+) -> WikiPageSummary:
     from app.schemas.tenant.tag import annotated_tags
     from app.services.tenant.wikis import page_headings
 
     return WikiPageSummary(
         id=page.id,
         wiki_id=page.wiki_id,
-        guild_id=page.guild_id,
+        guild_id=context.guild_id,
         kind=WikiPageKind.page,
         parent_page_id=page.parent_page_id,
         position=page.position,
@@ -350,7 +364,12 @@ def serialize_wiki_page_summary(page: "Any") -> WikiPageSummary:
 
 
 def serialize_document_as_page(
-    document: "Any", *, wiki_id: int, position: int
+    document: "Any",
+    *,
+    context: GuildContext,
+    wiki_id: int,
+    position: int,
+    parent_page_id: Optional[int] = None,
 ) -> WikiPageSummary:
     """A document, as the wiki's navigation draws it.
 
@@ -363,8 +382,9 @@ def serialize_document_as_page(
     return WikiPageSummary(
         id=document.id,
         wiki_id=wiki_id,
-        guild_id=document.guild_id,
+        guild_id=context.guild_id,
         kind=WikiPageKind.document,
+        parent_page_id=parent_page_id,
         position=position,
         is_draft=False,
         title=document.name,
@@ -373,12 +393,25 @@ def serialize_document_as_page(
         created_at=document.created_at,
         updated_at=document.updated_at,
         headings=[WikiPageHeading(**h) for h in page_headings(document.content)],
+        document_type=getattr(document.document_type, "value", document.document_type),
+        file_content_type=document.file_content_type,
+        original_filename=document.original_filename,
+        smart_link_url=_smart_link_url(document),
     )
 
 
-def serialize_wiki_page(page: "Any") -> WikiPageRead:
+def _smart_link_url(document: "Any") -> Optional[str]:
+    """The address a link document points at, for its provider's mark."""
+    if getattr(document.document_type, "value", document.document_type) != "smart_link":
+        return None
+    content = document.content if isinstance(document.content, dict) else {}
+    url = content.get("url")
+    return url if isinstance(url, str) and url else None
+
+
+def serialize_wiki_page(page: "Any", *, context: GuildContext) -> WikiPageRead:
     return WikiPageRead(
-        **serialize_wiki_page_summary(page).model_dump(),
+        **serialize_wiki_page_summary(page, context=context).model_dump(),
         content=page.content or {},
         comment_count=getattr(page, "comment_count", 0),
     )

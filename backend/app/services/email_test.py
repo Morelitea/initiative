@@ -173,3 +173,33 @@ async def test_join_request_outcome_emails_render(
     assert "initiativeJoinRequest." not in captured["html_body"]
     assert "Parser Guild" in captured["html_body"]
     assert "They wrote" not in captured["html_body"]
+
+
+@pytest.mark.integration
+async def test_the_hold_letter_names_the_deletion_day_when_there_is_one(
+    session, monkeypatch
+):
+    from datetime import datetime, timezone
+
+    sent: list[dict] = []
+
+    async def fake_send_email(_session, **kwargs):
+        sent.append(kwargs)
+
+    monkeypatch.setattr(email_service, "send_email", fake_send_email)
+
+    for delete_at in (datetime(2026, 10, 24, tzinfo=timezone.utc), None):
+        await email_service.send_community_on_hold_email(
+            session,
+            recipients=["seat@example.com"],
+            community="Acme",
+            contact="help@example.com",
+            delete_at=delete_at,
+        )
+
+    dated, undated = sent
+    assert "<strong>24 October 2026</strong>" in dated["html_body"]
+    assert "24 October 2026, it will be deleted" in dated["text_body"]
+    assert "help@example.com" in dated["text_body"]
+    assert "deleted" not in undated["html_body"]
+    assert "deleted" not in undated["text_body"]

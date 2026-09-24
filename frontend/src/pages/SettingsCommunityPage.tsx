@@ -16,8 +16,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DmPolicy } from "@/api/generated/initiativeAPI.schemas";
-import { DeletedAccountRetentionSection } from "@/components/admin/DeletedAccountRetentionSection";
-import { DeletedCommunityRetentionSection } from "@/components/admin/DeletedCommunityRetentionSection";
+import { DeletedAccountRetentionSection } from "@/components/platform/DeletedAccountRetentionSection";
+import { DeletedCommunityRetentionSection } from "@/components/platform/DeletedCommunityRetentionSection";
+import { OnHoldCommunityDeletionSection } from "@/components/platform/OnHoldCommunityDeletionSection";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
@@ -39,7 +40,7 @@ import { Capability, hasCapability } from "@/lib/permissions";
 export const SettingsCommunityPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const isPlatformAdmin = hasCapability(user, Capability.configManage);
+  const canManagePlatformConfig = hasCapability(user, Capability.configManage);
   const { communityDirectoryEnabled, communityAgeGateEnabled, directMessagesEnabled, isLoading } =
     useAppConfig();
   const { data: community } = useCommunitySettings();
@@ -74,8 +75,8 @@ export const SettingsCommunityPage = () => {
     },
   });
 
-  if (!isPlatformAdmin) {
-    return <p className="text-muted-foreground text-sm">{t("community.adminOnly")}</p>;
+  if (!canManagePlatformConfig) {
+    return <p className="text-muted-foreground text-sm">{t("community.platformOnly")}</p>;
   }
 
   return (
@@ -201,6 +202,8 @@ export const SettingsCommunityPage = () => {
         />
 
         <DeletedCommunityRetentionSection directoryEnabled={communityDirectoryEnabled} />
+
+        <OnHoldCommunityDeletionSection directoryEnabled={communityDirectoryEnabled} />
 
         <DeletedAccountRetentionSection directoryEnabled={communityDirectoryEnabled} />
 

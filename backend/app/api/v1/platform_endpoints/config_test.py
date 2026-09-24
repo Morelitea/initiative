@@ -12,6 +12,8 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
+from app.services import captcha_config
+from app.services.captcha_config import ResolvedCaptchaConfig
 from app.core.version import get_min_native_version
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
@@ -91,6 +93,7 @@ async def test_config_exposes_billing_url_when_set(client: AsyncClient, monkeypa
     assert response.json()["billing"] == {
         "url": "https://billing.example.com",
         "operator_handoff": False,
+        "manages_plans": False,
     }
 
 
@@ -130,9 +133,22 @@ async def test_config_captcha_exposes_provider_and_site_key(
     """All three supported providers round-trip through the config
     endpoint with their public site key. The secret key never appears
     in the response."""
+    # The captcha configuration moved onto the settings row in 0368, so the
+    # endpoint resolves it rather than reading these env vars -- which are now
+    # only the first-boot seed. Patched to match anyway, so a failure here
+    # cannot be ambiguous about which source the endpoint read.
     monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", provider)
     monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "public-site-key")
     monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "very-private-secret")
+
+    async def _resolved() -> ResolvedCaptchaConfig:
+        return ResolvedCaptchaConfig(
+            provider=provider,
+            site_key="public-site-key",
+            secret_key="very-private-secret",
+        )
+
+    monkeypatch.setattr(captcha_config, "ensure_captcha_config_fresh", _resolved)
 
     response = await client.get("/api/v1/config")
 

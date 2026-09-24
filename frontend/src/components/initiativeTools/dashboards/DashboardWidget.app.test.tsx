@@ -24,6 +24,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
+import type { DefinitionWidget } from "@/lib/widgets/definition";
 import { WidgetErrorCode } from "@/lib/widgets/errors";
 
 const apiGet = vi.hoisted(() => vi.fn());
@@ -42,11 +43,16 @@ const APP_UID = "SHOPAPP0000001";
 const WIDGET_TYPE = `app:${APP_UID}:summary`;
 const MODULE = "export const render = () => ({ scene: { kind: 'empty' } });";
 
-const widget = { id: "w1", type: WIDGET_TYPE, grid: { x: 0, y: 0, w: 6, h: 4 } };
 const binding: WidgetBinding = {
   source: "app",
   app_uid: APP_UID,
   endpoint_id: "app.acme.shop.orders-summary",
+};
+const widget: DefinitionWidget = {
+  id: "w1",
+  type: WIDGET_TYPE,
+  grid: { x: 0, y: 0, w: 6, h: 4 },
+  binding,
 };
 
 const CATALOG = {

@@ -1,0 +1,185 @@
+"""The pictures a listing uses: uploaded to the marketplace, and copied into
+the community that installs it.
+
+A listing's pictures are never taken from a community. What a community stores
+is its own, whoever is sharing from it, so a share reads nothing from its
+storage and the publish profile drops every reference into it. A picture a
+listing shows is one somebody **uploaded to the marketplace** for it: a
+member's images when they share, or the files the owner uploads for a listing
+of their own. Each is a new file in the marketplace's media (``media``), named
+by the digest of its bytes.
+
+Installing copies each picture the listing names into the installing
+community's storage as a new upload of the member installing, and names the
+copy there. That is how an owner-published gallery arrives with its pictures.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any, Callable
+from uuid import uuid4
+
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.tools import Tool
+from app.services.marketplace import media
+
+__all__ = [
+    "MAX_IMAGE_BYTES",
+    "MAX_LISTING_IMAGES",
+    "UploadedImageError",
+    "copy_assets_in",
+    "media_paths_in",
+    "store_uploaded_image",
+]
+
+#: The largest picture somebody may upload to a listing.
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+#: How many pictures a member may upload with one share.
+MAX_LISTING_IMAGES = 8
+
+
+class UploadedImageError(ValueError):
+    """An uploaded file the marketplace will not keep as a picture."""
+
+
+async def store_uploaded_image(session: AsyncSession, data: bytes) -> str:
+    """Keep one uploaded picture in the marketplace's media, and return the
+    path it is served from.
+
+    Raster images only, read from the bytes rather than from what the upload
+    claimed to be, and no larger than :data:`MAX_IMAGE_BYTES`.
+    """
+    if len(data) > MAX_IMAGE_BYTES:
+        raise UploadedImageError("image is too large")
+    content_type = media.image_type_of(data)
+    if content_type is None:
+        raise UploadedImageError("not an image the marketplace keeps")
+    return await media.store_media(session, data, content_type=content_type)
+
+
+_EXTENSIONS = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+
+
+def _walk_strings(value: Any, visit: Callable[[str], None]) -> None:
+    if isinstance(value, str):
+        visit(value)
+    elif isinstance(value, dict):
+        for child in value.values():
+            _walk_strings(child, visit)
+    elif isinstance(value, list):
+        for child in value:
+            _walk_strings(child, visit)
+
+
+def _replace_strings(value: Any, replacements: dict[str, str]) -> Any:
+    if isinstance(value, str):
+        return replacements.get(value, value)
+    if isinstance(value, dict):
+        return {
+            key: _replace_strings(child, replacements) for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [_replace_strings(child, replacements) for child in value]
+    return value
+
+
+def media_paths_in(envelope: Any) -> list[str]:
+    """Every catalogue media path an envelope names, first-seen order."""
+    found: list[str] = []
+
+    def visit(value: str) -> None:
+        if media.digest_of(value) is not None and value not in found:
+            found.append(value)
+
+    _walk_strings(envelope, visit)
+    return found
+
+
+def _rekey_gallery(envelope: dict[str, Any], keys: dict[str, str]) -> dict[str, Any]:
+    """A gallery with each picture's key and its cover mapped through ``keys``,
+    and anything unmapped left blank for the importer to count as missing."""
+    rekeyed = dict(envelope)
+    rekeyed["images"] = [
+        {**image, "storage_key": keys.get(image.get("storage_key") or "", "")}
+        if isinstance(image, dict)
+        else image
+        for image in envelope.get("images") or []
+    ]
+    rekeyed["cover"] = keys.get(envelope.get("cover") or "")
+    return rekeyed
+
+
+async def copy_assets_in(
+    session: AsyncSession,
+    *,
+    tool: Tool,
+    envelope: dict[str, Any],
+    guild_id: int,
+    user_id: int,
+) -> dict[str, Any]:
+    """``envelope`` with each picture it names copied into this guild's
+    storage as a new upload of ``user_id``'s, and named there.
+
+    The copies count against the guild's storage like any upload, and the
+    whole install is refused if they do not fit. A path naming nothing the
+    catalogue keeps is left as it is; the importer treats the picture as
+    missing.
+    """
+    from app.db import session as db_session
+    from app.models.tenant.upload import Upload
+    from app.services.storage import get_guild_storage
+    from app.services.tenant.attachments import (
+        compute_content_hash,
+        enforce_storage_quota,
+    )
+
+    paths = media_paths_in(envelope)
+    if not paths:
+        return envelope
+
+    # The catalogue's media is read on the system engine: a guild-routed
+    # session holds no grant on it.
+    kept: dict[str, tuple[bytes, str]] = {}
+    async with db_session.SystemSessionLocal() as catalog:
+        for path in paths:
+            digest = media.digest_of(path)
+            found = await media.read_media(catalog, digest) if digest else None
+            if found is not None:
+                kept[path] = found
+
+    await enforce_storage_quota(
+        session,
+        guild_id=guild_id,
+        incoming_bytes=sum(len(data) for data, _ in kept.values()),
+    )
+
+    storage = get_guild_storage(guild_id)
+    to_url: dict[str, str] = {}
+    to_key: dict[str, str] = {}
+    for path, (data, content_type) in kept.items():
+        key = f"{uuid4().hex}{_EXTENSIONS.get(content_type, '')}"
+        await asyncio.to_thread(storage.write, key, data, content_type=content_type)
+        session.add(
+            Upload(
+                filename=key,
+                created_by=user_id,
+                size_bytes=len(data),
+                content_type=content_type,
+                content_hash=compute_content_hash(data),
+            )
+        )
+        to_url[path] = f"/uploads/{guild_id}/{key}"
+        to_key[path] = key
+    await session.flush()
+
+    if tool is Tool.gallery:
+        # A gallery names its pictures by key, everything else by URL.
+        return _rekey_gallery(envelope, to_key)
+    return _replace_strings(envelope, to_url)

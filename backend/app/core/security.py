@@ -444,12 +444,29 @@ BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
 # disagree.
 BILLING_PORTAL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
+BILLING_HANDOFF_GUILD_NAME_MAX = 120
+
+
+def _handoff_display_name(guild_name: str | None) -> str | None:
+    """The community name as a handoff carries it, or ``None`` for no name.
+
+    Trimmed and truncated. This is a label to print, so shortening one is a
+    cosmetic loss; letting it through unbounded is a broken session.
+    """
+    trimmed = (guild_name or "").strip()
+    if not trimmed:
+        return None
+    if len(trimmed) <= BILLING_HANDOFF_GUILD_NAME_MAX:
+        return trimmed
+    return trimmed[: BILLING_HANDOFF_GUILD_NAME_MAX - 1].rstrip() + "…"
+
 
 def create_billing_portal_handoff_token(
     *,
     guild_role: str,
     user_ref: str,
     guild_ref: str,
+    guild_name: str | None = None,
     expires_in: timedelta = BILLING_PORTAL_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-portal handoff token (RS256; raises if unconfigured).
@@ -472,6 +489,9 @@ def create_billing_portal_handoff_token(
         "user_ref": user_ref,
         "guild_ref": guild_ref,
     }
+    display_name = _handoff_display_name(guild_name)
+    if display_name:
+        payload["guild_name"] = display_name
     key, algorithm, kid = _resolve_handoff_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
@@ -504,12 +524,22 @@ def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
     return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
 
 
+# Pinned on both sides of the boundary — not deployment knobs.
+#: ``iss`` on the tokens this deployment mints for app services.
+APP_PLATFORM_ISSUER = "initiative"
+#: ``aud`` is this prefix plus the registration's public_id, so a token minted
+#: for one app is not accepted by another.
+APP_PLATFORM_AUDIENCE_PREFIX = "initiative-app:"
+#: The envelope an app's delegation token is checked against.
+AUTO_DELEGATION_AUDIENCE = "initiative:auto-delegation"
+AUTO_DELEGATION_ISSUER = "initiative-auto"
+
+
 def app_platform_audience(public_id: str) -> str:
     """The ``aud`` a token minted for one app service carries."""
-    return f"{settings.APP_PLATFORM_AUDIENCE_PREFIX}{public_id}"
+    return f"{APP_PLATFORM_AUDIENCE_PREFIX}{public_id}"
 
 
-# Pinned on both sides of the boundary — not deployment knobs.
 BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"
 BILLING_SUPPORT_HANDOFF_AUDIENCE = "initiative:billing-support"
 
@@ -557,6 +587,7 @@ def create_billing_support_handoff_token(
     grant_id: int | str,
     user_ref: str,
     guild_ref: str,
+    guild_name: str | None = None,
     approver_ref: str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
     console: str = BILLING_SUPPORT_CONSOLE,
@@ -592,6 +623,9 @@ def create_billing_support_handoff_token(
         "user_ref": user_ref,
         "guild_ref": guild_ref,
     }
+    display_name = _handoff_display_name(guild_name)
+    if display_name:
+        payload["guild_name"] = display_name
     if approver_ref is not None:
         payload["approver"] = approver_ref
     token = jwt.encode(payload, secret, algorithm="HS256", headers={"kid": kid})
@@ -685,8 +719,8 @@ def verify_auto_delegation_token(
                 token,
                 key,
                 algorithms=["RS256"],
-                audience=settings.AUTO_DELEGATION_AUDIENCE,
-                issuer=settings.AUTO_DELEGATION_ISSUER,
+                audience=AUTO_DELEGATION_AUDIENCE,
+                issuer=AUTO_DELEGATION_ISSUER,
                 options={"require": ["exp", "iat", "iss", "aud", "sub", "jti"]},
             )
             break

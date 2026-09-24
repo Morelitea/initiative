@@ -214,6 +214,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
               placeholder={t("profile.fullNamePlaceholder")}
+              maxLength={255}
             />
             <p className="text-muted-foreground text-xs">{t("account.fullNameHelp")}</p>
           </div>

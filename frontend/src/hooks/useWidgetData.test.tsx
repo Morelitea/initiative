@@ -12,10 +12,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 
-const idle = { data: undefined, isLoading: false, isError: false };
-const useSqlQuery = vi.fn(() => idle);
-const useWidgetQuery = vi.fn(() => idle);
-const useDocument = vi.fn(() => idle);
+/** The slice of a query result the hook under test reads. */
+type QueryState = { data: unknown; isLoading: boolean; isError: boolean };
+type QueryHook = (...args: unknown[]) => QueryState;
+
+const idle: QueryState = { data: undefined, isLoading: false, isError: false };
+const useSqlQuery = vi.fn<QueryHook>(() => idle);
+const useWidgetQuery = vi.fn<QueryHook>(() => idle);
+const useDocument = vi.fn<QueryHook>(() => idle);
 
 vi.mock("@/hooks/useSqlQuery", () => ({
   useSqlQuery: (...args: unknown[]) => useSqlQuery(...args),

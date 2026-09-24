@@ -1,40 +1,76 @@
-"""API endpoints for importing tasks from external platforms."""
+"""Import endpoints: envelopes, foreign-source files, Jira, and backup restores.
+
+Every route here writes, so every route re-checks that the community is
+writable. The engine behind them is shared: whatever file or site the work
+arrived from, it becomes an envelope, and one apply path puts the rows in.
+
+NOTE: the job routes use literal paths plus a parametric ``/{job_id}``; every
+literal route MUST stay declared before the parametric ones.
+"""
 
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
+from fastapi.responses import JSONResponse
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
+    GuildContext,
     RLSSessionDep,
     get_current_active_user,
     get_guild_membership,
-    GuildContext,
+    require_seat,
 )
-from app.models.platform.guild import GuildRole
-from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.initiative import Initiative
+from app.core.messages import ImportEngineMessages
+from app.core.version import get_version
 from app.models.platform.user import User
-from app.schemas.tenant.import_data import (
-    TodoistImportRequest,
-    TodoistParseResult,
-    VikunjaImportRequest,
-    VikunjaParseResult,
-    TickTickImportRequest,
-    TickTickParseResult,
-    ImportResult,
+from app.models.tenant.import_job import ImportJob, ImportJobStatus
+from app.models.tenant.initiative import Initiative
+from app.schemas.tenant.atlassian import (
+    AtlassianConnectRequest,
+    AtlassianConnectResponse,
+    AtlassianImportRequest,
 )
-from app.core.messages import ImportMessages
-from app.core.tools import Tool
-from app.services.tenant import import_service
-from app.services import permissions as permissions_service
-from app.services.tenant import filter_presets as filter_presets_service
-from app.services.tenant import task_statuses as task_statuses_service
+from app.schemas.tenant.import_job import (
+    EnvelopeImportRequest,
+    EnvelopeImportResponse,
+    ForeignImportRequest,
+    ForeignPreview,
+    ForeignSourceOption,
+    ImportJobRead,
+    serialize_import_job,
+)
+from app.services.import_engine import atlassian as atlassian_service
+from app.services.import_engine import atlassian_job
+from app.services.import_engine import backup as backup_service
+from app.services.import_engine import engine as import_engine
+from app.services.import_engine import envelope_archive
+from app.services.import_engine import foreign as foreign_service
+from app.services.import_engine.contract import (
+    ImportEngineError,
+    InlineImport,
+)
+from app.services.import_engine.engine import (
+    count_active_jobs_locked,
+    stage_payload,
+)
+from app.services.tenant.attachments import (
+    FileTooLargeError,
+    read_upload_bounded,
+)
+from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
 
@@ -42,297 +78,10 @@ router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
-
-async def _validate_project_write_access(
-    session: AsyncSession,
-    project_id: int,
-    user: User,
-    guild_id: int,
-) -> Project:
-    """Validate user has write access to a project using centralized DAC.
-
-    Takes a plain session: this is a helper the handlers call, not a route
-    dependency, so it accepts whichever session its caller is already using
-    (the guild-routed one, in every case today).
-    """
-    project_stmt = (
-        select(Project)
-        .join(Project.initiative)
-        .where(
-            Project.id == project_id,
-            Initiative.guild_id == guild_id,
-        )
-        .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.initiative).selectinload(Initiative.memberships),
-        )
-    )
-    result = await session.exec(project_stmt)
-    project = result.first()
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.project.not_found_code,
-        )
-
-    if project.archived_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ImportMessages.PROJECT_ARCHIVED,
-        )
-
-    permissions_service.require_access(
-        permissions_service.DAC_RESOURCES[Tool.project], project, user, access="write"
-    )
-
-    return project
-
-
-@router.post("/todoist/parse", response_model=TodoistParseResult)
-async def parse_todoist_csv(
-    csv_content: Annotated[str, Body(media_type="text/plain")],
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    _guild_context: GuildContextDep,
-) -> TodoistParseResult:
-    """
-    Parse a Todoist CSV export and return detected sections and task count.
-
-    This is a preview endpoint to help users map sections before importing.
-    """
-    try:
-        parse_result, _ = import_service.parse_todoist_csv(csv_content)
-        return parse_result
-    except Exception:
-        logger.warning("import parse failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ImportMessages.PARSE_FAILED,
-        )
-
-
-@router.post("/todoist", response_model=ImportResult)
-async def import_from_todoist(
-    request: TodoistImportRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ImportResult:
-    """
-    Import tasks from a Todoist CSV export into a project.
-
-    The section_mapping maps Todoist section names to task_status_id values
-    in the target project.
-    """
-    # Validate write access to the project
-    project = await _validate_project_write_access(
-        session,
-        request.project_id,
-        current_user,
-        guild_context.guild_id,
-    )
-
-    # Ensure default statuses exist
-    await task_statuses_service.ensure_default_statuses(session, project.id)
-    await filter_presets_service.ensure_default_presets(session, project.id)
-
-    # Validate that all mapped status IDs belong to the project
-    project_statuses = await task_statuses_service.list_statuses(session, project.id)
-    valid_status_ids = {s.id for s in project_statuses}
-
-    for section_name, status_id in request.section_mapping.items():
-        if status_id not in valid_status_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status ID {status_id} for section '{section_name}'",
-            )
-
-    # Perform the import
-    result = await import_service.import_todoist_tasks(
-        session,
-        project.id,
-        request.csv_content,
-        request.section_mapping,
-    )
-
-    return result
-
-
-@router.post("/vikunja/parse", response_model=VikunjaParseResult)
-async def parse_vikunja_json(
-    json_content: Annotated[str, Body(media_type="text/plain")],
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    _guild_context: GuildContextDep,
-) -> VikunjaParseResult:
-    """
-    Parse a Vikunja JSON export and return detected projects with buckets.
-
-    This is a preview endpoint to help users select a project and map buckets.
-    """
-    try:
-        return import_service.parse_vikunja_json(json_content)
-    except Exception:
-        logger.warning("import parse failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ImportMessages.PARSE_FAILED,
-        )
-
-
-@router.post("/vikunja", response_model=ImportResult)
-async def import_from_vikunja(
-    request: VikunjaImportRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ImportResult:
-    """
-    Import tasks from a Vikunja JSON export into a project.
-
-    The bucket_mapping maps Vikunja bucket IDs to task_status_id values
-    in the target project.
-    """
-    # Validate write access to the project
-    project = await _validate_project_write_access(
-        session,
-        request.project_id,
-        current_user,
-        guild_context.guild_id,
-    )
-
-    # Ensure default statuses exist
-    await task_statuses_service.ensure_default_statuses(session, project.id)
-    await filter_presets_service.ensure_default_presets(session, project.id)
-
-    # Validate that all mapped status IDs belong to the project
-    project_statuses = await task_statuses_service.list_statuses(session, project.id)
-    valid_status_ids = {s.id for s in project_statuses}
-
-    for bucket_id, status_id in request.bucket_mapping.items():
-        if status_id not in valid_status_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status ID {status_id} for bucket {bucket_id}",
-            )
-
-    # Perform the import
-    result = await import_service.import_vikunja_tasks(
-        session,
-        project.id,
-        request.json_content,
-        request.source_project_id,
-        request.bucket_mapping,
-    )
-
-    return result
-
-
-@router.post("/ticktick/parse", response_model=TickTickParseResult)
-async def parse_ticktick_csv(
-    csv_content: Annotated[str, Body(media_type="text/plain")],
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    _guild_context: GuildContextDep,
-) -> TickTickParseResult:
-    """
-    Parse a TickTick CSV export and return detected lists with columns.
-
-    This is a preview endpoint to help users select a list and map columns.
-    """
-    try:
-        return import_service.parse_ticktick_csv(csv_content)
-    except Exception:
-        logger.warning("import parse failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ImportMessages.PARSE_FAILED,
-        )
-
-
-@router.post("/ticktick", response_model=ImportResult)
-async def import_from_ticktick(
-    request: TickTickImportRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ImportResult:
-    """
-    Import tasks from a TickTick CSV export into a project.
-
-    The column_mapping maps TickTick column names to task_status_id values
-    in the target project.
-    """
-    # Validate write access to the project
-    project = await _validate_project_write_access(
-        session,
-        request.project_id,
-        current_user,
-        guild_context.guild_id,
-    )
-
-    # Ensure default statuses exist
-    await task_statuses_service.ensure_default_statuses(session, project.id)
-    await filter_presets_service.ensure_default_presets(session, project.id)
-
-    # Validate that all mapped status IDs belong to the project
-    project_statuses = await task_statuses_service.list_statuses(session, project.id)
-    valid_status_ids = {s.id for s in project_statuses}
-
-    for column_name, status_id in request.column_mapping.items():
-        if status_id not in valid_status_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status ID {status_id} for column '{column_name}'",
-            )
-
-    # Perform the import
-    result = await import_service.import_ticktick_tasks(
-        session,
-        project.id,
-        request.csv_content,
-        request.source_list_name,
-        request.column_mapping,
-    )
-
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Import engine: envelope imports + job lifecycle
-# ---------------------------------------------------------------------------
-# NOTE: the engine routes use literal paths plus a parametric /{job_id};
-# every literal route MUST stay declared before the parametric ones.
-
-from fastapi import Response  # noqa: E402
-from fastapi.responses import JSONResponse  # noqa: E402
-
-from app.core.messages import ImportEngineMessages  # noqa: E402
-from app.models.tenant.import_job import ImportJob, ImportJobStatus  # noqa: E402
-from app.schemas.tenant.import_job import (  # noqa: E402
-    EnvelopeImportRequest,
-    EnvelopeImportResponse,
-    ImportJobRead,
-)
-from app.schemas.tenant.atlassian import (  # noqa: E402
-    AtlassianConnectRequest,
-    AtlassianConnectResponse,
-)
-from app.services.import_engine import atlassian as atlassian_service  # noqa: E402
-from app.services.import_engine import credentials as import_credentials  # noqa: E402
-from app.services.import_engine import engine as import_engine  # noqa: E402
-from app.services.import_engine.contract import (  # noqa: E402
-    ImportEngineError,
-    InlineImport,
-)
-
 _LIST_LIMIT = 50
 
-
-def _job_credential_id(job: ImportJob) -> int | None:
-    """The credential this job was lent, if it was lent one. ``params`` is
-    JSON that round-tripped through a request, so the value is checked rather
-    than trusted."""
-    raw = (job.params or {}).get("credential_id")
-    return raw if isinstance(raw, int) else None
+#: The most property names one confirm may untick.
+_MAX_EXCLUDED_PROPERTIES = 500
 
 
 def _require_writable(guild_context: GuildContext) -> None:
@@ -387,7 +136,161 @@ async def import_envelope(
         )
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
-        content=ImportJobRead.model_validate(outcome).model_dump(mode="json"),
+        content=serialize_import_job(
+            outcome, guild_id=guild_context.guild_id
+        ).model_dump(mode="json"),
+    )
+
+
+@router.post(
+    "/envelope/archive", response_model=None, status_code=status.HTTP_201_CREATED
+)
+async def import_envelope_archive(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+    initiative_id: int = Form(...),
+    envelope_type: Optional[str] = Form(
+        default=None,
+        description="The envelope type the import was started for; a zip "
+        "holding another tool's export is refused",
+    ),
+) -> Response:
+    """Import an export that travels as a zip — a gallery with its pictures —
+    into the chosen initiative. The zip holds one envelope at its top level and
+    the files it names under ``assets/``; the files are stored first, then the
+    envelope imports exactly as ``POST /imports/envelope`` imports one, with
+    the same responses."""
+    _require_writable(guild_context)
+    try:
+        payload = await read_upload_bounded(
+            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+        )
+    except FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
+        )
+    try:
+        outcome = await envelope_archive.start_envelope_archive_import(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+            payload=payload,
+            expected_type=envelope_type,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(outcome, InlineImport):
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content=EnvelopeImportResponse(result=outcome.result).model_dump(
+                mode="json"
+            ),
+        )
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content=serialize_import_job(
+            outcome, guild_id=guild_context.guild_id
+        ).model_dump(mode="json"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Imports from another product's export file
+# ---------------------------------------------------------------------------
+
+
+@router.post("/foreign/{source}/preview", response_model=ForeignPreview)
+async def preview_foreign_import(
+    source: str,
+    content: Annotated[str, Body(media_type="text/plain")],
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ForeignPreview:
+    """Say what an uploaded export holds, without keeping any of it.
+
+    Nothing is written and nothing is staged: the file is read, described,
+    and forgotten. The description is what the wizard needs to ask its one
+    question — which list, or what to call this — and the answer comes back
+    with the file itself on the import.
+
+    Writable membership, like every other import entry point: this reads
+    somebody's file on the community's behalf, and a community nobody can
+    write to has nothing to read it for.
+    """
+    _require_writable(guild_context)
+    try:
+        foreign_source = foreign_service.get_source(source)
+        options = foreign_service.read_preview(foreign_source, content)
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    return ForeignPreview(
+        source=foreign_source.key,
+        picks_one=foreign_source.picks_one,
+        options=[
+            ForeignSourceOption(
+                key=option.key, name=option.name, task_count=option.task_count
+            )
+            for option in options
+        ],
+    )
+
+
+@router.post(
+    "/foreign/{source}", response_model=None, status_code=status.HTTP_201_CREATED
+)
+async def import_foreign(
+    source: str,
+    payload: ForeignImportRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Response:
+    """Import the chosen part of another product's export.
+
+    The file becomes the envelope a project export writes, and from there it
+    is an ordinary import: the same ceilings, the same people step, the same
+    worker, the same report. Nothing past this point knows which product the
+    rows came from.
+
+    Answers exactly as ``/imports/envelope`` does — 201 with the counts when
+    it applied in the request, 202 with the job when it did not.
+    """
+    _require_writable(guild_context)
+    try:
+        foreign_source = foreign_service.get_source(source)
+        mapped = foreign_service.build(
+            foreign_source,
+            payload.content,
+            selection=payload.selection,
+            app_version=get_version(),
+        )
+        started = await import_engine.start_envelope_import(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=payload.initiative_id,
+            envelope=mapped.envelope,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(started, InlineImport):
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content=EnvelopeImportResponse(result=started.result).model_dump(
+                mode="json"
+            ),
+        )
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content=serialize_import_job(
+            started, guild_id=guild_context.guild_id
+        ).model_dump(mode="json"),
     )
 
 
@@ -407,19 +310,16 @@ async def connect_atlassian(
     One request, because the two questions are the same one: the only honest
     proof that a token works is using it, so connecting *is* the first
     listing. It returns the Jira projects and Confluence spaces the token can
-    see, with rough counts, and the id of the stored credential the later
-    confirm quotes.
+    see, with rough counts.
 
-    The credential is stored **after** the site answers, never before — a
-    token the site rejects is not worth a row. What is stored is short-lived
-    by construction: it carries the secret to the worker that picks the job
-    up and is deleted when that job ends, or swept at its deadline if no job
-    ever claims it.
+    Nothing is kept. The token is used for the length of this request and
+    dropped; the request that actually starts an import carries it again, and
+    that one has a job row to hold it on.
 
     Real membership of a writable guild, like every other import entry point.
     Which initiative the work lands in is not asked here and not trusted from
     here — the target and the create permission for it are resolved on the
-    confirm, and again by the worker at apply time.
+    start, and again by the worker at apply time.
     """
     _require_writable(guild_context)
     if guild_context.grant is not None:
@@ -440,20 +340,115 @@ async def connect_atlassian(
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
-    credential_id = await import_credentials.store(
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-        provider="atlassian",
-        site_url=credential.site_url,
-        principal=credential.email,
-        secret=credential.api_token,
-    )
     return AtlassianConnectResponse(
-        credential_id=credential_id,
         site_url=credential.site_url,
         jira=jira,
         confluence=confluence,
     )
+
+
+@router.post(
+    "/atlassian/import",
+    response_model=ImportJobRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_atlassian_import(
+    payload: AtlassianImportRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ImportJobRead:
+    """Start reading Jira projects and Confluence spaces into an initiative.
+
+    One job for both: projects arrive as projects, each space as a wiki, and
+    a link between an issue and a page read together is joined when the
+    bundle is applied. Carries the same token the connect proved, stored
+    encrypted on the job row and cleared the moment that job is over. The job
+    comes back ``queued``; the worker moves it to ``fetching`` while it reads
+    the site, filling ``plan.atlassian`` with counts as it goes, and parks it
+    at ``staged`` with the full plan — the people both products name included
+    — for ``POST /imports/jobs/{id}/confirm``.
+
+    The initiative needs projects switched on for projects, wikis for spaces,
+    and the caller needs to be able to create them there. That is checked
+    now, again before the site is read, and again when the bundle is applied."""
+    _require_writable(guild_context)
+    if guild_context.grant is not None:
+        # A grant reaches existing content, not this server's outbound
+        # connections.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+    try:
+        job = await atlassian_job.start_import(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            credential=atlassian_service.AtlassianCredential(
+                site_url=atlassian_service.normalize_site_url(payload.site_url),
+                email=payload.email.strip(),
+                api_token=payload.api_token,
+            ),
+            initiative_id=payload.initiative_id,
+            project_keys=payload.project_keys,
+            space_keys=payload.space_keys,
+            include_comments=payload.include_comments,
+            include_attachments=payload.include_attachments,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
+
+
+@router.post(
+    "/atlassian/export",
+    response_model=ImportJobRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_confluence_export_import(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+    initiative_id: int = Form(...),
+    include_attachments: bool = Form(True),
+) -> ImportJobRead:
+    """Start reading a Confluence space's HTML export into an initiative.
+
+    The zip Confluence's "Export space → HTML" writes, for a site this server
+    cannot reach or somebody would rather not hand a token to. It is staged
+    and the job comes back ``queued``; the worker converts it the way it reads
+    a site, and parks it at ``staged`` with the same plan for
+    ``POST /imports/jobs/{id}/confirm``. The initiative needs wikis switched on
+    and the caller able to create one there."""
+    _require_writable(guild_context)
+    if guild_context.grant is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+    try:
+        payload = await read_upload_bounded(
+            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+        )
+    except FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
+        )
+    try:
+        job = await atlassian_job.start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+            payload=payload,
+            include_attachments=include_attachments,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
 @router.get("/jobs", response_model=list[ImportJobRead])
@@ -461,14 +456,13 @@ async def list_import_jobs(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> list[ImportJob]:
+) -> list[ImportJobRead]:
     """The caller's import jobs, newest first (RLS scopes the rows: own rows,
     or the whole guild for a guild admin)."""
-    return list(
-        await session.exec(
-            select(ImportJob).order_by(ImportJob.created_at.desc()).limit(_LIST_LIMIT)
-        )
+    jobs = await session.exec(
+        select(ImportJob).order_by(ImportJob.created_at.desc()).limit(_LIST_LIMIT)
     )
+    return [serialize_import_job(job, guild_id=guild_context.guild_id) for job in jobs]
 
 
 @router.get("/jobs/{job_id}", response_model=ImportJobRead)
@@ -477,14 +471,14 @@ async def get_import_job(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> ImportJob:
+) -> ImportJobRead:
     job = await session.get(ImportJob, job_id)
     if job is None:  # includes rows RLS hides — 404, never 403
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
-    return job
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
 @router.delete("/jobs/{job_id}", response_model=ImportJobRead)
@@ -493,64 +487,44 @@ async def cancel_import_job(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> ImportJob:
-    """Cancel a job that hasn't started applying (staged or queued); its
-    staged payload is deleted. A running/terminal job is not cancellable —
-    409 (an interrupted apply would leave half-committed content)."""
-    job = await session.get(ImportJob, job_id)
+) -> ImportJobRead:
+    """Cancel a job that hasn't started applying (staged, queued, or still
+    fetching from its source); its staged payload is deleted. A fetch writes
+    nothing but that payload, so stopping one mid-read is safe — the worker
+    notices at the next project and throws away what it had. A running or
+    terminal job is not cancellable — 409 (an interrupted apply would leave
+    half-committed content). The row is locked, as the worker locks it to
+    claim, so the status read here is the one the cancel replaces."""
+    job = await session.get(ImportJob, job_id, with_for_update=True)
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
-    if job.status not in (ImportJobStatus.staged, ImportJobStatus.queued):
+    if job.status not in (
+        ImportJobStatus.staged,
+        ImportJobStatus.queued,
+        ImportJobStatus.fetching,
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=ImportEngineMessages.IMPORT_NOT_CANCELLABLE,
         )
     import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
     # Everything the job was lent goes back with the payload — a cancelled
-    # import has no further use for the credential it was given.
-    await import_credentials.discard(_job_credential_id(job))
+    # import has no further use for the secret it was given.
+    job.secret_encrypted = None
     job.status = ImportJobStatus.cancelled
     job.payload_ref = None
     session.add(job)
     await session.commit()
     await session.refresh(job)
-    return job
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
 # ---------------------------------------------------------------------------
 # Backup-zip imports (guild admin only)
 # ---------------------------------------------------------------------------
-
-from fastapi import File, UploadFile  # noqa: E402
-
-from app.core.config import settings  # noqa: E402
-from app.services.import_engine import backup as backup_service  # noqa: E402
-from app.services.import_engine.engine import (  # noqa: E402
-    count_active_jobs_locked,
-    stage_payload,
-)
-from app.services.tenant.attachments import (  # noqa: E402
-    FileTooLargeError,
-    read_upload_bounded,
-)
-
-
-def _require_guild_seat(guild_context: GuildContext) -> None:
-    """Restoring a backup creates initiatives and writes blobs back into the
-    community, so it sits with the seat that exports one.
-
-    Held outright, too: a break-glass grant synthesizes an admin role, but the
-    worker re-checks real membership at apply time, so a stand-in would only
-    fail later. Reject it up front.
-    """
-    if guild_context.is_pam or guild_context.role is not GuildRole.superadmin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED,
-        )
 
 
 @router.post(
@@ -561,12 +535,12 @@ async def upload_backup(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     file: UploadFile = File(...),
-) -> ImportJob:
+) -> ImportJobRead:
     """Upload a backup zip and get its pre-flight plan. The zip is staged in
     guild storage and the job parked as ``staged`` (nothing is imported yet);
     ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
     backups expire after IMPORT_STAGED_TTL_HOURS. The community's seat only."""
-    _require_guild_seat(guild_context)
+    require_seat(guild_context, detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED)
     _require_writable(guild_context)
     guild_id = guild_context.guild_id
 
@@ -575,7 +549,7 @@ async def upload_backup(
     # in-process backstop.
     try:
         payload = await read_upload_bounded(
-            file, settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
         )
     except FileTooLargeError:
         raise HTTPException(
@@ -584,12 +558,7 @@ async def upload_backup(
         )
 
     existing_names = {
-        row
-        for row in (
-            await session.exec(
-                select(Initiative.name).where(Initiative.guild_id == guild_id)
-            )
-        ).all()
+        row for row in (await session.exec(select(Initiative.name))).all()
     }
     # The guild's own roster, so the plan can suggest who each name in the
     # archive is. Read on the request's routed session, so it is the roster
@@ -607,7 +576,6 @@ async def upload_backup(
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
     job = ImportJob(
-        guild_id=guild_id,
         created_by=current_user.id,
         source="backup",
         params={},
@@ -615,12 +583,12 @@ async def upload_backup(
         plan=plan.model_dump(mode="json"),
         status=ImportJobStatus.staged,
         expires_at=datetime.now(timezone.utc)
-        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+        + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
     await session.commit()
     await session.refresh(job)
-    return job
+    return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
 async def _guild_member_ids_by_handle(session, guild_id: int) -> dict[str, int]:
@@ -654,13 +622,15 @@ async def confirm_import(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     body: Optional[dict] = None,
-) -> ImportJob:
+) -> ImportJobRead:
     """Confirm a staged import: flips it to ``queued`` for the worker.
 
     Optional body ``{"include": {tool: bool}}`` narrows which tools apply
     (backup only; omitted tools default to included), and ``{"people_map":
     {handle: user id}}`` says who each name the archive quotes is here — the
-    answers to the wizard's people step. Both are recorded on the job and read
+    answers to the wizard's people step. ``{"exclude_properties": [name]}``
+    names properties unticked on the review, which are then not created, and
+    whose values are left out with them. All are recorded on the job and read
     at apply time; the mapping is re-checked against real membership there,
     because this confirm may be hours old by then.
 
@@ -679,7 +649,9 @@ async def confirm_import(
             detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
         )
     if job.source == "backup":
-        _require_guild_seat(guild_context)
+        require_seat(
+            guild_context, detail=ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED
+        )
     elif job.created_by != current_user.id:
         # RLS lets a guild admin read the row; answering somebody else's
         # people step is a different thing from being able to see it.
@@ -698,7 +670,7 @@ async def confirm_import(
     now = datetime.now(timezone.utc)
     if job.expires_at is not None and job.expires_at <= now:
         import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
-        await import_credentials.discard(_job_credential_id(job))
+        job.secret_encrypted = None
         job.status = ImportJobStatus.expired
         job.payload_ref = None
         session.add(job)
@@ -730,11 +702,29 @@ async def confirm_import(
         # Stored as given; the ids are proved to be members of this guild at
         # apply time, on the session that will actually write the rows.
         job.params = {**(job.params or {}), "people_map": people_map}
+    exclude_properties = (body or {}).get("exclude_properties")
+    if exclude_properties is not None:
+        # The review's unticked properties, by the names the plan listed.
+        # Bounded like any list a request supplies: a few hundred short names
+        # is more than any plan carries.
+        if (
+            not isinstance(exclude_properties, list)
+            or len(exclude_properties) > _MAX_EXCLUDED_PROPERTIES
+            or not all(
+                isinstance(name, str) and 0 < len(name) <= 255
+                for name in exclude_properties
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ImportEngineMessages.IMPORT_INVALID_PARAMS,
+            )
+        job.params = {**(job.params or {}), "exclude_properties": exclude_properties}
     job.status = ImportJobStatus.queued
     # Fresh TTL window: the confirmed job now waits on the worker, and a
     # nearly-elapsed staging TTL must not let GC sweep it out of the queue.
-    job.expires_at = now + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS)
+    job.expires_at = now + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS)
     session.add(job)
     await session.commit()
     await session.refresh(job)
-    return job
+    return serialize_import_job(job, guild_id=guild_context.guild_id)

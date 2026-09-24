@@ -9,7 +9,7 @@
   "noMatchingProjects": "Ningún proyecto coincide con tus filtros.",
   "onlyPinnedMatch": "Solo los proyectos fijados coinciden con tus filtros.",
   "accessRestricted": "Acceso restringido",
-  "accessRestrictedDescription": "No tienes permiso para ver proyectos en esta iniciativa. Contacta a un administrador si crees que esto es un error.",
+  "accessRestrictedDescription": "No tienes permiso para ver proyectos en esta iniciativa. Consulta a un administrador de la comunidad o a un gerente de iniciativa si crees que esto es un error.",
   "view": {
     "grid": "Cuadrícula",
     "list": "Lista"
@@ -337,7 +337,24 @@
     "taskCount_one": "{{count}} tarea",
     "taskCount_other": "{{count}} tareas",
     "collapse": "Contraer {{name}}",
-    "expand": "Expandir {{name}}"
+    "expand": "Expandir {{name}}",
+    "fields": {
+      "label": "Campos",
+      "menuTitle": "Campos en las tarjetas",
+      "showAll": "Mostrar todos los campos",
+      "hiddenCount_one": "{{count}} oculto",
+      "hiddenCount_other": "{{count}} ocultos",
+      "description": "Descripción",
+      "assignees": "Asignados",
+      "startDate": "Fecha de inicio",
+      "dueDate": "Fecha de vencimiento",
+      "recurrence": "Se repite",
+      "checklist": "Lista de tareas",
+      "priority": "Prioridad",
+      "comments": "Comentarios",
+      "blockers": "Bloqueos",
+      "tags": "Etiquetas"
+    }
   },
   "recurrence": {
     "repeat": "Repetir",
@@ -422,15 +439,6 @@
     "noComments": "Aún no hay comentarios.",
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
-  },
-  "export": {
-    "title": "Exportar proyecto",
-    "description": "Descarga este proyecto como copia de seguridad JSON portátil o como informe con formato (PDF, CSV o Excel).",
-    "detail": "La copia JSON puede reimportarse en esta instancia o en cualquier otra instalación de Initiative: las referencias usan nombres y correos para que no se filtren IDs de esta base de datos. Los formatos de informe cubren las tareas no archivadas del proyecto.",
-    "exportButton": "Exportar",
-    "noWriteAccess": "Necesitas acceso de escritura en este proyecto para exportarlo.",
-    "success": "Proyecto exportado",
-    "error": "No se pudo exportar el proyecto. Inténtalo de nuevo."
   },
   "status": {
     "label": "Mostrar",

@@ -12,6 +12,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.testing import guild_of
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskAssignee, TaskPriority
 from app.testing.factories import (
@@ -22,6 +23,7 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
 )
+from app.testing import route_as
 
 
 async def _create_task(
@@ -35,12 +37,11 @@ async def _create_task(
     priority=TaskPriority.medium,
 ):
     """Create a task in ``project``'s guild schema."""
-    from app.db.session import set_rls_context
     from app.services.tenant import task_statuses as task_statuses_service
 
     # Route status setup + the task into the project's guild schema; a prior
     # setup may have left the search_path on a different guild.
-    await set_rls_context(session, user_id=created_by, guild_id=project.guild_id)
+    await route_as(session, user_id=created_by, guild_id=guild_of(project))
     await task_statuses_service.ensure_default_statuses(session, project.id)
     status = await task_statuses_service.get_default_status(session, project.id)
 
@@ -48,7 +49,6 @@ async def _create_task(
         title=title,
         project_id=project.id,
         task_status_id=status.id,
-        guild_id=project.guild_id,
         created_by=created_by,
         due_date=due_date,
         start_date=start_date,
@@ -64,9 +64,8 @@ async def _assign(session, task, user_id):
     """Assign ``task`` to ``user_id``. Route the write as the task's creator (a
     member with initiative write access) — the task_assignees RLS checks the
     ACTOR's access, and the assignee need not be an initiative member."""
-    from app.db.session import set_rls_context
 
-    await set_rls_context(session, user_id=task.created_by, guild_id=task.guild_id)
+    await route_as(session, user_id=task.created_by, guild_id=guild_of(task))
     session.add(TaskAssignee(task_id=task.id, user_id=user_id))
     await session.commit()
 

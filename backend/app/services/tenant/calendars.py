@@ -2,8 +2,8 @@
 
 A calendar is the shareable DAC anchor for its events (``resource_type=
 'calendar'``); events inherit access from it the way tasks inherit from their
-project, so the loaders here eager-load ``grants`` + ``initiative.memberships``
-for the permission engine.
+project, so the loaders here eager-load ``grants`` and the level the request
+holds on the calendar.
 
 Two kinds of calendar live here. Nearly all of them belong to an initiative. A
 **guild calendar** — the one the calendar app installs — belongs to none, and
@@ -14,10 +14,11 @@ anything derived from an initiative has nothing to derive from and refuses.
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import session as db_session
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
@@ -61,7 +62,8 @@ def calendar_loader_options() -> list:
     """Eager-load everything calendar serialization + authorization needs."""
     return [
         selectinload(Calendar.grants).selectinload(ResourceGrant.role),
-        selectinload(Calendar.initiative).selectinload(Initiative.memberships),
+        selectinload(Calendar.initiative),
+        undefer(Calendar.access_level),
     ]
 
 
@@ -111,12 +113,14 @@ async def get_calendar_for_export(
     guild_id: int,
     *,
     calendar_id: int,
+    access: str = "owner",
 ) -> Calendar:
-    """The calendar-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. READ access suffices —
-    exporting is a formatted read. The guild role is resolved here rather than
-    taken from a request context, so the seam works transport-free. Events are
-    eager-loaded with everything export serialization needs."""
+    """The calendar-export adapter's seam: fetch + authorize in one place so
+    the rule holds on the worker's render-time replay too. It takes the owner
+    rung, or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The guild role is resolved here
+    rather than taken from a request context, so the seam works transport-free.
+    Events are eager-loaded with everything export serialization needs."""
     from app.services import permissions as permissions_service
 
     stmt = (
@@ -141,11 +145,11 @@ async def get_calendar_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=Tool.calendar.feature_disabled_code,
         )
-    permissions_service.require_access(
+    permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.calendar],
         calendar,
-        current_user,
-        access="read",
+        context=db_session.guild_context(session),
+        access=access,
     )
     await tags_service.annotate_tags(session, [calendar])
     await tags_service.annotate_tags(session, calendar.events or [])

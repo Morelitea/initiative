@@ -6,6 +6,7 @@ from app.models.platform.announcement import (
     AnnouncementReadReceipt,
 )
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_app import GuildApp
@@ -115,7 +116,6 @@ from app.models.tenant.moderation import ModerationReport, ModerationReportRepor
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
-from app.models.platform.import_credential import ImportCredential
 from app.models.platform.marketplace_registry import (
     MarketplaceMedia,
     MarketplaceRegistryState,
@@ -149,13 +149,13 @@ __all__ = [
     "ResourceGrant",
     "ExportJob",
     "ImportJob",
-    "ImportCredential",
     "Project",
     "Task",
     "TaskAssignee",
     "TaskStatus",
     "ProjectFilterPreset",
     "AppSetting",
+    "AppSettingSecret",
     "Guild",
     "GuildAdministration",
     "GuildImage",
