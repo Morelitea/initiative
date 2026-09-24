@@ -16,8 +16,8 @@ What goes:
   same project survives; one to anything else is dropped, and a reference in a
   body is reduced to its label.
 * **Uploads.** A file in the community's own storage stays there. A picture
-  shared with the item travels as the catalogue's own copy
-  (``listing_assets``), named by the path the catalogue serves it from; any
+  shared with the item is a new file in the marketplace's media
+  (``listing_assets``), named by the path the marketplace serves it from; any
   other reference into a community's uploads is dropped.
 * **When it happened.** Created, updated and archived times describe the
   original, not the copy.
@@ -93,8 +93,8 @@ def _mention_text(node: dict[str, Any]) -> str:
     return f"@{name}" if name else ""
 
 
-def _carried(value: Any) -> bool:
-    """Whether a reference names a picture the catalogue keeps."""
+def _in_marketplace(value: Any) -> bool:
+    """Whether a reference names a picture in the marketplace's own media."""
     from app.services.marketplace.media import digest_of
 
     return digest_of(value) is not None
@@ -102,7 +102,7 @@ def _carried(value: Any) -> bool:
 
 def _clean_editor_state(content: Any) -> Any:
     """An editor body with its mentions and references as plain words, and
-    every picture the catalogue does not keep gone."""
+    every picture that is not in the marketplace's own media gone."""
     if not isinstance(content, dict) or not isinstance(content.get("root"), dict):
         return content
 
@@ -124,7 +124,7 @@ def _clean_editor_state(content: Any) -> Any:
                     if not (
                         isinstance(child, dict)
                         and child.get("type") in _IMAGE_NODES
-                        and not _carried(child.get("src"))
+                        and not _in_marketplace(child.get("src"))
                     )
                 ],
             }
@@ -240,9 +240,9 @@ def _strip_gallery(env: dict[str, Any]) -> None:
     env["images"] = [
         image
         for image in env.get("images") or []
-        if isinstance(image, dict) and _carried(image.get("storage_key"))
+        if isinstance(image, dict) and _in_marketplace(image.get("storage_key"))
     ]
-    if not _carried(env.get("cover")):
+    if not _in_marketplace(env.get("cover")):
         env["cover"] = None
 
 

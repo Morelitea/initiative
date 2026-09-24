@@ -131,22 +131,37 @@ class TestADashboardListing:
 class TestExamples:
     def test_a_content_tool_takes_its_publishers_example(self):
         assert not example_is_generated(Tool.counter_group)
-        example = normalize_listing_example("counter_group", _counters(count=3))
+        example = normalize_listing_example(
+            "counter_group", _counters(count=3), _counters()
+        )
         assert example is not None
         assert len(example["counters"]) == 3
 
     def test_the_example_is_held_to_the_same_rules(self):
         with pytest.raises(ListingDefinitionError):
-            normalize_listing_example("counter_group", {"type": "initiative-post"})
+            normalize_listing_example(
+                "counter_group", {"type": "initiative-post"}, _counters()
+            )
 
     def test_none_is_no_example(self):
-        assert normalize_listing_example("counter_group", None) is None
+        assert normalize_listing_example("counter_group", None, _counters()) is None
 
-    def test_a_dashboards_example_is_generated_not_published(self):
+    def test_a_dashboards_example_is_sample_data_not_a_canvas(self):
+        # A dashboard's example is its sample answers, by widget, never another
+        # dashboard to install.
         assert example_is_generated(Tool.dashboard)
-        with pytest.raises(ListingDefinitionError, match="generated"):
-            normalize_listing_example("dashboard", CANVAS)
+        definition = normalize_listing_definition("dashboard", CANVAS)
+        with pytest.raises(ListingDefinitionError, match="no widget"):
+            normalize_listing_example("dashboard", CANVAS, definition)
 
     def test_a_kind_that_is_no_tool_carries_none(self):
         with pytest.raises(ListingDefinitionError):
-            normalize_listing_example("profile_pack", _counters())
+            normalize_listing_example("profile_pack", _counters(), {})
+
+
+class TestGeneratedExamples:
+    def test_every_tool_whose_example_is_generated_can_draw_one(self):
+        from app.services.marketplace.tool_listings import _sample_makers
+
+        generated = {tool for tool in Tool if example_is_generated(tool)}
+        assert generated <= set(_sample_makers())

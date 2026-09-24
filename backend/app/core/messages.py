@@ -1013,6 +1013,10 @@ class MarketplaceMessages:
     #: Only somebody who belongs to the community shares its content; a grant
     #: into it does not reach the marketplace.
     SHARE_NOT_PERMITTED = "MARKETPLACE_SHARE_NOT_PERMITTED"
+    #: A picture uploaded with a share that the marketplace will not keep:
+    #: not a PNG, JPEG, GIF or WebP, larger than a listing's pictures may be,
+    #: or one more than a listing takes.
+    SHARE_IMAGE_INVALID = "MARKETPLACE_SHARE_IMAGE_INVALID"
     #: An uploaded listing file the catalogue would not publish. The response
     #: carries the validator's reason beside this code.
     LISTING_UPLOAD_INVALID = "MARKETPLACE_LISTING_UPLOAD_INVALID"

@@ -97,12 +97,13 @@ async def submit_share(
     submitter_id: int,
     listing_uid: Optional[str],
     hold_for_review: bool,
+    images: Sequence[str] = (),
 ) -> tuple[MarketplaceListing, MarketplaceListingVersion]:
     """Publish a member's share as a new listing, or as a new version of one
     they shared before.
 
-    A new version keeps the listing's name and description: those are what the
-    shelf shows, and changing them is a publish of its own that nothing here
+    A new version keeps the listing's name, description and pictures: those
+    are what the shelf shows, and changing them is a publish of its own that nothing here
     offers yet. Versions are numbered in the order they were submitted.
     """
     from app.core.messages import MarketplaceMessages
@@ -128,6 +129,7 @@ async def submit_share(
         uid, public_id = existing.uid, existing.public_id
         name, description = existing.name, existing.description
         long_description = existing.long_description
+        images = list(existing.images or [])
         version = f"{await _version_count(session, existing.id) + 1}.0.0"
 
     manifest: dict[str, Any] = {
@@ -139,7 +141,9 @@ async def submit_share(
         "description": description,
         "long_description": long_description,
         "avatar_url": DEFAULT_AVATAR_URL,
-        "images": [],
+        # Pictures the member uploaded for the listing, already in the
+        # marketplace's media. Nothing here comes from the community.
+        "images": list(images),
         "version": version,
         "release_notes": release_notes,
         "definition": envelope,

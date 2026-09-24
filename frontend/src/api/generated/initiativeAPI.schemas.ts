@@ -1172,6 +1172,38 @@ export interface BodySetGuildIconApiV1GuildsGuildIdIconPut {
   icon: Blob;
 }
 
+/**
+ * What a marketplace listing installs as.
+ */
+export type ListingKind = (typeof ListingKind)[keyof typeof ListingKind];
+
+export const ListingKind = {
+  app: "app",
+  auto: "auto",
+  calendar: "calendar",
+  counter_group: "counter_group",
+  dashboard: "dashboard",
+  document: "document",
+  gallery: "gallery",
+  post: "post",
+  profile_pack: "profile_pack",
+  project: "project",
+  queue: "queue",
+  wiki: "wiki",
+} as const;
+
+export interface BodyShareToMarketplaceApiV1GGuildIdMarketplaceSharePost {
+  kind: ListingKind;
+  entity_id: number;
+  name: string;
+  description: string;
+  example_entity_id?: number | null;
+  long_description?: string | null;
+  release_notes?: string | null;
+  listing_uid?: string | null;
+  images?: Blob[];
+}
+
 export interface BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost {
   file: Blob;
   initiative_id: number;
@@ -1207,6 +1239,10 @@ export interface BodyUploadGalleryImageApiV1GGuildIdGalleriesGalleryIdImagesPost
 }
 
 export interface BodyUploadGalleryImageVersionApiV1GGuildIdGalleriesGalleryIdImagesImageIdVersionsPost {
+  file: Blob;
+}
+
+export interface BodyUploadListingPictureApiV1MarketplaceLocalMediaPost {
   file: Blob;
 }
 
@@ -5311,24 +5347,11 @@ export interface LegalIndexRead {
 }
 
 /**
- * What a marketplace listing installs as.
+ * A picture uploaded to the marketplace's media.
  */
-export type ListingKind = (typeof ListingKind)[keyof typeof ListingKind];
-
-export const ListingKind = {
-  app: "app",
-  auto: "auto",
-  calendar: "calendar",
-  counter_group: "counter_group",
-  dashboard: "dashboard",
-  document: "document",
-  gallery: "gallery",
-  post: "post",
-  profile_pack: "profile_pack",
-  project: "project",
-  queue: "queue",
-  wiki: "wiki",
-} as const;
+export interface ListingMediaRead {
+  path: string;
+}
 
 /**
  * How a listing reached this deployment.
@@ -5526,33 +5549,6 @@ export interface MarketplacePendingVersionRead {
   is_new_listing: boolean;
   definition: MarketplacePendingVersionReadDefinition;
   example: MarketplacePendingVersionReadExample;
-}
-
-/**
- * Share an item from this community to the deployment's marketplace.
- *
- * The item is exported and stripped to what belongs to the work: nobody it
- * names, nothing it links to outside itself, no uploads. ``listing_uid``
- * publishes it as a new version of a listing the member shared before, which
- * keeps that listing's name and description.
- */
-export interface MarketplaceShareRequest {
-  kind: ListingKind;
-  entity_id: number;
-  example_entity_id?: number | null;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  name: string;
-  /**
-   * @minLength 1
-   * @maxLength 500
-   */
-  description: string;
-  long_description?: string | null;
-  release_notes?: string | null;
-  listing_uid?: string | null;
 }
 
 /**

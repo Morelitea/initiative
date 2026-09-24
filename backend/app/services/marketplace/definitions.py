@@ -275,15 +275,20 @@ def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
     return normalize_tool_listing(TOOL_LISTING_KINDS[kind], definition)
 
 
-def normalize_listing_example(kind: str, example: Any) -> Optional[dict[str, Any]]:
+def normalize_listing_example(
+    kind: str, example: Any, definition: dict[str, Any]
+) -> Optional[dict[str, Any]]:
     """Validate a listing's example, or ``None`` when it has none.
 
-    Only a tool's listing carries one — the same envelope, filled in. Any other
-    kind that states one is refused rather than having it silently dropped.
+    Only a tool's listing carries one — the same envelope filled in, or for a
+    tool made of queries the publisher's own sample data. ``definition`` is the
+    listing's normalized definition, which a sample is checked against. Any
+    other kind that states one is refused rather than having it silently
+    dropped.
     """
     tool = TOOL_LISTING_KINDS.get(kind)
     if tool is None:
         if example is not None:
             raise ListingDefinitionError(f"a {kind} listing carries no example")
         return None
-    return normalize_tool_example(tool, example)
+    return normalize_tool_example(tool, example, definition)

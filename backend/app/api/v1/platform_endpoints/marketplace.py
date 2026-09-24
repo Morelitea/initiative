@@ -21,7 +21,15 @@ any guild.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -35,6 +43,7 @@ from app.db.session import get_system_session
 from app.models.platform.marketplace_registry import MarketplaceMedia
 from app.models.platform.user import User
 from app.schemas.platform.marketplace import (
+    ListingMediaRead,
     ListingUploadRequest,
     ListingUploadResult,
     MarketplaceLocalSettings,
@@ -51,7 +60,8 @@ from app.schemas.platform.marketplace_registry import (
 )
 from app.services import audit as audit_service
 from app.services.marketplace import catalog as catalog_service
-from app.services.marketplace import local_listings
+from app.services.marketplace import listing_assets, local_listings
+from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.marketplace import registry as registry_service
 from app.services.marketplace.catalog import CatalogError
 from app.services.platform import app_settings as app_settings_service
@@ -453,3 +463,32 @@ async def withdraw_my_share(
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/local/media",
+    response_model=ListingMediaRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_listing_picture(
+    file: Annotated[UploadFile, File()],
+    session: SystemSessionDep,
+    _owner: ConfigManageDep,
+) -> ListingMediaRead:
+    """Upload a picture for a listing file (``config.manage``).
+
+    Returns the path the marketplace serves it from, for the manifest to name —
+    as the listing's artwork, or as a picture in its content (a gallery's, an
+    image in a document). A listing's pictures are only ever uploaded like
+    this; none is taken from a community.
+    """
+    try:
+        data = await read_upload_bounded(file, listing_assets.MAX_IMAGE_BYTES)
+        path = await listing_assets.store_uploaded_image(session, data)
+    except (FileTooLargeError, listing_assets.UploadedImageError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=MarketplaceMessages.SHARE_IMAGE_INVALID,
+        ) from exc
+    await session.commit()
+    return ListingMediaRead(path=path)

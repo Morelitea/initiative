@@ -30,15 +30,22 @@ async def _counter_group(session, actor, *counts: float):
     return group
 
 
-async def _share(client, actor, **body):
+async def _share(client, actor, images=(), **body):
+    """Share as the page does: the fields as a form, the pictures as files."""
+    fields = {
+        "kind": "counter_group",
+        "name": "Party tally",
+        "description": "Keep score.",
+        **body,
+    }
     return await client.post(
         actor.g("/marketplace/share"),
-        json={
-            "kind": "counter_group",
-            "name": "Party tally",
-            "description": "Keep score.",
-            **body,
-        },
+        data={key: str(value) for key, value in fields.items() if value is not None},
+        files=[
+            ("images", (f"picture{i}.png", data, "image/png"))
+            for i, data in enumerate(images)
+        ]
+        or None,
         headers=actor.headers,
     )
 
@@ -286,31 +293,22 @@ async def _reset_publish_directly(session):
         await session.commit()
 
 
-async def _approve(client, owner, uid: str) -> None:
-    response = await client.post(
-        f"/api/v1/marketplace/local/{uid}/versions/1.0.0/approve",
-        headers=owner.headers,
-    )
-    assert response.status_code == 204, response.text
-
-
 class TestPictures:
-    """An item's pictures travel as the catalogue's copies, and land as the
-    installer's own uploads."""
+    """A community's pictures never leave it. A listing shows only pictures
+    somebody uploaded to the marketplace for it."""
 
-    async def test_a_gallery_arrives_with_its_pictures(
-        self, client, acting_user, session
-    ):
+    async def _media_count(self, session) -> int:
+        from sqlalchemy import func
         from sqlmodel import select
 
-        from app.models.tenant.gallery import GalleryImage
-        from app.models.tenant.upload import Upload
-        from app.services.marketplace.media import MEDIA_URL_PREFIX
-        from app.testing import (
-            create_gallery,
-            create_gallery_image,
-            route_session_to_guild,
-        )
+        from app.models.platform.marketplace_registry import MarketplaceMedia
+
+        return (await session.exec(select(func.count(MarketplaceMedia.id)))).one()
+
+    async def test_nothing_is_read_from_the_communitys_storage(
+        self, client, acting_user, session
+    ):
+        from app.testing import create_gallery, create_gallery_image
 
         member = await acting_user(guild_role=GuildRole.member, initiative=True)
         owner = await acting_user("owner")
@@ -318,56 +316,23 @@ class TestPictures:
         session.add(member.initiative)
         await session.commit()
         gallery = await create_gallery(session, member.initiative, member.user)
-        await create_gallery_image(session, gallery, member.user, width=3)
-        await create_gallery_image(session, gallery, member.user, width=5)
+        await create_gallery_image(session, gallery, member.user)
+        before = await self._media_count(session)
 
         shared = await _share(
             client, member, kind="gallery", entity_id=gallery.id, name="Moodboard"
         )
+
         assert shared.status_code == 201, shared.text
-        uid = shared.json()["uid"]
+        assert await self._media_count(session) == before
         pending = await client.get(PENDING_URL, headers=owner.headers)
-        [waiting] = [item for item in pending.json() if item["uid"] == uid]
-        keys = [image["storage_key"] for image in waiting["definition"]["images"]]
-        assert len(keys) == 2
-        assert all(key.startswith(MEDIA_URL_PREFIX) for key in keys)
-        await _approve(client, owner, uid)
+        [waiting] = [
+            item for item in pending.json() if item["uid"] == shared.json()["uid"]
+        ]
+        assert waiting["definition"]["images"] == []
+        assert waiting["definition"]["cover"] is None
 
-        elsewhere = await acting_user(guild_role=GuildRole.member, initiative=True)
-        elsewhere.initiative.galleries_enabled = True
-        session.add(elsewhere.initiative)
-        await session.commit()
-        installed = await client.post(
-            elsewhere.g(f"/marketplace/listings/by-uid/{uid}/install"),
-            json={"initiative_id": elsewhere.initiative.id},
-            headers=elsewhere.headers,
-        )
-
-        assert installed.status_code == 201, installed.text
-        assert installed.json()["result"]["created"]["images"] == 2
-        await route_session_to_guild(session, elsewhere.guild.id)
-        images = (
-            await session.exec(
-                select(GalleryImage).where(
-                    GalleryImage.gallery_id == installed.json()["result"]["entity_id"]
-                )
-            )
-        ).all()
-        assert all(
-            image.file_url.startswith(f"/uploads/{elsewhere.guild.id}/")
-            for image in images
-        )
-        uploads = (
-            await session.exec(
-                select(Upload).where(Upload.created_by == elsewhere.user.id)
-            )
-        ).all()
-        assert len(uploads) == 2
-
-    async def test_a_documents_picture_travels_and_a_file_link_does_not(
-        self, client, acting_user, session
-    ):
-        from app.services.marketplace.media import MEDIA_URL_PREFIX
+    async def test_a_documents_picture_stays_behind(self, client, acting_user, session):
         from app.services.storage import get_guild_storage
         from app.testing import create_document, png_bytes
 
@@ -376,18 +341,14 @@ class TestPictures:
         get_guild_storage(member.guild.id).write(
             "picture.png", png_bytes(2, 2), content_type="image/png"
         )
-        get_guild_storage(member.guild.id).write(
-            "notes.txt", b"not a picture", content_type="text/plain"
-        )
         paragraph = {
             "type": "paragraph",
             "children": [
                 {"type": "image", "src": f"/uploads/{member.guild.id}/picture.png"},
-                {"type": "image", "src": f"/uploads/{member.guild.id}/notes.txt"},
                 {
                     "type": "link",
-                    "url": f"/uploads/{member.guild.id}/notes.txt",
-                    "children": [{"type": "text", "text": "notes"}],
+                    "url": f"/uploads/{member.guild.id}/picture.png",
+                    "children": [{"type": "text", "text": "the picture"}],
                 },
             ],
         }
@@ -401,12 +362,121 @@ class TestPictures:
         shared = await _share(
             client, member, kind="document", entity_id=document.id, name="Handout"
         )
+
         assert shared.status_code == 201, shared.text
         pending = await client.get(PENDING_URL, headers=owner.headers)
         [waiting] = [
             item for item in pending.json() if item["uid"] == shared.json()["uid"]
         ]
         children = waiting["definition"]["content"]["root"]["children"][0]["children"]
-        assert [child["type"] for child in children] == ["image", "link"]
-        assert children[0]["src"].startswith(MEDIA_URL_PREFIX)
-        assert children[1]["url"] == ""
+        assert [child["type"] for child in children] == ["link"]
+        assert children[0]["url"] == ""
+
+    async def test_the_member_uploads_the_listings_pictures(
+        self, client, acting_user, session
+    ):
+        from app.services.marketplace.media import MEDIA_URL_PREFIX
+        from app.testing import png_bytes
+
+        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        group = await _counter_group(session, member, 1)
+
+        shared = await _share(
+            client,
+            member,
+            entity_id=group.id,
+            images=[png_bytes(2, 2), png_bytes(3, 3)],
+        )
+
+        assert shared.status_code == 201, shared.text
+        mine = await client.get(MINE_URL, headers=member.headers)
+        [listing] = [
+            item for item in mine.json() if item["uid"] == shared.json()["uid"]
+        ]
+        assert len(listing["images"]) == 2
+        assert all(path.startswith(MEDIA_URL_PREFIX) for path in listing["images"])
+
+    async def test_a_file_that_is_not_a_picture_is_refused(
+        self, client, acting_user, session
+    ):
+        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        group = await _counter_group(session, member, 1)
+
+        shared = await _share(
+            client, member, entity_id=group.id, images=[b"not a picture"]
+        )
+
+        assert shared.status_code == 422
+        assert shared.json()["detail"] == MarketplaceMessages.SHARE_IMAGE_INVALID
+
+    async def test_an_owner_published_gallery_installs_with_its_pictures(
+        self, client, acting_user, session
+    ):
+        from sqlmodel import select
+
+        from app.models.tenant.upload import Upload
+        from app.testing import png_bytes, route_session_to_guild
+
+        owner = await acting_user("owner")
+        uploaded = await client.post(
+            "/api/v1/marketplace/local/media",
+            files={"file": ("tile.png", png_bytes(4, 4), "image/png")},
+            headers=owner.headers,
+        )
+        assert uploaded.status_code == 201, uploaded.text
+        path = uploaded.json()["path"]
+        published = await client.post(
+            "/api/v1/marketplace/local/upload",
+            json={
+                "manifest": {
+                    "uid": "GA11ERY0000001",
+                    "public_id": "ours.tiles",
+                    "kind": "gallery",
+                    "name": "Tiles",
+                    "publisher": "Our deployment",
+                    "description": "Some tiles.",
+                    "version": "1.0.0",
+                    "images": [path],
+                    "definition": {
+                        "type": "initiative-gallery",
+                        "name": "Tiles",
+                        "images": [{"storage_key": path, "title": "A tile"}],
+                    },
+                }
+            },
+            headers=owner.headers,
+        )
+        assert published.status_code == 201, published.text
+
+        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member.initiative.galleries_enabled = True
+        session.add(member.initiative)
+        await session.commit()
+        installed = await client.post(
+            member.g("/marketplace/listings/by-uid/GA11ERY0000001/install"),
+            json={"initiative_id": member.initiative.id},
+            headers=member.headers,
+        )
+
+        assert installed.status_code == 201, installed.text
+        assert installed.json()["result"]["created"]["images"] == 1
+        await route_session_to_guild(session, member.guild.id)
+        uploads = (
+            await session.exec(
+                select(Upload).where(Upload.created_by == member.user.id)
+            )
+        ).all()
+        assert len(uploads) == 1
+
+    async def test_uploading_a_picture_for_a_listing_file_is_the_owners(
+        self, client, acting_user
+    ):
+        from app.testing import png_bytes
+
+        member = await acting_user(guild_role=GuildRole.member)
+        response = await client.post(
+            "/api/v1/marketplace/local/media",
+            files={"file": ("tile.png", png_bytes(4, 4), "image/png")},
+            headers=member.headers,
+        )
+        assert response.status_code == 403

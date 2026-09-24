@@ -552,6 +552,12 @@ def _output_types(
 
 
 def _target_type(target: ast.ResTarget, scope: dict[str, str]) -> FieldType | None:
+    spec = _target_spec(target, scope)
+    return spec.type if spec is not None else None
+
+
+def _target_spec(target: ast.ResTarget, scope: dict[str, str]) -> Any:
+    """The field an output target is, or ``None`` when it is built from one."""
     if not isinstance(target.val, ast.ColumnRef):
         return None
     names = _name_parts(target.val.fields)
@@ -563,8 +569,7 @@ def _target_type(target: ast.ResTarget, scope: dict[str, str]) -> FieldType | No
         return None
     if dataset_name is None:
         return None
-    spec = dataset(dataset_name).by_name.get(field_name)
-    return spec.type if spec is not None else None
+    return dataset(dataset_name).by_name.get(field_name)
 
 
 def _resolve_columns(select: ast.SelectStmt, scope: dict[str, str]) -> None:

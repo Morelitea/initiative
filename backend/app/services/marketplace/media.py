@@ -1,11 +1,11 @@
-"""The catalogue's own copy of the pictures its listings carry.
+"""The marketplace's own media: the pictures its listings use.
 
-A listing's artwork and the pictures its content uses are kept here, in
-``marketplace_media``, keyed by the SHA-256 of the bytes and served from one
-same-origin path. Two writers put them here: the registry refresh, which
-mirrors a signed index's images, and a member's share, which carries the
-pictures an item uses. Both go through :func:`store_media`, so an image kept
-once is kept once whichever way it arrived.
+Every picture a listing names is a file here, in ``marketplace_media``, keyed
+by the SHA-256 of its bytes and served from one same-origin path. Two writers
+put them here: the registry refresh, which copies a signed index's images, and
+a member's share, which copies the pictures an item uses out of its community.
+Either way the file is the marketplace's, not a view of somewhere else's; both
+go through :func:`store_media`, so the same bytes are stored once.
 """
 
 from __future__ import annotations
