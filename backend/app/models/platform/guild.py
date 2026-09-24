@@ -123,6 +123,25 @@ def operator_status_choices(
     return (status, GuildStatus.suspended)
 
 
+def restore_status_choices(
+    *,
+    billing_status: GuildStatus | None,
+    billing_managed: bool,
+) -> tuple[GuildStatus, ...]:
+    """The statuses a deleted guild may be restored at.
+
+    The choices that lift a suspension: where billing sets plans, the status
+    billing last wrote or ``suspended``; everywhere else, any of
+    :data:`OPERATOR_SETTABLE_STATUSES`. The status trigger of migration 0364
+    holds the database to the same rule.
+    """
+    return operator_status_choices(
+        GuildStatus.suspended,
+        billing_status=billing_status,
+        billing_managed=billing_managed,
+    )
+
+
 #: The statuses whose guild is absent from every member's guild list, its
 #: admins' included. A suspended guild is not here: its admins keep a closed
 #: entry.

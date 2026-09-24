@@ -97,6 +97,18 @@ async def test_the_system_engine_sets_the_plan_where_billing_does_not(
     assert await _status_of(session, gid) == "read_only"
 
 
+async def test_a_restore_lands_at_any_status_where_billing_does_not_set_plans(
+    session, role_session
+):
+    gid = (await create_guild(session)).id
+    await _set_recorded(session, gid, "read_only")
+    await _set_status(session, gid, "deleted")
+
+    await _as_system(role_session, _STATUS, v="active", g=gid)
+
+    assert await _status_of(session, gid) == "active"
+
+
 async def test_nobody_but_billing_sets_the_plan_where_billing_does(
     session, role_session
 ):
@@ -123,7 +135,13 @@ async def test_nobody_but_billing_sets_the_plan_where_billing_does(
         pytest.param("suspended", None, "active", True, id="lift-to-active"),
         pytest.param("suspended", "on_hold", "active", False, id="lift-elsewhere"),
         pytest.param("active", None, "deleted", True, id="delete"),
-        pytest.param("deleted", None, "read_only", True, id="restore"),
+        pytest.param("deleted", None, "active", True, id="restore"),
+        pytest.param("deleted", None, "read_only", False, id="restore-unrecorded"),
+        pytest.param(
+            "deleted", "read_only", "read_only", True, id="restore-to-recorded"
+        ),
+        pytest.param("deleted", "read_only", "active", False, id="restore-elsewhere"),
+        pytest.param("deleted", "read_only", "suspended", True, id="restore-suspended"),
     ],
 )
 async def test_the_operators_status_moves_where_billing_sets_plans(
