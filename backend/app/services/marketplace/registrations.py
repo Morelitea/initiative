@@ -44,6 +44,7 @@ from jwt.exceptions import InvalidKeyError, PyJWKError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.app_scopes import UnknownAppScope, validate_scopes
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.db import session as db_session
@@ -70,6 +71,7 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "embed_origin",
     "allowed_origins",
     "grants",
+    "scope_ceiling",
     "mandatory",
     "enabled",
     "status",
@@ -92,6 +94,7 @@ __all__ = [
     "normalize_origin",
     "normalize_origins",
     "normalize_public_id",
+    "normalize_scope_ceiling",
     "origin_of",
     "reconcile_from_config",
     "update_registration",
@@ -368,6 +371,35 @@ def normalize_grants(values: Optional[Iterable[str]]) -> list[str]:
     return normalized
 
 
+def normalize_scope_ceiling(values: Optional[Iterable[str]]) -> list[str]:
+    """Check a scope ceiling against the app scope vocabulary.
+
+    The ceiling is the most any install of this app may be granted, so every
+    entry must be a scope ``app.core.app_scopes`` defines. An unknown one is
+    refused rather than stored. Returned sorted and without repeats, so one set
+    has one stored form.
+    """
+    if values is None:
+        return []
+    if not isinstance(values, (list, tuple, set, frozenset)):
+        raise _bad_request(
+            AppServiceMessages.UNKNOWN_SCOPE, "scope_ceiling must be a list"
+        )
+    entries = list(values)
+    for value in entries:
+        if not isinstance(value, str):
+            raise _bad_request(
+                AppServiceMessages.UNKNOWN_SCOPE, f"{value!r} is not a scope"
+            )
+    try:
+        checked = validate_scopes(entries)
+    except UnknownAppScope as exc:
+        raise _bad_request(
+            AppServiceMessages.UNKNOWN_SCOPE, f"{exc.scope!r} is not a scope"
+        ) from exc
+    return sorted(checked)
+
+
 # --- reads -------------------------------------------------------------------
 
 
@@ -465,6 +497,7 @@ async def create_registration(
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
     delegation_jwks: Optional[dict] = None,
+    scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: bool = False,
     enabled: bool = True,
     transport: httpx.AsyncBaseTransport | None = None,
@@ -489,6 +522,7 @@ async def create_registration(
     key_set = _delegation_keys_for(
         normalize_delegation_jwks(delegation_jwks), grant_list
     )
+    ceiling = normalize_scope_ceiling(scope_ceiling)
     declared_id = normalize_public_id(public_id) if public_id else None
     if not secret or not secret.strip():
         raise HTTPException(
@@ -555,6 +589,7 @@ async def create_registration(
         protocol_version=protocol_version,
         grants=grant_list,
         delegation_jwks=key_set,
+        scope_ceiling=ceiling,
         mandatory=mandatory,
         enabled=enabled,
         status=row_status,
@@ -591,6 +626,7 @@ async def update_registration(
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
     delegation_jwks: Optional[dict] = None,
+    scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: Optional[bool] = None,
     enabled: Optional[bool] = None,
     actor_user_id: int | None = None,
@@ -645,6 +681,9 @@ async def update_registration(
     # Applied against the grants the row ends the edit with, so dropping the
     # grant clears the keys even when this call said nothing about them.
     row.delegation_jwks = _delegation_keys_for(row.delegation_jwks, row.grants or [])
+    if scope_ceiling is not None:
+        # Replaces rather than merges; an empty list is a ceiling of nothing.
+        row.scope_ceiling = normalize_scope_ceiling(scope_ceiling)
     if mandatory is not None:
         row.mandatory = mandatory
     if enabled is not None:
@@ -841,6 +880,9 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             key_set = _delegation_keys_for(
                 normalize_delegation_jwks(entry.get("delegation_jwks")), grants
             )
+            # Optional: an entry that names none gives the app a ceiling of
+            # nothing, so no install of it may be granted a scope.
+            ceiling = normalize_scope_ceiling(entry.get("scope_ceiling"))
         except HTTPException as exc:
             logger.warning(
                 "app services: entry %r refused (%s)",
@@ -882,6 +924,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
                 grants=grants,
                 delegation_jwks=key_set,
+                scope_ceiling=ceiling,
                 mandatory=mandatory,
                 enabled=True,
                 status=AppServiceStatus.UNVERIFIED,
@@ -908,6 +951,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             or origins != list(row.allowed_origins or [])
             or grants != list(row.grants or [])
             or key_set != row.delegation_jwks
+            or ceiling != list(row.scope_ceiling or [])
             or mandatory != row.mandatory
         )
         if not dirty:
@@ -920,6 +964,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         row.allowed_origins = origins
         row.grants = grants
         row.delegation_jwks = key_set
+        row.scope_ceiling = ceiling
         row.mandatory = mandatory
         if retarget:
             row.secret_encrypted = encrypt_field(secret, SALT_APP_SERVICE_SECRET)

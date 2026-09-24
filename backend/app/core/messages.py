@@ -499,6 +499,10 @@ class SharingMessages:
     #: is made and taken back against the dashboard that publishes it, so this
     #: list neither writes nor removes one.
     DASHBOARD_GRANT_NOT_SET_HERE = "SHARING_DASHBOARD_GRANT_NOT_SET_HERE"
+    #: A grant naming an installed app, sent to a resource's own sharing. What
+    #: an app may reach is granted by the community's seat, so this list
+    #: neither writes nor removes one.
+    APP_INSTALL_GRANT_NOT_SET_HERE = "SHARING_APP_INSTALL_GRANT_NOT_SET_HERE"
 
     @staticmethod
     def grantee_lacks_tool(tool: "Tool") -> str:
@@ -1253,6 +1257,8 @@ class AppServiceMessages:
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
     #: A grant outside the closed operator-conferred vocabulary.
     UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"
+    #: A scope ceiling naming something outside the app scope vocabulary.
+    UNKNOWN_SCOPE = "APP_SERVICE_UNKNOWN_SCOPE"
     #: The delegation key set is not a JWKS this build can verify against, or
     #: an entry in it carries no ``kid`` for a token to name.
     INVALID_DELEGATION_JWKS = "APP_SERVICE_INVALID_DELEGATION_JWKS"

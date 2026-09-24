@@ -7,7 +7,7 @@ hold, and the powers the operator confers on it. Nothing in this table can be
 claimed by a manifest — a publisher describes their app, an operator decides
 what this deployment does with it.
 
-Two columns exist only because of that split:
+Three columns exist only because of that split:
 
 * ``grants`` — powers beyond what any app gets by default, from a closed
   vocabulary. Conferring one is an operator edit; revoking it is the same edit
@@ -20,6 +20,9 @@ Two columns exist only because of that split:
     different things: an app that acts for its own members has no call to read
     another app's address. An automation service holds both, because acting on
     one app's behalf at another is what it is for.
+* ``scope_ceiling`` — the most any install of this app may be granted, from
+  the app scope vocabulary (``app.core.app_scopes``). A community's seat grants
+  within it; nothing outside it can be granted. Empty means nothing may be.
 * ``mandatory`` — the deployment asserts this app is part of what it *is*, so
   every guild has it and guild admins cannot remove it. The operator's kill
   switch (``enabled``) still outranks it.
@@ -33,8 +36,8 @@ from datetime import datetime, timezone
 from typing import List, Optional, Protocol
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, text
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlmodel import Field, SQLModel
 
 __all__ = [
@@ -147,6 +150,12 @@ class AppServiceRegistration(SQLModel, table=True):
     # takes the keys with it rather than leaving a set nothing displays.
     delegation_jwks: Optional[dict] = Field(
         default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    # The most an install of this app may be granted (see module docstring).
+    # Validated against ``app.core.app_scopes`` on every write.
+    scope_ceiling: List[str] = Field(
+        default_factory=list,
+        sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
     )
     # Auto-installed into every guild and not removable by guild admins.
     mandatory: bool = Field(

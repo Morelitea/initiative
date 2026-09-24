@@ -24,6 +24,7 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.models.tenant.ai_connection import GuildAIConnection
 from app.models.tenant.app_placement import AppPlacement
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.testing import (
     create_access_grant,
@@ -202,6 +203,59 @@ async def test_the_seat_places_an_app(session, acting_user, role_session):
     s.add(AppPlacement(install_id=app.id, initiative_id=seat.initiative.id))
     await s.commit()
     assert await _placed_initiatives(session, seat.guild.id) == [seat.initiative.id]
+
+
+# ---------------------------------------------------------------------------
+# guild_apps.granted_scopes
+# ---------------------------------------------------------------------------
+
+
+async def _granted(session, guild_id: int, install_id: int) -> list[str]:
+    await route_session_to_guild(session, guild_id)
+    session.expunge_all()
+    row = (await session.exec(select(GuildApp).where(GuildApp.id == install_id))).one()
+    return list(row.granted_scopes)
+
+
+async def test_an_admin_below_the_seat_does_not_grant_scopes(
+    session, acting_user, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin)
+    app = await create_guild_app(session, a.guild, a.user, definition=_APP_DEFINITION)
+    s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
+    row = (await s.exec(select(GuildApp).where(GuildApp.id == app.id))).one()
+    row.granted_scopes = ["documents:read"]
+    s.add(row)
+    with pytest.raises(DBAPIError, match="granted scopes"):
+        await s.commit()
+    await s.rollback()
+    assert await _granted(session, a.guild.id, app.id) == []
+
+
+async def test_an_admin_below_the_seat_still_renames_an_install(
+    session, acting_user, role_session
+):
+    """Only the grant is the seat's: the rest of the row keeps its writers."""
+    a = await acting_user(guild_role=GuildRole.admin)
+    app = await create_guild_app(session, a.guild, a.user, definition=_APP_DEFINITION)
+    s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
+    row = (await s.exec(select(GuildApp).where(GuildApp.id == app.id))).one()
+    row.name = "Renamed"
+    s.add(row)
+    await s.commit()
+
+
+async def test_the_seat_grants_scopes(session, acting_user, role_session):
+    seat = await acting_user(guild_role=GuildRole.superadmin)
+    app = await create_guild_app(
+        session, seat.guild, seat.user, definition=_APP_DEFINITION
+    )
+    s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
+    row = (await s.exec(select(GuildApp).where(GuildApp.id == app.id))).one()
+    row.granted_scopes = ["documents:read"]
+    s.add(row)
+    await s.commit()
+    assert await _granted(session, seat.guild.id, app.id) == ["documents:read"]
 
 
 # ---------------------------------------------------------------------------

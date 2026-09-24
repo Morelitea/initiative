@@ -76,6 +76,7 @@ def _app(**overrides) -> SimpleNamespace:
             "config_state": "ok",
             "config_state_detail": None,
             "artifacts": [],
+            "granted_scopes": [],
             "created_by": 11,
             "created_at": now,
             "updated_at": now,
@@ -146,3 +147,13 @@ def test_placements_are_the_rows_handed_in_ordered_by_initiative():
         {"initiative_id": 9, "role_ids": [4]},
     ]
     assert serialize_guild_app(_app(), context=CONTEXT).placements == []
+
+
+def test_granted_scopes_are_reported_sorted_and_empty_by_default():
+    """What the seat consented to reads back as a set in one order, and an
+    install nobody has granted anything holds nothing."""
+    assert serialize_guild_app(_app(), context=CONTEXT).granted_scopes == []
+    payload = serialize_guild_app(
+        _app(granted_scopes=["projects:write", "comments:read"]), context=CONTEXT
+    )
+    assert payload.granted_scopes == ["comments:read", "projects:write"]

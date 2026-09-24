@@ -172,6 +172,10 @@ class GuildAppRead(SanitizedBaseModel):
     #: rather than permission: it is the community's own answer to where an
     #: app belongs, so it reads the same for everyone.
     placements: List[AppPlacementRead] = []
+    #: The scopes the community's seat granted this install. Read-only here:
+    #: empty until the seat grants some, and never wider than what the manifest
+    #: requests or the registration allows.
+    granted_scopes: List[str] = []
     #: The deployment provides this app to every guild, and a guild admin
     #: neither removes nor disables it. The affordances are absent rather than
     #: erroring, so the client is told which installs those are.
@@ -393,6 +397,7 @@ def serialize_guild_app(
             )
             for row in sorted(placements, key=lambda row: row.initiative_id)
         ],
+        granted_scopes=sorted(app.granted_scopes or []),
         mandatory=service_state.mandatory,
         available=service_state.available,
         delegates=service_state.delegates,

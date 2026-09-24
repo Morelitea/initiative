@@ -176,6 +176,41 @@ async def test_patch_sets_the_operator_only_fields(
     assert body["enabled"] is False
 
 
+async def test_the_scope_ceiling_round_trips(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+    assert (await client.get(f"{BASE}{row.id}", headers=headers)).json()[
+        "scope_ceiling"
+    ] == []
+
+    response = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"scope_ceiling": ["projects:write", "comments:read"]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["scope_ceiling"] == ["comments:read", "projects:write"]
+
+
+async def test_patch_refuses_a_scope_outside_the_vocabulary(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+    row = await _seed(session, scope_ceiling=["projects:read"])
+
+    response = await client.patch(
+        f"{BASE}{row.id}", headers=headers, json={"scope_ceiling": ["root:write"]}
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == AppServiceMessages.UNKNOWN_SCOPE
+    await session.refresh(row)
+    assert row.scope_ceiling == ["projects:read"]
+
+
 async def test_the_browser_address_round_trips_and_clears(
     client: AsyncClient, session: AsyncSession
 ):
@@ -206,6 +241,11 @@ async def test_the_browser_address_round_trips_and_clears(
             "a grant outside the vocabulary",
             {"base_url": APP_URL, "secret": SECRET, "grants": ["superuser"]},
             AppServiceMessages.UNKNOWN_GRANT,
+        ),
+        (
+            "a scope outside the vocabulary",
+            {"base_url": APP_URL, "secret": SECRET, "scope_ceiling": ["root:write"]},
+            AppServiceMessages.UNKNOWN_SCOPE,
         ),
         (
             "a malformed base url",
