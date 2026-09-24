@@ -10,6 +10,11 @@ schema and purge the blobs. Each pass then reclaims any ``guild_<id>`` schema
 whose row is already gone — a teardown that deleted the row but did not finish
 dropping the schema, here or where a guild's creation was rolled back.
 
+Before any of that, each pass deletes the communities whose hold has run out:
+one left ``on_hold`` for longer than the deployment's hold window moves to
+``deleted`` exactly as a deletion from its danger zone would, and the
+retention window then starts like any other.
+
 Polled by ``background_tasks._loop_worker`` once an hour on ``SystemSessionLocal``
 (the ``app_admin`` login). It works on ``public.guilds`` alone and never routes
 into a guild schema — the schema is dropped wholesale on the provisioning
@@ -55,6 +60,133 @@ async def retention_days(session: AsyncSession) -> int | None:
 
     row = await app_settings_service.get_app_settings(session)
     return row.deleted_community_retention_days
+
+
+async def hold_deletion_days(session: AsyncSession) -> int | None:
+    """This deployment's hold window, or None where a hold never runs out.
+
+    Read per sweep, like the retention window, so a change applies to the next
+    pass rather than after a restart.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    return row.on_hold_community_deletion_days
+
+
+def hold_deletes_at(held_at: datetime, days: int) -> datetime:
+    """When a community put on hold at ``held_at`` is deleted."""
+    return held_at + timedelta(days=days)
+
+
+async def _lock_expired_hold(
+    session: AsyncSession, guild_id: int, *, cutoff: datetime
+) -> Guild | None:
+    """The guild, locked, if it is still on hold and was put there by
+    ``cutoff``; None if the hold was lifted since the pass began."""
+    return (
+        await session.exec(
+            select(Guild)
+            .where(
+                Guild.id == guild_id,
+                Guild.status == GuildStatus.on_hold.value,
+                Guild.status_changed_at.is_not(None),
+                Guild.status_changed_at <= cutoff,
+            )
+            .with_for_update()
+        )
+    ).one_or_none()
+
+
+async def _delete_expired_hold(
+    session: AsyncSession, guild_id: int, *, cutoff: datetime
+) -> bool:
+    """Delete one community whose hold has run out. Mirrors the danger-zone
+    delete: its apps let go, the status moves to ``deleted``, the seat is
+    written to, and billing is told to read what happened.
+
+    One transaction from the lock to the status write, so a hold lifted while
+    the pass runs leaves the community exactly as it was. Nobody asked for
+    this deletion, so the roster stays whatever its size.
+    """
+    from app.services import email as email_service
+    from app.services.platform import billing_ping
+    from app.services.platform import guilds as guilds_service
+    from app.services.tenant import app_connections as app_connections_service
+    from app.services.tenant import app_revocation as app_revocation_service
+
+    await set_rls_context(session)
+    guild = await _lock_expired_hold(session, guild_id, cutoff=cutoff)
+    if guild is None:
+        await session.commit()
+        return False
+
+    # Its connections live in its own schema. Flushed before routing back out,
+    # because the deletes have to run where the rows are.
+    await set_rls_context(session, guild_id=guild_id)
+    await app_connections_service.delete_guild_connections(session)
+    await session.flush()
+    await set_rls_context(session)
+
+    notice = await guilds_service.soft_delete_guild(
+        session, guild, via="hold_expired", keep_roster=True
+    )
+    await session.commit()
+
+    await email_service.announce_community_deleted(session, notice)
+    # These live on other connections, so they go after the commit that made
+    # the deletion real.
+    await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
+    billing_ping.notify_lifecycle_changed(guild_id)
+    await app_revocation_service.dispatch_revocations(
+        app_revocation_service.drain_revocations(session)
+    )
+    return True
+
+
+async def delete_expired_holds(session: AsyncSession, *, now: datetime) -> int:
+    """One pass over held communities. Returns how many were deleted.
+
+    Counted from ``status_changed_at``, which is stamped when a community is
+    put on hold and not again while it stays there, so a hold written twice
+    does not restart the clock.
+    """
+    from app.services.tenant import app_revocation as app_revocation_service
+
+    await set_rls_context(session)
+    days = await hold_deletion_days(session)
+    if days is None:
+        return 0
+    cutoff = now - timedelta(days=days)
+    guild_ids = list(
+        await session.exec(
+            select(Guild.id)
+            .where(
+                Guild.status == GuildStatus.on_hold.value,
+                Guild.status_changed_at.is_not(None),
+                Guild.status_changed_at <= cutoff,
+            )
+            .order_by(Guild.status_changed_at.asc())
+        )
+    )
+    await session.commit()
+    deleted = 0
+    for guild_id in guild_ids:
+        # ids collide across schemas, so clear the identity map between guilds.
+        session.expunge_all()
+        try:
+            if await _delete_expired_hold(session, guild_id, cutoff=cutoff):
+                deleted += 1
+        except Exception:
+            # One community that fails must not hold up the rest; it is due
+            # again on the next pass.
+            logger.exception("guild purge: deleting held guild %s failed", guild_id)
+            await session.rollback()
+            # Nothing was taken away, so there is nothing to tell an app.
+            app_revocation_service.drain_revocations(session)
+    if deleted:
+        logger.info("guild purge: deleted %d guild(s) whose hold ran out", deleted)
+    return deleted
 
 
 async def _due_guild_ids(
@@ -189,5 +321,6 @@ async def process_guild_purges() -> None:
     schedule even when nothing is due."""
     now = datetime.now(timezone.utc)
     async with SystemSessionLocal() as session:
+        await delete_expired_holds(session, now=now)
         await purge_due_guilds(session, now=now)
         await reclaim_orphaned_guilds(session)

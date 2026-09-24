@@ -14,7 +14,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import config as config_module
 from app.core.messages import GuildMessages
-from app.models.platform.app_setting import DEFAULT_GUILD_RETENTION_DAYS
+from app.models.platform.app_setting import (
+    DEFAULT_GUILD_RETENTION_DAYS,
+    DEFAULT_HOLD_DELETION_DAYS,
+)
 from app.models.platform.guild import (
     LIVE_STATUSES,
     OPERATOR_SETTABLE_STATUSES,
@@ -24,6 +27,7 @@ from app.models.platform.guild import (
     GuildStatus,
 )
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
+from app.services import email as email_service
 from app.services.platform import billing_ping, guild_purge
 from app.services.platform import guilds as guilds_service
 from app.services.platform.identity_refs import billing_guild_ref, existing_ref
@@ -594,3 +598,171 @@ async def test_the_notice_is_gathered_before_the_roster_goes(session):
     )
 
     assert notice.recipients == ["gd-solo@example.com"]
+
+
+# ── When a hold runs out ────────────────────────────────────────────────────
+
+
+async def _hold_since(session: AsyncSession, guild_id: int, held_at: datetime) -> None:
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+    row.status = GuildStatus.on_hold.value
+    row.status_changed_at = held_at
+    session.add(row)
+    await session.commit()
+    session.expunge_all()
+
+
+async def test_a_hold_that_runs_out_deletes_the_community(
+    session: AsyncSession, lifecycle_pings, monkeypatch
+):
+    """Deleted, not destroyed: the retention window starts from here, the seat
+    hears as it would from any deletion, and billing is told to read it.
+    Nobody asked for it, so even a community of one keeps its roster."""
+    seat = await create_user(session, email="hold-seat@example.com")
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    guild_id, name = guild.id, guild.name
+    held_at = datetime.now(timezone.utc) - timedelta(
+        days=DEFAULT_HOLD_DELETION_DAYS + 1
+    )
+    await _hold_since(session, guild_id, held_at)
+    letters = []
+
+    async def _capture(_session, notice, **_kwargs) -> None:
+        letters.append(notice)
+
+    monkeypatch.setattr(email_service, "announce_community_deleted", _capture)
+
+    assert (
+        await guild_purge.delete_expired_holds(session, now=datetime.now(timezone.utc))
+        == 1
+    )
+
+    session.expunge_all()
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+    assert row.status == GuildStatus.deleted.value
+    assert row.status_changed_at > held_at, "the retention window counts from now"
+    roster = (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild_id)
+        )
+    ).all()
+    assert len(roster) == 1
+    assert lifecycle_pings == [guild_id]
+    assert [(n.community_name, n.recipients) for n in letters] == [
+        (name, ["hold-seat@example.com"])
+    ]
+
+
+async def test_a_hold_waits_out_its_whole_window(session: AsyncSession):
+    _, guild = await _seated_guild(session)
+    guild_id = guild.id
+    held_at = datetime.now(timezone.utc) - timedelta(days=1)
+    await _hold_since(session, guild_id, held_at)
+    deletes_at = guild_purge.hold_deletes_at(held_at, DEFAULT_HOLD_DELETION_DAYS)
+
+    assert (
+        await guild_purge.delete_expired_holds(
+            session, now=deletes_at - timedelta(minutes=1)
+        )
+        == 0
+    )
+    session.expunge_all()
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+    assert row.status == GuildStatus.on_hold.value
+
+    session.expunge_all()
+    assert (
+        await guild_purge.delete_expired_holds(
+            session, now=deletes_at + timedelta(minutes=1)
+        )
+        == 1
+    )
+
+
+async def test_only_a_hold_runs_out(session: AsyncSession):
+    """Every other status is left as it is, however long it has been."""
+    kept = {}
+    for status in OPERATOR_SETTABLE_STATUSES:
+        if status is GuildStatus.on_hold:
+            continue
+        guild = await create_guild(session, creator=await create_user(session))
+        row = (await session.exec(select(Guild).where(Guild.id == guild.id))).one()
+        row.status = status.value
+        row.status_changed_at = datetime.now(timezone.utc) - timedelta(days=365)
+        session.add(row)
+        kept[guild.id] = status.value
+    await session.commit()
+    session.expunge_all()
+
+    assert (
+        await guild_purge.delete_expired_holds(session, now=datetime.now(timezone.utc))
+        == 0
+    )
+    for guild_id, status in kept.items():
+        row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+        assert row.status == status
+
+
+async def test_a_deployment_can_leave_holds_in_place(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Clearing the figure means a hold never runs out on its own."""
+    operator = await acting_user("owner")
+    _, guild = await _seated_guild(session)
+    guild_id = guild.id
+    await _hold_since(session, guild_id, datetime.now(timezone.utc))
+
+    response = await client.put(
+        "/api/v1/settings/community",
+        headers=operator.headers,
+        json={
+            "community_directory_enabled": False,
+            "on_hold_community_deletion_days": None,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["on_hold_community_deletion_days"] is None
+
+    session.expunge_all()
+    assert (
+        await guild_purge.delete_expired_holds(
+            session, now=datetime.now(timezone.utc) + timedelta(days=3650)
+        )
+        == 0
+    )
+    row = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
+    assert row.status == GuildStatus.on_hold.value
+
+
+async def test_the_hold_notice_names_the_day_it_is_deleted(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    operator = await acting_user("owner")
+    _, guild = await _seated_guild(session)
+    guild_id = guild.id
+    held_at = datetime.now(timezone.utc)
+    await _hold_since(session, guild_id, held_at)
+    sent = []
+
+    async def _capture(_session, **kwargs) -> None:
+        sent.append(kwargs["delete_at"])
+
+    monkeypatch.setattr(email_service, "send_community_on_hold_email", _capture)
+
+    await guilds_service.announce_on_hold(session, guild_id)
+    assert sent == [held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)]
+
+    await client.put(
+        "/api/v1/settings/community",
+        headers=operator.headers,
+        json={
+            "community_directory_enabled": False,
+            "on_hold_community_deletion_days": None,
+        },
+    )
+    session.expunge_all()
+    await guilds_service.announce_on_hold(session, guild_id)
+    assert sent[1] is None
