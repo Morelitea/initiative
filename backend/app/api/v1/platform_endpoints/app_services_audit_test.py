@@ -1,13 +1,11 @@
 """What wiring an app service up writes down.
 
 A registration confers powers on somebody else's code, so every change to one
-is a record of which powers and which address moved, and whether the shared
-secret moved with them. The secret's value never does.
+is a record of which powers and which address moved. So is every change to a
+publisher, whose switch reaches every app under it.
 """
 
 from __future__ import annotations
-
-import json
 
 import pytest
 from httpx import AsyncClient
@@ -15,22 +13,22 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.encryption import SALT_APP_SERVICE_SECRET, encrypt_field
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
-    AppServiceStatus,
-)
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.user import UserRole
-from app.services.marketplace.handshake import HandshakeResult
 from app.testing import emitted
-from app.testing.factories import create_user, get_auth_headers
+from app.testing.factories import (
+    create_app_service_registration,
+    create_user,
+    get_auth_headers,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 BASE = "/api/v1/app-services/"
-SECRET = "shared-secret-value"
+PUBLISHERS = "/api/v1/app-publishers/"
 APP_URL = "http://127.0.0.1:9100"
 PUBLIC_ID = "acme.widgets"
+LISTING_UID = "K7M2QX8N4TVB9C"
 
 
 @pytest.fixture(autouse=True)
@@ -40,47 +38,24 @@ def _signing_key(monkeypatch):
     )
 
 
-@pytest.fixture
-def answering_app(monkeypatch):
-    """An app that answers the handshake, so the registry can be driven over
-    HTTP without a container to talk to."""
-
-    async def _handshake(*, base_url: str, secret: str, transport=None):
-        return HandshakeResult(
-            public_id=PUBLIC_ID,
-            listing_uid=None,
-            manifest_hash="0" * 64,
-            protocol_version=1,
-            manifest={},
-        )
-
-    monkeypatch.setattr(
-        "app.services.marketplace.registrations.perform_handshake", _handshake
-    )
-
-
 async def _owner(session: AsyncSession) -> tuple[int | None, dict[str, str]]:
     owner = await create_user(session, role=UserRole.owner)
     return owner.id, get_auth_headers(owner)
 
 
 async def _seed(session: AsyncSession, **overrides) -> AppServiceRegistration:
-    row = AppServiceRegistration(
+    return await create_app_service_registration(
+        session,
         public_id=overrides.pop("public_id", PUBLIC_ID),
         base_url=overrides.pop("base_url", APP_URL),
         allowed_origins=overrides.pop("allowed_origins", [APP_URL]),
-        secret_encrypted=encrypt_field(SECRET, SALT_APP_SERVICE_SECRET),
-        status=overrides.pop("status", AppServiceStatus.UNVERIFIED),
+        listing_uid=overrides.pop("listing_uid", LISTING_UID),
         **overrides,
     )
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
 
 
 async def test_registering_an_app_service_names_what_it_confers(
-    client: AsyncClient, session: AsyncSession, answering_app, capfd
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     owner_id, headers = await _owner(session)
     capfd.readouterr()
@@ -89,8 +64,9 @@ async def test_registering_an_app_service_names_what_it_confers(
         BASE,
         headers=headers,
         json={
+            "public_id": PUBLIC_ID,
+            "listing_uid": LISTING_UID,
             "base_url": APP_URL,
-            "secret": SECRET,
             "grants": ["delegation"],
             "mandatory": True,
         },
@@ -98,23 +74,35 @@ async def test_registering_an_app_service_names_what_it_confers(
     assert created.status_code == 201, created.text
     registration_id = created.json()["id"]
 
-    rows = emitted(capfd, AuditEventType.APP_SERVICE_CREATED)
+    envelopes = emitted(capfd)
+    rows = [
+        e for e in envelopes if e["event_type"] == AuditEventType.APP_SERVICE_CREATED
+    ]
     assert [(r["actor_user_id"], r["target"]) for r in rows] == [
         (owner_id, {"type": "app_service_registration", "id": registration_id})
     ]
     detail = rows[0]["detail"]
-    assert detail["secret_changed"] is True
-    assert {"public_id", "base_url", "grants", "mandatory", "enabled"} <= set(
-        detail["changed"]
-    )
+    assert {
+        "public_id",
+        "listing_uid",
+        "publisher_id",
+        "base_url",
+        "grants",
+        "mandatory",
+        "enabled",
+    } <= set(detail["changed"])
     assert detail["values"]["mandatory"] == {"from": None, "to": True}
     # The address and the powers list are strings: named, never copied.
     assert "base_url" not in detail["values"]
     assert "grants" not in detail["values"]
-    assert SECRET not in json.dumps(rows[0])
+    # The acme prefix was new here, so its publisher was added with it.
+    publishers = [
+        e for e in envelopes if e["event_type"] == AuditEventType.APP_PUBLISHER_CREATED
+    ]
+    assert [r["detail"]["via"] for r in publishers] == ["registration"]
 
 
-async def test_editing_a_registration_records_what_moved_and_the_secret_with_it(
+async def test_editing_a_registration_records_what_moved(
     client: AsyncClient, session: AsyncSession, capfd
 ):
     owner_id, headers = await _owner(session)
@@ -125,7 +113,7 @@ async def test_editing_a_registration_records_what_moved_and_the_secret_with_it(
     edited = await client.patch(
         f"{BASE}{registration_id}",
         headers=headers,
-        json={"enabled": False, "secret": "rotated-secret"},
+        json={"enabled": False, "listing_uid": "ABCDEFGHJKMNPQ"},
     )
     assert edited.status_code == 200, edited.text
 
@@ -134,7 +122,7 @@ async def test_editing_a_registration_records_what_moved_and_the_secret_with_it(
         (owner_id, registration_id)
     ]
     detail = rows[0]["detail"]
-    assert detail["secret_changed"] is True
+    assert {"enabled", "listing_uid"} <= set(detail["changed"])
     assert detail["values"]["enabled"] == {"from": True, "to": False}
 
 
@@ -185,24 +173,32 @@ async def test_removing_a_registration_is_recorded(
     ]
 
 
-async def test_a_verification_records_the_status_it_ended_on(
-    client: AsyncClient, session: AsyncSession, answering_app, capfd
+async def test_a_publisher_is_recorded_when_added_and_switched(
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     owner_id, headers = await _owner(session)
-    row = await _seed(session)
-    registration_id = row.id
     capfd.readouterr()
 
-    verified = await client.post(
-        f"{BASE}{registration_id}/verify", headers=headers, json={}
+    created = await client.post(
+        PUBLISHERS, headers=headers, json={"prefix": "local", "display_name": "Local"}
     )
-    assert verified.status_code == 200, verified.text
+    assert created.status_code == 201, created.text
+    publisher_id = created.json()["id"]
+    switched = await client.patch(
+        f"{PUBLISHERS}{publisher_id}", headers=headers, json={"enabled": False}
+    )
+    assert switched.status_code == 200, switched.text
 
-    rows = emitted(capfd, AuditEventType.APP_SERVICE_VERIFIED)
-    assert [(r["actor_user_id"], r["target"]["id"]) for r in rows] == [
-        (owner_id, registration_id)
+    envelopes = emitted(capfd)
+    added = [
+        e for e in envelopes if e["event_type"] == AuditEventType.APP_PUBLISHER_CREATED
     ]
-    assert rows[0]["detail"] == {
-        "status": AppServiceStatus.OK,
-        "protocol_version": 1,
-    }
+    assert [(r["actor_user_id"], r["target"]) for r in added] == [
+        (owner_id, {"type": "app_publisher", "id": publisher_id})
+    ]
+    updated = [
+        e for e in envelopes if e["event_type"] == AuditEventType.APP_PUBLISHER_UPDATED
+    ]
+    assert [r["detail"]["values"]["enabled"] for r in updated] == [
+        {"from": True, "to": False}
+    ]

@@ -10,12 +10,6 @@ from app.api.deps import DirectMessagesEnabledDep
 #                          …), including the cross-guild "my" aggregates that read
 #                          them — the one place tenant data is read without a
 #                          single guild context (see /me routes below).
-#   app_service_endpoints/ — the channels an external app service calls back on.
-#                          Split by CALLER rather than by data: no user is
-#                          resolved, the caller is established from a request
-#                          signature, and which guild it may reach follows from
-#                          that.
-from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
     moderation,
     support,
@@ -73,6 +67,7 @@ from app.api.v1.platform_endpoints import (
     app_consent_requests,
     app_oauth,
     app_platform,
+    app_installation,
     app_services,
     auth,
     auth_providers,
@@ -172,6 +167,9 @@ api_router.include_router(intake.router, prefix="/settings", tags=["intake"])
 api_router.include_router(
     app_services.router, prefix="/app-services", tags=["app-services"]
 )
+api_router.include_router(
+    app_services.publishers_router, prefix="/app-publishers", tags=["app-services"]
+)
 # Public: apps verify the context JWTs we send them against this key set. No
 # credential, because requiring one to fetch a verification key is circular.
 api_router.include_router(
@@ -196,12 +194,11 @@ api_router.include_router(
 api_router.include_router(
     app_consent_requests.router, prefix="/app-platform", tags=["app-platform"]
 )
-# The other half of that wiring: what a registered app service may call back on.
-# Authenticated by request signature against its registration's shared secret —
-# no user, no session, no guild in a header. The guild each call operates in is
-# named in the path and re-checked against the caller's own installs.
+# An installed app's calls about its own installation — its configuration, its
+# members' connections, its verdict on the configuration and the events it
+# re-emits — on its installation token. The install comes from the token.
 api_router.include_router(
-    app_service_endpoints.router, prefix="/app-service", tags=["app-service"]
+    app_installation.router, prefix="/app-platform", tags=["app-platform"]
 )
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]

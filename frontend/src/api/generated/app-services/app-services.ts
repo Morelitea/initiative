@@ -21,10 +21,12 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AppPublisherCreate,
+  AppPublisherRead,
+  AppPublisherUpdate,
   AppServiceRegistrationCreate,
   AppServiceRegistrationRead,
   AppServiceRegistrationUpdate,
-  AppServiceVerifyRequest,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
 
@@ -173,11 +175,9 @@ export function useListAppServicesApiV1AppServicesGet<
 }
 
 /**
- * Register an app service, running the handshake on the way in.
- *
- * A service that answers names itself; one that does not yet answer can still
- * be registered when the operator supplies ``public_id``, and carries the
- * reason it is unverified until it does.
+ * Register an app service as stated: its id, its listing, its addresses
+ * and its keys. Its publisher is the one its id's prefix names, added
+ * unverified when there is none.
  * @summary Create App Service
  */
 export const createAppServiceApiV1AppServicesPost = (
@@ -437,9 +437,8 @@ export function useReadAppServiceApiV1AppServicesRegistrationIdGet<
 }
 
 /**
- * Enable/disable, rotate the secret, repoint either address, or change the
- * powers conferred. Rotating the secret or repointing ``base_url`` clears the
- * recorded verification; moving the browser address alone does not.
+ * Enable/disable, change the listing, repoint either address, replace the
+ * keys, or change the powers conferred.
  * @summary Update App Service
  */
 export const updateAppServiceApiV1AppServicesRegistrationIdPatch = (
@@ -636,48 +635,192 @@ export const useDeleteAppServiceApiV1AppServicesRegistrationIdDelete = <
   );
 };
 /**
- * Re-run the handshake and record the outcome on the row.
- * @summary Verify App Service
+ * Every publisher of app services on this deployment (``apps.manage``).
+ * @summary List App Publishers
  */
-export const verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost = (
-  registrationId: number,
-  appServiceVerifyRequestNull?: BodyType<AppServiceVerifyRequest | null> | null,
+export const listAppPublishersApiV1AppPublishersGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AppServiceRegistrationRead>(
+  return apiMutator<AppPublisherRead[]>(
+    { url: `/api/v1/app-publishers/`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListAppPublishersApiV1AppPublishersGetQueryKey = () => {
+  return [`/api/v1/app-publishers/`] as const;
+};
+
+export const getListAppPublishersApiV1AppPublishersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAppPublishersApiV1AppPublishersGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>
+  > = ({ signal }) => listAppPublishersApiV1AppPublishersGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListAppPublishersApiV1AppPublishersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>
+>;
+export type ListAppPublishersApiV1AppPublishersGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListAppPublishersApiV1AppPublishersGet<
+  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAppPublishersApiV1AppPublishersGet<
+  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAppPublishersApiV1AppPublishersGet<
+  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List App Publishers
+ */
+
+export function useListAppPublishersApiV1AppPublishersGet<
+  TData = Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppPublishersApiV1AppPublishersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListAppPublishersApiV1AppPublishersGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Add a publisher for a prefix, such as a private app's. It starts
+ * unverified.
+ * @summary Create App Publisher
+ */
+export const createAppPublisherApiV1AppPublishersPost = (
+  appPublisherCreate: BodyType<AppPublisherCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppPublisherRead>(
     {
-      url: `/api/v1/app-services/${registrationId}/verify`,
+      url: `/api/v1/app-publishers/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: appServiceVerifyRequestNull,
+      data: appPublisherCreate,
       signal,
     },
     options
   );
 };
 
-export const getVerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationKey = () =>
-  ["verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost"] as const;
+export const getCreateAppPublisherApiV1AppPublishersPostMutationKey = () =>
+  ["createAppPublisherApiV1AppPublishersPost"] as const;
 
-export const getVerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationOptions = <
+export const getCreateAppPublisherApiV1AppPublishersPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost>>,
+    Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
     TError,
-    VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationVariables,
+    CreateAppPublisherApiV1AppPublishersPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost>>,
+  Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
   TError,
-  VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationVariables,
+  CreateAppPublisherApiV1AppPublishersPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getVerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationKey();
+  const mutationKey = getCreateAppPublisherApiV1AppPublishersPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -685,59 +828,153 @@ export const getVerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost>>,
-    VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationVariables
+    Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
+    CreateAppPublisherApiV1AppPublishersPostMutationVariables
   > = (props) => {
-    const { registrationId, data } = props ?? {};
+    const { data } = props ?? {};
 
-    return verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost(
-      registrationId,
-      data,
-      requestOptions
-    );
+    return createAppPublisherApiV1AppPublishersPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost>>
+export type CreateAppPublisherApiV1AppPublishersPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>
 >;
-export type VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationBody =
-  | BodyType<AppServiceVerifyRequest | null>
-  | undefined;
-export type VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationVariables = {
-  registrationId: number;
-  data?: BodyType<AppServiceVerifyRequest | null>;
+export type CreateAppPublisherApiV1AppPublishersPostMutationBody = BodyType<AppPublisherCreate>;
+export type CreateAppPublisherApiV1AppPublishersPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateAppPublisherApiV1AppPublishersPostMutationVariables = {
+  data: BodyType<AppPublisherCreate>;
 };
 
 /**
- * @summary Verify App Service
+ * @summary Create App Publisher
  */
-export const useVerifyAppServiceApiV1AppServicesRegistrationIdVerifyPost = <
+export const useCreateAppPublisherApiV1AppPublishersPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost>>,
+      Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
       TError,
-      VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationVariables,
+      CreateAppPublisherApiV1AppPublishersPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost>>,
+  Awaited<ReturnType<typeof createAppPublisherApiV1AppPublishersPost>>,
   TError,
-  VerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationVariables,
+  CreateAppPublisherApiV1AppPublishersPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getVerifyAppServiceApiV1AppServicesRegistrationIdVerifyPostMutationOptions(options),
+    getCreateAppPublisherApiV1AppPublishersPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Rename a publisher, or switch it on or off. Off makes every app under
+ * its prefix not live.
+ * @summary Update App Publisher
+ */
+export const updateAppPublisherApiV1AppPublishersPublisherIdPatch = (
+  publisherId: number,
+  appPublisherUpdate: BodyType<AppPublisherUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppPublisherRead>(
+    {
+      url: `/api/v1/app-publishers/${publisherId}`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: appPublisherUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationKey = () =>
+  ["updateAppPublisherApiV1AppPublishersPublisherIdPatch"] as const;
+
+export const getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+    TError,
+    UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+  TError,
+  UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables,
+  TContext
+> => {
+  const mutationKey = getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+    UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables
+  > = (props) => {
+    const { publisherId, data } = props ?? {};
+
+    return updateAppPublisherApiV1AppPublishersPublisherIdPatch(publisherId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>
+>;
+export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationBody =
+  BodyType<AppPublisherUpdate>;
+export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
+export type UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables = {
+  publisherId: number;
+  data: BodyType<AppPublisherUpdate>;
+};
+
+/**
+ * @summary Update App Publisher
+ */
+export const useUpdateAppPublisherApiV1AppPublishersPublisherIdPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+      TError,
+      UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateAppPublisherApiV1AppPublishersPublisherIdPatch>>,
+  TError,
+  UpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getUpdateAppPublisherApiV1AppPublishersPublisherIdPatchMutationOptions(options),
     queryClient
   );
 };

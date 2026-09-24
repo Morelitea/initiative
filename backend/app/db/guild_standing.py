@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence
 from app.core.tools import Tool
 from app.db.authorization import sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
+from app.models.platform.app_service_registration import registration_live_sql
 from app.models.platform.guild import (
     GUILD_LADDER,
     LIVE_STATUS_VALUES,
@@ -319,9 +320,10 @@ def _permission_default_values() -> str:
 #:
 #: ``install`` is the install when it may act at all: the community's status is
 #: one its members use, the install is on, and the operator's registration for
-#: its listing is on, verified, and the client the token names. Every value
-#: below is computed from it, so an install that may not act has an empty
-#: standing. ``live`` says which, and ``read_only`` is the community's status.
+#: its listing is live (on, its publisher on, and holding a key set) and the
+#: client the token names. Every value below is computed from it, so an install
+#: that may not act has an empty standing. ``live`` says which, and
+#: ``read_only`` is the community's status.
 #:
 #: An install is a member of the initiatives it is placed in (narrowed to one
 #: when the token names it), and its initiative role is exactly what its scopes
@@ -376,9 +378,10 @@ install AS (
     AND EXISTS (
       SELECT 1
       FROM public.app_service_registrations r
+      JOIN public.publishers p ON p.id = r.publisher_id
       WHERE r.listing_uid = a.listing_uid
         AND r.public_id = {_CLIENT_ID}
-        AND r.enabled
+        AND {registration_live_sql("r", "p")}
     )
     AND ({_UID} IS NULL OR (
       EXISTS (SELECT 1 FROM consent)
@@ -828,8 +831,8 @@ class InstallContext:
     # --- What the install standing statement returned -------------------------
     #: The community the standing was computed for; ``None`` until it has been.
     standing_guild_id: Optional[int] = None
-    #: The community is in use, the install is on, and its registration is on,
-    #: verified, and the client the token names.
+    #: The community is in use, the install is on, and its registration is
+    #: live and the client the token names.
     live: bool = False
     #: The community is in ``read_only`` status.
     read_only: bool = False

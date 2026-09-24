@@ -21,8 +21,12 @@ from app.core.messages import DelegationExchangeMessages
 from app.services.marketplace.app_refs import ensure_app_guild_ref, ensure_app_ref
 from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
 from app.services.marketplace.registration_lookup import invalidate_registrations
-from app.testing import create_guild, create_guild_app, create_user
-from app.testing.app_channel import register_app_service
+from app.testing import (
+    create_app_service_registration,
+    create_guild,
+    create_guild_app,
+    create_user,
+)
 from app.testing.schema_harness import route_session_to_guild
 from app.testing.delegation import (
     DELEGATE_PUBLIC_ID,
@@ -65,7 +69,7 @@ async def _delegated(session: AsyncSession, *, install_target: bool = True):
     await authorize_delegate(session, guild, member)
     subject = await delegate_subject(session, guild, member)
 
-    await register_app_service(
+    await create_app_service_registration(
         session, public_id=TARGET_PUBLIC_ID, listing_uid=TARGET_LISTING
     )
     target = None
@@ -174,15 +178,12 @@ async def test_a_guild_that_switched_the_app_off_is_refused(
     assert response.json()["detail"] == DelegationExchangeMessages.INSTALL_DISABLED
 
 
-async def test_a_registration_that_never_verified_is_refused(
+async def test_a_registration_with_no_keys_is_refused(
     client: AsyncClient, session: AsyncSession
 ):
-    """Enabled is not the same as live. A row that has never handshaken has no
-    confirmed manifest behind it, so there is nothing to address a token to."""
-    from app.models.platform.app_service_registration import (
-        AppServiceRegistration,
-        AppServiceStatus,
-    )
+    """Enabled is not the same as live. A registration with no key set is not
+    live, so there is nothing to address a token to."""
+    from app.models.platform.app_service_registration import AppServiceRegistration
 
     guild, _member, subject, _target = await _delegated(session)
     row = (
@@ -192,7 +193,7 @@ async def test_a_registration_that_never_verified_is_refused(
             )
         )
     ).one()
-    row.status = AppServiceStatus.UNVERIFIED
+    row.jwks = None
     session.add(row)
     await session.commit()
     invalidate_registrations()

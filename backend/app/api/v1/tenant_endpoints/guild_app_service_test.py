@@ -54,26 +54,16 @@ async def _enable_delegation(session: AsyncSession):
 
 async def _register_target(session: AsyncSession, *, enabled: bool = True) -> None:
     """The app whose address is being asked for."""
-    from app.models.platform.app_service_registration import (
-        AppServiceRegistration,
-        AppServiceStatus,
-    )
+    from app.testing import create_app_service_registration
 
-    session.add(
-        AppServiceRegistration(
-            public_id=TARGET_PUBLIC_ID,
-            listing_uid=TARGET_LISTING_UID,
-            base_url=TARGET_BASE_URL,
-            allowed_origins=[TARGET_BASE_URL],
-            secret_encrypted=None,
-            grants=[],
-            jwks=None,
-            enabled=enabled,
-            status=AppServiceStatus.OK,
-        )
+    await create_app_service_registration(
+        session,
+        public_id=TARGET_PUBLIC_ID,
+        listing_uid=TARGET_LISTING_UID,
+        base_url=TARGET_BASE_URL,
+        allowed_origins=[TARGET_BASE_URL],
+        enabled=enabled,
     )
-    await session.commit()
-    invalidate_registrations()
 
 
 async def _install_target(session: AsyncSession, guild, installer, **overrides):

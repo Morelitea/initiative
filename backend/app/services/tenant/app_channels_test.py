@@ -1,10 +1,9 @@
-"""The two pure decisions behind the app channel.
+"""The pure decision behind an app's installation calls.
 
 Everything else in this module reaches a database, and the endpoint tests hold
 that. What is worth pinning separately is the predicate that decides whether an
 install belongs to the calling app — it is the whole of the isolation between
-one app's credentials and another's — and the serializer that decides what an
-app is told about an install it does own.
+one app's credentials and another's.
 """
 
 from datetime import datetime, timezone
@@ -12,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.services.tenant.app_channels import _summarize, owns_install
+from app.services.tenant.app_channels import owns_install
 
 pytestmark = pytest.mark.unit
 
@@ -65,7 +64,7 @@ class TestOwnsInstall:
         different app."""
         assert owns_install(_app(service_id="tests.other"), _registration()) is False
 
-    def test_a_registration_that_never_verified_owns_nothing(self):
+    def test_a_registration_naming_no_listing_owns_nothing(self):
         assert owns_install(_app(), _registration(listing_uid=None)) is False
 
     def test_a_non_service_install_is_never_ours(self):
@@ -78,24 +77,3 @@ class TestOwnsInstall:
         app.definition = {"app_kind": "service"}
 
         assert owns_install(app, _registration()) is False
-
-
-class TestSummary:
-    def test_a_summary_carries_ids_and_state_only(self):
-        """What an app reconciles against. Anything about the guild's people
-        would be a second channel's answer arriving on this one."""
-        summary = _summarize(_app(), "gapp_testguild2")
-
-        assert set(summary) == {
-            "install_id",
-            "guild_ref",
-            "listing_uid",
-            "listing_version",
-            "name",
-            "enabled",
-            "config_state",
-            "config_state_detail",
-            "needs_config",
-            "updated_at",
-        }
-        assert summary["config_state"] == "unverified"

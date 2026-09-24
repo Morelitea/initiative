@@ -2,13 +2,24 @@
 
 A marketplace **listing** says what an app is and what it declares. A
 **registration** is the separate, operator-owned statement that a particular
-deployment has wired that app up: where it lives, the shared secret both ends
-hold, and the powers the operator confers on it. Nothing in this table can be
-claimed by a manifest — a publisher describes their app, an operator decides
-what this deployment does with it.
+deployment has wired that app up: which listing it is, where it lives, the
+public keys it signs with, and the powers the operator confers on it. Nothing
+in this table can be claimed by a manifest — a publisher describes their app,
+an operator decides what this deployment does with it.
 
-Three columns exist only because of that split:
+A registration holds no secret. Every call the app makes to Initiative is a
+JWT it signs with a key published here (``jwks``, or ``jwks_uri`` on its own
+origin), and every call Initiative makes to the app is a JWT under the app
+platform's own key.
 
+Some columns exist only because of that split:
+
+* ``listing_uid`` — the catalog listing this registration speaks for, stated
+  by whoever registers the app. It is what ties the registration to the
+  installs it may reach.
+* ``publisher_id`` — the publisher the ``public_id`` prefix names
+  (:mod:`app.models.platform.publisher`). Its switch outranks the
+  registration's own.
 * ``grants`` — powers beyond what any app gets by default, from a closed
   vocabulary. Conferring one is an operator edit; revoking it is the same edit
   in reverse.
@@ -27,6 +38,11 @@ Three columns exist only because of that split:
   every guild has it and guild admins cannot remove it. The operator's kill
   switch (``enabled``) still outranks it.
 
+**Live** is one rule, stated once in :func:`registration_live_sql`: the
+registration is enabled, its publisher is enabled, and it has a key set to
+verify against. The install standing, the registration snapshot and every
+channel that reads a single row ask it in that form.
+
 Lives in ``public``: a registration is platform-wide and carries no guild data.
 It is written on the system engine by ``apps.manage`` (owner) endpoints and by
 boot reconciliation from ``APP_SERVICES_CONFIG``.
@@ -36,57 +52,53 @@ from datetime import datetime, timezone
 from typing import List, Optional, Protocol
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlmodel import Field, SQLModel
 
 __all__ = [
     "APP_SERVICE_GRANTS",
-    "APP_SERVICE_STATUSES",
+    "MAX_APP_ID_LENGTH",
     "AppServiceRegistration",
-    "AppServiceStatus",
     "BrowserAddressed",
-    "ServiceState",
     "browser_base",
-    "is_live",
+    "registration_live_sql",
 ]
-
-
-class AppServiceStatus:
-    """What the last verification attempt concluded.
-
-    ``unverified`` is the resting state of a row that has never completed a
-    handshake — a declaratively wired app whose container has not booted yet is
-    the ordinary case, not an error.
-    """
-
-    UNVERIFIED = "unverified"
-    OK = "ok"
-    #: The service could not be reached, or answered in a shape that is not a
-    #: manifest document at all.
-    UNREACHABLE = "unreachable"
-    #: A manifest was served but this build will not accept it, or its hash no
-    #: longer matches the one recorded at registration.
-    MANIFEST_MISMATCH = "manifest_mismatch"
-    #: The challenge came back signed with a different secret than ours.
-    SIGNATURE_MISMATCH = "signature_mismatch"
-
-
-#: Every value ``status`` may hold.
-APP_SERVICE_STATUSES: frozenset[str] = frozenset(
-    {
-        AppServiceStatus.UNVERIFIED,
-        AppServiceStatus.OK,
-        AppServiceStatus.UNREACHABLE,
-        AppServiceStatus.MANIFEST_MISMATCH,
-        AppServiceStatus.SIGNATURE_MISMATCH,
-    }
-)
 
 #: The closed vocabulary of operator-conferred powers. A value outside this set
 #: is refused on write rather than stored as something no code resolves — the
 #: same "declare it or it does not exist" rule the listing validator applies.
 APP_SERVICE_GRANTS: frozenset[str] = frozenset({"delegation", "app_directory"})
+
+#: The widest ``public_id`` a registration may carry. An app id longer than
+#: this cannot name a registration, so it is refused without a query.
+MAX_APP_ID_LENGTH = 120
+
+
+def registration_live_sql(
+    registration: str = "app_service_registrations", publisher: str = "publishers"
+) -> str:
+    """Whether a registration is live, as a SQL boolean over one registration
+    row and its publisher's row, named by ``registration`` and ``publisher``.
+
+    Enabled, its publisher enabled, and a key set to verify against: a pasted
+    set with at least one key, or a key set address. ``-> 0`` reads the first
+    key and is null for an empty or absent set.
+    """
+    return (
+        f"({registration}.enabled AND {publisher}.enabled"
+        f" AND ({registration}.jwks_uri IS NOT NULL"
+        f" OR {registration}.jwks -> 'keys' -> 0 IS NOT NULL))"
+    )
 
 
 class AppServiceRegistration(SQLModel, table=True):
@@ -99,15 +111,27 @@ class AppServiceRegistration(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     # '<publisher>.<slug>', matching the listing's public_id. Unique: one
     # registration per app per deployment.
-    public_id: str = Field(sa_column=Column(String(120), nullable=False, unique=True))
-    # The catalog uid the served manifest claims. Recorded on the first
-    # successful handshake, so it is unset on a row that has never verified.
+    public_id: str = Field(
+        sa_column=Column(String(MAX_APP_ID_LENGTH), nullable=False, unique=True)
+    )
+    # The catalog uid of the listing this registration speaks for, stated by
+    # whoever registers the app. Nullable only for rows that predate the rule
+    # and never named one; such a row reaches no install.
     listing_uid: Optional[str] = Field(
         default=None, sa_column=Column(String(14), nullable=True, index=True)
     )
-    # Base of the service's wire surface: the well-known manifest, the
-    # handshake, and later the data/lifecycle endpoints all hang off it. Every
-    # consumer of this column is Initiative's own server calling the app.
+    # The publisher the public_id's prefix names.
+    publisher_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("publishers.id", ondelete="RESTRICT"),
+            nullable=False,
+            index=True,
+        )
+    )
+    # Base of the service's wire surface: its data and lifecycle endpoints
+    # hang off it, and a ``jwks_uri`` must share its origin. Every consumer of
+    # this column is Initiative's own server calling the app.
     base_url: str = Field(sa_column=Column(String(1000), nullable=False))
     # Base of the service's browser surface: the iframe an embed opens and the
     # page a member is sent to for an interactive connection. Unset means the
@@ -122,19 +146,6 @@ class AppServiceRegistration(SQLModel, table=True):
         default_factory=list,
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
-    # Fernet ciphertext of the shared HMAC secret. Nullable so an operator can
-    # clear it without deleting the row; a registration with no secret cannot
-    # complete a handshake.
-    secret_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(Text, nullable=True)
-    )
-    # sha256 of the canonical manifest bytes at the last successful handshake.
-    manifest_hash: Optional[str] = Field(
-        default=None, sa_column=Column(String(64), nullable=True)
-    )
-    protocol_version: Optional[int] = Field(
-        default=None, sa_column=Column(Integer, nullable=True)
-    )
     # Operator-conferred powers (see module docstring). Validated against
     # APP_SERVICE_GRANTS on every write.
     grants: List[str] = Field(
@@ -148,6 +159,12 @@ class AppServiceRegistration(SQLModel, table=True):
     # drain out; every entry carries a ``kid``, which is what a JWT names.
     # Public keys only. Null on an app that has not been provisioned with one.
     jwks: Optional[dict] = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    # Where the app publishes that key set instead, on ``base_url``'s own
+    # origin over https. Fetched and cached for a minute; either or both may
+    # be set, and a key found in either verifies.
+    jwks_uri: Optional[str] = Field(
+        default=None, sa_column=Column(String(1000), nullable=True)
+    )
     # The most an install of this app may be granted (see module docstring).
     # Validated against ``app.core.app_scopes`` on every write.
     scope_ceiling: List[str] = Field(
@@ -163,13 +180,6 @@ class AppServiceRegistration(SQLModel, table=True):
     enabled: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-    status: str = Field(
-        default=AppServiceStatus.UNVERIFIED,
-        sa_column=Column(String(32), nullable=False, server_default="unverified"),
-    )
-    last_verified_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -199,27 +209,3 @@ def browser_base(registration: BrowserAddressed) -> str:
     app reachable at a single address needs no second field to say so.
     """
     return registration.embed_origin or registration.base_url
-
-
-class ServiceState(Protocol):
-    """Anything carrying a registration's two state columns.
-
-    Like :class:`BrowserAddressed`, satisfied by both the row and the request
-    path's snapshot of it, so the rule below is written once and every channel
-    reads the same answer.
-    """
-
-    enabled: bool
-    status: str
-
-
-def is_live(registration: ServiceState) -> bool:
-    """Whether anything may flow through this app right now.
-
-    Two conditions, and both are the operator's: the kill switch is on, and the
-    last verification concluded that the service answering is the one this
-    deployment registered. A row that has never handshaken is ``unverified`` and
-    is not live — there is no confirmed manifest behind it to have declared
-    anything.
-    """
-    return registration.enabled and registration.status == AppServiceStatus.OK

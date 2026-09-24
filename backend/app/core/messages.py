@@ -1293,23 +1293,22 @@ class AppServiceMessages:
     #: The key set is not a JWKS this build can verify against, or an entry in
     #: it carries no ``kid`` for a JWT to name.
     INVALID_JWKS = "APP_SERVICE_INVALID_JWKS"
-    #: A registration with no stored secret cannot complete a handshake.
-    SECRET_REQUIRED = "APP_SERVICE_SECRET_REQUIRED"
     #: The APP_PLATFORM_* signing keypair is not configured. It is required and
-    #: has no fallback, so registration and verification fail closed until an
-    #: operator supplies one.
+    #: has no fallback, so registration fails closed until an operator
+    #: supplies one.
     SIGNING_NOT_CONFIGURED = "APP_SERVICE_SIGNING_NOT_CONFIGURED"
-    #: The service could not be reached, or did not answer with a manifest.
-    UNREACHABLE = "APP_SERVICE_UNREACHABLE"
-    #: The manifest was served but this build will not accept it (unknown
-    #: protocol version, missing fields, or a definition the validator refuses).
-    INVALID_MANIFEST = "APP_SERVICE_INVALID_MANIFEST"
-    #: The served manifest no longer hashes to the one recorded at registration.
-    MANIFEST_CHANGED = "APP_SERVICE_MANIFEST_CHANGED"
-    #: The manifest names a different app than the registration does.
-    PUBLIC_ID_MISMATCH = "APP_SERVICE_PUBLIC_ID_MISMATCH"
-    #: The challenge came back signed with a different secret.
-    SIGNATURE_MISMATCH = "APP_SERVICE_SIGNATURE_MISMATCH"
+    #: The listing uid is missing or is not a catalog uid.
+    INVALID_LISTING_UID = "APP_SERVICE_INVALID_LISTING_UID"
+    #: The key set address is not https on the base URL's own origin.
+    INVALID_JWKS_URI = "APP_SERVICE_INVALID_JWKS_URI"
+    #: No publisher has that id.
+    PUBLISHER_NOT_FOUND = "APP_PUBLISHER_NOT_FOUND"
+    #: Another publisher already has that prefix.
+    DUPLICATE_PUBLISHER = "APP_PUBLISHER_DUPLICATE_PREFIX"
+    #: A publisher prefix this build refuses.
+    INVALID_PUBLISHER_PREFIX = "APP_PUBLISHER_INVALID_PREFIX"
+    #: A publisher's name is empty or too long.
+    INVALID_PUBLISHER_NAME = "APP_PUBLISHER_INVALID_NAME"
 
 
 class AppMessages:
@@ -1375,26 +1374,12 @@ class AppDataMessages:
 
 
 class AppChannelMessages:
-    """Codes for the channels an app service calls back into Initiative on.
+    """Codes for an installed app's calls about its own installation.
 
     Read by an app author rather than by a person in the UI, so each names the
-    step that refused: an envelope this build will not accept, an install this
-    caller does not own, or a payload outside what the pinned manifest declared.
+    step that refused: an install this caller does not own, or a payload
+    outside what the pinned manifest declared.
     """
-
-    # --- the signed envelope ---
-    #: A required signing header is absent or unusably shaped.
-    MISSING_SIGNATURE = "APP_CHANNEL_MISSING_SIGNATURE"
-    #: The signed timestamp sits outside the freshness window.
-    STALE_TIMESTAMP = "APP_CHANNEL_STALE_TIMESTAMP"
-    #: No registration answers to the app id the request named.
-    UNKNOWN_APP = "APP_CHANNEL_UNKNOWN_APP"
-    #: The signature does not match what this registration's secret produces.
-    INVALID_SIGNATURE = "APP_CHANNEL_INVALID_SIGNATURE"
-    #: This nonce was already spent, so the request has been seen before.
-    REPLAYED_REQUEST = "APP_CHANNEL_REPLAYED_REQUEST"
-    #: The operator turned this registration off; every channel it backs stops.
-    APP_DISABLED = "APP_CHANNEL_APP_DISABLED"
 
     # --- the install being addressed ---
     #: No install of this app in that guild — never installed, uninstalled, or

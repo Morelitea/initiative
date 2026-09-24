@@ -1,11 +1,10 @@
 """What an app service may read and write about its own installs.
 
-An app knows its installs by pulling them: which guilds have it, the
-configuration each guild supplied, and which members connected their own
-accounts. This module is the guild-touching half of that channel — the caller
-has already been established from its signature
-(:mod:`app.services.marketplace.app_channel_auth`), and everything here answers
-in terms of *that* registration.
+An app knows its installs by pulling them: the configuration each guild
+supplied, and which members connected their own accounts. This module is the
+guild-touching half of those calls — the caller has already been established
+from its installation token (``/app-platform/installation/*``), and everything
+here answers in terms of *that* registration and install.
 
 Three rules run through all of it:
 
@@ -32,7 +31,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Protocol, Sequence
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -40,7 +39,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.session import routed_guild_id
 from app.core.messages import AppChannelMessages
 from app.db.session import set_rls_context
-from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
@@ -59,7 +57,6 @@ __all__ = [
     "connection_for_member",
     "connection_payload",
     "emit_event",
-    "install_summaries",
     "load_install",
     "report_config_state",
     "write_connection_values",
@@ -78,6 +75,14 @@ REPORTABLE_CONFIG_STATES: frozenset[str] = frozenset({"ok", "invalid"})
 #: Bound on the short code an app attaches to an ``invalid`` verdict, matching
 #: the column it lands in.
 MAX_CONFIG_STATE_DETAIL = 120
+
+
+class RegisteredApp(Protocol):
+    """What these calls read of the caller's registration: its id and the
+    listing it speaks for. The registration snapshot carries both."""
+
+    public_id: str
+    listing_uid: Optional[str]
 
 
 class AppChannelError(Exception):
@@ -100,7 +105,7 @@ def _definition_service_id(definition: dict[str, Any] | None) -> Optional[str]:
     return public_id if isinstance(public_id, str) else None
 
 
-def owns_install(app: GuildApp, registration: AppServiceRegistration) -> bool:
+def owns_install(app: GuildApp, registration: RegisteredApp) -> bool:
     """Whether this install is the calling app's.
 
     Two independent statements have to agree: the install was made from the
@@ -114,23 +119,6 @@ def owns_install(app: GuildApp, registration: AppServiceRegistration) -> bool:
     if not registration.listing_uid or app.listing_uid != registration.listing_uid:
         return False
     return _definition_service_id(app.definition) == registration.public_id
-
-
-async def _guild_ids(session: AsyncSession) -> list[int]:
-    """Every guild whose content this channel may reach, lowest id first.
-
-    Guilds that are not live are left out: their content is frozen for
-    members and admins alike, and an app pulling for one would be reaching past
-    a hold the operator put there — or past a deletion. It reappears when the
-    guild does.
-    """
-    await set_rls_context(session)
-    rows = await session.exec(
-        select(Guild.id, Guild.status)
-        .where(Guild.status.in_(LIVE_STATUS_VALUES))
-        .order_by(Guild.id.asc())
-    )
-    return [row[0] for row in rows]
 
 
 async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> None:
@@ -159,68 +147,9 @@ async def _guild_row(session: AsyncSession, guild_id: int) -> Optional[Guild]:
     return (await session.exec(select(Guild).where(Guild.id == guild_id))).first()
 
 
-async def install_summaries(
-    session: AsyncSession, registration: AppServiceRegistration
-) -> list[dict[str, Any]]:
-    """Every guild that has this app installed, and at which version.
-
-    Installs live in the guild schema that holds them — the catalog records what
-    was published, never who installed it — so this visits each guild in turn.
-    That cost tracks the number of guilds rather than the number of installs,
-    which is the price of the catalog carrying no index of who installed what.
-
-    A registration that has never verified names no listing, so it has no
-    installs to report.
-    """
-    if not registration.listing_uid:
-        return []
-
-    summaries: list[dict[str, Any]] = []
-    for guild_id in await _guild_ids(session):
-        await _route(session, guild_id, read_only=True)
-        rows = (
-            await session.exec(
-                select(GuildApp)
-                .where(GuildApp.listing_uid == registration.listing_uid)
-                .order_by(GuildApp.id.asc())
-            )
-        ).all()
-        summaries.extend(
-            [
-                _summarize(app, await _install_guild_ref(session, app))
-                for app in rows
-                if owns_install(app, registration)
-            ]
-        )
-    return summaries
-
-
-def _summarize(app: GuildApp, guild_ref: str) -> dict[str, Any]:
-    """One install as the app is told about it.
-
-    Names and state only: which guild, which install, which version it is pinned
-    to, and whether it is live. Nothing about who is in the guild, and nothing
-    about what anyone configured — those are the config and connections
-    channels, addressed one guild at a time.
-    """
-    state = app_config_service.config_state(app)
-    return {
-        "install_id": app.id,
-        "guild_ref": guild_ref,
-        "listing_uid": app.listing_uid,
-        "listing_version": app.listing_version,
-        "name": app.name,
-        "enabled": app.enabled,
-        "config_state": state.state,
-        "config_state_detail": state.detail,
-        "needs_config": state.needs_config,
-        "updated_at": app.updated_at,
-    }
-
-
 async def load_install(
     session: AsyncSession,
-    registration: AppServiceRegistration,
+    registration: RegisteredApp,
     guild_id: int,
     *,
     app_install_id: int,
@@ -695,7 +624,7 @@ def _payload_size(payload: dict[str, Any]) -> int:
 async def emit_event(
     session: AsyncSession,
     app: GuildApp,
-    registration: AppServiceRegistration,
+    registration: RegisteredApp,
     *,
     event_type: str,
     payload: dict[str, Any],

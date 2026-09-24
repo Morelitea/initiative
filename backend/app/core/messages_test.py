@@ -8,9 +8,9 @@ is invisible until somebody hits the path, which is why it is asserted here
 rather than noticed in review.
 
 Two kinds of code are deliberately out of scope. The **machine surfaces**
-below are signed service-to-service channels — billing, the bundled-reference
-channel, the app-service API, delegation exchange — where no person is on the
-other end and the code IS the answer. And the per-tool codes are *derived* from
+below are service-to-service channels — billing, the bundled-reference
+channel, an installed app's installation calls, delegation exchange — where no
+person is on the other end and the code IS the answer. And the per-tool codes are *derived* from
 ``Tool``, so the set grows on its own; what cannot be derived is the wording,
 which is what this asks a locale for.
 """

@@ -20,10 +20,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.algorithms import RSAAlgorithm
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
-    AppServiceStatus,
-)
+from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.publisher import publisher_prefix
+from app.testing.factories import create_publisher
 from app.services.marketplace.registration_lookup import invalidate_registrations
 
 __all__ = [
@@ -125,20 +124,20 @@ async def register_delegate(
 ) -> AppServiceRegistration:
     """Wire up the app whose tokens the suite expects to be accepted.
 
-    Written straight to the table rather than through the registration service:
-    that path runs a handshake against the app, and there is no app here — only
-    the row the resolver reads.
+    Written straight to the table rather than through the registration service,
+    which needs the app platform's signing key configured: only the row the
+    resolver reads matters here.
     """
+    publisher = await create_publisher(session, prefix=publisher_prefix(public_id))
     row = AppServiceRegistration(
         public_id=public_id,
         listing_uid=DELEGATE_LISTING_UID,
+        publisher_id=publisher.id,
         base_url="http://auto.test:8080",
         allowed_origins=["http://auto.test:8080"],
-        secret_encrypted=None,
         grants=list(grants),
         jwks=delegation_jwks() if key_set is None else key_set,
         enabled=enabled,
-        status=AppServiceStatus.OK,
     )
     session.add(row)
     await session.commit()

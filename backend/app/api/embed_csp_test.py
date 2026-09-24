@@ -1,10 +1,10 @@
 """Which origins a served document may frame.
 
 The property under test is that the answer is a property of the **deployment**:
-the origins of the app services an operator has wired up and whose handshake
-confirmed the manifest behind them. So the same header goes to every document,
-it names no guild, install or reader, and an operator's kill switch is the
-thing that takes an origin back out of it.
+the origins of the live app services an operator has wired up. So the same
+header goes to every document, it names no guild, install or reader, and an
+operator's kill switch — on the registration or on its publisher — is the thing
+that takes an origin back out of it.
 """
 
 import pytest
@@ -12,13 +12,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.embed_csp import app_frame_policy
 from app.core.config import settings
-from app.models.platform.app_service_registration import AppServiceStatus
+from app.models.platform.publisher import Publisher
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.registration_lookup import (
     frame_origins,
     invalidate_registrations,
 )
-from app.testing import create_app_service_registration
+from app.testing import create_app_service_registration, create_publisher
 
 
 FRAMED = "https://framed.example.test"
@@ -77,20 +77,35 @@ class TestTheRegisteredOrigins:
 
         assert FRAMED not in await frame_origins()
 
-    async def test_an_unverified_registration_is_not_named(self, session: AsyncSession):
-        """The origins come from a manifest, so the header waits on the
-        verification that says which manifest this service serves."""
-        registration = await create_app_service_registration(
+    async def test_a_registration_whose_publisher_is_off_is_not_named(
+        self, session: AsyncSession
+    ):
+        """A publisher's switch reaches the header for every app under it."""
+        await create_app_service_registration(
             session,
-            public_id="tests.drifted",
+            public_id="offpub.framed",
             base_url=FRAMED,
             allowed_origins=[FRAMED],
         )
-
-        registration.status = AppServiceStatus.MANIFEST_MISMATCH
-        session.add(registration)
+        publisher: Publisher = await create_publisher(session, prefix="offpub")
+        publisher.enabled = False
+        session.add(publisher)
         await session.commit()
         invalidate_registrations()
+
+        assert FRAMED not in await frame_origins()
+
+    async def test_a_registration_with_no_keys_is_not_named(
+        self, session: AsyncSession
+    ):
+        """No key set, not live, not framed."""
+        await create_app_service_registration(
+            session,
+            public_id="tests.keyless",
+            base_url=FRAMED,
+            allowed_origins=[FRAMED],
+            jwks={},
+        )
 
         assert FRAMED not in await frame_origins()
 

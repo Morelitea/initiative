@@ -171,16 +171,15 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # guild_id by design — the catalog never records who installed what.
         "marketplace_listings",
         "marketplace_listing_versions",
-        # Deployment-level wiring for external app services (URL, shared secret,
-        # operator-conferred grants). Platform-wide by definition — one row per
-        # app, never per guild — and owner-managed.
+        # Deployment-level wiring for external app services (listing, URL,
+        # public keys, operator-conferred grants). Platform-wide by definition —
+        # one row per app, never per guild — and owner-managed.
         "app_service_registrations",
-        # Spent one-shot nonces from the app-service request-signing channel.
-        # Hangs off a registration, which is platform-wide, and a single signed
-        # request may address any guild — so the guard cannot live in a schema.
-        "app_service_nonces",
+        # Who publishes those apps: one row per public_id prefix, with the
+        # switch that stops every app under it. Deployment configuration.
+        "publishers",
         # Spent client-assertion jtis from the app token endpoint. Hangs off a
-        # registration, which is platform-wide, like the nonces above.
+        # registration, which is platform-wide.
         "app_assertion_jtis",
         # Registry client state: what this deployment last accepted from a
         # signed index, and the artwork that index named, mirrored locally so

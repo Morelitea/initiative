@@ -20,6 +20,10 @@ are what the shape buys:
   token minted for one app is not accepted by another even if it is somehow
   handed over.
 
+The same key signs the connect return (:func:`mint_connect_return_token`): the
+address a member is sent back to when a vendor flow at the app ends. Its
+``scope`` is ``connect_return``, which no context token carries.
+
 Verification is public: :func:`context_jwks` publishes the public half as a JWKS
 document, stamped with the same ``kid`` the token header carries, so an app can
 verify and an operator can rotate without a coordinated restart.
@@ -48,10 +52,13 @@ from app.core.security import (
 )
 
 __all__ = [
+    "CONNECT_RETURN_LIFETIME",
+    "CONNECT_RETURN_SCOPE",
     "CONTEXT_SCOPES",
     "CONTEXT_TOKEN_LIFETIME",
     "ContextTokenError",
     "context_jwks",
+    "mint_connect_return_token",
     "mint_context_token",
 ]
 
@@ -68,6 +75,12 @@ CONTEXT_SCOPES: frozenset[str] = frozenset({"endpoint", "lifecycle"})
 #: About a minute. Long enough to survive a slow round trip and a little clock
 #: skew, short enough that a captured token is spent before it is useful.
 CONTEXT_TOKEN_LIFETIME = timedelta(seconds=60)
+
+#: The ``scope`` of a connect return, which no context token carries.
+CONNECT_RETURN_SCOPE = "connect_return"
+
+#: How long a connect return is good for: the length of a vendor's sign-in.
+CONNECT_RETURN_LIFETIME = timedelta(minutes=5)
 
 #: How many opaque connection handles one call may carry. A source's ``requires``
 #: is already capped at ten terms; this is the same bound restated where the
@@ -134,6 +147,44 @@ def mint_context_token(
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
     return token, int(lifetime.total_seconds())
+
+
+def mint_connect_return_token(
+    *,
+    public_id: str,
+    guild_ref: str,
+    app_install_id: int,
+    connection_id: str,
+    connection_ref: str,
+    return_url: str,
+    lifetime: timedelta = CONNECT_RETURN_LIFETIME,
+) -> str:
+    """Sign where an app sends a member back to when a vendor flow ends.
+
+    The app receives this with the member's browser and checks it against the
+    same published key as every other token Initiative signs for it, so it
+    follows ``return_url`` only when Initiative wrote it. The flow it belongs
+    to is named in the claims — the install, the connection and its handle —
+    so the app can match the token to the flow it is finishing. ``jti`` lets
+    the app take each one once.
+    """
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "jti": str(uuid.uuid4()),
+        "iss": APP_PLATFORM_ISSUER,
+        "aud": app_platform_audience(public_id),
+        "iat": int(now.timestamp()),
+        "exp": now + lifetime,
+        "scope": CONNECT_RETURN_SCOPE,
+        "guild_ref": guild_ref,
+        "app_install_id": app_install_id,
+        "connection_id": connection_id,
+        "connection_ref": connection_ref,
+        "return_url": return_url,
+    }
+    key, algorithm, kid = resolve_app_platform_signing_material()
+    headers: dict[str, Any] | None = {"kid": kid} if kid else None
+    return jwt.encode(payload, key, algorithm=algorithm, headers=headers)
 
 
 #: The published document, rebuilt only when the configured key changes. Parsing

@@ -121,10 +121,8 @@ async def exchange_for_app(
     """
     # By registration rather than by grant: the target is being *called*, not
     # doing the delegating, so it needs no power of its own. It does have to be
-    # live — the operator's switch on, and the last handshake having confirmed
-    # the service answering is the one registered. A row that has never
-    # verified has no confirmed manifest behind it, and is not somewhere a
-    # credential goes.
+    # live — switched on, its publisher switched on, and holding a key set —
+    # and to name the listing it speaks for.
     registrations = await registration_lookup.load_registrations()
     target = registrations.get(target_public_id)
     if target is None or not target.live or not target.listing_uid:

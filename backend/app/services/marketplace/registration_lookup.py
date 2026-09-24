@@ -1,21 +1,20 @@
 """What the request path knows about the app services this deployment wired up.
 
-``app_service_registrations`` is deliberately out of reach of a routed session:
-it holds the shared secret, so no guild role and no bare login role holds a
-grant on it. Everything a request legitimately needs from a registration is the
-non-secret half — is this app wired up, is it turned on, where does it live, and
-which origins may frame it — so that half is loaded once on the system engine
-and kept as an immutable snapshot the request path reads.
+``app_service_registrations`` is deployment configuration: no guild role and no
+bare login role holds a grant on it, and an installed app's standing reads only
+the few columns of its own row. Everything else a request needs from a
+registration — is this app wired up, is it live, where does it live, which
+origins may frame it, and which keys it signs with — is loaded once on the
+system engine and kept as an immutable snapshot the request path reads.
 
-Two properties matter, and they are the reason this is a snapshot rather than a
-handle to a row:
+**Freshness is bounded, and a write is immediate.** An operator's kill switch
+has to bite quickly, so the cache is short-lived *and* dropped in-process on
+any registration or publisher write. A replica that did not serve the write
+picks the change up within the TTL.
 
-* **Nothing secret leaves.** The snapshot has no secret field to serialize, so
-  no caller downstream can reach one by accident.
-* **Freshness is bounded, and a write is immediate.** An operator's kill switch
-  has to bite quickly, so the cache is short-lived *and* dropped in-process on
-  any registration write. A replica that did not serve the write picks the
-  change up within the TTL.
+Whether a registration is live is computed by the database with the one rule
+in :func:`~app.models.platform.app_service_registration.registration_live_sql`,
+the same one the install standing asks, and carried on the snapshot.
 """
 
 from __future__ import annotations
@@ -27,6 +26,7 @@ from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
 from jwt import PyJWK
+from sqlalchemy import literal_column
 from sqlalchemy import true as sa_true
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
@@ -35,8 +35,9 @@ from app.db import session as db_session
 from app.models.platform.app_service_registration import (
     AppServiceRegistration,
     browser_base,
-    is_live,
+    registration_live_sql,
 )
+from app.models.platform.publisher import Publisher
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ __all__ = [
     "install_state",
     "invalidate_registrations",
     "live_delegate",
+    "live_registration_clause",
     "load_registrations",
     "mandatory_registrations",
     "registration_for_definition",
@@ -85,25 +87,22 @@ class RegistrationSnapshot:
     #: Public verification keys this app signs with — its client assertions at
     #: the token endpoint, and its delegation tokens — by the ``kid`` a JWT
     #: names. Parsed once when the snapshot is built rather than per token.
-    #: Empty on an app that has not been provisioned with one.
+    #: Empty on an app that has not been provisioned with a pasted set.
     keys: Mapping[str, Any]
     #: The deployment installs this app in every guild (§7.7).
     mandatory: bool
-    #: The operator's kill switch. False stops every channel this app has.
+    #: The operator's kill switch on the registration itself.
     enabled: bool
-    status: str
+    #: Whether anything may flow through this app right now: enabled, its
+    #: publisher enabled, and a key set to verify against. Computed by the
+    #: database from ``registration_live_sql`` when the snapshot is loaded.
+    live: bool
     #: The most any install of this app may be granted, as the operator set it.
     #: Not secret: it bounds what a community's seat may grant.
     scope_ceiling: tuple[str, ...] = ()
-
-    @property
-    def live(self) -> bool:
-        """Whether anything may flow through this app right now.
-
-        Defers to :func:`is_live` so the embed plane and the data plane answer
-        this from the same rule rather than each stating one.
-        """
-        return is_live(self)
+    #: Where the app publishes its key set, when it does
+    #: (:mod:`app.services.marketplace.app_keys`).
+    jwks_uri: Optional[str] = None
 
     @property
     def browser_base(self) -> str:
@@ -144,11 +143,22 @@ def invalidate_registrations() -> None:
     _loaded_at = 0.0
 
 
-async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSnapshot]:
-    """Every registration, keyed by ``public_id``.
+def live_registration_clause() -> Any:
+    """:func:`registration_live_sql` over ``app_service_registrations`` joined
+    to ``publishers``, for a query that selects both by their table names."""
+    return literal_column(
+        registration_live_sql(
+            AppServiceRegistration.__tablename__, Publisher.__tablename__
+        )
+    )
 
-    Runs on the system engine: the table carries no request-path grant, so this
-    is the one reader, and what it returns holds no secret material.
+
+async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSnapshot]:
+    """Every registration, keyed by ``public_id``, with whether it is live.
+
+    Runs on the system engine: the table carries no request-path grant beyond
+    the install standing's few columns, so this is the reader everything else
+    shares. One statement joins each registration to its publisher.
     """
     global _cache, _loaded_at
     if not force and _cache is not None:
@@ -158,9 +168,12 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
     async with db_session.SystemSessionLocal() as session:
         rows = (
             await session.exec(
-                select(AppServiceRegistration).order_by(
-                    AppServiceRegistration.public_id
+                select(
+                    AppServiceRegistration,
+                    live_registration_clause().label("live"),
                 )
+                .join(Publisher, Publisher.id == AppServiceRegistration.publisher_id)
+                .order_by(AppServiceRegistration.public_id)
             )
         ).all()
 
@@ -175,10 +188,11 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             keys=_parse_keys(row),
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
-            status=row.status,
+            live=bool(live),
             scope_ceiling=tuple(sorted(row.scope_ceiling or [])),
+            jwks_uri=row.jwks_uri,
         )
-        for row in rows
+        for row, live in rows
     }
     _cache = snapshots
     _loaded_at = time.monotonic()
@@ -189,13 +203,13 @@ async def frame_origins() -> tuple[str, ...]:
     """Every origin an app surface may be framed from, deduped and ordered.
 
     This deployment's registrations are its trusted-site list. An origin gets
-    on it by an operator wiring up an app service and that service's handshake
-    confirming the manifest it serves — so what comes back describes the
-    services this deployment runs, and says nothing about any guild or reader.
+    on it by an operator wiring up an app service — so what comes back
+    describes the services this deployment runs, and says nothing about any
+    guild or reader.
 
     Only live registrations count, which is how the operator's kill switch and
-    a failed re-verification reach the frame policy: within the cache TTL, a
-    stopped or drifted app's origins are gone from it.
+    a publisher's reach the frame policy: within the cache TTL, a stopped app's
+    origins are gone from it.
     """
     snapshots = await load_registrations()
     return tuple(
@@ -294,17 +308,13 @@ async def enabled_service_ids() -> frozenset[str]:
     that one. A listing naming a service that is not in here is not offered,
     because installing it would produce an app with nothing behind it.
 
-    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live`, for
-    the reason :func:`mandatory_registrations` gives: whether a container has
-    answered a handshake yet is not something the operator said about the app,
-    and a shelf that emptied while a service restarted would say it for them.
-    What an unverified service still stops is everything that flows *through*
-    it, which is what ``live`` gates.
+    Only live registrations: an app switched off, or whose publisher is, or
+    that has no key set, is not offered.
     """
     return frozenset(
         snapshot.public_id
         for snapshot in (await load_registrations()).values()
-        if snapshot.enabled
+        if snapshot.live
     )
 
 
@@ -322,26 +332,22 @@ async def app_is_offered(definition: dict[str, Any] | None) -> bool:
     if public_id is None:
         return True
     snapshot = (await load_registrations()).get(public_id)
-    return snapshot is not None and snapshot.enabled
+    return snapshot is not None and snapshot.live
 
 
 async def mandatory_registrations() -> list[RegistrationSnapshot]:
     """The apps this deployment installs into every guild.
 
-    Only the enabled ones: a registration the operator switched off installs
-    nowhere new, because the kill switch outranks the flag (§7.7).
-
-    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live`. An
-    install is a local row, and a mandatory app whose container has not booted
-    yet is the ordinary case on a fresh deployment — it discovers the guild on
-    its next ``/installs`` pull. Waiting for a handshake here would make guild
-    creation depend on a container being up. What the unverified state does stop
-    is everything that flows *through* the app, which is what ``live`` gates.
+    Only the live ones: a registration the operator switched off, or whose
+    publisher is off, installs nowhere new, because the kill switch outranks
+    the flag (§7.7). Whether the app's container is up is not asked: an
+    install is a local row, and the app finds the guild on its next
+    installations pull.
     """
     return [
         snapshot
         for snapshot in (await load_registrations()).values()
-        if snapshot.mandatory and snapshot.enabled
+        if snapshot.mandatory and snapshot.live
     ]
 
 
@@ -356,26 +362,22 @@ class DelegationKey:
 async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
     """Every key a delegation token's ``kid`` could name.
 
-    Only from registrations that are ``enabled`` and hold the ``delegation``
-    grant, so an operator ends an app's ability to act with an edit rather than
-    a key rotation.
+    Only from registrations that are live and hold the ``delegation`` grant, so
+    an operator ends an app's ability to act with an edit rather than a key
+    rotation.
 
     All matches rather than the first: a ``kid`` is an opaque label its owner
     chooses, so two apps may pick the same one, and the token belongs to
     whichever key verifies it. Resolution is by ``kid`` rather than by reading
     an app's name out of it, for the same reason.
 
-    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live` — a
-    delegate calls the API directly, so its ability to act follows the
-    operator's kill switch, not whether its manifest was reachable at the last
-    handshake.
     """
     if not kid:
         return ()
     return tuple(
         DelegationKey(registration=snapshot, key=key)
         for snapshot in (await load_registrations()).values()
-        if snapshot.enabled and "delegation" in snapshot.grants
+        if snapshot.live and "delegation" in snapshot.grants
         for key in (snapshot.keys.get(kid),)
         if key is not None
     )
@@ -384,18 +386,13 @@ async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
 async def live_delegate(public_id: str) -> Optional[RegistrationSnapshot]:
     """The registration behind a named delegate, when it may act right now.
 
-    One rule, stated once: the registration must be ``enabled`` and hold the
+    One rule, stated once: the registration must be live and hold the
     ``delegation`` grant. Both the published key set and any lookup made on a
     delegate's say-so read it here, so an operator's edit reaches every one of
     them together within the cache TTL rather than some of them.
-
-    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live`, for
-    the reason :func:`delegation_keys_for` gives: a delegate calls the API
-    directly, so what it may do follows the operator's kill switch rather than
-    whether its manifest was reachable at the last handshake.
     """
     snapshot = (await load_registrations()).get(public_id)
-    if snapshot is None or not snapshot.enabled or "delegation" not in snapshot.grants:
+    if snapshot is None or not snapshot.live or "delegation" not in snapshot.grants:
         return None
     return snapshot
 
@@ -422,7 +419,7 @@ async def any_delegate_registered() -> bool:
     endpoints refuse without one and the outbound dispatcher stays inert.
     """
     return any(
-        snapshot.enabled and "delegation" in snapshot.grants and snapshot.keys
+        snapshot.live and "delegation" in snapshot.grants and snapshot.keys
         for snapshot in (await load_registrations()).values()
     )
 
@@ -496,9 +493,7 @@ async def delegation_allowed(
       is that person's.
 
     The install is matched on the pinned definition's service id, the same
-    identity :func:`registration_for_definition` resolves an install by. A row's
-    ``listing_uid`` is re-recorded from the manifest on every handshake, so it
-    names the listing an app currently claims rather than the app itself.
+    identity :func:`registration_for_definition` resolves an install by.
 
     Read per call rather than cached: the registration snapshot can afford a
     TTL because an operator's kill switch is deployment-wide and rare, while an

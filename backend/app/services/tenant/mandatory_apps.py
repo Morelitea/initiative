@@ -124,7 +124,7 @@ async def install_mandatory_apps(
     commits its apps together with the rest of its seed.
 
     Returns the listing uids installed. Anything that could not be installed —
-    a registration that never verified, a listing this deployment does not hold,
+    a registration naming no listing, a listing this deployment does not hold,
     a version needing a newer build — is logged and skipped, because none of
     those is a reason to fail whatever the caller was doing.
 
@@ -151,10 +151,10 @@ async def install_mandatory_apps(
     installed: list[str] = []
     for registration in registrations:
         if registration.listing_uid is None:
-            # The uid is recorded by the handshake, so a registration that has
-            # never verified does not yet name a listing to install.
+            # A registration from before the listing was stated names none,
+            # so there is nothing to install.
             logger.info(
-                "mandatory apps: %s has not verified yet, so it names no listing",
+                "mandatory apps: %s names no listing to install",
                 registration.public_id,
             )
             continue

@@ -185,7 +185,8 @@ class AuditEventType(str, Enum):
     APP_SERVICE_CREATED = "app_service.created"
     APP_SERVICE_UPDATED = "app_service.updated"
     APP_SERVICE_DELETED = "app_service.deleted"
-    APP_SERVICE_VERIFIED = "app_service.verified"
+    APP_PUBLISHER_CREATED = "app_publisher.created"
+    APP_PUBLISHER_UPDATED = "app_publisher.updated"
     #: An operator re-read the catalogue sources; carries what was published
     #: and withdrawn.
     MARKETPLACE_CATALOG_REFRESHED = "marketplace.catalog_refreshed"
@@ -509,7 +510,10 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.APP_SERVICE_DELETED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
-    AuditEventType.APP_SERVICE_VERIFIED: AuditEventMeta(
+    AuditEventType.APP_PUBLISHER_CREATED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.APP_PUBLISHER_UPDATED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.MARKETPLACE_CATALOG_REFRESHED: AuditEventMeta(

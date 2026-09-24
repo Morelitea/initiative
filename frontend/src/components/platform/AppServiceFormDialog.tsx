@@ -20,39 +20,43 @@ import { hasGrant, parseAllowedOrigins } from "@/lib/appServices";
 /** What the operator stated, before it is shaped into a create or a patch. */
 export interface AppServiceFormValues {
   publicId: string;
+  /** The catalog uid of the listing this app speaks for. */
+  listingUid: string;
   baseUrl: string;
   /** Where a browser loads the app, or "" when that is the base URL too. */
   embedOrigin: string;
   allowedOrigins: string[];
-  /** The new shared secret, or null to leave the stored one alone. */
-  secret: string | null;
   delegation: boolean;
   /** Parsed JWKS, or null to leave the stored key set untouched. */
   jwks: Record<string, unknown> | null;
+  /** Where the app publishes its key set, or "" for none. */
+  jwksUri: string;
   appDirectory: boolean;
   mandatory: boolean;
 }
 
 interface FormState {
   publicId: string;
+  listingUid: string;
   baseUrl: string;
   embedOrigin: string;
   allowedOrigins: string;
-  secret: string;
   delegation: boolean;
   jwks: string;
+  jwksUri: string;
   appDirectory: boolean;
   mandatory: boolean;
 }
 
 const EMPTY_FORM: FormState = {
   publicId: "",
+  listingUid: "",
   baseUrl: "",
   embedOrigin: "",
   allowedOrigins: "",
-  secret: "",
   delegation: false,
   jwks: "",
+  jwksUri: "",
   appDirectory: false,
   mandatory: false,
 };
@@ -69,9 +73,8 @@ export interface AppServiceFormDialogProps {
 /**
  * Register or edit one app service.
  *
- * The shared secret is write-only end to end: the API reports only whether one
- * is stored, so this form can say that it exists and offer to replace it, and
- * has nothing to reveal.
+ * Nothing on a registration is secret: its keys are public keys, either
+ * pasted as a key set or fetched from the address the app publishes them at.
  */
 export const AppServiceFormDialog = ({
   open,
@@ -82,36 +85,31 @@ export const AppServiceFormDialog = ({
 }: AppServiceFormDialogProps) => {
   const { t } = useTranslation("settings");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [replaceSecret, setReplaceSecret] = useState(false);
   // Only whether the paste is JSON at all. Whether it is a key set we could
   // verify against is the server's answer, and it gives a message code.
   const [jwksError, setJwksError] = useState<string | null>(null);
 
   // Re-seed whenever the dialog opens, so a reopened form never shows the
-  // previous row's values (and never carries a typed secret forward).
+  // previous row's values.
   useEffect(() => {
     if (!open) return;
     if (editing) {
       setForm({
         publicId: editing.public_id,
+        listingUid: editing.listing_uid ?? "",
         baseUrl: editing.base_url,
         embedOrigin: editing.embed_origin ?? "",
         allowedOrigins: editing.allowed_origins.join("\n"),
-        secret: "",
         delegation: hasGrant(editing, "delegation"),
         jwks: editing.jwks ? JSON.stringify(editing.jwks, null, 2) : "",
+        jwksUri: editing.jwks_uri ?? "",
         appDirectory: hasGrant(editing, "app_directory"),
         mandatory: editing.mandatory,
       });
-      setJwksError(null);
-      // A registration with no secret cannot complete a handshake, so go
-      // straight to the input rather than hiding it behind an opt-in.
-      setReplaceSecret(!editing.has_secret);
     } else {
       setForm(EMPTY_FORM);
-      setReplaceSecret(true);
-      setJwksError(null);
     }
+    setJwksError(null);
   }, [open, editing]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -137,10 +135,11 @@ export const AppServiceFormDialog = ({
     onSubmit({
       jwks,
       publicId: form.publicId.trim(),
+      listingUid: form.listingUid.trim(),
       baseUrl: form.baseUrl.trim(),
       embedOrigin: form.embedOrigin.trim(),
       allowedOrigins: parseAllowedOrigins(form.allowedOrigins),
-      secret: replaceSecret && form.secret ? form.secret : null,
+      jwksUri: form.jwksUri.trim(),
       delegation: form.delegation,
       appDirectory: form.appDirectory,
       mandatory: form.mandatory,
@@ -169,11 +168,28 @@ export const AppServiceFormDialog = ({
               placeholder={t("appServices.publicIdPlaceholder")}
               maxLength={120}
               disabled={Boolean(editing)}
+              required={!editing}
               autoComplete="off"
             />
             <p className="text-muted-foreground text-xs">
               {editing ? t("appServices.publicIdHelpEdit") : t("appServices.publicIdHelp")}
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="app-service-listing-uid">{t("appServices.listingUidLabel")}</Label>
+            <Input
+              id="app-service-listing-uid"
+              value={form.listingUid}
+              onChange={(event) => setForm((prev) => ({ ...prev, listingUid: event.target.value }))}
+              placeholder={t("appServices.listingUidPlaceholder")}
+              maxLength={14}
+              className="font-mono"
+              required
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="text-muted-foreground text-xs">{t("appServices.listingUidHelp")}</p>
           </div>
 
           <div className="space-y-2">
@@ -221,57 +237,44 @@ export const AppServiceFormDialog = ({
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="app-service-secret">{t("appServices.secretLabel")}</Label>
-            {editing && (
-              <p className="text-muted-foreground text-xs">
-                {editing.has_secret
-                  ? t("appServices.secretStored")
-                  : t("appServices.secretMissing")}
-              </p>
-            )}
-            {editing?.has_secret && (
-              <label className="flex items-center gap-2 text-muted-foreground text-xs">
-                <input
-                  type="checkbox"
-                  checked={replaceSecret}
-                  onChange={(event) => {
-                    setReplaceSecret(event.target.checked);
-                    if (!event.target.checked) setForm((prev) => ({ ...prev, secret: "" }));
-                  }}
-                />
-                {t("appServices.replaceSecret")}
-              </label>
-            )}
-            {replaceSecret && (
-              <>
-                <Input
-                  id="app-service-secret"
-                  type="password"
-                  value={form.secret}
-                  onChange={(event) => setForm((prev) => ({ ...prev, secret: event.target.value }))}
-                  placeholder={t("appServices.secretPlaceholder")}
-                  autoComplete="new-password"
-                  required={!editing}
-                />
-                <p className="text-muted-foreground text-xs">{t("appServices.secretHelp")}</p>
-              </>
-            )}
-          </div>
+          <fieldset className="rounded-md border p-3">
+            {/* Floated so the legend sits inside the border like the other headings. */}
+            <legend className="float-left w-full font-medium text-sm">
+              {t("appServices.keysTitle")}
+            </legend>
+            <div className="clear-both space-y-3">
+              <p className="text-muted-foreground text-xs">{t("appServices.keysHelp")}</p>
 
-          <div className="space-y-2">
-            <Label htmlFor="app-service-jwks">{t("appServices.jwksLabel")}</Label>
-            <Textarea
-              id="app-service-jwks"
-              value={form.jwks}
-              onChange={(event) => setForm((prev) => ({ ...prev, jwks: event.target.value }))}
-              rows={6}
-              className="font-mono text-xs"
-              placeholder={'{\n  "keys": [ … ]\n}'}
-            />
-            <p className="text-muted-foreground text-xs">{t("appServices.jwksHelp")}</p>
-            {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="app-service-jwks">{t("appServices.jwksLabel")}</Label>
+                <Textarea
+                  id="app-service-jwks"
+                  value={form.jwks}
+                  onChange={(event) => setForm((prev) => ({ ...prev, jwks: event.target.value }))}
+                  rows={6}
+                  className="font-mono text-xs"
+                  placeholder={'{\n  "keys": [ … ]\n}'}
+                />
+                <p className="text-muted-foreground text-xs">{t("appServices.jwksHelp")}</p>
+                {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="app-service-jwks-uri">{t("appServices.jwksUriLabel")}</Label>
+                <Input
+                  id="app-service-jwks-uri"
+                  value={form.jwksUri}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, jwksUri: event.target.value }))
+                  }
+                  placeholder={t("appServices.jwksUriPlaceholder")}
+                  maxLength={1000}
+                  autoComplete="off"
+                />
+                <p className="text-muted-foreground text-xs">{t("appServices.jwksUriHelp")}</p>
+              </div>
+            </div>
+          </fieldset>
 
           <div className="space-y-2 rounded-md border border-amber-500/50 p-3">
             <div>

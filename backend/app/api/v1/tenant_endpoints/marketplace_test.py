@@ -18,6 +18,7 @@ import pytest
 
 from app.core.messages import MarketplaceMessages
 from app.models.platform.guild import GuildRole
+from app.models.platform.publisher import Publisher
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import (
@@ -465,20 +466,22 @@ class TestAnAppNeedsItsServiceRegistered:
         actor = await acting_user(guild_role=GuildRole.member)
         assert "tests.shop" not in await _shelf(client, actor, kind="app")
 
-    async def test_a_service_that_has_not_verified_yet_still_lists(
+    async def test_a_publisher_switched_off_takes_it_back_off(
         self, client, acting_user, session, service_app
     ):
-        """The operator's decision is the registration, not the handshake.
-
-        A container that has not answered yet is the ordinary case on a fresh
-        deployment, and a shelf that emptied whenever one restarted would be
-        reporting something nobody chose.
-        """
-        await create_app_service_registration(
-            session, public_id="tests.shop", status="unverified"
+        """A publisher's switch reaches every app under its prefix, the shelf
+        included."""
+        registration = await create_app_service_registration(
+            session, public_id="tests.shop"
         )
+        publisher = await session.get(Publisher, registration.publisher_id)
+        publisher.enabled = False
+        session.add(publisher)
+        await session.commit()
+        invalidate_registrations()
+
         actor = await acting_user(guild_role=GuildRole.member)
-        assert "tests.shop" in await _shelf(client, actor, kind="app")
+        assert "tests.shop" not in await _shelf(client, actor, kind="app")
 
     async def test_its_page_answers_the_same_as_a_listing_that_is_not_there(
         self, client, acting_user, service_app

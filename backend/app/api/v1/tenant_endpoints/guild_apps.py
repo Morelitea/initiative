@@ -51,6 +51,7 @@ from app.api.deps import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
+from app.core.security import AppPlatformSigningNotConfiguredError
 from app.core.messages import (
     GuildAppMessages,
     InitiativeMessages,
@@ -92,7 +93,7 @@ from app.services import audit as audit_service
 from app.services.marketplace import app_refs
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
-from app.services.marketplace import registrations as registrations_service
+from app.services.marketplace.context_jwt import mint_connect_return_token
 from app.services.marketplace.definitions import (
     APP_KINDS,
     GUILD_INSTALLABLE_APP_KINDS,
@@ -1187,6 +1188,7 @@ async def connect_guild_app(
         guild_ref=await app_refs.ensure_app_guild_ref(
             guild_id=routed_guild_id(session), app_install_id=app.id
         ),
+        app_install_id=app.id,
         connection_id=row.connection_id,
         connection_ref=row.connection_ref,
         connect_path=connect_path,
@@ -1241,6 +1243,7 @@ async def _start_guild_connect(
         guild_ref=await app_refs.ensure_app_guild_ref(
             guild_id=routed_guild_id(session), app_install_id=app.id
         ),
+        app_install_id=app.id,
         connection_id=connection_id,
         connection_ref=connection_ref,
         connect_path=connect_path,
@@ -1252,6 +1255,7 @@ async def _connect_start(
     registration: Any,
     *,
     guild_ref: str,
+    app_install_id: int,
     connection_id: str,
     connection_ref: str,
     connect_path: str,
@@ -1262,59 +1266,77 @@ async def _connect_start(
     A browser is what follows this, so it is built from the address a browser
     can resolve rather than the one Initiative's own server calls the app on.
 
-    The guild travels with the ref because the channel addresses every install
-    by guild: the app writes its result back to
-    ``/installs/{guild_ref}/connections/{ref}``, and a ref on its own names
-    nothing it can look up. It is the reference minted for this install — the
-    same name the app is given everywhere else — and not a row id.
+    The guild travels with the ref because the app writes its result back with
+    an installation token, and the reference minted for this install — the
+    same name the app is given everywhere else, not a row id — is what it asks
+    for that token with. A ref on its own names nothing it can look up.
     """
     query = [
         ("connection_ref", connection_ref),
         ("guild_ref", guild_ref),
     ]
-    query += await _return_address(registration.public_id, connection_id)
+    query += _return_address(
+        registration.public_id,
+        guild_ref=guild_ref,
+        app_install_id=app_install_id,
+        connection_id=connection_id,
+        connection_ref=connection_ref,
+    )
 
     return GuildAppConnectStart(
         connection_id=connection_id,
         connection_ref=connection_ref,
         connect_path=connect_path,
         connect_url=(
-            # ``urlencode`` percent-encodes every reserved character, which
-            # matters for the return address: it carries a query of its own, and
-            # its ``?`` and ``&`` have to survive as data rather than becoming
-            # separators of this one.
+            # ``urlencode`` percent-encodes every reserved character, so the
+            # signed token survives as one value of this query.
             f"{registration.browser_base}{connect_path}?{urlencode(query)}"
         ),
         status=status,
     )
 
 
-async def _return_address(public_id: str, connection_id: str) -> list[tuple[str, str]]:
+def _return_address(
+    public_id: str,
+    *,
+    guild_ref: str,
+    app_install_id: int,
+    connection_id: str,
+    connection_ref: str,
+) -> list[tuple[str, str]]:
     """Where the app sends this member when the vendor is done with them.
 
-    An app knows a ``connection_ref`` and a guild id, and has never been told
-    what language that person reads — so an app that renders the ending renders
-    it in one language, forever. Initiative knows, so Initiative renders it, and
-    what the app does is hand the member back with one word saying how it went.
+    An app knows a ``connection_ref`` and a guild reference, and has never been
+    told what language that person reads — so an app that renders the ending
+    renders it in one language, forever. Initiative knows, so Initiative
+    renders it, and what the app does is hand the member back with one word
+    saying how it went.
 
-    Signed with the secret the registration was already wired with. The browser
-    carries this, so anyone can propose an address; an app that followed one it
-    was merely handed would be a redirector on a hostname people trust, reached
-    through a real vendor login. The MAC is what lets the app tell an address
-    Initiative wrote from one somebody typed.
+    The address travels as ``return_token``, a JWT under the app platform's
+    key (:func:`~app.services.marketplace.context_jwt.mint_connect_return_token`)
+    that carries it as the ``return_url`` claim. The app verifies it against
+    the published key set before following it.
 
-    Empty when there is nothing to sign with. The app then says its piece on its
-    own page, which is the same thing it does for a member who arrived by a
-    hand-copied link — better than an unsigned address it would have to trust.
+    Empty when the platform key is not configured. The app then says its piece
+    on its own page, which is the same thing it does for a member who arrived
+    by a hand-copied link.
     """
     landing = (
         f"{settings.APP_URL.rstrip('/')}/apps/connected"
         f"?{urlencode([('app', public_id), ('connection', connection_id)])}"
     )
-    signature = await registrations_service.sign_for_app(public_id, landing)
-    if signature is None:
+    try:
+        token = mint_connect_return_token(
+            public_id=public_id,
+            guild_ref=guild_ref,
+            app_install_id=app_install_id,
+            connection_id=connection_id,
+            connection_ref=connection_ref,
+            return_url=landing,
+        )
+    except AppPlatformSigningNotConfiguredError:
         return []
-    return [("return_url", landing), ("return_sig", signature)]
+    return [("return_token", token)]
 
 
 @router.delete(
@@ -1411,8 +1433,7 @@ async def _require_delegating_app(app: GuildApp) -> None:
         )
 
 
-# Off the schema, like every other route only a machine calls
-# (``app_service_endpoints`` excludes its whole router the same way).
+# Off the schema: only a machine calls it.
 @router.get(
     "/{app_id}/service", response_model=GuildAppServiceRead, include_in_schema=False
 )

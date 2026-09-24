@@ -134,18 +134,17 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # App service registrations: full DML on the system engine, which is the
     # only reader and writer — the owner-gated CRUD endpoints run on
     # SystemSessionDep (as access_grants and auth_providers do), boot
-    # reconciliation upserts from APP_SERVICES_CONFIG, the verify path stamps
-    # status/manifest_hash, and the signed-caller and delegation-key lookups
-    # read it. No request-path role holds anything on it.
+    # reconciliation upserts from APP_SERVICES_CONFIG, and the registration
+    # snapshot and delegation-key lookups read it. No request-path role holds
+    # anything on it beyond the install floor's column grant.
     "app_service_registrations": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # Replay guard for the app-service channel: the verifier reads and inserts,
-    # and the shared jti janitor prunes rows whose freshness window has passed
-    # (a request that old is refused before the guard is consulted, so pruning
-    # constrains nothing). Never updated — a spent nonce has one state.
-    "app_service_nonces": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Publishers: written by the apps.manage routes, seeded at boot, added when
+    # a registration names a new prefix, and read with every registration.
+    # Nothing deletes one (a registration references it).
+    "publishers": frozenset({"SELECT", "INSERT", "UPDATE"}),
     # The token endpoint records each client assertion's jti here, and the
     # shared jti janitor prunes the ones past their assertion's exp. Never
-    # updated, like the nonces.
+    # updated — a spent jti has one state.
     "app_assertion_jtis": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Registry client state: read and written by the refresh job alone. One row
     # per registry URL, recycled in place, so nothing is ever deleted.
@@ -344,13 +343,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # bare pre-routing login role — browsing the marketplace requires a session.
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
-    # Deployment wiring, holding the app's shared-secret ciphertext: read and
-    # written on the system engine alone.
+    # Deployment wiring: read and written on the system engine alone.
     "app_service_registrations": None,
-    # The app-service replay guard is spent entirely on the system engine, like
-    # the billing blocklist; no request-path role reads or writes it.
-    "app_service_nonces": None,
-    # Client-assertion jtis: spent on the system engine alone, like the nonces.
+    "publishers": None,
+    # Client-assertion jtis: spent on the system engine alone.
     "app_assertion_jtis": None,
     # Refresh bookkeeping — system engine only, surfaced to an operator through
     # a capability-gated endpoint rather than read on the request path.
@@ -516,7 +512,7 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listings": frozenset({"SELECT"}),
     "marketplace_listing_versions": frozenset({"SELECT"}),
     "app_service_registrations": None,
-    "app_service_nonces": None,
+    "publishers": None,
     "app_assertion_jtis": None,
     "marketplace_registry_state": None,
     # 0360: served on the bare login role alone.
@@ -642,7 +638,7 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listings": frozenset({"SELECT"}),
     "marketplace_listing_versions": frozenset({"SELECT"}),
     "app_service_registrations": None,
-    "app_service_nonces": None,
+    "publishers": None,
     "app_assertion_jtis": None,
     "marketplace_registry_state": None,
     # 0360: served on the bare login role alone.
@@ -730,7 +726,7 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
     "app_service_registrations": None,
-    "app_service_nonces": None,
+    "publishers": None,
     "app_assertion_jtis": None,
     "marketplace_registry_state": None,
     "marketplace_media": None,
@@ -822,11 +818,15 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
     # No TABLE grant: a column-scoped SELECT on (public_id, listing_uid,
-    # enabled, status), for the registration the install's token names
-    # (install_reads_its_registration; migration 20260924_0379). Asserted in
-    # install_standing_test beside the one on guilds.
+    # enabled, publisher_id, jwks, jwks_uri), for the registration the
+    # install's token names (install_reads_its_registration; migrations
+    # 20260924_0379 and 20260924_0387). Asserted in install_standing_test
+    # beside the one on guilds.
     "app_service_registrations": None,
-    "app_service_nonces": None,
+    # No TABLE grant: a column-scoped SELECT on (id, enabled), for the
+    # publisher of that registration (install_reads_its_publisher; migration
+    # 20260924_0387).
+    "publishers": None,
     "app_assertion_jtis": None,
     "sign_in_locks": None,
     "marketplace_registry_state": None,

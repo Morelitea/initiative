@@ -25,8 +25,6 @@ no signing key must fail closed rather than mint something no app can verify.
 So are the seat's own routes for placement and scopes.
 """
 
-import hashlib
-import hmac
 from typing import Sequence
 from urllib.parse import parse_qs, urlsplit
 
@@ -43,7 +41,7 @@ from app.core.messages import (
     GuildAppMessages,
     InitiativeMessages,
 )
-from app.models.platform.app_service_registration import AppServiceStatus
+from app.models.platform.publisher import Publisher
 from app.models.platform.guild import GuildRole
 from app.services.marketplace.app_refs import ensure_app_guild_ref, ensure_app_ref
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -177,6 +175,19 @@ async def _mark(session: AsyncSession, row, **fields):
     invalidate_registrations()
 
 
+#: Two ways a registration that is switched on is still not live.
+NOT_LIVE = ("no key set", "publisher off")
+
+
+async def _take_out_of_service(session: AsyncSession, registration, how: str):
+    """Leave ``registration`` switched on but not live, ``how`` names."""
+    if how == "no key set":
+        await _mark(session, registration, jwks=None)
+        return
+    publisher = await session.get(Publisher, registration.publisher_id)
+    await _mark(session, publisher, enabled=False)
+
+
 # ---------------------------------------------------------------------------
 # What an install reports about its registration
 # ---------------------------------------------------------------------------
@@ -216,28 +227,20 @@ class TestInstallState:
         items = (await client.get(a.g("/apps/"), headers=a.headers)).json()["items"]
         assert [item["available"] for item in items] == [False]
 
-    @pytest.mark.parametrize(
-        "status",
-        [
-            AppServiceStatus.UNVERIFIED,
-            AppServiceStatus.UNREACHABLE,
-            AppServiceStatus.MANIFEST_MISMATCH,
-            AppServiceStatus.SIGNATURE_MISMATCH,
-        ],
-    )
-    async def test_only_a_verified_registration_is_available(
+    @pytest.mark.parametrize("how", NOT_LIVE)
+    async def test_only_a_live_registration_is_available(
         self,
         client: AsyncClient,
         acting_user,
         session: AsyncSession,
         registration,
-        status: str,
+        how: str,
     ):
-        """Availability tracks the last verification as well as the kill switch:
-        the app the deployment registered is the one that has to be answering."""
+        """Availability is the one definition of live: switched on, its
+        publisher switched on, and a key set to verify against."""
         a = await acting_user(guild_role=GuildRole.superadmin)
         await _installed(session, a)
-        await _mark(session, registration, status=status)
+        await _take_out_of_service(session, registration, how)
 
         items = (await client.get(a.g("/apps/"), headers=a.headers)).json()["items"]
         assert [item["available"] for item in items] == [False]
@@ -527,29 +530,19 @@ class TestHandoff:
         assert response.status_code == 409
         assert response.json()["detail"] == GuildAppMessages.SERVICE_NOT_REGISTERED
 
-    @pytest.mark.parametrize(
-        "status",
-        [
-            AppServiceStatus.UNVERIFIED,
-            AppServiceStatus.UNREACHABLE,
-            AppServiceStatus.MANIFEST_MISMATCH,
-            AppServiceStatus.SIGNATURE_MISMATCH,
-        ],
-    )
-    async def test_only_a_verified_registration_mints(
+    @pytest.mark.parametrize("how", NOT_LIVE)
+    async def test_only_a_live_registration_mints(
         self,
         client: AsyncClient,
         acting_user,
         session: AsyncSession,
         registration,
-        status: str,
+        how: str,
     ):
-        """A surface is declared by a manifest, so the mint requires the last
-        verification to have confirmed which manifest this service serves. The
-        data plane already read it this way; this is the same rule."""
+        """The mint reads the same definition of live as the data plane."""
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _installed(session, a)
-        await _mark(session, registration, status=status)
+        await _take_out_of_service(session, registration, how)
 
         response = await client.post(
             a.g(f"/apps/{app.id}/handoff/board"), headers=a.headers
@@ -1299,6 +1292,13 @@ class TestHandoffWithoutASigningKey:
 
 
 class TestConnectLaunch:
+    @pytest.fixture(autouse=True)
+    def signing_key(self, monkeypatch):
+        monkeypatch.setattr(
+            settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _SIGNING_KEY_PEM
+        )
+        monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_KEY_ID", "test-key")
+
     CONNECT_DEFINITION = {
         "app_kind": "service",
         "service": {"public_id": SERVICE_ID, "protocol": 1},
@@ -1374,12 +1374,12 @@ class TestConnectLaunch:
             "https://widgetco.example.test/connect/github"
         )
 
-    async def test_no_token_travels_in_the_url(
+    async def test_only_the_handle_the_guild_and_the_return_travel(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """The query string carries the opaque handle and the guild to write
-        back under, and no credential of any kind: the app writes its result
-        over its own authenticated channel."""
+        """The query string carries the opaque handle, the guild to write back
+        under, and the signed return. No credential of any kind: the app writes
+        its result back with its own installation token."""
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await self._install(session, a)
 
@@ -1388,25 +1388,59 @@ class TestConnectLaunch:
                 a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
             )
         ).json()
-        query = body["connect_url"].split("?", 1)[1]
+        query = parse_qs(urlsplit(body["connect_url"]).query)
         # Pinned exactly, so anything added to this URL is added deliberately.
-        # The return address is signed rather than secret — a MAC over a public
-        # URL, which is why it travels here and the secret does not.
-        assert set(parse_qs(query)) == {
-            "connection_ref",
-            "guild_ref",
-            "return_url",
-            "return_sig",
-        }
-        for smell in ("token", "jwt", "secret", "Bearer", "eyJ"):
-            assert smell not in query
+        assert set(query) == {"connection_ref", "guild_ref", "return_token"}
+        for smell in ("secret", "Bearer", "iat_"):
+            assert smell not in body["connect_url"]
+
+    def _return_claims(self, token: str) -> dict:
+        public_key = serialization.load_pem_private_key(
+            _SIGNING_KEY_PEM.encode("ascii"), password=None
+        ).public_key()
+        return jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            audience=f"initiative-app:{SERVICE_ID}",
+            issuer="initiative",
+        )
+
+    async def test_the_return_is_signed_by_the_app_platform_key(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """The browser carries this, so the app checks it against the key set
+        Initiative publishes before following it — the same key as every other
+        token Initiative signs for the app. It lives five minutes, names the
+        flow it ends, and carries a ``jti``."""
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await self._install(session, a)
+
+        body = (
+            await client.post(
+                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
+            )
+        ).json()
+        query = parse_qs(urlsplit(body["connect_url"]).query)
+        token = query["return_token"][0]
+
+        assert jwt.get_unverified_header(token)["kid"] == "test-key"
+        claims = self._return_claims(token)
+        assert claims["scope"] == "connect_return"
+        assert claims["exp"] - claims["iat"] == 300
+        assert claims["jti"]
+        assert claims["guild_ref"] == query["guild_ref"][0]
+        assert claims["app_install_id"] == app.id
+        assert claims["connection_id"] == "github"
+        assert claims["connection_ref"] == body["connection_ref"]
 
     async def test_the_app_is_told_where_to_send_them_back(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """An app knows a handle and a guild id, and has never been told what
-        language this person reads. So it does not write the ending: it hands
-        them back here with one word, and Initiative renders the sentence.
+        """An app knows a handle and a guild reference, and has never been told
+        what language this person reads. So it does not write the ending: it
+        hands them back here with one word, and Initiative renders the
+        sentence.
 
         The address is Initiative's own, built from the frontend entry the
         deployment publishes rather than from anything the app said."""
@@ -1420,7 +1454,7 @@ class TestConnectLaunch:
         ).json()
         query = parse_qs(urlsplit(body["connect_url"]).query)
 
-        home = query["return_url"][0]
+        home = self._return_claims(query["return_token"][0])["return_url"]
         assert home.startswith(f"{settings.APP_URL.rstrip('/')}/apps/connected?")
         # Which app and which connection, so the page can say what was being
         # connected without the app having to put it back on the URL.
@@ -1429,39 +1463,18 @@ class TestConnectLaunch:
             "connection": ["github"],
         }
 
-    async def test_the_return_address_is_signed_with_the_app_s_own_secret(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        """The browser carries this, so anybody can propose an address. An app
-        that followed one it was merely handed would be a redirector on a
-        hostname people trust, reached through a real vendor login — so the app
-        checks a MAC, and only Initiative can produce one.
-
-        The secret itself stays where it was: what travels is the MAC."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
-        app = await self._install(session, a)
-
-        body = (
-            await client.post(
-                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-            )
-        ).json()
-        query = parse_qs(urlsplit(body["connect_url"]).query)
-
-        expected = hmac.new(
-            b"test-secret", query["return_url"][0].encode("utf-8"), hashlib.sha256
-        ).hexdigest()
-        assert query["return_sig"] == [expected]
-        assert "test-secret" not in body["connect_url"]
-
-    async def test_a_registration_with_no_secret_sends_no_address(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    async def test_without_the_platform_key_no_return_is_sent(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session: AsyncSession,
+        registration,
+        monkeypatch,
     ):
         """Nothing to sign with, so nothing is offered. The app then says its
         piece on its own page — the same thing it does for somebody who arrived
-        by a hand-copied link, and better than an unsigned address it would
-        have to take on trust."""
-        await _mark(session, registration, secret_encrypted=None)
+        by a hand-copied link."""
+        monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await self._install(session, a)
 
@@ -1472,8 +1485,7 @@ class TestConnectLaunch:
         ).json()
         query = parse_qs(urlsplit(body["connect_url"]).query)
 
-        assert "return_url" not in query
-        assert "return_sig" not in query
+        assert "return_token" not in query
         # And the rest of the handoff is untouched: the flow still works, the
         # ending is just the app's own page.
         assert query["connection_ref"] == [body["connection_ref"]]

@@ -42,10 +42,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.encryption import SALT_APP_CONFIG, encrypt_field
 from app.core.messages import AppDataMessages, GuildAppMessages
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
-    AppServiceStatus,
-)
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
@@ -54,6 +51,7 @@ from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
 from app.services.tenant.dashboard_definition import normalize_dashboard_definition
 from app.testing import (
     guild_of,
+    create_app_service_registration,
     create_dashboard,
     create_guild_app,
     route_session_to_guild,
@@ -299,23 +297,16 @@ def upstream(monkeypatch):
 
 
 async def _register(
-    session: AsyncSession,
-    *,
-    enabled: bool = True,
-    status: str = AppServiceStatus.OK,
+    session: AsyncSession, *, enabled: bool = True
 ) -> AppServiceRegistration:
-    row = AppServiceRegistration(
+    return await create_app_service_registration(
+        session,
         public_id=PUBLIC_ID,
         listing_uid=APP_UID,
         base_url=BASE_URL,
         allowed_origins=[BASE_URL],
         enabled=enabled,
-        status=status,
     )
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
 
 
 async def _install(session: AsyncSession, actor, **overrides):

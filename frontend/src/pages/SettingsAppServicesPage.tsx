@@ -6,47 +6,34 @@ import {
   AppServiceFormDialog,
   type AppServiceFormValues,
 } from "@/components/platform/AppServiceFormDialog";
-import { AppServiceStatusBadge } from "@/components/platform/AppServiceStatusBadge";
 import { ListSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
-import { RelativeTime } from "@/components/ui/relative-time";
 import { Switch } from "@/components/ui/switch";
 import {
   useAppServices,
   useCreateAppService,
   useDeleteAppService,
   useUpdateAppService,
-  useVerifyAppService,
 } from "@/hooks/useAppServices";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  APP_SERVICE_MANIFEST_CHANGED,
-  appServiceErrorCode,
-  hasGrant,
-  isAppServiceStatus,
-  mergeGrants,
-} from "@/lib/appServices";
+import { hasGrant, mergeGrants } from "@/lib/appServices";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
 
-// Spelled out so each key is checked against the `settings` namespace.
-const STATUS_HELP_KEYS = {
-  ok: "appServices.statusHelp.ok",
-  unverified: "appServices.statusHelp.unverified",
-  unreachable: "appServices.statusHelp.unreachable",
-  manifest_mismatch: "appServices.statusHelp.manifest_mismatch",
-  signature_mismatch: "appServices.statusHelp.signature_mismatch",
-} as const;
+/** Whether a registration carries a key set, pasted or by address. */
+const hasKeys = (registration: AppServiceRegistrationRead): boolean =>
+  Boolean(registration.jwks_uri) ||
+  (registration.jwks !== null && Object.keys(registration.jwks).length > 0);
 
 /**
  * Deployment-level app service registrations (`apps.manage`).
  *
- * A registration is the only place an app's address, shared secret, and
+ * A registration is the only place an app's listing, addresses, keys, and
  * operator-conferred powers are recorded, so this page is where an operator
  * reviews what each app may do and where the kill switch lives.
  */
@@ -59,13 +46,11 @@ export const SettingsAppServicesPage = () => {
   const [editing, setEditing] = useState<AppServiceRegistrationRead | null>(null);
   const [disabling, setDisabling] = useState<AppServiceRegistrationRead | null>(null);
   const [deleting, setDeleting] = useState<AppServiceRegistrationRead | null>(null);
-  const [manifestChanged, setManifestChanged] = useState<AppServiceRegistrationRead | null>(null);
 
   const servicesQuery = useAppServices({ enabled: canManageApps });
   const createService = useCreateAppService();
   const updateService = useUpdateAppService();
   const deleteService = useDeleteAppService();
-  const verifyService = useVerifyAppService();
 
   const closeDialog = () => {
     setDialogOpen(false);
@@ -99,6 +84,7 @@ export const SettingsAppServicesPage = () => {
         {
           registrationId: editing.id,
           data: {
+            listing_uid: values.listingUid,
             base_url: values.baseUrl,
             // Always sent, so emptying the field clears it and puts both
             // surfaces back on the base URL.
@@ -107,10 +93,9 @@ export const SettingsAppServicesPage = () => {
             grants,
             // Null leaves the stored key set alone; {} clears it.
             ...(values.jwks === null ? {} : { jwks: values.jwks }),
+            // Always sent, so emptying the field clears the address.
+            jwks_uri: values.jwksUri,
             mandatory: values.mandatory,
-            // Sending a secret re-targets the registration and clears its
-            // recorded verification, so only send one the operator typed.
-            ...(values.secret ? { secret: values.secret } : {}),
           },
         },
         {
@@ -126,13 +111,14 @@ export const SettingsAppServicesPage = () => {
 
     createService.mutate(
       {
+        public_id: values.publicId,
+        listing_uid: values.listingUid,
         base_url: values.baseUrl,
-        secret: values.secret ?? "",
-        public_id: values.publicId || null,
         embed_origin: values.embedOrigin || null,
         allowed_origins: origins,
         grants,
         jwks: values.jwks,
+        jwks_uri: values.jwksUri || null,
         mandatory: values.mandatory,
       },
       {
@@ -141,35 +127,6 @@ export const SettingsAppServicesPage = () => {
           closeDialog();
         },
         onError: (error) => toast.error(getErrorMessage(error, "settings:appServices.saveError")),
-      }
-    );
-  };
-
-  const runVerify = (registration: AppServiceRegistrationRead, acceptManifestChange: boolean) => {
-    verifyService.mutate(
-      {
-        registrationId: registration.id,
-        data: acceptManifestChange ? { accept_manifest_change: true } : undefined,
-      },
-      {
-        onSuccess: () => {
-          setManifestChanged(null);
-          toast.success(t("appServices.verifySuccess", { name: registration.public_id }));
-        },
-        onError: (error) => {
-          // A manifest that no longer matches the recorded one is a decision
-          // for the operator, not something to absorb: surface the change and
-          // let them adopt it deliberately.
-          if (
-            !acceptManifestChange &&
-            appServiceErrorCode(error) === APP_SERVICE_MANIFEST_CHANGED
-          ) {
-            setManifestChanged(registration);
-            return;
-          }
-          setManifestChanged(null);
-          toast.error(getErrorMessage(error, "settings:appServices.verifyError"));
-        },
       }
     );
   };
@@ -226,9 +183,7 @@ export const SettingsAppServicesPage = () => {
             {registrations.map((registration) => {
               const delegation = hasGrant(registration, "delegation");
               const appDirectory = hasGrant(registration, "app_directory");
-              const verifying =
-                verifyService.isPending &&
-                verifyService.variables?.registrationId === registration.id;
+              const keysMissing = !hasKeys(registration);
 
               return (
                 <li key={registration.id} className="space-y-3 px-3 py-4">
@@ -238,10 +193,26 @@ export const SettingsAppServicesPage = () => {
                         <code className="rounded bg-muted px-1.5 py-0.5 font-medium text-sm">
                           {registration.public_id}
                         </code>
-                        <AppServiceStatusBadge status={registration.status} />
+                        {registration.live ? (
+                          <Badge
+                            variant="outline"
+                            className="border-transparent bg-emerald-600 text-white"
+                          >
+                            {t("appServices.liveBadge")}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-dashed text-muted-foreground">
+                            {t("appServices.notLiveBadge")}
+                          </Badge>
+                        )}
                         {!registration.enabled && (
                           <Badge variant="outline" className="border-destructive text-destructive">
                             {t("appServices.disabledBadge")}
+                          </Badge>
+                        )}
+                        {!registration.publisher_enabled && (
+                          <Badge variant="outline" className="border-destructive text-destructive">
+                            {t("appServices.publisherDisabledBadge")}
                           </Badge>
                         )}
                         {registration.mandatory && (
@@ -290,15 +261,6 @@ export const SettingsAppServicesPage = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => runVerify(registration, false)}
-                        disabled={verifying}
-                      >
-                        {verifying ? t("appServices.verifying") : t("appServices.verify")}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
                         onClick={() => openEdit(registration)}
                       >
                         {t("appServices.edit")}
@@ -316,26 +278,16 @@ export const SettingsAppServicesPage = () => {
                   </div>
 
                   <div className="space-y-1 text-muted-foreground text-xs">
-                    {isAppServiceStatus(registration.status) && (
-                      <p>{t(STATUS_HELP_KEYS[registration.status])}</p>
-                    )}
                     <p>
-                      {registration.last_verified_at ? (
+                      {t("appServices.publisherSummary", { name: registration.publisher_name })}
+                      {" · "}
+                      {registration.listing_uid ? (
                         <>
-                          {t("appServices.lastVerifiedLabel")}{" "}
-                          <RelativeTime date={registration.last_verified_at} />
+                          {t("appServices.listingSummary")}{" "}
+                          <code className="font-mono">{registration.listing_uid}</code>
                         </>
                       ) : (
-                        t("appServices.neverVerified")
-                      )}
-                      {registration.protocol_version !== null && (
-                        <>
-                          {" "}
-                          ·{" "}
-                          {t("appServices.protocolVersion", {
-                            version: registration.protocol_version,
-                          })}
-                        </>
+                        t("appServices.noListing")
                       )}
                     </p>
                     {registration.allowed_origins.length > 0 && (
@@ -348,6 +300,14 @@ export const SettingsAppServicesPage = () => {
                     {!registration.enabled && (
                       <p className="text-destructive">{t("appServices.disabledHelp")}</p>
                     )}
+                    {!registration.publisher_enabled && (
+                      <p className="text-destructive">
+                        {t("appServices.publisherDisabledHelp", {
+                          name: registration.publisher_name,
+                        })}
+                      </p>
+                    )}
+                    {keysMissing && <p>{t("appServices.noKeysHelp")}</p>}
                     {registration.mandatory && <p>{t("appServices.mandatoryHelp")}</p>}
                     {delegation && <p>{t("appServices.delegationHelp")}</p>}
                   </div>
@@ -379,21 +339,6 @@ export const SettingsAppServicesPage = () => {
         isLoading={updateService.isPending}
         onConfirm={() => {
           if (disabling) setEnabled(disabling, false);
-        }}
-      />
-
-      <ConfirmDialog
-        open={manifestChanged !== null}
-        onOpenChange={(open) => {
-          if (!open) setManifestChanged(null);
-        }}
-        title={t("appServices.manifestChangedTitle", { name: manifestChanged?.public_id ?? "" })}
-        description={t("appServices.manifestChangedDescription")}
-        confirmLabel={t("appServices.manifestChangedConfirm")}
-        cancelLabel={t("appServices.cancel")}
-        isLoading={verifyService.isPending}
-        onConfirm={() => {
-          if (manifestChanged) runVerify(manifestChanged, true);
         }}
       />
 
