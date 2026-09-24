@@ -86,8 +86,9 @@ services:
       # OIDC_CLIENT_SECRET: your-client-secret
       # OIDC_PROVIDER_NAME: Your Provider Name
       # OIDC_SCOPES: openid,profile,email,offline_access
-      # Optional: Enable push notifications (requires Firebase project)
-      # See docs/en/running-a-server/push-notifications.md for setup instructions
+      # Optional: pre-fill push notifications (requires a Firebase project).
+      # Read on first boot only; Settings → Platform → Push notifications owns
+      # them afterwards. See docs/en/running-a-server/push-notifications.md
       # FCM_ENABLED: false
       # FCM_PROJECT_ID: your-firebase-project-id
       # FCM_APPLICATION_ID: 1:123456789:android:abcdef

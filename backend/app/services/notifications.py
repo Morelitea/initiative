@@ -1843,7 +1843,9 @@ def wants_digest(
     )
 
 
-async def _digest_batch(batch: list[dict]) -> tuple[list[dict], list[dict]]:
+async def _digest_batch(
+    session: AsyncSession, batch: list[dict]
+) -> tuple[list[dict], list[dict]]:
     """The items of a digest each channel may still carry, per community.
 
     A digest gathers from every community an account is in, so what may leave
@@ -1855,8 +1857,8 @@ async def _digest_batch(batch: list[dict]) -> tuple[list[dict], list[dict]]:
     Returns ``(for_email, for_push)`` — the same items, filtered and marked for
     each channel.
     """
-    policies = await notification_policy.load_many(
-        {item.get("guild_id") for item in batch}
+    policies = await notification_policy.for_send_many(
+        session, {item.get("guild_id") for item in batch}
     )
 
     def prepared(item: dict, channel: str) -> dict | None:
@@ -1971,7 +1973,7 @@ async def _run_digest_pass(
         channels = await _channels(
             session, user, notification_type=sample_type(spec.category)
         )
-        email_batch, push_batch = await _digest_batch(batch)
+        email_batch, push_batch = await _digest_batch(session, batch)
         if channels.email and email_batch:
             # No community: a digest gathers from every guild the account is
             # in, so there is no one of them it happened in. Each item carries
@@ -2713,7 +2715,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         channels = await _channels(
             session, user, notification_type=NotificationType.overdue_tasks
         )
-        email_tasks, push_tasks = await _digest_batch(tasks)
+        email_tasks, push_tasks = await _digest_batch(session, tasks)
         if channels.email and email_tasks:
             delivered = await email_outbox.enqueue(
                 session,

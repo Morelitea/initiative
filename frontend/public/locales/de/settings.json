@@ -561,6 +561,63 @@
     "saveSuccess": "E-Mail-Einstellungen gespeichert",
     "saveError": "E-Mail-Einstellungen konnten nicht gespeichert werden"
   },
+  "push": {
+    "platformOnly": "Nur der Plattform-Eigentümer kann die Einstellungen für Push-Benachrichtigungen verwalten.",
+    "loading": "Einstellungen für Push-Benachrichtigungen werden geladen…",
+    "loadError": "Einstellungen für Push-Benachrichtigungen konnten nicht geladen werden.",
+    "title": "Firebase Cloud Messaging",
+    "description": "Das Firebase-Projekt, bei dem sich die mobilen Apps registrieren und über das der Server Push-Benachrichtigungen sendet.",
+    "enabledLabel": "Push-Benachrichtigungen senden",
+    "enabledHelp": "Die mobilen Apps übernehmen das beim nächsten Öffnen. Kein Neustart nötig.",
+    "fields": {
+      "project_id": {
+        "label": "Projekt-ID",
+        "help": "Projekteinstellungen → Allgemein → Projekt-ID."
+      },
+      "application_id": {
+        "label": "App-ID",
+        "help": "Projekteinstellungen → Allgemein → Meine Apps → App-ID."
+      },
+      "api_key": {
+        "label": "Web-API-Schlüssel",
+        "help": "Projekteinstellungen → Allgemein → Web-API-Schlüssel."
+      },
+      "sender_id": {
+        "label": "Absender-ID",
+        "help": "Projekteinstellungen → Cloud Messaging → Absender-ID."
+      }
+    },
+    "serviceAccountLabel": "Dienstkontoschlüssel",
+    "serviceAccountSet": "Ein Schlüssel ist gespeichert. Füge einen neuen ein, um ihn zu ersetzen.",
+    "serviceAccountHelp": "Die gesamte JSON-Datei aus Projekteinstellungen → Dienstkonten → Neuen privaten Schlüssel generieren. Leer lassen, um den gespeicherten Schlüssel zu behalten.",
+    "serviceAccountInvalid": "Füge die ganze Schlüsseldatei ein: ein JSON-Objekt, samt geschweiften Klammern.",
+    "save": "Push-Einstellungen speichern",
+    "saving": "Speichern…",
+    "saved": "Push-Einstellungen gespeichert",
+    "error": "Push-Einstellungen konnten nicht gespeichert werden"
+  },
+  "captcha": {
+    "title": "Captcha",
+    "description": "Eine Prüfung, dass die Person, die sich registriert oder einen Anmeldecode per E-Mail anfordert, kein Bot ist.",
+    "on": "An",
+    "off": "Aus",
+    "providerLabel": "Anbieter",
+    "providers": {
+      "off": "Keiner",
+      "hcaptcha": "hCaptcha",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA v2"
+    },
+    "siteKeyLabel": "Websiteschlüssel",
+    "secretKeyLabel": "Geheimer Schlüssel",
+    "secretKeySet": "••••••••",
+    "secretKeyHelp": "Leer lassen, um den gespeicherten geheimen Schlüssel zu behalten.",
+    "incomplete": "Das Captcha ist aktiv, sobald Anbieter, Websiteschlüssel und geheimer Schlüssel gespeichert sind.",
+    "save": "Captcha-Einstellungen speichern",
+    "saving": "Speichern…",
+    "saved": "Captcha-Einstellungen gespeichert",
+    "error": "Captcha-Einstellungen konnten nicht gespeichert werden"
+  },
   "auth": {
     "platformOnly": "Nur der Plattform-Eigentümer kann die Authentifizierungseinstellungen verwalten.",
     "loading": "Authentifizierungseinstellungen werden geladen…",
@@ -836,11 +893,12 @@
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
-    "subtitle": "Anmeldung, Sicherheit, Branding, E-Mail, das Community-Verzeichnis, Integrationen, Speicher und Eingang für die gesamte Installation.",
+    "subtitle": "Anmeldung, Sicherheit, Branding, E-Mail, Push-Benachrichtigungen, das Community-Verzeichnis, Integrationen, Speicher und Eingang für die gesamte Installation.",
     "tabs": {
       "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
+      "push": "Push-Benachrichtigungen",
       "community": "Community",
       "storage": "Speicher",
       "intake": "Eingang",
@@ -1746,7 +1804,7 @@
   },
   "platformSecurity": {
     "title": "Sicherheit",
-    "description": "Wie lange jemand angemeldet bleiben darf und was eine Benachrichtigung mitnimmt, wenn sie die App verlässt."
+    "description": "Wie lange jemand angemeldet bleiben darf, welches Captcha neuen Personen gestellt wird und was eine Benachrichtigung mitnimmt, wenn sie die App verlässt."
   },
   "notificationDelivery": {
     "title": "Benachrichtigungen, die die App verlassen",

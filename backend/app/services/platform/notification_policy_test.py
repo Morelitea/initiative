@@ -24,7 +24,7 @@ from app.services.platform import (
     push_notifications,
     push_tokens,
 )
-from app.testing import create_guild, create_user
+from app.testing import create_guild, create_user, push_switched_on
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
@@ -164,7 +164,6 @@ async def test_every_category_has_a_redacted_line() -> None:
 @pytest.fixture
 def fcm(monkeypatch):
     """A deployment wired to FCM, capturing what would go on the wire."""
-    monkeypatch.setattr(push_notifications.settings, "FCM_ENABLED", True, raising=False)
     calls: list[dict] = []
 
     async def _send(
@@ -174,7 +173,8 @@ def fcm(monkeypatch):
         return (True, False)
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
-    return calls
+    with push_switched_on():
+        yield calls
 
 
 async def _with_a_phone(session: AsyncSession, email: str):
@@ -366,3 +366,82 @@ async def test_the_deployment_can_decline_email_for_everybody(
         )
         is False
     )
+
+
+# --- one answer per send -----------------------------------------------------
+
+
+@pytest.fixture
+def reads(monkeypatch) -> list[int | None]:
+    """Every time the switches are actually read, by community."""
+    calls: list[int | None] = []
+    real = notification_policy.load
+
+    async def _load(guild_id):
+        calls.append(guild_id)
+        return await real(guild_id)
+
+    monkeypatch.setattr(notification_policy, "load", _load)
+    return calls
+
+
+async def test_a_fan_out_reads_the_switches_once(
+    session: AsyncSession, fcm, configured, reads
+) -> None:
+    """Fifty recipients in one transaction are one question, not a hundred."""
+    guild = await create_guild(session)
+    users = [await _with_a_phone(session, f"fan-out-{n}@example.com") for n in range(3)]
+    await session.exec(select(1))  # the sender's transaction
+
+    for user in users:
+        assert await email_outbox.enqueue(
+            session,
+            user,
+            category=NotificationCategory.mentions,
+            guild_id=guild.id,
+            pieces=_pieces(),
+        )
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=user.id,
+            notification_type=NotificationType.mention,
+            title="Ana mentioned you in Q3 budget",
+            body="Ana mentioned you in a comment on Q3 budget",
+            guild_id=guild.id,
+            locale="en",
+        )
+
+    assert reads == [guild.id]
+    assert len(fcm) == 3
+
+
+async def test_the_next_transaction_reads_the_switches_again(
+    session: AsyncSession, fcm, reads
+) -> None:
+    """A community that starts redacting is redacted from its next send on."""
+    guild = await create_guild(session)
+    user = await _with_a_phone(session, "switch-between@example.com")
+
+    async def _send() -> None:
+        await session.exec(select(1))
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=user.id,
+            notification_type=NotificationType.mention,
+            title="Ana mentioned you in Q3 budget",
+            body="Ana mentioned you in a comment on Q3 budget",
+            guild_id=guild.id,
+            locale="en",
+        )
+
+    await _send()
+    guild.redact_notification_content = True
+    session.add(guild)
+    await session.commit()
+    await _send()
+
+    assert reads == [guild.id, guild.id]
+    assert [call["title"] for call in fcm] == [
+        "Ana mentioned you in Q3 budget",
+        "You were mentioned",
+    ]

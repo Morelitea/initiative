@@ -726,6 +726,7 @@
   "GUILD_STATUS_NOT_SETTABLE": "Una comunidad se elimina desde sus propios ajustes, no desde aquí.",
   "GUILD_PLAN_SET_BY_BILLING": "La facturación fija los límites y funciones de esta comunidad. Cámbialos en facturación.",
   "GUILD_STATUS_SET_BY_BILLING": "La facturación fija el estado de esta comunidad. Puedes suspenderla o levantar una suspensión al estado que la facturación fijó por última vez.",
+  "GUILD_RESTORE_STATUS_SET_BY_BILLING": "La facturación fija el estado de esta comunidad. Restáurala con el estado que la facturación fijó por última vez, o suspendida.",
   "OPERATOR_USER_NOT_DELETED": "Esa cuenta no se ha eliminado, así que no hay nada que restaurar.",
   "CONNECTION_NEEDS_NARROWING": "Indica qué cuentas de este proveedor son tuyas antes de activar la conexión.",
   "SUPPORT_INTAKE_NOT_CONFIGURED": "Configure la recepción de soporte antes de ofrecer solicitudes de ayuda: vincule el flujo de soporte a un proyecto en Configuración de la plataforma › Entradas."

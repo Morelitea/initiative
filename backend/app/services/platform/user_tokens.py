@@ -10,9 +10,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import secrets
-from typing import Optional, List, Sequence
+from typing import Collection, Optional, List, Sequence
 
-from sqlmodel import select, delete, update as sql_update
+from sqlmodel import col, select, delete, update as sql_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
@@ -380,6 +380,31 @@ async def get_user_device_tokens(
     )
     result = await session.exec(stmt)
     return list(result.all())
+
+
+async def live_device_token_ids(
+    session: AsyncSession,
+    *,
+    token_ids: Collection[int],
+) -> set[int]:
+    """Which of these device tokens can still be used: not consumed, not
+    expired. One statement for any number of ids.
+
+    A plain read, unlike :func:`get_device_token`: asking whether a token is
+    still good is not presenting it, so the window does not slide.
+    """
+    if not token_ids:
+        return set()
+    now = datetime.now(timezone.utc)
+    result = await session.exec(
+        select(UserToken.id).where(
+            col(UserToken.id).in_(list(token_ids)),
+            UserToken.purpose == UserTokenPurpose.device_auth,
+            UserToken.consumed_at.is_(None),
+            UserToken.expires_at > now,
+        )
+    )
+    return set(result.all())
 
 
 async def revoke_device_token(

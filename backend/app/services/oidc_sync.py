@@ -111,6 +111,32 @@ def extract_claim_values(
     return set()
 
 
+async def placement_claims(session: AsyncSession, *, provider_id: int) -> set[str]:
+    """The verified claims this provider's rules are decided by: the narrowing
+    each community that wrote a rule has for the provider, and the directory a
+    provider rule names. What :func:`sync_oidc_assignments` reads from
+    ``claims`` besides the groups."""
+    rules = (
+        await session.exec(
+            select(OIDCClaimMapping).where(OIDCClaimMapping.provider_id == provider_id)
+        )
+    ).all()
+    names = {
+        rule.scope_claim
+        for rule in rules
+        if rule.author == ClaimRuleAuthor.provider
+        and rule.scope_claim
+        and rule.scope_value
+    }
+    return names | await guild_connections.narrowing_claims(
+        session,
+        provider_id=provider_id,
+        guild_ids={
+            rule.guild_id for rule in rules if rule.author == ClaimRuleAuthor.community
+        },
+    )
+
+
 async def sync_oidc_assignments(
     session: AsyncSession,
     *,
@@ -151,7 +177,9 @@ async def sync_oidc_assignments(
     )
     # The platform's rules for this provider place people where the community
     # accepts them, or everywhere where the deployment says so, and only
-    # arrivals from the directory a rule names, if it names one.
+    # arrivals from the directory a rule names, if it names one. A community's
+    # own narrowing governs the rules it wrote, not these: who a provider rule
+    # places is the operator's to say.
     placeable = await provider_placement.placeable_communities(
         session,
         provider_id=provider_id,

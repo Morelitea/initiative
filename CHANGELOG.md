@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/api/v1/admin/*` is now `/api/v1/operator/*`, and `/api/v1/announcements/admin/*` is now `/api/v1/announcements/operator/*`. The matching `Admin*` schemas are renamed `Operator*`.
   - `/api/v1/settings/oidc-mappings` and the operator routes for initiative and community members were removed. Use `PATCH /api/v1/guilds/{guild_id}/members/{user_id}` and `/api/v1/guilds/{guild_id}/auth/rules` instead.
   - The access-grant approval queue is now `GET /api/v1/access-grants/queue`.
+  - `CAPTCHA_*` and `FCM_*` are read on first boot only. After that, set the captcha in **Settings → Platform → Security** and push notifications in **Settings → Platform → Push notifications**, with no restart.
   - The `PAM_*_MINUTES` variables are no longer read. Access grants now last up to 4 hours for support, 8 for moderators, 24 for operators and owners, and 4 for break-glass.
 
 ### Fixed

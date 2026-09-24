@@ -142,16 +142,14 @@ Or take the newest [release](https://github.com/Morelitea/initiative/releases) w
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without invite link | `true` |
 | `ENABLE_MCP` | Mount the in-app MCP server at `/api/v1/mcp/` for AI assistants (see [MCP Server](#mcp-server)) | `false` |
 | `MARKETPLACE_EXTRA_CATALOG_DIR` | Directory of your own marketplace listing files (see [Publishing your own listings](docs/en/running-a-server/publishing-listings.md)) | - |
-| `CAPTCHA_PROVIDER` | Captcha vendor for registration: `hcaptcha`, `turnstile`, or `recaptcha` (v2 only). Unset / unrecognised disables the gate | - |
-| `CAPTCHA_SITE_KEY` | Public key sent to the SPA to render the widget | - |
-| `CAPTCHA_SECRET_KEY` | Server-side key for the provider's siteverify endpoint | - |
+| `CAPTCHA_PROVIDER` / `CAPTCHA_SITE_KEY` / `CAPTCHA_SECRET_KEY` | Captcha on registration and emailed sign-in codes (`hcaptcha`, `turnstile`, or `recaptcha` v2). First boot only; then **Settings → Platform → Security** | - |
 | `BEHIND_PROXY` | Trust `X-Forwarded-For` headers | `false` |
 | `FORWARDED_ALLOW_IPS` | Trusted proxy IPs (when `BEHIND_PROXY=true`) | `*` |
 | `FIRST_OWNER_EMAIL` | Bootstrap owner email (legacy `FIRST_SUPERUSER_EMAIL` accepted) | - |
 | `FIRST_OWNER_PASSWORD` | Bootstrap owner password (legacy `FIRST_SUPERUSER_PASSWORD` accepted) | - |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP server configuration | - |
-| `SMTP_FROM_ADDRESS` | Email sender address | - |
-| `FCM_ENABLED` | Enable Firebase Cloud Messaging | `false` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP server configuration. First boot only; then **Settings → Platform → Email** | - |
+| `SMTP_FROM_ADDRESS` | Email sender address. First boot only | - |
+| `FCM_ENABLED` (+ `FCM_*`) | Firebase Cloud Messaging for mobile push. First boot only; then **Settings → Platform → Push notifications** | `false` |
 | `PUID` | UID the container runs as (for rootless/NAS setups) | `1000` |
 | `PGID` | GID the container runs as (for rootless/NAS setups) | `1000` |
 
