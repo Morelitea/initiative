@@ -94,9 +94,13 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: page renders. Installing does not send this back; the server re-reads the
     #: catalog, so nothing a client holds decides what gets stored.
     definition: Optional[Dict[str, Any]] = None
-    #: The same thing filled in, when the listing carries one — what the
-    #: preview's Example toggle shows, and what "start from the example"
-    #: installs. Display data, like the definition above.
+    #: What the preview's Example toggle shows. For a tool made of content,
+    #: the same envelope filled in, when the listing carries one, and what
+    #: "start from the example" installs. For a dashboard, sample answers by
+    #: widget id (``{columns, rows, truncated, relations}``, the query
+    #: surface's shape): generated from its queries unless the publisher
+    #: supplied their own, always present, and never installable. Display
+    #: data, like the definition above.
     example: Optional[Dict[str, Any]] = None
 
 

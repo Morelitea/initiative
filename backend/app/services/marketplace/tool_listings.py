@@ -62,6 +62,7 @@ __all__ = [
     "example_is_generated",
     "installable_body",
     "install_tool_listing",
+    "listing_example",
     "normalize_tool_example",
     "normalize_tool_listing",
 ]
@@ -204,20 +205,55 @@ def _canonical_dashboard(envelope: dict[str, Any], *, what: str) -> dict[str, An
     return envelope
 
 
-def normalize_tool_example(tool: Tool, body: Any) -> dict[str, Any] | None:
+#: How each tool whose example is generated draws it, and checks the sample a
+#: publisher supplies in its place. ``tool_listings_test`` holds every such
+#: tool to having one.
+def _sample_makers() -> dict[Tool, tuple[Any, Any]]:
+    from app.services.marketplace.dashboard_samples import (
+        generate_dashboard_sample,
+        normalize_dashboard_sample,
+    )
+
+    return {Tool.dashboard: (generate_dashboard_sample, normalize_dashboard_sample)}
+
+
+def normalize_tool_example(
+    tool: Tool, body: Any, definition: dict[str, Any]
+) -> dict[str, Any] | None:
     """The example a publisher supplies beside a tool listing, or ``None``.
 
-    Held to exactly the rules the listing itself is, because installing from
-    the example is the same import. A tool whose preview is generated takes no
-    example from its publisher.
+    For a tool made of content it is the same envelope filled in, held to
+    exactly the rules the listing itself is, because installing from it is
+    the same import. For a tool whose example is generated it is sample data
+    of the publisher's own in place of the generated sample, checked against
+    the listing (``definition``, already normalized) — and never installable.
     """
     if body is None:
         return None
     if example_is_generated(tool):
-        raise ListingDefinitionError(
-            f"a {tool.value} listing's example is generated, not published"
-        )
+        _generate, normalize = _sample_makers()[tool]
+        return normalize(definition, body)
     return normalize_tool_listing(tool, body, what="example")
+
+
+def listing_example(
+    tool: Tool, listing_uid: str, version: MarketplaceListingVersion
+) -> dict[str, Any] | None:
+    """What a listing previews as beside itself.
+
+    The stored example when there is one. For a tool whose example is
+    generated and whose publisher supplied none, the sample is drawn here,
+    seeded by the listing and version, so a query listing is never shown
+    empty and always shows the same rows.
+    """
+    if version.example:
+        return dict(version.example)
+    if not example_is_generated(tool):
+        return None
+    generate, _normalize = _sample_makers()[tool]
+    return generate(
+        dict(version.definition or {}), seed=f"{listing_uid}:{version.version}"
+    )
 
 
 def installable_body(
@@ -226,8 +262,20 @@ def installable_body(
     """The envelope an install applies, or ``None`` when the version has
     nothing to start from on that choice."""
     if start_from == "example":
+        # A generated sample is a preview, not something to install.
+        tool = _tool_of(version)
+        if tool is not None and example_is_generated(tool):
+            return None
         return dict(version.example) if version.example else None
     return dict(version.definition or {})
+
+
+def _tool_of(version: MarketplaceListingVersion) -> Tool | None:
+    envelope_type = (version.definition or {}).get("type")
+    for tool in Tool:
+        if tool_envelope_type(tool) == envelope_type:
+            return tool
+    return None
 
 
 def _named(tool: Tool, envelope: dict[str, Any], name: str) -> dict[str, Any]:

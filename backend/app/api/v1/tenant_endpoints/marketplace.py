@@ -59,6 +59,7 @@ from app.services.marketplace.publish_profile import export_for_listing
 from app.services.marketplace.tool_listings import (
     example_is_generated,
     install_tool_listing,
+    listing_example,
 )
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
@@ -137,7 +138,11 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
         # A preview of what installing would produce. The install path re-reads
         # the catalog itself, so this is display data, not an input.
         definition=dict(latest.definition) if latest else None,
-        example=dict(latest.example) if latest and latest.example else None,
+        example=(
+            listing_example(TOOL_LISTING_KINDS[listing.kind], listing.uid, latest)
+            if latest is not None and listing.kind in TOOL_LISTING_KINDS
+            else None
+        ),
     )
 
 
@@ -231,7 +236,9 @@ async def install_marketplace_listing(
             ),
             detail=exc.code,
         ) from exc
-    if payload.start_from == ListingStartFrom.example and not version.example:
+    if payload.start_from == ListingStartFrom.example and (
+        example_is_generated(tool) or not version.example
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=MarketplaceMessages.LISTING_HAS_NO_EXAMPLE,

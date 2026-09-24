@@ -387,7 +387,7 @@ async def upsert_listing(
 
     try:
         definition = normalize_listing_definition(kind, manifest.get("definition"))
-        example = normalize_listing_example(kind, manifest.get("example"))
+        example = normalize_listing_example(kind, manifest.get("example"), definition)
 
         # Required on every ingestion path: seeding, an operator upload, a
         # registry refresh. There is no path that publishes without one.

@@ -849,3 +849,37 @@ class TestInstallingAToolListing:
         assert dashboard.name == "Sprint health"
         assert dashboard.listing_uid == listing.uid
         assert dashboard.definition["widgets"][0]["type"] == "stat"
+
+
+class TestADashboardPreviewsOnSampleData:
+    async def test_the_page_carries_a_sample_for_each_widget(
+        self, client, acting_user, listing
+    ):
+        actor = await acting_user(guild_role=GuildRole.member)
+
+        response = await client.get(
+            actor.g(f"/marketplace/listings/by-uid/{listing.uid}"),
+            headers=actor.headers,
+        )
+
+        assert response.status_code == 200, response.text
+        sample = response.json()["example"]["w1"]
+        assert sample["columns"] == [{"name": "n", "type": "number"}]
+        assert len(sample["rows"]) == 1
+
+    async def test_the_sample_is_not_installed(
+        self, client, acting_user, listing, session
+    ):
+        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        actor.initiative.dashboards_enabled = True
+        session.add(actor.initiative)
+        await session.commit()
+
+        response = await client.post(
+            actor.g(f"/marketplace/listings/by-uid/{listing.uid}/install"),
+            json={"initiative_id": actor.initiative.id, "start_from": "example"},
+            headers=actor.headers,
+        )
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_HAS_NO_EXAMPLE
