@@ -212,8 +212,9 @@ _OWN_ROW_SECTION = """\
 -- see another member's rows (an export_jobs row leaks the selector and gates
 -- the artifact download). Owner OR the community's administrator OR trusted
 -- system maintenance; the last two legs match initiative_access and the purge
--- guard exactly. A read-only PAM grantee is routed to guild_<id>_ro with none
--- of them set: no rows, by design.
+-- guard exactly. A settings rung reads them, and writes them only beside a
+-- read_write grant. A read-only PAM grantee is routed to guild_<id>_ro with
+-- none of them set: no rows, by design.
 -- ==========================================================================="""
 
 # Own-row predicate: the owner column is compared against the request GUC.
@@ -295,9 +296,21 @@ def _managed_block(table: str, initiative_expr: str) -> str:
     return "\n".join(lines)
 
 
-_OWN_ROW_PREDICATE = (
-    "({col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
-    f" OR {SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
+_OWN_ROW_OWNER = (
+    "{col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
+)
+
+#: Who reads an own-row table's rows: the owner, the community's admin, a
+#: settings rung, or the system engine.
+_OWN_ROW_READ_PREDICATE = (
+    f"({_OWN_ROW_OWNER} OR {SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
+)
+
+#: Who writes them: the same, with a settings rung writing only beside a
+#: read_write grant.
+_OWN_ROW_WRITE_PREDICATE = (
+    f"({_OWN_ROW_OWNER} OR {SYSTEM_SESSION} OR {GUILD_ADMIN}"
+    f" OR ({SETTINGS_ADMIN} AND {_PAM_WRITE}))"
 )
 
 _COMMANDS = (
@@ -398,14 +411,16 @@ def _freeze_policies(table: str) -> list[str]:
 
 def _own_row_block(table: str, owner_col: str) -> str:
     """RLS for an own-row guild-level table: per-command policies admitting the
-    row's owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the same
-    predicate, so a member can't author rows owned by someone else either."""
-    pred = _OWN_ROW_PREDICATE.format(col=owner_col)
+    row's owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the
+    write predicate, so a member can't author rows owned by someone else
+    either."""
+    read = _OWN_ROW_READ_PREDICATE.format(col=owner_col)
+    write = _OWN_ROW_WRITE_PREDICATE.format(col=owner_col)
     return "\n".join(
         [
             f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
             f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
-            *_policies(table, "own_row", pred, pred),
+            *_policies(table, "own_row", read, write),
         ]
     )
 
