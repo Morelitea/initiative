@@ -44,6 +44,9 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     #: public half is meant to be read, and an operator provisioning it needs
     #: to see which ``kid`` landed.
     delegation_jwks: Optional[Dict[str, Any]] = None
+    #: The most an install of this app may be granted, from the app scope
+    #: vocabulary. Empty means no scope may be granted.
+    scope_ceiling: List[str] = []
     #: Installed into every guild and not removable by guild admins.
     mandatory: bool = False
     enabled: bool = True
@@ -74,6 +77,9 @@ class AppServiceRegistrationCreate(SanitizedBaseModel):
     grants: Optional[List[str]] = None
     #: JWKS holding the public half of the app's delegation signing key.
     delegation_jwks: Optional[Dict[str, Any]] = None
+    #: The most an install of this app may be granted. Every entry must be a
+    #: scope in the app scope vocabulary. Left out, the ceiling is empty.
+    scope_ceiling: Optional[List[str]] = None
     mandatory: bool = False
     enabled: bool = True
 
@@ -94,6 +100,8 @@ class AppServiceRegistrationUpdate(SanitizedBaseModel):
     grants: Optional[List[str]] = None
     #: Replace the delegation key set. An empty object clears it.
     delegation_jwks: Optional[Dict[str, Any]] = None
+    #: Replace the scope ceiling. An empty list clears it.
+    scope_ceiling: Optional[List[str]] = None
     mandatory: Optional[bool] = None
     enabled: Optional[bool] = None
 

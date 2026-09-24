@@ -470,6 +470,72 @@ async def test_update_refuses_a_grant_outside_the_vocabulary(session):
     assert excinfo.value.detail == AppServiceMessages.UNKNOWN_GRANT
 
 
+# --- scope ceiling -----------------------------------------------------------
+
+
+def test_scope_ceiling_accepts_known_scopes_sorted_once():
+    assert service.normalize_scope_ceiling(
+        ["projects:write", "comments:read", "projects:write"]
+    ) == ["comments:read", "projects:write"]
+    assert service.normalize_scope_ceiling(None) == []
+    assert service.normalize_scope_ceiling([]) == []
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        ["projects:admin"],
+        ["nothing:read"],
+        # Members are read-only, so there is no write scope to cap at.
+        ["members:write"],
+        [7],
+        "projects:read",
+    ],
+)
+def test_scope_ceiling_outside_the_vocabulary_is_refused(value):
+    with pytest.raises(HTTPException) as excinfo:
+        service.normalize_scope_ceiling(value)
+    assert excinfo.value.status_code == 400
+    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_SCOPE
+
+
+async def test_create_and_update_store_the_scope_ceiling(session):
+    row = await service.create_registration(
+        session,
+        base_url=BASE_URL,
+        secret=SECRET,
+        scope_ceiling=["projects:write", "comments:read"],
+        transport=make_transport(),
+    )
+    assert row.scope_ceiling == ["comments:read", "projects:write"]
+
+    updated = await service.update_registration(
+        session, row.id, scope_ceiling=["documents:read"]
+    )
+    assert updated.scope_ceiling == ["documents:read"]
+
+    untouched = await service.update_registration(session, row.id, enabled=True)
+    assert untouched.scope_ceiling == ["documents:read"]
+
+
+async def test_a_registration_with_no_ceiling_names_none(session):
+    row = await service.create_registration(
+        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
+    )
+    assert row.scope_ceiling == []
+
+
+async def test_update_refuses_a_scope_outside_the_vocabulary(session):
+    row = await service.create_registration(
+        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
+    )
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.update_registration(session, row.id, scope_ceiling=["all:write"])
+
+    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_SCOPE
+
+
 # --- boot reconciliation -----------------------------------------------------
 
 
@@ -674,6 +740,66 @@ async def test_reconcile_skips_an_entry_claiming_an_unknown_grant(
                     "base_url": BASE_URL,
                     "secret_env": "TEST_APP_SECRET",
                     "grants": ["superuser"],
+                }
+            ],
+        ),
+    )
+
+    result = await service.reconcile_from_config(session)
+
+    assert (result.created, result.skipped) == (0, 1)
+
+
+async def test_reconcile_reads_the_scope_ceiling_from_the_file(
+    session, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
+    entry = {
+        "public_id": "acme.scoped",
+        "base_url": BASE_URL,
+        "secret_env": "TEST_APP_SECRET",
+        "scope_ceiling": ["projects:write", "comments:read"],
+    }
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+    assert (await service.reconcile_from_config(session)).created == 1
+
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == "acme.scoped"
+            )
+        )
+    ).one()
+    assert row.scope_ceiling == ["comments:read", "projects:write"]
+
+    # Changing the ceiling in the file is an update on the next pass.
+    entry["scope_ceiling"] = ["projects:read"]
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+    result = await service.reconcile_from_config(session)
+    assert (result.updated, result.unchanged) == (1, 0)
+    await session.refresh(row)
+    assert row.scope_ceiling == ["projects:read"]
+
+
+async def test_reconcile_skips_an_entry_naming_an_unknown_scope(
+    session, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
+    monkeypatch.setattr(
+        settings,
+        "APP_SERVICES_CONFIG",
+        _write_config(
+            tmp_path,
+            [
+                {
+                    "public_id": "acme.overscoped",
+                    "base_url": BASE_URL,
+                    "secret_env": "TEST_APP_SECRET",
+                    "scope_ceiling": ["everything:write"],
                 }
             ],
         ),

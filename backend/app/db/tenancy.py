@@ -205,9 +205,12 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
         # Installed apps: guild-wide by definition, and readable by any member —
-        # the sidebar has to know an app is there. Installing/removing is gated
-        # at the endpoint (guild admin); what a member may do *inside* an app is
-        # decided by that instance's own grants, not by this row.
+        # the sidebar has to know an app is there. Installing, configuring and
+        # removing are gated at the endpoint (the seat); what a member may do
+        # *inside* an app is decided by that instance's own grants, not by this
+        # row. Not in SEAT_TABLES: a member adding a guild calendar locks the
+        # install and appends to its ``artifacts``, and a member disconnecting
+        # their own account locks it too.
         "guild_apps",
         # Where an install appears, one row per initiative, with the roles
         # allowed to open it there. A fact about the install rather than

@@ -733,6 +733,7 @@ export interface AppServiceRegistrationCreate {
   allowed_origins?: string[] | null;
   grants?: string[] | null;
   delegation_jwks?: AppServiceRegistrationCreateDelegationJwks;
+  scope_ceiling?: string[] | null;
   mandatory?: boolean;
   enabled?: boolean;
 }
@@ -754,6 +755,7 @@ export interface AppServiceRegistrationRead {
   protocol_version: number | null;
   grants: string[];
   delegation_jwks: AppServiceRegistrationReadDelegationJwks;
+  scope_ceiling: string[];
   mandatory: boolean;
   enabled: boolean;
   status: string;
@@ -779,6 +781,7 @@ export interface AppServiceRegistrationUpdate {
   allowed_origins?: string[] | null;
   grants?: string[] | null;
   delegation_jwks?: AppServiceRegistrationUpdateDelegationJwks;
+  scope_ceiling?: string[] | null;
   mandatory?: boolean | null;
   enabled?: boolean | null;
 }
@@ -1311,8 +1314,9 @@ export const ResourceGrantSchemaLevel = {
 /**
  * One ``resource_grants`` row — exactly the columns that define a grant: a
  * ``level`` for a user (``user_id``), an initiative role (``role_id``), all
- * initiative members (``all_initiative_members``), or a dashboard
- * (``dashboard_id``). Exactly one grantee is set.
+ * initiative members (``all_initiative_members``), a dashboard
+ * (``dashboard_id``), or an installed app (``app_install_id``). Exactly one
+ * grantee is set.
  *
  * The identical shape both reports a resource's grants (``grants`` is a list of
  * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
@@ -1325,6 +1329,10 @@ export const ResourceGrantSchemaLevel = {
  * the server keeps it whatever this list says. Taking one back is its own act,
  * against the dashboard that published it — so a client that knows nothing
  * about published views cannot remove one by saving the panel.
+ *
+ * An **app install** grantee is the same: reported, never taken, and kept by
+ * the server whatever this list says. What an app may reach is the seat's to
+ * decide, not a resource owner's sharing panel.
  */
 export interface ResourceGrantSchema {
   level: ResourceGrantSchemaLevel;
@@ -1332,6 +1340,7 @@ export interface ResourceGrantSchema {
   role_id?: number | null;
   all_initiative_members?: boolean;
   dashboard_id?: number | null;
+  app_install_id?: number | null;
 }
 
 export interface CalendarCreate {
@@ -4129,6 +4138,7 @@ export interface GuildAppDetail {
   features: string[];
   definition: GuildAppDetailDefinition;
   placements: AppPlacementRead[];
+  granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
   delegates: boolean;
@@ -4188,6 +4198,7 @@ export interface GuildAppRead {
   features: string[];
   definition: GuildAppReadDefinition;
   placements: AppPlacementRead[];
+  granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
   delegates: boolean;

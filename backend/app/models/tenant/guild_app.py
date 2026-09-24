@@ -32,8 +32,8 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, DateTime, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Boolean, Column, DateTime, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlmodel import Field
 
 from app.models.tenant._mixins import CreatedByMixin
@@ -146,6 +146,16 @@ class GuildApp(CreatedByMixin, table=True):
     follows_new_initiatives: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
+    # The scopes the community's seat consented to for this install, from
+    # ``app.core.app_scopes``. Always a subset of the scopes the pinned manifest
+    # requests and of the registration's ``scope_ceiling``, which is checked
+    # when the set is written. Nothing is granted by default: a new install
+    # holds none until the seat grants them.
+    granted_scopes: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
     )
 
     created_by: int = Field(foreign_key="users.id", nullable=False)
