@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Request size limits** — a request can now be at most 4 MiB, a file upload 51 MiB, and saving a document 64 MiB, which leaves room for whiteboards with pictures in them. Imports keep their own, larger limits.
 - **The update check asks Docker Hub less often** — the server asks at most every six hours, and every visitor shares the answer, instead of asking on every page load. A server without internet access logs that once and stops trying for 15 minutes at a time.
 
+### Fixed
+
+- **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
+
 ## [0.72.0] - 2026-09-24
 
 ### Added
