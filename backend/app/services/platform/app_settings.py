@@ -878,10 +878,10 @@ async def ensure_defaults(session: AsyncSession) -> None:
     await seed_app_settings(session)
     primary_guild_id = await guilds_service.get_primary_guild_id(session)
     # guild_settings is guild-scoped (lives only in the guild schema), so route
-    # into the primary guild before seeding it — mirroring init_db.init(). On
-    # the unrouted (public) system session the table isn't visible. Reset to the
-    # public baseline in a finally so a failure can't leave the session
-    # guild-routed for a caller that reuses it.
+    # into the primary guild before seeding it. On the unrouted (public) system
+    # session the table isn't visible. Reset to the public baseline in a finally
+    # so a failure can't leave the session guild-routed for a caller that
+    # reuses it.
     await set_rls_context(session, guild_id=primary_guild_id)
     try:
         await _ensure_guild_setting(session, primary_guild_id)

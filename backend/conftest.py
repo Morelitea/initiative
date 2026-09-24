@@ -15,10 +15,11 @@ from collections.abc import AsyncGenerator
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 
 import asyncpg
 import pytest
+from sqlalchemy.engine import make_url
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -111,8 +112,8 @@ settings.WEBHOOK_ALLOW_PRIVATE_TARGETS = False
 # bootstrap superuser, overridable via the standard postgres-image variables.
 _su_user = os.environ.get("POSTGRES_USER", "initiative")
 _su_password = os.environ.get("POSTGRES_PASSWORD", "initiative")
-_app_db = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
-_su_netloc = f"{_app_db.hostname}:{_app_db.port or 5432}"
+_app_db = make_url(settings.DATABASE_URL)
+_su_netloc = f"{_app_db.host}:{_app_db.port or 5432}"
 _base_url = (
     f"postgresql+asyncpg://{quote(_su_user, safe='')}:"
     f"{quote(_su_password, safe='')}@{_su_netloc}"
@@ -186,7 +187,7 @@ async def connect_su_postgres() -> asyncpg.Connection:
     return await asyncpg.connect(
         user=_su_user,
         password=_su_password,
-        host=_app_db.hostname,
+        host=_app_db.host,
         port=_app_db.port or 5432,
         database="postgres",
     )
@@ -390,7 +391,7 @@ async def _test_db_is_at_head() -> bool:
         conn = await asyncpg.connect(
             user=_su_user,
             password=_su_password,
-            host=_app_db.hostname,
+            host=_app_db.host,
             port=_app_db.port or 5432,
             database=TEST_DB_NAME,
         )
