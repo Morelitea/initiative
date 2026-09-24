@@ -1598,6 +1598,18 @@
     "directMessagesOffConfirm": "Direktnachrichten deaktivieren",
     "directMessagesEnabledToast": "Direktnachrichten sind aktiv.",
     "directMessagesDisabledToast": "Direktnachrichten sind deaktiviert.",
+    "holdDeletion": {
+      "title": "Pausierte Communitys löschen",
+      "description": "Eine pausierte Community ist für alle darin geschlossen. Ist sie am Ende dieser Frist noch pausiert, wird sie gelöscht, und wie lange sie danach aufbewahrt wird, legt die Frist darüber fest. Wer sie betreibt, erfährt das Datum, sobald sie pausiert wird.",
+      "label": "Löschen nach (Tagen pausiert)",
+      "placeholder": "Nie löschen",
+      "hint": "Gerechnet ab dem Zeitpunkt, an dem die jeweilige Community pausiert wurde — eine Änderung verschiebt also auch das Datum bereits pausierter Communitys.",
+      "neverHint": "Nichts wird nach Ablauf einer Frist gelöscht. Eine Community bleibt pausiert, bis jemand die Pause aufhebt oder sie löscht.",
+      "saved_one": "Pausierte Communitys werden nach {{count}} Tag gelöscht.",
+      "saved_other": "Pausierte Communitys werden nach {{count}} Tagen gelöscht.",
+      "savedNever": "Pausierte Communitys werden nie automatisch gelöscht.",
+      "save": "Frist für pausierte Communitys speichern"
+    },
     "retention": {
       "title": "Gelöschte Communitys aufbewahren",
       "description": "Eine gelöschte Community verschwindet sofort für alle darin, aber bis zum Ende dieser Frist wird nichts endgültig entfernt. Bis dahin kann ein Betreiber sie wiederherstellen.",

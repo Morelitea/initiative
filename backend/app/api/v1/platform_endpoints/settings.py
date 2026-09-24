@@ -452,6 +452,7 @@ async def read_community_settings(
         direct_messages_enabled=settings_obj.direct_messages_enabled,
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
         deleted_account_retention_days=settings_obj.deleted_account_retention_days,
+        on_hold_community_deletion_days=settings_obj.on_hold_community_deletion_days,
     )
 
 
@@ -494,6 +495,9 @@ async def update_community_settings(
     put in it, so this field reads its presence rather than its value — omit it
     to leave the window alone. The figure is the deployment's; a community has
     no say in its own.
+
+    ``on_hold_community_deletion_days`` reads the same way: how long a
+    community stays on hold before it is deleted, and ``null`` for never.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
@@ -507,6 +511,9 @@ async def update_community_settings(
         deleted_account_retention_days=payload.deleted_account_retention_days,
         account_retention_provided="deleted_account_retention_days"
         in payload.model_fields_set,
+        on_hold_community_deletion_days=payload.on_hold_community_deletion_days,
+        hold_deletion_provided="on_hold_community_deletion_days"
+        in payload.model_fields_set,
         actor_user_id=owner.id,
     )
     return CommunitySettingsResponse(
@@ -516,6 +523,7 @@ async def update_community_settings(
         direct_messages_enabled=settings_obj.direct_messages_enabled,
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
         deleted_account_retention_days=settings_obj.deleted_account_retention_days,
+        on_hold_community_deletion_days=settings_obj.on_hold_community_deletion_days,
     )
 
 

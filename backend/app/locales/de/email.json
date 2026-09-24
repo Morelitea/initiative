@@ -374,9 +374,11 @@
     "title": "{{community}} ist pausiert",
     "greeting": "Hallo,",
     "body": "<strong>{{community}}</strong> ist pausiert, deshalb kann sie vorerst niemand öffnen – weder ihre Mitglieder noch ihre Administratoren. Nichts darin wurde geändert oder entfernt.",
+    "deletion": "Ist sie am <strong>{{date}}</strong> noch pausiert, wird sie gelöscht.",
     "contact": "Wende dich an <strong>{{contact}}</strong>, um das zu klären.",
     "contactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären.",
     "textBody": "{{community}} ist pausiert, deshalb kann sie vorerst niemand öffnen. Nichts darin wurde geändert oder entfernt.",
+    "textDeletion": "Ist sie am {{date}} noch pausiert, wird sie gelöscht.",
     "textContact": "Wende dich an {{contact}}, um das zu klären.",
     "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären."
   }

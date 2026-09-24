@@ -2255,6 +2255,7 @@ export interface CommunitySettingsResponse {
   direct_messages_enabled: boolean;
   deleted_community_retention_days: number | null;
   deleted_account_retention_days: number | null;
+  on_hold_community_deletion_days: number | null;
 }
 
 export interface CommunitySettingsUpdate {
@@ -2264,6 +2265,7 @@ export interface CommunitySettingsUpdate {
   direct_messages_enabled?: boolean | null;
   deleted_community_retention_days?: number | null;
   deleted_account_retention_days?: number | null;
+  on_hold_community_deletion_days?: number | null;
 }
 
 /**

@@ -890,19 +890,30 @@ async def send_community_on_hold_email(
     recipients: list[str],
     community: str,
     contact: str | None,
+    delete_at: datetime | None = None,
     locale: str = "en",
 ) -> None:
-    """Tell the people who hold a community's seat that it is on hold, and
-    whom to contact about it."""
+    """Tell the people who hold a community's seat that it is on hold, whom
+    to contact about it, and, where the hold runs out, when it is deleted.
+
+    ``delete_at`` is None where this deployment never deletes a held community.
+    """
     settings_obj, accent = await _email_context(session)
     next_step = (
         email_t("communityOnHold.contact", locale=locale, contact=contact)
         if contact
         else email_t("communityOnHold.contactNobody", locale=locale)
     )
+    date = delete_at.strftime("%-d %B %Y") if delete_at is not None else None
+    deadline = (
+        f"<p>{email_t('communityOnHold.deletion', locale=locale, date=date)}</p>"
+        if date
+        else ""
+    )
     body = f"""
     <p>{email_t("communityOnHold.greeting", locale=locale)}</p>
     <p>{email_t("communityOnHold.body", locale=locale, community=community)}</p>
+    {deadline}
     <p>{next_step}</p>
     """
     html_body = _build_html_layout(
@@ -925,11 +936,27 @@ async def send_community_on_hold_email(
             "communityOnHold.subject", locale=locale, community=community, escape=False
         ),
         html_body=html_body,
-        text_body=email_t(
-            "communityOnHold.textBody", locale=locale, community=community, escape=False
-        )
-        + " "
-        + text_next,
+        text_body=" ".join(
+            part
+            for part in (
+                email_t(
+                    "communityOnHold.textBody",
+                    locale=locale,
+                    community=community,
+                    escape=False,
+                ),
+                email_t(
+                    "communityOnHold.textDeletion",
+                    locale=locale,
+                    date=date,
+                    escape=False,
+                )
+                if date
+                else None,
+                text_next,
+            )
+            if part
+        ),
         settings_obj=settings_obj,
     )
 

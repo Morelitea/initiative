@@ -656,6 +656,10 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     #: community and what it owes the person leaving are different questions.
     #: ``None`` means never, for a deployment required to keep accounts.
     deleted_account_retention_days: Optional[int] = None
+    #: How long a community stays on hold before it is deleted, in days,
+    #: counted from when it was put there. ``None`` means never: it waits for
+    #: somebody to lift the hold or delete it.
+    on_hold_community_deletion_days: Optional[int] = None
 
 
 class NotificationSettingsResponse(SanitizedBaseModel):
@@ -712,6 +716,13 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     #: The account window, read the same way: omit to leave it alone, send a
     #: number to set it, send ``null`` to stop erasing on a timer.
     deleted_account_retention_days: Optional[int] = Field(
+        default=None,
+        ge=MIN_GUILD_RETENTION_DAYS,
+        le=MAX_GUILD_RETENTION_DAYS,
+    )
+    #: The hold window, read the same way: omit to leave it alone, send a
+    #: number to set it, send ``null`` to stop deleting held communities.
+    on_hold_community_deletion_days: Optional[int] = Field(
         default=None,
         ge=MIN_GUILD_RETENTION_DAYS,
         le=MAX_GUILD_RETENTION_DAYS,

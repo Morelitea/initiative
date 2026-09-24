@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mentions in task descriptions** — type `@` to name a member of the initiative or `#` to link anything in it, the same way comments do. The people it names are notified once, when they are first added, and the things it links show under **Linked from**.
 - **Pictures in task descriptions and comments** — paste or drag one in, or use the picture button, which offers the camera on the app. A picture you take back out, or never save, is deleted, and so is every picture on something that's deleted for good. Images from other websites in comments still show as links.
 - **Smaller additions** — a 12- or 24-hour clock under **My Settings → Interface**, a **Fields** menu that picks what kanban cards show, a file upload in **Add link**, a colour for each priority, and MCP assistants can now tick checklist items.
-- **For operators** — `/api/v1/metrics` serves Prometheus metrics when `METRICS_TOKEN` is set. Communities can be put **On hold**. **Settings → Intake** takes contact addresses, which notices use when they tell people who to contact. Sign-in placement rules on an identity provider add people to communities by group.
+- **For operators** — `/api/v1/metrics` serves Prometheus metrics when `METRICS_TOKEN` is set. Communities can be put **On hold**; one left on hold for 30 days is deleted, and its superadmins are emailed that date when the hold starts. Change the window under **Settings → Platform → Community**. **Settings → Intake** takes contact addresses, which notices use when they tell people who to contact. Sign-in placement rules on an identity provider add people to communities by group.
 
 ### Changed
 

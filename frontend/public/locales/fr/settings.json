@@ -1598,6 +1598,18 @@
     "directMessagesOffConfirm": "Désactiver les messages privés",
     "directMessagesEnabledToast": "Les messages privés sont activés.",
     "directMessagesDisabledToast": "Les messages privés sont désactivés.",
+    "holdDeletion": {
+      "title": "Suppression des communautés en attente",
+      "description": "Une communauté en attente est fermée à tous ses membres. Si elle est toujours en attente à la fin de ce délai, elle est supprimée, et le délai ci-dessus décide ensuite combien de temps elle est conservée. Les personnes qui la gèrent reçoivent la date dès sa mise en attente.",
+      "label": "Supprimer après (jours en attente)",
+      "placeholder": "Ne jamais supprimer",
+      "hint": "Compté à partir du moment où chaque communauté a été mise en attente : modifier ce délai déplace donc aussi la date de celles déjà en attente.",
+      "neverHint": "Rien n'est supprimé à l'échéance d'un délai. Une communauté reste en attente jusqu'à ce que quelqu'un lève l'attente ou la supprime.",
+      "saved_one": "Les communautés en attente sont supprimées après {{count}} jour.",
+      "saved_other": "Les communautés en attente sont supprimées après {{count}} jours.",
+      "savedNever": "Les communautés en attente ne sont jamais supprimées automatiquement.",
+      "save": "Enregistrer la durée d'attente des communautés"
+    },
     "retention": {
       "title": "Conservation des communautés supprimées",
       "description": "Une communauté supprimée disparaît immédiatement pour tous ses membres, mais rien n'est détruit avant la fin de ce délai. D'ici là, un opérateur peut la restaurer.",

@@ -374,9 +374,11 @@
     "title": "{{community}} is on hold",
     "greeting": "Hello,",
     "body": "<strong>{{community}}</strong> is on hold, so nobody can open it for now — its members and its administrators alike. Nothing in it has been changed or removed.",
+    "deletion": "If it is still on hold on <strong>{{date}}</strong>, it will be deleted.",
     "contact": "Contact <strong>{{contact}}</strong> to sort it out.",
     "contactNobody": "Contact whoever runs this server to sort it out.",
     "textBody": "{{community}} is on hold, so nobody can open it for now. Nothing in it has been changed or removed.",
+    "textDeletion": "If it is still on hold on {{date}}, it will be deleted.",
     "textContact": "Contact {{contact}} to sort it out.",
     "textContactNobody": "Contact whoever runs this server to sort it out."
   }
