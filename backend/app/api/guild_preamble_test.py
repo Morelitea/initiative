@@ -46,9 +46,10 @@ def _statements(session: AsyncSession) -> Iterator[list[str]]:
 
 @pytest.mark.database
 async def test_member_preamble_round_trips(session, role_session, acting_user):
-    """A member's preamble: reset + context, the gate's one read, reset +
-    context for the routing, and the statement that resolves the "Full access"
-    set into its own GUC. Six, and a handler's first query is the seventh."""
+    """A member's preamble: the gate's context (its role reset riding in the
+    same statement), the gate's one read, the routing's context, and the
+    statement that resolves the "Full access" set into its own GUC. Four, and
+    a handler's first query is the fifth."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     s = await role_session("app_user")
@@ -60,7 +61,7 @@ async def test_member_preamble_round_trips(session, role_session, acting_user):
             s, a.user, a.guild.id, satisfied_providers=frozenset()
         )
 
-    assert len(sent) == 6, "preamble round trips:\n" + "\n".join(sent)
+    assert len(sent) == 4, "preamble round trips:\n" + "\n".join(sent)
     # The public rows the gate needs come back together — the deployment's own
     # second-factor answer among them, rather than as a read of its own on
     # every guild request there is.
