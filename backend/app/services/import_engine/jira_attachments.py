@@ -84,12 +84,22 @@ class Attachment:
 
 @dataclass(frozen=True)
 class StoredImage:
-    """An image downloaded and given the key it will be restored under."""
+    """A file downloaded and given the key it will be restored under.
+
+    Its bytes are not here: they went into the bundle the moment they
+    arrived (see :data:`AssetSink`), and only what the manifest and the
+    mapping need is kept.
+    """
 
     filename: str
     storage_key: str
     content_type: str
-    data: bytes
+    size_bytes: int
+
+
+#: Where a downloaded file goes as soon as it has arrived: the bundle being
+#: written, which keeps the bytes so the fetch does not have to.
+AssetSink = Callable[[StoredImage, bytes], Awaitable[None]]
 
 
 @dataclass
@@ -162,13 +172,15 @@ async def download_images(
     issues: list[Any],
     *,
     download: Downloader,
+    store: AssetSink,
     budget_bytes: int,
     max_files: int,
     documents: bool = False,
 ) -> ImageReport:
     """Fetch every issue's images, within the per-image cap and a total budget.
 
-    ``download(attachment_id, max_bytes)`` is the site call. An image the site
+    ``download(attachment_id, max_bytes)`` is the site call, and ``store``
+    takes each file as it arrives. An image the site
     will not hand over is counted and skipped — one broken attachment is not
     a reason to lose the project — but being throttled stops the fetch, as it
     does everywhere else. What would take the bundle past ``budget_bytes`` or
@@ -209,15 +221,17 @@ async def download_images(
                 filename=attachment.filename,
                 storage_key=storage_key(attachment),
                 content_type=attachment.mime_type or "application/octet-stream",
-                data=data,
+                size_bytes=len(data),
             )
+            await store(stored, data)
+            del data
             if is_image:
                 report.images += 1
-                report.image_bytes += len(data)
+                report.image_bytes += stored.size_bytes
                 report.by_issue.setdefault(key, []).append(stored)
             else:
                 report.files += 1
-                report.file_bytes += len(data)
+                report.file_bytes += stored.size_bytes
                 report.files_by_issue.setdefault(key, []).append(stored)
     return report
 

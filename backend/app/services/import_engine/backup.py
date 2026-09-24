@@ -26,10 +26,12 @@ Safety model:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
 import zipfile
+from pathlib import Path
 from typing import Any
 
 from sqlmodel import select
@@ -124,11 +126,14 @@ def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
 logger = logging.getLogger(__name__)
 
 
-def open_backup_zip(payload: bytes) -> zipfile.ZipFile:
-    """Open + bound-check a backup zip. Raises IMPORT_ZIP_INVALID /
-    IMPORT_TOO_LARGE before anything beyond the central directory is read."""
+def open_backup_zip(payload: bytes | Path) -> zipfile.ZipFile:
+    """Open + bound-check a backup zip, held in memory or read from a file.
+    Raises IMPORT_ZIP_INVALID / IMPORT_TOO_LARGE before anything beyond the
+    central directory is read."""
     try:
-        archive = zipfile.ZipFile(io.BytesIO(payload))
+        archive = zipfile.ZipFile(
+            payload if isinstance(payload, Path) else io.BytesIO(payload)
+        )
     except Exception as exc:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
     infos = archive.infolist()
@@ -186,7 +191,7 @@ def _reject_non_flat_asset_keys(manifest: BackupManifest) -> None:
 
 
 def plan_backup(
-    payload: bytes,
+    payload: bytes | Path,
     *,
     existing_initiative_names: set[str],
     member_ids_by_handle: dict[str, int] | None = None,
@@ -291,7 +296,7 @@ async def apply_backup(
     *,
     user: User,
     guild_id: int,
-    payload: bytes,
+    payload: bytes | Path,
     include: dict[str, bool] | None,
     people_map: Any = None,
     exclude_properties: Any = None,
@@ -999,7 +1004,8 @@ async def _restore_assets(
             raise ImportEngineError(
                 ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
             )
-        storage.write(
+        await asyncio.to_thread(
+            storage.write,
             asset.storage_key,
             data,
             content_type=asset.content_type or "application/octet-stream",

@@ -12,10 +12,13 @@ the worker on a fresh creator-routed session.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from pathlib import Path
+from typing import Any, AsyncIterator
 
 from sqlalchemy import func, text
 from sqlmodel import select
@@ -327,11 +330,67 @@ def stage_payload(guild_id: int, payload: bytes, *, suffix: str) -> str:
     return key
 
 
+def stage_payload_file(guild_id: int, path: Path, *, suffix: str) -> str:
+    """:func:`stage_payload` for a payload already on disk, which is copied
+    to storage without being read into memory. Blocking; run it in a
+    thread."""
+    from app.services.storage import get_guild_storage
+
+    key = f"imports/{uuid.uuid4().hex}.{suffix}"
+    content_type = "application/json" if suffix == "json" else "application/zip"
+    get_guild_storage(guild_id).write_file(key, path, content_type=content_type)
+    return key
+
+
+def _spool_payload(guild_id: int, payload_ref: str) -> tuple[Path, bool] | None:
+    """Where a staged payload can be read as a file, and whether that file is
+    a temporary copy the caller removes."""
+    import tempfile
+
+    from app.services.storage import get_guild_storage
+
+    blob = get_guild_storage(guild_id).open_readable(payload_ref)
+    if blob is None:
+        return None
+    if blob.path is not None:
+        return Path(blob.path), False
+    if blob.stream is None:
+        return None
+    handle = tempfile.NamedTemporaryFile(prefix="import-payload-", delete=False)
+    try:
+        with handle:
+            for chunk in blob.stream:
+                handle.write(chunk)
+    except BaseException:
+        Path(handle.name).unlink(missing_ok=True)
+        raise
+    return Path(handle.name), True
+
+
+@asynccontextmanager
+async def open_payload(guild_id: int, payload_ref: str) -> AsyncIterator[Path | None]:
+    """A staged payload as a local file for the length of the block, or
+    ``None`` when the blob is gone.
+
+    Local storage hands back the stored file itself; an object store's is
+    copied to a temporary file first, a chunk at a time, and removed after.
+    Either way the payload is never held in memory whole.
+    """
+    spooled = await asyncio.to_thread(_spool_payload, guild_id, payload_ref)
+    if spooled is None:
+        yield None
+        return
+    path, temporary = spooled
+    try:
+        yield path
+    finally:
+        if temporary:
+            path.unlink(missing_ok=True)
+
+
 def read_payload(guild_id: int, payload_ref: str) -> bytes | None:
     """Read a staged payload back from the guild's storage backend (local FS
     path or S3 stream transparently). None when the blob is gone."""
-    from pathlib import Path
-
     from app.services.storage import get_guild_storage
 
     blob = get_guild_storage(guild_id).open_readable(payload_ref)

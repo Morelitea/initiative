@@ -752,7 +752,7 @@ def _media_doc(filename, text="See"):
 def _stored(filename, key):
     from app.services.import_engine.jira_attachments import StoredImage
 
-    return StoredImage(filename, key, "image/png", b"")
+    return StoredImage(filename, key, "image/png", 0)
 
 
 def test_an_embedded_image_renders_from_its_upload_where_it_sat():

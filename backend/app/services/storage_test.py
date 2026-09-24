@@ -125,6 +125,12 @@ class FakeS3Client:
         self.objects[(Bucket, Key)] = {"Body": Body, "extra": extra}
         return {}
 
+    def upload_file(self, Filename, Bucket, Key, ExtraArgs=None):
+        with open(Filename, "rb") as handle:
+            self.put_object(
+                Bucket=Bucket, Key=Key, Body=handle.read(), **(ExtraArgs or {})
+            )
+
     def head_object(self, *, Bucket, Key):
         if (Bucket, Key) not in self.objects:
             raise self._missing("HeadObject")
