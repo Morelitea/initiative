@@ -390,8 +390,6 @@ Leaving = Mapping[type, Iterable[int]]
 async def _still_shown(session, filename: str, *, leaving: Leaving) -> bool:
     """Whether any task description or comment — archived or in the trash
     included — other than those ``leaving`` shows this stored file."""
-    from sqlalchemy import text
-
     from app.db.soft_delete_filter import select_including_deleted
 
     # LIKE wildcards in the name are escaped: a filename carries ``_``. The
@@ -399,11 +397,8 @@ async def _still_shown(session, filename: str, *, leaving: Leaving) -> bool:
     # written with or without an origin is found either way.
     safe = filename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     for model, column in _pasted_bodies():
-        table = model.__tablename__
         stmt = select_including_deleted(model.id).where(  # type: ignore[attr-defined]
-            text(f"{table}.{column} LIKE :pattern ESCAPE '\\'").bindparams(
-                pattern=f"%{safe}%"
-            )
+            getattr(model, column).like(f"%{safe}%", escape="\\")
         )
         ids = set(leaving.get(model, ()))
         if ids:
