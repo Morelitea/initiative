@@ -373,6 +373,13 @@ _FROM_CONTENT = f"'{Provenance.content.value}'"
 #: :mod:`app.db.authorization`.
 _GUILD_ADMIN = f"({_P.system} OR {_P.admin})"
 
+#: An installed app acting in this community on a token that is not narrowed
+#: to one initiative.
+_UNNARROWED_INSTALL = (
+    f"({_P.install_id} IS NOT NULL AND {_P.scope} IS NULL"
+    f" AND {_P.this_guild} AND {_P.auth_ok})"
+)
+
 #: A live PAM window, either level. Used where a leg is about what a guild has
 #: switched on rather than about what one person may reach.
 _PAM_ANY = _P.pam_any
@@ -1079,12 +1086,15 @@ def webhook_subscription_path() -> InitiativePath:
     ``initiative_access`` answer is wrong: a NULL means "the initiative gate has
     nothing to decide", which admits any member. A guild-wide subscription
     reports across every initiative, so reaching it is guild-admin authority —
-    the one role that already spans them.
+    the one role that already spans them — or an installed app's whose token is
+    not narrowed to one initiative. An app sees and changes only the
+    subscriptions it registered (the ``app_scope_*`` policies), and what one
+    delivers is capped by where the app is placed and the scopes it holds.
     """
     return InitiativePath(
         predicate=lambda t, w: (
             f"(CASE WHEN {t}.initiative_id IS NULL "
-            f"THEN {_GUILD_ADMIN} "
+            f"THEN ({_GUILD_ADMIN} OR {_UNNARROWED_INSTALL}) "
             f"ELSE {_access(f'{t}.initiative_id', w)} END)"
         ),
         initiative_expr=lambda r: f"{r}.initiative_id",

@@ -593,3 +593,62 @@ async def test_the_chain_carries_identifiers_and_nothing_else(session, acting_us
             assert set(parent) == {"type", "id"}, parent
             assert isinstance(parent["type"], str)
             assert isinstance(parent["id"], int)
+
+
+async def test_an_install_write_names_the_install(session, acting_user, role_session):
+    """A change an installed app's request wrote names the install, and no
+    person: the app acts as its community. A person's write names the person
+    and no install."""
+    from app.db.install_standing_test import _install, _route
+    from app.models.tenant.document import Document, DocumentType
+
+    install = await _install(
+        session, acting_user, role_session, granted=["documents:write"]
+    )
+
+    s, _ = await _route(role_session, install, ["documents:write"])
+    made = Document(
+        initiative_id=install.a.id,
+        name="Made by the app",
+        document_type=DocumentType.native,
+    )
+    s.add(made)
+    await s.commit()
+    made_id = made.id
+
+    person = await _create_document_as(session, install)
+
+    rows = await _outbox(session, install.guild.id)
+    by_app = [
+        r for r in rows if r.resource_type == "documents" and r.resource_id == made_id
+    ]
+    assert by_app, "an install's write produced no outbox row"
+    # The document, and the owner grant the database wrote for the install
+    # beside it: both are the app's writes.
+    assert {(r.actor_install_id, r.actor_user_id) for r in by_app} == {
+        (install.app.id, None)
+    }
+
+    by_person = [
+        r for r in rows if r.resource_type == "documents" and r.resource_id == person
+    ]
+    assert by_person
+    assert {(r.actor_install_id, r.actor_user_id) for r in by_person} == {
+        (None, install.seat.user.id)
+    }
+
+
+async def _create_document_as(session, install) -> int:
+    """A document the install's seat creates through the request path."""
+    from app.models.tenant.document import Document, DocumentType
+
+    await route_as(session, user_id=install.seat.user.id, guild_id=install.guild.id)
+    made = Document(
+        initiative_id=install.a.id,
+        name="Made by a person",
+        document_type=DocumentType.native,
+    )
+    session.add(made)
+    await session.commit()
+    assert made.id is not None
+    return made.id

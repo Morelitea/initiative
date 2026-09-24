@@ -18,6 +18,8 @@ from functools import lru_cache
 
 from sqlmodel import SQLModel
 
+from app.core.app_scopes import AppScopeResource
+from app.db.app_rls import APP_TABLE_ACCESS, AppTableKind
 from app.db.event_capture import (
     HOUSEKEEPING_COLUMNS,
     HOUSEKEEPING_SUFFIXES,
@@ -93,3 +95,34 @@ def unknown_fields(candidates: list[str], event_types_named: list[str]) -> list[
         resource, _, _action = event_type.rpartition(".")
         allowed |= fields_for(resource)
     return sorted({name for name in candidates if name not in allowed})
+
+
+@lru_cache(maxsize=1)
+def _read_scopes() -> dict[str, AppScopeResource | None]:
+    """Resource -> the scope resource an app must read to hear its events.
+
+    A resource's events describe the rows of the table it is named after, so
+    they answer to that table's scope in ``APP_TABLE_ACCESS``: ``tasks`` to
+    ``projects``, ``calendar_events`` to ``calendars``. A resource whose table
+    no scope names maps to ``None``, and no app hears it.
+    """
+    tables: dict[str, str] = {}
+    for spec in build_specs():
+        if spec.facet is None:
+            tables.setdefault(spec.static_resource_type, spec.table)
+    scopes: dict[str, AppScopeResource | None] = {}
+    for resource in _vocabulary():
+        access = APP_TABLE_ACCESS.get(tables.get(resource, resource))
+        scopes[resource] = (
+            access.resource
+            if access is not None and access.kind is AppTableKind.scoped
+            else None
+        )
+    return scopes
+
+
+def read_scope_for(event_type: str) -> AppScopeResource | None:
+    """The scope resource whose read an app holds to hear ``event_type``, or
+    ``None`` when no scope reaches it (or it is not an event type at all)."""
+    resource, _, _action = event_type.rpartition(".")
+    return _read_scopes().get(resource)
