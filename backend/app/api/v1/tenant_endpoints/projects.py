@@ -74,6 +74,7 @@ from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_completion
+from app.services.tenant import task_description as task_description_service
 from app.core.messages import InitiativeMessages, ProjectMessages
 from app.core.config import settings as app_settings
 from app.db.query import (
@@ -413,6 +414,10 @@ async def _duplicate_template_tasks(
             source_id=template_task.id,
             target_id=new_task.id,
         )
+        if new_task.description:
+            await task_description_service.record_references(
+                session, new_task, author_id=None
+            )
     await _copy_task_relationships(session, task_mapping)
 
 

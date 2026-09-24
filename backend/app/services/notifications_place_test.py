@@ -100,6 +100,31 @@ async def test_a_document_mention_names_the_documents_tool(session: AsyncSession
 
 
 @pytest.mark.integration
+async def test_a_task_description_mention_names_the_projects_tool(
+    session: AsyncSession,
+):
+    """A task lives in the Projects list, so that is the row it lights."""
+    reader = await create_user(session, email="place-taskdesc@example.com")
+    guild = await create_guild(session, creator=reader)
+    writer = await create_user(session, email="place-taskdesc-writer@example.com")
+
+    await notifications_service.notify_task_description_mention(
+        session,
+        mentioned_user=reader,
+        mentioned_by=writer,
+        task_id=5,
+        task_title="Ship it",
+        guild_id=guild.id,
+        initiative_id=11,
+    )
+    await session.commit()
+
+    line = await _only(session, reader.id)
+    assert line.initiative_id == 11
+    assert line.tool == Tool.project.value
+
+
+@pytest.mark.integration
 async def test_a_notification_with_no_initiative_still_names_its_community(
     session: AsyncSession,
 ):

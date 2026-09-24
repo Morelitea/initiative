@@ -70,6 +70,16 @@ export const entityMentionSyntax = (type: SearchEntityType, label: string, id: n
 export const userMentionSyntax = (label: string, id: number): string =>
   `${USER_TRIGGER}[${label}](${id})`;
 
+/**
+ * Text with its mentions read as words — `@[Ada](4)` as `@Ada`, `#task[Ship
+ * it](12)` as `Ship it` — for a place that shows prose as a line of plain
+ * text rather than rendering it.
+ */
+export const mentionsAsText = (text: string): string =>
+  text
+    .replace(/(^|[\s([{])@\[([^\]]*)\]\(\d+\)/g, "$1@$2")
+    .replace(/(^|[\s([{])#[\w-]+\[([^\]]*)\]\(\d+\)/g, "$1$2");
+
 /** Opens the picker over the tools, and can make one that is not there. */
 export const LINK_TRIGGER_OPEN = "[[";
 

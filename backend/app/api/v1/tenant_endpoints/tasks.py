@@ -85,6 +85,7 @@ from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_creation as task_creation_service
 from app.services.tenant.task_completion import sync_completed_at
 from app.services.tenant import task_checklist as checklist_service
+from app.services.tenant import task_description as task_description_service
 from app.services import ai_generation as ai_generation_service
 from app.services import audit as audit_service
 from app.services.ai_settings import resolve_ai_settings
@@ -751,6 +752,10 @@ async def _advance_recurrence_if_needed(
         source_id=task.id,
         target_id=new_task.id,
     )
+    if new_task.description:
+        await task_description_service.record_references(
+            session, new_task, author_id=task.created_by
+        )
     await session.flush()
     # Reload through a select rather than ``session.refresh``: refresh takes no
     # loader options, so the assignees would come back unloaded and the
@@ -1903,6 +1908,16 @@ async def create_task(
         await session.rollback()
         raise
 
+    if task.description:
+        await task_description_service.description_saved(
+            session,
+            task,
+            previous=None,
+            author=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=project.initiative_id,
+        )
+
     await _touch_project(session, task_in.project_id)
     await session.commit()
     task = await _fetch_task(session, task.id, guild_context.guild_id)
@@ -1965,6 +1980,7 @@ async def update_task(
     tag_ids = update_data.pop("tag_ids", None)
     property_values = update_data.pop("property_values", None)
     checklist_sent = update_data.pop("checklist", None) is not None
+    previous_description = task.description
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
 
@@ -2076,6 +2092,16 @@ async def update_task(
     # populate_existing fetch that builds the response).
     if property_values is not None:
         session.expire(task, ["property_values"])
+
+    if task.description != previous_description:
+        await task_description_service.description_saved(
+            session,
+            task,
+            previous=previous_description,
+            author=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=project.initiative_id,
+        )
 
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
@@ -2273,6 +2299,11 @@ async def duplicate_task(
                 )
                 for row in source_values
             ]
+        )
+
+    if new_task.description:
+        await task_description_service.record_references(
+            session, new_task, author_id=current_user.id
         )
 
     await _touch_project(session, original_task.project_id)

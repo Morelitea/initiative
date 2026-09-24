@@ -43,17 +43,20 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.post import Post
 from app.models.tenant.relationship import EntityRelationship
+from app.models.tenant.task import Task
 from app.models.tenant.wiki import WikiPage
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant.relationships import Endpoint
 
-#: Kinds that carry a body of their own, and the column holding it. Everything
-#: here is a Lexical editor state; a kind absent from this map contributes
-#: nothing but its comments, which is the honest answer for a task whose
-#: description is plain text.
+#: Kinds that carry a body of their own, and the column holding it. A body is
+#: a Lexical editor state or markdown text — a task's description is written in
+#: the same composer as a comment, with the same ``#`` syntax — and
+#: :func:`references_in` reads either. A kind absent from this map contributes
+#: nothing but its comments.
 BODY_COLUMNS: dict[SearchEntityType, tuple[type, str]] = {
     SearchEntityType.document: (Document, "content"),
     SearchEntityType.post: (Post, "body"),
+    SearchEntityType.task: (Task, "description"),
     SearchEntityType.wiki_page: (WikiPage, "content"),
 }
 
@@ -85,7 +88,7 @@ async def sync_for_entity(
     content itself. It returns None when nothing needed repairing, so a caller
     can write back ``fixed or original``.
     """
-    wanted = references_in_body(body)
+    wanted = references_in(body)
     for text in await _comment_bodies(session, entity):
         wanted |= references_in_text(text)
     # Nothing in this vocabulary means anything from a thing to itself, and a
@@ -104,6 +107,13 @@ async def sync_for_entity(
     if not unresolve_missing_wikilinks(repaired, live_documents):
         return None
     return repaired
+
+
+def references_in(body: Any) -> set[tuple[SearchEntityType, int]]:
+    """Every thing a body points at, whichever of the two shapes it is in."""
+    if isinstance(body, str):
+        return references_in_text(body)
+    return references_in_body(body)
 
 
 async def sync_for_comment(

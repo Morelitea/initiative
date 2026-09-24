@@ -261,6 +261,7 @@
     "userPendingApproval": "{{email}} is awaiting approval.",
     "mentionComment": "{{mentionedBy}} mentioned you in a comment on {{contextTitle}}.",
     "mentionDocument": "{{mentionedBy}} mentioned you in {{documentTitle}}.",
+    "mentionTaskDescription": "{{mentionedBy}} mentioned you in {{taskTitle}}.",
     "commentOnTask": "{{commenterName}} commented on {{taskTitle}}.",
     "commentOnResource": "{{commenterName}} commented on {{entityName}}.",
     "postPublished": "{{authorName}} posted {{postName}}.",

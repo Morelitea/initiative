@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **More in the editor** — callouts, status pills, merged table cells, drawings and Mermaid diagrams, all from the `/` menu.
 - **Your sessions, in one place** — **My Settings → Security** lists every browser and phone signed in to your account. You can sign any one of them out, or all of them except the one you're on.
 - **Control what notifications carry** — platform and community **Security** settings choose whether notifications may go to phones and email, and whether they may name what they're about. Where the two disagree, the stricter one wins.
+- **Mentions in task descriptions** — type `@` to name a member of the initiative or `#` to link anything in it, the same way comments do. The people it names are notified once, when they are first added, and the things it links show under **Linked from**.
 - **Smaller additions** — a 12- or 24-hour clock under **My Settings → Interface**, a **Fields** menu that picks what kanban cards show, a file upload in **Add link**, a colour for each priority, and MCP assistants can now tick checklist items.
 - **For operators** — `/api/v1/metrics` serves Prometheus metrics when `METRICS_TOKEN` is set. Communities can be put **On hold**. **Settings → Intake** takes contact addresses, which notices use when they tell people who to contact. Sign-in placement rules on an identity provider add people to communities by group.
 
@@ -44,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On servers that keep files in S3, backup restores and large imports finish instead of failing when they are applied.
 - A restored backup, or a single exported project, document, post or wiki, now links its mentions, `#` references, `[[ ]]` links and smart chips to the right people and things. A reference to something the backup didn't carry keeps pointing at the original in the community it came from, and is its name anywhere else.
 - `#` references to wiki pages, counter groups and other two-word tools in comments now count in **Linked from**.
+- Deleting or anonymizing an account no longer fails when it was mentioned in archived work or in a comment in the trash.
+- Making a missing tool from `[[` in a comment now puts the link where you typed it, and works in replies too.
 - Other fixes: task table columns no longer jump while scrolling, tags shorten to fit the space they have, export formats show their names, broken and missing pages get a proper error page, restored backups keep comment replies in their threads, imports ask about everyone they mention, and access-request notifications open the right page.
 
 ## [0.71.3] - 2026-09-21

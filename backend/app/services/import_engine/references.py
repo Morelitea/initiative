@@ -284,11 +284,8 @@ def _settle(content: Any, resolve: Callable[[str], int | None]) -> Any:
 def _body_column(kind: SearchEntityType) -> tuple[type, str] | None:
     """The model and column a noted row keeps its body in."""
     from app.models.tenant.comment import Comment
-    from app.models.tenant.task import Task
     from app.services.tenant.content_references import BODY_COLUMNS
 
-    if kind == SearchEntityType.task:
-        return Task, "description"
     if kind == SearchEntityType.comment:
         return Comment, "content"
     return BODY_COLUMNS.get(kind)
