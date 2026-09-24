@@ -169,6 +169,31 @@ class PublishTarget(SanitizedBaseModel):
 PublishRequest.model_rebuild()
 
 
+class DashboardWidgetData(SanitizedBaseModel):
+    """One widget's answer when its canvas is loaded: its rows, or the code it
+    was refused with. Exactly one of the two is set."""
+
+    result: Optional["QueryResponse"] = None
+    error: Optional[str] = None
+
+
+class DashboardDataResponse(SanitizedBaseModel):
+    """Every query widget on a canvas, answered together, keyed by widget id.
+
+    Widgets bound to anything other than a statement are not here: they fetch
+    their own data."""
+
+    #: The initiative the canvas reads, so a client knows which changes make
+    #: these answers stale.
+    initiative_id: int
+    widgets: Dict[str, DashboardWidgetData]
+
+
+from app.schemas.sql_query import QueryResponse  # noqa: E402
+
+DashboardWidgetData.model_rebuild()
+
+
 # --- widget catalog --------------------------------------------------------
 #
 # What the editor's palette needs to know about each widget: how small it may

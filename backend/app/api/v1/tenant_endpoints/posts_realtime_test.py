@@ -115,7 +115,10 @@ async def test_posting_a_notice_tells_the_room(
         # A notice sits directly in its initiative, so it names no parents.
         assert all(c["parents"] == [] for c in changes)
         # Identifiers and an action. The notice itself is not on the bus.
-        assert all(set(c) == {"resource", "parents", "action"} for c in changes)
+        assert all(
+            set(c) == {"resource", "parents", "initiative_id", "action"}
+            for c in changes
+        )
 
 
 @pytest.mark.asyncio

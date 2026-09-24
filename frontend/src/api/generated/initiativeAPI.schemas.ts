@@ -2694,6 +2694,38 @@ export interface DashboardCreate {
   grants?: ResourceGrantSchema[];
 }
 
+/**
+ * What the statement returned.
+ */
+export interface QueryResponse {
+  columns: QueryColumnDescription[];
+  rows: unknown[][];
+  truncated: boolean;
+  relations: string[];
+}
+
+/**
+ * One widget's answer when its canvas is loaded: its rows, or the code it
+ * was refused with. Exactly one of the two is set.
+ */
+export interface DashboardWidgetData {
+  result?: QueryResponse | null;
+  error?: string | null;
+}
+
+export type DashboardDataResponseWidgets = { [key: string]: DashboardWidgetData };
+
+/**
+ * Every query widget on a canvas, answered together, keyed by widget id.
+ *
+ * Widgets bound to anything other than a statement are not here: they fetch
+ * their own data.
+ */
+export interface DashboardDataResponse {
+  initiative_id: number;
+  widgets: DashboardDataResponseWidgets;
+}
+
 export type DashboardInstalledListingsCounts = { [key: string]: number };
 
 /**
@@ -7328,16 +7360,6 @@ export interface QueryRequest {
    */
   sql: string;
   initiative_id?: number | null;
-}
-
-/**
- * What the statement returned.
- */
-export interface QueryResponse {
-  columns: QueryColumnDescription[];
-  rows: unknown[][];
-  truncated: boolean;
-  relations: string[];
 }
 
 /**

@@ -49,6 +49,8 @@ from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.dashboard import (
+    DashboardDataResponse,
+    DashboardWidgetData,
     PublishedOver,
     PublishRequest,
     DashboardInstalledListings,
@@ -573,6 +575,123 @@ def _stored_binding(
     return None
 
 
+def _stored_sql(
+    definition: dict[str, Any] | None,
+    config: dict[str, Any] | None,
+    widget_id: str,
+) -> Optional[str]:
+    """The statement one widget runs, or ``None`` when it runs none."""
+    binding = _stored_binding(definition, config, widget_id)
+    if not isinstance(binding, dict) or binding.get("source") != "query":
+        return None
+    sql = binding.get("sql")
+    if not isinstance(sql, str) or not sql.strip():
+        return None
+    return sql
+
+
+def _widget_ids(definition: dict[str, Any] | None) -> list[str]:
+    """Every widget placed on a canvas, in the order the definition lists them."""
+    widgets = (definition or {}).get("widgets")
+    if not isinstance(widgets, list):
+        return []
+    return [
+        str(widget["id"])
+        for widget in widgets
+        if isinstance(widget, dict) and widget.get("id") is not None
+    ]
+
+
+def _query_response(result: query_service.QueryResult) -> QueryResponse:
+    return QueryResponse(
+        columns=[
+            QueryColumnDescription(name=column.name, type=column.type)
+            for column in result.columns
+        ],
+        rows=[list(row) for row in result.rows],
+        truncated=result.truncated,
+        relations=list(result.relations),
+    )
+
+
+async def _published_through(
+    session: Any, dashboard: Dashboard, guild_id: int
+) -> Optional[int]:
+    """The dashboard this canvas's statements may read through, if any.
+
+    Asked only after the dashboard's own gates have admitted the reader: a
+    grant made to this dashboard answers while this is set and at no other
+    time."""
+    through = await published_views.serves_through(session, dashboard.id, guild_id)
+    if through is not None and published_views.names_the_reader(
+        dashboard.definition, dashboard.config
+    ):
+        # A statement about the reader is not one set of numbers, so a canvas
+        # holding one does not publish — none of it, not just that widget.
+        #
+        # Canvas-wide because the notice is: a reader is told once that these
+        # figures are shared, and per-widget publishing would leave ordinary
+        # tiles serving published rows with nothing saying so. One predicate
+        # decides both, so what the dashboard says and what it does cannot come
+        # apart. Saving such a statement on a publishing dashboard is refused
+        # where it is written; this is the same rule where it is run, so it
+        # holds however the statement arrived.
+        return None
+    return through
+
+
+@router.get("/{dashboard_id}/data", response_model=DashboardDataResponse)
+async def load_dashboard_data(
+    dashboard_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DashboardDataResponse:
+    """Answer every query widget on this dashboard at once.
+
+    The canvas is one unit of work: its gates are asked once, its widgets'
+    statements run as one statement in one transaction, and every tile reads
+    the same moment. A widget whose statement is refused says so in its own
+    entry; the rest still answer. What runs is each widget's own stored
+    statement, as for :func:`run_widget_query`.
+    """
+    dashboard = await resource_access.load_authorized(
+        session, Tool.dashboard, dashboard_id, current_user, guild_context
+    )
+    through = await _published_through(session, dashboard, guild_context.guild_id)
+
+    widgets: dict[str, DashboardWidgetData] = {}
+    statements: dict[str, query_service.ResolvedQuery] = {}
+    for widget_id in _widget_ids(dashboard.definition):
+        sql = _stored_sql(dashboard.definition, dashboard.config, widget_id)
+        if sql is None:
+            continue
+        try:
+            statements[widget_id] = query_service.resolve(sql)
+        except query_service.QueryError as refused:
+            widgets[widget_id] = DashboardWidgetData(error=refused.code)
+
+    try:
+        outcomes = await query_service.execute_canvas(
+            statements,
+            context=rls_context_params(session),
+            initiative_id=dashboard.initiative_id,
+            via_dashboard_id=through,
+        )
+    except query_service.QueryError as refused:
+        raise HTTPException(
+            status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
+            detail=refused.code,
+        ) from refused
+    for widget_id, outcome in outcomes.items():
+        widgets[widget_id] = (
+            DashboardWidgetData(error=outcome.code)
+            if isinstance(outcome, query_service.QueryError)
+            else DashboardWidgetData(result=_query_response(outcome))
+        )
+    return DashboardDataResponse(initiative_id=dashboard.initiative_id, widgets=widgets)
+
+
 @router.get("/{dashboard_id}/widgets/{widget_id}/query", response_model=QueryResponse)
 async def run_widget_query(
     dashboard_id: int,
@@ -589,42 +708,19 @@ async def run_widget_query(
     a different one of them.
 
     The dashboard's own four gates decide whether this caller sees anything at
-    all, and they run first.
+    all, and they run first. The canvas loads through
+    :func:`load_dashboard_data`; this answers one widget, for the builder.
     """
     dashboard = await resource_access.load_authorized(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
     )
-    binding = _stored_binding(dashboard.definition, dashboard.config, widget_id)
-    if not isinstance(binding, dict) or binding.get("source") != "query":
+    sql = _stored_sql(dashboard.definition, dashboard.config, widget_id)
+    if sql is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=DashboardMessages.WIDGET_HAS_NO_QUERY,
         )
-    sql = binding.get("sql")
-    if not isinstance(sql, str) or not sql.strip():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=DashboardMessages.WIDGET_HAS_NO_QUERY,
-        )
-    # Only here, and only after the gates above: a grant made to this dashboard
-    # answers while this is set and at no other time.
-    through = await published_views.serves_through(
-        session, dashboard_id, guild_context.guild_id
-    )
-    if through is not None and published_views.names_the_reader(
-        dashboard.definition, dashboard.config
-    ):
-        # A statement about the reader is not one set of numbers, so a canvas
-        # holding one does not publish — none of it, not just that widget.
-        #
-        # Canvas-wide because the notice is: a reader is told once that these
-        # figures are shared, and per-widget publishing would leave ordinary
-        # tiles serving published rows with nothing saying so. One predicate
-        # decides both, so what the dashboard says and what it does cannot come
-        # apart. Saving such a statement on a publishing dashboard is refused
-        # where it is written; this is the same rule where it is run, so it
-        # holds however the statement arrived.
-        through = None
+    through = await _published_through(session, dashboard, guild_context.guild_id)
     try:
         result = await query_service.run(
             sql,
@@ -637,15 +733,7 @@ async def run_widget_query(
             status_code=_QUERY_STATUS.get(refused.code, status.HTTP_400_BAD_REQUEST),
             detail=refused.code,
         ) from refused
-    return QueryResponse(
-        columns=[
-            QueryColumnDescription(name=column.name, type=column.type)
-            for column in result.columns
-        ],
-        rows=[list(row) for row in result.rows],
-        truncated=result.truncated,
-        relations=list(result.relations),
-    )
+    return _query_response(result)
 
 
 # ---------------------------------------------------------------------------

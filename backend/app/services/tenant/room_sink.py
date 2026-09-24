@@ -140,10 +140,12 @@ def _guild_id(schema: str) -> int | None:
 
 
 def _change(row: EventOutbox) -> dict[str, Any]:
-    """One log row as the client reads it: what moved, and what it sits in."""
+    """One log row as the client reads it: what moved, what it sits in, and
+    the initiative it belongs to (``None`` for the guild's own)."""
     return {
         "resource": {"type": row.resource_type, "id": row.resource_id},
         "parents": list(row.parents),
+        "initiative_id": row.initiative_id,
         "action": row.action,
     }
 

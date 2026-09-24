@@ -15,6 +15,7 @@ import { setAuthToken } from "@/api/client";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationGuild } from "@/api/query-keys";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
+import { dashboardDataKey } from "@/hooks/useSqlQuery";
 import { queryClient } from "@/lib/queryClient";
 import { TOOLS, toolIdParam, toolPlural, toolRouteSegment } from "@/lib/tools";
 
@@ -330,5 +331,57 @@ describe("realtime socket lifecycle", () => {
 
     expect(project()).toBe(false);
     expect(socket.closed).toBe(false);
+  });
+});
+
+describe("realtime frames and dashboards", () => {
+  const INITIATIVE = 3;
+  const DASHBOARD = 9;
+  const canvas = (relations: string[]) => ({
+    initiative_id: INITIATIVE,
+    widgets: {
+      w1: {
+        result: { columns: [], rows: [], truncated: false, relations },
+        error: null,
+      },
+    },
+  });
+  const seedCanvas = (guildId: number, relations: string[]) => {
+    const key = dashboardDataKey(guildId, DASHBOARD);
+    queryClient.setQueryData(key, canvas(relations));
+    return () => queryClient.getQueryState(key)?.isInvalidated ?? false;
+  };
+  const task = (initiative: number | null) => ({
+    resource: { type: "tasks", id: 1 },
+    parents: [{ type: "projects", id: 2 }],
+    initiative_id: initiative,
+    action: "updated",
+  });
+
+  beforeEach(() => queryClient.clear());
+  afterEach(() => queryClient.clear());
+
+  it("refreshes a dashboard when something it reads changes in its initiative", () => {
+    const stale = seedCanvas(GUILD, ["tasks"]);
+    applyChanges([task(INITIATIVE)], GUILD);
+    expect(stale()).toBe(true);
+  });
+
+  it("leaves it alone when the change is to something it does not read", () => {
+    const stale = seedCanvas(GUILD, ["projects"]);
+    applyChanges([task(INITIATIVE)], GUILD);
+    expect(stale()).toBe(false);
+  });
+
+  it("leaves it alone when the change is in another initiative", () => {
+    const stale = seedCanvas(GUILD, ["tasks"]);
+    applyChanges([task(INITIATIVE + 1)], GUILD);
+    expect(stale()).toBe(false);
+  });
+
+  it("leaves another guild's dashboard alone, whose initiative ids are its own", () => {
+    const stale = seedCanvas(GUILD + 1, ["tasks"]);
+    applyChanges([task(INITIATIVE)], GUILD);
+    expect(stale()).toBe(false);
   });
 });
