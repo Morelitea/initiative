@@ -10,6 +10,11 @@ between tasks, named by ``external_ref`` so the far end resolves after both
 ends have been restored. Both are optional fields, so an older reader that
 does not know them ignores them and the version does not move.
 
+A mention in a description or a comment names its person the same way: the
+``@[Name](id)`` the app stores is written as ``@<handle>`` and the handle is
+listed in ``mention_handles``, so the restore links it to whoever that handle
+is there (``import_engine.mentions``).
+
 Out of scope (see plan): documents, attachments, project-role permissions,
 favorites, recents, queues. Those would extend the schema under a future
 ``schema_version`` bump.
@@ -45,6 +50,11 @@ from app.schemas.tenant.project_export import (
     ProjectExportTask,
     ProjectExportTaskLink,
     ProjectExportTaskStatus,
+)
+from app.services.import_engine.mentions import (
+    detach_markdown_mentions,
+    load_mention_handles,
+    markdown_mention_ids,
 )
 from app.services.tenant import tags as tags_service
 
@@ -82,6 +92,25 @@ async def build_project_export(
     task_ids = [task.id for task in (project.tasks or []) if task.id is not None]
     comments_by_task = await _load_comments(session, task_ids)
     links_by_task = await _load_links(session, task_ids)
+    # Everybody a description or a comment mentions, read once for the whole
+    # project rather than once per body.
+    mention_handles = await load_mention_handles(
+        session,
+        set().union(
+            *(markdown_mention_ids(task.description) for task in project.tasks or []),
+            *(
+                markdown_mention_ids(comment.body)
+                for comments in comments_by_task.values()
+                for comment in comments
+            ),
+        ),
+    )
+    for comments in comments_by_task.values():
+        for comment in comments:
+            body, comment.mention_handles = detach_markdown_mentions(
+                comment.body, mention_handles
+            )
+            comment.body = body or ""
 
     # Project-level tag set
     project_tags: list[ProjectExportTag] = []
@@ -148,10 +177,13 @@ async def build_project_export(
             else _fallback_status_name(statuses_sorted)
         )
 
+        description, described = detach_markdown_mentions(
+            task.description, mention_handles
+        )
         tasks.append(
             ProjectExportTask(
                 title=task.title,
-                description=task.description,
+                description=description,
                 priority=task.priority,
                 start_date=task.start_date,
                 due_date=task.due_date,
@@ -171,6 +203,7 @@ async def build_project_export(
                 external_ref=task_ref(task.id),
                 links=links_by_task.get(task.id, []),
                 comments=comments_by_task.get(task.id, []),
+                mention_handles=described,
             )
         )
 

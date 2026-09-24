@@ -178,9 +178,18 @@ class ToolExportAdapter:
             now=localize_now(datetime.now(timezone.utc), params.get("tz")),
             prepared=await self.prepare(session, entities),
         )
+        batch = tuple(self.item(entity, ctx) for entity in entities)
+        if format == "json":
+            # An envelope names people by handle, never by id — including the
+            # people its body mentions, which the item builders cannot look
+            # up because they hold no session.
+            from app.services.import_engine.mentions import detach_envelope_mentions
+
+            for item in batch:
+                await detach_envelope_mentions(session, item.data)
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=tuple(self.item(entity, ctx) for entity in entities),
+            batch=batch,
         )

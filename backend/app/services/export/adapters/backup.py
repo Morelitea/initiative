@@ -559,7 +559,7 @@ class _ScopeBuilder:
             path_stem = f"{folder}/projects/{_slug(project_id, envelope.project.name)}"
             if fmt == "json":
                 path = f"{path_stem}.initiative-project.json"
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=path,
                     tool="project",
@@ -632,7 +632,7 @@ class _ScopeBuilder:
             if fmt == "json":
                 path = f"{path_stem}.json"
                 await self._collect_embedded_assets(document, doc_type, path)
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=path,
                     tool="document",
@@ -696,7 +696,7 @@ class _ScopeBuilder:
             item = build_queue_item(queue, fmt, self.user, self.now, attachments)
             path_stem = f"{folder}/queues/{_slug(queue.id, queue.name)}"
             if fmt == "json":
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=f"{path_stem}.initiative-queue.json",
                     tool="queue",
@@ -729,7 +729,7 @@ class _ScopeBuilder:
             item = build_counter_group_item(group, fmt, self.user, self.now)
             path_stem = f"{folder}/counter-groups/{_slug(group.id, group.name)}"
             if fmt == "json":
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=f"{path_stem}.initiative-counter-group.json",
                     tool="counter_group",
@@ -772,7 +772,7 @@ class _ScopeBuilder:
             )
             item = build_post_item(post, "json", self.now)
             path_stem = f"{folder}/posts/{_slug(post.id, post.name)}"
-            self._append_backup(
+            await self._append_backup(
                 item,
                 path=f"{path_stem}.initiative-post.json",
                 tool="post",
@@ -812,7 +812,7 @@ class _ScopeBuilder:
             )
             item = build_wiki_item(wiki, pages, self.now)
             path_stem = f"{folder}/wikis/{_slug(wiki.id, wiki.name)}"
-            self._append_backup(
+            await self._append_backup(
                 item,
                 path=f"{path_stem}.initiative-wiki.json",
                 tool="wiki",
@@ -860,6 +860,17 @@ class _ScopeBuilder:
             for handle in user_reference_handles(payload):
                 if handle not in self._people:
                     self._people[handle] = (None, 0)
+
+    def _record_mentioned_people(self, payload) -> None:
+        """Note everyone an entry's text mentions — a description, a comment,
+        a document, a page. A restore links a mention through the people
+        step's answer, so the step has to ask about them; counted as quoting
+        nothing, because the number is for comments."""
+        from app.services.import_engine.mentions import mention_handles_in
+
+        for handle in mention_handles_in(payload):
+            if handle not in self._people:
+                self._people[handle] = (None, 0)
 
     def people(self) -> list:
         """The archive's people, most-quoted first — which is the order the
@@ -1028,7 +1039,7 @@ class _ScopeBuilder:
                     size_bytes=int(image.file_size or 0),
                     referenced_by=path,
                 )
-            self._append_backup(
+            await self._append_backup(
                 item,
                 path=path,
                 tool="gallery",
@@ -1065,7 +1076,7 @@ class _ScopeBuilder:
             item = build_calendar_item(calendar, fmt, date, documents_by_event)
             path_stem = f"{folder}/calendars/{_slug(calendar.id, calendar.name)}"
             if fmt == "json":
-                self._append_backup(
+                await self._append_backup(
                     item,
                     path=f"{path_stem}.initiative-calendar.json",
                     tool="calendar",
@@ -1133,7 +1144,7 @@ class _ScopeBuilder:
                 f"{folder}/dashboards/"
                 f"{_slug(dashboard_id, dashboard.name)}.initiative-dashboard.json"
             )
-            self._append_backup(
+            await self._append_backup(
                 item,
                 path=path,
                 tool="dashboard",
@@ -1268,7 +1279,7 @@ class _ScopeBuilder:
             ],
         }
         path = f"{folder}/structure.json"
-        self._append_backup(
+        await self._append_backup(
             RenderItem(key=path, data=payload, filename=path, format="json"),
             path=path,
             tool=_STRUCTURAL_TOOL,
@@ -1319,7 +1330,7 @@ class _ScopeBuilder:
             ],
         }
         path = f"{folder}/properties.json"
-        self._append_backup(
+        await self._append_backup(
             RenderItem(key=path, data=payload, filename=path, format="json"),
             path=path,
             tool=_STRUCTURAL_TOOL,
@@ -1399,8 +1410,14 @@ class _ScopeBuilder:
                 referenced_by=None,
             )
 
-    def _append_backup(self, item: RenderItem, *, path: str, **entry_kwargs) -> None:
+    async def _append_backup(
+        self, item: RenderItem, *, path: str, **entry_kwargs
+    ) -> None:
+        from app.services.import_engine.mentions import detach_envelope_mentions
+
+        await detach_envelope_mentions(self.session, item.data)
         self._record_property_people(item.data, entry_kwargs.get("properties"))
+        self._record_mentioned_people(item.data)
         self.items.append(replace(item, filename=path, format="json"))
         if self.mode == "backup":
             from app.schemas.tenant.backup_export import ManifestEntry
