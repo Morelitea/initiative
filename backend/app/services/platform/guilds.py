@@ -28,6 +28,7 @@ from app.models.platform.guild import (
     GuildMembership,
     GuildRole,
     GuildStatus,
+    restore_status_choices,
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.notification import NotificationType
@@ -35,6 +36,7 @@ from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User, UserStatus
 from app.services import audit as audit_service
 from app.services.auth import addresses
+from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
@@ -1479,9 +1481,9 @@ async def restore_guild(
     """Bring a deleted guild back at ``status``, seating ``seat_user_id``.
 
     Raises :class:`ValueError` carrying a message code: the guild must be
-    ``deleted``, the status it returns at must not be, and a guild whose roster
-    no longer holds a seat must be given one — an account named here is made
-    its ``superadmin``.
+    ``deleted``, the status it returns at must be one of
+    :func:`restore_status_choices`, and a guild whose roster no longer holds a
+    seat must be given one — an account named here is made its ``superadmin``.
 
     The operator names the status rather than the guild remembering it. A
     community suspended for nonpayment and then deleted should not come back
@@ -1493,6 +1495,13 @@ async def restore_guild(
         raise ValueError(GuildMessages.GUILD_NOT_DELETED)
     if status == GuildStatus.deleted:
         raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+    if billing_service.billing_managed():
+        recorded = (await get_administration(session, guild_id=guild_id)).billing_status
+        if status not in restore_status_choices(
+            billing_status=GuildStatus(recorded) if recorded else None,
+            billing_managed=True,
+        ):
+            raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_SET_BY_BILLING)
 
     await lock_guild_seats(session, guild_id)
     seated: int | None = None

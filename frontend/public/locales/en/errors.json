@@ -726,6 +726,7 @@
   "GUILD_STATUS_NOT_SETTABLE": "A community is deleted from its own settings, not from here.",
   "GUILD_PLAN_SET_BY_BILLING": "Billing sets this community's limits and features. Change them in billing.",
   "GUILD_STATUS_SET_BY_BILLING": "Billing sets this community's status. You can suspend it, or lift a suspension back to the status billing last set.",
+  "GUILD_RESTORE_STATUS_SET_BY_BILLING": "Billing sets this community's status. Restore it at the status billing last set, or suspended.",
   "OPERATOR_USER_NOT_DELETED": "That account has not been deleted, so there is nothing to restore.",
   "CONNECTION_NEEDS_NARROWING": "Say which accounts on this provider are yours before turning the connection on.",
   "SUPPORT_INTAKE_NOT_CONFIGURED": "Set up support intake before offering help requests — bind the support stream to a project under Platform settings › Intake."
