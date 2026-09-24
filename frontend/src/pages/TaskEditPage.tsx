@@ -18,10 +18,10 @@ import {
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { getListCommentsApiV1GGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
+import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
 import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
+import { getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
@@ -196,7 +196,7 @@ export const TaskEditPage = () => {
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 
   const commentsQueryParams = { task_id: parsedTaskId };
-  const commentsQueryKey = getListCommentsApiV1GGuildIdCommentsGetQueryKey(
+  const commentsQueryKey = getListCommentsApiV1CGuildIdCommentsGetQueryKey(
     guildId,
     commentsQueryParams
   );
@@ -275,7 +275,7 @@ export const TaskEditPage = () => {
   const moveTask = useMoveTask({
     onSuccess: (updatedTask) => {
       queryClient.setQueryData<TaskRead>(
-        getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
+        getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
         updatedTask
       );
       const previousProjectId = moveContext?.previousProjectId;

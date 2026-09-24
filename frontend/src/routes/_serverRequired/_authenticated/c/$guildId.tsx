@@ -51,7 +51,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
 
     // Adopt this tab's guild from the URL into local state (rail highlight,
     // query keys) before child routes render. Per-tab and local only — the
-    // guild itself travels in each request's /g/{guildId} path.
+    // guild itself travels in each request's /c/{guildId} path.
     await guilds?.syncGuildFromUrl(guildId);
 
     // Provide validated guild info to child routes via route context

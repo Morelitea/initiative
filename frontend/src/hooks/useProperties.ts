@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut } from "@/api/generated/calendar-events/calendar-events";
-import { setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut } from "@/api/generated/documents/documents";
+import { setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut } from "@/api/generated/calendar-events/calendar-events";
+import { setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut } from "@/api/generated/documents/documents";
 import type {
   CalendarEventRead,
   DocumentRead,
@@ -15,13 +15,13 @@ import type {
   TaskRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost,
-  deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete,
-  getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryKey,
-  listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet,
-  updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch,
+  createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost,
+  deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete,
+  getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryKey,
+  listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet,
+  updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch,
 } from "@/api/generated/property-definitions/property-definitions";
-import { setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut } from "@/api/generated/tasks/tasks";
+import { setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -47,12 +47,12 @@ export const useProperties = (options?: { initiativeId?: number; enabled?: boole
   if (initiativeId !== undefined) params.initiative_id = initiativeId;
   const hasParams = Object.keys(params).length > 0;
   return useQuery<PropertyDefinitionRead[]>({
-    queryKey: getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryKey(
+    queryKey: getListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetQueryKey(
       guildId,
       hasParams ? params : undefined
     ),
     queryFn: () =>
-      listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet(
+      listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet(
         guildId,
         hasParams ? params : undefined
       ),
@@ -69,7 +69,7 @@ export const useCreateProperty = (
   useGuildMutation<PropertyDefinitionRead, PropertyDefinitionCreate>(
     {
       mutationFn: (guildId, data) =>
-        createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost(guildId, data),
+        createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost(guildId, data),
       invalidate: () => invalidate(q.allProperties()),
       errorKey: "properties:manager.createError",
     },
@@ -88,7 +88,7 @@ export const useUpdateProperty = (
   >(
     {
       mutationFn: (guildId, { propertyId, data }) =>
-        updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch(
+        updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
           guildId,
           propertyId,
           data
@@ -111,7 +111,7 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, propertyId) =>
-        deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete(
+        deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete(
           guildId,
           propertyId
         ),
@@ -155,7 +155,7 @@ export const useAppendPropertyOption = () => {
         color: vars.color ?? null,
       };
       const nextOptions: PropertyOption[] = [...currentOptions, newOption];
-      await updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch(
+      await updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
         guildId,
         vars.definition.id,
         {
@@ -188,7 +188,7 @@ export const useSetDocumentProperties = (
   useGuildMutation<DocumentRead, { documentId: number; values: PropertyValuesSetRequest }>(
     {
       mutationFn: (guildId, { documentId, values }) =>
-        setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut(
+        setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut(
           guildId,
           documentId,
           values
@@ -205,7 +205,7 @@ export const useSetTaskProperties = (
   useGuildMutation<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>(
     {
       mutationFn: (guildId, { taskId, values }) =>
-        setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut(guildId, taskId, values),
+        setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut(guildId, taskId, values),
       invalidate: (_data, vars) => invalidate(q.allTasks(), q.task(vars.taskId)),
       errorKey: "properties:manager.setValuesError",
     },
@@ -218,7 +218,7 @@ export const useSetEventProperties = (
   useGuildMutation<CalendarEventRead, { eventId: number; values: PropertyValuesSetRequest }>(
     {
       mutationFn: (guildId, { eventId, values }) =>
-        setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut(guildId, eventId, values),
+        setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut(guildId, eventId, values),
       invalidate: (_data, vars) => invalidate(q.allCalendarEvents(), q.calendarEvent(vars.eventId)),
       errorKey: "properties:manager.setValuesError",
     },

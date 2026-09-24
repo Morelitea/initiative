@@ -23,7 +23,7 @@ import type {
 import type {
   HTTPValidationError,
   InitiativeSharingRead,
-  ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams,
+  ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams,
   ModerationReportList,
   ModerationReportRead,
   ReportAccepted,
@@ -60,16 +60,16 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * 404 for any content they are not in.
  * @summary List Reports
  */
-export const listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet = (
+export const listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet = (
   guildId: number,
   initiativeId: number,
-  params?: ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams,
+  params?: ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ModerationReportList>(
     {
-      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/reports`,
+      url: `/api/v1/c/${guildId}/initiatives/${initiativeId}/reports`,
       method: "GET",
       params,
       signal,
@@ -78,28 +78,28 @@ export const listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet = (
   );
 };
 
-export const getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryKey = (
+export const getListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryKey = (
   guildId: number,
   initiativeId: number,
-  params?: ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams
+  params?: ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams
 ) => {
   return [
-    `/api/v1/g/${guildId}/initiatives/${initiativeId}/reports`,
+    `/api/v1/c/${guildId}/initiatives/${initiativeId}/reports`,
     ...(params ? [params] : []),
   ] as const;
 };
 
-export const getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+export const getListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   initiativeId: number,
-  params?: ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams,
+  params?: ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+        Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
         TError,
         TData
       >
@@ -111,16 +111,16 @@ export const getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryOp
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryKey(
+    getListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryKey(
       guildId,
       initiativeId,
       params
     );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>
+    Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>
   > = ({ signal }) =>
-    listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet(
+    listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet(
       guildId,
       initiativeId,
       params,
@@ -138,38 +138,38 @@ export const getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryOp
       initiativeId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+    Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>
+export type ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>
 >;
-export type ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryError =
+export type ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
-  TData = Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+export function useListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet<
+  TData = Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   initiativeId: number,
-  params: undefined | ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams,
+  params: undefined | ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+        Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+          Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
           TError,
-          Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>
+          Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>
         >,
         "initialData"
       >;
@@ -177,26 +177,26 @@ export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
-  TData = Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+export function useListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet<
+  TData = Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   initiativeId: number,
-  params?: ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams,
+  params?: ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+        Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+          Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
           TError,
-          Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>
+          Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>
         >,
         "initialData"
       >;
@@ -204,17 +204,17 @@ export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
-  TData = Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+export function useListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet<
+  TData = Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   initiativeId: number,
-  params?: ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams,
+  params?: ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+        Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
         TError,
         TData
       >
@@ -227,17 +227,17 @@ export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
  * @summary List Reports
  */
 
-export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
-  TData = Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+export function useListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet<
+  TData = Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   initiativeId: number,
-  params?: ListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetParams,
+  params?: ListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet>>,
+        Awaited<ReturnType<typeof listReportsApiV1CGuildIdInitiativesInitiativeIdReportsGet>>,
         TError,
         TData
       >
@@ -246,7 +246,7 @@ export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGetQueryOptions(
+  const queryOptions = getListReportsApiV1CGuildIdInitiativesInitiativeIdReportsGetQueryOptions(
     guildId,
     initiativeId,
     params,
@@ -267,7 +267,7 @@ export function useListReportsApiV1GGuildIdInitiativesInitiativeIdReportsGet<
  * crossing between a community's reports and the operator's, in one direction.
  * @summary Settle Report
  */
-export const settleReportApiV1GGuildIdReportsReportIdSettlePost = (
+export const settleReportApiV1CGuildIdReportsReportIdSettlePost = (
   guildId: number,
   reportId: number,
   reportSettle: BodyType<ReportSettle>,
@@ -276,7 +276,7 @@ export const settleReportApiV1GGuildIdReportsReportIdSettlePost = (
 ) => {
   return apiMutator<ModerationReportRead>(
     {
-      url: `/api/v1/g/${guildId}/reports/${reportId}/settle`,
+      url: `/api/v1/c/${guildId}/reports/${reportId}/settle`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: reportSettle,
@@ -286,27 +286,27 @@ export const settleReportApiV1GGuildIdReportsReportIdSettlePost = (
   );
 };
 
-export const getSettleReportApiV1GGuildIdReportsReportIdSettlePostMutationKey = () =>
-  ["settleReportApiV1GGuildIdReportsReportIdSettlePost"] as const;
+export const getSettleReportApiV1CGuildIdReportsReportIdSettlePostMutationKey = () =>
+  ["settleReportApiV1CGuildIdReportsReportIdSettlePost"] as const;
 
-export const getSettleReportApiV1GGuildIdReportsReportIdSettlePostMutationOptions = <
+export const getSettleReportApiV1CGuildIdReportsReportIdSettlePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof settleReportApiV1GGuildIdReportsReportIdSettlePost>>,
+    Awaited<ReturnType<typeof settleReportApiV1CGuildIdReportsReportIdSettlePost>>,
     TError,
-    SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationVariables,
+    SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof settleReportApiV1GGuildIdReportsReportIdSettlePost>>,
+  Awaited<ReturnType<typeof settleReportApiV1CGuildIdReportsReportIdSettlePost>>,
   TError,
-  SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationVariables,
+  SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getSettleReportApiV1GGuildIdReportsReportIdSettlePostMutationKey();
+  const mutationKey = getSettleReportApiV1CGuildIdReportsReportIdSettlePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -314,12 +314,12 @@ export const getSettleReportApiV1GGuildIdReportsReportIdSettlePostMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof settleReportApiV1GGuildIdReportsReportIdSettlePost>>,
-    SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationVariables
+    Awaited<ReturnType<typeof settleReportApiV1CGuildIdReportsReportIdSettlePost>>,
+    SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationVariables
   > = (props) => {
     const { guildId, reportId, data } = props ?? {};
 
-    return settleReportApiV1GGuildIdReportsReportIdSettlePost(
+    return settleReportApiV1CGuildIdReportsReportIdSettlePost(
       guildId,
       reportId,
       data,
@@ -330,13 +330,13 @@ export const getSettleReportApiV1GGuildIdReportsReportIdSettlePostMutationOption
   return { mutationFn, ...mutationOptions };
 };
 
-export type SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof settleReportApiV1GGuildIdReportsReportIdSettlePost>>
+export type SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof settleReportApiV1CGuildIdReportsReportIdSettlePost>>
 >;
-export type SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationBody = BodyType<ReportSettle>;
-export type SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationError =
+export type SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationBody = BodyType<ReportSettle>;
+export type SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationError =
   ErrorType<HTTPValidationError>;
-export type SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationVariables = {
+export type SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationVariables = {
   guildId: number;
   reportId: number;
   data: BodyType<ReportSettle>;
@@ -345,28 +345,28 @@ export type SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationVariables 
 /**
  * @summary Settle Report
  */
-export const useSettleReportApiV1GGuildIdReportsReportIdSettlePost = <
+export const useSettleReportApiV1CGuildIdReportsReportIdSettlePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof settleReportApiV1GGuildIdReportsReportIdSettlePost>>,
+      Awaited<ReturnType<typeof settleReportApiV1CGuildIdReportsReportIdSettlePost>>,
       TError,
-      SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationVariables,
+      SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof settleReportApiV1GGuildIdReportsReportIdSettlePost>>,
+  Awaited<ReturnType<typeof settleReportApiV1CGuildIdReportsReportIdSettlePost>>,
   TError,
-  SettleReportApiV1GGuildIdReportsReportIdSettlePostMutationVariables,
+  SettleReportApiV1CGuildIdReportsReportIdSettlePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSettleReportApiV1GGuildIdReportsReportIdSettlePostMutationOptions(options),
+    getSettleReportApiV1CGuildIdReportsReportIdSettlePostMutationOptions(options),
     queryClient
   );
 };
@@ -381,28 +381,28 @@ export const useSettleReportApiV1GGuildIdReportsReportIdSettlePost = <
  * seam computed for this request.
  * @summary Read Initiative Sharing
  */
-export const readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet = (
+export const readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet = (
   guildId: number,
   initiativeId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeSharingRead>(
-    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/sharing`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/initiatives/${initiativeId}/sharing`, method: "GET", signal },
     options
   );
 };
 
-export const getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryKey = (
+export const getReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryKey = (
   guildId: number,
   initiativeId: number
 ) => {
-  return [`/api/v1/g/${guildId}/initiatives/${initiativeId}/sharing`] as const;
+  return [`/api/v1/c/${guildId}/initiatives/${initiativeId}/sharing`] as const;
 };
 
-export const getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryOptions = <
+export const getReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+    ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -412,7 +412,7 @@ export const getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharing
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
         >,
         TError,
         TData
@@ -425,15 +425,15 @@ export const getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharing
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryKey(
+    getReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryKey(
       guildId,
       initiativeId
     );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>>
+    Awaited<ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>>
   > = ({ signal }) =>
-    readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet(
+    readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet(
       guildId,
       initiativeId,
       requestOptions,
@@ -450,22 +450,22 @@ export const getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharing
       initiativeId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>>,
+    Awaited<ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryResult =
+export type ReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>>
+    Awaited<ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>>
   >;
-export type ReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryError =
+export type ReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet<
+export function useReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet<
   TData = Awaited<
-    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+    ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -475,7 +475,7 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
         >,
         TError,
         TData
@@ -484,11 +484,11 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+            ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+            ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
           >
         >,
         "initialData"
@@ -497,9 +497,9 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet<
+export function useReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet<
   TData = Awaited<
-    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+    ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -509,7 +509,7 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
         >,
         TError,
         TData
@@ -518,11 +518,11 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+            ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+            ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
           >
         >,
         "initialData"
@@ -531,9 +531,9 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet<
+export function useReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet<
   TData = Awaited<
-    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+    ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -543,7 +543,7 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
         >,
         TError,
         TData
@@ -557,9 +557,9 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
  * @summary Read Initiative Sharing
  */
 
-export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet<
+export function useReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet<
   TData = Awaited<
-    ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+    ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -569,7 +569,7 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof readInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGet>
+          ReturnType<typeof readInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGet>
         >,
         TError,
         TData
@@ -580,7 +580,7 @@ export function useReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdShar
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getReadInitiativeSharingApiV1GGuildIdInitiativesInitiativeIdSharingGetQueryOptions(
+    getReadInitiativeSharingApiV1CGuildIdInitiativesInitiativeIdSharingGetQueryOptions(
       guildId,
       initiativeId,
       options

@@ -24,10 +24,10 @@ import type {
   AtlassianConnectRequest,
   AtlassianConnectResponse,
   AtlassianImportRequest,
-  BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost,
-  BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost,
-  BodyUploadBackupApiV1GGuildIdImportsBackupPost,
-  ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
+  BodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost,
+  BodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost,
+  BodyUploadBackupApiV1CGuildIdImportsBackupPost,
+  ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody,
   EnvelopeImportRequest,
   ForeignImportRequest,
   ForeignPreview,
@@ -67,7 +67,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * ``POST /imports/jobs/{id}/confirm``.
  * @summary Import Envelope
  */
-export const importEnvelopeApiV1GGuildIdImportsEnvelopePost = (
+export const importEnvelopeApiV1CGuildIdImportsEnvelopePost = (
   guildId: number,
   envelopeImportRequest: BodyType<EnvelopeImportRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -75,7 +75,7 @@ export const importEnvelopeApiV1GGuildIdImportsEnvelopePost = (
 ) => {
   return apiMutator<unknown>(
     {
-      url: `/api/v1/g/${guildId}/imports/envelope`,
+      url: `/api/v1/c/${guildId}/imports/envelope`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: envelopeImportRequest,
@@ -85,27 +85,27 @@ export const importEnvelopeApiV1GGuildIdImportsEnvelopePost = (
   );
 };
 
-export const getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationKey = () =>
-  ["importEnvelopeApiV1GGuildIdImportsEnvelopePost"] as const;
+export const getImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationKey = () =>
+  ["importEnvelopeApiV1CGuildIdImportsEnvelopePost"] as const;
 
-export const getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationOptions = <
+export const getImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+    Awaited<ReturnType<typeof importEnvelopeApiV1CGuildIdImportsEnvelopePost>>,
     TError,
-    ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationVariables,
+    ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+  Awaited<ReturnType<typeof importEnvelopeApiV1CGuildIdImportsEnvelopePost>>,
   TError,
-  ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationVariables,
+  ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationKey();
+  const mutationKey = getImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -113,25 +113,25 @@ export const getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationOptions = 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
-    ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationVariables
+    Awaited<ReturnType<typeof importEnvelopeApiV1CGuildIdImportsEnvelopePost>>,
+    ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return importEnvelopeApiV1GGuildIdImportsEnvelopePost(guildId, data, requestOptions);
+    return importEnvelopeApiV1CGuildIdImportsEnvelopePost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>
+export type ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importEnvelopeApiV1CGuildIdImportsEnvelopePost>>
 >;
-export type ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationBody =
+export type ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationBody =
   BodyType<EnvelopeImportRequest>;
-export type ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationError =
+export type ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationError =
   ErrorType<HTTPValidationError>;
-export type ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationVariables = {
+export type ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationVariables = {
   guildId: number;
   data: BodyType<EnvelopeImportRequest>;
 };
@@ -139,28 +139,28 @@ export type ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationVariables = {
 /**
  * @summary Import Envelope
  */
-export const useImportEnvelopeApiV1GGuildIdImportsEnvelopePost = <
+export const useImportEnvelopeApiV1CGuildIdImportsEnvelopePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+      Awaited<ReturnType<typeof importEnvelopeApiV1CGuildIdImportsEnvelopePost>>,
       TError,
-      ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationVariables,
+      ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+  Awaited<ReturnType<typeof importEnvelopeApiV1CGuildIdImportsEnvelopePost>>,
   TError,
-  ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationVariables,
+  ImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationOptions(options),
+    getImportEnvelopeApiV1CGuildIdImportsEnvelopePostMutationOptions(options),
     queryClient
   );
 };
@@ -172,31 +172,31 @@ export const useImportEnvelopeApiV1GGuildIdImportsEnvelopePost = <
  * the same responses.
  * @summary Import Envelope Archive
  */
-export const importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost = (
+export const importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost = (
   guildId: number,
-  bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost: BodyType<BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>,
+  bodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost: BodyType<BodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`file`, bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.file);
+  formData.append(`file`, bodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost.file);
   formData.append(
     `initiative_id`,
-    bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.initiative_id.toString()
+    bodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost.initiative_id.toString()
   );
   if (
-    bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.envelope_type !== undefined &&
-    bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.envelope_type !== null
+    bodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost.envelope_type !== undefined &&
+    bodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost.envelope_type !== null
   ) {
     formData.append(
       `envelope_type`,
-      bodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost.envelope_type
+      bodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost.envelope_type
     );
   }
 
   return apiMutator<unknown>(
     {
-      url: `/api/v1/g/${guildId}/imports/envelope/archive`,
+      url: `/api/v1/c/${guildId}/imports/envelope/archive`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -206,27 +206,27 @@ export const importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost = (
   );
 };
 
-export const getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationKey = () =>
-  ["importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost"] as const;
+export const getImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationKey = () =>
+  ["importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost"] as const;
 
-export const getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationOptions = <
+export const getImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>>,
     TError,
-    ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables,
+    ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+  Awaited<ReturnType<typeof importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>>,
   TError,
-  ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables,
+  ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationKey();
+  const mutationKey = getImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -234,12 +234,12 @@ export const getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMuta
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
-    ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables
+    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>>,
+    ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost(
+    return importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost(
       guildId,
       data,
       requestOptions
@@ -249,44 +249,44 @@ export const getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMuta
   return { mutationFn, ...mutationOptions };
 };
 
-export type ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationResult =
+export type ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>
+    Awaited<ReturnType<typeof importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>>
   >;
-export type ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationBody =
-  BodyType<BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>;
-export type ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationError =
+export type ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationBody =
+  BodyType<BodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>;
+export type ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationError =
   ErrorType<HTTPValidationError>;
-export type ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables = {
+export type ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationVariables = {
   guildId: number;
-  data: BodyType<BodyImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>;
+  data: BodyType<BodyImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>;
 };
 
 /**
  * @summary Import Envelope Archive
  */
-export const useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost = <
+export const useImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+      Awaited<ReturnType<typeof importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>>,
       TError,
-      ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables,
+      ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof importEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost>>,
+  Awaited<ReturnType<typeof importEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost>>,
   TError,
-  ImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationVariables,
+  ImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePostMutationOptions(options),
+    getImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePostMutationOptions(options),
     queryClient
   );
 };
@@ -303,47 +303,47 @@ export const useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost = <
  * write to has nothing to read it for.
  * @summary Preview Foreign Import
  */
-export const previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost = (
+export const previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost = (
   guildId: number,
   source: BodyType<string>,
-  previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostBody: string,
+  previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostBody: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ForeignPreview>(
     {
-      url: `/api/v1/g/${guildId}/imports/foreign/${source}/preview`,
+      url: `/api/v1/c/${guildId}/imports/foreign/${source}/preview`,
       method: "POST",
       headers: { "Content-Type": "text/plain" },
-      data: previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostBody,
+      data: previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostBody,
       signal,
     },
     options
   );
 };
 
-export const getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationKey = () =>
-  ["previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost"] as const;
+export const getPreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationKey = () =>
+  ["previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost"] as const;
 
-export const getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationOptions = <
+export const getPreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+    Awaited<ReturnType<typeof previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost>>,
     TError,
-    PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables,
+    PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+  Awaited<ReturnType<typeof previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost>>,
   TError,
-  PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables,
+  PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationKey();
+    getPreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -351,12 +351,12 @@ export const getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
-    PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables
+    Awaited<ReturnType<typeof previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost>>,
+    PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationVariables
   > = (props) => {
     const { guildId, source, data } = props ?? {};
 
-    return previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost(
+    return previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost(
       guildId,
       source,
       data,
@@ -367,15 +367,15 @@ export const getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost
   return { mutationFn, ...mutationOptions };
 };
 
-export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationResult =
+export type PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>
+    Awaited<ReturnType<typeof previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost>>
   >;
-export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationBody =
+export type PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationBody =
   BodyType<string>;
-export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationError =
+export type PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationError =
   ErrorType<HTTPValidationError>;
-export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables = {
+export type PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationVariables = {
   guildId: number;
   source: string;
   data: BodyType<string>;
@@ -384,28 +384,28 @@ export type PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMuta
 /**
  * @summary Preview Foreign Import
  */
-export const usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost = <
+export const usePreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+      Awaited<ReturnType<typeof previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost>>,
       TError,
-      PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables,
+      PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof previewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost>>,
+  Awaited<ReturnType<typeof previewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost>>,
   TError,
-  PreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationVariables,
+  PreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getPreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPostMutationOptions(options),
+    getPreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPostMutationOptions(options),
     queryClient
   );
 };
@@ -421,7 +421,7 @@ export const usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost
  * it applied in the request, 202 with the job when it did not.
  * @summary Import Foreign
  */
-export const importForeignApiV1GGuildIdImportsForeignSourcePost = (
+export const importForeignApiV1CGuildIdImportsForeignSourcePost = (
   guildId: number,
   source: string,
   foreignImportRequest: BodyType<ForeignImportRequest>,
@@ -430,7 +430,7 @@ export const importForeignApiV1GGuildIdImportsForeignSourcePost = (
 ) => {
   return apiMutator<unknown>(
     {
-      url: `/api/v1/g/${guildId}/imports/foreign/${source}`,
+      url: `/api/v1/c/${guildId}/imports/foreign/${source}`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: foreignImportRequest,
@@ -440,27 +440,27 @@ export const importForeignApiV1GGuildIdImportsForeignSourcePost = (
   );
 };
 
-export const getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationKey = () =>
-  ["importForeignApiV1GGuildIdImportsForeignSourcePost"] as const;
+export const getImportForeignApiV1CGuildIdImportsForeignSourcePostMutationKey = () =>
+  ["importForeignApiV1CGuildIdImportsForeignSourcePost"] as const;
 
-export const getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationOptions = <
+export const getImportForeignApiV1CGuildIdImportsForeignSourcePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+    Awaited<ReturnType<typeof importForeignApiV1CGuildIdImportsForeignSourcePost>>,
     TError,
-    ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables,
+    ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+  Awaited<ReturnType<typeof importForeignApiV1CGuildIdImportsForeignSourcePost>>,
   TError,
-  ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables,
+  ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationVariables,
   TContext
 > => {
-  const mutationKey = getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationKey();
+  const mutationKey = getImportForeignApiV1CGuildIdImportsForeignSourcePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -468,12 +468,12 @@ export const getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
-    ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables
+    Awaited<ReturnType<typeof importForeignApiV1CGuildIdImportsForeignSourcePost>>,
+    ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationVariables
   > = (props) => {
     const { guildId, source, data } = props ?? {};
 
-    return importForeignApiV1GGuildIdImportsForeignSourcePost(
+    return importForeignApiV1CGuildIdImportsForeignSourcePost(
       guildId,
       source,
       data,
@@ -484,14 +484,14 @@ export const getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationOption
   return { mutationFn, ...mutationOptions };
 };
 
-export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>
+export type ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importForeignApiV1CGuildIdImportsForeignSourcePost>>
 >;
-export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationBody =
+export type ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationBody =
   BodyType<ForeignImportRequest>;
-export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationError =
+export type ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationError =
   ErrorType<HTTPValidationError>;
-export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables = {
+export type ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationVariables = {
   guildId: number;
   source: string;
   data: BodyType<ForeignImportRequest>;
@@ -500,28 +500,28 @@ export type ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables 
 /**
  * @summary Import Foreign
  */
-export const useImportForeignApiV1GGuildIdImportsForeignSourcePost = <
+export const useImportForeignApiV1CGuildIdImportsForeignSourcePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+      Awaited<ReturnType<typeof importForeignApiV1CGuildIdImportsForeignSourcePost>>,
       TError,
-      ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables,
+      ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof importForeignApiV1GGuildIdImportsForeignSourcePost>>,
+  Awaited<ReturnType<typeof importForeignApiV1CGuildIdImportsForeignSourcePost>>,
   TError,
-  ImportForeignApiV1GGuildIdImportsForeignSourcePostMutationVariables,
+  ImportForeignApiV1CGuildIdImportsForeignSourcePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getImportForeignApiV1GGuildIdImportsForeignSourcePostMutationOptions(options),
+    getImportForeignApiV1CGuildIdImportsForeignSourcePostMutationOptions(options),
     queryClient
   );
 };
@@ -543,7 +543,7 @@ export const useImportForeignApiV1GGuildIdImportsForeignSourcePost = <
  * start, and again by the worker at apply time.
  * @summary Connect Atlassian
  */
-export const connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = (
+export const connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost = (
   guildId: number,
   atlassianConnectRequest: BodyType<AtlassianConnectRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -551,7 +551,7 @@ export const connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = (
 ) => {
   return apiMutator<AtlassianConnectResponse>(
     {
-      url: `/api/v1/g/${guildId}/imports/atlassian/connect`,
+      url: `/api/v1/c/${guildId}/imports/atlassian/connect`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: atlassianConnectRequest,
@@ -561,27 +561,27 @@ export const connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = (
   );
 };
 
-export const getConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationKey = () =>
-  ["connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost"] as const;
+export const getConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationKey = () =>
+  ["connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost"] as const;
 
-export const getConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationOptions = <
+export const getConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+    Awaited<ReturnType<typeof connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost>>,
     TError,
-    ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationVariables,
+    ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+  Awaited<ReturnType<typeof connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost>>,
   TError,
-  ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationVariables,
+  ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationKey();
+  const mutationKey = getConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -589,25 +589,25 @@ export const getConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
-    ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationVariables
+    Awaited<ReturnType<typeof connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost>>,
+    ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost(guildId, data, requestOptions);
+    return connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>
+export type ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost>>
 >;
-export type ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationBody =
+export type ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationBody =
   BodyType<AtlassianConnectRequest>;
-export type ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationError =
+export type ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationVariables = {
+export type ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationVariables = {
   guildId: number;
   data: BodyType<AtlassianConnectRequest>;
 };
@@ -615,28 +615,28 @@ export type ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationVari
 /**
  * @summary Connect Atlassian
  */
-export const useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = <
+export const useConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+      Awaited<ReturnType<typeof connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost>>,
       TError,
-      ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationVariables,
+      ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof connectAtlassianApiV1GGuildIdImportsAtlassianConnectPost>>,
+  Awaited<ReturnType<typeof connectAtlassianApiV1CGuildIdImportsAtlassianConnectPost>>,
   TError,
-  ConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationVariables,
+  ConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPostMutationOptions(options),
+    getConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPostMutationOptions(options),
     queryClient
   );
 };
@@ -657,7 +657,7 @@ export const useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost = <
  * now, again before the site is read, and again when the bundle is applied.
  * @summary Start Atlassian Import
  */
-export const startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost = (
+export const startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost = (
   guildId: number,
   atlassianImportRequest: BodyType<AtlassianImportRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -665,7 +665,7 @@ export const startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost = (
 ) => {
   return apiMutator<ImportJobRead>(
     {
-      url: `/api/v1/g/${guildId}/imports/atlassian/import`,
+      url: `/api/v1/c/${guildId}/imports/atlassian/import`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: atlassianImportRequest,
@@ -675,27 +675,27 @@ export const startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost = (
   );
 };
 
-export const getStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationKey = () =>
-  ["startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost"] as const;
+export const getStartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationKey = () =>
+  ["startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost"] as const;
 
-export const getStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationOptions = <
+export const getStartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost>>,
+    Awaited<ReturnType<typeof startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost>>,
     TError,
-    StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationVariables,
+    StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost>>,
+  Awaited<ReturnType<typeof startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost>>,
   TError,
-  StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationVariables,
+  StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationKey();
+  const mutationKey = getStartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -703,12 +703,12 @@ export const getStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost>>,
-    StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationVariables
+    Awaited<ReturnType<typeof startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost>>,
+    StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost(
+    return startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost(
       guildId,
       data,
       requestOptions
@@ -718,14 +718,14 @@ export const getStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost>>
+export type StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost>>
 >;
-export type StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationBody =
+export type StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationBody =
   BodyType<AtlassianImportRequest>;
-export type StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationError =
+export type StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationError =
   ErrorType<HTTPValidationError>;
-export type StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationVariables = {
+export type StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationVariables = {
   guildId: number;
   data: BodyType<AtlassianImportRequest>;
 };
@@ -733,28 +733,28 @@ export type StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationV
 /**
  * @summary Start Atlassian Import
  */
-export const useStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPost = <
+export const useStartAtlassianImportApiV1CGuildIdImportsAtlassianImportPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost>>,
+      Awaited<ReturnType<typeof startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost>>,
       TError,
-      StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationVariables,
+      StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof startAtlassianImportApiV1GGuildIdImportsAtlassianImportPost>>,
+  Awaited<ReturnType<typeof startAtlassianImportApiV1CGuildIdImportsAtlassianImportPost>>,
   TError,
-  StartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationVariables,
+  StartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPostMutationOptions(options),
+    getStartAtlassianImportApiV1CGuildIdImportsAtlassianImportPostMutationOptions(options),
     queryClient
   );
 };
@@ -769,34 +769,34 @@ export const useStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPost = <
  * and the caller able to create one there.
  * @summary Start Confluence Export Import
  */
-export const startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost = (
+export const startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost = (
   guildId: number,
-  bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost: BodyType<BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>,
+  bodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost: BodyType<BodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
   formData.append(
     `file`,
-    bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost.file
+    bodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost.file
   );
   formData.append(
     `initiative_id`,
-    bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost.initiative_id.toString()
+    bodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost.initiative_id.toString()
   );
   if (
-    bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost.include_attachments !==
+    bodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost.include_attachments !==
     undefined
   ) {
     formData.append(
       `include_attachments`,
-      bodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost.include_attachments.toString()
+      bodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost.include_attachments.toString()
     );
   }
 
   return apiMutator<ImportJobRead>(
     {
-      url: `/api/v1/g/${guildId}/imports/atlassian/export`,
+      url: `/api/v1/c/${guildId}/imports/atlassian/export`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -806,28 +806,28 @@ export const startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost 
   );
 };
 
-export const getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationKey =
-  () => ["startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost"] as const;
+export const getStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationKey =
+  () => ["startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost"] as const;
 
-export const getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationOptions =
+export const getStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>
+        ReturnType<typeof startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>
       >,
       TError,
-      StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables,
+      StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
-    Awaited<ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>>,
+    Awaited<ReturnType<typeof startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>>,
     TError,
-    StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables,
+    StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationKey();
+      getStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -836,13 +836,13 @@ export const getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPo
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>
+        ReturnType<typeof startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>
       >,
-      StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables
+      StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationVariables
     > = (props) => {
       const { guildId, data } = props ?? {};
 
-      return startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost(
+      return startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost(
         guildId,
         data,
         requestOptions
@@ -852,46 +852,46 @@ export const getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPo
     return { mutationFn, ...mutationOptions };
   };
 
-export type StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationResult =
+export type StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>>
+    Awaited<ReturnType<typeof startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>>
   >;
-export type StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationBody =
-  BodyType<BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>;
-export type StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationError =
+export type StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationBody =
+  BodyType<BodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>;
+export type StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationError =
   ErrorType<HTTPValidationError>;
-export type StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables = {
+export type StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationVariables = {
   guildId: number;
-  data: BodyType<BodyStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>;
+  data: BodyType<BodyStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>;
 };
 
 /**
  * @summary Start Confluence Export Import
  */
-export const useStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost = <
+export const useStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>
+        ReturnType<typeof startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>
       >,
       TError,
-      StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables,
+      StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof startConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost>>,
+  Awaited<ReturnType<typeof startConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost>>,
   TError,
-  StartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationVariables,
+  StartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPostMutationOptions(options),
+    getStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPostMutationOptions(options),
     queryClient
   );
 };
@@ -900,30 +900,30 @@ export const useStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPo
  * or the whole guild for a guild admin).
  * @summary List Import Jobs
  */
-export const listImportJobsApiV1GGuildIdImportsJobsGet = (
+export const listImportJobsApiV1CGuildIdImportsJobsGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ImportJobRead[]>(
-    { url: `/api/v1/g/${guildId}/imports/jobs`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/imports/jobs`, method: "GET", signal },
     options
   );
 };
 
-export const getListImportJobsApiV1GGuildIdImportsJobsGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/imports/jobs`] as const;
+export const getListImportJobsApiV1CGuildIdImportsJobsGetQueryKey = (guildId: number) => {
+  return [`/api/v1/c/${guildId}/imports/jobs`] as const;
 };
 
-export const getListImportJobsApiV1GGuildIdImportsJobsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+export const getListImportJobsApiV1CGuildIdImportsJobsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
         TError,
         TData
       >
@@ -934,11 +934,11 @@ export const getListImportJobsApiV1GGuildIdImportsJobsGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListImportJobsApiV1GGuildIdImportsJobsGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getListImportJobsApiV1CGuildIdImportsJobsGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>
-  > = ({ signal }) => listImportJobsApiV1GGuildIdImportsJobsGet(guildId, requestOptions, signal);
+    Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>
+  > = ({ signal }) => listImportJobsApiV1CGuildIdImportsJobsGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -946,35 +946,35 @@ export const getListImportJobsApiV1GGuildIdImportsJobsGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+    Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListImportJobsApiV1GGuildIdImportsJobsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>
+export type ListImportJobsApiV1CGuildIdImportsJobsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>
 >;
-export type ListImportJobsApiV1GGuildIdImportsJobsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListImportJobsApiV1CGuildIdImportsJobsGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListImportJobsApiV1GGuildIdImportsJobsGet<
-  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+export function useListImportJobsApiV1CGuildIdImportsJobsGet<
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+          Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
           TError,
-          Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>
+          Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>
         >,
         "initialData"
       >;
@@ -982,24 +982,24 @@ export function useListImportJobsApiV1GGuildIdImportsJobsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListImportJobsApiV1GGuildIdImportsJobsGet<
-  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+export function useListImportJobsApiV1CGuildIdImportsJobsGet<
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+          Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
           TError,
-          Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>
+          Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>
         >,
         "initialData"
       >;
@@ -1007,15 +1007,15 @@ export function useListImportJobsApiV1GGuildIdImportsJobsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListImportJobsApiV1GGuildIdImportsJobsGet<
-  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+export function useListImportJobsApiV1CGuildIdImportsJobsGet<
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
         TError,
         TData
       >
@@ -1028,15 +1028,15 @@ export function useListImportJobsApiV1GGuildIdImportsJobsGet<
  * @summary List Import Jobs
  */
 
-export function useListImportJobsApiV1GGuildIdImportsJobsGet<
-  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+export function useListImportJobsApiV1CGuildIdImportsJobsGet<
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        Awaited<ReturnType<typeof listImportJobsApiV1CGuildIdImportsJobsGet>>,
         TError,
         TData
       >
@@ -1045,7 +1045,7 @@ export function useListImportJobsApiV1GGuildIdImportsJobsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListImportJobsApiV1GGuildIdImportsJobsGetQueryOptions(guildId, options);
+  const queryOptions = getListImportJobsApiV1CGuildIdImportsJobsGetQueryOptions(guildId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1057,27 +1057,27 @@ export function useListImportJobsApiV1GGuildIdImportsJobsGet<
 /**
  * @summary Get Import Job
  */
-export const getImportJobApiV1GGuildIdImportsJobsJobIdGet = (
+export const getImportJobApiV1CGuildIdImportsJobsJobIdGet = (
   guildId: number,
   jobId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ImportJobRead>(
-    { url: `/api/v1/g/${guildId}/imports/jobs/${jobId}`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/imports/jobs/${jobId}`, method: "GET", signal },
     options
   );
 };
 
-export const getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryKey = (
+export const getGetImportJobApiV1CGuildIdImportsJobsJobIdGetQueryKey = (
   guildId: number,
   jobId: number
 ) => {
-  return [`/api/v1/g/${guildId}/imports/jobs/${jobId}`] as const;
+  return [`/api/v1/c/${guildId}/imports/jobs/${jobId}`] as const;
 };
 
-export const getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+export const getGetImportJobApiV1CGuildIdImportsJobsJobIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -1085,7 +1085,7 @@ export const getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryOptions = <
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
         TError,
         TData
       >
@@ -1097,12 +1097,12 @@ export const getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryKey(guildId, jobId);
+    getGetImportJobApiV1CGuildIdImportsJobsJobIdGetQueryKey(guildId, jobId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>
+    Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>
   > = ({ signal }) =>
-    getImportJobApiV1GGuildIdImportsJobsJobIdGet(guildId, jobId, requestOptions, signal);
+    getImportJobApiV1CGuildIdImportsJobsJobIdGet(guildId, jobId, requestOptions, signal);
 
   return {
     queryKey,
@@ -1110,19 +1110,19 @@ export const getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined && jobId !== null && jobId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+    Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>
+export type GetImportJobApiV1CGuildIdImportsJobsJobIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>
 >;
-export type GetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryError = ErrorType<HTTPValidationError>;
+export type GetImportJobApiV1CGuildIdImportsJobsJobIdGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
-  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+export function useGetImportJobApiV1CGuildIdImportsJobsJobIdGet<
+  TData = Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -1130,16 +1130,16 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+          Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
           TError,
-          Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>
+          Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>
         >,
         "initialData"
       >;
@@ -1147,8 +1147,8 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
-  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+export function useGetImportJobApiV1CGuildIdImportsJobsJobIdGet<
+  TData = Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -1156,16 +1156,16 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+          Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
           TError,
-          Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>
+          Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>
         >,
         "initialData"
       >;
@@ -1173,8 +1173,8 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
-  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+export function useGetImportJobApiV1CGuildIdImportsJobsJobIdGet<
+  TData = Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -1182,7 +1182,7 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
         TError,
         TData
       >
@@ -1195,8 +1195,8 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
  * @summary Get Import Job
  */
 
-export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
-  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+export function useGetImportJobApiV1CGuildIdImportsJobsJobIdGet<
+  TData = Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
@@ -1204,7 +1204,7 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        Awaited<ReturnType<typeof getImportJobApiV1CGuildIdImportsJobsJobIdGet>>,
         TError,
         TData
       >
@@ -1213,7 +1213,7 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryOptions(
+  const queryOptions = getGetImportJobApiV1CGuildIdImportsJobsJobIdGetQueryOptions(
     guildId,
     jobId,
     options
@@ -1236,39 +1236,39 @@ export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
  * claim, so the status read here is the one the cancel replaces.
  * @summary Cancel Import Job
  */
-export const cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = (
+export const cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete = (
   guildId: number,
   jobId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ImportJobRead>(
-    { url: `/api/v1/g/${guildId}/imports/jobs/${jobId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/imports/jobs/${jobId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getCancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationKey = () =>
-  ["cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete"] as const;
+export const getCancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationKey = () =>
+  ["cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete"] as const;
 
-export const getCancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationOptions = <
+export const getCancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+    Awaited<ReturnType<typeof cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete>>,
     TError,
-    CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationVariables,
+    CancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+  Awaited<ReturnType<typeof cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete>>,
   TError,
-  CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationVariables,
+  CancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getCancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationKey();
+  const mutationKey = getCancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1276,24 +1276,24 @@ export const getCancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
-    CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationVariables
+    Awaited<ReturnType<typeof cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete>>,
+    CancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationVariables
   > = (props) => {
     const { guildId, jobId } = props ?? {};
 
-    return cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete(guildId, jobId, requestOptions);
+    return cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete(guildId, jobId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>
+export type CancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete>>
 >;
 
-export type CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationError =
+export type CancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationVariables = {
+export type CancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationVariables = {
   guildId: number;
   jobId: number;
 };
@@ -1301,28 +1301,28 @@ export type CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationVariables 
 /**
  * @summary Cancel Import Job
  */
-export const useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = <
+export const useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+      Awaited<ReturnType<typeof cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete>>,
       TError,
-      CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationVariables,
+      CancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+  Awaited<ReturnType<typeof cancelImportJobApiV1CGuildIdImportsJobsJobIdDelete>>,
   TError,
-  CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationVariables,
+  CancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationOptions(options),
+    getCancelImportJobApiV1CGuildIdImportsJobsJobIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -1333,18 +1333,18 @@ export const useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = <
  * backups expire after IMPORT_STAGED_TTL_HOURS. The community's seat only.
  * @summary Upload Backup
  */
-export const uploadBackupApiV1GGuildIdImportsBackupPost = (
+export const uploadBackupApiV1CGuildIdImportsBackupPost = (
   guildId: number,
-  bodyUploadBackupApiV1GGuildIdImportsBackupPost: BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost>,
+  bodyUploadBackupApiV1CGuildIdImportsBackupPost: BodyType<BodyUploadBackupApiV1CGuildIdImportsBackupPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`file`, bodyUploadBackupApiV1GGuildIdImportsBackupPost.file);
+  formData.append(`file`, bodyUploadBackupApiV1CGuildIdImportsBackupPost.file);
 
   return apiMutator<ImportJobRead>(
     {
-      url: `/api/v1/g/${guildId}/imports/backup`,
+      url: `/api/v1/c/${guildId}/imports/backup`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -1354,27 +1354,27 @@ export const uploadBackupApiV1GGuildIdImportsBackupPost = (
   );
 };
 
-export const getUploadBackupApiV1GGuildIdImportsBackupPostMutationKey = () =>
-  ["uploadBackupApiV1GGuildIdImportsBackupPost"] as const;
+export const getUploadBackupApiV1CGuildIdImportsBackupPostMutationKey = () =>
+  ["uploadBackupApiV1CGuildIdImportsBackupPost"] as const;
 
-export const getUploadBackupApiV1GGuildIdImportsBackupPostMutationOptions = <
+export const getUploadBackupApiV1CGuildIdImportsBackupPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+    Awaited<ReturnType<typeof uploadBackupApiV1CGuildIdImportsBackupPost>>,
     TError,
-    UploadBackupApiV1GGuildIdImportsBackupPostMutationVariables,
+    UploadBackupApiV1CGuildIdImportsBackupPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+  Awaited<ReturnType<typeof uploadBackupApiV1CGuildIdImportsBackupPost>>,
   TError,
-  UploadBackupApiV1GGuildIdImportsBackupPostMutationVariables,
+  UploadBackupApiV1CGuildIdImportsBackupPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getUploadBackupApiV1GGuildIdImportsBackupPostMutationKey();
+  const mutationKey = getUploadBackupApiV1CGuildIdImportsBackupPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1382,54 +1382,54 @@ export const getUploadBackupApiV1GGuildIdImportsBackupPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
-    UploadBackupApiV1GGuildIdImportsBackupPostMutationVariables
+    Awaited<ReturnType<typeof uploadBackupApiV1CGuildIdImportsBackupPost>>,
+    UploadBackupApiV1CGuildIdImportsBackupPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return uploadBackupApiV1GGuildIdImportsBackupPost(guildId, data, requestOptions);
+    return uploadBackupApiV1CGuildIdImportsBackupPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadBackupApiV1GGuildIdImportsBackupPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>
+export type UploadBackupApiV1CGuildIdImportsBackupPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadBackupApiV1CGuildIdImportsBackupPost>>
 >;
-export type UploadBackupApiV1GGuildIdImportsBackupPostMutationBody =
-  BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost>;
-export type UploadBackupApiV1GGuildIdImportsBackupPostMutationError =
+export type UploadBackupApiV1CGuildIdImportsBackupPostMutationBody =
+  BodyType<BodyUploadBackupApiV1CGuildIdImportsBackupPost>;
+export type UploadBackupApiV1CGuildIdImportsBackupPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UploadBackupApiV1GGuildIdImportsBackupPostMutationVariables = {
+export type UploadBackupApiV1CGuildIdImportsBackupPostMutationVariables = {
   guildId: number;
-  data: BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost>;
+  data: BodyType<BodyUploadBackupApiV1CGuildIdImportsBackupPost>;
 };
 
 /**
  * @summary Upload Backup
  */
-export const useUploadBackupApiV1GGuildIdImportsBackupPost = <
+export const useUploadBackupApiV1CGuildIdImportsBackupPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+      Awaited<ReturnType<typeof uploadBackupApiV1CGuildIdImportsBackupPost>>,
       TError,
-      UploadBackupApiV1GGuildIdImportsBackupPostMutationVariables,
+      UploadBackupApiV1CGuildIdImportsBackupPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+  Awaited<ReturnType<typeof uploadBackupApiV1CGuildIdImportsBackupPost>>,
   TError,
-  UploadBackupApiV1GGuildIdImportsBackupPostMutationVariables,
+  UploadBackupApiV1CGuildIdImportsBackupPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUploadBackupApiV1GGuildIdImportsBackupPostMutationOptions(options),
+    getUploadBackupApiV1CGuildIdImportsBackupPostMutationOptions(options),
     queryClient
   );
 };
@@ -1454,46 +1454,46 @@ export const useUploadBackupApiV1GGuildIdImportsBackupPost = <
  * their behalf.
  * @summary Confirm Import
  */
-export const confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost = (
+export const confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost = (
   guildId: number,
   jobId: number,
-  confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody?: BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>,
+  confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody?: BodyType<ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ImportJobRead>(
     {
-      url: `/api/v1/g/${guildId}/imports/jobs/${jobId}/confirm`,
+      url: `/api/v1/c/${guildId}/imports/jobs/${jobId}/confirm`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
+      data: confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody,
       signal,
     },
     options
   );
 };
 
-export const getConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationKey = () =>
-  ["confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost"] as const;
+export const getConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationKey = () =>
+  ["confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost"] as const;
 
-export const getConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOptions = <
+export const getConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+    Awaited<ReturnType<typeof confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost>>,
     TError,
-    ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationVariables,
+    ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+  Awaited<ReturnType<typeof confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost>>,
   TError,
-  ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationVariables,
+  ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationKey();
+  const mutationKey = getConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1501,12 +1501,12 @@ export const getConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOpt
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
-    ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationVariables
+    Awaited<ReturnType<typeof confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost>>,
+    ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationVariables
   > = (props) => {
     const { guildId, jobId, data } = props ?? {};
 
-    return confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost(
+    return confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost(
       guildId,
       jobId,
       data,
@@ -1517,45 +1517,45 @@ export const getConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOpt
   return { mutationFn, ...mutationOptions };
 };
 
-export type ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>
+export type ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost>>
 >;
-export type ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationBody =
-  | BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>
+export type ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationBody =
+  | BodyType<ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody>
   | undefined;
-export type ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationError =
+export type ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationVariables = {
+export type ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationVariables = {
   guildId: number;
   jobId: number;
-  data?: BodyType<ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+  data?: BodyType<ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody>;
 };
 
 /**
  * @summary Confirm Import
  */
-export const useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost = <
+export const useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+      Awaited<ReturnType<typeof confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost>>,
       TError,
-      ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationVariables,
+      ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof confirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+  Awaited<ReturnType<typeof confirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost>>,
   TError,
-  ConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationVariables,
+  ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOptions(options),
+    getConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostMutationOptions(options),
     queryClient
   );
 };

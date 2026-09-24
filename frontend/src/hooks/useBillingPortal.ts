@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import { createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost } from "@/api/generated/guilds/guilds";
+import { createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost } from "@/api/generated/communities/communities";
 import { useAppConfig } from "@/hooks/useAppConfig";
 
 /** Portal page to land on: the plan/card setup screen, or the existing
@@ -40,7 +40,7 @@ export const useBillingPortal = () => {
       const tab = reserved ?? reserveTab();
       try {
         const { handoff_token } =
-          await createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost(guildId);
+          await createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost(guildId);
         const url = `${base}#handoff=${encodeURIComponent(handoff_token)}`;
         if (tab) tab.location.href = url;
         else window.open(url, "_blank", "noopener,noreferrer");

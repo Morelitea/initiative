@@ -87,7 +87,7 @@ describe("a guild list that arrives for the wrong account", () => {
       </GuildProvider>
     );
 
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/guilds/"));
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/communities/"));
 
     // Somebody else is here now, and their own read is already under way.
     currentUser = userB;

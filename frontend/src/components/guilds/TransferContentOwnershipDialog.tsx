@@ -9,10 +9,10 @@ import type {
   UserGuildMember,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost,
-  listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet,
-  listUnownedContentApiV1GGuildIdUsersUnownedContentGet,
-  transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost,
+  claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost,
+  listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet,
+  listUnownedContentApiV1CGuildIdUsersUnownedContentGet,
+  transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
@@ -106,8 +106,8 @@ export const TransferContentOwnershipDialog = ({
     const load = async () => {
       try {
         const data = (memberId === null
-          ? await listUnownedContentApiV1GGuildIdUsersUnownedContentGet(guildId)
-          : await listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet(
+          ? await listUnownedContentApiV1CGuildIdUsersUnownedContentGet(guildId)
+          : await listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet(
               guildId,
               memberId
             )) as unknown as OwnedContentResponse;
@@ -135,8 +135,8 @@ export const TransferContentOwnershipDialog = ({
     try {
       const body = { new_owner_id: Number(recipientId) };
       const result = (member === null
-        ? await claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost(guildId, body)
-        : await transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost(
+        ? await claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost(guildId, body)
+        : await transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost(
             guildId,
             member.id,
             body

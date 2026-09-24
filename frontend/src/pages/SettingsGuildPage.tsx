@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { updateGuildApiV1GuildsGuildIdPatch } from "@/api/generated/guilds/guilds";
+import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildArtworkPanel } from "@/components/guilds/GuildArtworkPanel";
 import { GuildDiscoveryPanel } from "@/components/guilds/GuildDiscoveryPanel";
@@ -43,11 +43,11 @@ export const SettingsGuildPage = () => {
     setSaveError(null);
     setSaveMessage(null);
     try {
-      const result = await (updateGuildApiV1GuildsGuildIdPatch(activeGuild.id, {
+      const result = await (updateGuildApiV1CommunitiesGuildIdPatch(activeGuild.id, {
         name,
         description,
       } as Parameters<
-        typeof updateGuildApiV1GuildsGuildIdPatch
+        typeof updateGuildApiV1CommunitiesGuildIdPatch
       >[1]) as unknown as Promise<GuildRead>);
       updateGuildInState(result);
       await refreshGuilds();

@@ -1864,32 +1864,32 @@ export function useListLoginProvidersApiV1AuthProvidersGet<
  * list.
  * @summary List Guild Login Providers
  */
-export const listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet = (
+export const listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<LoginProvidersResponse>(
-    { url: `/api/v1/auth/g/${guildId}/providers`, method: "GET", signal },
+    { url: `/api/v1/auth/c/${guildId}/providers`, method: "GET", signal },
     options
   );
 };
 
-export const getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey = (
+export const getListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/auth/g/${guildId}/providers`] as const;
+  return [`/api/v1/auth/c/${guildId}/providers`] as const;
 };
 
-export const getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+export const getListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
         TError,
         TData
       >
@@ -1901,12 +1901,12 @@ export const getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryOptions
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId);
+    getListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>
+    Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>
   > = ({ signal }) =>
-    listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet(guildId, requestOptions, signal);
+    listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -1914,36 +1914,36 @@ export const getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryOptions
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+    Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>
+export type ListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>
 >;
-export type ListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryError =
+export type ListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
-  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+export function useListGuildLoginProvidersApiV1AuthCGuildIdProvidersGet<
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
           TError,
-          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>
+          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>
         >,
         "initialData"
       >;
@@ -1951,24 +1951,24 @@ export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
-  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+export function useListGuildLoginProvidersApiV1AuthCGuildIdProvidersGet<
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
           TError,
-          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>
+          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>
         >,
         "initialData"
       >;
@@ -1976,15 +1976,15 @@ export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
-  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+export function useListGuildLoginProvidersApiV1AuthCGuildIdProvidersGet<
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
         TError,
         TData
       >
@@ -1997,15 +1997,15 @@ export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
  * @summary List Guild Login Providers
  */
 
-export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
-  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+export function useListGuildLoginProvidersApiV1AuthCGuildIdProvidersGet<
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet>>,
         TError,
         TData
       >
@@ -2014,7 +2014,7 @@ export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryOptions(
+  const queryOptions = getListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryOptions(
     guildId,
     options
   );

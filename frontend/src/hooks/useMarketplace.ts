@@ -15,17 +15,17 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
-  ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   MarketplaceListingDetail,
   MarketplaceListingPage,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryKey,
-  getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGetQueryKey,
-  getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGetQueryKey,
-  listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet,
-  readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet,
-  resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet,
+  getListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryKey,
+  getReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryKey,
+  getResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryKey,
+  listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet,
+  readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet,
+  resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet,
 } from "@/api/generated/marketplace/marketplace";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { QueryOpts } from "@/types/query";
@@ -35,16 +35,16 @@ import type { QueryOpts } from "@/types/query";
 const CATALOG_STALE_MS = 5 * 60 * 1000;
 
 export const useMarketplaceListings = (
-  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  params?: ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams,
   options?: QueryOpts<MarketplaceListingPage>
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<MarketplaceListingPage>({
-    queryKey: getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryKey(
+    queryKey: getListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetQueryKey(
       guildId,
       params
     ),
-    queryFn: () => listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet(guildId, params),
+    queryFn: () => listMarketplaceListingsApiV1CGuildIdMarketplaceListingsGet(guildId, params),
     // Typing keeps the previous page on screen while the next one loads, so the
     // grid does not blank out on every keystroke.
     placeholderData: keepPreviousData,
@@ -60,12 +60,12 @@ export const useMarketplaceListing = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<MarketplaceListingDetail>({
-    queryKey: getReadMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGetQueryKey(
+    queryKey: getReadMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGetQueryKey(
       guildId,
       publicId ?? ""
     ),
     queryFn: () =>
-      readMarketplaceListingApiV1GGuildIdMarketplaceListingsPublicIdGet(
+      readMarketplaceListingApiV1CGuildIdMarketplaceListingsPublicIdGet(
         guildId,
         publicId as string
       ),
@@ -89,12 +89,12 @@ export const useMarketplaceListingByUid = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<MarketplaceListingDetail>({
-    queryKey: getResolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGetQueryKey(
+    queryKey: getResolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGetQueryKey(
       guildId,
       uid ?? ""
     ),
     queryFn: () =>
-      resolveMarketplaceListingApiV1GGuildIdMarketplaceListingsByUidUidGet(guildId, uid as string),
+      resolveMarketplaceListingApiV1CGuildIdMarketplaceListingsByUidUidGet(guildId, uid as string),
     enabled: Boolean(uid) && userEnabled,
     staleTime: CATALOG_STALE_MS,
     // A listing this guild cannot take is a real answer for an installed

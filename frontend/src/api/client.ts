@@ -390,7 +390,7 @@ const factorChallengeKind = (error: {
   return typeof detail === "string" ? (FACTOR_CHALLENGE_KINDS[detail] ?? null) : null;
 };
 
-// Guild context lives in the request URL (/g/{guildId}/…), per tab — there is
+// Guild context lives in the request URL (/c/{guildId}/…), per tab — there is
 // no ambient guild context to guard a response against, so the only response
 // concern left is an expired session: try a silent renewal, then surface it.
 apiClient.interceptors.response.use(undefined, async (error) => {

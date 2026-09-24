@@ -14,8 +14,8 @@ import type {
 
 import type {
   AttachmentUploadResponse,
-  BodyUploadAttachmentApiV1GGuildIdAttachmentsPost,
-  BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost,
+  BodyUploadAttachmentApiV1CGuildIdAttachmentsPost,
+  BodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
 
@@ -27,18 +27,18 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Upload Attachment
  */
-export const uploadAttachmentApiV1GGuildIdAttachmentsPost = (
+export const uploadAttachmentApiV1CGuildIdAttachmentsPost = (
   guildId: number,
-  bodyUploadAttachmentApiV1GGuildIdAttachmentsPost: BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost>,
+  bodyUploadAttachmentApiV1CGuildIdAttachmentsPost: BodyType<BodyUploadAttachmentApiV1CGuildIdAttachmentsPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`file`, bodyUploadAttachmentApiV1GGuildIdAttachmentsPost.file);
+  formData.append(`file`, bodyUploadAttachmentApiV1CGuildIdAttachmentsPost.file);
 
   return apiMutator<AttachmentUploadResponse>(
     {
-      url: `/api/v1/g/${guildId}/attachments/`,
+      url: `/api/v1/c/${guildId}/attachments/`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -48,27 +48,27 @@ export const uploadAttachmentApiV1GGuildIdAttachmentsPost = (
   );
 };
 
-export const getUploadAttachmentApiV1GGuildIdAttachmentsPostMutationKey = () =>
-  ["uploadAttachmentApiV1GGuildIdAttachmentsPost"] as const;
+export const getUploadAttachmentApiV1CGuildIdAttachmentsPostMutationKey = () =>
+  ["uploadAttachmentApiV1CGuildIdAttachmentsPost"] as const;
 
-export const getUploadAttachmentApiV1GGuildIdAttachmentsPostMutationOptions = <
+export const getUploadAttachmentApiV1CGuildIdAttachmentsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
+    Awaited<ReturnType<typeof uploadAttachmentApiV1CGuildIdAttachmentsPost>>,
     TError,
-    UploadAttachmentApiV1GGuildIdAttachmentsPostMutationVariables,
+    UploadAttachmentApiV1CGuildIdAttachmentsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
+  Awaited<ReturnType<typeof uploadAttachmentApiV1CGuildIdAttachmentsPost>>,
   TError,
-  UploadAttachmentApiV1GGuildIdAttachmentsPostMutationVariables,
+  UploadAttachmentApiV1CGuildIdAttachmentsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getUploadAttachmentApiV1GGuildIdAttachmentsPostMutationKey();
+  const mutationKey = getUploadAttachmentApiV1CGuildIdAttachmentsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -76,54 +76,54 @@ export const getUploadAttachmentApiV1GGuildIdAttachmentsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
-    UploadAttachmentApiV1GGuildIdAttachmentsPostMutationVariables
+    Awaited<ReturnType<typeof uploadAttachmentApiV1CGuildIdAttachmentsPost>>,
+    UploadAttachmentApiV1CGuildIdAttachmentsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return uploadAttachmentApiV1GGuildIdAttachmentsPost(guildId, data, requestOptions);
+    return uploadAttachmentApiV1CGuildIdAttachmentsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadAttachmentApiV1GGuildIdAttachmentsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>
+export type UploadAttachmentApiV1CGuildIdAttachmentsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadAttachmentApiV1CGuildIdAttachmentsPost>>
 >;
-export type UploadAttachmentApiV1GGuildIdAttachmentsPostMutationBody =
-  BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost>;
-export type UploadAttachmentApiV1GGuildIdAttachmentsPostMutationError =
+export type UploadAttachmentApiV1CGuildIdAttachmentsPostMutationBody =
+  BodyType<BodyUploadAttachmentApiV1CGuildIdAttachmentsPost>;
+export type UploadAttachmentApiV1CGuildIdAttachmentsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UploadAttachmentApiV1GGuildIdAttachmentsPostMutationVariables = {
+export type UploadAttachmentApiV1CGuildIdAttachmentsPostMutationVariables = {
   guildId: number;
-  data: BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost>;
+  data: BodyType<BodyUploadAttachmentApiV1CGuildIdAttachmentsPost>;
 };
 
 /**
  * @summary Upload Attachment
  */
-export const useUploadAttachmentApiV1GGuildIdAttachmentsPost = <
+export const useUploadAttachmentApiV1CGuildIdAttachmentsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
+      Awaited<ReturnType<typeof uploadAttachmentApiV1CGuildIdAttachmentsPost>>,
       TError,
-      UploadAttachmentApiV1GGuildIdAttachmentsPostMutationVariables,
+      UploadAttachmentApiV1CGuildIdAttachmentsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
+  Awaited<ReturnType<typeof uploadAttachmentApiV1CGuildIdAttachmentsPost>>,
   TError,
-  UploadAttachmentApiV1GGuildIdAttachmentsPostMutationVariables,
+  UploadAttachmentApiV1CGuildIdAttachmentsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUploadAttachmentApiV1GGuildIdAttachmentsPostMutationOptions(options),
+    getUploadAttachmentApiV1CGuildIdAttachmentsPostMutationOptions(options),
     queryClient
   );
 };
@@ -134,18 +134,18 @@ export const useUploadAttachmentApiV1GGuildIdAttachmentsPost = <
  * purging what it is in, deletes it once nothing else shows it.
  * @summary Upload Pasted Image
  */
-export const uploadPastedImageApiV1GGuildIdAttachmentsPastedPost = (
+export const uploadPastedImageApiV1CGuildIdAttachmentsPastedPost = (
   guildId: number,
-  bodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost: BodyType<BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost>,
+  bodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost: BodyType<BodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`file`, bodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost.file);
+  formData.append(`file`, bodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost.file);
 
   return apiMutator<AttachmentUploadResponse>(
     {
-      url: `/api/v1/g/${guildId}/attachments/pasted`,
+      url: `/api/v1/c/${guildId}/attachments/pasted`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -155,27 +155,27 @@ export const uploadPastedImageApiV1GGuildIdAttachmentsPastedPost = (
   );
 };
 
-export const getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationKey = () =>
-  ["uploadPastedImageApiV1GGuildIdAttachmentsPastedPost"] as const;
+export const getUploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationKey = () =>
+  ["uploadPastedImageApiV1CGuildIdAttachmentsPastedPost"] as const;
 
-export const getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationOptions = <
+export const getUploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+    Awaited<ReturnType<typeof uploadPastedImageApiV1CGuildIdAttachmentsPastedPost>>,
     TError,
-    UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables,
+    UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+  Awaited<ReturnType<typeof uploadPastedImageApiV1CGuildIdAttachmentsPastedPost>>,
   TError,
-  UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables,
+  UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationKey();
+  const mutationKey = getUploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -183,54 +183,54 @@ export const getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
-    UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables
+    Awaited<ReturnType<typeof uploadPastedImageApiV1CGuildIdAttachmentsPastedPost>>,
+    UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return uploadPastedImageApiV1GGuildIdAttachmentsPastedPost(guildId, data, requestOptions);
+    return uploadPastedImageApiV1CGuildIdAttachmentsPastedPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>
+export type UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadPastedImageApiV1CGuildIdAttachmentsPastedPost>>
 >;
-export type UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationBody =
-  BodyType<BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost>;
-export type UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationError =
+export type UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationBody =
+  BodyType<BodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost>;
+export type UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationError =
   ErrorType<HTTPValidationError>;
-export type UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables = {
+export type UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationVariables = {
   guildId: number;
-  data: BodyType<BodyUploadPastedImageApiV1GGuildIdAttachmentsPastedPost>;
+  data: BodyType<BodyUploadPastedImageApiV1CGuildIdAttachmentsPastedPost>;
 };
 
 /**
  * @summary Upload Pasted Image
  */
-export const useUploadPastedImageApiV1GGuildIdAttachmentsPastedPost = <
+export const useUploadPastedImageApiV1CGuildIdAttachmentsPastedPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+      Awaited<ReturnType<typeof uploadPastedImageApiV1CGuildIdAttachmentsPastedPost>>,
       TError,
-      UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables,
+      UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadPastedImageApiV1GGuildIdAttachmentsPastedPost>>,
+  Awaited<ReturnType<typeof uploadPastedImageApiV1CGuildIdAttachmentsPastedPost>>,
   TError,
-  UploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationVariables,
+  UploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUploadPastedImageApiV1GGuildIdAttachmentsPastedPostMutationOptions(options),
+    getUploadPastedImageApiV1CGuildIdAttachmentsPastedPostMutationOptions(options),
     queryClient
   );
 };
@@ -242,40 +242,40 @@ export const useUploadPastedImageApiV1GGuildIdAttachmentsPastedPost = <
  * so the answer is the same whatever the name.
  * @summary Discard Pasted Image
  */
-export const discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete = (
+export const discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete = (
   guildId: number,
   filename: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/attachments/pasted/${filename}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/attachments/pasted/${filename}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationKey = () =>
-  ["discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete"] as const;
+export const getDiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationKey = () =>
+  ["discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete"] as const;
 
-export const getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationOptions = <
+export const getDiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+    Awaited<ReturnType<typeof discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete>>,
     TError,
-    DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
+    DiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+  Awaited<ReturnType<typeof discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete>>,
   TError,
-  DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
+  DiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationKey();
+    getDiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -283,12 +283,12 @@ export const getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMu
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
-    DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables
+    Awaited<ReturnType<typeof discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete>>,
+    DiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationVariables
   > = (props) => {
     const { guildId, filename } = props ?? {};
 
-    return discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete(
+    return discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete(
       guildId,
       filename,
       requestOptions
@@ -298,14 +298,14 @@ export const getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMu
   return { mutationFn, ...mutationOptions };
 };
 
-export type DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationResult =
+export type DiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>
+    Awaited<ReturnType<typeof discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete>>
   >;
 
-export type DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationError =
+export type DiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables = {
+export type DiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationVariables = {
   guildId: number;
   filename: string;
 };
@@ -313,28 +313,28 @@ export type DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutati
 /**
  * @summary Discard Pasted Image
  */
-export const useDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete = <
+export const useDiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+      Awaited<ReturnType<typeof discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete>>,
       TError,
-      DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
+      DiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete>>,
+  Awaited<ReturnType<typeof discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete>>,
   TError,
-  DiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
+  DiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDiscardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDeleteMutationOptions(options),
+    getDiscardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDeleteMutationOptions(options),
     queryClient
   );
 };

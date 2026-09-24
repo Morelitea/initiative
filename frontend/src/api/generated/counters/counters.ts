@@ -33,9 +33,9 @@ import type {
   CounterUpdate,
   HTTPValidationError,
   InitiativeGroupedCountsResponse,
-  ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
-  ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
-  ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams,
+  ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
+  ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
+  ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
@@ -68,27 +68,27 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * GROUP BY instead of a capped list page.
  * @summary Get Counter Group Counts By Initiative
  */
-export const getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet = (
+export const getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeGroupedCountsResponse>(
-    { url: `/api/v1/g/${guildId}/counter-groups/counts/by-initiative`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/counter-groups/counts/by-initiative`, method: "GET", signal },
     options
   );
 };
 
-export const getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey =
+export const getGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGetQueryKey =
   (guildId: number) => {
-    return [`/api/v1/g/${guildId}/counter-groups/counts/by-initiative`] as const;
+    return [`/api/v1/c/${guildId}/counter-groups/counts/by-initiative`] as const;
   };
 
-export const getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryOptions =
+export const getGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGetQueryOptions =
   <
     TData = Awaited<
       ReturnType<
-        typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+        typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
       >
     >,
     TError = ErrorType<HTTPValidationError>,
@@ -99,7 +99,7 @@ export const getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCount
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+              typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
             >
           >,
           TError,
@@ -113,18 +113,18 @@ export const getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCount
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey(
+      getGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGetQueryKey(
         guildId
       );
 
     const queryFn: QueryFunction<
       Awaited<
         ReturnType<
-          typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+          typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
         >
       >
     > = ({ signal }) =>
-      getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet(
+      getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet(
         guildId,
         requestOptions,
         signal
@@ -138,7 +138,7 @@ export const getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCount
     } as UseQueryOptions<
       Awaited<
         ReturnType<
-          typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+          typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
         >
       >,
       TError,
@@ -146,21 +146,21 @@ export const getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCount
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryResult =
+export type GetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGetQueryResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+        typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
       >
     >
   >;
-export type GetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryError =
+export type GetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet<
+export function useGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet<
   TData = Awaited<
     ReturnType<
-      typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+      typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -171,7 +171,7 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
           >
         >,
         TError,
@@ -182,13 +182,13 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+              typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+              typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
             >
           >
         >,
@@ -198,10 +198,10 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet<
+export function useGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet<
   TData = Awaited<
     ReturnType<
-      typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+      typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -212,7 +212,7 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
           >
         >,
         TError,
@@ -223,13 +223,13 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+              typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+              typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
             >
           >
         >,
@@ -239,10 +239,10 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet<
+export function useGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet<
   TData = Awaited<
     ReturnType<
-      typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+      typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -253,7 +253,7 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
           >
         >,
         TError,
@@ -268,10 +268,10 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
  * @summary Get Counter Group Counts By Initiative
  */
 
-export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet<
+export function useGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet<
   TData = Awaited<
     ReturnType<
-      typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+      typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
     >
   >,
   TError = ErrorType<HTTPValidationError>,
@@ -282,7 +282,7 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
       UseQueryOptions<
         Awaited<
           ReturnType<
-            typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            typeof getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet
           >
         >,
         TError,
@@ -294,7 +294,7 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryOptions(
+    getGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGetQueryOptions(
       guildId,
       options
     );
@@ -309,35 +309,35 @@ export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCo
 /**
  * @summary List Counter Groups
  */
-export const listCounterGroupsApiV1GGuildIdCounterGroupsGet = (
+export const listCounterGroupsApiV1CGuildIdCounterGroupsGet = (
   guildId: number,
-  params?: ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
+  params?: ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CounterGroupListResponse>(
-    { url: `/api/v1/g/${guildId}/counter-groups/`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/counter-groups/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryKey = (
+export const getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryKey = (
   guildId: number,
-  params?: ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams
+  params?: ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/counter-groups/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/counter-groups/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+export const getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
+  params?: ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+        Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
         TError,
         TData
       >
@@ -349,12 +349,12 @@ export const getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryKey(guildId, params);
+    getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>
+    Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>
   > = ({ signal }) =>
-    listCounterGroupsApiV1GGuildIdCounterGroupsGet(guildId, params, requestOptions, signal);
+    listCounterGroupsApiV1CGuildIdCounterGroupsGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -362,37 +362,37 @@ export const getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+    Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>
+export type ListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>
 >;
-export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryError =
+export type ListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
-  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+export function useListCounterGroupsApiV1CGuildIdCounterGroupsGet<
+  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
+  params: undefined | ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+        Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+          Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
           TError,
-          Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>
+          Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>
         >,
         "initialData"
       >;
@@ -400,25 +400,25 @@ export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
-  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+export function useListCounterGroupsApiV1CGuildIdCounterGroupsGet<
+  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
+  params?: ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+        Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+          Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
           TError,
-          Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>
+          Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>
         >,
         "initialData"
       >;
@@ -426,16 +426,16 @@ export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
-  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+export function useListCounterGroupsApiV1CGuildIdCounterGroupsGet<
+  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
+  params?: ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+        Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
         TError,
         TData
       >
@@ -448,16 +448,16 @@ export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
  * @summary List Counter Groups
  */
 
-export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
-  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+export function useListCounterGroupsApiV1CGuildIdCounterGroupsGet<
+  TData = Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
+  params?: ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listCounterGroupsApiV1GGuildIdCounterGroupsGet>>,
+        Awaited<ReturnType<typeof listCounterGroupsApiV1CGuildIdCounterGroupsGet>>,
         TError,
         TData
       >
@@ -466,7 +466,7 @@ export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryOptions(
+  const queryOptions = getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryOptions(
     guildId,
     params,
     options
@@ -482,7 +482,7 @@ export function useListCounterGroupsApiV1GGuildIdCounterGroupsGet<
 /**
  * @summary Create Counter Group
  */
-export const createCounterGroupApiV1GGuildIdCounterGroupsPost = (
+export const createCounterGroupApiV1CGuildIdCounterGroupsPost = (
   guildId: number,
   counterGroupCreate: BodyType<CounterGroupCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -490,7 +490,7 @@ export const createCounterGroupApiV1GGuildIdCounterGroupsPost = (
 ) => {
   return apiMutator<CounterGroupRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/`,
+      url: `/api/v1/c/${guildId}/counter-groups/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: counterGroupCreate,
@@ -500,27 +500,27 @@ export const createCounterGroupApiV1GGuildIdCounterGroupsPost = (
   );
 };
 
-export const getCreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationKey = () =>
-  ["createCounterGroupApiV1GGuildIdCounterGroupsPost"] as const;
+export const getCreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationKey = () =>
+  ["createCounterGroupApiV1CGuildIdCounterGroupsPost"] as const;
 
-export const getCreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationOptions = <
+export const getCreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createCounterGroupApiV1GGuildIdCounterGroupsPost>>,
+    Awaited<ReturnType<typeof createCounterGroupApiV1CGuildIdCounterGroupsPost>>,
     TError,
-    CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationVariables,
+    CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createCounterGroupApiV1GGuildIdCounterGroupsPost>>,
+  Awaited<ReturnType<typeof createCounterGroupApiV1CGuildIdCounterGroupsPost>>,
   TError,
-  CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationVariables,
+  CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationKey();
+  const mutationKey = getCreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -528,25 +528,25 @@ export const getCreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationOptions 
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createCounterGroupApiV1GGuildIdCounterGroupsPost>>,
-    CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationVariables
+    Awaited<ReturnType<typeof createCounterGroupApiV1CGuildIdCounterGroupsPost>>,
+    CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createCounterGroupApiV1GGuildIdCounterGroupsPost(guildId, data, requestOptions);
+    return createCounterGroupApiV1CGuildIdCounterGroupsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createCounterGroupApiV1GGuildIdCounterGroupsPost>>
+export type CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCounterGroupApiV1CGuildIdCounterGroupsPost>>
 >;
-export type CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationBody =
+export type CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationBody =
   BodyType<CounterGroupCreate>;
-export type CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationError =
+export type CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationVariables = {
+export type CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationVariables = {
   guildId: number;
   data: BodyType<CounterGroupCreate>;
 };
@@ -554,66 +554,66 @@ export type CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationVariables = 
 /**
  * @summary Create Counter Group
  */
-export const useCreateCounterGroupApiV1GGuildIdCounterGroupsPost = <
+export const useCreateCounterGroupApiV1CGuildIdCounterGroupsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createCounterGroupApiV1GGuildIdCounterGroupsPost>>,
+      Awaited<ReturnType<typeof createCounterGroupApiV1CGuildIdCounterGroupsPost>>,
       TError,
-      CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationVariables,
+      CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createCounterGroupApiV1GGuildIdCounterGroupsPost>>,
+  Awaited<ReturnType<typeof createCounterGroupApiV1CGuildIdCounterGroupsPost>>,
   TError,
-  CreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationVariables,
+  CreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateCounterGroupApiV1GGuildIdCounterGroupsPostMutationOptions(options),
+    getCreateCounterGroupApiV1CGuildIdCounterGroupsPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Read Counter Group
  */
-export const readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet = (
+export const readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet = (
   guildId: number,
   groupId: number,
-  params?: ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams,
+  params?: ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CounterGroupRead>(
-    { url: `/api/v1/g/${guildId}/counter-groups/${groupId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/counter-groups/${groupId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey = (
+export const getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey = (
   guildId: number,
   groupId: number,
-  params?: ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams
+  params?: ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/counter-groups/${groupId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/counter-groups/${groupId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+export const getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   groupId: number,
-  params?: ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams,
+  params?: ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+        Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
         TError,
         TData
       >
@@ -625,12 +625,12 @@ export const getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryOptions
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId, params);
+    getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>
+    Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>
   > = ({ signal }) =>
-    readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet(
+    readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet(
       guildId,
       groupId,
       params,
@@ -644,38 +644,38 @@ export const getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryOptions
     enabled: guildId !== null && guildId !== undefined && groupId !== null && groupId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+    Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>
+export type ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>
 >;
-export type ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryError =
+export type ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
-  TData = Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+export function useReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet<
+  TData = Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   groupId: number,
-  params: undefined | ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams,
+  params: undefined | ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+        Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+          Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>
+          Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>
         >,
         "initialData"
       >;
@@ -683,26 +683,26 @@ export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
-  TData = Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+export function useReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet<
+  TData = Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   groupId: number,
-  params?: ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams,
+  params?: ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+        Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+          Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>
+          Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>
         >,
         "initialData"
       >;
@@ -710,17 +710,17 @@ export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
-  TData = Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+export function useReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet<
+  TData = Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   groupId: number,
-  params?: ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams,
+  params?: ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+        Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
         TError,
         TData
       >
@@ -733,17 +733,17 @@ export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
  * @summary Read Counter Group
  */
 
-export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
-  TData = Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+export function useReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet<
+  TData = Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   groupId: number,
-  params?: ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams,
+  params?: ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet>>,
+        Awaited<ReturnType<typeof readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet>>,
         TError,
         TData
       >
@@ -752,7 +752,7 @@ export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryOptions(
+  const queryOptions = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryOptions(
     guildId,
     groupId,
     params,
@@ -769,7 +769,7 @@ export function useReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet<
 /**
  * @summary Update Counter Group
  */
-export const updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch = (
+export const updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch = (
   guildId: number,
   groupId: number,
   counterGroupUpdate: BodyType<CounterGroupUpdate>,
@@ -778,7 +778,7 @@ export const updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch = (
 ) => {
   return apiMutator<CounterGroupRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: counterGroupUpdate,
@@ -788,27 +788,27 @@ export const updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch = (
   );
 };
 
-export const getUpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationKey = () =>
-  ["updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch"] as const;
+export const getUpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationKey = () =>
+  ["updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch"] as const;
 
-export const getUpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationOptions = <
+export const getUpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch>>,
+    Awaited<ReturnType<typeof updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch>>,
     TError,
-    UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationVariables,
+    UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch>>,
+  Awaited<ReturnType<typeof updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch>>,
   TError,
-  UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationVariables,
+  UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationKey();
+  const mutationKey = getUpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -816,12 +816,12 @@ export const getUpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch>>,
-    UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationVariables
+    Awaited<ReturnType<typeof updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch>>,
+    UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationVariables
   > = (props) => {
     const { guildId, groupId, data } = props ?? {};
 
-    return updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch(
+    return updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch(
       guildId,
       groupId,
       data,
@@ -832,14 +832,14 @@ export const getUpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutation
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch>>
+export type UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch>>
 >;
-export type UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationBody =
+export type UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationBody =
   BodyType<CounterGroupUpdate>;
-export type UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationError =
+export type UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationVariables = {
+export type UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationVariables = {
   guildId: number;
   groupId: number;
   data: BodyType<CounterGroupUpdate>;
@@ -848,67 +848,67 @@ export type UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationVari
 /**
  * @summary Update Counter Group
  */
-export const useUpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch = <
+export const useUpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch>>,
+      Awaited<ReturnType<typeof updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch>>,
       TError,
-      UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationVariables,
+      UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch>>,
+  Awaited<ReturnType<typeof updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch>>,
   TError,
-  UpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationVariables,
+  UpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatchMutationOptions(options),
+    getUpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatchMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Delete Counter Group
  */
-export const deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete = (
+export const deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete = (
   guildId: number,
   groupId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/counter-groups/${groupId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/counter-groups/${groupId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationKey = () =>
-  ["deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete"] as const;
+export const getDeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationKey = () =>
+  ["deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete"] as const;
 
-export const getDeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationOptions = <
+export const getDeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete>>,
+    Awaited<ReturnType<typeof deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete>>,
     TError,
-    DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationVariables,
+    DeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete>>,
+  Awaited<ReturnType<typeof deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete>>,
   TError,
-  DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationVariables,
+  DeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationVariables,
   TContext
 > => {
-  const mutationKey = getDeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationKey();
+  const mutationKey = getDeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -916,12 +916,12 @@ export const getDeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete>>,
-    DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationVariables
+    Awaited<ReturnType<typeof deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete>>,
+    DeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationVariables
   > = (props) => {
     const { guildId, groupId } = props ?? {};
 
-    return deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete(
+    return deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete(
       guildId,
       groupId,
       requestOptions
@@ -931,13 +931,13 @@ export const getDeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutatio
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete>>
+export type DeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete>>
 >;
 
-export type DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationError =
+export type DeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationVariables = {
+export type DeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationVariables = {
   guildId: number;
   groupId: number;
 };
@@ -945,35 +945,35 @@ export type DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationVar
 /**
  * @summary Delete Counter Group
  */
-export const useDeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete = <
+export const useDeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete>>,
+      Awaited<ReturnType<typeof deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete>>,
       TError,
-      DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationVariables,
+      DeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete>>,
+  Awaited<ReturnType<typeof deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete>>,
   TError,
-  DeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationVariables,
+  DeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDeleteMutationOptions(options),
+    getDeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Duplicate Counter Group
  */
-export const duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost = (
+export const duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost = (
   guildId: number,
   groupId: number,
   counterGroupDuplicateRequest: BodyType<CounterGroupDuplicateRequest>,
@@ -982,7 +982,7 @@ export const duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost
 ) => {
   return apiMutator<CounterGroupRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/duplicate`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/duplicate`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: counterGroupDuplicateRequest,
@@ -992,28 +992,28 @@ export const duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost
   );
 };
 
-export const getDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationKey =
-  () => ["duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost"] as const;
+export const getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationKey =
+  () => ["duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost"] as const;
 
-export const getDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions =
+export const getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost>
+        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
       >,
       TError,
-      DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
+      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
-    Awaited<ReturnType<typeof duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost>>,
+    Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>,
     TError,
-    DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
+    DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationKey();
+      getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1022,13 +1022,13 @@ export const getDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicateP
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost>
+        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
       >,
-      DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables
+      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables
     > = (props) => {
       const { guildId, groupId, data } = props ?? {};
 
-      return duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost(
+      return duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost(
         guildId,
         groupId,
         data,
@@ -1039,15 +1039,15 @@ export const getDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicateP
     return { mutationFn, ...mutationOptions };
   };
 
-export type DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationResult =
+export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost>>
+    Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>
   >;
-export type DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationBody =
+export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationBody =
   BodyType<CounterGroupDuplicateRequest>;
-export type DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationError =
+export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationError =
   ErrorType<HTTPValidationError>;
-export type DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables = {
+export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables = {
   guildId: number;
   groupId: number;
   data: BodyType<CounterGroupDuplicateRequest>;
@@ -1056,37 +1056,37 @@ export type DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostM
 /**
  * @summary Duplicate Counter Group
  */
-export const useDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost = <
+export const useDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost>
+        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
       >,
       TError,
-      DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
+      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost>>,
+  Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>,
   TError,
-  DuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
+  DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions(options),
+    getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Add Counter
  */
-export const addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost = (
+export const addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost = (
   guildId: number,
   groupId: number,
   counterCreate: BodyType<CounterCreate>,
@@ -1095,7 +1095,7 @@ export const addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost = (
 ) => {
   return apiMutator<CounterRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/counters`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/counters`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: counterCreate,
@@ -1105,27 +1105,27 @@ export const addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost = (
   );
 };
 
-export const getAddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationKey = () =>
-  ["addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost"] as const;
+export const getAddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationKey = () =>
+  ["addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost"] as const;
 
-export const getAddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationOptions = <
+export const getAddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost>>,
+    Awaited<ReturnType<typeof addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost>>,
     TError,
-    AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationVariables,
+    AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost>>,
+  Awaited<ReturnType<typeof addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost>>,
   TError,
-  AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationVariables,
+  AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getAddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationKey();
+  const mutationKey = getAddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1133,12 +1133,12 @@ export const getAddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationO
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost>>,
-    AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationVariables
+    Awaited<ReturnType<typeof addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost>>,
+    AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationVariables
   > = (props) => {
     const { guildId, groupId, data } = props ?? {};
 
-    return addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost(
+    return addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost(
       guildId,
       groupId,
       data,
@@ -1149,14 +1149,14 @@ export const getAddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationO
   return { mutationFn, ...mutationOptions };
 };
 
-export type AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost>>
+export type AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost>>
 >;
-export type AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationBody =
+export type AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationBody =
   BodyType<CounterCreate>;
-export type AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationError =
+export type AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationError =
   ErrorType<HTTPValidationError>;
-export type AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationVariables = {
+export type AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationVariables = {
   guildId: number;
   groupId: number;
   data: BodyType<CounterCreate>;
@@ -1165,35 +1165,35 @@ export type AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationVaria
 /**
  * @summary Add Counter
  */
-export const useAddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost = <
+export const useAddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost>>,
+      Awaited<ReturnType<typeof addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost>>,
       TError,
-      AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationVariables,
+      AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost>>,
+  Awaited<ReturnType<typeof addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost>>,
   TError,
-  AddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationVariables,
+  AddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getAddCounterApiV1GGuildIdCounterGroupsGroupIdCountersPostMutationOptions(options),
+    getAddCounterApiV1CGuildIdCounterGroupsGroupIdCountersPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Update Counter
  */
-export const updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch = (
+export const updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch = (
   guildId: number,
   groupId: number,
   counterId: number,
@@ -1203,7 +1203,7 @@ export const updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatc
 ) => {
   return apiMutator<CounterRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/counters/${counterId}`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/counters/${counterId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: counterUpdate,
@@ -1213,30 +1213,30 @@ export const updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatc
   );
 };
 
-export const getUpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationKey =
-  () => ["updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch"] as const;
+export const getUpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationKey =
+  () => ["updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch"] as const;
 
-export const getUpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationOptions =
+export const getUpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch>
+        ReturnType<typeof updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch>
       >,
       TError,
-      UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables,
+      UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch>
+      ReturnType<typeof updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch>
     >,
     TError,
-    UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables,
+    UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getUpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationKey();
+      getUpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1245,13 +1245,13 @@ export const getUpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdP
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch>
+        ReturnType<typeof updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch>
       >,
-      UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables
+      UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables
     > = (props) => {
       const { guildId, groupId, counterId, data } = props ?? {};
 
-      return updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch(
+      return updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch(
         guildId,
         groupId,
         counterId,
@@ -1263,51 +1263,51 @@ export const getUpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdP
     return { mutationFn, ...mutationOptions };
   };
 
-export type UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationResult =
+export type UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch>>
+    Awaited<ReturnType<typeof updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch>>
   >;
-export type UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationBody =
+export type UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationBody =
   BodyType<CounterUpdate>;
-export type UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationError =
+export type UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables =
+export type UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables =
   { guildId: number; groupId: number; counterId: number; data: BodyType<CounterUpdate> };
 
 /**
  * @summary Update Counter
  */
-export const useUpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch = <
+export const useUpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch>
+        ReturnType<typeof updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch>
       >,
       TError,
-      UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables,
+      UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch>>,
+  Awaited<ReturnType<typeof updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch>>,
   TError,
-  UpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables,
+  UpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationOptions(options),
+    getUpdateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatchMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Delete Counter
  */
-export const deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete = (
+export const deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete = (
   guildId: number,
   groupId: number,
   counterId: number,
@@ -1316,7 +1316,7 @@ export const deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDele
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/counters/${counterId}`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/counters/${counterId}`,
       method: "DELETE",
       signal,
     },
@@ -1324,30 +1324,30 @@ export const deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDele
   );
 };
 
-export const getDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationKey =
-  () => ["deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete"] as const;
+export const getDeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationKey =
+  () => ["deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete"] as const;
 
-export const getDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationOptions =
+export const getDeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
+        ReturnType<typeof deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
       >,
       TError,
-      DeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables,
+      DeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
+      ReturnType<typeof deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
     >,
     TError,
-    DeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables,
+    DeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationKey();
+      getDeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1356,13 +1356,13 @@ export const getDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdD
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
+        ReturnType<typeof deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
       >,
-      DeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables
+      DeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables
     > = (props) => {
       const { guildId, groupId, counterId } = props ?? {};
 
-      return deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete(
+      return deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete(
         guildId,
         groupId,
         counterId,
@@ -1373,45 +1373,45 @@ export const getDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdD
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationResult =
+export type DeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
+      ReturnType<typeof deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
     >
   >;
 
-export type DeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationError =
+export type DeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables =
+export type DeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables =
   { guildId: number; groupId: number; counterId: number };
 
 /**
  * @summary Delete Counter
  */
-export const useDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete = <
+export const useDeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
+        ReturnType<typeof deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete>
       >,
       TError,
-      DeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables,
+      DeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete>>,
+  Awaited<ReturnType<typeof deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete>>,
   TError,
-  DeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables,
+  DeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationOptions(
+    getDeleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDeleteMutationOptions(
       options
     ),
     queryClient
@@ -1420,7 +1420,7 @@ export const useDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdD
 /**
  * @summary Set Counter Count
  */
-export const setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost = (
+export const setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost = (
   guildId: number,
   groupId: number,
   counterId: number,
@@ -1430,7 +1430,7 @@ export const setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSe
 ) => {
   return apiMutator<CounterRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/counters/${counterId}/set`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/counters/${counterId}/set`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: counterSetCountRequest,
@@ -1440,30 +1440,30 @@ export const setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSe
   );
 };
 
-export const getSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationKey =
-  () => ["setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost"] as const;
+export const getSetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationKey =
+  () => ["setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost"] as const;
 
-export const getSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationOptions =
+export const getSetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
+        ReturnType<typeof setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
       >,
       TError,
-      SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables,
+      SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
+      ReturnType<typeof setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
     >,
     TError,
-    SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables,
+    SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationKey();
+      getSetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1472,13 +1472,13 @@ export const getSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterI
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
+        ReturnType<typeof setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
       >,
-      SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables
+      SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables
     > = (props) => {
       const { guildId, groupId, counterId, data } = props ?? {};
 
-      return setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
+      return setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
         guildId,
         groupId,
         counterId,
@@ -1490,33 +1490,33 @@ export const getSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterI
     return { mutationFn, ...mutationOptions };
   };
 
-export type SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationResult =
+export type SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
+      ReturnType<typeof setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
     >
   >;
-export type SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationBody =
+export type SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationBody =
   BodyType<CounterSetCountRequest>;
-export type SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationError =
+export type SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationError =
   ErrorType<HTTPValidationError>;
-export type SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables =
+export type SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables =
   { guildId: number; groupId: number; counterId: number; data: BodyType<CounterSetCountRequest> };
 
 /**
  * @summary Set Counter Count
  */
-export const useSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost = <
+export const useSetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
+        ReturnType<typeof setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
       >,
       TError,
-      SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables,
+      SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1524,14 +1524,14 @@ export const useSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterI
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
+    ReturnType<typeof setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost>
   >,
   TError,
-  SetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables,
+  SetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationOptions(
+    getSetCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPostMutationOptions(
       options
     ),
     queryClient
@@ -1540,7 +1540,7 @@ export const useSetCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterI
 /**
  * @summary Increment Counter
  */
-export const incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost = (
+export const incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost = (
   guildId: number,
   groupId: number,
   counterId: number,
@@ -1549,7 +1549,7 @@ export const incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdI
 ) => {
   return apiMutator<CounterRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/counters/${counterId}/increment`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/counters/${counterId}/increment`,
       method: "POST",
       signal,
     },
@@ -1557,35 +1557,35 @@ export const incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdI
   );
 };
 
-export const getIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationKey =
+export const getIncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationKey =
   () =>
-    ["incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost"] as const;
+    ["incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost"] as const;
 
-export const getIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationOptions =
+export const getIncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
+          typeof incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
         >
       >,
       TError,
-      IncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables,
+      IncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
+        typeof incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
       >
     >,
     TError,
-    IncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables,
+    IncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationKey();
+      getIncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1595,14 +1595,14 @@ export const getIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
+          typeof incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
         >
       >,
-      IncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables
+      IncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables
     > = (props) => {
       const { guildId, groupId, counterId } = props ?? {};
 
-      return incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost(
+      return incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost(
         guildId,
         groupId,
         counterId,
@@ -1613,24 +1613,24 @@ export const getIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
     return { mutationFn, ...mutationOptions };
   };
 
-export type IncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationResult =
+export type IncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
+        typeof incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
       >
     >
   >;
 
-export type IncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationError =
+export type IncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationError =
   ErrorType<HTTPValidationError>;
-export type IncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables =
+export type IncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables =
   { guildId: number; groupId: number; counterId: number };
 
 /**
  * @summary Increment Counter
  */
-export const useIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost = <
+export const useIncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -1638,11 +1638,11 @@ export const useIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
+          typeof incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
         >
       >,
       TError,
-      IncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables,
+      IncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1651,15 +1651,15 @@ export const useIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
 ): UseMutationResult<
   Awaited<
     ReturnType<
-      typeof incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
+      typeof incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost
     >
   >,
   TError,
-  IncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables,
+  IncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationOptions(
+    getIncrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPostMutationOptions(
       options
     ),
     queryClient
@@ -1668,7 +1668,7 @@ export const useIncrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
 /**
  * @summary Decrement Counter
  */
-export const decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost = (
+export const decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost = (
   guildId: number,
   groupId: number,
   counterId: number,
@@ -1677,7 +1677,7 @@ export const decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdD
 ) => {
   return apiMutator<CounterRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/counters/${counterId}/decrement`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/counters/${counterId}/decrement`,
       method: "POST",
       signal,
     },
@@ -1685,35 +1685,35 @@ export const decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdD
   );
 };
 
-export const getDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationKey =
+export const getDecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationKey =
   () =>
-    ["decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost"] as const;
+    ["decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost"] as const;
 
-export const getDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationOptions =
+export const getDecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
+          typeof decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
         >
       >,
       TError,
-      DecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables,
+      DecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
+        typeof decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
       >
     >,
     TError,
-    DecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables,
+    DecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationKey();
+      getDecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1723,14 +1723,14 @@ export const getDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
+          typeof decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
         >
       >,
-      DecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables
+      DecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables
     > = (props) => {
       const { guildId, groupId, counterId } = props ?? {};
 
-      return decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost(
+      return decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost(
         guildId,
         groupId,
         counterId,
@@ -1741,24 +1741,24 @@ export const getDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
     return { mutationFn, ...mutationOptions };
   };
 
-export type DecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationResult =
+export type DecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
+        typeof decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
       >
     >
   >;
 
-export type DecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationError =
+export type DecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationError =
   ErrorType<HTTPValidationError>;
-export type DecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables =
+export type DecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables =
   { guildId: number; groupId: number; counterId: number };
 
 /**
  * @summary Decrement Counter
  */
-export const useDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost = <
+export const useDecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -1766,11 +1766,11 @@ export const useDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
+          typeof decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
         >
       >,
       TError,
-      DecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables,
+      DecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1779,15 +1779,15 @@ export const useDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
 ): UseMutationResult<
   Awaited<
     ReturnType<
-      typeof decrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
+      typeof decrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPost
     >
   >,
   TError,
-  DecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables,
+  DecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationOptions(
+    getDecrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDecrementPostMutationOptions(
       options
     ),
     queryClient
@@ -1796,7 +1796,7 @@ export const useDecrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounter
 /**
  * @summary Reset Counter
  */
-export const resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost = (
+export const resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost = (
   guildId: number,
   groupId: number,
   counterId: number,
@@ -1805,7 +1805,7 @@ export const resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdReset
 ) => {
   return apiMutator<CounterRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/counters/${counterId}/reset`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/counters/${counterId}/reset`,
       method: "POST",
       signal,
     },
@@ -1813,30 +1813,30 @@ export const resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdReset
   );
 };
 
-export const getResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationKey =
-  () => ["resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost"] as const;
+export const getResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationKey =
+  () => ["resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost"] as const;
 
-export const getResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationOptions =
+export const getResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
+        ReturnType<typeof resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
       >,
       TError,
-      ResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables,
+      ResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
+      ReturnType<typeof resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
     >,
     TError,
-    ResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables,
+    ResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationKey();
+      getResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1845,13 +1845,13 @@ export const getResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdRe
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
+        ReturnType<typeof resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
       >,
-      ResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables
+      ResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables
     > = (props) => {
       const { guildId, groupId, counterId } = props ?? {};
 
-      return resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost(
+      return resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost(
         guildId,
         groupId,
         counterId,
@@ -1862,32 +1862,32 @@ export const getResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdRe
     return { mutationFn, ...mutationOptions };
   };
 
-export type ResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationResult =
+export type ResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
+      ReturnType<typeof resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
     >
   >;
 
-export type ResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationError =
+export type ResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables =
+export type ResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables =
   { guildId: number; groupId: number; counterId: number };
 
 /**
  * @summary Reset Counter
  */
-export const useResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost = <
+export const useResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
+        ReturnType<typeof resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
       >,
       TError,
-      ResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables,
+      ResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1895,14 +1895,14 @@ export const useResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdRe
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
+    ReturnType<typeof resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost>
   >,
   TError,
-  ResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables,
+  ResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationOptions(
+    getResetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPostMutationOptions(
       options
     ),
     queryClient
@@ -1911,39 +1911,39 @@ export const useResetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdRe
 /**
  * @summary Reset All Counters
  */
-export const resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost = (
+export const resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost = (
   guildId: number,
   groupId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CounterGroupRead>(
-    { url: `/api/v1/g/${guildId}/counter-groups/${groupId}/reset-all`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/counter-groups/${groupId}/reset-all`, method: "POST", signal },
     options
   );
 };
 
-export const getResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationKey = () =>
-  ["resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost"] as const;
+export const getResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationKey = () =>
+  ["resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost"] as const;
 
-export const getResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationOptions = <
+export const getResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost>>,
+    Awaited<ReturnType<typeof resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost>>,
     TError,
-    ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationVariables,
+    ResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost>>,
+  Awaited<ReturnType<typeof resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost>>,
   TError,
-  ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationVariables,
+  ResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationKey();
+  const mutationKey = getResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1951,12 +1951,12 @@ export const getResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMut
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost>>,
-    ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationVariables
+    Awaited<ReturnType<typeof resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost>>,
+    ResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationVariables
   > = (props) => {
     const { guildId, groupId } = props ?? {};
 
-    return resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost(
+    return resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost(
       guildId,
       groupId,
       requestOptions
@@ -1966,14 +1966,14 @@ export const getResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMut
   return { mutationFn, ...mutationOptions };
 };
 
-export type ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationResult =
+export type ResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost>>
+    Awaited<ReturnType<typeof resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost>>
   >;
 
-export type ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationError =
+export type ResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationVariables = {
+export type ResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationVariables = {
   guildId: number;
   groupId: number;
 };
@@ -1981,35 +1981,35 @@ export type ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutatio
 /**
  * @summary Reset All Counters
  */
-export const useResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost = <
+export const useResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost>>,
+      Awaited<ReturnType<typeof resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost>>,
       TError,
-      ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationVariables,
+      ResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost>>,
+  Awaited<ReturnType<typeof resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost>>,
   TError,
-  ResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationVariables,
+  ResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getResetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPostMutationOptions(options),
+    getResetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Sort Counters
  */
-export const sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost = (
+export const sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost = (
   guildId: number,
   groupId: number,
   counterSortRequest: BodyType<CounterSortRequest>,
@@ -2018,7 +2018,7 @@ export const sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost = (
 ) => {
   return apiMutator<CounterGroupRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/sort`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/sort`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: counterSortRequest,
@@ -2028,27 +2028,27 @@ export const sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost = (
   );
 };
 
-export const getSortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationKey = () =>
-  ["sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost"] as const;
+export const getSortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationKey = () =>
+  ["sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost"] as const;
 
-export const getSortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationOptions = <
+export const getSortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost>>,
+    Awaited<ReturnType<typeof sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost>>,
     TError,
-    SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationVariables,
+    SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost>>,
+  Awaited<ReturnType<typeof sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost>>,
   TError,
-  SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationVariables,
+  SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getSortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationKey();
+  const mutationKey = getSortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2056,12 +2056,12 @@ export const getSortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationOpt
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost>>,
-    SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationVariables
+    Awaited<ReturnType<typeof sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost>>,
+    SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationVariables
   > = (props) => {
     const { guildId, groupId, data } = props ?? {};
 
-    return sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost(
+    return sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost(
       guildId,
       groupId,
       data,
@@ -2072,14 +2072,14 @@ export const getSortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationOpt
   return { mutationFn, ...mutationOptions };
 };
 
-export type SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost>>
+export type SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost>>
 >;
-export type SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationBody =
+export type SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationBody =
   BodyType<CounterSortRequest>;
-export type SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationError =
+export type SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationError =
   ErrorType<HTTPValidationError>;
-export type SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationVariables = {
+export type SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationVariables = {
   guildId: number;
   groupId: number;
   data: BodyType<CounterSortRequest>;
@@ -2088,28 +2088,28 @@ export type SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationVariabl
 /**
  * @summary Sort Counters
  */
-export const useSortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost = <
+export const useSortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost>>,
+      Awaited<ReturnType<typeof sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost>>,
       TError,
-      SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationVariables,
+      SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost>>,
+  Awaited<ReturnType<typeof sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost>>,
   TError,
-  SortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationVariables,
+  SortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSortCountersApiV1GGuildIdCounterGroupsGroupIdSortPostMutationOptions(options),
+    getSortCountersApiV1CGuildIdCounterGroupsGroupIdSortPostMutationOptions(options),
     queryClient
   );
 };
@@ -2122,38 +2122,38 @@ export const useSortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost = <
  * which is what a read-back after a delete depends on.
  * @summary Read Counter
  */
-export const readCounterApiV1GGuildIdCountersCounterIdGet = (
+export const readCounterApiV1CGuildIdCountersCounterIdGet = (
   guildId: number,
   counterId: number,
-  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  params?: ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CounterRead>(
-    { url: `/api/v1/g/${guildId}/counters/${counterId}`, method: "GET", params, signal },
+    { url: `/api/v1/c/${guildId}/counters/${counterId}`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadCounterApiV1GGuildIdCountersCounterIdGetQueryKey = (
+export const getReadCounterApiV1CGuildIdCountersCounterIdGetQueryKey = (
   guildId: number,
   counterId: number,
-  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams
+  params?: ReadCounterApiV1CGuildIdCountersCounterIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/counters/${counterId}`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/c/${guildId}/counters/${counterId}`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadCounterApiV1GGuildIdCountersCounterIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+export const getReadCounterApiV1CGuildIdCountersCounterIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   counterId: number,
-  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  params?: ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
         TError,
         TData
       >
@@ -2165,12 +2165,12 @@ export const getReadCounterApiV1GGuildIdCountersCounterIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadCounterApiV1GGuildIdCountersCounterIdGetQueryKey(guildId, counterId, params);
+    getReadCounterApiV1CGuildIdCountersCounterIdGetQueryKey(guildId, counterId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>
+    Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>
   > = ({ signal }) =>
-    readCounterApiV1GGuildIdCountersCounterIdGet(
+    readCounterApiV1CGuildIdCountersCounterIdGet(
       guildId,
       counterId,
       params,
@@ -2185,37 +2185,37 @@ export const getReadCounterApiV1GGuildIdCountersCounterIdGetQueryOptions = <
       guildId !== null && guildId !== undefined && counterId !== null && counterId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+    Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadCounterApiV1GGuildIdCountersCounterIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>
+export type ReadCounterApiV1CGuildIdCountersCounterIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>
 >;
-export type ReadCounterApiV1GGuildIdCountersCounterIdGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadCounterApiV1CGuildIdCountersCounterIdGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
-  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+export function useReadCounterApiV1CGuildIdCountersCounterIdGet<
+  TData = Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   counterId: number,
-  params: undefined | ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  params: undefined | ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+          Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>
+          Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>
         >,
         "initialData"
       >;
@@ -2223,26 +2223,26 @@ export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
-  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+export function useReadCounterApiV1CGuildIdCountersCounterIdGet<
+  TData = Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   counterId: number,
-  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  params?: ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+          Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>
+          Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>
         >,
         "initialData"
       >;
@@ -2250,17 +2250,17 @@ export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
-  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+export function useReadCounterApiV1CGuildIdCountersCounterIdGet<
+  TData = Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   counterId: number,
-  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  params?: ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
         TError,
         TData
       >
@@ -2273,17 +2273,17 @@ export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
  * @summary Read Counter
  */
 
-export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
-  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+export function useReadCounterApiV1CGuildIdCountersCounterIdGet<
+  TData = Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   counterId: number,
-  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  params?: ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        Awaited<ReturnType<typeof readCounterApiV1CGuildIdCountersCounterIdGet>>,
         TError,
         TData
       >
@@ -2292,7 +2292,7 @@ export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadCounterApiV1GGuildIdCountersCounterIdGetQueryOptions(
+  const queryOptions = getReadCounterApiV1CGuildIdCountersCounterIdGetQueryOptions(
     guildId,
     counterId,
     params,
@@ -2313,40 +2313,40 @@ export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
  * grantee's browsing is transient by design and is not stored.
  * @summary Record Counter Group View
  */
-export const recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost = (
+export const recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost = (
   guildId: number,
   groupId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/g/${guildId}/counter-groups/${groupId}/view`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/counter-groups/${groupId}/view`, method: "POST", signal },
     options
   );
 };
 
-export const getRecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationKey = () =>
-  ["recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost"] as const;
+export const getRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationKey = () =>
+  ["recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost"] as const;
 
-export const getRecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationOptions = <
+export const getRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost>>,
+    Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
     TError,
-    RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationVariables,
+    RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost>>,
+  Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
   TError,
-  RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationVariables,
+  RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getRecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationKey();
+    getRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2354,12 +2354,12 @@ export const getRecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostM
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost>>,
-    RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationVariables
+    Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
+    RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables
   > = (props) => {
     const { guildId, groupId } = props ?? {};
 
-    return recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost(
+    return recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost(
       guildId,
       groupId,
       requestOptions
@@ -2369,14 +2369,14 @@ export const getRecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostM
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationResult =
+export type RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost>>
+    Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>
   >;
 
-export type RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationError =
+export type RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationError =
   ErrorType<HTTPValidationError>;
-export type RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationVariables = {
+export type RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables = {
   guildId: number;
   groupId: number;
 };
@@ -2384,28 +2384,28 @@ export type RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutat
 /**
  * @summary Record Counter Group View
  */
-export const useRecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost = <
+export const useRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost>>,
+      Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
       TError,
-      RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationVariables,
+      RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost>>,
+  Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
   TError,
-  RecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationVariables,
+  RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPostMutationOptions(options),
+    getRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationOptions(options),
     queryClient
   );
 };
@@ -2415,40 +2415,40 @@ export const useRecordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost 
  * Idempotent — a tab that is not open stays closed.
  * @summary Clear Counter Group View
  */
-export const clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete = (
+export const clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete = (
   guildId: number,
   groupId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/counter-groups/${groupId}/view`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/counter-groups/${groupId}/view`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationKey = () =>
-  ["clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete"] as const;
+export const getClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationKey = () =>
+  ["clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete"] as const;
 
-export const getClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationOptions = <
+export const getClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete>>,
+    Awaited<ReturnType<typeof clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete>>,
     TError,
-    ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationVariables,
+    ClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete>>,
+  Awaited<ReturnType<typeof clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete>>,
   TError,
-  ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationVariables,
+  ClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationKey();
+    getClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2456,12 +2456,12 @@ export const getClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete>>,
-    ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationVariables
+    Awaited<ReturnType<typeof clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete>>,
+    ClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationVariables
   > = (props) => {
     const { guildId, groupId } = props ?? {};
 
-    return clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete(
+    return clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete(
       guildId,
       groupId,
       requestOptions
@@ -2471,14 +2471,14 @@ export const getClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationResult =
+export type ClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete>>
+    Awaited<ReturnType<typeof clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete>>
   >;
 
-export type ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationError =
+export type ClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationVariables = {
+export type ClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationVariables = {
   guildId: number;
   groupId: number;
 };
@@ -2486,28 +2486,28 @@ export type ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMuta
 /**
  * @summary Clear Counter Group View
  */
-export const useClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete = <
+export const useClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete>>,
+      Awaited<ReturnType<typeof clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete>>,
       TError,
-      ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationVariables,
+      ClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete>>,
+  Awaited<ReturnType<typeof clearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDelete>>,
   TError,
-  ClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationVariables,
+  ClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDeleteMutationOptions(options),
+    getClearCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -2517,7 +2517,7 @@ export const useClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete
  * Every non-owner grant is rebuilt from it; the owner is always preserved.
  * @summary Set Counter Group Grants
  */
-export const setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut = (
+export const setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut = (
   guildId: number,
   groupId: number,
   resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
@@ -2526,7 +2526,7 @@ export const setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut = (
 ) => {
   return apiMutator<CounterGroupRead>(
     {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/grants`,
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/grants`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: resourceGrantSchema,
@@ -2536,28 +2536,28 @@ export const setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut = (
   );
 };
 
-export const getSetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationKey = () =>
-  ["setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut"] as const;
+export const getSetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationKey = () =>
+  ["setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut"] as const;
 
-export const getSetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationOptions = <
+export const getSetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut>>,
+    Awaited<ReturnType<typeof setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut>>,
     TError,
-    SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationVariables,
+    SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut>>,
+  Awaited<ReturnType<typeof setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut>>,
   TError,
-  SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationVariables,
+  SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getSetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationKey();
+    getSetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2565,12 +2565,12 @@ export const getSetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutM
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut>>,
-    SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationVariables
+    Awaited<ReturnType<typeof setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut>>,
+    SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationVariables
   > = (props) => {
     const { guildId, groupId, data } = props ?? {};
 
-    return setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut(
+    return setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut(
       guildId,
       groupId,
       data,
@@ -2581,16 +2581,16 @@ export const getSetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutM
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationResult =
+export type SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut>>
+    Awaited<ReturnType<typeof setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut>>
   >;
-export type SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationBody = BodyType<
+export type SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationBody = BodyType<
   ResourceGrantSchema[]
 >;
-export type SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationError =
+export type SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationError =
   ErrorType<HTTPValidationError>;
-export type SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationVariables = {
+export type SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationVariables = {
   guildId: number;
   groupId: number;
   data: BodyType<ResourceGrantSchema[]>;
@@ -2599,28 +2599,28 @@ export type SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutat
 /**
  * @summary Set Counter Group Grants
  */
-export const useSetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut = <
+export const useSetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut>>,
+      Awaited<ReturnType<typeof setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut>>,
       TError,
-      SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationVariables,
+      SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut>>,
+  Awaited<ReturnType<typeof setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut>>,
   TError,
-  SetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationVariables,
+  SetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPutMutationOptions(options),
+    getSetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationOptions(options),
     queryClient
   );
 };

@@ -63,7 +63,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * address; private, loopback and link-local addresses are rejected.
  * @summary Create Subscription
  */
-export const createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost = (
+export const createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost = (
   guildId: number,
   webhookSubscriptionCreate: BodyType<WebhookSubscriptionCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -71,7 +71,7 @@ export const createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost = (
 ) => {
   return apiMutator<WebhookSubscriptionCreated>(
     {
-      url: `/api/v1/g/${guildId}/webhooks/subscriptions`,
+      url: `/api/v1/c/${guildId}/webhooks/subscriptions`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: webhookSubscriptionCreate,
@@ -81,27 +81,27 @@ export const createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost = (
   );
 };
 
-export const getCreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationKey = () =>
-  ["createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost"] as const;
+export const getCreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationKey = () =>
+  ["createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost"] as const;
 
-export const getCreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationOptions = <
+export const getCreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost>>,
+    Awaited<ReturnType<typeof createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost>>,
     TError,
-    CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationVariables,
+    CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost>>,
+  Awaited<ReturnType<typeof createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost>>,
   TError,
-  CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationVariables,
+  CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationVariables,
   TContext
 > => {
-  const mutationKey = getCreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationKey();
+  const mutationKey = getCreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -109,25 +109,25 @@ export const getCreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutation
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost>>,
-    CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationVariables
+    Awaited<ReturnType<typeof createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost>>,
+    CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationVariables
   > = (props) => {
     const { guildId, data } = props ?? {};
 
-    return createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost(guildId, data, requestOptions);
+    return createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost>>
+export type CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost>>
 >;
-export type CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationBody =
+export type CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationBody =
   BodyType<WebhookSubscriptionCreate>;
-export type CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationError =
+export type CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationVariables = {
+export type CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationVariables = {
   guildId: number;
   data: BodyType<WebhookSubscriptionCreate>;
 };
@@ -135,28 +135,28 @@ export type CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationVari
 /**
  * @summary Create Subscription
  */
-export const useCreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost = <
+export const useCreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost>>,
+      Awaited<ReturnType<typeof createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost>>,
       TError,
-      CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationVariables,
+      CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost>>,
+  Awaited<ReturnType<typeof createSubscriptionApiV1CGuildIdWebhooksSubscriptionsPost>>,
   TError,
-  CreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationVariables,
+  CreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPostMutationOptions(options),
+    getCreateSubscriptionApiV1CGuildIdWebhooksSubscriptionsPostMutationOptions(options),
     queryClient
   );
 };
@@ -165,32 +165,32 @@ export const useCreateSubscriptionApiV1GGuildIdWebhooksSubscriptionsPost = <
  * intentionally absent from the response — it is returned once, on create.
  * @summary List Subscriptions
  */
-export const listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet = (
+export const listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<WebhookSubscriptionRead[]>(
-    { url: `/api/v1/g/${guildId}/webhooks/subscriptions`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/webhooks/subscriptions`, method: "GET", signal },
     options
   );
 };
 
-export const getListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGetQueryKey = (
+export const getListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGetQueryKey = (
   guildId: number
 ) => {
-  return [`/api/v1/g/${guildId}/webhooks/subscriptions`] as const;
+  return [`/api/v1/c/${guildId}/webhooks/subscriptions`] as const;
 };
 
-export const getListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+export const getListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
         TError,
         TData
       >
@@ -202,12 +202,12 @@ export const getListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGetQueryOptio
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGetQueryKey(guildId);
+    getListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>
+    Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>
   > = ({ signal }) =>
-    listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet(guildId, requestOptions, signal);
+    listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -215,36 +215,36 @@ export const getListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGetQueryOptio
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+    Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>
+export type ListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>
 >;
-export type ListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGetQueryError =
+export type ListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+export function useListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet<
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+          Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>
+          Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>
         >,
         "initialData"
       >;
@@ -252,24 +252,24 @@ export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+export function useListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet<
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+          Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>
+          Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>
         >,
         "initialData"
       >;
@@ -277,15 +277,15 @@ export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+export function useListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet<
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
         TError,
         TData
       >
@@ -298,15 +298,15 @@ export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
  * @summary List Subscriptions
  */
 
-export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+export function useListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet<
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGet>>,
         TError,
         TData
       >
@@ -315,7 +315,7 @@ export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGetQueryOptions(
+  const queryOptions = getListSubscriptionsApiV1CGuildIdWebhooksSubscriptionsGetQueryOptions(
     guildId,
     options
   );
@@ -335,7 +335,7 @@ export function useListSubscriptionsApiV1GGuildIdWebhooksSubscriptionsGet<
  * re-validated against the SSRF allowlist.
  * @summary Update Subscription
  */
-export const updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch = (
+export const updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch = (
   guildId: number,
   subscriptionId: number,
   webhookSubscriptionUpdate: BodyType<WebhookSubscriptionUpdate>,
@@ -344,7 +344,7 @@ export const updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdP
 ) => {
   return apiMutator<WebhookSubscriptionRead>(
     {
-      url: `/api/v1/g/${guildId}/webhooks/subscriptions/${subscriptionId}`,
+      url: `/api/v1/c/${guildId}/webhooks/subscriptions/${subscriptionId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: webhookSubscriptionUpdate,
@@ -354,30 +354,30 @@ export const updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdP
   );
 };
 
-export const getUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationKey =
-  () => ["updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch"] as const;
+export const getUpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationKey =
+  () => ["updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch"] as const;
 
-export const getUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationOptions =
+export const getUpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
+        ReturnType<typeof updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
       >,
       TError,
-      UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables,
+      UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
+      ReturnType<typeof updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
     >,
     TError,
-    UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables,
+    UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationKey();
+      getUpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -386,13 +386,13 @@ export const getUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
+        ReturnType<typeof updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
       >,
-      UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables
+      UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables
     > = (props) => {
       const { guildId, subscriptionId, data } = props ?? {};
 
-      return updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch(
+      return updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch(
         guildId,
         subscriptionId,
         data,
@@ -403,33 +403,33 @@ export const getUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
     return { mutationFn, ...mutationOptions };
   };
 
-export type UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationResult =
+export type UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
+      ReturnType<typeof updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
     >
   >;
-export type UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationBody =
+export type UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationBody =
   BodyType<WebhookSubscriptionUpdate>;
-export type UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationError =
+export type UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables =
+export type UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables =
   { guildId: number; subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> };
 
 /**
  * @summary Update Subscription
  */
-export const useUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch = <
+export const useUpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
+        ReturnType<typeof updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
       >,
       TError,
-      UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables,
+      UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -437,14 +437,14 @@ export const useUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof updateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
+    ReturnType<typeof updateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatch>
   >,
   TError,
-  UpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables,
+  UpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationOptions(
+    getUpdateSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdPatchMutationOptions(
       options
     ),
     queryClient
@@ -455,7 +455,7 @@ export const useUpdateSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
  * that govern the content it watches; a cross-guild lookup is a 404.
  * @summary Delete Subscription
  */
-export const deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete = (
+export const deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete = (
   guildId: number,
   subscriptionId: number,
   options?: SecondParameter<typeof apiMutator>,
@@ -463,7 +463,7 @@ export const deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdD
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/g/${guildId}/webhooks/subscriptions/${subscriptionId}`,
+      url: `/api/v1/c/${guildId}/webhooks/subscriptions/${subscriptionId}`,
       method: "DELETE",
       signal,
     },
@@ -471,30 +471,30 @@ export const deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdD
   );
 };
 
-export const getDeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationKey =
-  () => ["deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete"] as const;
+export const getDeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationKey =
+  () => ["deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete"] as const;
 
-export const getDeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationOptions =
+export const getDeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
+        ReturnType<typeof deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
       >,
       TError,
-      DeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables,
+      DeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
+      ReturnType<typeof deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
     >,
     TError,
-    DeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables,
+    DeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationKey();
+      getDeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -503,13 +503,13 @@ export const getDeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
+        ReturnType<typeof deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
       >,
-      DeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables
+      DeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables
     > = (props) => {
       const { guildId, subscriptionId } = props ?? {};
 
-      return deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete(
+      return deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete(
         guildId,
         subscriptionId,
         requestOptions
@@ -519,32 +519,32 @@ export const getDeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationResult =
+export type DeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
+      ReturnType<typeof deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
     >
   >;
 
-export type DeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationError =
+export type DeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables =
+export type DeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables =
   { guildId: number; subscriptionId: number };
 
 /**
  * @summary Delete Subscription
  */
-export const useDeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete = <
+export const useDeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
+        ReturnType<typeof deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
       >,
       TError,
-      DeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables,
+      DeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -552,14 +552,14 @@ export const useDeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscription
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof deleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
+    ReturnType<typeof deleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDelete>
   >,
   TError,
-  DeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables,
+  DeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteSubscriptionApiV1GGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationOptions(
+    getDeleteSubscriptionApiV1CGuildIdWebhooksSubscriptionsSubscriptionIdDeleteMutationOptions(
       options
     ),
     queryClient

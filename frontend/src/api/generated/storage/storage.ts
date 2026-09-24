@@ -42,30 +42,30 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * @summary Read Storage Usage
  */
-export const readStorageUsageApiV1GGuildIdStorageUsageGet = (
+export const readStorageUsageApiV1CGuildIdStorageUsageGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GuildStorageUsageRead>(
-    { url: `/api/v1/g/${guildId}/storage/usage`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/storage/usage`, method: "GET", signal },
     options
   );
 };
 
-export const getReadStorageUsageApiV1GGuildIdStorageUsageGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/storage/usage`] as const;
+export const getReadStorageUsageApiV1CGuildIdStorageUsageGetQueryKey = (guildId: number) => {
+  return [`/api/v1/c/${guildId}/storage/usage`] as const;
 };
 
-export const getReadStorageUsageApiV1GGuildIdStorageUsageGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+export const getReadStorageUsageApiV1CGuildIdStorageUsageGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+        Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
         TError,
         TData
       >
@@ -76,11 +76,11 @@ export const getReadStorageUsageApiV1GGuildIdStorageUsageGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getReadStorageUsageApiV1GGuildIdStorageUsageGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getReadStorageUsageApiV1CGuildIdStorageUsageGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>
-  > = ({ signal }) => readStorageUsageApiV1GGuildIdStorageUsageGet(guildId, requestOptions, signal);
+    Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>
+  > = ({ signal }) => readStorageUsageApiV1CGuildIdStorageUsageGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -88,35 +88,35 @@ export const getReadStorageUsageApiV1GGuildIdStorageUsageGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+    Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadStorageUsageApiV1GGuildIdStorageUsageGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>
+export type ReadStorageUsageApiV1CGuildIdStorageUsageGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>
 >;
-export type ReadStorageUsageApiV1GGuildIdStorageUsageGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadStorageUsageApiV1CGuildIdStorageUsageGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadStorageUsageApiV1GGuildIdStorageUsageGet<
-  TData = Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+export function useReadStorageUsageApiV1CGuildIdStorageUsageGet<
+  TData = Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+        Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+          Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
           TError,
-          Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>
+          Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>
         >,
         "initialData"
       >;
@@ -124,24 +124,24 @@ export function useReadStorageUsageApiV1GGuildIdStorageUsageGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadStorageUsageApiV1GGuildIdStorageUsageGet<
-  TData = Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+export function useReadStorageUsageApiV1CGuildIdStorageUsageGet<
+  TData = Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+        Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+          Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
           TError,
-          Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>
+          Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>
         >,
         "initialData"
       >;
@@ -149,15 +149,15 @@ export function useReadStorageUsageApiV1GGuildIdStorageUsageGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadStorageUsageApiV1GGuildIdStorageUsageGet<
-  TData = Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+export function useReadStorageUsageApiV1CGuildIdStorageUsageGet<
+  TData = Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+        Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
         TError,
         TData
       >
@@ -170,15 +170,15 @@ export function useReadStorageUsageApiV1GGuildIdStorageUsageGet<
  * @summary Read Storage Usage
  */
 
-export function useReadStorageUsageApiV1GGuildIdStorageUsageGet<
-  TData = Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+export function useReadStorageUsageApiV1CGuildIdStorageUsageGet<
+  TData = Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readStorageUsageApiV1GGuildIdStorageUsageGet>>,
+        Awaited<ReturnType<typeof readStorageUsageApiV1CGuildIdStorageUsageGet>>,
         TError,
         TData
       >
@@ -187,7 +187,7 @@ export function useReadStorageUsageApiV1GGuildIdStorageUsageGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadStorageUsageApiV1GGuildIdStorageUsageGetQueryOptions(
+  const queryOptions = getReadStorageUsageApiV1CGuildIdStorageUsageGetQueryOptions(
     guildId,
     options
   );

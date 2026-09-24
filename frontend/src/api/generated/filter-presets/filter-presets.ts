@@ -52,28 +52,28 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * @summary List Filter Presets
  */
-export const listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet = (
+export const listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet = (
   guildId: number,
   projectId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<FilterPresetListResponse>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}/filter-presets/`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/projects/${projectId}/filter-presets/`, method: "GET", signal },
     options
   );
 };
 
-export const getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey = (
+export const getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryKey = (
   guildId: number,
   projectId: number
 ) => {
-  return [`/api/v1/g/${guildId}/projects/${projectId}/filter-presets/`] as const;
+  return [`/api/v1/c/${guildId}/projects/${projectId}/filter-presets/`] as const;
 };
 
-export const getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryOptions = <
+export const getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryOptions = <
   TData = Awaited<
-    ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+    ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -82,7 +82,7 @@ export const getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQ
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>>,
+        Awaited<ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>>,
         TError,
         TData
       >
@@ -94,12 +94,12 @@ export const getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQ
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey(guildId, projectId);
+    getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryKey(guildId, projectId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>>
+    Awaited<ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>>
   > = ({ signal }) =>
-    listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet(
+    listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet(
       guildId,
       projectId,
       requestOptions,
@@ -113,22 +113,22 @@ export const getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQ
       guildId !== null && guildId !== undefined && projectId !== null && projectId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>>,
+    Awaited<ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryResult =
+export type ListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryResult =
   NonNullable<
-    Awaited<ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>>
+    Awaited<ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>>
   >;
-export type ListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryError =
+export type ListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet<
+export function useListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet<
   TData = Awaited<
-    ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+    ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -137,7 +137,7 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>>,
+        Awaited<ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>>,
         TError,
         TData
       >
@@ -145,11 +145,11 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
       Pick<
         DefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+            ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+            ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
           >
         >,
         "initialData"
@@ -158,9 +158,9 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet<
+export function useListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet<
   TData = Awaited<
-    ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+    ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -169,7 +169,7 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>>,
+        Awaited<ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>>,
         TError,
         TData
       >
@@ -177,11 +177,11 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
       Pick<
         UndefinedInitialDataOptions<
           Awaited<
-            ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+            ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
           >,
           TError,
           Awaited<
-            ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+            ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
           >
         >,
         "initialData"
@@ -190,9 +190,9 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet<
+export function useListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet<
   TData = Awaited<
-    ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+    ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -201,7 +201,7 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>>,
+        Awaited<ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>>,
         TError,
         TData
       >
@@ -214,9 +214,9 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
  * @summary List Filter Presets
  */
 
-export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet<
+export function useListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet<
   TData = Awaited<
-    ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>
+    ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
@@ -225,7 +225,7 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet>>,
+        Awaited<ReturnType<typeof listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet>>,
         TError,
         TData
       >
@@ -235,7 +235,7 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryOptions(
+    getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryOptions(
       guildId,
       projectId,
       options
@@ -251,7 +251,7 @@ export function useListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsG
 /**
  * @summary Create Filter Preset
  */
-export const createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost = (
+export const createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost = (
   guildId: number,
   projectId: number,
   filterPresetCreate: BodyType<FilterPresetCreate>,
@@ -260,7 +260,7 @@ export const createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost =
 ) => {
   return apiMutator<FilterPresetRead>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/filter-presets/`,
+      url: `/api/v1/c/${guildId}/projects/${projectId}/filter-presets/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: filterPresetCreate,
@@ -270,28 +270,28 @@ export const createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost =
   );
 };
 
-export const getCreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationKey = () =>
-  ["createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost"] as const;
+export const getCreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationKey = () =>
+  ["createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost"] as const;
 
-export const getCreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationOptions = <
+export const getCreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost>>,
+    Awaited<ReturnType<typeof createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost>>,
     TError,
-    CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationVariables,
+    CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost>>,
+  Awaited<ReturnType<typeof createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost>>,
   TError,
-  CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationVariables,
+  CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getCreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationKey();
+    getCreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -299,12 +299,12 @@ export const getCreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPos
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost>>,
-    CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationVariables
+    Awaited<ReturnType<typeof createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost>>,
+    CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationVariables
   > = (props) => {
     const { guildId, projectId, data } = props ?? {};
 
-    return createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost(
+    return createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost(
       guildId,
       projectId,
       data,
@@ -315,15 +315,15 @@ export const getCreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPos
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationResult =
+export type CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost>>
+    Awaited<ReturnType<typeof createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost>>
   >;
-export type CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationBody =
+export type CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationBody =
   BodyType<FilterPresetCreate>;
-export type CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationError =
+export type CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationError =
   ErrorType<HTTPValidationError>;
-export type CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationVariables = {
+export type CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationVariables = {
   guildId: number;
   projectId: number;
   data: BodyType<FilterPresetCreate>;
@@ -332,35 +332,35 @@ export type CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMut
 /**
  * @summary Create Filter Preset
  */
-export const useCreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost = <
+export const useCreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost>>,
+      Awaited<ReturnType<typeof createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost>>,
       TError,
-      CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationVariables,
+      CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPost>>,
+  Awaited<ReturnType<typeof createFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPost>>,
   TError,
-  CreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationVariables,
+  CreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getCreateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPostMutationOptions(options),
+    getCreateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Update Filter Preset
  */
-export const updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch = (
+export const updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch = (
   guildId: number,
   projectId: number,
   presetId: number,
@@ -370,7 +370,7 @@ export const updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPreset
 ) => {
   return apiMutator<FilterPresetRead>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/filter-presets/${presetId}`,
+      url: `/api/v1/c/${guildId}/projects/${projectId}/filter-presets/${presetId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: filterPresetUpdate,
@@ -380,32 +380,32 @@ export const updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPreset
   );
 };
 
-export const getUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationKey =
-  () => ["updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch"] as const;
+export const getUpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationKey =
+  () => ["updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch"] as const;
 
-export const getUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationOptions =
+export const getUpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch
+          typeof updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch
         >
       >,
       TError,
-      UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables,
+      UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch>
+      ReturnType<typeof updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch>
     >,
     TError,
-    UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables,
+    UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationKey();
+      getUpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -415,14 +415,14 @@ export const getUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch
+          typeof updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch
         >
       >,
-      UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables
+      UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables
     > = (props) => {
       const { guildId, projectId, presetId, data } = props ?? {};
 
-      return updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch(
+      return updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch(
         guildId,
         projectId,
         presetId,
@@ -434,23 +434,23 @@ export const getUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
     return { mutationFn, ...mutationOptions };
   };
 
-export type UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationResult =
+export type UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch>
+      ReturnType<typeof updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch>
     >
   >;
-export type UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationBody =
+export type UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationBody =
   BodyType<FilterPresetUpdate>;
-export type UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationError =
+export type UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables =
+export type UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables =
   { guildId: number; projectId: number; presetId: number; data: BodyType<FilterPresetUpdate> };
 
 /**
  * @summary Update Filter Preset
  */
-export const useUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch = <
+export const useUpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -458,11 +458,11 @@ export const useUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch
+          typeof updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch
         >
       >,
       TError,
-      UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables,
+      UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -470,14 +470,14 @@ export const useUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof updateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatch>
+    ReturnType<typeof updateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatch>
   >,
   TError,
-  UpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables,
+  UpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationOptions(
+    getUpdateFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdPatchMutationOptions(
       options
     ),
     queryClient
@@ -486,7 +486,7 @@ export const useUpdateFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
 /**
  * @summary Delete Filter Preset
  */
-export const deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete = (
+export const deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete = (
   guildId: number,
   projectId: number,
   presetId: number,
@@ -495,7 +495,7 @@ export const deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPreset
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/filter-presets/${presetId}`,
+      url: `/api/v1/c/${guildId}/projects/${projectId}/filter-presets/${presetId}`,
       method: "DELETE",
       signal,
     },
@@ -503,32 +503,32 @@ export const deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPreset
   );
 };
 
-export const getDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationKey =
-  () => ["deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete"] as const;
+export const getDeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationKey =
+  () => ["deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete"] as const;
 
-export const getDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationOptions =
+export const getDeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete
+          typeof deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete
         >
       >,
       TError,
-      DeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables,
+      DeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete>
+      ReturnType<typeof deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete>
     >,
     TError,
-    DeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables,
+    DeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationKey();
+      getDeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -538,14 +538,14 @@ export const getDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete
+          typeof deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete
         >
       >,
-      DeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables
+      DeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables
     > = (props) => {
       const { guildId, projectId, presetId } = props ?? {};
 
-      return deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete(
+      return deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete(
         guildId,
         projectId,
         presetId,
@@ -556,22 +556,22 @@ export const getDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
     return { mutationFn, ...mutationOptions };
   };
 
-export type DeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationResult =
+export type DeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete>
+      ReturnType<typeof deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete>
     >
   >;
 
-export type DeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationError =
+export type DeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type DeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables =
+export type DeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables =
   { guildId: number; projectId: number; presetId: number };
 
 /**
  * @summary Delete Filter Preset
  */
-export const useDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete = <
+export const useDeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -579,11 +579,11 @@ export const useDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete
+          typeof deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete
         >
       >,
       TError,
-      DeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables,
+      DeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -591,14 +591,14 @@ export const useDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof deleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDelete>
+    ReturnType<typeof deleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDelete>
   >,
   TError,
-  DeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables,
+  DeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationOptions(
+    getDeleteFilterPresetApiV1CGuildIdProjectsProjectIdFilterPresetsPresetIdDeleteMutationOptions(
       options
     ),
     queryClient
@@ -607,7 +607,7 @@ export const useDeleteFilterPresetApiV1GGuildIdProjectsProjectIdFilterPresetsPre
 /**
  * @summary Reorder Filter Presets
  */
-export const reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost = (
+export const reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost = (
   guildId: number,
   projectId: number,
   filterPresetReorderRequest: BodyType<FilterPresetReorderRequest>,
@@ -616,7 +616,7 @@ export const reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReor
 ) => {
   return apiMutator<FilterPresetRead[]>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/filter-presets/reorder`,
+      url: `/api/v1/c/${guildId}/projects/${projectId}/filter-presets/reorder`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: filterPresetReorderRequest,
@@ -626,32 +626,32 @@ export const reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReor
   );
 };
 
-export const getReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationKey =
-  () => ["reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost"] as const;
+export const getReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationKey =
+  () => ["reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost"] as const;
 
-export const getReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationOptions =
+export const getReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost
+          typeof reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost
         >
       >,
       TError,
-      ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables,
+      ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost>
+      ReturnType<typeof reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost>
     >,
     TError,
-    ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables,
+    ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationKey();
+      getReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -661,14 +661,14 @@ export const getReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsR
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost
+          typeof reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost
         >
       >,
-      ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables
+      ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables
     > = (props) => {
       const { guildId, projectId, data } = props ?? {};
 
-      return reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost(
+      return reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost(
         guildId,
         projectId,
         data,
@@ -679,23 +679,23 @@ export const getReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsR
     return { mutationFn, ...mutationOptions };
   };
 
-export type ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationResult =
+export type ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost>
+      ReturnType<typeof reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost>
     >
   >;
-export type ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationBody =
+export type ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationBody =
   BodyType<FilterPresetReorderRequest>;
-export type ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationError =
+export type ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationError =
   ErrorType<HTTPValidationError>;
-export type ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables =
+export type ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables =
   { guildId: number; projectId: number; data: BodyType<FilterPresetReorderRequest> };
 
 /**
  * @summary Reorder Filter Presets
  */
-export const useReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost = <
+export const useReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
@@ -703,11 +703,11 @@ export const useReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsR
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost
+          typeof reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost
         >
       >,
       TError,
-      ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables,
+      ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -715,14 +715,14 @@ export const useReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsR
   queryClient?: QueryClient
 ): UseMutationResult<
   Awaited<
-    ReturnType<typeof reorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPost>
+    ReturnType<typeof reorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPost>
   >,
   TError,
-  ReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables,
+  ReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getReorderFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsReorderPostMutationOptions(
+    getReorderFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsReorderPostMutationOptions(
       options
     ),
     queryClient

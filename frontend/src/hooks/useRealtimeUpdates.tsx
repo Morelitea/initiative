@@ -2,8 +2,8 @@ import { useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { apiClient, getAuthToken } from "@/api/client";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { DashboardDataResponse } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q, type Spec } from "@/api/query-keys";
 import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
@@ -22,7 +22,7 @@ const buildWebsocketUrl = (guildId: number) => {
     return buildGuildWsUrl(guildId, "events/updates");
   } catch {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    return `${protocol}://${window.location.host}/api/v1/g/${guildId}/events/updates`;
+    return `${protocol}://${window.location.host}/api/v1/c/${guildId}/events/updates`;
   }
 };
 

@@ -21,8 +21,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost,
-  createInitiativeAppHandoffApiV1GGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost,
+  createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost,
+  createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost,
 } from "@/api/generated/apps/apps";
 import type { GuildAppHandoff } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -87,12 +87,12 @@ export function GuildAppPage({ appId, initiativeId }: GuildAppPageProps) {
   const mint = useCallback(
     () =>
       (initiativeId === undefined
-        ? createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost(
+        ? createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost(
             guildId,
             appId,
             activeId ?? ""
           )
-        : createInitiativeAppHandoffApiV1GGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost(
+        : createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost(
             guildId,
             initiativeId,
             appId,

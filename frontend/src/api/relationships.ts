@@ -16,10 +16,10 @@ import {
   type SearchEntityType,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createRelationshipApiV1GGuildIdRelationshipsPost,
-  listRelationshipsApiV1GGuildIdRelationshipsGet,
-  removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete,
-  replaceRelationshipSliceApiV1GGuildIdRelationshipsPut,
+  createRelationshipApiV1CGuildIdRelationshipsPost,
+  listRelationshipsApiV1CGuildIdRelationshipsGet,
+  removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete,
+  replaceRelationshipSliceApiV1CGuildIdRelationshipsPut,
 } from "@/api/generated/relationships/relationships";
 
 /** A thing, as a reference names it: `task:12`. */
@@ -49,7 +49,7 @@ export const listRelated = (
   relationshipType: RelationshipType | null = null,
   direction: Direction = "both"
 ): Promise<RelationshipRead[]> =>
-  listRelationshipsApiV1GGuildIdRelationshipsGet(guildId, {
+  listRelationshipsApiV1CGuildIdRelationshipsGet(guildId, {
     entity: ref(entity),
     relationship_type: relationshipType,
     other_type: otherType,
@@ -63,7 +63,7 @@ export const relate = async (
   target: EndpointRef,
   relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<RelationshipRead> =>
-  createRelationshipApiV1GGuildIdRelationshipsPost(guildId, {
+  createRelationshipApiV1CGuildIdRelationshipsPost(guildId, {
     source,
     relationship_type: relationshipType,
     target,
@@ -79,7 +79,7 @@ export const relate = async (
 export const createRelationship = (
   guildId: number,
   body: RelationshipCreate
-): Promise<RelationshipRead> => createRelationshipApiV1GGuildIdRelationshipsPost(guildId, body);
+): Promise<RelationshipRead> => createRelationshipApiV1CGuildIdRelationshipsPost(guildId, body);
 
 /** Replace everything of one kind linked to a thing. */
 export const setRelated = (
@@ -89,7 +89,7 @@ export const setRelated = (
   otherIds: number[],
   relationshipType: RelationshipType = RelationshipType.attached
 ): Promise<RelationshipRead[]> =>
-  replaceRelationshipSliceApiV1GGuildIdRelationshipsPut(guildId, otherIds, {
+  replaceRelationshipSliceApiV1CGuildIdRelationshipsPut(guildId, otherIds, {
     entity: ref(entity),
     relationship_type: relationshipType,
     other_type: otherType,
@@ -117,4 +117,4 @@ export const unrelate = async (
 
 /** Remove a link by its own id. */
 export const removeRelationship = (guildId: number, relationshipId: number): Promise<void> =>
-  removeRelationshipApiV1GGuildIdRelationshipsRelationshipIdDelete(guildId, relationshipId);
+  removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete(guildId, relationshipId);

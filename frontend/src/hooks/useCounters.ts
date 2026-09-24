@@ -2,16 +2,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
-  addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost,
-  deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
-  duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost,
-  getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey,
-  type incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
-  resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost,
-  resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
-  setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost,
-  sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost,
-  updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch,
+  addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost,
+  deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
+  duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost,
+  getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
+  type incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
+  resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost,
+  resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
+  setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost,
+  sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost,
+  updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch,
 } from "@/api/generated/counters/counters";
 import type {
   CounterCreate,
@@ -51,7 +51,7 @@ const patchCounterInCache = (
   counterId: number,
   patch: Partial<CounterRead> | ((c: CounterRead) => Partial<CounterRead>)
 ): OptimisticContext => {
-  const key = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
+  const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
   const previousGroup = queryClient.getQueryData<CounterGroupRead>(key);
   queryClient.setQueryData<CounterGroupRead>(key, (old) => {
     if (!old) return old;
@@ -74,7 +74,7 @@ const rollbackGroup = (
   context: OptimisticContext | undefined
 ) => {
   if (!context?.previousGroup) return;
-  const key = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
+  const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
   queryClient.setQueryData<CounterGroupRead>(key, context.previousGroup);
 };
 
@@ -103,7 +103,7 @@ export const useDuplicateCounterGroup = (
   useGuildMutation<CounterGroupRead, CounterGroupDuplicateRequest>(
     {
       mutationFn: (guildId, data) =>
-        duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost(guildId, groupId, data),
+        duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost(guildId, groupId, data),
       invalidate: () => invalidate(q.allCounterGroups()),
       errorKey: "counterGroups:error",
     },
@@ -119,7 +119,7 @@ export const useAddCounter = (
   useGuildMutation<CounterRead, CounterCreate>(
     {
       mutationFn: (guildId, data) =>
-        addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost(guildId, groupId, data),
+        addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost(guildId, groupId, data),
       invalidate: () => invalidateGroupAndList(groupId),
       errorKey: "counterGroups:error",
     },
@@ -144,14 +144,14 @@ export const useUpdateCounter = (
   return useMutation<CounterRead, Error, UpdateCounterInput, OptimisticContext>({
     ...rest,
     mutationFn: async ({ counterId, data }) =>
-      updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch(
+      updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch(
         guildId,
         groupId,
         counterId,
         data
       ),
     onMutate: async ({ counterId, data }) => {
-      const key = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
+      const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       return patchCounterInCache(
         queryClient,
@@ -181,14 +181,14 @@ export const useDeleteCounter = (groupId: number, options?: MutationOpts<void, n
   return useMutation<void, Error, number, OptimisticContext>({
     ...rest,
     mutationFn: async (counterId: number) => {
-      await deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete(
+      await deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete(
         guildId,
         groupId,
         counterId
       );
     },
     onMutate: async (counterId) => {
-      const key = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
+      const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       const previousGroup = queryClient.getQueryData<CounterGroupRead>(key);
       queryClient.setQueryData<CounterGroupRead>(key, (old) => {
@@ -227,14 +227,14 @@ export const useSetCount = (
   return useMutation<CounterRead, Error, SetCountInput, OptimisticContext>({
     ...rest,
     mutationFn: async ({ counterId, data }) =>
-      setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
+      setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
         guildId,
         groupId,
         counterId,
         data
       ),
     onMutate: async ({ counterId, data }) => {
-      const key = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
+      const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       return patchCounterInCache(queryClient, guildId, groupId, counterId, (c) => ({
         count: optimisticSetCount(c, String(data.count)),
@@ -254,7 +254,7 @@ export const useSetCount = (
 };
 
 const makeValueOpHook = (
-  endpoint: typeof incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
+  endpoint: typeof incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
   computeOptimistic: (counter: CounterRead) => string
 ) => {
   return (groupId: number, options?: MutationOpts<CounterRead, number>) => {
@@ -268,7 +268,7 @@ const makeValueOpHook = (
       ...rest,
       mutationFn: async (counterId: number) => endpoint(guildId, groupId, counterId),
       onMutate: async (counterId) => {
-        const key = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(
+        const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(
           guildId,
           groupId
         );
@@ -295,7 +295,7 @@ const makeValueOpHook = (
 };
 
 export const useResetCounter = makeValueOpHook(
-  resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
+  resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
   optimisticReset
 );
 
@@ -309,9 +309,9 @@ export const useResetAllCounters = (
   return useMutation<CounterGroupRead, Error, void, OptimisticContext>({
     ...rest,
     mutationFn: async () =>
-      resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost(guildId, groupId),
+      resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost(guildId, groupId),
     onMutate: async () => {
-      const key = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
+      const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       const previousGroup = queryClient.getQueryData<CounterGroupRead>(key);
       queryClient.setQueryData<CounterGroupRead>(key, (old) => {
@@ -363,9 +363,9 @@ export const useSortCounters = (
   return useMutation<CounterGroupRead, Error, CounterSortRequest, OptimisticContext>({
     ...rest,
     mutationFn: async (data: CounterSortRequest) =>
-      sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost(guildId, groupId, data),
+      sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost(guildId, groupId, data),
     onMutate: async ({ field, direction }) => {
-      const key = getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
+      const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
       const previousGroup = queryClient.getQueryData<CounterGroupRead>(key);
       queryClient.setQueryData<CounterGroupRead>(key, (old) => {
@@ -424,7 +424,7 @@ export const useSteppedCount = (groupId: number) => {
   const pending = useRef<Map<number, string>>(new Map());
 
   const groupKey = useMemo(
-    () => getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId),
+    () => getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId),
     [guildId, groupId]
   );
 
@@ -446,7 +446,7 @@ export const useSteppedCount = (groupId: number) => {
       const target = pending.current.get(counterId);
       if (target === undefined) return;
       try {
-        await setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
+        await setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
           guildId,
           groupId,
           counterId,
@@ -558,7 +558,7 @@ export const useSteppedCount = (groupId: number) => {
         clearTimeout(timer);
         const target = pendingMap.get(counterId);
         if (target !== undefined) {
-          void setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
+          void setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
             guildId,
             groupId,
             counterId,

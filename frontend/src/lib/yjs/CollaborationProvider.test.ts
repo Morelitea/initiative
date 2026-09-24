@@ -230,7 +230,7 @@ describe("CollaborationProvider across an outage", () => {
 });
 
 describe("joining a connection that already exists", () => {
-  const url = "ws://test/api/v1/g/1/collaboration/documents/9/collaborate";
+  const url = "ws://test/api/v1/c/1/collaboration/documents/9/collaborate";
 
   it("hands back the provider already serving that address", () => {
     const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });

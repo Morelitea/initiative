@@ -1,37 +1,37 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey,
+  getListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryKey,
   getListLoginProvidersApiV1AuthProvidersGetQueryKey,
-  listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet,
+  listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet,
   listLoginProvidersApiV1AuthProvidersGet,
 } from "@/api/generated/auth/auth";
 import {
-  createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost,
-  createGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsPost,
-  deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete,
-  deleteGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdDelete,
-  getListConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGetQueryKey,
-  getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey,
-  getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey,
-  listConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGet,
-  listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet,
-  listGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGet,
-  updateGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdPatch,
-} from "@/api/generated/guild-provider-connections/guild-provider-connections";
+  getGetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGetQueryKey,
+  getGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGetQueryKey,
+  getGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryKey,
+  getGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGet,
+  getGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGet,
+  getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet,
+  setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut,
+  setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut,
+  setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut,
+  setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut,
+  setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut,
+} from "@/api/generated/communities/communities";
 import {
-  getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey,
-  getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey,
-  getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryKey,
-  getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet,
-  getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet,
-  getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet,
-  setGuildApiAccessApiV1GuildsGuildIdApiAccessPut,
-  setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut,
-  setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut,
-  setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut,
-  setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut,
-} from "@/api/generated/guilds/guilds";
+  createGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPost,
+  createGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsPost,
+  deleteGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesRuleIdDelete,
+  deleteGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdDelete,
+  getListConnectableProvidersApiV1CommunitiesGuildIdAuthConnectionsAvailableGetQueryKey,
+  getListGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGetQueryKey,
+  getListGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnectionsGetQueryKey,
+  listConnectableProvidersApiV1CommunitiesGuildIdAuthConnectionsAvailableGet,
+  listGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGet,
+  listGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnectionsGet,
+  updateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdPatch,
+} from "@/api/generated/community-provider-connections/community-provider-connections";
 import type {
   ConnectableProviderRead,
   GuildApiAccessUpdate,
@@ -70,8 +70,8 @@ export const useGuildLoginProviders = (
   options?: QueryOpts<LoginProvidersResponse>
 ) => {
   return useQuery<LoginProvidersResponse>({
-    queryKey: getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId),
-    queryFn: () => listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet(guildId),
+    queryKey: getListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryKey(guildId),
+    queryFn: () => listGuildLoginProvidersApiV1AuthCGuildIdProvidersGet(guildId),
     staleTime: 60_000,
     enabled: guildId > 0,
     ...options,
@@ -81,8 +81,8 @@ export const useGuildLoginProviders = (
 /** The guild's sign-in requirement (guild admins only). */
 export const useGuildAuthPolicy = (guildId: number, options?: QueryOpts<GuildAuthPolicyRead>) => {
   return useQuery<GuildAuthPolicyRead>({
-    queryKey: getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey(guildId),
-    queryFn: () => getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet(guildId),
+    queryKey: getGetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGetQueryKey(guildId),
+    queryFn: () => getGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGet(guildId),
     enabled: guildId > 0,
     ...options,
   });
@@ -94,8 +94,8 @@ export const useGuildAuthSettings = (
   options?: QueryOpts<GuildAuthSettingsRead>
 ) => {
   return useQuery<GuildAuthSettingsRead>({
-    queryKey: getGetGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGetQueryKey(guildId),
-    queryFn: () => getGuildAuthSettingsApiV1GuildsGuildIdAuthSettingsGet(guildId),
+    queryKey: getGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGetQueryKey(guildId),
+    queryFn: () => getGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGet(guildId),
     enabled: guildId > 0,
     ...options,
   });
@@ -106,10 +106,10 @@ export const useUpdateGuildAuthPolicy = (guildId: number) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: GuildAuthPolicyUpdate) =>
-      setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut(guildId, data),
+      setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut(guildId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey(guildId),
+        queryKey: getGetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGetQueryKey(guildId),
       });
     },
   });
@@ -125,7 +125,7 @@ export const useUpdateGuildAuthPolicy = (guildId: number) => {
 export const useUpdateGuildApiAccess = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildApiAccessUpdate) =>
-      setGuildApiAccessApiV1GuildsGuildIdApiAccessPut(guildId, data),
+      setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut(guildId, data),
   });
 };
 
@@ -136,7 +136,7 @@ export const useUpdateGuildApiAccess = (guildId: number) => {
 export const useUpdateGuildSessionLimit = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildSessionLimitUpdate) =>
-      setGuildSessionLimitApiV1GuildsGuildIdSessionLimitPut(guildId, data),
+      setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut(guildId, data),
   });
 };
 
@@ -149,8 +149,9 @@ export const useGuildNotificationPolicy = (
   options?: QueryOpts<GuildNotificationPolicyRead>
 ) => {
   return useQuery<GuildNotificationPolicyRead>({
-    queryKey: getGetGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGetQueryKey(guildId),
-    queryFn: () => getGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyGet(guildId),
+    queryKey:
+      getGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryKey(guildId),
+    queryFn: () => getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet(guildId),
     enabled: guildId > 0,
     ...options,
   });
@@ -160,7 +161,7 @@ export const useGuildNotificationPolicy = (
 export const useUpdateGuildNotificationPolicy = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildNotificationPolicyUpdate) =>
-      setGuildNotificationPolicyApiV1GuildsGuildIdNotificationPolicyPut(guildId, data),
+      setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut(guildId, data),
   });
 };
 
@@ -168,7 +169,7 @@ export const useUpdateGuildNotificationPolicy = (guildId: number) => {
 export const useUpdateGuildSecondFactor = (guildId: number) => {
   return useMutation({
     mutationFn: (data: GuildSecondFactorUpdate) =>
-      setGuildSecondFactorApiV1GuildsGuildIdSecondFactorPut(guildId, data),
+      setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut(guildId, data),
   });
 };
 
@@ -178,8 +179,9 @@ export const useGuildProviderConnections = (
   options?: QueryOpts<GuildProviderConnectionRead[]>
 ) => {
   return useQuery<GuildProviderConnectionRead[]>({
-    queryKey: getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey(guildId),
-    queryFn: () => listGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGet(guildId),
+    queryKey:
+      getListGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnectionsGetQueryKey(guildId),
+    queryFn: () => listGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnectionsGet(guildId),
     enabled: guildId > 0,
     ...options,
   });
@@ -192,8 +194,11 @@ export const useConnectableProviders = (
 ) => {
   return useQuery<ConnectableProviderRead[]>({
     queryKey:
-      getListConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGetQueryKey(guildId),
-    queryFn: () => listConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGet(guildId),
+      getListConnectableProvidersApiV1CommunitiesGuildIdAuthConnectionsAvailableGetQueryKey(
+        guildId
+      ),
+    queryFn: () =>
+      listConnectableProvidersApiV1CommunitiesGuildIdAuthConnectionsAvailableGet(guildId),
     enabled: guildId > 0,
     ...options,
   });
@@ -210,18 +215,20 @@ const useInvalidateConnections = (guildId: number) => {
   // connection's acceptance.
   return () => {
     void queryClient.invalidateQueries({
-      queryKey: getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey(guildId),
+      queryKey: getListGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGetQueryKey(guildId),
     });
     void queryClient.invalidateQueries({
       queryKey:
-        getListGuildProviderConnectionsApiV1GuildsGuildIdAuthConnectionsGetQueryKey(guildId),
+        getListGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnectionsGetQueryKey(guildId),
     });
     void queryClient.invalidateQueries({
       queryKey:
-        getListConnectableProvidersApiV1GuildsGuildIdAuthConnectionsAvailableGetQueryKey(guildId),
+        getListConnectableProvidersApiV1CommunitiesGuildIdAuthConnectionsAvailableGetQueryKey(
+          guildId
+        ),
     });
     void queryClient.invalidateQueries({
-      queryKey: getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId),
+      queryKey: getListGuildLoginProvidersApiV1AuthCGuildIdProvidersGetQueryKey(guildId),
     });
   };
 };
@@ -230,7 +237,7 @@ export const useConnectProvider = (guildId: number) => {
   const invalidate = useInvalidateConnections(guildId);
   return useMutation({
     mutationFn: (data: GuildProviderConnectionCreate) =>
-      createGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsPost(guildId, data),
+      createGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsPost(guildId, data),
     onSuccess: invalidate,
   });
 };
@@ -245,7 +252,7 @@ export const useUpdateProviderConnection = (guildId: number) => {
       connectionId: number;
       data: GuildProviderConnectionUpdate;
     }) =>
-      updateGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdPatch(
+      updateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdPatch(
         guildId,
         connectionId,
         data
@@ -258,7 +265,7 @@ export const useDisconnectProvider = (guildId: number) => {
   const invalidate = useInvalidateConnections(guildId);
   return useMutation({
     mutationFn: (connectionId: number) =>
-      deleteGuildProviderConnectionApiV1GuildsGuildIdAuthConnectionsConnectionIdDelete(
+      deleteGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdDelete(
         guildId,
         connectionId
       ),
@@ -272,8 +279,8 @@ export const useGuildClaimRules = (
   options?: QueryOpts<GuildClaimRulesResponse>
 ) => {
   return useQuery<GuildClaimRulesResponse>({
-    queryKey: getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey(guildId),
-    queryFn: () => listGuildClaimRulesApiV1GuildsGuildIdAuthRulesGet(guildId),
+    queryKey: getListGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGetQueryKey(guildId),
+    queryFn: () => listGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGet(guildId),
     enabled: guildId > 0,
     ...options,
   });
@@ -283,7 +290,7 @@ const useInvalidateClaimRules = (guildId: number) => {
   const queryClient = useQueryClient();
   return () => {
     void queryClient.invalidateQueries({
-      queryKey: getListGuildClaimRulesApiV1GuildsGuildIdAuthRulesGetQueryKey(guildId),
+      queryKey: getListGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGetQueryKey(guildId),
     });
   };
 };
@@ -292,7 +299,7 @@ export const useCreateClaimRule = (guildId: number) => {
   const invalidate = useInvalidateClaimRules(guildId);
   return useMutation({
     mutationFn: (data: GuildClaimRuleCreate) =>
-      createGuildClaimRuleApiV1GuildsGuildIdAuthRulesPost(guildId, data),
+      createGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPost(guildId, data),
     onSuccess: invalidate,
   });
 };
@@ -301,7 +308,7 @@ export const useDeleteClaimRule = (guildId: number) => {
   const invalidate = useInvalidateClaimRules(guildId);
   return useMutation({
     mutationFn: (ruleId: number) =>
-      deleteGuildClaimRuleApiV1GuildsGuildIdAuthRulesRuleIdDelete(guildId, ruleId),
+      deleteGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesRuleIdDelete(guildId, ruleId),
     onSuccess: invalidate,
   });
 };

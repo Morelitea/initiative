@@ -21,7 +21,7 @@ vi.mock("@/lib/chesterToast", () => {
 
 // variant="user" -> cross-guild GET /api/v1/me/trash (no guild segment).
 const myTrashEndpoint = "/api/v1/me/trash";
-// variant="guild" -> GET /api/v1/g/:guildId/trash/ (guild-admin view).
+// variant="guild" -> GET /api/v1/c/:guildId/trash/ (guild-admin view).
 const guildTrashEndpoint = "/trash/";
 // restore/purge stay guild-scoped, addressed by each item's guild_id.
 const restoreEndpoint = "/trash/:type/:id/restore";

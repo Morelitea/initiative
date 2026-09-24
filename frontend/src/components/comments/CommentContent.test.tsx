@@ -27,7 +27,7 @@ const renderResolvedContent = (content: string, disableLinks = false) =>
 
 const answerWithPeople = (...people: ReturnType<typeof buildUserSummary>[]) =>
   server.use(
-    http.get("*/api/v1/g/:guildId/users/search", () =>
+    http.get("*/api/v1/c/:guildId/users/search", () =>
       HttpResponse.json({ items: people, total: people.length, page: 1, page_size: 100 })
     )
   );

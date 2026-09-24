@@ -30,7 +30,7 @@ export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "er
 export interface UseCollaborationOptions {
   /**
    * The room, as the server addresses it: the collaboration path under
-   * `/g/{guildId}/collaboration/`. A document is
+   * `/c/{guildId}/collaboration/`. A document is
    * `documents/{id}/collaborate`; a wiki page is
    * `wikis/{wikiId}/pages/{pageId}/collaborate`.
    *
@@ -123,7 +123,7 @@ export function useCollaboration({
   const isReady = Boolean(enabled && user && activeGuildId && socketPath);
 
   // Build the WebSocket URL (memoized to detect changes). The token is sent
-  // via MSG_AUTH message, not URL params; the guild is the /g/{guildId} path
+  // via MSG_AUTH message, not URL params; the guild is the /c/{guildId} path
   // segment.
   const wsUrl = useMemo(() => {
     if (!isReady || !activeGuildId) {

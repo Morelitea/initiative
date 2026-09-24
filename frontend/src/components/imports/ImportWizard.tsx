@@ -4,11 +4,11 @@ import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useS
 import { useTranslation } from "react-i18next";
 
 import {
-  useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
-  useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
-  useImportForeignApiV1GGuildIdImportsForeignSourcePost,
-  usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost,
-  useUploadBackupApiV1GGuildIdImportsBackupPost,
+  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
+  useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost,
+  useImportForeignApiV1CGuildIdImportsForeignSourcePost,
+  usePreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost,
+  useUploadBackupApiV1CGuildIdImportsBackupPost,
 } from "@/api/generated/imports/imports";
 import type { ForeignPreview, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -156,11 +156,11 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   // matches; a handle left out of it stays unmapped on purpose.
   const [peopleMap, setPeopleMap] = useState<Record<string, number | null>>({});
 
-  const uploadMutation = useUploadBackupApiV1GGuildIdImportsBackupPost();
-  const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
-  const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
-  const previewMutation = usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost();
-  const importMutation = useImportForeignApiV1GGuildIdImportsForeignSourcePost();
+  const uploadMutation = useUploadBackupApiV1CGuildIdImportsBackupPost();
+  const confirmMutation = useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost();
+  const cancelMutation = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
+  const previewMutation = usePreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost();
+  const importMutation = useImportForeignApiV1CGuildIdImportsForeignSourcePost();
 
   const initiativesQuery = useInitiatives();
   const { filterVisible, permissionsFor } = useInitiativeAccess();

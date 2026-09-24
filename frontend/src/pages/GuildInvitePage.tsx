@@ -42,7 +42,7 @@ export const GuildInvitePage = () => {
     setError(null);
     setStatus(null);
     apiClient
-      .get<GuildInviteStatus>(`/guilds/invite/${encodeURIComponent(normalizedCode)}`)
+      .get<GuildInviteStatus>(`/communities/invite/${encodeURIComponent(normalizedCode)}`)
       .then((response) => {
         if (ignore) {
           return;
@@ -75,7 +75,7 @@ export const GuildInvitePage = () => {
     setAccepting(true);
     setAcceptError(null);
     try {
-      await apiClient.post("/guilds/invite/accept", { code: normalizedCode });
+      await apiClient.post("/communities/invite/accept", { code: normalizedCode });
       setAccepted(true);
       // Refresh both explicitly: joining changes the user's guild list, and the
       // switcher only reloads when asked to. (It deliberately does not key off

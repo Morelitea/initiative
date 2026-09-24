@@ -41,7 +41,7 @@ export type {
 };
 
 export const getAppWidgetCatalog = (guildId: number) =>
-  apiClient.get<AppWidgetCatalogResponse>(`/g/${guildId}/apps/widget-catalog`).then((r) => r.data);
+  apiClient.get<AppWidgetCatalogResponse>(`/c/${guildId}/apps/widget-catalog`).then((r) => r.data);
 
 export interface AppDataRequest {
   guildId: number;
@@ -66,7 +66,7 @@ export const getAppData = ({
 }: AppDataRequest) =>
   apiClient
     .get<AppDataResponse>(
-      `/g/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}`,
+      `/c/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}`,
       {
         params: {
           dashboard_id: dashboardId,
@@ -108,7 +108,7 @@ export const getAppParamOptions = ({
 }: AppParamOptionsRequest) =>
   apiClient
     .get<AppParamOptionsResponse>(
-      `/g/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}/options`,
+      `/c/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}/options`,
       {
         params: {
           param,

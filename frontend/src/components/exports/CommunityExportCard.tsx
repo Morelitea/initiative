@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGetQueryKey,
-  useReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGet,
+  getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey,
+  useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet,
 } from "@/api/generated/exports/exports";
 import type { ExportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ExportWizard } from "@/components/exports/ExportWizard";
@@ -59,7 +59,7 @@ export function CommunityExportCard() {
   // in.
   const heldBySeat = holdsGuildSeat(activeGuild);
 
-  const statusQuery = useReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGet(guildId, {
+  const statusQuery = useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet(guildId, {
     query: {
       refetchInterval: (query) =>
         ACTIVE.has(query.state.data?.latest?.status ?? "") ? POLL_MS : false,
@@ -78,7 +78,7 @@ export function CommunityExportCard() {
     setWizardOpen(open);
     if (!open) {
       void queryClient.invalidateQueries({
-        queryKey: getReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGetQueryKey(guildId),
+        queryKey: getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey(guildId),
       });
     }
   };

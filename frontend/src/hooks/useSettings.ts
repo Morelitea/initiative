@@ -50,7 +50,7 @@ import type {
   StorageTestResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut,
+  agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut,
   getCaptchaSettingsApiV1SettingsCaptchaGet,
   getEmailSettingsApiV1SettingsEmailGet,
   getFcmConfigApiV1SettingsFcmConfigGet,
@@ -65,17 +65,17 @@ import {
   getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
   getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
   getInterfaceSettingsApiV1SettingsInterfaceGet,
-  getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey,
+  getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey,
   getNotificationSettingsApiV1SettingsNotificationsGet,
   getOidcSettingsApiV1SettingsAuthGet,
   getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
   getPushSettingsApiV1SettingsPushGet,
-  getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey,
+  getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey,
   getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
   getStorageSettingsApiV1SettingsStorageGet,
-  listPlatformGuildStorageApiV1SettingsGuildsGet,
-  readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet,
-  restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost,
+  listPlatformGuildStorageApiV1SettingsCommunitiesGet,
+  readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet,
+  restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost,
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
   testStorageConnectionApiV1SettingsStorageTestPost,
@@ -85,7 +85,7 @@ import {
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateLoginMethodsApiV1SettingsAuthMethodsPut,
   updateNotificationSettingsApiV1SettingsNotificationsPut,
-  updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
+  updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch,
   updatePushSettingsApiV1SettingsPushPut,
   updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut,
   updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut,
@@ -125,8 +125,8 @@ export const useGuildNarrowings = (
   options?: QueryOpts<GuildNarrowingPending[]>
 ) => {
   return useQuery<GuildNarrowingPending[]>({
-    queryKey: getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey(guildId),
-    queryFn: () => readGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGet(guildId),
+    queryKey: getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey(guildId),
+    queryFn: () => readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet(guildId),
     ...options,
   });
 };
@@ -139,7 +139,7 @@ export const useAgreeGuildNarrowing = (
   useApiMutation<GuildNarrowingPending, { connectionId: number; agreed: boolean }>(
     {
       mutationFn: ({ connectionId, agreed }) =>
-        agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut(
+        agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut(
           guildId,
           connectionId,
           { agreed }
@@ -210,8 +210,8 @@ export const useFcmConfig = () => {
  */
 export const usePlatformGuilds = (options?: QueryOpts<PlatformGuildStorageRead[]>) => {
   return useQuery<PlatformGuildStorageRead[]>({
-    queryKey: getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey(),
-    queryFn: () => listPlatformGuildStorageApiV1SettingsGuildsGet(),
+    queryKey: getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey(),
+    queryFn: () => listPlatformGuildStorageApiV1SettingsCommunitiesGet(),
     ...options,
   });
 };
@@ -527,7 +527,7 @@ export const useRestoreGuild = (
   useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>(
     {
       mutationFn: ({ guildId, data }) =>
-        restorePlatformGuildApiV1SettingsGuildsGuildIdRestorePost(guildId, data),
+        restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost(guildId, data),
       invalidate: () => invalidate(q.platformGuilds()),
     },
     options
@@ -542,9 +542,11 @@ export const useUpdateGuildStorage = (
   useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildStorageUpdate }>(
     {
       mutationFn: ({ guildId, data }) =>
-        updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch(
+        updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch(
           guildId,
-          data as Parameters<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>[1]
+          data as Parameters<
+            typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch
+          >[1]
         ),
       invalidate: () => invalidate(q.platformGuilds()),
     },

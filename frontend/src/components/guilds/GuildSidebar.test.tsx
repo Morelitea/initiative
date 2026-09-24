@@ -40,11 +40,14 @@ vi.mock("@/hooks/useAppConfig", () => ({
     communityDirectoryEnabled: state.communityDirectory,
   }),
 }));
-vi.mock("@/api/generated/guilds/guilds", async () => {
-  const actual = await vi.importActual<typeof import("@/api/generated/guilds/guilds")>(
-    "@/api/generated/guilds/guilds"
+vi.mock("@/api/generated/communities/communities", async () => {
+  const actual = await vi.importActual<typeof import("@/api/generated/communities/communities")>(
+    "@/api/generated/communities/communities"
   );
-  return { ...actual, createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost: mintMock };
+  return {
+    ...actual,
+    createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintMock,
+  };
 });
 vi.mock("@/lib/chesterToast", () => ({
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },

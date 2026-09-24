@@ -54,30 +54,30 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * ``GET /me/trash`` for their own deletions; they never reach this endpoint.
  * @summary List Guild Trash
  */
-export const listGuildTrashApiV1GGuildIdTrashGet = (
+export const listGuildTrashApiV1CGuildIdTrashGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TrashListResponse>(
-    { url: `/api/v1/g/${guildId}/trash/`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/trash/`, method: "GET", signal },
     options
   );
 };
 
-export const getListGuildTrashApiV1GGuildIdTrashGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/trash/`] as const;
+export const getListGuildTrashApiV1CGuildIdTrashGetQueryKey = (guildId: number) => {
+  return [`/api/v1/c/${guildId}/trash/`] as const;
 };
 
-export const getListGuildTrashApiV1GGuildIdTrashGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+export const getListGuildTrashApiV1CGuildIdTrashGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
         TError,
         TData
       >
@@ -88,11 +88,11 @@ export const getListGuildTrashApiV1GGuildIdTrashGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListGuildTrashApiV1GGuildIdTrashGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getListGuildTrashApiV1CGuildIdTrashGetQueryKey(guildId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>> = ({
     signal,
-  }) => listGuildTrashApiV1GGuildIdTrashGet(guildId, requestOptions, signal);
+  }) => listGuildTrashApiV1CGuildIdTrashGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -100,35 +100,35 @@ export const getListGuildTrashApiV1GGuildIdTrashGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+    Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListGuildTrashApiV1GGuildIdTrashGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>
+export type ListGuildTrashApiV1CGuildIdTrashGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>
 >;
-export type ListGuildTrashApiV1GGuildIdTrashGetQueryError = ErrorType<HTTPValidationError>;
+export type ListGuildTrashApiV1CGuildIdTrashGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListGuildTrashApiV1GGuildIdTrashGet<
-  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+export function useListGuildTrashApiV1CGuildIdTrashGet<
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+          Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
           TError,
-          Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>
+          Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>
         >,
         "initialData"
       >;
@@ -136,24 +136,24 @@ export function useListGuildTrashApiV1GGuildIdTrashGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildTrashApiV1GGuildIdTrashGet<
-  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+export function useListGuildTrashApiV1CGuildIdTrashGet<
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+          Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
           TError,
-          Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>
+          Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>
         >,
         "initialData"
       >;
@@ -161,15 +161,15 @@ export function useListGuildTrashApiV1GGuildIdTrashGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListGuildTrashApiV1GGuildIdTrashGet<
-  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+export function useListGuildTrashApiV1CGuildIdTrashGet<
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
         TError,
         TData
       >
@@ -182,15 +182,15 @@ export function useListGuildTrashApiV1GGuildIdTrashGet<
  * @summary List Guild Trash
  */
 
-export function useListGuildTrashApiV1GGuildIdTrashGet<
-  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+export function useListGuildTrashApiV1CGuildIdTrashGet<
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>,
         TError,
         TData
       >
@@ -199,7 +199,7 @@ export function useListGuildTrashApiV1GGuildIdTrashGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGuildTrashApiV1GGuildIdTrashGetQueryOptions(guildId, options);
+  const queryOptions = getListGuildTrashApiV1CGuildIdTrashGetQueryOptions(guildId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -212,7 +212,7 @@ export function useListGuildTrashApiV1GGuildIdTrashGet<
  * Restore a trashed entity.
  * @summary Restore Trash Entity
  */
-export const restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost = (
+export const restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost = (
   guildId: number,
   entityType: EntityType,
   entityId: number,
@@ -220,33 +220,33 @@ export const restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost =
   signal?: AbortSignal
 ) => {
   return apiMutator<RestoreResponse>(
-    { url: `/api/v1/g/${guildId}/trash/${entityType}/${entityId}/restore`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/trash/${entityType}/${entityId}/restore`, method: "POST", signal },
     options
   );
 };
 
-export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationKey = () =>
-  ["restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost"] as const;
+export const getRestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationKey = () =>
+  ["restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost"] as const;
 
-export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationOptions = <
+export const getRestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
+    Awaited<ReturnType<typeof restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost>>,
     TError,
-    RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables,
+    RestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
+  Awaited<ReturnType<typeof restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost>>,
   TError,
-  RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables,
+  RestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationKey();
+    getRestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -254,12 +254,12 @@ export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
-    RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables
+    Awaited<ReturnType<typeof restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost>>,
+    RestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables
   > = (props) => {
     const { guildId, entityType, entityId } = props ?? {};
 
-    return restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost(
+    return restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost(
       guildId,
       entityType,
       entityId,
@@ -270,14 +270,14 @@ export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
   return { mutationFn, ...mutationOptions };
 };
 
-export type RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationResult =
+export type RestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>
+    Awaited<ReturnType<typeof restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost>>
   >;
 
-export type RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationError =
+export type RestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationError =
   ErrorType<HTTPValidationError>;
-export type RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables = {
+export type RestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables = {
   guildId: number;
   entityType: EntityType;
   entityId: number;
@@ -286,28 +286,28 @@ export type RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMut
 /**
  * @summary Restore Trash Entity
  */
-export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost = <
+export const useRestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
+      Awaited<ReturnType<typeof restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost>>,
       TError,
-      RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables,
+      RestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
+  Awaited<ReturnType<typeof restoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePost>>,
   TError,
-  RestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables,
+  RestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePostMutationOptions(options),
+    getRestoreTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdRestorePostMutationOptions(options),
     queryClient
   );
 };
@@ -326,7 +326,7 @@ export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
  * permanently remove a just-restored live row).
  * @summary Purge Trash Entity
  */
-export const purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete = (
+export const purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete = (
   guildId: number,
   entityType: EntityType,
   entityId: number,
@@ -334,33 +334,33 @@ export const purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete = (
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/trash/${entityType}/${entityId}/purge`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/trash/${entityType}/${entityId}/purge`, method: "DELETE", signal },
     options
   );
 };
 
-export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationKey = () =>
-  ["purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete"] as const;
+export const getPurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationKey = () =>
+  ["purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete"] as const;
 
-export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationOptions = <
+export const getPurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
+    Awaited<ReturnType<typeof purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
     TError,
-    PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables,
+    PurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
+  Awaited<ReturnType<typeof purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
   TError,
-  PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables,
+  PurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables,
   TContext
 > => {
   const mutationKey =
-    getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationKey();
+    getPurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -368,12 +368,12 @@ export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteM
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
-    PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables
+    Awaited<ReturnType<typeof purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
+    PurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables
   > = (props) => {
     const { guildId, entityType, entityId } = props ?? {};
 
-    return purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete(
+    return purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete(
       guildId,
       entityType,
       entityId,
@@ -384,14 +384,14 @@ export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteM
   return { mutationFn, ...mutationOptions };
 };
 
-export type PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationResult =
+export type PurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>
+    Awaited<ReturnType<typeof purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete>>
   >;
 
-export type PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationError =
+export type PurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables = {
+export type PurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables = {
   guildId: number;
   entityType: EntityType;
   entityId: number;
@@ -400,28 +400,28 @@ export type PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutat
 /**
  * @summary Purge Trash Entity
  */
-export const usePurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete = <
+export const usePurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
+      Awaited<ReturnType<typeof purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
       TError,
-      PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables,
+      PurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
+  Awaited<ReturnType<typeof purgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
   TError,
-  PurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables,
+  PurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationOptions(options),
+    getPurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -430,7 +430,7 @@ export const usePurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete 
  *
  * User-scoped: shows what *you* deleted, in any guild — this is the personal
  * trash on the user settings page. The all-guild view (everything in one
- * guild's trash) is the separate admin-only ``GET /g/{guild_id}/trash/``.
+ * guild's trash) is the separate admin-only ``GET /c/{guild_id}/trash/``.
  * Restore/purge stay guild-scoped; the client addresses them with each item's
  * ``guild_id``. ``retention_days`` is per-guild, so it is omitted here.
  * @summary List My Trash

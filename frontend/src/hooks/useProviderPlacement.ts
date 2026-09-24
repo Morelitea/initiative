@@ -23,8 +23,8 @@ import {
   updateProviderPlacementRuleApiV1SettingsPlacementRulesRuleIdPatch,
 } from "@/api/generated/provider-placement/provider-placement";
 import {
-  agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut,
-  getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey,
+  agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut,
+  getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey,
 } from "@/api/generated/settings/settings";
 import type { QueryOpts } from "@/types/query";
 
@@ -138,7 +138,7 @@ export const useAgreePlacementRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ guildId, connectionId }: { guildId: number; connectionId: number }) =>
-      agreeGuildNarrowingApiV1SettingsGuildsGuildIdNarrowingsConnectionIdPut(
+      agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut(
         guildId,
         connectionId,
         { agreed: true }
@@ -148,7 +148,8 @@ export const useAgreePlacementRequest = () => {
         queryKey: getListPlacementRequestsApiV1SettingsPlacementRequestsGetQueryKey(),
       });
       void queryClient.invalidateQueries({
-        queryKey: getReadGuildNarrowingsApiV1SettingsGuildsGuildIdNarrowingsGetQueryKey(guildId),
+        queryKey:
+          getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey(guildId),
       });
     },
   });
