@@ -1,9 +1,13 @@
 """Shared rate limiter configuration for the application."""
 
+import hashlib
+import hmac
 import ipaddress
 import logging
 import time
 
+import anyio
+from limits import parse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
@@ -138,3 +142,59 @@ limiter = Limiter(
 # exactly as the test suite does. Defaults True, so shared/prod deployments are
 # unaffected unless the operator explicitly opts out via env.
 limiter.enabled = settings.RATE_LIMIT_ENABLED
+
+
+#: Refused password sign-ins one address may collect, from any number of
+#: clients, before a password is not checked for it for the rest of the window.
+#: The per-route limits count a client; this counts the account being asked
+#: for, so the two together bound both. Wide enough that the account's holder,
+#: mistyping, does not meet it.
+SIGN_IN_FAILURES_PER_ADDRESS = parse("20/hour")
+
+
+def _sign_in_address_key(address: str) -> str:
+    """The counter's name for an address — keyed, so the counter store holds no
+    address it could be read back from."""
+    return hmac.new(
+        settings.SECRET_KEY.encode(), address.encode(), hashlib.sha256
+    ).hexdigest()[:32]
+
+
+async def sign_in_allowance_left(address: str) -> bool:
+    """Whether this address has refusals left in the current window.
+
+    Asked before the password is checked, and of the address as submitted,
+    whether or not an account holds it — so the answer is the same either way.
+    """
+    if not limiter.enabled:
+        return True
+    return await anyio.to_thread.run_sync(
+        limiter.limiter.test,
+        SIGN_IN_FAILURES_PER_ADDRESS,
+        "sign-in-address",
+        _sign_in_address_key(address),
+    )
+
+
+async def count_sign_in_failure(address: str) -> None:
+    """Count one refused password against this address."""
+    if not limiter.enabled:
+        return
+    await anyio.to_thread.run_sync(
+        limiter.limiter.hit,
+        SIGN_IN_FAILURES_PER_ADDRESS,
+        "sign-in-address",
+        _sign_in_address_key(address),
+    )
+
+
+async def clear_sign_in_failures(address: str) -> None:
+    """Start the address's count over — its holder has just signed in."""
+    if not limiter.enabled:
+        return
+    await anyio.to_thread.run_sync(
+        limiter.limiter.clear,
+        SIGN_IN_FAILURES_PER_ADDRESS,
+        "sign-in-address",
+        _sign_in_address_key(address),
+    )
