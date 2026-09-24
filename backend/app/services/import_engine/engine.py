@@ -339,7 +339,9 @@ def read_payload(guild_id: int, payload_ref: str) -> bytes | None:
         return None
     if blob.path is not None:
         return Path(blob.path).read_bytes()
-    return blob.stream.read()  # type: ignore[union-attr]
+    if blob.stream is None:
+        return None
+    return b"".join(blob.stream)
 
 
 def delete_payload(guild_id: int, payload_ref: str | None) -> None:

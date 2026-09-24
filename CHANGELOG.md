@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An edit made just before you leave a document now shows up in exports, search and wikis. Columns survive the Markdown view and exports.
 - Every kind of document opens properly inside a wiki.
 - Sign-in group rules place only people the community's own connection recognises.
+- On servers that keep files in S3, backup restores and large imports finish instead of failing when they are applied.
 - Other fixes: task table columns no longer jump while scrolling, tags shorten to fit the space they have, export formats show their names, broken and missing pages get a proper error page, restored backups keep comment replies in their threads, imports ask about everyone they mention, and access-request notifications open the right page.
 
 ## [0.71.3] - 2026-09-21
