@@ -11,8 +11,8 @@ least-privilege logins, and neither can be created *by* those logins:
   superuser (``only superuser can define a leakproof function``), so this stays
   a privileged step no matter how the roles are arranged.
 
-Both are declared here and applied from a connection opened with
-``DATABASE_URL_BOOTSTRAP``, which is disposed before the app serves anything —
+Both are declared here and applied from a connection opened as the database
+owner, which is disposed before the app serves anything —
 the request path keeps running on the three logins above. Every statement is
 idempotent and re-applied on each boot, so rotating a role password, upgrading
 into a release that adds a privileged object, and restoring a dump that carried
@@ -22,6 +22,11 @@ When ``DATABASE_URL_BOOTSTRAP`` is unset the same invariants are *verified*
 instead: a deployment that provisions its database out of band (managed
 Postgres, a Kubernetes operator, a DBA) boots normally when they hold, and
 stops with the exact SQL when they do not. ``--print-sql`` emits that SQL.
+
+That owner connection is ``DATABASE_URL`` when the deployment gives only that
+one URL (the app then names its logins and derives their passwords, see
+``app.core.config``), and ``DATABASE_URL_BOOTSTRAP`` when it names the three
+logins itself.
 
 Run standalone with ``python -m app.db.bootstrap``.
 """
@@ -114,6 +119,13 @@ class BootstrapResult:
     roles: tuple[str, ...]
     search_operator_installed: bool
     notes: tuple[str, ...] = ()
+
+
+def owner_setting() -> str:
+    """The setting an operator edits to change the owner connection."""
+    return (
+        "DATABASE_URL" if settings.database_logins_derived else "DATABASE_URL_BOOTSTRAP"
+    )
 
 
 def _url_parts(setting_name: str, default_role: str) -> tuple[str, str | None]:
@@ -648,11 +660,11 @@ _FOREIGN_OWNERS = text(
 async def warn_if_ownership_was_never_handed_over() -> None:
     """Say so when the app's objects still belong to an earlier login.
 
-    The handover runs as part of the bootstrap, so a deployment that still sets
-    ``DATABASE_URL_BOOTSTRAP`` — which the compose file does, and removing it is
-    only ever described as optional — has already had this done and reads
-    nothing here. A deployment that removed it, or that made its roles by hand
-    and never set it, has no path that moves ownership: the app can ask for
+    The handover runs as part of the bootstrap, so a deployment that gives the
+    owner connection — as ``DATABASE_URL`` alone, or as
+    ``DATABASE_URL_BOOTSTRAP`` beside its own three logins — has already had
+    this done and reads nothing here. One that names its logins and gives no
+    owner connection has no path that moves ownership: the app can ask for
     this repair but cannot make it, because taking an object from another login
     needs rights over that login which a least-privilege provisioner does not
     have.
@@ -687,10 +699,11 @@ async def warn_if_ownership_was_never_handed_over() -> None:
 
     if settings.DATABASE_URL_BOOTSTRAP:
         remedy = (
-            "DATABASE_URL_BOOTSTRAP is set, so the move was attempted and\n"
+            "%s is the owner connection, so the move was attempted and\n"
             "found nothing it could take. Point it at a login with rights\n"
             "over %s -- the owner of the database, or a superuser -- and\n"
-            "start once.\n" % (" and ".join(repr(owner) for owner in owners),)
+            "start once.\n"
+            % (owner_setting(), " and ".join(repr(owner) for owner in owners))
         )
     else:
         remedy = (
@@ -820,9 +833,9 @@ def _repair_instructions(missing: list[str]) -> str:
     return (
         "The database is missing prerequisites the app cannot create as its "
         "own roles: " + ", ".join(missing) + ".\n"
-        "Either set DATABASE_URL_BOOTSTRAP to a connection URL for the "
-        "database owner and restart — the app then applies them itself — or "
-        "apply them once by hand:\n"
+        "Either point DATABASE_URL at the database owner and remove "
+        "DATABASE_URL_APP and DATABASE_URL_ADMIN — the app then makes its "
+        "logins and applies these itself — or apply them once by hand:\n"
         "  docker compose exec -T initiative python -m app.db.bootstrap "
         "--print-sql | psql -v ON_ERROR_STOP=1 -U <owner> -d <database>\n"
     )
@@ -885,7 +898,7 @@ async def ensure_database_bootstrap(
                 await _apply_roles(conn, roles)
             except Exception as exc:
                 raise RuntimeError(
-                    "DATABASE_URL_BOOTSTRAP could not apply the database "
+                    f"{owner_setting()} could not apply the database "
                     "prerequisites. It must connect as the owner of the "
                     f"database (and, for the search operator, a superuser): "
                     f"{exc}"
@@ -900,9 +913,9 @@ async def ensure_database_bootstrap(
         search_operator_installed=search_ready,
     )
     logger.info(
-        "database bootstrap applied: roles %s; search operator %s. "
-        "DATABASE_URL_BOOTSTRAP is only needed to apply these — remove it and "
-        "the app verifies them instead, naming anything missing.",
+        "database bootstrap applied as the database owner (%s): roles %s; "
+        "search operator %s.",
+        owner_setting(),
         ", ".join(result.roles),
         "present" if search_ready else "NOT installed",
     )

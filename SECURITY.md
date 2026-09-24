@@ -59,7 +59,7 @@ Initiative connects through **three PostgreSQL logins**, each least-privilege fo
 | **`app_admin`** | Background jobs, startup seeding, bootstrapping endpoints | Yes — the standard Postgres trusted-batch actor, bounded by enumerated per-table `GRANT`s, and never serving a user request as itself. Entering a guild schema requires `SET ROLE`, which **drops** the bypass |
 | **`app_provisioner`** | Migrations and DDL (`CREATE SCHEMA`, `CREATE ROLE`) | No — `NOSUPERUSER CREATEROLE`, and `FORCE ROW LEVEL SECURITY` keeps it policy-bound for data |
 
-**The application never holds Postgres superuser credentials.** A superuser (or `BYPASSRLS`) `DATABASE_URL` **stops the boot** — every guarantee above is enforced by row-level security, and those attributes are the right to ignore it. There is no opt-out. The refusal names both ways to make the three logins: set `DATABASE_URL_BOOTSTRAP` and let the app create them, or run `python -m app.db.bootstrap --print-sql` and apply the SQL as the database owner. Either takes about a minute. `DATABASE_URL_BOOTSTRAP` is unaffected by the check — creating the least-privilege roles is the one job that legitimately needs the privilege.
+**The application never serves on a Postgres superuser connection.** The database owner's connection is opened at startup to create the three logins above, and closed before the app serves anything. A superuser (or `BYPASSRLS`) provisioning login **stops the boot**: every guarantee above is enforced by row-level security, and the provisioner is held to it. There is no opt-out. The refusal names the way out, which takes about a minute.
 
 ### No standing bypass, and no superuser account
 

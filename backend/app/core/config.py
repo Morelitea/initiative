@@ -1,11 +1,21 @@
+import hashlib
+import hmac
 import logging
 import re
 from collections.abc import Sequence
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, EmailStr, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    EmailStr,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
@@ -200,6 +210,25 @@ RUNTIME_SEEDED_SETTINGS = frozenset(
 #: tool has to carry it as a secret. Prefer the seeded set above.
 ENV_ONLY_FEATURE_CREDENTIALS: frozenset[str] = frozenset()
 
+#: The logins the app makes for itself when ``DATABASE_URL`` names the database
+#: owner, each with the setting its connection URL is written to.
+DERIVED_DATABASE_LOGINS: tuple[tuple[str, str], ...] = (
+    ("DATABASE_URL", "app_provisioner"),
+    ("DATABASE_URL_APP", "app_user"),
+    ("DATABASE_URL_ADMIN", "app_admin"),
+)
+
+
+def derive_database_password(secret_key: str, role: str) -> str:
+    """The password a derived login is given: one per role, from SECRET_KEY.
+
+    The bootstrap sets it on every start, so it follows SECRET_KEY through a
+    rotation without anything else to change.
+    """
+    return hmac.new(
+        secret_key.encode(), b"database-login:" + role.encode(), hashlib.sha256
+    ).hexdigest()
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -208,19 +237,30 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # The database, in one of two shapes.
+    #
+    # Usually the database owner, with DATABASE_URL_APP and DATABASE_URL_ADMIN
+    # left unset. The app then makes its three logins itself (see
+    # DERIVED_DATABASE_LOGINS), with passwords derived from SECRET_KEY, and
+    # `_resolve_database_logins` rewrites these four settings into the second
+    # shape, so nothing that reads them needs to know which one was given.
+    #
+    # Or the app_provisioner login, with DATABASE_URL_APP (app_user, the request
+    # path) and DATABASE_URL_ADMIN (app_admin, the system engine) set beside it,
+    # for a deployment that names its logins and passwords itself.
     DATABASE_URL: str = (
         "postgresql+asyncpg://initiative:initiative@localhost:5432/initiative"
     )
-    DATABASE_URL_APP: (
-        str  # Non-superuser connection for RLS-enforced queries (required)
-    )
-    DATABASE_URL_ADMIN: str  # System-engine login (BYPASSRLS, grant-bounded) for jobs/seeding (required)
+    DATABASE_URL_APP: str = ""
+    DATABASE_URL_ADMIN: str = ""
     # The database owner, used once at startup to apply the prerequisites the
     # three logins above cannot create for themselves: the logins themselves,
     # and the guild-search match operator (see app.db.bootstrap). The
     # connection is opened, used and disposed before the app serves anything.
     # Unset it and the app verifies those prerequisites instead of applying
     # them; a deployment that provisions its database out of band never sets it.
+    # Only set it beside DATABASE_URL_APP and DATABASE_URL_ADMIN: otherwise
+    # DATABASE_URL is already the owner, and this is filled in from it.
     DATABASE_URL_BOOTSTRAP: str | None = None
     # Where to hold the realtime signal channel's own connection. ``LISTEN`` is
     # session state and so wants a connection of its own, apart from the pooled
@@ -307,6 +347,50 @@ class Settings(BaseSettings):
                 "Postgres role names)"
             )
         return value
+
+    _database_logins_derived: bool = PrivateAttr(default=False)
+
+    @model_validator(mode="after")
+    def _resolve_database_logins(self) -> "Settings":
+        has_app, has_admin = bool(self.DATABASE_URL_APP), bool(self.DATABASE_URL_ADMIN)
+        if has_app != has_admin:
+            given, missing = (
+                ("DATABASE_URL_APP", "DATABASE_URL_ADMIN")
+                if has_app
+                else ("DATABASE_URL_ADMIN", "DATABASE_URL_APP")
+            )
+            raise ValueError(
+                f"{given} is set but {missing} is not. Set both, with DATABASE_URL "
+                f"as app_provisioner, to name the app's logins yourself; or set "
+                f"neither, with DATABASE_URL as the database owner, and the app "
+                f"makes them."
+            )
+        if has_app:
+            return self
+        if self.DATABASE_URL_BOOTSTRAP:
+            raise ValueError(
+                "DATABASE_URL_BOOTSTRAP is set without DATABASE_URL_APP and "
+                "DATABASE_URL_ADMIN. Without those two, DATABASE_URL is the "
+                "database owner and the app makes its own logins, so remove "
+                "DATABASE_URL_BOOTSTRAP. To name the logins yourself instead, set "
+                "DATABASE_URL (as app_provisioner), DATABASE_URL_APP and "
+                "DATABASE_URL_ADMIN."
+            )
+        owner = make_url(self.DATABASE_URL)
+        self.DATABASE_URL_BOOTSTRAP = self.DATABASE_URL
+        for setting, role in DERIVED_DATABASE_LOGINS:
+            login = owner.set(
+                username=role,
+                password=derive_database_password(self.SECRET_KEY, role),
+            )
+            setattr(self, setting, login.render_as_string(hide_password=False))
+        self._database_logins_derived = True
+        return self
+
+    @property
+    def database_logins_derived(self) -> bool:
+        """Whether DATABASE_URL named the owner and the app made its logins."""
+        return self._database_logins_derived
 
     @property
     def jwt_signing_key(self) -> str:
@@ -950,8 +1034,8 @@ class Settings(BaseSettings):
 # Use caching to avoid re-reading the env file over and over
 # (FastAPI startup imports Config many times).
 def get_settings() -> Settings:
-    # Required fields (DATABASE_URL_*, SECRET_KEY) are loaded from the
-    # environment by pydantic-settings, which ty can't see.
+    # The required field (SECRET_KEY) is loaded from the environment by
+    # pydantic-settings, which ty can't see.
     return Settings()  # ty: ignore[missing-argument]
 
 

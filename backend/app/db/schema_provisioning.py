@@ -805,8 +805,12 @@ async def reject_privileged_database_url() -> None:
     Migrations and guild provisioning fit in ``app_provisioner`` (NOSUPERUSER
     CREATEROLE + CREATE on the database + ownership of the app's objects), so
     this URL never needs more. Creating that role is :mod:`app.db.bootstrap`'s
-    job, over ``DATABASE_URL_BOOTSTRAP`` -- the one connection that
-    legitimately holds the privilege, and which this does not touch.
+    job, over the owner connection -- the one connection that legitimately
+    holds the privilege, and which this does not touch.
+
+    When ``DATABASE_URL`` was given as the owner, the app made this login
+    itself, so reaching the refusal means ``app_provisioner`` was granted
+    more afterwards.
     """
     async with db_session.provisioning_engine.connect() as conn:
         rolsuper, rolbypassrls = (
@@ -821,6 +825,16 @@ async def reject_privileged_database_url() -> None:
         return
 
     held = "SUPERUSER" if rolsuper else "BYPASSRLS"
+    if settings.database_logins_derived:
+        raise SystemExit(
+            f"\n{'=' * 70}\n"
+            f"REFUSING TO START: the app_provisioner login holds {held}.\n\n"
+            f"The app never needs this privilege, and the access rules\n"
+            f"described in SECURITY.md are not in force for a connection that\n"
+            f"holds it. Remove it as a Postgres superuser, then restart:\n\n"
+            f"  ALTER ROLE app_provisioner NOSUPERUSER NOBYPASSRLS;\n"
+            f"{'=' * 70}\n"
+        )
     raise SystemExit(
         f"\n{'=' * 70}\n"
         f"REFUSING TO START: DATABASE_URL connects as a {held} role.\n\n"
@@ -829,11 +843,10 @@ async def reject_privileged_database_url() -> None:
         f"holds them. Make the three logins -- either way takes a minute,\n"
         f"and neither touches your data:\n\n"
         f"  Let the app do it\n"
-        f"    1. Set DATABASE_URL_BOOTSTRAP to this same connection URL.\n"
-        f"    2. Point DATABASE_URL at app_provisioner, with a password of\n"
-        f"       your choosing, and restart. The bootstrap creates the\n"
-        f"       roles and hands the app's objects over to them.\n"
-        f"    3. Optional: remove DATABASE_URL_BOOTSTRAP and restart again.\n\n"
+        f"    Keep DATABASE_URL as it is, remove DATABASE_URL_APP and\n"
+        f"    DATABASE_URL_ADMIN (and DATABASE_URL_BOOTSTRAP, if set), and\n"
+        f"    restart. The app then treats DATABASE_URL as the database owner:\n"
+        f"    it creates its logins and hands the app's objects over to them.\n\n"
         f"  Or do it by hand\n"
         f"    1. Point DATABASE_URL at app_provisioner, with a password of\n"
         f"       your choosing.\n"
@@ -841,8 +854,7 @@ async def reject_privileged_database_url() -> None:
         f"       connects to nothing):\n"
         f"         python -m app.db.bootstrap --print-sql\n"
         f"    3. Run it as the database owner, then start the app.\n\n"
-        f"DATABASE_URL_APP / DATABASE_URL_ADMIN are unaffected. See the\n"
-        f"deployment docs for details.\n"
+        f"See the deployment docs for details.\n"
         f"{'=' * 70}\n"
     )
 
@@ -1000,10 +1012,10 @@ async def warn_if_search_operator_missing() -> None:
     restore or a major-version upgrade that lost the objects would otherwise
     show up only as search getting slower.
 
-    :mod:`app.db.bootstrap` installs the objects at startup whenever
-    ``DATABASE_URL_BOOTSTRAP`` names a superuser connection, so reaching this
-    warning means that setting is absent or its role is not a superuser —
-    Postgres accepts the ``LEAKPROOF`` attribute only from one.
+    :mod:`app.db.bootstrap` installs the objects at startup whenever its owner
+    connection is a superuser, so reaching this warning means there is no
+    owner connection or its role is not a superuser — Postgres accepts the
+    ``LEAKPROOF`` attribute only from one.
 
     Names the database it checked, because a host commonly has more than one and
     the objects are per-database.
@@ -1017,7 +1029,7 @@ async def warn_if_search_operator_missing() -> None:
         "Results are unchanged; each search reads more of the index table,\n"
         "which grows with the guild.\n"
         "\n"
-        "Set DATABASE_URL_BOOTSTRAP to a superuser connection for this\n"
+        "Set %s to a superuser connection for this\n"
         "database and restart, and the app installs it. To apply it by hand\n"
         "instead:\n"
         "\n"
@@ -1029,6 +1041,7 @@ async def warn_if_search_operator_missing() -> None:
         "%s",
         "=" * 70,
         database,
+        bootstrap.owner_setting(),
         database,
         "=" * 70,
     )

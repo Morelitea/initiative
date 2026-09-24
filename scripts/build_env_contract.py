@@ -56,8 +56,6 @@ if sys.version_info < (3, 11):
 # makes the import fail with pydantic naming it — which is the right failure:
 # add it here, deliberately, rather than having the contract quietly omit it.
 os.environ.setdefault("SECRET_KEY", "0" * 64)
-for _dsn in ("DATABASE_URL_APP", "DATABASE_URL_ADMIN"):
-    os.environ.setdefault(_dsn, "postgresql+asyncpg://u:p@localhost:5432/placeholder")
 
 from app.core.config import (  # noqa: E402
     ENV_ONLY_FEATURE_CREDENTIALS,
