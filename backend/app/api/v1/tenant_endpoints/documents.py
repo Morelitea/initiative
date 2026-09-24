@@ -637,20 +637,14 @@ async def upload_document_file(
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
 
-    # Save file to uploads directory
-    file_url = attachments_service.save_document_file(
-        contents, extension, guild_context.guild_id, content_type=mime_type
-    )
-
-    # Track the upload in the uploads table for guild-scoped access control
-    upload_record = Upload(
-        filename=file_url.split("/")[-1],
-        created_by=current_user.id,
-        size_bytes=len(contents),
+    file_url = await attachments_service.store_upload(
+        session,
+        guild_id=guild_context.guild_id,
+        filename=attachments_service.new_upload_filename(extension),
+        data=contents,
         content_type=mime_type,
-        content_hash=attachments_service.compute_content_hash(contents),
+        created_by=current_user.id,
     )
-    session.add(upload_record)
 
     # Create document record. A picture is its own featured image, set here so
     # it is written with the row: the uploader's owner grant is only added
@@ -812,19 +806,14 @@ async def upload_document_version(
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
 
-    file_url = attachments_service.save_document_file(
-        contents, extension, guild_context.guild_id, content_type=mime_type
-    )
-
-    # Track the new blob in the uploads table for guild-scoped access control.
-    upload_record = Upload(
-        filename=file_url.split("/")[-1],
-        created_by=current_user.id,
-        size_bytes=len(contents),
+    file_url = await attachments_service.store_upload(
+        session,
+        guild_id=guild_context.guild_id,
+        filename=attachments_service.new_upload_filename(extension),
+        data=contents,
         content_type=mime_type,
-        content_hash=attachments_service.compute_content_hash(contents),
+        created_by=current_user.id,
     )
-    session.add(upload_record)
 
     max_version = await session.scalar(
         select(func.max(DocumentFileVersion.version_number)).where(

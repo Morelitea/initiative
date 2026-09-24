@@ -20,7 +20,6 @@ before anything is written.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import zipfile
 from typing import Any
@@ -92,8 +91,8 @@ async def restore_archive_assets(
     from app.services.storage import get_guild_storage
     from app.services.tenant.attachments import (
         StorageQuotaExceededError,
-        compute_content_hash,
         enforce_storage_quota,
+        store_upload,
         validate_document_file,
     )
     from app.services.tenant.galleries import (
@@ -169,17 +168,15 @@ async def restore_archive_assets(
                 except ValueError:
                     warnings.append(f"unsupported_file:{key}")
                     continue
-            await asyncio.to_thread(storage.write, key, data, content_type=content_type)
-            written.append(key)
-            session.add(
-                Upload(
-                    filename=key,
-                    created_by=user.id,
-                    size_bytes=len(data),
-                    content_type=content_type,
-                    content_hash=compute_content_hash(data),
-                )
+            await store_upload(
+                session,
+                guild_id=guild_id,
+                filename=key,
+                data=data,
+                content_type=content_type,
+                created_by=user.id,
             )
+            written.append(key)
             for record in records:
                 record["content_type"] = content_type
     except BaseException:

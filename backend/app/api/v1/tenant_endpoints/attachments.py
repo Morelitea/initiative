@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Annotated
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
@@ -13,16 +12,16 @@ from app.api.deps import (
 )
 from app.core.image_headers import read_image_header
 from app.core.messages import AttachmentMessages
-from app.models.tenant.upload import Upload
 from app.models.platform.user import User
 from app.schemas.tenant.attachment import AttachmentUploadResponse
 from app.services.tenant.attachments import (
     FileTooLargeError,
     PASTED_IMAGE_PREFIX,
     StorageQuotaExceededError,
-    compute_content_hash,
     enforce_storage_quota,
+    new_upload_filename,
     read_upload_bounded,
+    store_upload,
 )
 from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
@@ -156,7 +155,7 @@ async def _store_image(
 
     # The stored name carries the detected format, so the suffix the serve path
     # reads and the type recorded on the row describe the same bytes.
-    filename = f"{prefix}{uuid4().hex}{_SUFFIXES[content_type]}"
+    filename = new_upload_filename(_SUFFIXES[content_type], prefix=prefix)
 
     try:
         await enforce_storage_quota(
@@ -171,22 +170,20 @@ async def _store_image(
     # Pick up a backend/credential change saved in another worker before writing,
     # so the blob lands in the configured store (TTL-gated; usually a no-op).
     await storage_config.ensure_storage_config_fresh(session)
-    get_guild_storage(guild_id).write(filename, contents, content_type=content_type)
-
-    upload = Upload(
+    url = await store_upload(
+        session,
+        guild_id=guild_id,
         filename=filename,
-        created_by=current_user.id,
-        size_bytes=len(contents),
+        data=contents,
         content_type=content_type,
-        content_hash=compute_content_hash(contents),
+        created_by=current_user.id,
     )
-    session.add(upload)
     await session.commit()
 
     return AttachmentUploadResponse(
         filename=file.filename or filename,
         # Guild in the path so the served media self-describes its guild.
-        url=f"/uploads/{guild_id}/{filename}",
+        url=url,
         content_type=content_type,
         size=len(contents),
     )
