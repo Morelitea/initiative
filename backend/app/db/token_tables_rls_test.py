@@ -93,7 +93,8 @@ async def _flags(session, table: str) -> tuple[bool, bool]:
 
 def test_registry_records_the_token_tables():
     """``user_tokens`` is the system engine's alone; ``push_tokens`` is the
-    platform floor's own rows and nothing of the guild floor's."""
+    platform floor's own rows and nothing of the guild floor's. The floor's
+    read half reads those rows too, and writes none of them."""
     assert PUBLIC_RLS["user_tokens"] == FORCED_NO_POLICY
     for matrix in (
         SHARED_TABLE_APP_USER_GRANTS,
@@ -105,7 +106,12 @@ def test_registry_records_the_token_tables():
     assert SHARED_TABLE_APP_USER_GRANTS["push_tokens"] is None
     rls = PUBLIC_RLS["push_tokens"]
     assert rls.enabled and rls.forced
-    assert {p.roles for p in rls.policies} == {("platform_base",)}
+    assert {p.command: p.roles for p in rls.policies} == {
+        "SELECT": ("platform_base", "platform_base_ro"),
+        "INSERT": ("platform_base",),
+        "UPDATE": ("platform_base",),
+        "DELETE": ("platform_base",),
+    }
 
 
 async def test_both_token_tables_force_row_security(session):

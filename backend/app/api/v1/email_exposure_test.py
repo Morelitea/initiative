@@ -5,7 +5,8 @@ routes, and ``UserEmailRead`` on the routes listing the addresses an account
 holds. Both are served only to the address's owner. Every other route that
 returns an account returns ``OperatorUserRead``, which masks it, and the shapes
 that carry an address field alongside other data — the guild invite, the
-access grant — mask it too.
+access grant — mask it too. A deployment's contact address is not an account's
+and is served in full wherever it is shown.
 
 These tests read the OpenAPI schema and hold the app to that split, so a new
 route or a new shape has to be a deliberate addition to the lists below rather
@@ -42,6 +43,11 @@ SELF_SHAPES = {
 #: applying ``app.core.email_masking.mask_email``; adding a name here means
 #: having added that validator.
 MASKED_SHAPES = {"OperatorUserRead", "AccessGrantRead", "GuildInviteRead"}
+
+#: Shapes that carry a deployment's contact address: one an operator published
+#: so people can write to it, not an account's stored address. It is served in
+#: full, because a masked contact cannot be written to.
+CONTACT_SHAPES = {"AccountTimeOutRead", "GuildRead", "IntakeSettingsRead"}
 
 
 def _operations() -> Iterable[tuple[str, str, dict]]:
@@ -166,7 +172,7 @@ def test_every_other_address_field_comes_from_a_masking_shape() -> None:
         if "email" in field.lower() and _is_address(node)
     }
 
-    unaccounted = carrying - MASKED_SHAPES - set(SELF_SHAPES)
+    unaccounted = carrying - MASKED_SHAPES - CONTACT_SHAPES - set(SELF_SHAPES)
     assert not unaccounted, (
         f"{sorted(unaccounted)} carry an address field in a response without "
         "masking it."
