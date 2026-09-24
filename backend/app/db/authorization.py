@@ -49,6 +49,7 @@ at call time is still the caller's route, which is the same schema.
 
 from __future__ import annotations
 from collections.abc import Iterable
+from app.core.app_scopes import AppScopeResource
 from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
@@ -82,6 +83,9 @@ __all__ = [
     "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
     "DropReport",
+    "app_narrowed",
+    "app_refused",
+    "app_scope",
     "apply_authorization_functions",
     "authorization_functions_digest",
     "drop_public_copies",
@@ -610,6 +614,37 @@ IN_BODY = Legs("p_st")
 IN_POLICY = Legs(STANDING, per_field=True)
 
 
+# --- An installed app's scopes ----------------------------------------------
+#
+# A person's request carries no install, so each of these answers for it with
+# its first comparison. Every field is read off the standing, once per
+# statement: a sub-select naming no row in a policy, a field of the parameter
+# in a gate.
+
+
+def app_scope(resource: str, write: bool, legs: Legs) -> str:
+    """An installed app holds ``resource``'s read scope, or its write scope
+    when ``write``. ``resource`` is an ``AppScopeResource`` value."""
+    name = AppScopeResource(getattr(resource, "value", resource)).value
+    held = legs.field("install_write" if write else "install_read")
+    return f"({legs.install_id} IS NULL OR '{name}' = ANY ({held}))"
+
+
+def app_narrowed(initiative_expr: str, legs: Legs) -> str:
+    """A token narrowed to one initiative reaches rows that belong to an
+    initiative, and none that belong to the community as a whole.
+    ``initiative_access`` already keeps it to the one it names."""
+    return (
+        f"({legs.install_id} IS NULL OR {legs.scope} IS NULL"
+        f" OR {initiative_expr} IS NOT NULL)"
+    )
+
+
+def app_refused(legs: Legs) -> str:
+    """No installed app reaches the row."""
+    return f"({legs.install_id} IS NULL)"
+
+
 def in_body(sql: str) -> str:
     """A policy predicate, read inside a gate's body instead.
 
@@ -756,8 +791,9 @@ p_tool IS NULL
 #: The grant rows on ``(p_tool, p_resource_id)`` that reach this reader: one
 #: naming them, one on an initiative role they hold, one shared with every
 #: member of an initiative they are in (or of the community, on a row that
-#: belongs to no initiative), or the dashboard a published view is read
-#: through. Written over the row alias ``g``.
+#: belongs to no initiative), the dashboard a published view is read through,
+#: or one naming the installed app the request is for. Written over the row
+#: alias ``g``.
 GRANT_REACHES_READER = f"""\
 g.resource_type = p_tool
               AND g.resource_id = p_resource_id
@@ -771,6 +807,8 @@ g.resource_type = p_tool
                          OR g.initiative_id = ANY ({_B.field("member_initiatives")})))
                 OR (g.dashboard_id IS NOT NULL
                     AND g.dashboard_id = {_B.field("via_dashboard_id")})
+                OR (g.app_install_id IS NOT NULL
+                    AND g.app_install_id = {_B.install_id})
               )"""
 
 

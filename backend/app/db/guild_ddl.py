@@ -30,21 +30,26 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.schema import CheckConstraint, CreateTable
 
+from app.db.app_rls import APP_REFUSED_TABLES, APP_TABLE_ACCESS, AppTableKind
 from app.db.initiative_rls import (
     ANSWERED,
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
+    governing_path,
     render_entity_access_fn,
     InitiativePath,
 )
 from app.db.authorization import (
     GUILD_ADMIN,
     GUILD_SEAT,
+    IN_POLICY,
     RETIRED_GUILD_FUNCTION_SIGNATURES,
     SETTINGS_ADMIN,
     STANDING_IS_THIS_GUILD,
     SYSTEM_SESSION,
+    app_refused,
+    app_scope,
     render_guild_authorization_functions,
     standing_ids,
 )
@@ -68,6 +73,7 @@ from app.db.tenancy import (
     SEAT_TABLES,
 )
 from app.models.tenant.initiative import InitiativeJoinPolicy
+from app.models.tenant.resource_grant import ResourceAccessLevel
 
 
 # Hard delete = purge, and only a guild admin may purge (the interactive endpoint
@@ -516,6 +522,109 @@ def _ledger_block(table: str, parent: str, fk: str) -> str:
     )
 
 
+_APP_SECTION = """\
+-- ===========================================================================
+-- An installed app's scopes, on the tables no tool's gate answers for
+-- (app.db.app_rls.APP_TABLE_ACCESS). RESTRICTIVE, so each AND-combines with
+-- the table's own policies, and each opens with the install id: a request a
+-- person makes carries none and passes in one comparison, once per statement.
+--
+-- One policy per command, because reading and writing ask different scopes:
+-- SELECT asks the resource's read scope, INSERT/UPDATE/DELETE its write scope
+-- (nothing, for a resource no scope writes). An install reads the initiatives
+-- it is placed in whatever its scopes, since its own standing and the
+-- lifecycle checks on its writes read them. An install sees and changes its
+-- own event subscriptions and no one else's. The change log and the search
+-- index are written by triggers, and an install reaches them only there. The
+-- one grant an install's request writes is the owner row naming it, written
+-- by the trigger on the resource it creates. Reactions and recent views are
+-- refused.
+-- ==========================================================================="""
+
+_APP_POLICY_PREFIX = "app_scope"
+
+_IID = IN_POLICY.install_id
+
+
+def _app_placed_initiatives() -> str:
+    """The initiatives the install is placed in, narrowed like its token."""
+    scope = IN_POLICY.scope
+    return (
+        "(SELECT p.initiative_id FROM app_placements p"
+        f" WHERE p.install_id = {_IID}"
+        f" AND ({scope} IS NULL OR p.initiative_id = {scope}))"
+    )
+
+
+#: The one grant row an installed app's request writes: the owner row naming
+#: the install, written by ``public.fn_install_owns_what_it_creates`` when the
+#: install creates a tool's resource. Never by the request itself.
+_APP_OWNER_GRANT = (
+    f"({_IID} IS NULL OR ("
+    "pg_trigger_depth() > 0"
+    f" AND level = '{ResourceAccessLevel.owner.value}'"
+    f" AND app_install_id = {_IID}"
+    " AND user_id IS NULL AND role_id IS NULL"
+    " AND NOT all_initiative_members AND dashboard_id IS NULL))"
+)
+
+
+def _app_predicates(table: str) -> dict[str, str]:
+    """What each command asks of an installed app on ``table``, beside what
+    the table's own policies ask. Empty where a tool's gate already asks it."""
+    refused = app_refused(IN_POLICY)
+    if table == "resource_grants":
+        return {"INSERT": _APP_OWNER_GRANT, "UPDATE": refused, "DELETE": refused}
+    if table in APP_REFUSED_TABLES:
+        return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), refused)
+    access = APP_TABLE_ACCESS[table]
+    if access.kind is AppTableKind.subscriptions:
+        own = f"({_IID} IS NULL OR app_install_id = {_IID})"
+        return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), own)
+    if access.kind is AppTableKind.side_effect:
+        if table not in _TRIGGER_WRITTEN_INSERT:
+            return {}
+        by_trigger = f"({_IID} IS NULL OR pg_trigger_depth() > 0)"
+        return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), by_trigger)
+    if governing_path(table) is not None or access.resource is None:
+        return {}
+    read = app_scope(access.resource, False, IN_POLICY)
+    if table == "initiatives":
+        read = f"({read} OR initiatives.id IN {_app_placed_initiatives()})"
+    write = app_scope(access.resource, True, IN_POLICY) if access.writable else refused
+    return {"SELECT": read, "INSERT": write, "UPDATE": write, "DELETE": write}
+
+
+#: Every table carrying the policies above.
+APP_POLICY_TABLES: frozenset[str] = frozenset(
+    t
+    for t in (*APP_TABLE_ACCESS, *APP_REFUSED_TABLES, "resource_grants")
+    if _app_predicates(t)
+)
+
+
+def _app_block(table: str) -> str:
+    """The installed-app policies on one table: RESTRICTIVE, one per command
+    it asks something of, and the others dropped wherever an earlier render
+    left them."""
+    predicates = _app_predicates(table)
+    lines: list[str] = []
+    for suffix, command, clause, _write in _COMMANDS:
+        name = f"{_APP_POLICY_PREFIX}_{suffix}"
+        lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
+        pred = predicates.get(command)
+        if pred is None:
+            continue
+        lines.append(f"CREATE POLICY {name} ON {table} AS RESTRICTIVE FOR {command}")
+        if clause == "USING-CHECK":
+            lines.append(f"  USING ({pred}) WITH CHECK ({pred});")
+        elif clause == "WITH CHECK":
+            lines.append(f"  WITH CHECK ({pred});")
+        else:  # USING
+            lines.append(f"  USING ({pred});")
+    return "\n".join(lines)
+
+
 def _guild_level_guard_block(table: str) -> str:
     """RLS for a guild-level soft-delete table (initiatives, tags): a permissive
     allow-all (isolation is the schema boundary, not RLS) plus the RESTRICTIVE
@@ -625,6 +734,10 @@ def render_guild_rls_ddl() -> str:
     out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
     ledgers = [_ledger_block(t, p, fk) for t, (p, fk) in sorted(LEDGER_TABLES.items())]
     out += "\n\n" + _LEDGER_SECTION + "\n\n" + "\n\n".join(ledgers)
+    # After every block above, so each table's RLS is on before its app
+    # policies join the ones already there.
+    apps = [_app_block(t) for t in sorted(APP_POLICY_TABLES)]
+    out += "\n\n" + _APP_SECTION + "\n\n" + "\n\n".join(apps)
     guards = [f"{frozen_guard_trigger(t)};" for t in sorted(FROZEN_TABLES)]
     guards += [
         f"{trigger};"
