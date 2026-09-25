@@ -320,4 +320,4 @@ async def test_the_socket_closes_when_its_sign_in_ends(
     await websocket_notifications(websocket)
 
     assert seen == [None, WS_CREDENTIAL_ENDED]
-    assert stream.socket_count(user.id) == 0
+    assert len(stream._sockets.get(user.id, ())) == 0
