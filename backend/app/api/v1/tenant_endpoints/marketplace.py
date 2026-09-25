@@ -165,6 +165,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
         **summary.model_dump(),
         requested_scopes=requested,
         grantable_scopes=grantable,
+        app_names=await guild_apps_service.app_scope_names(session, requested),
         has_initiative_surfaces=(
             listing.kind == "app"
             and guild_apps_service.has_initiative_surfaces(definition)

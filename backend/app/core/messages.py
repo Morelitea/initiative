@@ -1316,6 +1316,27 @@ class AppMessages:
     SHARING_NOT_AVAILABLE = "APP_SHARING_NOT_AVAILABLE"
 
 
+class AppHubMessages:
+    """Codes for an installed app calling another app through Initiative.
+
+    OAuth-style, so a caller reads them the way it reads the token endpoint's
+    errors: each names the check that refused.
+    """
+
+    #: The caller's token, grant or pinned version does not hold
+    #: ``apps:<target>``, or a member's consent allows reading only and the
+    #: endpoint writes.
+    INSUFFICIENT_SCOPE = "insufficient_scope"
+    #: The app called is not installed, switched on and live in this community.
+    TARGET_NOT_INSTALLED = "target_not_installed"
+    #: The endpoint is not part of the app's public surface.
+    ENDPOINT_NOT_PUBLIC = "endpoint_not_public"
+    #: The endpoint does not take calls for this actor.
+    ACTOR_NOT_SUPPORTED = "actor_not_supported"
+    #: The caller is confined to an initiative the app called is not placed in.
+    TARGET_NOT_PLACED = "target_not_placed"
+
+
 class AppDataMessages:
     """Codes for the widget data proxy.
 

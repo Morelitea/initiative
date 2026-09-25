@@ -68,6 +68,7 @@ from app.api.v1.platform_endpoints import (
     app_oauth,
     app_platform,
     app_installation,
+    app_hub,
     app_connection_callbacks,
     app_services,
     auth,
@@ -194,6 +195,9 @@ api_router.include_router(
 api_router.include_router(
     app_installation.router, prefix="/app-platform", tags=["app-platform"]
 )
+# An installed app calling another app's public endpoint, on its installation
+# or member token. Initiative checks the call and makes it.
+api_router.include_router(app_hub.router, prefix="/app-platform", tags=["app-platform"])
 # Where a vendor returns a person during an app connection's flow. The two
 # addresses an operator registers with each vendor client; they act on the
 # flow's sealed state alone.

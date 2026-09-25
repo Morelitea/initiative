@@ -46,7 +46,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_scopes import ALL_SCOPES
+from app.core.app_scopes import ALL_SCOPES, app_scope_target
 from app.core.audit_events import AuditEventType
 from app.core.messages import MarketplaceRegistryMessages as Codes
 from app.models.platform.app_service_registration import (
@@ -556,8 +556,18 @@ async def _apply_registration(
     if jwks is None and jwks_uri is None:
         raise _invalid("a registration needs keys")
 
+    declared_ceiling = spec.get("scope_ceiling")
     ceiling = _vocabulary(
-        spec.get("scope_ceiling"), frozenset(ALL_SCOPES), what=f"{public_id} ceiling"
+        declared_ceiling,
+        frozenset(ALL_SCOPES)
+        | frozenset(
+            scope
+            for scope in (
+                declared_ceiling if isinstance(declared_ceiling, list) else []
+            )
+            if isinstance(scope, str) and app_scope_target(scope) is not None
+        ),
+        what=f"{public_id} ceiling",
     )
     sectors = _vocabulary(
         spec.get("reference_sectors"),

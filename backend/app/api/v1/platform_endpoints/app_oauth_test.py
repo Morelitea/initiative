@@ -167,6 +167,34 @@ async def test_a_written_resource_may_be_asked_for_at_read(
 
 
 @pytest.mark.integration
+async def test_a_scope_to_use_another_app_is_issued_and_asked_for_by_name(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    installed = await install_app(
+        session,
+        acting_user,
+        role_session,
+        granted=["documents:read", "apps:tests.github"],
+        requested=["documents:read", "apps:tests.github"],
+    )
+    installation = await _installation(installed)
+
+    everything = await _ask(client, installation=installation)
+    assert everything.status_code == 200, everything.text
+    assert everything.json()["scope"] == "apps:tests.github documents:read"
+
+    narrowed = await _ask(client, installation=installation, scope="apps:tests.github")
+    assert narrowed.status_code == 200, narrowed.text
+    token = unseal_access_token(narrowed.json()["access_token"])
+    assert isinstance(token, InstallAccessToken)
+    assert token.scopes == frozenset({"apps:tests.github"})
+
+    other = await _ask(client, installation=installation, scope="apps:tests.other")
+    assert other.status_code == 400
+    assert _error(other) == "invalid_scope"
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("scope", ["projects:read", "documents:write", "not-a-scope"])
 async def test_a_scope_beyond_the_grant_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, scope

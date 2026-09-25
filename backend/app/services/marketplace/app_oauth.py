@@ -46,10 +46,11 @@ from app.core.app_access_token import (
     seal_install_token,
 )
 from app.core.app_scopes import (
-    ALL_SCOPES,
     AppScopeAccess,
     UnknownAppScope,
+    app_scope_target,
     expand,
+    is_known_scope,
     parse_scope,
     validate_scopes,
 )
@@ -356,7 +357,13 @@ def _covered(requested: frozenset[str], granted: frozenset[str]) -> bool:
     may be asked for at read."""
     readable, writable = expand(granted)
     wanted_read, wanted_write = expand(requested)
-    return wanted_read <= readable and wanted_write <= writable
+    # An ``apps:`` scope names no resource; it is covered only by itself.
+    wanted_apps = {scope for scope in requested if app_scope_target(scope)}
+    return (
+        wanted_read <= readable
+        and wanted_write <= writable
+        and wanted_apps <= set(granted)
+    )
 
 
 def _requested_scopes(value: str | None) -> frozenset[str] | None:
@@ -390,10 +397,11 @@ def _issuable(row: Any) -> frozenset[str]:
     A scope the vocabulary no longer defines is left out rather than sealed:
     the token could never be used with it.
     """
-    return (
-        frozenset(row.granted_scopes or ())
+    return frozenset(
+        scope
+        for scope in frozenset(row.granted_scopes or ())
         & frozenset(row.requested_scopes or ())
-        & frozenset(ALL_SCOPES)
+        if is_known_scope(scope)
     )
 
 
@@ -495,6 +503,11 @@ def _read_only_scopes(scopes: frozenset[str]) -> frozenset[str]:
     for a member who allowed reading only."""
     out: set[str] = set()
     for scope in scopes:
+        if app_scope_target(scope) is not None:
+            # Calling another app is not a write of the community's; which of
+            # its endpoints a read-only consent reaches is the hub's to decide.
+            out.add(scope)
+            continue
         resource, access = parse_scope(scope)
         out.add(
             f"{resource.value}:{AppScopeAccess.read.value}"

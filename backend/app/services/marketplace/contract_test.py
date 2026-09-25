@@ -148,7 +148,9 @@ def test_vocabularies_come_from_the_validator():
     assert set(defs["endpointReturn"]["properties"]["type"]["enum"]) == RETURN_TYPES
     assert set(defs["endpoint"]["properties"]["direction"]["enum"]) == DIRECTIONS
     assert set(defs["endpoint"]["properties"]["actors"]["items"]["enum"]) == ACTOR_KINDS
-    assert set(props["service"]["properties"]["scopes"]["items"]["enum"]) == SCOPES
+    scope_items = props["service"]["properties"]["scopes"]["items"]["anyOf"]
+    assert set(scope_items[0]["enum"]) == SCOPES
+    assert scope_items[1] == {"$ref": "#/$defs/appScope"}
     assert defs["embed"]["properties"]["admin_only"]["type"] == "boolean"
     assert defs["endpoint"]["properties"]["admin_only"]["type"] == "boolean"
     assert set(defs["embed"]["properties"]["scopes"]["items"]["enum"]) == SURFACE_SCOPES
@@ -220,6 +222,30 @@ ACCEPTED = [
             }
         ),
         id="requested-scopes",
+    ),
+    pytest.param(
+        _manifest(
+            service={
+                "public_id": "acme.tracker",
+                "protocol": 1,
+                "scopes": ["projects:read", "apps:acme.github"],
+            }
+        ),
+        id="requested-app-scope",
+    ),
+    pytest.param(
+        _manifest(
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.acme.tracker.open",
+                    "direction": "write",
+                    "public": True,
+                    "actors": ["member"],
+                }
+            ],
+        ),
+        id="public-write-endpoint",
     ),
     pytest.param(
         _manifest(
@@ -475,6 +501,21 @@ REFUSED_BY_BOTH = [
     pytest.param(
         _manifest(service={"public_id": "acme.x", "scopes": ["members:write"]}),
         id="write-on-a-read-only-resource",
+    ),
+    pytest.param(
+        _manifest(service={"public_id": "acme.x", "scopes": ["apps:github"]}),
+        id="app-scope-without-a-public-id",
+    ),
+    pytest.param(
+        _manifest(service={"public_id": "acme.x", "scopes": ["apps:Acme.github"]}),
+        id="app-scope-out-of-charset",
+    ),
+    pytest.param(
+        _manifest(
+            features=["endpoints"],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read", "public": 1}],
+        ),
+        id="endpoint-public-not-a-boolean",
     ),
     pytest.param(
         _manifest(
@@ -750,6 +791,49 @@ def test_requested_scopes_are_stored_sorted_and_absent_when_none():
     ]
     bare = normalize_service_app_definition(_manifest())
     assert "scopes" not in bare["service"]
+
+
+@pytest.mark.unit
+def test_app_scopes_are_stored_with_the_rest_and_bounded():
+    from app.services.marketplace.service_apps import (
+        MAX_APP_SCOPES,
+        normalize_service_app_definition,
+    )
+
+    cleaned = normalize_service_app_definition(
+        _manifest(
+            service={
+                "public_id": "acme.tracker",
+                "scopes": ["projects:read", "apps:acme.github"],
+            }
+        )
+    )
+    assert cleaned["service"]["scopes"] == ["apps:acme.github", "projects:read"]
+
+    too_many = [f"apps:acme.app{index}" for index in range(MAX_APP_SCOPES + 1)]
+    with pytest.raises(ValueError):
+        normalize_service_app_definition(
+            _manifest(service={"public_id": "acme.tracker", "scopes": too_many})
+        )
+
+
+@pytest.mark.unit
+def test_public_is_stored_only_when_set_and_refused_on_an_emission():
+    from app.services.marketplace.service_apps import normalize_service_app_definition
+
+    def endpoint(**extra):
+        return normalize_service_app_definition(
+            _manifest(
+                features=["endpoints"],
+                endpoints=[{"id": "app.acme.tracker.s", **extra}],
+            )
+        )["endpoints"][0]
+
+    assert endpoint(direction="write", public=True)["public"] is True
+    assert "public" not in endpoint(direction="read")
+    assert "public" not in endpoint(direction="read", public=False)
+    with pytest.raises(ValueError):
+        endpoint(direction="emit", public=True)
 
 
 @pytest.mark.unit

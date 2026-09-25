@@ -45,6 +45,7 @@ import json
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
+from app.core.app_scopes import APP_SCOPE_PREFIX
 from app.core.tools import Tool
 from app.db.authorization import sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
@@ -262,6 +263,9 @@ _TOKEN_SCOPES = (
     "NULLIF(current_setting('app.token_scopes', true), ''), ','), ARRAY[]::text[])"
 )
 _SCOPE_INITIATIVE = "NULLIF(current_setting('app.scope_initiative_id', true), '')::int"
+#: The ``apps:`` scope family names another app rather than a resource of the
+#: community's, so it adds nothing to what the install reads or writes.
+_APP_SCOPE_FAMILY = APP_SCOPE_PREFIX.rstrip(":")
 #: The purpose a member token's consent names; unset for app-wide consent, and
 #: for an installation token.
 _TOKEN_PURPOSE = "NULLIF(current_setting('app.token_purpose', true), '')"
@@ -402,12 +406,14 @@ granted_scope AS (
          bool_or(split_part(s.scope, ':', 2) = 'write') AS writes
   FROM install i
   CROSS JOIN LATERAL unnest(i.granted_scopes) AS s(scope)
+  WHERE split_part(s.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
   GROUP BY 1
 ),
 token_scope AS (
   SELECT split_part(t.scope, ':', 1) AS resource,
          bool_or(split_part(t.scope, ':', 2) = 'write') AS writes
   FROM unnest({_TOKEN_SCOPES}) AS t(scope)
+  WHERE split_part(t.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
   GROUP BY 1
 ),
 held AS (
