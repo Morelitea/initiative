@@ -3,26 +3,52 @@
 Guild-scoped like any other content endpoint: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so the index answers under the same
 gates as the content it mirrors.
+
+An installed app may call ``/suggest`` (``history/app-principal-design.md``).
+The scope it needs depends on the ``types`` it asks for, so the route takes
+:func:`app.api.deps.app_scope_checked` and the service narrows ``types`` to the
+kinds the install may read.
 """
 
 from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.deps import GuildContext, RLSSessionDep, get_guild_membership
+from app.api.actor_route import ActorRoute
+from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    GuildContext,
+    RLSSessionDep,
+    app_scope_checked,
+    get_current_active_user,
+    get_guild_membership,
+)
 from app.core.references import parse_ref
 from app.core.search import SearchEntityType
+from app.db.app_rls import SEARCH_ENTRY_READ_SCOPE
+from app.db.guild_standing import InstallContext
 from app.db.search_index import entity_types
 from app.models.platform.user import User
 from app.schemas.tenant.search import SearchResults, SearchSuggestion
 from app.services.tenant import search as search_service
-from app.api.deps import get_current_active_user
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: ``/suggest`` for a person or an installed app. An app needs the read scope
+#: of each kind it asks for, which the service checks once it has ``types``.
+SuggestByEntityType = Annotated[
+    ActorContext,
+    Depends(
+        app_scope_checked(
+            {f"{resource.value}:read" for resource in SEARCH_ENTRY_READ_SCOPE.values()},
+            per="entity type",
+        )
+    ),
+]
 
 _ARCHIVED_DESCRIPTION = (
     "Include archived work. Left out by default, so a search answers with what "
@@ -120,9 +146,8 @@ async def recent_guild(
 
 @router.get("/suggest", response_model=List[SearchSuggestion])
 async def suggest_guild(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    guild_context: SuggestByEntityType,
     q: str = Query(description="What to jump to.", max_length=200),
     types: Optional[List[SearchEntityType]] = Query(
         default=None, description=_TYPE_DESCRIPTION
@@ -138,17 +163,29 @@ async def suggest_guild(
 
     Takes the same ``types`` as the search itself, so the palette and the
     results page can be narrowed to the same slice of the guild.
+
+    An installed app is answered the kinds among ``types`` (the default scope
+    when omitted) whose read scope it holds, in the initiatives it is placed
+    in, and only what it could read through the tools themselves. Asking only
+    for kinds it holds no read scope for is 403 (``APP_SCOPE_REQUIRED``).
     """
-    return await search_service.suggest(
-        session,
-        query=q,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        filters=search_service.Filters(
-            types=types,
-            initiative_id=initiative_id,
-            template=template,
-            subject=parse_ref(subject) if subject else None,
-        ),
-        limit=limit,
-    )
+    install = guild_context if isinstance(guild_context, InstallContext) else None
+    try:
+        return await search_service.suggest(
+            session,
+            query=q,
+            user_id=guild_context.user_id,
+            guild_id=guild_context.guild_id,
+            filters=search_service.Filters(
+                types=types,
+                initiative_id=initiative_id,
+                template=template,
+                subject=parse_ref(subject) if subject else None,
+            ),
+            limit=limit,
+            install=install,
+        )
+    except search_service.SearchScopeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=exc.code
+        ) from exc

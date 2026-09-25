@@ -32,7 +32,12 @@ from sqlalchemy.schema import CheckConstraint, CreateTable
 
 from app.core.app_scopes import AppScopeResource, tool_resource
 from app.core.tools import Tool
-from app.db.app_rls import APP_REFUSED_TABLES, APP_TABLE_ACCESS, AppTableKind
+from app.db.app_rls import (
+    APP_REFUSED_TABLES,
+    APP_TABLE_ACCESS,
+    SEARCH_ENTRY_READ_SCOPE,
+    AppTableKind,
+)
 from app.db.initiative_rls import (
     ANSWERED,
     INITIATIVE_PATHS,
@@ -539,7 +544,10 @@ _APP_SECTION = """\
 -- it is placed in whatever its scopes, since its own standing and the
 -- lifecycle checks on its writes read them. An install sees and changes its
 -- own event subscriptions and no one else's. The change log and the search
--- index are written by triggers, and an install reaches them only there. The
+-- index are written by triggers, and an install writes them only there; it
+-- reads a search entry with the read scope of the entry's kind and of the tool
+-- governing it, and a narrowed token reads no entry of a tool that belongs to
+-- no initiative, as on the tables the entries describe. The
 -- grants an install's request writes are the owner row naming it (the
 -- member, for a member token), written by the trigger on the resource it
 -- creates, and, with sharing:write and the tool's write scope, the read and
@@ -634,6 +642,35 @@ _APP_MEMBER_OWN_READ: dict[str, str] = {
 _APP_CONSENT_READ = f"({_IID} IS NULL OR app_member_consents.install_id = {_IID})"
 
 
+def _app_search_read() -> str:
+    """What an installed app asks to read one search entry.
+
+    The read scope of the entry's kind (``SEARCH_ENTRY_READ_SCOPE``), and of
+    the tool governing it where it names one, which is what the table the
+    entry describes asks. A token narrowed to one initiative reads no entry of
+    a tool's content that belongs to no initiative; the guild's tags stay
+    readable to it, as the tags table is. The table's own policies still ask
+    placement, the tool's switch, the role and sharing, as they do of a person.
+    """
+    held = IN_POLICY.field("install_read")
+    kinds = " ".join(
+        f"WHEN '{kind.value}' THEN '{resource.value}'"
+        for kind, resource in sorted(
+            SEARCH_ENTRY_READ_SCOPE.items(), key=lambda item: item[0].value
+        )
+    )
+    tools = " ".join(
+        f"WHEN '{tool.value}' THEN '{tool_resource(tool).value}'" for tool in Tool
+    )
+    return (
+        f"(COALESCE((CASE search_entries.entity_type {kinds} END) = ANY ({held}), false)"
+        " AND (search_entries.dac_tool IS NULL"
+        f" OR COALESCE((CASE search_entries.dac_tool {tools} END) = ANY ({held}), false))"
+        f" AND ({IN_POLICY.scope} IS NULL OR search_entries.dac_tool IS NULL"
+        " OR search_entries.initiative_id IS NOT NULL))"
+    )
+
+
 def _app_predicates(table: str) -> dict[str, str]:
     """What each command asks of an installed app on ``table``, beside what
     the table's own policies ask. Empty where a tool's gate already asks it."""
@@ -661,7 +698,12 @@ def _app_predicates(table: str) -> dict[str, str]:
         if table not in _TRIGGER_WRITTEN_INSERT:
             return {}
         by_trigger = f"({_IID} IS NULL OR pg_trigger_depth() > 0)"
-        return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), by_trigger)
+        predicates = dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), by_trigger)
+        if table == "search_entries":
+            predicates["SELECT"] = (
+                f"({_IID} IS NULL OR pg_trigger_depth() > 0 OR {_app_search_read()})"
+            )
+        return predicates
     if governing_path(table) is not None or access.resource is None:
         return {}
     read = app_scope(access.resource, False, IN_POLICY)
