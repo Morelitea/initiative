@@ -216,6 +216,7 @@ async def list_app_installations(
             installation=listing.installation,
             scopes=listing.scopes,
             initiatives=listing.initiatives,
+            active=listing.active,
         )
         for listing in listings
     ]

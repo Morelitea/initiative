@@ -689,14 +689,19 @@ class InstallationListing:
     installation: str
     scopes: list[str]
     initiatives: list[int]
+    #: The install is switched on and its community is in use, so a token can
+    #: be issued for it. An install that is off, or whose community is on hold,
+    #: suspended or awaiting deletion, is still listed: it still exists.
+    active: bool
 
 
 _INSTALLS_SQL_TEXT = (
     "SELECT a.id, a.granted_scopes, "
     f"{_REQUESTED_SQL}, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
-    "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed "
-    "FROM guild_apps a WHERE a.listing_uid = :listing_uid AND a.enabled "
+    "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed, "
+    "a.enabled "
+    "FROM guild_apps a WHERE a.listing_uid = :listing_uid "
     "ORDER BY a.id"
 )
 _INSTALLS_SQL = text(_INSTALLS_SQL_TEXT)
@@ -705,7 +710,11 @@ _INSTALLS_SQL = text(_INSTALLS_SQL_TEXT)
 async def list_installations(
     session: AsyncSession, client: RegistrationSnapshot
 ) -> list[InstallationListing]:
-    """Every enabled install of ``client``'s listing, in every community in use.
+    """Every install of ``client``'s listing, in every community that exists.
+
+    Each says whether it is active: switched on, in a community in use. An app
+    tells an install that is only paused from one that is gone by whether it is
+    listed at all.
 
     There is no cross-community index of installs, so this visits each
     community's schema in turn: one routing and one read per community on this
@@ -715,16 +724,13 @@ async def list_installations(
     if client.listing_uid is None:
         return []
 
-    guild_ids = (
-        await session.exec(
-            select(Guild.id)
-            .where(Guild.status.in_(LIVE_STATUS_VALUES))
-            .order_by(Guild.id)
-        )
+    guilds = (
+        await session.exec(select(Guild.id, Guild.status).order_by(Guild.id))
     ).all()
 
-    found: list[tuple[int, int, list[str], list[int]]] = []
-    for guild_id in guild_ids:
+    found: list[tuple[int, int, list[str], list[int], bool]] = []
+    for guild_id, guild_status in guilds:
+        in_use = str(getattr(guild_status, "value", guild_status)) in LIVE_STATUS_VALUES
         try:
             await set_rls_context(session, guild_id=guild_id)
             rows = (
@@ -746,17 +752,21 @@ async def list_installations(
                     int(row.id),
                     sorted(_issuable(row)),
                     [int(i) for i in (row.placed or ())],
+                    bool(row.enabled) and in_use,
                 )
             )
 
     listings: list[InstallationListing] = []
-    for guild_id, install_id, scopes_granted, placed in found:
+    for guild_id, install_id, scopes_granted, placed, active in found:
         ref = await app_refs.ensure_app_guild_ref(
             guild_id=guild_id, app_install_id=install_id
         )
         listings.append(
             InstallationListing(
-                installation=ref, scopes=scopes_granted, initiatives=placed
+                installation=ref,
+                scopes=scopes_granted,
+                initiatives=placed,
+                active=active,
             )
         )
     return listings
