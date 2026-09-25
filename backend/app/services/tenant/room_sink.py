@@ -61,7 +61,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
 from app.models.tenant.event_outbox import EventOutbox
@@ -131,7 +131,7 @@ async def on_bus_connected() -> None:
 _delivered: dict[int, set[int]] = {}
 
 
-def _guild_id(schema: str) -> int | None:
+def schema_guild_id(schema: str) -> int | None:
     """The guild a schema name addresses, or None if it addresses none."""
     if not schema.startswith(_SCHEMA_PREFIX):
         return None
@@ -269,14 +269,14 @@ async def deliver(payload: str) -> None:
     visible, whatever ids they were given while in flight.
     """
     schema, _, txn = payload.partition(":")
-    guild_id = _guild_id(schema)
+    guild_id = schema_guild_id(schema)
     if guild_id is None or not txn.isdigit():
         logger.warning("room sink: unreadable hint on %s", CHANNEL)
         return
     if guild_id not in set(sockets.guild_ids()):
         return
     try:
-        async with db_session.SystemSessionLocal() as session:
+        async with cohorts.system_session(guild_id) as session:
             await set_rls_context(session, guild_id=guild_id)
             rows = await _rows_of_transaction(session, int(txn))
             if guild_id not in _delivered:
@@ -308,11 +308,8 @@ async def process_room_sweep() -> None:
         # socket to arrive is brought up to the log's current end rather than
         # told everything that happened while nobody was looking.
         _delivered.pop(guild_id, None)
-    if not watched:
-        return
-    async with db_session.SystemSessionLocal() as session:
-        for guild_id in watched:
-            session.expunge_all()
+    for guild_id in watched:
+        async with cohorts.system_session(guild_id) as session:
             try:
                 await set_rls_context(session, guild_id=guild_id)
                 rows = await _rows_in_window(session)
@@ -337,4 +334,3 @@ async def process_room_sweep() -> None:
                 _delivered[guild_id] = _ids(rows)
             except Exception:
                 logger.exception("room sink: sweep failed for guild %s", guild_id)
-                await session.rollback()

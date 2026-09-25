@@ -48,7 +48,9 @@ engine = create_async_engine(
 # System engine: background jobs, startup seeding, platform lifecycle.
 # The textbook Postgres trusted-batch actor: BYPASSRLS, bounded by
 # enumerated per-table GRANTs (migration 0129). Guild schemas still
-# require SET ROLE guild_<id>, which drops the bypass.
+# require SET ROLE guild_<id>, which drops the bypass. With DB_COHORTS above 1
+# this is the platform system pool: system work in one community draws from
+# that community's cohort (``app.db.cohorts.system_session``).
 system_engine = create_async_engine(
     settings.DATABASE_URL_ADMIN,
     echo=False,
@@ -147,6 +149,7 @@ instrument_engine(provisioning_engine, "provisioning", flag_slow=False)
 instrument_engine(query_engine, "query", log_text=False)
 if settings.DB_COHORTS > 1:
     cohorts.tag_engine(engine, cohorts.PLATFORM)
+    cohorts.tag_engine(system_engine, cohorts.PLATFORM_SYSTEM)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

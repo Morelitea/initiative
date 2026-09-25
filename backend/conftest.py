@@ -694,20 +694,30 @@ async def _schema_test_harness(engine, monkeypatch):
         ),
     )
 
-    # Two cohorts, each its own pool on this worker's database, so every test
-    # that reaches a community through a session of its own (the sockets, the
-    # cross-community reads) does so from that community's cohort — and a
-    # route outside it raises.
+    # Two cohorts, each with a request and a system pool on this worker's
+    # database, so every test that reaches a community through a session of its
+    # own (the sockets, the cross-community reads, the sweeps) does so from
+    # that community's cohort — and a route outside it raises. The platform
+    # system pool is tagged as in production, so its routes are counted.
     test_cohort_engines = [
         create_async_engine(
             _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
         )
         for _ in range(_TEST_COHORTS)
     ]
+    test_cohort_system_engines = [
+        create_async_engine(
+            _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
+        )
+        for _ in range(_TEST_COHORTS)
+    ]
     monkeypatch.setattr(settings, "DB_COHORTS", _TEST_COHORTS)
     monkeypatch.setattr(cohorts, "STRICT", True)
     monkeypatch.setattr(cohorts, "_request_makers", None)
+    monkeypatch.setattr(cohorts, "_system_makers", None)
     cohorts.use_request_engines(test_cohort_engines)
+    cohorts.use_system_engines(test_cohort_system_engines)
+    cohorts.tag_engine(test_system_engine, cohorts.PLATFORM_SYSTEM)
 
     _provisioned_guild_ids.clear()
     _orig_provision_guild = schema_provisioning.provision_guild
@@ -725,7 +735,7 @@ async def _schema_test_harness(engine, monkeypatch):
     await test_system_engine.dispose()
     await test_query_engine.dispose()
     await test_app_engine.dispose()
-    for cohort_engine in test_cohort_engines:
+    for cohort_engine in (*test_cohort_engines, *test_cohort_system_engines):
         await cohort_engine.dispose()
 
 

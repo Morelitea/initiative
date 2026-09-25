@@ -22,6 +22,7 @@ from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionUpdate,
 )
 from app.services import audit as audit_service
+from app.services import guild_work
 
 #: The fields a rewrite reports as moved. ``fields`` is a list of names, so
 #: it is reported as having moved and never copied.
@@ -256,6 +257,7 @@ async def create_subscription(
             "app_install_id": app_install_id,
         },
     )
+    guild_work.wake(session, guild_work.WEBHOOKS, guild_id)
     await session.commit()
     await session.refresh(subscription)
     return subscription, secret
@@ -350,6 +352,8 @@ async def update_subscription(
                 target_id=subscription.id,
                 detail={**changed, "target_host_changed": host_changed},
             )
+    if subscription.active:
+        guild_work.wake(session, guild_work.WEBHOOKS, guild_id)
     await session.commit()
     await session.refresh(subscription)
     return subscription
@@ -445,4 +449,5 @@ async def delete_subscription(
                 "app_install_id": app_install_id,
             },
         )
+    guild_work.wake(session, guild_work.WEBHOOKS, guild_id)
     await session.commit()

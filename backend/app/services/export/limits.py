@@ -30,3 +30,6 @@ EXPORT_DOWNLOAD_URL_TTL_SECONDS = 300
 #: Artifact retention: expires_at = render time + this; the GC pass then
 #: deletes the artifact and marks the job expired.
 EXPORT_ARTIFACT_TTL_HOURS = 168  # 7 days
+
+#: How many times an abandoned render is started over before its job fails.
+EXPORT_MAX_RESTARTS = 2

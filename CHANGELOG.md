@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Webhooks, imports and exports start sooner** — a webhook delivery goes out about a second after the change it reports, and an import or export starts as soon as it is queued, instead of waiting for the next poll. Background work also goes through each community far less often, which matters on a server with many communities.
 - **Checked checklist items are not crossed out** — ticking a line in a document's checklist leaves its words as they were, which suits a register or an attendance list. For a line that is a task, use a task checkbox chip.
 - **Smart chips and embeds count as links** — a document's backlinks, and a thing's **Mentioned in**, include the pages that show it in a smart chip or an embed, as they do for a `#` link.
 - **The app installs only updates Initiative published** — each release now signs the app update it serves, and the app checks that signature before installing it. A server whose update isn't signed, such as one built from source, leaves the app on the version it has and says so once.
@@ -50,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Notifications open what they're about** — event notifications opened the community home page instead of the event, notifications about a comment on a wiki page opened the wiki rather than the page, and comment notifications on queues, counters, calendars, dashboards, pictures and wikis showed no title.
 - **Erasing an account removes its name everywhere it was mentioned** — mentions of an erased account in wiki pages, checklists and the descriptions of projects, events and other tools kept its name. They now read "Deleted user", as they already did in documents, notices, tasks and comments.
 - **My Tools leaves out document templates** — templates are for starting new documents, so they no longer appear among your documents, as project templates already didn't.
+- **One community's failing background job no longer holds up the others** — scheduled posts, reminders, digests and clean-up carry on in every other community.
+- **An export that keeps failing stops being retried** — one whose preparation is interrupted three times now fails and tells whoever started it, instead of starting over forever.
 - **Leaving an initiative ends access to everything in it** — removing someone from an initiative, or someone leaving the community, now removes the access they were given to its queues, counters, calendars, dashboards, notices, pictures and wikis too. Before, only projects and documents were covered, and the rest came back if they rejoined.
 - **Duplicating a file document copies the file** — the copy used to have no file to download.
 - **Document exports follow the documents switch** — documents can no longer be exported from an initiative with documents turned off.

@@ -52,6 +52,7 @@ from app.schemas.tenant.import_job import (
     AtlassianPlanProperty,
     BackupImportPlan,
 )
+from app.services import guild_work
 from app.services.import_engine import engine as import_engine
 from app.services.import_engine import (
     confluence_fetch,
@@ -232,6 +233,7 @@ async def start_import(
         + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
+    guild_work.wake(session, guild_work.DATA_JOBS, guild_id)
     await session.commit()
     await session.refresh(job)
     return job
@@ -286,6 +288,7 @@ async def start_export(
         + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
+    guild_work.wake(session, guild_work.DATA_JOBS, guild_id)
     await session.commit()
     await session.refresh(job)
     return job

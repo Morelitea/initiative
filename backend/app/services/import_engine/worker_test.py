@@ -12,6 +12,7 @@ from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
+from app.services.guild_sweeps import Scope, each_guild
 from app.services.import_engine import worker as import_worker
 from app.services.storage import get_guild_storage
 from app.testing import create_guild, create_import_job, route_session_to_guild
@@ -52,7 +53,7 @@ async def test_gc_reaches_a_community_that_is_not_active(acting_user, session):
     session.add(guild)
     await session.commit()
 
-    await import_worker.process_import_gc()
+    await each_guild([(Scope.PROVISIONED, import_worker.expire_payloads)], name="t")
 
     assert get_guild_storage(a.guild.id).open_readable(key) is None
     expired = await _reload(session, a.guild.id, job.id)
@@ -86,7 +87,7 @@ async def test_gc_clears_a_secret_only_from_a_job_that_is_over(
         expires_at=datetime.now(timezone.utc) + expires_in if expires_in else None,
     )
 
-    await import_worker.process_import_gc()
+    await each_guild([(Scope.PROVISIONED, import_worker.expire_payloads)], name="t")
 
     after = await _reload(session, a.guild.id, job.id)
     assert after.status == status.value

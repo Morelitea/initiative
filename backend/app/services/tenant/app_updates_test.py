@@ -5,9 +5,8 @@ install a guild took off the track stays where it is, and a version this
 deployment cannot run is applied to nobody. Those are the cases where sweeping
 the wrong install has a cost, and neither shows up on the happy path.
 
-The inner pass is driven with the test session — routed into the guild the way
-the worker routes itself — because ``process_app_auto_updates`` opens its own
-system-engine session against the configured database rather than the test one.
+The inner pass is driven with the test session, routed into the guild the way
+the hourly pass routes its own.
 """
 
 import asyncio

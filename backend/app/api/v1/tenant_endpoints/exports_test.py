@@ -40,6 +40,7 @@ from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import storage as storage_module
 from app.services.export import worker as export_worker
+from app.services.guild_sweeps import Scope, each_guild
 from app.services.storage import get_guild_storage
 from app.testing import route_session_to_guild
 from app.testing.factories import (
@@ -1027,7 +1028,7 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
             storage_module, "get_guild_storage", lambda gid: _BrokenStorage()
         )
 
-    await export_worker.process_export_gc()
+    await each_guild([(Scope.PROVISIONED, export_worker.expire_artifacts)], name="t")
 
     if not storage_fails:
         assert storage.open_readable(key) is None

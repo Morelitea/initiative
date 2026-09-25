@@ -8,7 +8,7 @@ from sqlmodel import Field, SQLModel
 class EventReminderDispatch(SQLModel, table=True):
     """Dedup ledger for scheduled calendar-event reminders.
 
-    Background-only (written by ``process_event_reminders`` via the admin
+    Background-only (written by the event-reminder sweep via the admin
     session, never exposed through the API, so no RLS policy is needed —
     same stance as ``TaskAssignmentDigestItem``). The unique key includes
     ``event_start_at`` so rescheduling an event to a new time re-arms its

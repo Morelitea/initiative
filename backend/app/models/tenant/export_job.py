@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
@@ -65,6 +65,10 @@ class ExportJob(CreatedByMixin, table=True):
     # artifact GC's.
     destination_ref: Optional[str] = Field(default=None)
     error: Optional[str] = Field(default=None)
+    #: How many times the stale sweep has queued this job again.
+    restarts: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default="0")
+    )
     # Artifact GC deadline — set when the artifact is written.
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)

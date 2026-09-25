@@ -16,7 +16,8 @@ from app.core.audit_events import AuditEventType
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.initiative import Initiative
 from app.services.tenant.soft_delete import soft_delete_entity
-from app.services.tenant.trash_purge import _purge_all_guilds
+from app.services.guild_sweeps import Scope, each_guild
+from app.services.tenant.trash_purge import purge_guild
 from app.testing import emitted
 from app.testing.factories import (
     create_guild,
@@ -49,16 +50,15 @@ async def _expired_initiative(session: AsyncSession, guild, user, **overrides):
 
 
 async def test_a_sweep_records_one_pass_per_guild_with_its_counts(
-    session: AsyncSession, role_session, capfd
+    session: AsyncSession, capfd
 ):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     guild_id = guild.id
     await _expired_initiative(session, guild, user, name="Swept")
 
-    admin = await role_session("app_admin")
     capfd.readouterr()
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
 
     rows = [
         row
@@ -76,17 +76,14 @@ async def test_a_sweep_records_one_pass_per_guild_with_its_counts(
     assert row["detail"]["counts"] == {"initiative": 1}
 
 
-async def test_a_guild_with_nothing_due_records_nothing(
-    session: AsyncSession, role_session, capfd
-):
+async def test_a_guild_with_nothing_due_records_nothing(session: AsyncSession, capfd):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     guild_id = guild.id
     await create_initiative(session, guild, user, name="Still here")
 
-    admin = await role_session("app_admin")
     capfd.readouterr()
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
 
     assert [
         row

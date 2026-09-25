@@ -43,9 +43,8 @@ from typing import Any, Iterable, Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
-from app.db.session import SystemSessionLocal, set_rls_context
-from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
+from app.db.session import routed_guild_id, set_rls_context
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import registration_lookup
@@ -62,7 +61,6 @@ from app.services.tenant import guild_apps as guild_apps_service
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "AUTO_UPDATE_POLL_SECONDS",
     "AskedUpdate",
     "PendingUpdate",
     "UPDATES_TARGET_PATH",
@@ -74,17 +72,12 @@ __all__ = [
     "update_offer",
     "update_version",
     "upgrade_asks",
-    "process_app_auto_updates",
+    "update_guild",
 ]
 
 #: Where the seat answers a pending version, inside the community: the
 #: integrations settings, which list every app with its updates.
 UPDATES_TARGET_PATH = "/settings/integrations"
-
-#: How often the sweep runs. An hour rather than minutes: a published version
-#: reaching every guild within the hour is what "automatic" needs to mean, and
-#: the pass costs one catalog read per installed listing per guild.
-AUTO_UPDATE_POLL_SECONDS = 3600
 
 
 @dataclass(frozen=True)
@@ -442,62 +435,38 @@ async def _update_guild(
     return applied
 
 
-async def _update_all_guilds(session: AsyncSession) -> None:
-    """One pass over every guild that is taking writes.
+async def update_guild(session: AsyncSession, guild_id: int) -> None:
+    """The sweep's visit to one guild, on a session routed into it.
 
-    Guilds are enumerated on the system engine, then each is visited in its own
-    schema as a guild admin — ``SET ROLE`` drops the system engine's bypass, so
-    the admin context is what carries the write. Only ``active`` guilds are
-    swept: a guild on hold is frozen, and a background re-pin is still a change
-    to what its members see.
+    Run by the hourly pass: a published version reaching every guild within
+    the hour is what "automatic" needs to mean, and a visit costs one catalog
+    read per installed listing. Only ``active`` guilds are visited: a guild on
+    hold is frozen, and a background re-pin is still a change to what its
+    members see.
     """
-    await set_rls_context(session)
-    guild_ids = list(
-        await session.exec(
-            select(Guild.id)
-            .where(Guild.status == GuildStatus.active.value)
-            .order_by(Guild.id.asc())
-        )
-    )
-    for guild_id in guild_ids:
-        # Ids collide across schemas, so the identity map is cleared between
-        # guilds rather than carried into the next one.
-        session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id)
-        asked: list[AskedUpdate] = []
+    asked: list[AskedUpdate] = []
+    try:
+        await _update_guild(session, guild_id, asked=asked)
+        await session.commit()
+    except Exception:
+        # The queued revocations are dropped with the writes they belonged
+        # to: nothing was taken away, so there is nothing to tell an app.
+        revocation_service.drain_revocations(session)
+        raise
+    # After the commit, always: an app is told a credential is finished only
+    # once the write that finished it is durable.
+    intents = revocation_service.drain_revocations(session)
+    if intents:
+        await revocation_service.dispatch_revocations(intents)
+    # The versions now waiting are durable, so the seat is told about them. A
+    # bell that cannot be written is logged: the version stays pending on the
+    # install and the settings page still shows it.
+    if asked:
         try:
-            await _update_guild(session, guild_id, asked=asked)
+            await notify_pending_updates(session, guild_id, asked)
             await session.commit()
         except Exception:
-            # One guild's bad install must not cost every later guild its pass.
-            # The queued revocations are dropped with the writes they belonged
-            # to: nothing was taken away, so there is nothing to tell an app.
-            logger.exception("app auto-update: guild %s failed", guild_id)
+            logger.exception(
+                "app auto-update: guild %s seat could not be told", guild_id
+            )
             await session.rollback()
-            revocation_service.drain_revocations(session)
-            continue
-        # After the commit, always: an app is told a credential is finished
-        # only once the write that finished it is durable.
-        intents = revocation_service.drain_revocations(session)
-        if intents:
-            await revocation_service.dispatch_revocations(intents)
-        # The versions now waiting are durable, so the seat is told about
-        # them. A bell that cannot be written is logged: the version stays
-        # pending on the install and the settings page still shows it.
-        if asked:
-            try:
-                await notify_pending_updates(session, guild_id, asked)
-                await session.commit()
-            except Exception:
-                logger.exception(
-                    "app auto-update: guild %s seat could not be told", guild_id
-                )
-                await session.rollback()
-
-
-async def process_app_auto_updates() -> None:
-    """One pass of the auto-update loop. Idempotent, and quiet when nothing is
-    due — an install already on the version the catalog offers resolves to
-    nothing to do."""
-    async with SystemSessionLocal() as session:
-        await _update_all_guilds(session)

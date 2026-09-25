@@ -15,7 +15,8 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.tenant.soft_delete import soft_delete_entity
-from app.services.tenant.trash_purge import _run_purge_pass
+from app.services.guild_sweeps import Scope, each_guild
+from app.services.tenant.trash_purge import _run_purge_pass, purge_guild
 from app.testing.factories import (
     create_guild,
     create_initiative,
@@ -67,15 +68,12 @@ async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     project_id = project.id
 
     # One pass — should sweep both rows without raising. Drive the inner
-    # loop with the test session so the DELETEs land on the test DB
-    # (process_trash_purges() opens its own SystemSessionLocal pointed at
-    # the dev DB).
+    # loop with the test session.
     await _run_purge_pass(session, now=datetime.now(timezone.utc))
     await session.commit()
 
-    # Verify against the DB directly — process_trash_purges runs on its
-    # own SystemSessionLocal, so the test session's identity map is stale
-    # for these rows.
+    # Verify against the DB directly: the test session's identity map is
+    # stale for these rows.
     initiative_count = (
         await session.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -97,14 +95,13 @@ async def test_auto_purge_sweeps_every_guild_schema(
 ):
     """Expired trash lives in each guild's own schema, so the purge worker must
     visit every guild — the old single public-scoped pass would purge nothing.
-    Stage expired trash in two guilds and assert _purge_all_guilds clears both.
+    Stage expired trash in two guilds and assert the hourly pass's visit clears
+    both.
 
-    Driven on a real ``app_admin`` connection like production
-    (``process_trash_purges`` opens ``SystemSessionLocal``), so the purge runs
-    under the same privilege boundary that has to clear the admin-only purge
-    guard."""
+    Run through the runner, on real ``app_admin`` connections like production,
+    so the purge runs under the same privilege boundary that has to clear the
+    admin-only purge guard."""
     from app.db.session import set_rls_context
-    from app.services.tenant.trash_purge import _purge_all_guilds
 
     user = await create_user(session)
     past = datetime.now(timezone.utc) - timedelta(days=2)
@@ -130,9 +127,8 @@ async def test_auto_purge_sweeps_every_guild_schema(
         await session.commit()
         targets.append((guild.id, initiative.id))
 
-    # Production runs the worker on SystemSessionLocal (app_admin).
     admin = await role_session("app_admin")
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
 
     for guild_id, initiative_id in targets:
         await set_rls_context(admin, guild_id=guild_id)
@@ -154,7 +150,6 @@ async def test_auto_purge_clears_content_table_guard(
     soft_delete_admin_purge RESTRICTIVE guard; the worker clears both by routing
     as a guild admin. Regression: routing in without the admin guild-role GUC
     cleared neither, so the DELETE silently matched 0 rows."""
-    from app.services.tenant.trash_purge import _purge_all_guilds
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -176,9 +171,12 @@ async def test_auto_purge_clears_content_table_guard(
     await session.commit()
     project_id = project.id
 
-    admin = await role_session("app_admin")
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    from app.db.session import set_rls_context
 
+    admin = await role_session("app_admin")
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
+
+    await set_rls_context(admin, guild_id=guild.id)
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM projects WHERE id = :id"),
@@ -194,7 +192,6 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     unresolved. Purging resumes (original ``purge_at`` stamps) once the guild
     returns to active."""
     from app.models.platform.guild import GuildStatus
-    from app.services.tenant.trash_purge import _purge_all_guilds
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -218,7 +215,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     initiative_id = initiative.id
 
     admin = await role_session("app_admin")
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
 
     from app.db.session import set_rls_context
 
@@ -236,7 +233,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     session.add(guild)
     await session.commit()
 
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
     await set_rls_context(admin, guild_id=guild.id)
     count = (
         await admin.exec(

@@ -1,19 +1,20 @@
-"""Communities divided into cohorts, and a request pool for each.
+"""Communities divided into cohorts, and a request and a system pool for each.
 
 A database connection keeps the catalog of every table it has opened for as
 long as it lives, and each community is a schema of its own, so a connection
 that has served every community holds every community's catalog. Dividing the
-communities into ``DB_COHORTS`` cohorts, and serving each cohort from a pool of
+communities into ``DB_COHORTS`` cohorts, and serving each cohort from pools of
 its own, means a connection only ever opens its own cohort's schemas.
 
 :func:`cohort_of` is the one place that says which cohort a community is in.
 Everything else asks it.
 
-With one cohort (the default) there is nothing to divide: every request draws
-from the one request pool, ``app.db.session.AsyncSessionLocal``, as it always
-has, and nothing in this module is built.
+With one cohort (the default) there is nothing to divide: requests draw from
+the one request pool, ``app.db.session.AsyncSessionLocal``, and system work
+from the one system pool, ``app.db.session.SystemSessionLocal``, as they always
+have, and nothing in this module is built.
 
-What a request routes into is noted on the connection it runs on
+What a session routes into is noted on the connection it runs on
 (:func:`note_route`), so a connection that serves a community outside its
 cohort is counted, and in the test suite refused.
 """
@@ -34,17 +35,27 @@ from app.core.config import settings
 if TYPE_CHECKING:
     from sqlalchemy.engine import Connection
 
-#: The tag on a connection from a pool that serves no community's schema.
+#: The tag on a connection from the request pool that serves no community's
+#: schema.
 PLATFORM = "platform"
+
+#: The tag on a connection from the system pool that names no community. Its
+#: routes into a community are counted but never refused (see
+#: :func:`note_route`).
+PLATFORM_SYSTEM = "platform-system"
 
 #: Where a pooled connection keeps its cohort, and the communities it has
 #: served. On the pool's record, so both last as long as the connection does.
 _COHORT_KEY = "initiative_cohort"
 _SERVED_KEY = "initiative_cohort_served"
 
-#: Marks a session the request path handed out, which is what lets a
-#: cross-community read give each community a session from its own cohort.
-_REQUEST_SESSION_KEY = "cohort_request_session"
+#: Marks a session handed out by the request path or by
+#: :func:`system_session`, with which of the two it is. Work across communities
+#: made on a marked session gives each community a session of the same kind
+#: from its own cohort.
+_KIND_KEY = "cohort_session_kind"
+_REQUEST = "request"
+_SYSTEM = "system"
 
 #: Marks a session whose transactions are opened read-only.
 READ_ONLY_INFO_KEY = "cohort_read_only"
@@ -55,6 +66,9 @@ STRICT = False
 
 #: Each cohort's request sessionmaker, built on first use.
 _request_makers: list[async_sessionmaker[AsyncSession]] | None = None
+
+#: Each cohort's system sessionmaker, built on first use.
+_system_makers: list[async_sessionmaker[AsyncSession]] | None = None
 
 #: Each cohort's sessionmaker on DATABASE_URL_QUERY, built on first use.
 _read_makers: list[async_sessionmaker[AsyncSession]] | None = None
@@ -136,13 +150,26 @@ def _sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     )
 
 
-def use_request_engines(engines: list[AsyncEngine]) -> None:
-    """Serve the cohorts from ``engines``, one per cohort in order. For the
-    test suite, which points every pool at its own database."""
-    global _request_makers
+def _cohort_makers(
+    engines: list[AsyncEngine],
+) -> list[async_sessionmaker[AsyncSession]]:
     for cohort, engine in enumerate(engines):
         tag_engine(engine, cohort)
-    _request_makers = [_sessionmaker(engine) for engine in engines]
+    return [_sessionmaker(engine) for engine in engines]
+
+
+def use_request_engines(engines: list[AsyncEngine]) -> None:
+    """Serve the cohorts' requests from ``engines``, one per cohort in order.
+    For the test suite, which points every pool at its own database."""
+    global _request_makers
+    _request_makers = _cohort_makers(engines)
+
+
+def use_system_engines(engines: list[AsyncEngine]) -> None:
+    """Serve the cohorts' system work from ``engines``, one per cohort in
+    order. For the test suite, as :func:`use_request_engines`."""
+    global _system_makers
+    _system_makers = _cohort_makers(engines)
 
 
 def request_sessionmaker(guild_id: int | None) -> async_sessionmaker[AsyncSession]:
@@ -158,6 +185,31 @@ def request_sessionmaker(guild_id: int | None) -> async_sessionmaker[AsyncSessio
     if _request_makers is None:
         _request_makers = _build_makers(settings.DATABASE_URL_APP, "request")
     return _request_makers[cohort_of(guild_id)]
+
+
+def system_sessionmaker(guild_id: int | None) -> async_sessionmaker[AsyncSession]:
+    """The sessionmaker for system work in ``guild_id``'s community, or for
+    system work that names no community when it is ``None``."""
+    global _system_makers
+    # Looked up on the module, as in ``request_sessionmaker``.
+    from app.db import session as db_session
+
+    if guild_id is None or cohort_count() == 1:
+        return db_session.SystemSessionLocal
+    if _system_makers is None:
+        _system_makers = _build_makers(settings.DATABASE_URL_ADMIN, "system")
+    return _system_makers[cohort_of(guild_id)]
+
+
+@asynccontextmanager
+async def system_session(guild_id: int | None) -> AsyncIterator[AsyncSession]:
+    """A system session from ``guild_id``'s cohort, or from the platform system
+    pool when it is ``None``. The caller routes it and commits. Work across
+    communities made on it gives each community a system session from that
+    community's cohort."""
+    async with system_sessionmaker(guild_id)() as session:
+        session.info[_KIND_KEY] = _SYSTEM
+        yield session
 
 
 def read_sessionmaker(guild_id: int) -> async_sessionmaker[AsyncSession]:
@@ -192,24 +244,28 @@ def addressed_guild_id(path_params: Mapping[str, Any]) -> int | None:
 
 
 def mark_request_session(session: AsyncSession) -> None:
-    session.info[_REQUEST_SESSION_KEY] = True
+    session.info[_KIND_KEY] = _REQUEST
 
 
 def fans_out(session: AsyncSession) -> bool:
-    """Whether a read across communities made on ``session`` gives each
+    """Whether work across communities made on ``session`` gives each
     community a session from its own cohort, rather than routing ``session``
     into each in turn."""
-    return cohort_count() > 1 and bool(session.info.get(_REQUEST_SESSION_KEY))
+    return cohort_count() > 1 and _KIND_KEY in session.info
 
 
 @asynccontextmanager
 async def community_session(
-    guild_id: int, *, read_only: bool = True
+    parent: AsyncSession, guild_id: int, *, read_only: bool = True
 ) -> AsyncIterator[AsyncSession]:
-    """A request-path session from ``guild_id``'s cohort, for one community's
-    part of work across several. Read-only unless ``read_only`` is False, in
-    which case the caller commits what it wrote."""
-    async with request_sessionmaker(guild_id)() as session:
+    """A session from ``guild_id``'s cohort of the same kind as ``parent``, a
+    session :func:`fans_out` accepts, for one community's part of work across
+    several. Read-only unless ``read_only`` is False, in which case the caller
+    commits what it wrote."""
+    kind = parent.info[_KIND_KEY]
+    maker = system_sessionmaker if kind == _SYSTEM else request_sessionmaker
+    async with maker(guild_id)() as session:
+        session.info[_KIND_KEY] = kind
         if read_only:
             session.info[READ_ONLY_INFO_KEY] = True
         yield session
@@ -232,7 +288,13 @@ def routed_guild_id(params: Mapping[str, Any]) -> int | None:
 
 def note_route(connection: "Connection | None", guild_id: int | None) -> None:
     """Record that ``connection`` is serving ``guild_id``'s community, and
-    count it when that community is outside the connection's cohort."""
+    count it when that community is outside the connection's cohort.
+
+    Every tagged pool is held to its cohort the same way, and the platform
+    pools belong to none. Under :data:`STRICT` a route outside the cohort
+    raises, except from the platform system pool: the system work that still
+    routes it into communities is found by this count, and moves to its
+    community's cohort in turn."""
     if connection is None or guild_id is None:
         return
     info = connection.info
@@ -240,10 +302,10 @@ def note_route(connection: "Connection | None", guild_id: int | None) -> None:
     if tag is None:
         return
     _served(info).add(guild_id)
-    if tag != PLATFORM and tag == cohort_of(guild_id):
+    if tag == cohort_of(guild_id):
         return
     metrics.db_cross_cohort_routes.labels(cohort=str(tag)).inc()
-    if STRICT:
+    if STRICT and tag != PLATFORM_SYSTEM:
         raise CrossCohortRoute(
             f"a connection from the {tag!s} pool was routed into community "
             f"{guild_id}, which is in cohort {cohort_of(guild_id)}"

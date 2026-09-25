@@ -32,15 +32,13 @@ the statement that indexes.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import cast
 
 from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import SystemSessionLocal, set_rls_context
-from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.post import Post
@@ -54,10 +52,6 @@ from app.services.tenant import posts as posts_service
 from app.services.tenant import tags as tags_service
 
 logger = logging.getLogger(__name__)
-
-#: A minute is close enough for a bulletin board: nobody schedules a notice to
-#: the second, and a shorter poll would buy nothing but load.
-POST_PUBLISH_POLL_SECONDS = 60
 
 
 async def announce_post(
@@ -168,41 +162,3 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
             continue
         await announce_post(session, post, author=author)
     return post_ids
-
-
-async def _publish_all_guilds(session: AsyncSession, *, now: datetime) -> None:
-    """Run one publication pass in every active guild's schema.
-
-    Routes in as a guild admin: publishing is system maintenance over the whole
-    board, and a scheduled draft is by definition shared with people the worker
-    is not. Enumerating guilds happens first, on the system engine, because
-    ``SET ROLE`` into a guild drops it.
-
-    A read-only or suspended guild is skipped. A hold is a hold — it must not
-    keep announcing new notices to its members while it is unresolved.
-    """
-    await set_rls_context(session)
-    guild_ids = list(
-        await session.exec(
-            select(Guild.id)
-            .where(Guild.status == GuildStatus.active.value)
-            .order_by(Guild.id.asc())
-        )
-    )
-    for guild_id in guild_ids:
-        # ids collide across schemas, so clear the identity map between guilds.
-        session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id)
-        await publish_due_posts(session, now=now)
-        await session.commit()
-
-
-async def process_post_publications() -> None:
-    """One pass of the publication loop across every guild schema.
-
-    Polled by the background worker. Idempotent: a post is claimed by the
-    ``published_at IS NULL`` predicate on the UPDATE, so a pass that overlaps
-    another (or retries after a crash) publishes each notice exactly once.
-    """
-    async with SystemSessionLocal() as session:
-        await _publish_all_guilds(session, now=datetime.now(timezone.utc))

@@ -82,7 +82,7 @@ async def test_delivery_outlives_the_account_that_registered_it(
     await create_task(session, project)
     session.expunge_all()
 
-    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, guild_id, now=datetime.now(timezone.utc))
     assert sent, "an erased registrant ended a subscription that should outlive them"
 
 
@@ -132,7 +132,7 @@ async def test_an_initiative_subscription_hears_only_that_initiative(
     await create_task(session, other_project)
     session.expunge_all()
 
-    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, guild_id, now=datetime.now(timezone.utc))
 
     named = {
         change["initiative_id"] for envelope in sent for change in envelope["changes"]
@@ -164,7 +164,7 @@ async def test_a_community_subscription_hears_every_initiative(
     await create_task(session, other_project)
     session.expunge_all()
 
-    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, guild_id, now=datetime.now(timezone.utc))
 
     named = {
         change["initiative_id"] for envelope in sent for change in envelope["changes"]
@@ -417,7 +417,7 @@ async def test_an_install_hears_what_it_writes_and_is_named_for_it(
     await s.commit()
     made_id = made.id
 
-    await poller._drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
 
     changes = {
         change["resource"]["id"]: envelope
@@ -449,12 +449,12 @@ async def test_an_install_hears_nothing_once_its_reach_is_withdrawn(
     session.expunge_all()
     before = await create_document(session, install.a, install.seat.user)
     session.expunge_all()
-    await poller._drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
     assert [c["resource"]["id"] for e in sent for c in e["changes"]] == [before.id]
 
     await _withdraw(session, role_session, install, what)
     await create_document(session, install.a, install.seat.user)
     session.expunge_all()
     system.expunge_all()
-    await poller._drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
     assert [c["resource"]["id"] for e in sent for c in e["changes"]] == [before.id]

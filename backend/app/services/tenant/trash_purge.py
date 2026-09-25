@@ -1,12 +1,8 @@
 """Auto-purge background worker for trashed entities past their retention.
 
-Polled by ``background_tasks._loop_worker`` once an hour. Connects via
-``SystemSessionLocal`` (the ``app_admin`` login) and routes into each guild's
-schema on the system engine, whose login the policies' system leg names — it clears
-the ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE guard (and the
-initiative-member policies), since SET ROLE into ``guild_<id>`` drops the
-``app_admin`` (BYPASSRLS drops on SET ROLE) and routes into each guild as a
-guild admin. See ``_purge_all_guilds``.
+Visited by the hourly pass in every active guild, on a system session routed
+into the guild's schema; the policies' system leg names that login. See
+:func:`purge_guild`.
 
 Each table's due rows are purged together, parents first, through the same
 ``hard_purge_entities`` the trash can's purge button uses: documents and
@@ -19,12 +15,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.db.session import SystemSessionLocal, set_rls_context
 from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
-from app.models.platform.guild import Guild, GuildStatus
 from app.services import audit as audit_service
 from app.services.tenant.attachments import (
     delete_blobs,
@@ -35,9 +29,6 @@ from app.services.tenant.soft_delete import hard_purge_entities
 
 
 logger = logging.getLogger(__name__)
-
-
-PURGE_POLL_SECONDS = 3600
 
 
 #: Every soft-deletable model, parents before children, so a row whose
@@ -72,11 +63,13 @@ async def _run_purge_pass(
     released: set[str] = set()
     for model in _PURGE_TOP_DOWN:
         # A row an earlier pass took with its parent is already gone from the
-        # database, so it is not found here.
+        # database, so it is not found here. A row another process is purging
+        # is locked, and left to it.
         stmt = (
             select_including_deleted(model)
             .where(model.purge_at.is_not(None))
             .where(model.purge_at < now)
+            .with_for_update(skip_locked=True)
         )
         rows = list((await session.exec(stmt)).all())
         if rows:
@@ -94,46 +87,9 @@ async def _run_purge_pass(
     return released
 
 
-async def _purge_all_guilds(session, *, now: datetime) -> None:
-    """Run the purge pass once in every guild's schema.
-
-    Each guild's trashed rows live in its own schema, so the worker has to visit
-    them all. Trash purge is system maintenance with full authority over the
-    guild, so it routes into each guild's schema AS A GUILD ADMIN
-    (the system leg, keyed on the connection's own login). That leg clears both the
-    initiative-member policies and the ``soft_delete_admin_purge`` RESTRICTIVE
-    guard on the soft-delete tables — ``SET ROLE`` drops the system engine's
-    BYPASSRLS, so the admin context is what lets the hard deletes through.
-    Guilds are enumerated on the system engine first; each schema gets its
-    own committed pass. Split out so tests can drive it with the test session.
-    """
-    await set_rls_context(session)
-    # Only ACTIVE guilds are purged. A read_only or suspended guild is frozen —
-    # a nonpayment/moderation hold must not keep destroying trashed data while
-    # it is unresolved (data ownership / legal). Retention resumes (with the
-    # original purge_at stamps) when the guild returns to active.
-    guild_ids = list(
-        await session.exec(
-            select(Guild.id)
-            .where(Guild.status == GuildStatus.active.value)
-            .order_by(Guild.id.asc())
-        )
-    )
-    for guild_id in guild_ids:
-        # ids collide across schemas, so clear the identity map between guilds.
-        session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id)
-        released = await _run_purge_pass(session, now=now, guild_id=guild_id)
-        # Pictures pasted and never saved — the tab was closed rather than
-        # left — go once their grace period is over.
-        released |= await release_unclaimed_pasted_images(session, now=now)
-        await session.commit()
-        delete_blobs(guild_id, released)
-
-
-async def process_trash_purges() -> None:
-    """One pass of the auto-purge loop across every guild schema. Idempotent and
-    safe to run on a schedule even when nothing is due.
+async def purge_guild(session: AsyncSession, guild_id: int) -> None:
+    """Purge the guild's trash past its retention, and the pictures pasted
+    and never saved past their grace period.
 
     Goes through ``hard_purge_entities`` rather than a bare
     ``DELETE … WHERE purge_at < now()``, so that:
@@ -141,7 +97,13 @@ async def process_trash_purges() -> None:
        Document is deleted.
     2. Descendants go first — most keys between these tables do not cascade
        in the database, so a bare delete of a parent would fail on them.
+
+    Only active guilds are visited. A read-only or suspended guild is frozen:
+    retention resumes, with the original ``purge_at`` stamps, when it returns
+    to active.
     """
     now = datetime.now(timezone.utc)
-    async with SystemSessionLocal() as session:
-        await _purge_all_guilds(session, now=now)
+    released = await _run_purge_pass(session, now=now, guild_id=guild_id)
+    released |= await release_unclaimed_pasted_images(session, now=now)
+    await session.commit()
+    delete_blobs(guild_id, released)
