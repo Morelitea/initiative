@@ -167,10 +167,16 @@ async def admit(
     return sub
 
 
-async def hold_open(sub: Subscriber) -> None:
-    """Keep a JSON socket open until it closes, beating when it is quiet.
+async def hold_open(
+    sub: Subscriber, on_bytes: Optional[Callable[[bytes], None]] = None
+) -> None:
+    """Keep a socket open until it closes, beating when it is quiet.
 
-    Nothing the client sends is read; awaiting it is what surfaces the close.
+    Every socket beats the same way — a JSON ``HEARTBEAT_FRAME`` — so one
+    client-side check notices a connection that has stopped carrying. Binary
+    frames the client sends go to ``on_bytes``; a channel that takes none
+    passes nothing, and awaiting the client is then only what surfaces the
+    close.
     """
     try:
         while True:
@@ -183,9 +189,15 @@ async def hold_open(sub: Subscriber) -> None:
                 continue
             if frame.get("type") == "websocket.disconnect":
                 break
+            data = frame.get("bytes")
+            if on_bytes is not None and data:
+                on_bytes(data)
     except WebSocketDisconnect:
         pass
     except Exception:
+        logger.exception(
+            "content socket failed for user %s in guild %s", sub.user_id, sub.guild_id
+        )
         with contextlib.suppress(Exception):
             await sub.websocket.close(code=status.WS_1011_INTERNAL_ERROR)
     finally:

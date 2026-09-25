@@ -20,7 +20,6 @@ from fastapi import (
     Depends,
     Request,
     WebSocket,
-    WebSocketDisconnect,
 )
 
 from app.api.deps import (
@@ -56,7 +55,7 @@ from app.services.tenant import documents as documents_service
 from app.services.tenant.relationships import Endpoint
 from app.services import permissions as permissions_service
 from app.services.content_sockets import RoomKey, Wire, resource_room, sockets
-from app.api.content_socket import admit
+from app.api.content_socket import admit, hold_open
 from app.api import resource_access
 from app.core.request_audit import record_privileged_edit
 from app.core.user_display import display_name, handle_of
@@ -273,11 +272,8 @@ async def _collaborate(
             exclude=websocket,
         )
 
-        while True:
-            data = await websocket.receive_bytes()
-            if len(data) < 1:
-                continue
-
+        def on_bytes(data: bytes) -> None:
+            nonlocal edit_recorded
             msg_type = data[0]
             payload = data[1:]
 
@@ -295,9 +291,9 @@ async def _collaborate(
                     logger.warning(
                         f"Collaboration: Read-only user {handle_of(user)} tried to send update"
                     )
-                    continue
+                    return
                 if not payload:
-                    continue
+                    return
 
                 try:
                     room.apply_update(payload, connection=websocket)
@@ -324,7 +320,7 @@ async def _collaborate(
                 # the room and written alongside the Yjs state, so the two
                 # views of the document are always saved from one moment.
                 if not can_write:
-                    continue
+                    return
                 try:
                     room.offer_content(
                         spec.normalize(body, json.loads(payload.decode())),
@@ -349,8 +345,7 @@ async def _collaborate(
                     room_key, bytes([MSG_AWARENESS_BINARY]) + payload, exclude=websocket
                 )
 
-    except WebSocketDisconnect:
-        pass
+        await hold_open(sub, on_bytes=on_bytes)
     except Exception as e:
         logger.error(
             f"Collaboration error for {handle_of(user)} on "
