@@ -65,7 +65,7 @@ async def test_create_dashboard(client: AsyncClient, acting_user, session):
     assert body["definition"]["schema_version"] == 1
     assert body["definition"]["kind"] == "dashboard"
     assert body["definition"]["widgets"][0]["type"] == "stat"
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
     assert body["listing_uid"] is None
 
 

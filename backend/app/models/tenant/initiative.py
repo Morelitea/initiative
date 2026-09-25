@@ -19,7 +19,12 @@ from sqlalchemy import (
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
-from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import (
+    ArchiveMixin,
+    CreatedByMixin,
+    SoftDeleteMixin,
+    attach_initiative_standing,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
@@ -433,3 +438,9 @@ class Initiative(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+
+
+attach_initiative_standing(
+    Initiative,
+    {key.value: fallback for key, fallback in DEFAULT_PERMISSION_VALUES.items()},
+)

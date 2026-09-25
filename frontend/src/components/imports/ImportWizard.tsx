@@ -11,6 +11,7 @@ import {
   useUploadBackupApiV1CGuildIdImportsBackupPost,
 } from "@/api/generated/imports/imports";
 import type { ForeignPreview, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   AtlassianChooseStep,
   type AtlassianConnection,
@@ -35,7 +36,7 @@ import {
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useImportJob } from "@/hooks/useImportJob";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useWizard } from "@/hooks/useWizard";
 import { BackupPeekError, type PeekedManifest, peekBackupManifest } from "@/lib/backupPeek";
@@ -163,26 +164,24 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   const importMutation = useImportForeignApiV1CGuildIdImportsForeignSourcePost();
 
   const initiativesQuery = useInitiatives();
-  const { filterVisible, permissionsFor } = useInitiativeAccess();
-  const creatableInitiatives = useMemo(() => {
-    if (!initiativesQuery.data) {
-      return [];
-    }
-    return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).project.create
-    );
-  }, [initiativesQuery.data, filterVisible, permissionsFor]);
+  const creatableInitiatives = useMemo(
+    () =>
+      liveInitiatives(initiativesQuery.data).filter((initiative) =>
+        initiative.can.create.includes(Tool.project)
+      ),
+    [initiativesQuery.data]
+  );
   // Where an Atlassian import can land, and what may be made in each: its
   // projects need project creation there, its spaces wiki creation.
   const atlassianTargets = useMemo(
     () =>
-      filterVisible(initiativesQuery.data ?? []).map((initiative) => ({
+      liveInitiatives(initiativesQuery.data).map((initiative) => ({
         id: initiative.id,
         name: initiative.name,
-        canCreateProjects: permissionsFor(initiative).project.create,
-        canCreateWikis: permissionsFor(initiative).wiki.create,
+        canCreateProjects: initiative.can.create.includes(Tool.project),
+        canCreateWikis: initiative.can.create.includes(Tool.wiki),
       })),
-    [initiativesQuery.data, filterVisible, permissionsFor]
+    [initiativesQuery.data]
   );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment

@@ -76,7 +76,6 @@ const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
     q.allInitiatives(),
     q.initiativeMembers(id),
     q.initiativeRoles(id),
-    q.myPermissions(id),
   ],
   tags: (id) => [q.tag(id), q.allTags()],
   // An install belongs to no initiative, so it arrives guild-wide with no

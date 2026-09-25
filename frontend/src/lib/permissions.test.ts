@@ -8,9 +8,10 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { ownerCan, writerCan } from "@/__tests__/factories";
 import { capabilitiesForRole } from "@/__tests__/factories/user.factory";
 import { Capability as ApiCapability, UserRole } from "@/api/generated/initiativeAPI.schemas";
-import { Capability } from "@/lib/permissions";
+import { Capability, everyCan } from "@/lib/permissions";
 
 describe("capability mirror", () => {
   it("covers exactly the generated Capability enum", () => {
@@ -26,5 +27,17 @@ describe("capability mirror", () => {
         );
       }
     }
+  });
+});
+
+describe("everyCan", () => {
+  it("is false for an empty selection", () => {
+    expect(everyCan([], "share")).toBe(false);
+  });
+
+  it("asks every item for the one action", () => {
+    const items = [{ can: ownerCan() }, { can: writerCan() }];
+    expect(everyCan(items, "edit")).toBe(true);
+    expect(everyCan(items, "share")).toBe(false);
   });
 });

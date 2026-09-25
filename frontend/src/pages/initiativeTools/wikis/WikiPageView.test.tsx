@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildWiki, buildWikiPage } from "@/__tests__/factories";
+import { buildWiki, buildWikiPage, writerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -54,7 +54,7 @@ vi.mock("@/components/documents/editor/editor", () => ({
   },
 }));
 
-const wiki = buildWiki({ id: 3, name: "Handbook", my_permission_level: "write" });
+const wiki = buildWiki({ id: 3, name: "Handbook", can: writerCan() });
 
 /** Every PATCH the page made, and which page it was aimed at. */
 const patches: { pageId: string; body: Record<string, unknown> }[] = [];

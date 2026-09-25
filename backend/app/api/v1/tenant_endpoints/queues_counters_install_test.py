@@ -98,7 +98,7 @@ async def test_reads_the_queues_open_to_its_initiative(
     )
     assert read.status_code == 200, read.text
     body = read.json()
-    assert body["my_permission_level"] == "read"
+    assert body["can"]["edit"] is False
     assert isinstance(body["guild_id"], str)
     assert isinstance(body["created_by"], str)
     [served] = body["items"]
@@ -182,7 +182,7 @@ async def test_what_it_creates_is_its_own_and_it_runs_the_turns(
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["created_by"] is None
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
     assert await _grants_of(session, Tool.queue, body["id"], guild_id) == [
         (ResourceAccessLevel.owner, installed.app.id, None)
@@ -243,7 +243,7 @@ async def test_it_runs_a_command_on_a_queue_shared_for_writing_only(
         guild_url(guild_id, f"/queues/{writable.id}/start"), headers=headers
     )
     assert ran.status_code == 200, ran.text
-    assert ran.json()["my_permission_level"] == "write"
+    assert ran.json()["can"]["edit"] is True
 
     refused = await client.post(
         guild_url(guild_id, f"/queues/{readable.id}/start"), headers=headers
@@ -331,7 +331,7 @@ async def test_reads_the_counter_groups_open_to_its_initiative(
     )
     assert read.status_code == 200, read.text
     body = read.json()
-    assert body["my_permission_level"] == "read"
+    assert body["can"]["edit"] is False
     assert isinstance(body["created_by"], str)
     assert [c["name"] for c in body["counters"]] == ["Hit points"]
     assert isinstance(body["counters"][0]["guild_id"], str)
@@ -418,7 +418,7 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["created_by"] is None
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
     assert await _grants_of(session, Tool.counter_group, body["id"], guild_id) == [
         (ResourceAccessLevel.owner, installed.app.id, None)

@@ -25,7 +25,6 @@ import { cn } from "@/lib/utils";
 interface ProjectLinkProps {
   project: ProjectRead;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
-  userId?: number;
   /** Extra controls for the card's top-right cluster — rendered outside the
    *  wrapping link so they stay valid (and clickable) inside a card-as-anchor.
    *  Used by the Templates and Archive lists for their per-project action. */
@@ -36,27 +35,9 @@ interface ProjectLinkProps {
   showInitiative?: boolean;
 }
 
-/**
- * Check if the user can pin/unpin a project.
- * Only guild admins and initiative managers can pin projects.
- */
-export const canPinProject = (project: ProjectRead, userId?: number): boolean => {
-  if (!userId) return false;
-
-  // An archived project takes no edits at all, pinning included — the server
-  // refuses the update. A project pinned before it was archived still shows
-  // the read-only indicator.
-  if (project.archived_at !== null) return false;
-
-  // Whether the reader may configure the project is the server's answer: the
-  // same one the pinning route asks.
-  return project.can_configure;
-};
-
 export const ProjectCardLink = ({
   project,
   dragHandleProps,
-  userId,
   actions,
   showInitiative = true,
 }: ProjectLinkProps) => {
@@ -66,7 +47,7 @@ export const ProjectCardLink = ({
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId);
+  const canPin = project.can.configure;
 
   return (
     <div className="relative">
@@ -157,7 +138,6 @@ export const ProjectCardLink = ({
 export const ProjectRowLink = ({
   project,
   dragHandleProps,
-  userId,
   actions,
   showInitiative = true,
 }: ProjectLinkProps) => {
@@ -168,7 +148,7 @@ export const ProjectRowLink = ({
     ? resolveInitiativeColor(project.initiative.color)
     : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId);
+  const canPin = project.can.configure;
   return (
     <div className="relative">
       {dragHandleProps ? (

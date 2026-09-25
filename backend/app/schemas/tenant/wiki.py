@@ -9,7 +9,7 @@ from pydantic import ConfigDict, Field
 from app.core.identity_boundary import GuildId, PersonId
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.tenant.archive import ToolState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary
 
@@ -64,7 +64,7 @@ class WikiUpdate(WikiSettings):
     home_page_id: Optional[int] = None
 
 
-class WikiSummary(WikiBase, ArchiveState):
+class WikiSummary(WikiBase, ToolState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -88,7 +88,6 @@ class WikiSummary(WikiBase, ArchiveState):
     reading_width: WikiReadingWidth = WikiReadingWidth.wide
     accent_color: Optional[str] = None
     template_page_id: Optional[int] = None
-    my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one.
     comments_enabled: bool = True
@@ -320,7 +319,7 @@ def serialize_wiki_summary(
         accent_color=wiki.accent_color,
         template_page_id=wiki.template_page_id,
         archived_at=wiki.archived_at,
-        **client_access(wiki, user_id, context=context),
+        can=client_access(wiki, user_id, context=context),
         comments_enabled=wiki.comments_enabled,
         comment_count=getattr(wiki, "comment_count", 0),
         tags=annotated_tags(wiki),

@@ -33,6 +33,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.platform.user import User
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services import permissions as permissions_service
+from app.services.permissions import Action
 from app.services import rls as rls_service
 from app.services import reachability
 from app.services.tenant import ownership as ownership_service
@@ -89,10 +90,6 @@ class ResourceAccessConfig:
     @property
     def feature_disabled_msg(self) -> str:
         return self.tool.feature_disabled_code
-
-    @property
-    def grant_cannot_manage_msg(self) -> str:
-        return self.tool.grant_cannot_manage_members_code
 
     @property
     def create_denied_msg(self) -> str:
@@ -396,16 +393,17 @@ def authorize(
     *,
     context: Optional[ActorContext],
     access: str = "read",
-    require_owner: bool = False,
-    manage_access: bool = False,
+    action: Optional[Action] = None,
     allow_frozen: bool = False,
 ) -> None:
-    """Feature gate → manage-via-grant block → DAC decision.
+    """Feature gate → DAC decision → not-yet-published.
 
     ``context`` is the reader's standing in the community, as the seam computed
     it — the same object the session was routed with, so what this decides and
     what the policies evaluate are the same facts.
 
+    ``action`` names what the caller is about to do beyond reading or writing
+    (:data:`permissions.ACTIONS`), which is what the row's ``can`` reports.
     ``allow_frozen`` belongs to unarchiving and to nothing else — see
     ``permissions_service.require_access``."""
     cfg = RESOURCE_ACCESS[kind]
@@ -414,22 +412,12 @@ def authorize(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=cfg.feature_disabled_msg
         )
-    if (
-        manage_access
-        and cfg.grant_cannot_manage_msg
-        and context is not None
-        and context.grant_content is not None
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=cfg.grant_cannot_manage_msg
-        )
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[cfg.dac_kind],
         row,
         context=context,
-        access=access,
         allow_frozen=allow_frozen,
-        require_owner=require_owner,
+        **(permissions_service.ACTIONS[action] if action else {"access": access}),
     )
     # Last, and only for somebody the sharing already admitted: a row that
     # exists before it is anybody's to read — a post that has not gone up.
@@ -451,8 +439,7 @@ async def load_authorized(
     guild_context: ActorContext,
     *,
     access: str = "read",
-    require_owner: bool = False,
-    manage_access: bool = False,
+    action: Optional[Action] = None,
     hydrated: bool = False,
 ) -> Any:
     """Load by id (RLS scopes to the guild) → 404 if absent, then authorize.
@@ -481,8 +468,7 @@ async def load_authorized(
         user,
         context=guild_context,
         access=access,
-        require_owner=require_owner,
-        manage_access=manage_access,
+        action=action,
     )
     return row
 
@@ -534,7 +520,7 @@ async def set_resource_grants(
     grants: list[ResourceGrantSchema],
 ) -> None:
     """Replace one resource's sharing the unified way: load + 404, authorize
-    *managing* access (``manage_access=True``), rebuild every non-owner grant from
+    the share action (``Action.share``), rebuild every non-owner grant from
     ``grants`` (owner preserved), then run the resource's optional post-change side
     effect. Commits. Raises ``HTTPException`` 404 (missing) / 403 (no manage
     access). The single source of truth behind the per-resource grant endpoints and
@@ -550,8 +536,7 @@ async def set_resource_grants(
         resource_id,
         user,
         guild_context,
-        access="write",
-        manage_access=True,
+        action=Action.share,
     )
     refuse_install_community_share(guild_context, row.initiative_id)
     hooks = GRANT_HOOKS.get(kind)

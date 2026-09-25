@@ -90,14 +90,14 @@ async def test_reads_the_calendars_and_events_open_to_its_initiative(
     )
     assert read.status_code == 200, read.text
     assert read.json()["name"] == "A"
-    assert read.json()["my_permission_level"] == "read"
+    assert read.json()["can"]["edit"] is False
 
     event = await client.get(
         guild_url(guild_id, f"/calendar-events/{event_a.id}"), headers=headers
     )
     assert event.status_code == 200, event.text
     assert event.json()["title"] == "In A"
-    assert event.json()["my_permission_level"] == "read"
+    assert event.json()["can"]["edit"] is False
 
     for path in (
         f"/calendars/{in_b.id}",
@@ -177,7 +177,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     calendar = created.json()
     assert calendar["created_by"] is None
     assert isinstance(calendar["guild_id"], str)
-    assert calendar["my_permission_level"] == "owner"
+    assert calendar["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
 
     event_created = await client.post(
@@ -189,7 +189,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     event = event_created.json()
     assert event["created_by"] is None
     assert event["attendees"] == []
-    assert event["my_permission_level"] == "owner"
+    assert event["can"]["edit"] is True
     assert_names_nobody(event_created.text, [installed.seat.user.id, guild_id])
 
     renamed = await client.patch(

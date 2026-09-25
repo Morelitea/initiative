@@ -3,14 +3,14 @@
  *
  * Who may read any of this is decided by the database — the tables admit the
  * people who already see everything in the initiative, plus guild admins — so
- * these hooks carry no gate of their own. `canModerate` below is what decides
- * whether the surface is *offered*, not whether it is allowed.
+ * these hooks carry no gate of their own. The initiative's `can.moderate` is
+ * the same question, asked of the same function, for whether the surface is
+ * offered.
  */
 
 import { useQuery } from "@tanstack/react-query";
 
 import type {
-  InitiativeRead,
   InitiativeSharingRead,
   ModerationReportList,
   ModerationReportRead,
@@ -71,24 +71,6 @@ export const useSettleReport = (
     },
     options
   );
-
-/**
- * Whether to offer this initiative's moderation surface to the reader.
- *
- * The standing is "Full access" — the flag a role carries, not the name of the
- * built-in role, since roles are renameable and a community may define its own.
- * A guild admin clears every initiative gate and so is included here, matching
- * what the tables themselves admit.
- */
-export const canModerate = (
-  initiative: InitiativeRead,
-  userId: number | undefined,
-  isGuildAdmin: boolean
-): boolean => {
-  if (isGuildAdmin) return true;
-  if (!userId) return false;
-  return initiative.members.some((m) => m.user.id === userId && m.override_share_restrictions);
-};
 
 /**
  * Who can reach what, across the initiative.

@@ -8,7 +8,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { buildProject } from "@/__tests__/factories";
+import { buildProject, ownerCan, readerCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
 
@@ -37,7 +37,7 @@ const selectProject = async (name: string) => {
 
 describe("ProjectListPanel bulk sharing", () => {
   it("offers sharing on an ordinary selection", async () => {
-    panel([buildProject({ name: "Barovia Arc", my_permission_level: "owner" })]);
+    panel([buildProject({ name: "Barovia Arc", can: ownerCan() })]);
 
     await selectProject("Barovia Arc");
 
@@ -48,7 +48,9 @@ describe("ProjectListPanel bulk sharing", () => {
     panel([
       buildProject({
         name: "Planescape Detour",
-        my_permission_level: "owner",
+        // What an archived project arrives as: nothing on it may be changed
+        // but taking it back out.
+        can: readerCan({ unarchive: true }),
         archived_at: "2026-06-01T00:00:00.000Z",
       }),
     ]);

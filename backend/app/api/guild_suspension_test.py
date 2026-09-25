@@ -357,21 +357,23 @@ async def test_read_only_establishes_content_read_only_context(
 async def test_read_only_caps_serialized_permission_level(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The DAC engine caps ``my_permission_level`` at read while the guild is
-    frozen — ONE server-side flag drives every client write affordance (and
-    the collaboration socket's ``can_write``), so the UI can't drift into
-    showing editors the backend will refuse. Writable-project filters dry up
-    the create pickers the same way."""
+    """A frozen guild turns off every change a row reports under ``can`` — the
+    same checks the routes run, and the collaboration socket's ``can_write`` —
+    so the UI can't drift into showing editors the backend will refuse.
+    Exporting changes nothing and stays. Writable-project filters dry up the
+    create pickers the same way."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
 
     resp = await client.get(a.g(f"/projects/{a.project.id}"), headers=a.headers)
-    assert resp.json()["my_permission_level"] == "owner"
+    assert resp.json()["can"]["edit"] is True
 
     await _set_status(session, a.guild, GuildStatus.read_only)
 
     resp = await client.get(a.g(f"/projects/{a.project.id}"), headers=a.headers)
     assert resp.status_code == 200
-    assert resp.json()["my_permission_level"] == "read"
+    can = resp.json()["can"]
+    assert (can["edit"], can["delete"], can["share"]) == (False, False, False)
+    assert can["export"] is True
 
     resp = await client.get(a.g("/projects/writable"), headers=a.headers)
     assert resp.status_code == 200
@@ -381,35 +383,28 @@ async def test_read_only_caps_serialized_permission_level(
 @pytest.mark.parametrize(
     "role", [GuildRole.member, GuildRole.admin], ids=lambda r: r.value
 )
-async def test_read_only_zeroes_create_flags_in_my_permissions(
+async def test_read_only_zeroes_an_initiatives_create_flags(
     client: AsyncClient, session: AsyncSession, acting_user, role
 ):
-    """``my-permissions`` reports every create flag as denied while the guild
-    is frozen — for guild admins too — so tool pages hide their create buttons
-    instead of offering writes the database role will refuse. View flags are
+    """An initiative's ``can.create`` is empty while the guild is frozen — for
+    guild admins too — so tool pages hide their create buttons instead of
+    offering writes the database role will refuse. What may be viewed is
     untouched (reads survive read_only)."""
     a = await acting_user(guild_role=role, initiative=True)
+    url = a.g(f"/initiatives/{a.initiative.id}")
 
-    resp = await client.get(
-        a.g(f"/initiatives/{a.initiative.id}/my-permissions"), headers=a.headers
-    )
+    resp = await client.get(url, headers=a.headers)
     assert resp.status_code == 200, resp.text
-    perms = resp.json()["permissions"]
-    assert perms["create_projects"] is True
-    assert perms["create_documents"] is True
+    can = resp.json()["can"]
+    assert {Tool.project, Tool.document} <= set(can["create"])
 
     await _set_status(session, a.guild, GuildStatus.read_only)
 
-    resp = await client.get(
-        a.g(f"/initiatives/{a.initiative.id}/my-permissions"), headers=a.headers
-    )
+    resp = await client.get(url, headers=a.headers)
     assert resp.status_code == 200, resp.text
-    perms = resp.json()["permissions"]
-    assert all(perms[t.create_permission] is False for t in Tool), (
-        "no create flag may survive a frozen guild"
-    )
-    assert perms["projects_enabled"] is True
-    assert perms["documents_enabled"] is True
+    can = resp.json()["can"]
+    assert can["create"] == [], "no create flag may survive a frozen guild"
+    assert {Tool.project, Tool.document} <= set(can["view"])
 
 
 async def test_read_only_keeps_initiative_isolation(

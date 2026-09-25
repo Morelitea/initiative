@@ -49,9 +49,7 @@ const section = (options: { routerSearch?: Record<string, unknown> } = {}) =>
         initiativeId={1}
         taskStatuses={buildDefaultTaskStatuses(1)}
         canEditTaskDetails
-        canWriteProject
         projectIsArchived={false}
-        canViewTaskDetails
         taskHref={(taskId) => `/tasks/${taskId}`}
       />
     ),

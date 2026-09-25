@@ -117,7 +117,7 @@ async def test_reads_the_documents_open_to_its_initiative(
     )
     assert read.status_code == 200, read.text
     assert read.json()["name"] == "Open in A"
-    assert read.json()["my_permission_level"] == "read"
+    assert read.json()["can"]["edit"] is False
 
     other = await client.get(
         guild_url(installed.guild.id, f"/documents/{in_b.id}"), headers=headers
@@ -148,7 +148,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     body = created.json()
     assert body["created_by"] is None
     assert isinstance(body["guild_id"], str)
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [installed.seat.user.id, installed.guild.id])
 
     await route_session_to_guild(session, installed.guild.id)
@@ -235,7 +235,7 @@ async def test_a_private_document_is_read_only_once_shared_with_the_app(
     )
     read = await client.get(url, headers=headers)
     assert read.status_code == 200, read.text
-    assert read.json()["my_permission_level"] == "read"
+    assert read.json()["can"]["edit"] is False
 
 
 async def test_it_cannot_write_even_what_is_shared_with_it_at_write(

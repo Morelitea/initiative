@@ -9,7 +9,7 @@ import { ExportButton } from "@/components/exports/ExportButton";
 import { documentSelectionFormats } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
 import { exportFilenameStem } from "@/lib/exportDownload";
-import { canExportAll } from "@/lib/permissions";
+import { everyCan } from "@/lib/permissions";
 import { toolExportEndpoint, toolExportIdsParam } from "@/lib/tools";
 
 interface DocumentsBulkBarProps {
@@ -48,7 +48,7 @@ export function DocumentsBulkBar({
 
   // Export requires a format valid for every selected document's type — the
   // menu offers the intersection — and the owner's rung on every one of them.
-  const canExportSelected = canExportAll(selectedDocuments);
+  const canExportSelected = everyCan(selectedDocuments, "export");
   const exportFormats = useMemo(
     () => documentSelectionFormats(selectedDocuments.map((d) => d.document_type)),
     [selectedDocuments]

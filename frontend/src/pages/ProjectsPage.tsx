@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import {
   useProjectStatusCounts,
@@ -29,7 +29,6 @@ import {
   useRemoveProjectTemplate,
   useUnarchiveProject,
 } from "@/hooks/useProjects";
-import { hasWriteAccess } from "@/lib/permissions";
 
 /** Scoped to an initiative: the initiative page's Projects tab. */
 type ProjectsViewProps = { fixedInitiativeId: number; canCreate?: boolean };
@@ -40,7 +39,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   // Single source of truth for "what can I do in each initiative" — honors
   // guild-admin / PAM / membership so this page never re-derives access from
   // raw membership flags (which would wrongly exclude guild admins).
-  const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
   const handleRefresh = useCallback(async () => {
@@ -100,27 +98,12 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   });
 
   // Check if user can view projects for the filtered initiative
+  // The cross-initiative tag browse has no one initiative to ask, and one not
+  // loaded yet reads as yes; the server refuses what this would wrongly offer.
   const canViewProjects = useMemo(() => {
-    // Guild admins / PAM grantees always have access — a membership row must
-    // never downgrade them.
-    if (isGuildAdmin || isGrantGuild) {
-      return true;
-    }
-    // The cross-initiative tag browse has no one initiative to check.
-    const effectiveInitiativeId = lockedInitiativeId;
-    if (!effectiveInitiativeId || !user) {
-      return true;
-    }
-    const initiative = initiativesQuery.data?.find((i) => i.id === effectiveInitiativeId);
-    if (!initiative) {
-      return true; // Initiative not loaded yet, assume access
-    }
-    const membership = initiative.members?.find((m) => m.user.id === user.id);
-    if (!membership) {
-      return true; // Not a member, let the backend handle access control
-    }
-    return membership.can_view_projects !== false;
-  }, [lockedInitiativeId, user, initiativesQuery.data, isGuildAdmin, isGrantGuild]);
+    const initiative = initiativesQuery.data?.find((i) => i.id === lockedInitiativeId);
+    return initiative ? initiative.can.view.includes(Tool.project) : true;
+  }, [lockedInitiativeId, initiativesQuery.data]);
 
   // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
   // use the canonical derivation above.
@@ -139,12 +122,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
     canCreateProjects ? { run: () => setIsComposerOpen(true), label: t("addProject") } : null
   );
 
-  // Helper function for per-project DAC checks
-  const hasProjectWritePermission = (project: ProjectRead): boolean => {
-    if (!user) return false;
-    return hasWriteAccess(project.my_permission_level);
-  };
-
   useEffect(() => {
     if (!canCreateProjects) {
       setIsComposerOpen(false);
@@ -159,15 +136,10 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   }, [initiativesQuery.data]);
 
   // Filter initiatives where user can view projects (for the dropdown)
-  const viewableInitiatives = useMemo(() => {
-    if (!user) return availableInitiatives;
-    return availableInitiatives.filter((initiative) => {
-      const membership = initiative.members?.find((m) => m.user.id === user.id);
-      // If not a member, include it (backend will handle access control)
-      if (!membership) return true;
-      return membership.can_view_projects !== false;
-    });
-  }, [availableInitiatives, user]);
+  const viewableInitiatives = useMemo(
+    () => availableInitiatives.filter((initiative) => initiative.can.view.includes(Tool.project)),
+    [availableInitiatives]
+  );
 
   const lockedInitiativeName = lockedInitiativeId
     ? (availableInitiatives.find((init) => init.id === lockedInitiativeId)?.name ?? null)
@@ -225,7 +197,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   const renderItemActions =
     status === "templates"
       ? (project: ProjectRead, { iconSize }: { iconSize: "sm" | "md" }) =>
-          hasProjectWritePermission(project) ? (
+          project.can.edit ? (
             <ProjectCardActionButton
               icon={CopyX}
               iconSize={iconSize}
@@ -235,11 +207,10 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             />
           ) : null
       : status === "archived"
-        ? // Not `hasProjectWritePermission`: an archived project reports `read`,
-          // which is the cap that turns its edit affordances off. Reading it
-          // here would turn off the way back out as well.
+        ? // Nothing on an archived project may be edited; the way back out is
+          // its own answer.
           (project: ProjectRead, { iconSize }: { iconSize: "sm" | "md" }) =>
-            project.can_unarchive ? (
+            project.can.unarchive ? (
               <ProjectCardActionButton
                 icon={ArchiveRestore}
                 iconSize={iconSize}
@@ -288,7 +259,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             showInitiativeLabel={!lockedInitiativeId}
             sortable={status === "active"}
             viewableInitiativeIds={viewableInitiativeIds}
-            userId={user?.id}
             renderItemActions={renderItemActions}
             toolbarActions={
               canCreateProjects && lockedInitiativeId ? (

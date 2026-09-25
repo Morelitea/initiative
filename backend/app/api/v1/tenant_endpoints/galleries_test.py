@@ -69,7 +69,7 @@ async def test_create_gallery(client: AsyncClient, acting_user, session):
     body = response.json()
     assert body["name"] == "Live screen, round 4"
     assert body["description"] == "Every canvas from the fourth round."
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
     assert body["image_count"] == 0
     assert body["cover"] is None
     levels = {(g.get("all_initiative_members"), g["level"]) for g in body["grants"]}

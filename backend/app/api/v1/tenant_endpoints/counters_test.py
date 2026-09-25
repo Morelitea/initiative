@@ -669,7 +669,7 @@ async def test_duplicate_counter_group(client: AsyncClient, acting_user):
     # New group with a distinct id and the default "(Copy)" name.
     assert copy["id"] != sid
     assert copy["name"] == "Original (Copy)"
-    assert copy["my_permission_level"] == "owner"
+    assert copy["can"]["delete"] is True
     # The source's sharing comes along: it was readable by the whole initiative.
     assert any(
         g["all_initiative_members"] and g["level"] == "read" for g in copy["grants"]
@@ -736,7 +736,7 @@ async def test_duplicate_counter_group_needs_write_on_source(
     if expected == 403:
         assert response.json()["detail"] == "COUNTER_GROUP_WRITE_ACCESS_REQUIRED"
     else:
-        assert response.json()["my_permission_level"] == "owner"
+        assert response.json()["can"]["delete"] is True
 
 
 async def test_delete_counter_group_still_emits_group_deleted(

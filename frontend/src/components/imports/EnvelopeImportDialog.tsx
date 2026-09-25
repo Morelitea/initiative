@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -97,7 +97,6 @@ export function EnvelopeImportDialog({
   const guildId = useActiveGuildId();
   const { maxUploadBytes } = useAppConfig();
   const initiativesQuery = useInitiatives();
-  const { filterVisible, permissionsFor } = useInitiativeAccess();
 
   const [envelope, setEnvelope] = useState<ParsedEnvelope | null>(null);
   // A zipped export, sent as it is rather than read here.
@@ -131,10 +130,10 @@ export function EnvelopeImportDialog({
     if (fixedInitiativeId != null || !initiativesQuery.data) {
       return [];
     }
-    return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative)[tool].create
+    return liveInitiatives(initiativesQuery.data).filter((initiative) =>
+      initiative.can.create.includes(tool)
     );
-  }, [fixedInitiativeId, initiativesQuery.data, filterVisible, permissionsFor, tool]);
+  }, [fixedInitiativeId, initiativesQuery.data, tool]);
 
   useEffect(() => {
     if (open) {

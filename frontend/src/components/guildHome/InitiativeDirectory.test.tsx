@@ -10,6 +10,7 @@ import {
   buildInitiativeJoinRequest,
   buildInitiativeMember,
   buildUser,
+  initiativeCan,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -17,6 +18,7 @@ import { renderPage } from "@/__tests__/helpers/render";
 import {
   type InitiativeDirectoryEntry,
   InitiativeJoinPolicy,
+  Tool,
   type UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
 
@@ -234,13 +236,12 @@ describe("InitiativeDirectory", () => {
 
   it("counts what is inside an initiative you're in, tool by tool", async () => {
     const user = stubMembership(
+      {},
       {
-        can_view_projects: true,
-        can_view_queues: true,
-        // Calendars stay off for this member, so they get no stat.
-        can_view_calendars: false,
-      },
-      { queues_enabled: true }
+        queues_enabled: true,
+        // Calendars stay off for this reader, so they get no stat.
+        can: initiativeCan({ view: [Tool.project, Tool.queue] }),
+      }
     );
     server.use(
       guildHttp.get("/projects/counts/by-initiative", () =>

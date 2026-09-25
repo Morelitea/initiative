@@ -61,6 +61,7 @@ from app.schemas.tenant.dashboard import (
 from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
 from app.db.session import rls_context_params
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
+from app.services.permissions import Action
 from app.services import audit as audit_service
 from app.services import query as query_service
 from app.services.marketplace.installs import (
@@ -453,7 +454,7 @@ async def delete_dashboard(
         dashboard_id,
         current_user,
         guild_context,
-        require_owner=True,
+        action=Action.delete,
     )
     await trash(
         session,
@@ -903,7 +904,7 @@ async def _may_revoke(
             session, Tool.dashboard, dashboard_id, user, guild_context, access="write"
         ),
         lambda: resource_access.load_authorized(
-            session, kind, resource_id, user, guild_context, manage_access=True
+            session, kind, resource_id, user, guild_context, action=Action.share
         ),
     ):
         try:

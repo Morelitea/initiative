@@ -17,11 +17,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-import {
-  canCreateTool,
-  isToolVisible,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -84,11 +79,6 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   const { activeGuild } = useGuilds();
   const guildAdminLabel = t("settings.guildAdminRole");
 
-  // Fetch user's permissions for this initiative
-  const { data: permissions, isLoading: permissionsLoading } = useMyInitiativePermissions(
-    hasValidInitiativeId ? initiativeId : null
-  );
-
   // Addressed by id, not picked out of the caller's own list: a guild admin
   // reaches every initiative in their guild whether or not they have joined it,
   // and the endpoint answers 404 to anyone the row is not visible to.
@@ -96,8 +86,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   const initiative = initiativeQuery.data ?? null;
   const isGuildAdmin = administersGuildContent(activeGuild);
   const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
-  const isInitiativeManager = Boolean(membership?.is_manager);
-  const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);
+  const canManageInitiative = Boolean(initiative?.can.manage);
 
   // A tool's tab renders when its permission allows viewing it (the backend
   // already folds in the initiative's master switches). The advanced tool is
@@ -105,9 +94,9 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   const availableTabs = useMemo<Tool[]>(
     () =>
       TOOL_TABS.map(([tabTool]) => tabTool).filter((tabTool) =>
-        isToolVisible(permissions, tabTool)
+        Boolean(initiative?.can.view.includes(tabTool))
       ),
-    [permissions]
+    [initiative]
   );
 
   // The path names the tab, so it is shareable and survives a reload. A tool
@@ -120,7 +109,6 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   const memberCount = initiative?.members.length ?? 0;
 
   const roleBadgeLabel =
-    permissions?.role_display_name ??
     membership?.role_display_name ??
     membership?.role_name ??
     (isGuildAdmin ? guildAdminLabel : null);
@@ -129,7 +117,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     return <Navigate to={gp("/")} replace />;
   }
 
-  if (initiativeQuery.isLoading || permissionsLoading) {
+  if (initiativeQuery.isLoading) {
     return <InitiativePageSkeleton label={t("detail.loadingInitiative")} />;
   }
 
@@ -268,7 +256,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
               <View
                 key={`${tabTool}-${initiative.id}`}
                 fixedInitiativeId={initiative.id}
-                canCreate={canCreateTool(permissions, tabTool)}
+                canCreate={initiative.can.create.includes(tabTool)}
               />
             </Suspense>
           </TabsContent>

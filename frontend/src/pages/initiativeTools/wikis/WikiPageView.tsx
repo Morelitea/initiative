@@ -20,7 +20,6 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -92,7 +91,7 @@ export const WikiPageView = () => {
   // re-running every render the way the mutation object would make them.
   const { mutate: savePage } = useUpdateWikiPage(wikiId, pageId);
 
-  const canWrite = hasWriteAccess(wikiQuery.data?.my_permission_level);
+  const canWrite = Boolean(wikiQuery.data?.can.edit);
   // Editing needs both the right and the intent — somebody who may write is
   // still reading until they say otherwise.
   const isEditing = canWrite && editWanted;

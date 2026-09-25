@@ -20,10 +20,10 @@ import { toolEnvelopeType, toolExportEndpoint, toolIdParam, toolKebabSingular } 
 
 export const ToolExportCard = () => {
   const { t } = useTranslation(["common", "exports"]);
-  const { tool, entity, isOwner, exportOptions } = useToolSettings();
+  const { tool, entity, exportOptions } = useToolSettings();
 
   const baseFormats = exportOptions?.formats ?? TOOL_EXPORT_FORMATS[tool] ?? [];
-  if (!isOwner || baseFormats.length === 0) {
+  if (!entity.can.export || baseFormats.length === 0) {
     return null;
   }
 

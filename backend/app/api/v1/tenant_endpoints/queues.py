@@ -23,6 +23,7 @@ from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.models.tenant.task import Task
+from app.services.permissions import Action
 from app.services.tenant import relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -57,7 +58,6 @@ from app.schemas.tenant.queue import (
 from app.api import resource_access
 from app.core.tools import Tool
 from app.db.session import require_actor_context
-from app.services import permissions as permissions_service
 from app.services.tenant import queues as queues_service
 from app.services.tenant import tags as tags_service
 from app.schemas.tenant.tag import TagSetRequest
@@ -342,13 +342,7 @@ async def delete_queue(
     from app.services.tenant.soft_delete import trash
 
     queue = await resource_access.load_authorized(
-        session, Tool.queue, queue_id, current_user, guild_context, access="read"
-    )
-    permissions_service.require_access(
-        permissions_service.DAC_RESOURCES[Tool.queue],
-        queue,
-        require_owner=True,
-        context=guild_context,
+        session, Tool.queue, queue_id, current_user, guild_context, action=Action.delete
     )
     await trash(
         session,

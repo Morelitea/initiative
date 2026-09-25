@@ -15,10 +15,12 @@ import {
   buildInitiativeJoinRequest,
   buildInitiativeRole,
   buildUserSummary,
+  initiativeCan,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
+import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -32,11 +34,20 @@ import { InitiativeSettingsRolesPage } from "./InitiativeSettingsRolesPage";
 
 const INITIATIVE_ID = 7;
 
-function stubInitiative() {
+/** The initiative, saying whether this reader may run it. */
+function stubInitiative({
+  manage = true,
+  ...overrides
+}: Partial<InitiativeRead> & { manage?: boolean } = {}) {
+  const initiative = buildInitiative({
+    id: INITIATIVE_ID,
+    name: "Apollo",
+    can: initiativeCan({ manage }),
+    ...overrides,
+  });
   server.use(
-    guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
-    ),
+    guildHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
+    guildHttp.get("/initiatives/:id", () => HttpResponse.json(initiative)),
     guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([]))
   );
 }
@@ -87,10 +98,8 @@ describe("initiative settings sections", () => {
    * role is instead of offering a set of switches with nothing to change.
    */
   it("gives the moderator a card with no tool switches on /settings/roles", async () => {
+    stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/", () =>
-        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
-      ),
       guildHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({
@@ -230,12 +239,8 @@ describe("initiative settings sections", () => {
    * has to say so, or the two halves of the gate stay invisible to each other.
    */
   it("says on /settings/roles when a tool's permissions grant nothing yet", async () => {
+    stubInitiative({ posts_enabled: false });
     server.use(
-      guildHttp.get("/initiatives/", () =>
-        HttpResponse.json([
-          buildInitiative({ id: INITIATIVE_ID, name: "Apollo", posts_enabled: false }),
-        ])
-      ),
       guildHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([buildInitiativeRole({ display_name: "Member" })])
       )
@@ -283,7 +288,7 @@ describe("initiative settings sections", () => {
   ])(
     "refuses /settings/%s to a reader who may not configure the initiative",
     async (path, Section) => {
-      stubInitiative();
+      stubInitiative({ manage: false });
 
       // The address is typeable, so the section — not the tab bar — is what says no.
       renderSection(Section as React.ComponentType, path as string, "member");

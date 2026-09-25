@@ -155,11 +155,12 @@ async def test_sharing_asks_the_tool_and_the_roster_too(
     assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
 
 
-async def test_reading_a_project_is_not_the_rung_to_share_it(
+async def test_writing_a_project_is_not_the_rung_to_share_it(
     client, session, acting_user, role_session
 ):
+    """Sharing is the owner's, as deleting is."""
     installed = await install_app(session, acting_user, role_session, granted=SHARE)
-    project = await _open_project(session, installed, level="read")
+    project = await _open_project(session, installed, level="write")
 
     refused = await client.put(
         guild_url(installed.guild.id, f"/projects/{project.id}/grants"),
@@ -167,7 +168,7 @@ async def test_reading_a_project_is_not_the_rung_to_share_it(
         json=[{"all_initiative_members": True, "level": "write"}],
     )
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == Tool.project.write_required_code
+    assert refused.json()["detail"] == Tool.project.owner_required_code
     assert (ResourceAccessLevel.write, None, None, True) not in await _grant_rows(
         session, installed.guild.id, project.id
     )

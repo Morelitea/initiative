@@ -67,7 +67,6 @@ import { useUpdateTask } from "@/hooks/useTasks";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
@@ -737,15 +736,11 @@ export function CalendarFocusPage() {
       <ToolRelationsPanel
         tool={Tool.calendar}
         entity={calendar}
-        canEdit={hasWriteAccess(calendar.my_permission_level)}
+        canEdit={calendar.can.edit}
         entityTitle={calendar.name}
       />
 
-      <ToolCommentsPanel
-        tool={Tool.calendar}
-        entity={calendar}
-        canModerate={hasWriteAccess(calendar.my_permission_level)}
-      />
+      <ToolCommentsPanel tool={Tool.calendar} entity={calendar} canModerate={calendar.can.edit} />
     </div>
   );
 }

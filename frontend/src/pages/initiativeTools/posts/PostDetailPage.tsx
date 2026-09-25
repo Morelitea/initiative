@@ -39,7 +39,6 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import {
@@ -54,7 +53,6 @@ import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import { referenceRef } from "@/lib/smartChips";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
@@ -93,11 +91,10 @@ export function PostDetailPage() {
     recordViewMutation.mutate(viewedPostId);
   }, [viewedPostId, recordViewMutation.mutate]);
 
-  const canEdit = hasWriteAccess(post?.my_permission_level);
+  const canEdit = Boolean(post?.can.edit);
 
   const initiativeQuery = useInitiative(post?.initiative_id ?? null);
-  const { canManage } = useInitiativeAccess();
-  const canPin = initiativeQuery.data ? canManage(initiativeQuery.data) : false;
+  const canPin = Boolean(initiativeQuery.data?.can.manage);
 
   const update = useUpdatePost(parsedId, {
     onSuccess: () => {

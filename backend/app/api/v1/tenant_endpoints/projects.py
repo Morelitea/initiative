@@ -17,6 +17,7 @@ from app.core.relationships import (
 )
 from app.models.tenant.relationship import EntityRelationship
 from app.core.search import SearchEntityType
+from app.services.permissions import Action
 from app.services.tenant import content_references, relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -35,7 +36,6 @@ from app.models.tenant.project import (
     Project,
 )
 from app.models.tenant.resource_grant import (
-    WRITE_LEVELS,
     ResourceGrant,
     ResourceAccessLevel,
 )
@@ -83,6 +83,7 @@ from app.db.query import (
     paginate_sequence,
 )
 from app.schemas.tenant.project import (
+    ProjectCan,
     ProjectCreate,
     ProjectDuplicateRequest,
     ProjectRead,
@@ -519,12 +520,22 @@ async def _project_reads_with_order(
     return payloads
 
 
+def _project_can(
+    project: Project, user_id: int | None, *, context: ActorContext
+) -> ProjectCan:
+    """What the reader may do to the project, configuring it included."""
+    return ProjectCan(
+        **permissions_service.client_access(project, user_id, context=context),
+        configure=permissions_service.can_configure_project(project, context=context),
+    )
+
+
 def _slim_project_reads(
     projects: List[Project], user_id: int | None, *, context: ActorContext
 ) -> List[ProjectRead]:
     """Build lightweight ``ProjectRead`` rows for the slim projection.
 
-    Carries only ``{id, name, icon, initiative_id, my_permission_level}`` plus
+    Carries only ``{id, name, icon, initiative_id, can}`` plus
     the cheap scalar flags and who owns it (``owner_id``, or ``owner_app`` as
     the caller annotated it); documents/grants/tags/the owner's profile/nested
     initiative are left at their defaults so no heavy relationship is
@@ -547,10 +558,7 @@ def _slim_project_reads(
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
                 guild_id=context.guild_id,
-                **permissions_service.client_access(project, user_id, context=context),
-                can_configure=permissions_service.can_configure_project(
-                    project, context=context
-                ),
+                can=_project_can(project, user_id, context=context),
             ).model_copy(
                 # Set after construction: the field's alias keeps
                 # ``model_validate`` off the ORM row.
@@ -671,10 +679,7 @@ def _build_project_payload(
             "task_statuses": _project_task_statuses(project),
             "tags": annotated_tags(project),
             "grants": permissions_service.serialize_grants(project, context=context),
-            **permissions_service.client_access(project, user_id, context=context),
-            "can_configure": permissions_service.can_configure_project(
-                project, context=context
-            ),
+            "can": _project_can(project, user_id, context=context),
             "owner_id": ownership_service.owner_user_id_of(project),
             "owner": _project_owner(project),
             "owner_app": ownership_service.owner_app_of(project),
@@ -723,12 +728,10 @@ async def list_writable_projects(
     guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
     projects = await _visible_projects(session, current_user)
-    writable = {level.value for level in WRITE_LEVELS}
     writable_projects = [
         project
         for project in projects
-        if permissions_service.compute_permission(project, context=guild_context)
-        in writable
+        if permissions_service.allows(project, Action.edit, context=guild_context)
     ]
     return await _project_reads_with_order(
         session,
@@ -1337,8 +1340,7 @@ async def delete_project(
         project_id,
         current_user,
         guild_context,
-        access="write",
-        require_owner=True,
+        action=Action.delete,
     )
     await trash(session, project, deleted_by_user_id=current_user.id)
     await session.commit()

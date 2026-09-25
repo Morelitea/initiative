@@ -5,6 +5,8 @@ import type {
   QueueSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 
+import { ownerCan } from "./can";
+
 let counter = 0;
 
 export function resetCounter(): void {
@@ -48,8 +50,7 @@ export function buildQueueSummary(overrides: Partial<QueueSummary> = {}): QueueS
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     archived_at: null,
-    can_unarchive: false,
-    my_permission_level: "owner",
+    can: ownerCan(),
     tags: [],
     grants: [],
     comments_enabled: true,
@@ -72,8 +73,7 @@ export function buildQueue(overrides: Partial<QueueRead> = {}): QueueRead {
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     archived_at: null,
-    can_unarchive: false,
-    my_permission_level: "owner",
+    can: ownerCan(),
     tags: [],
     items: [],
     current_item: null,

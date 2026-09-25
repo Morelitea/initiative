@@ -23,7 +23,6 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { normalizeEditorState } from "@/lib/editorState";
 import { useGuildPath } from "@/lib/guildUrl";
 import { supportsEntityMentions } from "@/lib/mentions";
-import { hasOwnerAccess } from "@/lib/permissions";
 import { referenceRef } from "@/lib/smartChips";
 import type { SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
 import { toolDetailRoute } from "@/lib/tools";
@@ -333,7 +332,7 @@ const FileBody = ({ document, canEdit }: DocumentBodyProps) =>
       originalFilename={document.original_filename}
       fileSize={document.file_size}
       canEdit={canEdit}
-      isOwner={hasOwnerAccess(document.my_permission_level)}
+      canDeleteVersions={document.can.delete}
     />
   ) : null;
 

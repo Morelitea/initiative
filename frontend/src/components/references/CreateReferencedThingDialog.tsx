@@ -12,9 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCreateTool } from "@/hooks/useCreateTool";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { isToolEnabled, TOOL_ICONS, TOOLS, toolNavLabelKey } from "@/lib/tools";
+import { TOOL_ICONS, TOOLS, toolNavLabelKey } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 /** What a made thing answers with, so the caller can link it. */
@@ -52,15 +51,11 @@ export function CreateReferencedThingDialog({
 }: CreateReferencedThingDialogProps) {
   const { t } = useTranslation(["comments", "common", "nav"]);
   const { data: initiative } = useInitiative(initiativeId);
-  const { permissionsFor } = useInitiativeAccess();
   const [chosen, setChosen] = useState<Tool | null>(null);
 
   const createTool = useCreateTool();
 
-  const permissions = initiative ? permissionsFor(initiative) : null;
-  const offered = TOOLS.filter(
-    (tool) => initiative && isToolEnabled(tool, initiative) && Boolean(permissions?.[tool]?.create)
-  );
+  const offered = TOOLS.filter((tool) => initiative?.can.create.includes(tool));
 
   const create = async () => {
     if (chosen === null) return;

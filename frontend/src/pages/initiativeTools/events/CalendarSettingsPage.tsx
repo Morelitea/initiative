@@ -9,7 +9,6 @@ import {
   useSetCalendarGrants,
   useUpdateCalendar,
 } from "@/hooks/useCalendars";
-import { hasWriteAccess } from "@/lib/permissions";
 
 /** The calendar's single sharing surface — its events inherit all of it. */
 export function CalendarSettingsPage() {
@@ -38,7 +37,7 @@ export function CalendarSettingsPage() {
           <CalendarColorCard
             calendarId={calendar.id}
             initialColor={calendar.color}
-            disabled={!hasWriteAccess(calendar.my_permission_level)}
+            disabled={!calendar.can.edit}
           />
         ) : null
       }

@@ -5,7 +5,6 @@ import type { QueueRead } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { hasWriteAccess } from "@/lib/permissions";
 
 interface QueueControlsProps {
   queue: QueueRead;
@@ -29,7 +28,7 @@ export const QueueControls = ({
   isLoading = false,
 }: QueueControlsProps) => {
   const { t } = useTranslation("queues");
-  const canControl = hasWriteAccess(queue.my_permission_level);
+  const canControl = queue.can.edit;
 
   if (!canControl) {
     return (

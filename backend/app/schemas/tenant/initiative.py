@@ -129,23 +129,6 @@ class InitiativeRoleUpdate(SanitizedBaseModel):
     permissions: Optional[Dict[PermissionKey, bool]] = None
 
 
-class MyInitiativePermissions(SanitizedBaseModel):
-    """Current user's permissions for an initiative."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    role_id: Optional[int] = None
-    role_name: Optional[str] = None
-    role_display_name: Optional[str] = None
-    is_manager: bool = False
-    # True when the current user can view/edit every item in this initiative
-    # regardless of sharing, and manage sharing — a guild admin, or a member
-    # whose role has "Full access" (override_share_restrictions). Drives the
-    # client's manage-sharing affordances.
-    override_share_restrictions: bool = False
-    permissions: Dict[PermissionKey, bool] = Field(default_factory=dict)
-
-
 class InitiativeGroupedCountsResponse(SanitizedBaseModel):
     """Per-initiative resource counts (initiative_id -> visible count).
 
@@ -205,6 +188,21 @@ class InitiativeMemberRead(_MemberToolFlags):
     oidc_managed: bool = False
 
 
+class InitiativeCan(SanitizedBaseModel):
+    """What the caller may do in an initiative (:func:`initiative_can`)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Run the initiative itself — its settings, roster and roles.
+    manage: bool = False
+    #: Act on its moderation reports ("Full access", or the community's admin).
+    moderate: bool = False
+    #: The tools the caller may open here.
+    view: List[Tool] = Field(default_factory=list)
+    #: The tools the caller may make a new one of here.
+    create: List[Tool] = Field(default_factory=list)
+
+
 class InitiativeRead(InitiativeBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -225,6 +223,7 @@ class InitiativeRead(InitiativeBase):
     created_at: datetime
     updated_at: datetime
     members: List[InitiativeMemberRead] = Field(default_factory=list)
+    can: InitiativeCan = Field(default_factory=InitiativeCan)
 
 
 class InitiativeDirectoryEntry(SanitizedBaseModel):
@@ -373,6 +372,27 @@ class InitiativeSummary(SanitizedBaseModel):
     color: Optional[str] = None
 
 
+def initiative_can(
+    initiative: "Initiative", *, context: "ActorContext"
+) -> InitiativeCan:
+    """What the caller may do in ``initiative``.
+
+    The role's keys are the database's answer (``permitted_keys``, from the
+    ``initiative_role_permits`` the content policies call), within the tools
+    the initiative has switched on. Nothing is made while the community's
+    content is on hold, and granted access edits what exists without authoring
+    anything new."""
+    permitted = set(initiative.permitted_keys or ())
+    switched_on = [t for t in Tool if getattr(initiative, t.view_permission, False)]
+    authors = not (context.content_read_only or context.is_pam)
+    return InitiativeCan(
+        manage=context.is_admin or initiative.id in context.manager_initiatives,
+        moderate=bool(initiative.full_access),
+        view=[t for t in switched_on if t.view_permission in permitted],
+        create=[t for t in switched_on if authors and t.create_permission in permitted],
+    )
+
+
 def serialize_initiative(
     initiative: "Initiative", *, context: "ActorContext"
 ) -> InitiativeRead:
@@ -414,6 +434,7 @@ def serialize_initiative(
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,
+        can=initiative_can(initiative, context=context),
         **{
             t.view_permission: getattr(initiative, t.view_permission, False)
             for t in Tool

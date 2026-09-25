@@ -14,6 +14,7 @@ import type {
   ResourceGrantSchema,
   TagSummary,
   Tool,
+  ToolCan,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportFormatOption } from "@/components/exports/ExportButton";
 
@@ -27,19 +28,13 @@ export interface ToolSettingsEntity {
   name: string;
   description?: string | null;
   initiative_id: number | null;
-  my_permission_level: string | null;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
   comments_enabled: boolean;
   /** When this was archived, or null while it is live. */
   archived_at: string | null;
-  /**
-   * Whether this viewer may take it back out. Server-computed, and not the
-   * same question as `my_permission_level`: an archived entity reports `read`
-   * there — the cap that turns the edit affordances off — so the way back has
-   * to be read from here or it is capped away with everything else.
-   */
-  can_unarchive: boolean;
+  /** What this viewer may do to it, as the server answers it. */
+  can: ToolCan;
   /**
    * Posts only: reactions hang off comments and off posts and off nothing
    * else, so this is the one tool with a switch of its own for them. Absent
@@ -76,10 +71,6 @@ export interface ToolSettingsContextValue {
   tool: Tool;
   /** Always loaded: the layout renders no section until the entity is in hand. */
   entity: ToolSettingsEntity;
-  /** Write access to this entity — what the Access section requires. */
-  canManage: boolean;
-  /** Owner of this entity — what sharing and deletion require. */
-  isOwner: boolean;
   /**
    * The rename/describe mutation. Absent for tools that save those fields
    * elsewhere — projects through their own richer form, a document's name in

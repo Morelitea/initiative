@@ -22,7 +22,16 @@ const page = () =>
   HttpResponse.json({ items: [], total_count: 0, page: 1, page_size: 20, has_next: false });
 
 /** Every tool list answers the same envelope; the tabs only need it to be empty. */
-function stubEverything(permissions: Record<string, boolean> = {}) {
+const VIEWABLE = [
+  Tool.project,
+  Tool.document,
+  Tool.queue,
+  Tool.dashboard,
+  Tool.calendar,
+  Tool.counter_group,
+];
+
+function stubEverything(hidden: Tool[] = []) {
   server.use(
     guildHttp.get("/initiatives/:id", ({ params }) =>
       HttpResponse.json(
@@ -33,26 +42,14 @@ function stubEverything(permissions: Record<string, boolean> = {}) {
           dashboards_enabled: true,
           calendars_enabled: true,
           counter_groups_enabled: true,
+          can: {
+            manage: false,
+            moderate: false,
+            view: VIEWABLE.filter((tool) => !hidden.includes(tool)),
+            create: [],
+          },
         })
       )
-    ),
-    guildHttp.get("/initiatives/:id/my-permissions", () =>
-      HttpResponse.json({
-        role_id: 1,
-        role_name: "member",
-        role_display_name: "Member",
-        is_manager: false,
-        override_share_restrictions: false,
-        permissions: {
-          projects_enabled: true,
-          documents_enabled: true,
-          queues_enabled: true,
-          dashboards_enabled: true,
-          calendars_enabled: true,
-          counter_groups_enabled: true,
-          ...permissions,
-        },
-      })
     ),
     guildHttp.get("/projects/", page),
     guildHttp.get("/documents/", page),
@@ -94,7 +91,7 @@ describe("InitiativeDetailPage", () => {
 
   // A permission change shouldn't dead-end a bookmark someone already has.
   it("falls back to the first available tab for a tool this member can't view", async () => {
-    stubEverything({ queues_enabled: false });
+    stubEverything([Tool.queue]);
     renderAt(Tool.queue);
 
     expect(await screen.findByRole("tab", { name: "Projects" })).toBeInTheDocument();

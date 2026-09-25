@@ -1,5 +1,4 @@
 import type { CalendarEventSummary } from "@/api/generated/initiativeAPI.schemas";
-import { hasWriteAccess } from "@/lib/permissions";
 
 import type { CalendarEntry } from "./CalendarView";
 
@@ -31,7 +30,7 @@ export const buildEventCalendarEntry = (
   })),
   properties: event.property_values,
   tags: event.tags,
-  draggable: hasWriteAccess(event.my_permission_level),
+  draggable: event.can.edit,
   unread,
   meta: {
     type: "event",

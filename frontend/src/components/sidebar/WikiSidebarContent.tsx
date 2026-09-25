@@ -39,7 +39,6 @@ import {
 } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { TOOL_ICONS, toolSettingsRoute, wikiDocumentRoute, wikiPageRoute } from "@/lib/tools";
 
 // Adding a document to a wiki is named by the documents tool itself, so the row
@@ -103,7 +102,7 @@ export const WikiSidebarContent = ({
   );
   // Writing is the wiki's own gate, so the add affordances appear exactly
   // where the server would accept one.
-  const canWrite = hasWriteAccess(wikiQuery.data?.my_permission_level);
+  const canWrite = Boolean(wikiQuery.data?.can.edit);
 
   const addPage = () =>
     createPage.mutate(

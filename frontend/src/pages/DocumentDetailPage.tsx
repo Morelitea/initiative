@@ -72,7 +72,6 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
-import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { initiativeRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
@@ -253,7 +252,7 @@ export const DocumentDetailPage = () => {
   // Server-computed: already capped at "read" when the guild's content is
   // frozen (read_only lifecycle status) or access is via a read-level grant.
   // Write or owner may also moderate the document's comments.
-  const canEditDocument = Boolean(user) && hasWriteAccess(document?.my_permission_level);
+  const canEditDocument = Boolean(user) && Boolean(document?.can.edit);
   // Split by what a save would carry: a rename and the rest of the document
   // are committed on different terms — see the autosave effect.
   const nameIsDirty = Boolean(document) && title?.trim() !== document?.name?.trim();

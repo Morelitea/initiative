@@ -22,7 +22,6 @@ import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export const ProjectDetailPage = () => {
@@ -164,18 +163,8 @@ export const ProjectDetailPage = () => {
     );
   }
 
-  const myLevel = project?.my_permission_level;
-  // Pure DAC: write access requires owner or write permission level
-  const hasWritePermission = hasWriteAccess(myLevel);
-
-  // Pure DAC: settings/write access based on permission level
-  const canManageSettings = hasWritePermission;
-  const canWriteProject = hasWritePermission;
-  const canAttachDocuments = canWriteProject;
-  // Pure DAC: any permission grants view access
-  const canViewTaskDetails = Boolean(project && myLevel);
+  const canEdit = project.can.edit;
   const projectIsArchived = project.archived_at !== null;
-  const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
@@ -186,7 +175,7 @@ export const ProjectDetailPage = () => {
             initiativeId={project.initiative_id}
             trail={[{ label: project.name }]}
           />
-          {canManageSettings ? (
+          {canEdit ? (
             <Button
               asChild
               variant="outline"
@@ -205,22 +194,20 @@ export const ProjectDetailPage = () => {
           projectName={project.name}
           initiativeId={project.initiative_id}
           canCreate={Boolean(canCreateDocuments && !projectIsArchived)}
-          canAttach={Boolean(canAttachDocuments && !projectIsArchived)}
+          canAttach={canEdit}
         />
         <ProjectTasksSection
           projectId={project.id}
           initiativeId={project.initiative_id}
           taskStatuses={taskStatusesQuery.data ?? []}
           projectDefaultViewMode={project.default_view_mode}
-          canEditTaskDetails={canEditTaskDetails}
-          canWriteProject={Boolean(canWriteProject)}
+          canEditTaskDetails={canEdit}
           projectIsArchived={projectIsArchived}
-          canViewTaskDetails={canViewTaskDetails}
           taskHref={taskHref}
           initialComposerOpen={searchParams.create === "true"}
           onComposerOpenChange={handleComposerOpenChange}
         />
-        <ToolCommentsPanel tool={Tool.project} entity={project} canModerate={hasWritePermission} />
+        <ToolCommentsPanel tool={Tool.project} entity={project} canModerate={canEdit} />
       </div>
     </PullToRefresh>
   );

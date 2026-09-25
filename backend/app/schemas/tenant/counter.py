@@ -11,7 +11,7 @@ from app.core.identity_boundary import GuildId, PersonId
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.tenant.archive import ToolState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
@@ -155,7 +155,7 @@ class CounterGroupDuplicateRequest(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
 
 
-class CounterGroupSummary(CounterGroupBase, ArchiveState):
+class CounterGroupSummary(CounterGroupBase, ToolState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -165,7 +165,6 @@ class CounterGroupSummary(CounterGroupBase, ArchiveState):
     guild_id: GuildId
     created_by: PersonId | None = None
     counter_count: int = 0
-    my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one. Tasks are unaffected; their
     # thread belongs to the task, not to the tool.
@@ -259,7 +258,7 @@ def serialize_counter_group_summary(
         created_by=group.created_by,
         counter_count=len(_active_counters(group)),
         archived_at=group.archived_at,
-        **client_access(group, user_id, context=context),
+        can=client_access(group, user_id, context=context),
         created_at=group.created_at,
         updated_at=group.updated_at,
         comments_enabled=group.comments_enabled,

@@ -55,14 +55,14 @@ import {
 } from "@/hooks/useDocuments";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import type { GridToggleOptions } from "@/hooks/useGridSelection";
-import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasOwnerAccess, hasWriteAccess } from "@/lib/permissions";
+import { everyCan } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 import { toolDetailRoute } from "@/lib/tools";
@@ -93,7 +93,6 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const { user } = useAuth();
   // Shared access helper — honors guild-admin / PAM / membership so this page
   // never re-derives access from raw membership flags.
-  const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     create?: string;
@@ -483,48 +482,21 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     setSelectedDocuments([]);
   }, [viewMode, status]);
 
-  // Check if user owns all selected documents (required for delete)
-  const canDeleteSelectedDocuments = useMemo(() => {
-    if (!user || selectedDocuments.length === 0) {
-      return false;
-    }
-    return selectedDocuments.every((doc) => hasOwnerAccess(doc.my_permission_level));
-  }, [selectedDocuments, user]);
-
-  // Check if user has write access on all selected documents (required for duplicate and bulk edit)
-  const canDuplicateSelectedDocuments = useMemo(() => {
-    if (!user || selectedDocuments.length === 0) {
-      return false;
-    }
-    return selectedDocuments.every((doc) => hasWriteAccess(doc.my_permission_level));
-  }, [selectedDocuments, user]);
-
-  const canEditSelectedDocuments = canDuplicateSelectedDocuments;
+  const canDeleteSelectedDocuments = everyCan(selectedDocuments, "delete");
+  const canEditSelectedDocuments = everyCan(selectedDocuments, "edit");
+  // Duplicating and bulk editing both ask for edit on every selected document.
+  const canDuplicateSelectedDocuments = canEditSelectedDocuments;
 
   const [bulkEditTagsOpen, setBulkEditTagsOpen] = useState(false);
   const [bulkEditAccessOpen, setBulkEditAccessOpen] = useState(false);
 
   // Check if user can view docs for the filtered initiative
+  // The cross-initiative tag browse has no one initiative to ask, and one not
+  // loaded yet reads as yes; the server refuses what this would wrongly offer.
   const canViewDocs = useMemo(() => {
-    // Guild admins / PAM grantees always have access — a membership row must
-    // never downgrade them.
-    if (isGuildAdmin || isGrantGuild) {
-      return true;
-    }
-    // The cross-initiative tag browse has no one initiative to check.
-    if (!lockedInitiativeId || !user) {
-      return true;
-    }
     const initiative = initiativesQuery.data?.find((i) => i.id === lockedInitiativeId);
-    if (!initiative) {
-      return true; // Initiative not loaded yet, assume access
-    }
-    const membership = initiative.members.find((m) => m.user.id === user.id);
-    if (!membership) {
-      return true; // Not a member, let the backend handle access control
-    }
-    return membership.can_view_documents !== false;
-  }, [lockedInitiativeId, user, initiativesQuery.data, isGuildAdmin, isGrantGuild]);
+    return initiative ? initiative.can.view.includes(Tool.document) : true;
+  }, [lockedInitiativeId, initiativesQuery.data]);
 
   // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
   // use the canonical derivation above.
@@ -604,19 +576,13 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   // Initiatives whose documents this reader may see. Still needed on the
   // cross-initiative tag browse, which lists documents from several at once.
-  const viewableInitiatives = useMemo(() => {
-    const allInitiatives = initiativesQuery.data ?? [];
-    if (!user) return allInitiatives;
-    // Guild admins / PAM grantees see every initiative regardless of any
-    // membership row.
-    if (isGuildAdmin || isGrantGuild) return allInitiatives;
-    return allInitiatives.filter((initiative) => {
-      const membership = initiative.members.find((m) => m.user.id === user.id);
-      // If not a member, include it (backend will handle access control)
-      if (!membership) return true;
-      return membership.can_view_documents !== false;
-    });
-  }, [initiativesQuery.data, user, isGuildAdmin, isGrantGuild]);
+  const viewableInitiatives = useMemo(
+    () =>
+      (initiativesQuery.data ?? []).filter((initiative) =>
+        initiative.can.view.includes(Tool.document)
+      ),
+    [initiativesQuery.data]
+  );
   // Get IDs of initiatives where user can view docs
   const viewableInitiativeIds = useMemo(() => {
     return new Set(viewableInitiatives.map((i) => i.id));

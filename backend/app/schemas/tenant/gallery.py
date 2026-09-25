@@ -7,7 +7,7 @@ from pydantic import ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.tenant.archive import ToolState
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary, annotated_tags
@@ -53,7 +53,7 @@ class GalleryCover(SanitizedBaseModel):
     height: Optional[int] = None
 
 
-class GallerySummary(GalleryBase, ArchiveState):
+class GallerySummary(GalleryBase, ToolState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -73,7 +73,6 @@ class GallerySummary(GalleryBase, ArchiveState):
     cover_image_id: Optional[int] = None
     cover: Optional[GalleryCover] = None
     preview: List[GalleryCover] = Field(default_factory=list)
-    my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one.
     comments_enabled: bool = True
@@ -220,7 +219,7 @@ def serialize_gallery_summary(
             if cover is not None
         ],
         archived_at=gallery.archived_at,
-        **client_access(gallery, user_id, context=context),
+        can=client_access(gallery, user_id, context=context),
         comments_enabled=gallery.comments_enabled,
         comment_count=getattr(gallery, "comment_count", 0),
         tags=annotated_tags(gallery),

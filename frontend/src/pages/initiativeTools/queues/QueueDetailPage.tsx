@@ -46,7 +46,6 @@ import { useQueueRealtime } from "@/hooks/useResourceRealtime";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function QueueDetailPage() {
@@ -140,7 +139,7 @@ export function QueueDetailPage() {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<QueueItemRead | null>(null);
 
-  const canEdit = hasWriteAccess(queue?.my_permission_level);
+  const canEdit = Boolean(queue?.can.edit);
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(

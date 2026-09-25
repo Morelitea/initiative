@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildNotificationPlace } from "@/__tests__/factories";
+import { buildNotificationPlace, ownerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -65,8 +65,7 @@ const row = (tool: Tool, fields: { id: number; name: string; archived_at?: strin
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   archived_at: null,
-  can_unarchive: false,
-  my_permission_level: "owner",
+  can: ownerCan(),
   comments_enabled: false,
   comment_count: 0,
   tags: [],

@@ -13,17 +13,16 @@ import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/lib/chesterToast";
-import { hasOwnerAccess } from "@/lib/permissions";
 
 export const ToolSettingsAccessPage = () => {
   const { t } = useTranslation(["common", "access"]);
-  const { entity, canManage, isOwner, setGrants } = useToolSettings();
+  const { entity, setGrants } = useToolSettings();
 
-  if (!canManage) {
+  if (!entity.can.edit) {
     return <ToolSettingsPermissionRequired />;
   }
 
-  const ownerId = entity.grants.find((grant) => hasOwnerAccess(grant.level))?.user_id ?? null;
+  const ownerId = entity.grants.find((grant) => grant.level === "owner")?.user_id ?? null;
 
   return (
     <Card>
@@ -42,7 +41,7 @@ export const ToolSettingsAccessPage = () => {
               onSuccess: () => toast.success(t("common:toolSettings.permissionsUpdated")),
             })
           }
-          disabled={!isOwner || setGrants.isPending}
+          disabled={!entity.can.share || setGrants.isPending}
         />
       </CardContent>
     </Card>

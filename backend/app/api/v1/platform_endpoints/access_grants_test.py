@@ -296,12 +296,12 @@ async def test_grantee_sees_guild_content(
 
     # Initiative tool views: a grantee has no membership row, and reads them
     # read-only, never as a manager.
-    perms = await client.get(
-        host.g(f"/initiatives/{host.initiative.id}/my-permissions"), headers=headers
+    initiative = await client.get(
+        host.g(f"/initiatives/{host.initiative.id}"), headers=headers
     )
-    assert perms.status_code == 200, perms.text
-    assert perms.json()["is_manager"] is False
-    assert perms.json()["permissions"]["create_projects"] is False
+    assert initiative.status_code == 200, initiative.text
+    assert initiative.json()["can"]["manage"] is False
+    assert initiative.json()["can"]["create"] == []
 
     members = await client.get(
         host.g(f"/initiatives/{host.initiative.id}/members"), headers=headers
@@ -325,7 +325,7 @@ async def test_a_scoped_read_write_grant_cannot_author_tools(
 ):
     """A scoped read_write grant edits *existing* content only. Authoring a
     new top-level tool is an initiative-role permission a grantee never holds,
-    so ``my-permissions`` reports every create flag off (the UI keys its create
+    so the initiative's ``can.create`` is empty (the UI keys its create
     affordances on these flags) while view flags stay on — and an actual create
     attempt is denied.
 
@@ -339,20 +339,15 @@ async def test_a_scoped_read_write_grant_cannot_author_tools(
     grantee = await acting_user(tier)
     await _approved_grant(session, grantee=grantee, host=host, level="read_write")
 
-    perms = await client.get(
-        host.g(f"/initiatives/{host.initiative.id}/my-permissions"),
-        headers=grantee.headers,
+    initiative = await client.get(
+        host.g(f"/initiatives/{host.initiative.id}"), headers=grantee.headers
     )
-    assert perms.status_code == 200, perms.text
-    permissions = perms.json()["permissions"]
-    assert perms.json()["is_manager"] is False
-    for tool in Tool:
-        assert permissions[tool.create_permission] is False, (
-            f"scoped read_write grant must not author {tool.plural}"
-        )
+    assert initiative.status_code == 200, initiative.text
+    can = initiative.json()["can"]
+    assert can["manage"] is False
+    assert can["create"] == [], "a scoped read_write grant must not author"
     # View access is unaffected — core tools stay visible.
-    assert permissions["projects_enabled"] is True
-    assert permissions["documents_enabled"] is True
+    assert {Tool.project, Tool.document} <= set(can["view"])
 
     created = await client.post(
         host.g("/projects/"),

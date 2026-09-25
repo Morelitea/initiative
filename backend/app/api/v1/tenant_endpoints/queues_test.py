@@ -133,7 +133,7 @@ async def test_get_queue(client: AsyncClient, acting_user):
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == queue_data["id"]
-    assert data["my_permission_level"] == "owner"
+    assert data["can"]["delete"] is True
 
 
 async def test_update_queue(client: AsyncClient, acting_user):

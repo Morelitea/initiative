@@ -24,6 +24,7 @@ from app.core.audit_events import AuditEventType
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.project import Project
+from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships
@@ -731,7 +732,7 @@ async def delete_document_version(
         document_id,
         current_user,
         guild_context,
-        require_owner=True,
+        action=Action.delete,
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
@@ -1079,7 +1080,7 @@ async def delete_document(
         document_id,
         current_user,
         guild_context,
-        require_owner=True,
+        action=Action.delete,
     )
     await soft_delete_service.trash(
         session,

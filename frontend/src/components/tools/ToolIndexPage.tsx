@@ -87,7 +87,6 @@ import type { TranslateFn } from "@/types/i18n";
  */
 export type ToolIndexRow = BulkAccessItem & {
   name: string;
-  my_permission_level?: string | null;
   card: ReactNode;
 };
 

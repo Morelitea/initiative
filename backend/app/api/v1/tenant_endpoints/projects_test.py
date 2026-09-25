@@ -349,7 +349,7 @@ async def test_list_projects_paginates_in_sql(
 async def test_list_projects_slim_projection(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """slim=true keeps id/name/initiative/my_permission_level but drops the
+    """slim=true keeps id/name/initiative/can but drops the
     heavy relationships (documents, grants, nested initiative)."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     project = await create_project(
@@ -362,8 +362,8 @@ async def test_list_projects_slim_projection(
     item = next(p for p in response.json()["items"] if p["id"] == project.id)
     assert item["name"] == "Slim One"
     assert item["initiative_id"] == admin.initiative.id
-    # Guild admin resolves to owner-level on every project.
-    assert item["my_permission_level"] == "owner"
+    # Guild admin holds the owner's rung on every project.
+    assert item["can"]["delete"] is True
     # Heavy fields collapse to their empty defaults in slim mode.
     assert item["documents"] == []
     assert item["grants"] == []
@@ -374,7 +374,7 @@ async def test_list_projects_slim_projection(
 async def test_list_projects_slim_permission_for_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Slim projection computes my_permission_level from DAC grants, not just
+    """Slim projection computes ``can`` from DAC grants, not just
     the guild-admin shortcut."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
@@ -394,7 +394,7 @@ async def test_list_projects_slim_permission_for_member(
 
     assert response.status_code == 200
     item = next(p for p in response.json()["items"] if p["id"] == project.id)
-    assert item["my_permission_level"] == "write"
+    assert (item["can"]["edit"], item["can"]["delete"]) == (True, False)
 
 
 async def test_create_project(client: AsyncClient, acting_user):
@@ -712,7 +712,8 @@ async def test_a_duplicate_keeps_the_sources_sharing_and_needs_the_create_right(
     assert copied.status_code == 201
     copy_url = owner.g(f"/projects/{copied.json()['id']}")
     as_writer = await client.get(copy_url, headers=writer.headers)
-    assert as_writer.json()["my_permission_level"] == "write"
+    assert as_writer.json()["can"]["edit"] is True
+    assert as_writer.json()["can"]["share"] is False
     as_bystander = await client.get(copy_url, headers=bystander.headers)
     assert as_bystander.status_code == 403
 
@@ -1296,7 +1297,7 @@ async def test_create_project_defaults_to_all_members_viewer(
     assert any(
         g["all_initiative_members"] and g["level"] == "read" for g in data["grants"]
     )
-    assert data["my_permission_level"] == "owner"
+    assert data["can"]["delete"] is True
 
 
 async def test_resaving_the_all_members_grant_does_not_collide_with_itself(

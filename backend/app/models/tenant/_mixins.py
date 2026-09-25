@@ -9,9 +9,9 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, ClassVar, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, TypeVar
 
-from sqlalchemy import DateTime, Integer, String, func, select
+from sqlalchemy import Boolean, DateTime, Integer, String, column, func, select, values
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, SQLModel
 
@@ -254,22 +254,77 @@ def attach_access_level(model: type[SQLModel], tool: "Tool") -> None:
     goes on to serialize the row asks for it with ``undefer``. Read through
     :func:`app.services.permissions.level_of`.
     """
-    reader = func.nullif(func.current_setting("app.current_user_id", True), "").cast(
-        Integer
-    )
-    # This statement's standing, as ``app.db.authorization.standing_arg`` spells
-    # it; this module sits below that one, so the sub-select is written here.
-    standing = select(func.current_standing()).scalar_subquery()
     model.__mapper__.add_property(  # type: ignore[attr-defined]
         "access_level",
         column_property(
             func.resource_level(
                 tool.value,
                 model.id,  # type: ignore[attr-defined]
-                reader,
+                _reader(),
                 model.initiative_id,  # type: ignore[attr-defined]
-                standing,
+                _standing(),
             ),
             deferred=True,
         ),
     )
+
+
+def attach_initiative_standing(
+    model: type[SQLModel], defaults: dict[str, bool]
+) -> None:
+    """Map what the request holds in an initiative, answered by the schema's
+    own gates in the same SELECT as the row — the functions the content
+    policies call, so what an initiative reports and what its tables admit are
+    one rule.
+
+    ``permitted_keys``: which of the role permission keys (``defaults``, each
+    with the value it takes when a role stores none) ``initiative_role_permits``
+    grants. ``full_access``: ``initiative_full_access`` for a write.
+
+    Deferred like ``access_level``; the loaders that serialize an initiative
+    ask for them with ``undefer``."""
+    keys = values(
+        column("key", String), column("fallback", Boolean), name="permission_keys"
+    ).data(list(defaults.items()))
+    model.__mapper__.add_property(  # type: ignore[attr-defined]
+        "permitted_keys",
+        column_property(
+            select(func.array_agg(keys.c.key))
+            .where(
+                func.initiative_role_permits(
+                    model.id,  # type: ignore[attr-defined]
+                    _reader(),
+                    keys.c.key,
+                    keys.c.fallback,
+                    _standing(),
+                )
+            )
+            .scalar_subquery(),
+            deferred=True,
+        ),
+    )
+    model.__mapper__.add_property(  # type: ignore[attr-defined]
+        "full_access",
+        column_property(
+            func.initiative_full_access(
+                model.id,  # type: ignore[attr-defined]
+                True,
+                _standing(),
+            ),
+            deferred=True,
+        ),
+    )
+
+
+def _reader() -> Any:
+    """The request's user, as the policies read it."""
+    return func.nullif(func.current_setting("app.current_user_id", True), "").cast(
+        Integer
+    )
+
+
+def _standing() -> Any:
+    """This statement's standing, as ``app.db.authorization.standing_arg``
+    spells it; this module sits below that one, so the sub-select is written
+    here."""
+    return select(func.current_standing()).scalar_subquery()

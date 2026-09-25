@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildMayAuthorTools, useCreatableInitiatives } from "@/hooks/useInitiativeAccess";
 import { useWizard } from "@/hooks/useWizard";
@@ -57,15 +56,11 @@ type Step = "select-guild" | "select-initiative";
 export const CreateDocumentWizard = () => {
   const { t } = useTranslation("documents");
   const router = useRouter();
-  const { user } = useAuth();
   const { guilds: allGuilds } = useGuilds();
   // Only guilds the user could author a document in — drops frozen guilds and
   // scoped PAM grants (which edit existing content but never author). The
   // precise per-initiative call is made on the next step.
-  const guilds = useMemo(
-    () => allGuilds.filter((guild) => guildMayAuthorTools(guild, user)),
-    [allGuilds, user]
-  );
+  const guilds = useMemo(() => allGuilds.filter(guildMayAuthorTools), [allGuilds]);
 
   const [open, setOpen] = useState(false);
   const { step, go, back, reset } = useWizard<Step>("select-guild");

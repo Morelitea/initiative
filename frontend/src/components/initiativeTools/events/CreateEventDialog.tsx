@@ -32,7 +32,6 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
-import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import type { DialogProps } from "@/types/dialog";
 
@@ -41,8 +40,7 @@ import { offsetEndTime } from "./eventDateTime";
 
 /** A calendar the user may author events in — write access on the calendar
  * is the event-create gate (like task creation via project write). */
-export const isWritableCalendar = (calendar: CalendarSummary): boolean =>
-  hasWriteAccess(calendar.my_permission_level);
+export const isWritableCalendar = (calendar: CalendarSummary): boolean => calendar.can.edit;
 
 const LAST_CALENDAR_KEY = "initiative-last-event-calendar";
 

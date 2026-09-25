@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { ownerCan } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolSettingsProvider } from "@/components/tools/settings/ToolSettingsContext";
@@ -19,15 +20,12 @@ const renderCard = (tool: Tool) =>
           id: 3,
           name: "Barovia",
           initiative_id: 1,
-          my_permission_level: "owner",
+          can: ownerCan(),
           tags: [],
           grants: [],
           comments_enabled: true,
           archived_at: null,
-          can_unarchive: false,
         },
-        canManage: true,
-        isOwner: true,
         setGrants: noopMutation(),
         remove: noopMutation(),
       }}

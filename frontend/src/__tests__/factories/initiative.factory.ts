@@ -2,6 +2,7 @@ import type {
   InitiativeDirectoryEntry,
   InitiativeJoinRequestRead,
   InitiativeMemberRead,
+  InitiativeCan,
   InitiativeRead,
   InitiativeRoleRead,
   PermissionKey,
@@ -57,6 +58,17 @@ export function buildInitiativeMember(
   };
 }
 
+/** What the reader may do in an initiative. Fail-closed like a member's
+ *  defaults: the tools an initiative starts with may be viewed, nothing made,
+ *  nothing run. */
+export const initiativeCan = (overrides: Partial<InitiativeCan> = {}): InitiativeCan => ({
+  manage: false,
+  moderate: false,
+  view: TOOLS.filter((tool) => DEFAULT_ENABLED_TOOLS.has(tool)),
+  create: [],
+  ...overrides,
+});
+
 export function buildInitiative(overrides: Partial<InitiativeRead> = {}): InitiativeRead {
   counter++;
   return {
@@ -74,6 +86,7 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     members: [],
+    can: initiativeCan(),
     // One `{plural}_enabled` master switch per tool, at the column defaults:
     // projects and documents on, the rest opt-in. Derived from the registry so
     // a new tool arrives here without an edit.

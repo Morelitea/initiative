@@ -11,6 +11,7 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
+from app.schemas.tenant.archive import ContentCan
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.core.user_display import display_name
@@ -153,9 +154,9 @@ class CalendarEventSummary(CalendarEventBase):
     attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
     property_values: List[PropertySummary] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
-    # The current user's effective level on this event — inherited from the
-    # parent calendar's sharing (events hold no grants of their own).
-    my_permission_level: Optional[str] = None
+    #: What the caller may do to this event — its calendar's edit, since events
+    #: hold no grants of their own.
+    can: ContentCan = Field(default_factory=ContentCan)
     created_at: datetime
     updated_at: datetime
 
@@ -251,17 +252,17 @@ def serialize_calendar_event_summary(
 ) -> CalendarEventSummary:
     # Local import avoids a schema -> service import cycle.
     from app.db.guild_standing import InstallContext
-    from app.services.permissions import compute_permission
+    from app.services.permissions import Action, allows
 
     # Access is inherited from the parent calendar; requires ``event.calendar``
     # eager-loaded with its level. An installed app has no user id and is
     # answered its own level, as ``client_access`` answers it on a calendar.
     calendar = event.calendar
     reader = user_id is not None or isinstance(context, InstallContext)
-    my_permission_level = (
-        compute_permission(calendar, context=context)
-        if reader and calendar is not None
-        else None
+    can_edit = (
+        reader
+        and calendar is not None
+        and allows(calendar, Action.edit, context=context)
     )
     attendees_list = getattr(event, "attendees", None) or []
     names: List[str] = []
@@ -296,7 +297,7 @@ def serialize_calendar_event_summary(
         attendee_previews=previews,
         property_values=_serialize_event_properties(event),
         tags=annotated_tags(event),
-        my_permission_level=my_permission_level,
+        can=ContentCan(edit=can_edit),
         created_at=event.created_at,
         updated_at=event.updated_at,
     )

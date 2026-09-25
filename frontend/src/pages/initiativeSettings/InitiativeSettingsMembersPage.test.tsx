@@ -15,6 +15,7 @@ import {
   buildInitiativeMember,
   buildUser,
   buildUserPublic,
+  initiativeCan,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -41,7 +42,16 @@ function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [n
   const patches: unknown[] = [];
   server.use(
     guildHttp.get("/initiatives/:id", () =>
-      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", ...overrides }))
+      HttpResponse.json(
+        buildInitiative({
+          id: INITIATIVE_ID,
+          name: "Apollo",
+          // Everyone these tests sign in as manages it: an admin, or a member
+          // holding the manager role.
+          can: initiativeCan({ manage: true }),
+          ...overrides,
+        })
+      )
     ),
     guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([])),
     guildHttp.patch("/initiatives/:id", async ({ request }) => {

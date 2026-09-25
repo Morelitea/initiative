@@ -77,7 +77,6 @@ import { toast } from "@/lib/chesterToast";
 import { dateRangeBounds } from "@/lib/dateRange";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
 import { referenceRef } from "@/lib/smartChips";
 import { dateTimePattern } from "@/lib/timeFormat";
@@ -409,7 +408,7 @@ export const TaskEditPage = () => {
 
   // Pure DAC: permissions inherited from project. Server-computed — already
   // capped at "read" when the guild's content is frozen (read_only status).
-  const hasWritePermission = hasWriteAccess(project?.my_permission_level);
+  const hasWritePermission = Boolean(project?.can.edit);
   const canWriteProject = hasWritePermission;
   const projectIsArchived = (project?.archived_at ?? null) !== null;
   const isReadOnly = !canWriteProject || projectIsArchived;
