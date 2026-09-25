@@ -310,7 +310,7 @@ async def test_a_hard_delete_on_a_trash_table_never_surfaces(session, acting_use
     silent: a repeat of an announced delete, naming an id nothing can resolve."""
     from datetime import datetime, timezone
 
-    from app.services.tenant.trash_purge import hard_purge_entity
+    from app.services.tenant.soft_delete import hard_purge_entity
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)

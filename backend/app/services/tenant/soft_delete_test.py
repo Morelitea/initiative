@@ -355,9 +355,6 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     their parent (Comment is its own dedup parent via parent_comment_id);
     otherwise a user could click Restore on the reply, leaving its
     parent_comment_id pointing at a still-trashed row.
-
-    Regression: _DEDUP_PARENTS[Comment] previously only checked Task and
-    Document parents, so replies appeared independently in trash.
     """
     from app.models.tenant.comment import Comment
     from app.models.platform.guild import GuildRole
@@ -391,7 +388,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     session.add(reply)
     await session.commit()
 
-    # Soft-delete the parent. _stamp_descendants stamps the reply too.
+    # Soft-delete the parent; the cascade stamps the reply too.
     await soft_delete_entity(
         session, parent, deleted_by_user_id=user.id, retention_days=30
     )
@@ -808,7 +805,7 @@ async def test_every_tool_takes_its_thread_to_the_trash_and_back(
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user)
 
-    threads: dict[Tool, tuple[int, int]] = {}
+    threads: dict[Tool, tuple[int, int | None]] = {}
     for tool in Tool:
         entity = await TOOL_FACTORIES[tool](session, initiative, user)
         comment = await create_comment(session, user, **{tool.value: entity})
