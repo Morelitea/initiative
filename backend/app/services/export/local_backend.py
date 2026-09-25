@@ -127,7 +127,9 @@ def _render_item(req: RenderRequest, item: RenderItem) -> RenderedArtifact:
     elif format == "xlsx":
         content = (
             spreadsheet.render_xlsx(
-                item.data["grid"], title=str(item.data.get("title", item.key))
+                item.data["grid"],
+                title=str(item.data.get("title", item.key)),
+                data=item.data,
             )
             if "grid" in item.data
             else tabular.render_xlsx(item)
